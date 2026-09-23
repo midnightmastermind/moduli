@@ -3564,3 +3564,11 @@ rebuilding poms grid through the UI, **with a report of how much is left**; (3) 
 from a JOB BOARD, seeded with "Mr Brews Taphouse"), **Date**, **Timeslot** and **Duration**; (4) the
 point of it: drag Work into a "Mr Brews Taphouse" container on the Tasks page to log a shift, so the
 appointment operation can place it into the right Schedule timeslot from Date + Timeslot + Duration.
+
+**2026-09-23 08:45 CDT** — AskUserQuestion on how the Work row gets picked up by `Schedule: Place Dated Work` (its gate is `_boundFieldIds ARRAY_INCLUDES <Appointment Type>`) → **"Widen the op to accept Job"** — then SUPERSEDED two minutes later by the user's own, better answer.
+
+**2026-09-23 08:45 CDT** — "make it Schedule type and have employment and appointment be the thing for it (instead of Appointment type)" → clarified 08:46: **"not appointment but our current appoinment types should contain employment"**.
+
+So: rename the field **`Appointment Type` → `Schedule Type`**, and the board it already draws its options from (the `Appointments` container: Doctor · Dentist · Therapy · Optometrist) should now **contain employment entries too** — "Mr Brews Taphouse" among them. ONE field and ONE option board instead of the separate `Job` field the 08:24 message described.
+
+**This supersedes the 08:45 answer and removes the op edit entirely.** A rename keeps the field's id, and the op gates on that id, so `Schedule: Place Dated Work` is untouched and anything binding `Schedule Type` becomes eligible for free — no OR rule, and no migration of the 7 modules / 18 occurrences that already bind it.

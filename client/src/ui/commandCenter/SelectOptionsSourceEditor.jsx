@@ -65,7 +65,7 @@ export default function SelectOptionsSourceEditor({ source, onChange, fieldType 
       </div>
       {mode === "manual" && <ManualBody source={source} onChange={onChange} />}
       {mode === "range"  && <RangeBody  source={source} onChange={onChange} />}
-      {mode === "find"   && <FindBody   source={source} onChange={onChange} />}
+      {mode === "find"   && <FindBody   source={source} onChange={onChange} fieldType={fieldType} />}
       {/* Chip-display config is occurrence-only — picks which fields show
           on the SELECTED occurrence chip's subtitle row. Independent of
           options-source mode (works in both find & manual modes) so the
@@ -262,7 +262,17 @@ function RangeBody({ source, onChange }) {
     </div>
   );
 }
-function FindBody({ source, onChange }) {
+// `fieldType` IS A PROP, not a closure read. It used to reference the
+// parent's prop from inside this component, which is a ReferenceError — and
+// because this renders at the top of the body it took the WHOLE APP down
+// (measured on prod: root innerHTML 0 bytes), not just the panel.
+//
+// It only threw on the branch that evaluates it, so it needed BOTH an
+// occurrence field AND a `source` with no nested `find` key — which is exactly
+// how poms stores them (flat: {mode:"find", over, predicate, …}). A field whose
+// options were authored in THIS editor nests them, so it never reached the
+// throw. That is why it shipped.
+function FindBody({ source, onChange, fieldType = "select" }) {
   const ctx = useGridActions();
   const { fieldsById, modulesById, occurrencesById, foldersById } = ctx;
 
