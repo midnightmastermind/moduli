@@ -1103,14 +1103,21 @@ export function handleOccurrenceMove(dropContext, ctx) {
     return;
   }
 
-  // CANVAS PAGE source — drag from canvas onto a regular container/panel/cell.
-  // The page is the source parent (not a container), so the standard fromC lookup
-  // returns undefined. Handle move/copy out manually.
+  // PAGE source — drag a leaf that lives directly on a PAGE onto a regular
+  // container/panel/cell. The page is the source parent (not a container), so
+  // the standard fromC lookup returns undefined and the move writes nothing.
+  //
+  // This was gated on `kind === "canvas"`, which was the only page a leaf could
+  // live on. Now that anything can land page level, a BOARD page source fell
+  // past it: measured on prod, the drop indicator correctly boxed the
+  // destination container and the release did nothing at all — you could drag a
+  // row OUT to the page and never get it back in. Same shape as the
+  // destination-side gate one screen up, from the other direction.
   const fromCanvasPageOccId = payload.context?.containerOccurrenceId
     || payload.context?.parentOccurrenceId;
   const fromCanvasPageOcc = fromCanvasPageOccId ? occurrencesById[fromCanvasPageOccId] : null;
   const fromCanvasPageMod = fromCanvasPageOcc ? state?.modulesById?.[fromCanvasPageOcc.moduleId] : null;
-  const isCanvasSource = fromCanvasPageMod?.kind === "canvas" && fromCanvasPageMod?.role === "page";
+  const isCanvasSource = fromCanvasPageMod?.role === "page";
   if (isCanvasSource) {
     const occurrenceId = payload.context?.occurrenceId;
     const movedOcc = occurrenceId ? occurrencesById[occurrenceId] : null;

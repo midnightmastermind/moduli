@@ -226,3 +226,51 @@ describe("reordering a row that is already on the page", () => {
     expect(pageList()).toEqual(["today", "row", "week"]);
   });
 });
+
+// AND BACK AGAIN — a row that lives on the PAGE can be dragged INTO a container.
+//
+// Measured on prod: the drop indicator correctly boxed the destination
+// container (`box y=1035`, the container's own rect) and the release wrote
+// NOTHING. The page-source branch existed but was gated on `kind === "canvas"`,
+// which used to be the only page a leaf could live on. Without this, the
+// feature is one-way: out to the page and never back.
+describe("a page-level row dragged back into a container", () => {
+  function fromPage(mode = "move") {
+    const c = ctx(mode);
+    c.occurrencesById = {
+      ...occurrencesById,
+      page: { id: "page", moduleId: "m-page", occurrences: ["today", "row", "week"] },
+      today: { id: "today", moduleId: "m-today", occurrences: [] },
+      row: { id: "row", moduleId: "m-row", parentId: "page", fields: {}, meta: {} },
+    };
+    c.baseContainers = [{ id: "m-today", kind: "board", label: "Today" }];
+    const drop = {
+      payload: { moduleId: "m-row", occurrenceId: "row",
+                 context: { panelId: "panelA", occurrenceId: "row", containerOccurrenceId: "page" } },
+      target: { kind: "container-list", moduleId: "m-today", occurrenceId: "today",
+                raw: { containerId: "m-today", occurrenceId: "today", panelId: "panelA" } },
+      position: { edge: null, insertIndex: 0 },
+      pointer: { x: 10, y: 10 }, mode, modifiers: {},
+    };
+    handleOccurrenceMove(drop, c);
+    return c;
+  }
+
+  it("re-parents the row to the container", () => {
+    fromPage();
+    const reparent = updates.find(u => u.id === "row" && u.parentId);
+    expect(reparent?.parentId).toBe("today");
+  });
+
+  it("takes it OUT of the page's child list", () => {
+    fromPage();
+    const pageUpdate = updates.filter(u => u.id === "page").slice(-1)[0];
+    expect(pageUpdate?.occurrences).toEqual(["today", "week"]);
+  });
+
+  it("puts it IN the container's child list", () => {
+    fromPage();
+    const contUpdate = updates.filter(u => u.id === "today").slice(-1)[0];
+    expect(contUpdate?.occurrences).toEqual(["row"]);
+  });
+});
