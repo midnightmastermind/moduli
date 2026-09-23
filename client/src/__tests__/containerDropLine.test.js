@@ -188,3 +188,74 @@ describe("DragProvider draws the line for a LEAF over a page", () => {
     expect(code.slice(at, at + 400)).not.toMatch(/showDropIndicators\(pageEl, clientX, clientY, true\)/);
   });
 });
+
+// ── WHERE A PAGE DROP LANDS ───────────────────────────────────────────────
+//
+// The line and the landing must agree. They did not: `resolvePageInsertAt` was
+// a half-of-the-page rule inline in DragProvider, offering only 0 or "append",
+// so a drop aimed BETWEEN the 2nd and 3rd container landed FIRST while the
+// line was drawn between them. Measured on prod — line y=1245 (index 1), row
+// came back as the page's first child.
+//
+// THREE containers, because a two-container page cannot tell the two rules
+// apart: there 0 and childCount are the only answers either one gives.
+describe("resolvePageInsertAt", () => {
+  const pageOcc = { id: "p1", moduleId: "m-page", occurrences: ["a", "b", "c"] };
+  const pageRect = { top: 100, height: 300, bottom: 400 };
+
+  function threeCards(spec) {
+    build(`
+      <div data-page-occ-id="p1">
+        <div data-container-id="m-a" data-occ-id="a"></div>
+        <div data-container-id="m-b" data-occ-id="b"></div>
+        <div data-container-id="m-c" data-occ-id="c"></div>
+      </div>`);
+    for (const [id, r] of Object.entries(spec)) {
+      const el = document.querySelector(`[data-container-id="${id}"]`);
+      el.getBoundingClientRect = () => ({ top: r[0], bottom: r[1], left: 0, right: 700,
+        width: 700, height: r[1] - r[0], x: 0, y: r[0] });
+    }
+  }
+  const LAYOUT = { "m-a": [100, 200], "m-b": [200, 300], "m-c": [300, 400] };
+
+  it("lands BETWEEN the 2nd and 3rd — the case the half rule got wrong", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    threeCards(LAYOUT);
+    // y=305 is inside the page's BOTTOM half, where the old rule said "append"
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 305 })).toBe(2);
+  });
+
+  it("lands BETWEEN the 1st and 2nd — top half, but not index 0", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    threeCards(LAYOUT);
+    // y=205 is in the page's TOP half, where the old rule said 0
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 205 })).toBe(1);
+  });
+
+  it("still lands FIRST above everything", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    threeCards(LAYOUT);
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 110 })).toBe(0);
+  });
+
+  it("still APPENDS below everything", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    threeCards(LAYOUT);
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 395 })).toBe(3);
+  });
+
+  it("falls back to the half rule when the page has no cards (empty page)", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    build(`<div data-page-occ-id="p1"></div>`);
+    const empty = { id: "p1", moduleId: "m-page", occurrences: [] };
+    expect(resolvePageInsertAt({ pageOcc: empty, pageRect, y: 110 })).toBe(0);
+    expect(resolvePageInsertAt({ pageOcc: empty, pageRect, y: 390 })).toBe(0); // childCount 0
+  });
+
+  it("falls back to the half rule when the page is not in the DOM at all", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    build(`<div></div>`);
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 110 })).toBe(0);
+    expect(resolvePageInsertAt({ pageOcc, pageRect, y: 390 })).toBe(3);
+  });
+});

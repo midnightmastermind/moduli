@@ -28,7 +28,7 @@ import { nextStackIndex } from "./panelStack";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards } from "./dragHitTesting";
+import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards, resolvePageInsertAt } from "./dragHitTesting";
 import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
 import { computeAutoscroll, autoscrollSpeed, pointerNearRect, canScrollFurther, maxScrollTopFor } from "./autoscrollMath";
@@ -1050,8 +1050,13 @@ export function DragProvider({
       const pageEl = document.querySelector(`[data-page-occ-id="${pageOccId}"]`);
       const pageRect = pageEl?.getBoundingClientRect?.();
       const pageOcc = occurrencesById[pageOccId];
-      const childCount = (pageOcc?.occurrences || []).length;
-      const insertAt = pageRect && y < pageRect.top + pageRect.height / 2 ? 0 : childCount;
+      // The index comes from the POINTER, walked over the page's own cards —
+      // the same walk the insertion line is drawn from, so the cue and the
+      // landing cannot disagree. (It was a half-of-the-page rule here, which
+      // offers only 0 or "append": a drop aimed between the 2nd and 3rd
+      // container landed first.) Falls back to the half rule when the cards
+      // can't be resolved — an empty page has none.
+      const insertAt = resolvePageInsertAt({ pageOcc, pageRect, y });
       dt.context = { ...dt.context, occurrenceId: pageOccId, insertAt };
     }
     // Stash the actual drop target's rect on context so handlers don't have

@@ -406,6 +406,33 @@ export function collectMemberCards(containerEl) {
 // → occurrences[] index via the neighbor card's occurrence id, so
 // hidden/filtered children don't skew the index. Returns null when the
 // container element / cards can't be resolved (caller appends — old behavior).
+// WHERE DOES A DROP ON A PAGE LAND AMONG THE PAGE'S OWN CHILDREN?
+//
+// This used to be a HALF RULE, inline in DragProvider's drop dispatch:
+//
+//     insertAt = y < pageRect.top + pageRect.height / 2 ? 0 : childCount
+//
+// — written when a page drop meant "an empty page, or above/below everything".
+// It offers exactly TWO positions, so a drop into the gap between the 2nd and
+// 3rd container landed FIRST while the insertion line was drawn between them:
+// the cue and the landing disagreeing, which is the one thing the line must
+// never do. Measured on prod — the line read y=1245 (index 1) and the row came
+// back as the page's FIRST child.
+//
+// A two-container page hides this completely, because there 0 and childCount
+// ARE the only answers; it takes a third container to see it.
+//
+// The pointer walk is the same one the LINE is drawn from, so they cannot
+// disagree by construction. The half rule stays as the fallback for when the
+// page's cards can't be resolved — an empty page has no cards at all.
+export function resolvePageInsertAt({ pageOcc, pageRect, y }) {
+  const childCount = (pageOcc?.occurrences || []).length;
+  const fromPointer = computeInsertIndexFromPointer(pageOcc, { x: 0, y });
+  if (fromPointer != null) return fromPointer;
+  if (!pageRect) return childCount;
+  return y < pageRect.top + pageRect.height / 2 ? 0 : childCount;
+}
+
 export function computeInsertIndexFromPointer(targetOcc, ptr) {
   if (!targetOcc || !ptr || typeof document === "undefined") return null;
   const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(v)) : String(v));
