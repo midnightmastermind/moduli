@@ -838,7 +838,12 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
   };
 }
 
-function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSetImage = null }) {
+// `crumb` is the ancestor chain for an option whose label COLLIDES with another
+// in the same list (helpers/occurrenceCrumbs). It is rendered as its own muted
+// line rather than folded into the label, because `card.label` is re-resolved
+// from the live occurrence and rightly WINS over the option's label — which is
+// exactly why crumbing the label string alone was invisible here (2026-09-23).
+function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSetImage = null, crumb = null }) {
   const card = resolveOccCard(occId, maps, chipDisplay);
   const label = card?.label || (card && chipDisplay && chipDisplay.showLabel === false ? null : (fallbackLabel || occId));
   const mediaVal = card?.mediaVal;
@@ -890,6 +895,10 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
         </div>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
+        {crumb && (
+          <div style={{ fontSize: FIELD_FONT, color: "var(--text-faint)", fontFamily: "var(--font-mono)",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{crumb}</div>
+        )}
         {label != null && (
           <div style={{ fontWeight: 600, fontSize: FIELD_FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
         )}
@@ -1191,7 +1200,7 @@ function Field({
   }, [getOccMap, modulesById, fieldsById, dispatch, socket]);
 
   const renderOccurrenceOption = useCallback(
-    (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />,
+    (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} crumb={o._crumb || null} />,
     [occMaps, chipDisplay, handleSetOptionImage]
   );
 
