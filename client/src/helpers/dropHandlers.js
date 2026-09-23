@@ -546,8 +546,25 @@ export function handleContainerDrop(dropContext, ctx) {
     // via the pageOccurrenceId branch above. Gate on those instead.
     if (fromOrderOcc && toOrderOcc) {
       const draggedContainerId = payload.moduleId;
-      const occurrenceId = LayoutHelpers.findOccurrenceIdByTarget(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
-      if (!occurrenceId) { clearSession(); return; }
+      // THE SOURCE LIST IS WHOEVER LISTS IT, NOT THE PAGE.
+      //
+      // A container nested inside another container (the dimension boards on
+      // Routines set `allowChildContainers`) is listed by THAT container, so
+      // looking the dragged id up among the PAGE's children found nothing and
+      // the handler returned — the drag did nothing at all, silently. User,
+      // 2026-09-23: *"i cant drag new containers outside of containers in
+      // routine ... i cant drag it outside of that"*.
+      //
+      // The drag payload already carries the dragged occurrence's own id, so
+      // the parent is a reverse-map lookup rather than a guess. Same rule the
+      // rest of the grid follows: placement IS the parent's child list.
+      const draggedOccId = payload.context?.occurrenceId
+        || LayoutHelpers.findOccurrenceIdByTarget(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
+      if (!draggedOccId) { clearSession(); return; }
+      const listedBy = Object.values(occurrencesById)
+        .find(o => Array.isArray(o.occurrences) && o.occurrences.includes(draggedOccId));
+      const fromListOcc = listedBy || fromOrderOcc;
+      const occurrenceId = draggedOccId;
 
       let toIndex = null;
 
@@ -559,9 +576,9 @@ export function handleContainerDrop(dropContext, ctx) {
           const edge = dropTarget.context?.closestEdge;
           if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
           else if (edge === 'bottom' || edge === 'right') toIndex = hoveredIndex + 1;
-          const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
+          const sameOrderOcc = fromListOcc.id === toOrderOcc.id;
           if (sameOrderOcc) {
-            const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
+            const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromListOcc.occurrences || [], occurrencesById);
             if (fromIndex !== -1 && fromIndex < hoveredIndex) toIndex = Math.max(0, toIndex - 1);
           }
         }
@@ -570,7 +587,7 @@ export function handleContainerDrop(dropContext, ctx) {
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
       const samePanel = !!(fromPanel && toPanel && fromPanel.id === toPanel.id);
-      const sameOrderOcc = fromOrderOcc.id === toOrderOcc.id;
+      const sameOrderOcc = fromListOcc.id === toOrderOcc.id;
 
       // Layout-cascade lock rule: reject cross-page container moves out
       // of a locked surface. Same-order-occurrence reorders and copies
@@ -595,32 +612,32 @@ export function handleContainerDrop(dropContext, ctx) {
       }
 
       if (isCopyMode && sameOrderOcc) {
-        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
+        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromListOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {
           if (toIndex === null) { clearSession(); return; }
           if (fromIndex !== toIndex) {
-            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromOrderOcc, fromIndex, toIndex, emit: true });
+            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromListOcc, fromIndex, toIndex, emit: true });
           }
         }
       } else if (isCopyMode) {
         LayoutHelpers.copyContainerToPanel({ dispatch, socket, gridId, sourceContainerId: draggedContainerId, toPanel, userId: state?.userId, toIndex, emit: true });
       } else if (sameOrderOcc) {
-        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromOrderOcc.occurrences || [], occurrencesById);
+        const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromListOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {
           if (toIndex === null) { clearSession(); return; }
           if (fromIndex !== toIndex) {
-            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromOrderOcc, fromIndex, toIndex, emit: true });
+            LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromListOcc, fromIndex, toIndex, emit: true });
           }
         }
       } else if (samePanel && fromPanelOcc) {
         // Same panel, different page — move between pages
         LayoutHelpers.moveContainerBetweenPanels({
-          dispatch, socket, fromPanelOccurrence: fromOrderOcc, toPanelOccurrence: toOrderOcc,
+          dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
           occurrenceId, toIndex, emit: true,
         });
       } else {
         LayoutHelpers.moveContainerBetweenPanels({
-          dispatch, socket, fromPanelOccurrence: fromOrderOcc, toPanelOccurrence: toOrderOcc,
+          dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
           occurrenceId, toIndex, emit: true,
         });
       }
