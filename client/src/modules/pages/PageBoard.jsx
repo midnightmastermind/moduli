@@ -22,6 +22,7 @@ import ModuleTextblock from "../ModuleTextblock.jsx";
 import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
+import InsertGap from "../../ui/InsertGap.jsx";
 
 /**
  * Which component renders a page's direct child?
@@ -155,6 +156,10 @@ export default function PageBoard({
         }
       : { position: "relative", minHeight: "100%", zIndex: 1 };
 
+  // Only the stacked layout has a "between" a rule can occupy — see the gap
+  // comment in the child loop.
+  const gapsEnabled = mode === "stack";
+
   const capStyle = childMaxHeight
     ? { maxHeight: childMaxHeight, overflowY: "auto", overscrollBehavior: "contain" }
     : null;
@@ -193,7 +198,7 @@ export default function PageBoard({
       }}
     >
       <div style={innerStyle}>
-        {visibleList.map(({ container, occurrence: containerOcc }) => {
+        {visibleList.map(({ container, occurrence: containerOcc }, idx) => {
           // LEAF-ROLE ROUTING, mirroring PageCanvas and ModuleContainer's child
           // loop. A page can host ANY module role — `getPageChildrenModules`
           // applies no role filter and ModulePage says so in as many words —
@@ -251,10 +256,31 @@ export default function PageBoard({
             />
           );
           const wrapStyle = childWrapperStyle;
-          return wrapStyle
+          const wrapped = wrapStyle
             ? <div key={containerOcc?.id || container.id} className={capStyle ? "page-scroll" : undefined} style={wrapStyle}>{card}</div>
             : card;
+          // AN INSERT LINE BETWEEN THE PAGE'S OWN CHILDREN, and before the
+          // first (user, 2026-09-23: *"theres no hover highlight quick add line
+          // for outside of those dimension containers (nothing in between
+          // creative and environmental)"*). The affordance existed only inside
+          // ModuleContainer, so a board page offered no way to add — or aim at
+          // — a position BETWEEN its top-level containers.
+          //
+          // STACK MODE ONLY. The gap draws a horizontal rule between stacked
+          // children; in `grid` the children are cells with no between, and in
+          // `flex-row` a horizontal rule across a column is meaningless. Those
+          // want their own affordance rather than this one rotated, and
+          // pretending otherwise would put a line where nothing can be dropped.
+          return gapsEnabled ? (
+            <React.Fragment key={`f-${containerOcc?.id || container.id}`}>
+              <InsertGap parentOccurrence={occurrence} index={idx} targetRole="container" panelId={panelId} />
+              {wrapped}
+            </React.Fragment>
+          ) : wrapped;
         })}
+        {gapsEnabled && visibleList.length > 0 && (
+          <InsertGap parentOccurrence={occurrence} index={visibleList.length} targetRole="container" panelId={panelId} />
+        )}
         {visibleList.length === 0 && !fullStateLoaded && (occurrence.occurrences?.length > 0) && (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "32px 0", opacity: 0.5 }}>
             <Spinner size="sm" />
