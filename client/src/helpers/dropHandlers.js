@@ -936,33 +936,76 @@ export function handleOccurrenceMove(dropContext, ctx) {
     });
   };
 
-  // CANVAS PAGE drop — move/copy a leaf occurrence into the page with meta.x/y stamp.
-  // The page itself is the parent (no container in between).
+  // PAGE drop — move/copy a leaf occurrence onto the page itself, with no
+  // container in between. The page is the parent.
+  //
+  // A CANVAS page and a BOARD page differ in exactly two things, so this is ONE
+  // branch with two conditionals rather than two branches (user, 2026-09-23:
+  // *"anything can land page level"*; before this, the gate read
+  // `kind === "canvas"` and a leaf dropped on a BOARD page fell past it into
+  // the container path, resolved no container, and wrote nothing at all —
+  // measured on prod, the row simply stayed put):
+  //
+  //   canvas   POSITION is meta.x/y from the pointer      order is meaningless
+  //   board    NO meta stamp — order IS the placement     insert at the line's index
+  //
+  // The index is `insertAt`, the same number the insertion line is drawn from,
+  // so the cue and the landing cannot disagree.
   const toPageOccId = dropTarget.context?.pageOccurrenceId;
   const toPageOcc = toPageOccId ? occurrencesById[toPageOccId] : null;
   const toPageMod = toPageOcc ? state?.modulesById?.[toPageOcc.moduleId] : null;
-  if (toPageOcc && toPageMod?.kind === "canvas") {
+  if (toPageOcc && toPageMod?.role === "page") {
+    const isCanvasPage = toPageMod?.kind === "canvas";
     const occurrenceId = payload.context?.occurrenceId;
     if (!occurrenceId) { clearSession(); return; }
     const movedOcc = occurrencesById[occurrenceId];
     if (!movedOcc) { clearSession(); return; }
 
-    const surfaceEl = document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`);
-    const rect = dropTarget.context?.targetRect
-      || surfaceEl?.getBoundingClientRect?.()
-      || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.();
+    // Where in the page's own child list the drop lands. Clamped, and the
+    // dragged id is removed first so a same-page REORDER counts positions in
+    // the list the user is actually looking at.
+    const insertAt = dropTarget.context?.insertAt;
+    const placeAt = (list, id) => {
+      const without = (list || []).filter((v) => v !== id);
+      const at = Number.isInteger(insertAt)
+        ? Math.max(0, Math.min(insertAt, without.length))
+        : without.length;
+      return [...without.slice(0, at), id, ...without.slice(at)];
+    };
+
+    const surfaceEl = isCanvasPage
+      ? document.querySelector(`[data-page-occ-id="${toPageOccId}"] .canvas-surface`) : null;
+    const rect = isCanvasPage
+      ? (dropTarget.context?.targetRect
+        || surfaceEl?.getBoundingClientRect?.()
+        || document.querySelector(`[data-page-occ-id="${toPageOccId}"]`)?.getBoundingClientRect?.())
+      : null;
     const scrollX = surfaceEl?.scrollLeft ?? 0;
     const scrollY = surfaceEl?.scrollTop ?? 0;
     const cx = rect ? Math.max(0, Math.round(x - rect.left + scrollX)) : 20;
     const cy = rect ? Math.max(0, Math.round(y - rect.top + scrollY)) : 20;
+    // A board page orders its children; writing x/y there would be dead data
+    // that a later canvas render would honour.
+    const withPos = (meta) => (isCanvasPage ? { ...(meta || {}), x: cx, y: cy } : { ...(meta || {}) });
 
-    // Same-canvas drop = reposition only: just update meta.x/y, no parent change.
+    // Already on this page: a canvas repositions, a board REORDERS. Either way
+    // no parent changes hands.
     if (movedOcc.parentId === toPageOccId) {
-      CommitHelpers.updateOccurrence({
-        dispatch, socket,
-        occurrence: { id: occurrenceId, meta: { ...(movedOcc.meta || {}), x: cx, y: cy } },
-        emit: true,
-      });
+      if (isCanvasPage) {
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: occurrenceId, meta: withPos(movedOcc.meta) },
+          emit: true,
+        });
+      } else {
+        const reordered = placeAt(toPageOcc.occurrences, occurrenceId);
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { id: toPageOccId, occurrences: reordered },
+          emit: true,
+        });
+        operationsBridge.updateLocalOcc?.({ ...toPageOcc, occurrences: reordered });
+      }
       clearSession();
       return;
     }
@@ -977,7 +1020,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
         moduleId: movedOcc.moduleId,
         parentId: toPageOccId,
         fields: { ...(movedOcc.fields || {}) },
-        meta: { ...(movedOcc.meta || {}), x: cx, y: cy },
+        meta: withPos(movedOcc.meta),
       };
       CommitHelpers.createOccurrence({
         dispatch, socket,
@@ -986,7 +1029,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       });
       CommitHelpers.updateOccurrence({
         dispatch, socket,
-        occurrence: { id: toPageOccId, occurrences: [...(toPageOcc.occurrences || []), newOccId] },
+        occurrence: { id: toPageOccId, occurrences: placeAt(toPageOcc.occurrences, newOccId) },
         emit: true,
       });
       autoAppendOnDrop({ ctx, newOccurrence: newCopyOcc, parentOccurrenceId: toPageOccId });
@@ -994,7 +1037,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
       // Move: detach from old parent, attach to page, stamp canvas position.
       const fromParentOccId = movedOcc.parentId;
       const fromParentOcc = fromParentOccId ? occurrencesById[fromParentOccId] : null;
-      const newMeta = { ...(movedOcc.meta || {}), x: cx, y: cy };
+      const newMeta = withPos(movedOcc.meta);
+      const toPageList = placeAt(toPageOcc.occurrences, occurrenceId);
       CommitHelpers.updateOccurrence({
         dispatch, socket,
         occurrence: {
@@ -1016,10 +1060,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       }
       CommitHelpers.updateOccurrence({
         dispatch, socket,
-        occurrence: {
-          id: toPageOccId,
-          occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
-        },
+        occurrence: { id: toPageOccId, occurrences: toPageList },
         emit: true,
       });
       // Mirror the parent-occurrences update into the executor cache before
@@ -1030,10 +1071,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
           occurrences: (fromParentOcc.occurrences || []).filter(id => id !== occurrenceId),
         });
       }
-      operationsBridge.updateLocalOcc?.({
-        ...toPageOcc,
-        occurrences: [...(toPageOcc.occurrences || []).filter(id => id !== occurrenceId), occurrenceId],
-      });
+      operationsBridge.updateLocalOcc?.({ ...toPageOcc, occurrences: toPageList });
       // Mirror the FULL post-update state (including new meta) into the executor
       // cache. If we leave old meta here, downstream onMove ops that read the
       // occurrence and dispatch a derived update will overwrite our fresh

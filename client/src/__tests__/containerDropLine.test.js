@@ -109,3 +109,82 @@ describe("DragProvider asks for the line on a container drag", () => {
     expect(code.slice(at, at + 500)).toMatch(/showDropIndicators\(el, clientX, clientY, false\)/);
   });
 });
+
+// ── A LEAF AIMED AT THE PAGE ──────────────────────────────────────────────
+//
+// USER, 2026-09-23: *"anything can land page level"* / *"i meant the hover line
+// on where it can drop"*. The line is drawn from `computeInsertIndexFromPointer`
+// and the DROP places from the same number, so the helper has to resolve a PAGE
+// element — which carries `data-page-occ-id` and NOT `data-occ-id`. Until it
+// did, the helper returned null for a page and the caller appended: the line
+// would sit between two containers and the row would land at the end.
+describe("computeInsertIndexFromPointer on a PAGE", () => {
+  // jsdom gives every element a zero rect, so the cards are stubbed with the
+  // geometry a real stacked page has.
+  function stubRects(spec) {
+    for (const [id, r] of Object.entries(spec)) {
+      const el = document.querySelector(`[data-container-id="${id}"]`);
+      el.getBoundingClientRect = () => ({ top: r[0], bottom: r[1], left: 0, right: 700,
+        width: 700, height: r[1] - r[0], x: 0, y: r[0] });
+    }
+  }
+  const PAGE_HTML = `
+      <div data-page-occ-id="p1">
+        <div data-container-id="m-today" data-occ-id="today"></div>
+        <div data-container-id="m-week" data-occ-id="week"></div>
+      </div>`;
+  const pageOcc = { id: "p1", moduleId: "m-page", occurrences: ["today", "week"] };
+
+  it("resolves the page and indexes BEFORE the first container", async () => {
+    const { computeInsertIndexFromPointer } = await import("../helpers/dragHitTesting");
+    build(PAGE_HTML);
+    stubRects({ "m-today": [100, 200], "m-week": [200, 300] });
+    expect(computeInsertIndexFromPointer(pageOcc, { x: 350, y: 110 })).toBe(0);
+  });
+
+  it("indexes BETWEEN the two containers", async () => {
+    const { computeInsertIndexFromPointer } = await import("../helpers/dragHitTesting");
+    build(PAGE_HTML);
+    stubRects({ "m-today": [100, 200], "m-week": [200, 300] });
+    expect(computeInsertIndexFromPointer(pageOcc, { x: 350, y: 205 })).toBe(1);
+  });
+
+  it("indexes AFTER the last container", async () => {
+    const { computeInsertIndexFromPointer } = await import("../helpers/dragHitTesting");
+    build(PAGE_HTML);
+    stubRects({ "m-today": [100, 200], "m-week": [200, 300] });
+    expect(computeInsertIndexFromPointer(pageOcc, { x: 350, y: 295 })).toBe(2);
+  });
+
+  it("returns null for a page that is not in the DOM (caller appends)", async () => {
+    const { computeInsertIndexFromPointer } = await import("../helpers/dragHitTesting");
+    build(`<div></div>`);
+    expect(computeInsertIndexFromPointer(pageOcc, { x: 1, y: 1 })).toBe(null);
+  });
+});
+
+describe("DragProvider draws the line for a LEAF over a page", () => {
+  // Comments are STRIPPED before matching: an anchor that lives in a comment
+  // would keep passing against a file whose code had been deleted.
+  const src = require("node:fs").readFileSync(
+    require("node:path").resolve(__dirname, "../helpers/DragProvider.jsx"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("falls back to the page when no container resolves", () => {
+    const at = code.indexOf("const pageEl =");
+    expect(at).toBeGreaterThan(-1);
+    expect(code.slice(at, at + 400)).toContain('closest?.("[data-page-occ-id]")');
+    expect(code.slice(at, at + 400)).toMatch(/showDropIndicators\(pageEl, clientX, clientY, false\)/);
+  });
+
+  it("still hides the indicators when there is no page either (the control)", () => {
+    const at = code.indexOf("const pageEl =");
+    expect(code.slice(at, at + 400)).toMatch(/else hideDropIndicators\(\)/);
+  });
+
+  it("draws the LINE ONLY for a page — never a box (the control)", () => {
+    const at = code.indexOf("const pageEl =");
+    // a `true` fourth argument would outline the whole page surface
+    expect(code.slice(at, at + 400)).not.toMatch(/showDropIndicators\(pageEl, clientX, clientY, true\)/);
+  });
+});

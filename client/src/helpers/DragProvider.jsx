@@ -750,7 +750,27 @@ export function DragProvider({
           // parent would let `contains(parent, parent)` (Node.contains is true
           // for self) hand the big outline straight back on the next frame.
           if (boxPick.leaf) dropBoxElRef.current = boxPick.el;
-        } else { hideDropIndicators(); dropBoxElRef.current = null; }
+        } else {
+          // NO CONTAINER UNDER THE POINTER — but a PAGE may be, and a leaf can
+          // land there (user, 2026-09-23: *"anything can land page level"*,
+          // *"i meant the hover line on where it can drop"*). Without this the
+          // space BETWEEN two containers, and before the first / after the
+          // last, showed nothing at all while a CONTAINER drag over the very
+          // same pixels drew a line — measured on prod:
+          //
+          //     GAP between containers   line=NONE
+          //     BELOW the last one       line=NONE
+          //
+          // LINE ONLY, never the box: outlining the page would flash a border
+          // around the whole surface on every crossing — the flicker the leaf
+          // path documents just above and deliberately avoids.
+          const pageEl = typeof document !== "undefined"
+            ? document.elementFromPoint(clientX, clientY)?.closest?.("[data-page-occ-id]")
+            : null;
+          if (pageEl) showDropIndicators(pageEl, clientX, clientY, false);
+          else hideDropIndicators();
+          dropBoxElRef.current = null;
+        }
         setDropHighlight(null); // idempotent — clears any leftover outline
       } else if (t === DragType.PAGE) {
         hideDropIndicators();

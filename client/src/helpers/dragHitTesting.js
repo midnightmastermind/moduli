@@ -411,6 +411,11 @@ export function computeInsertIndexFromPointer(targetOcc, ptr) {
   const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(v)) : String(v));
   const containerEl =
     document.querySelector(`[data-occ-id="${esc(targetOcc.id)}"]`) ||
+    // A PAGE is a valid drop parent too ("anything can land page level"), and
+    // ModulePage tags it ONLY with data-page-occ-id — so without this the walk
+    // returned null for a page and the caller fell back to "append at the end",
+    // which is the insertion line promising a position the drop would not use.
+    document.querySelector(`[data-page-occ-id="${esc(targetOcc.id)}"]`) ||
     (targetOcc.moduleId ? document.querySelector(`[data-container-id="${esc(targetOcc.moduleId)}"]`) : null);
   if (!containerEl) return null;
 
@@ -577,9 +582,9 @@ export function buildDropContext(rawEvent, env) {
   if (typeof dtd.insertAt === "number") {
     insertIndex = dtd.insertAt;
     edge = null;
-  } else if (targetIsContainer && sourceIsLeaf && Array.isArray(targetOcc.occurrences)) {
-    // Dropping a LEAF onto the CONTAINER body/edge (not onto a specific child
-    // instance) → nest it INSIDE the container AT THE POINTER position — the
+  } else if ((targetIsContainer || targetRole === "page") && sourceIsLeaf && Array.isArray(targetOcc.occurrences)) {
+    // Dropping a LEAF onto the CONTAINER body/edge — or onto a PAGE, between
+    // its containers — → nest it INSIDE that parent AT THE POINTER position, the
     // same spot the insertion-line indicator showed. This is what places the
     // drop correctly when the container's children are CONTAINERS (nested
     // boards): the hovered-child branch below only fires for instance targets,
