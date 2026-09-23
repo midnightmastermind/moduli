@@ -74,6 +74,9 @@ Each was settled with the user on 2026-09-23.
 | D15 | **The extension re-routes through `/share`**, with a shipped `link` rule reproducing today's clip shape | One path for everything; day-one behaviour is unchanged but becomes configurable. |
 | D16 | **The Imports tab carries a recent-shares log** | With no inbox (D2), a log is the only way to notice a rule sending things to the wrong place. |
 | D17 | The ics `CREATE` **binds** Schedule Type / Date / Time Slot / Duration, Schedule Type left empty | `Schedule: Place Dated Work` gates on the *binding*, not the value — so binding is what puts the event on the Schedule. |
+| D18 | **Bootstrap mints the catch-all only.** Any grid, including a new one, gets exactly one `*` rule | Guarantees D3 with the least invented config; the typed rules are the user's to write. |
+| D19 | **poms' starter rules are seeded by hand, as data** — ics→Appointments, image→Files/Images, video→Files, link→Bookmarks, `*`→Files | User: *"you add the rules though for me but on a new grid, theres just a catch all."* Not code, not a migration — the same kind of task as the Employment build. |
+| D20 | **No cap on events in one `.ics`** | User's call. A shared subscription writes every event; see the consequence recorded in §6. |
 
 ### A correction recorded, not quietly dropped
 
@@ -145,6 +148,16 @@ Files are **already uploaded** by the time a rule runs, which is why
 ---
 
 ## 4. The rule model
+
+**Bootstrap** (D18): a grid gets exactly **one** rule minted automatically — the
+`*` catch-all pointing at its Files folder. Find-or-mint, idempotent, following
+`utils/protectedFoldersEnsure.js`, which does the same job for the Templates and
+Files folders. A new grid therefore shares safely and does nothing clever.
+
+**poms' typed rules are seeded separately, by hand, as data** (D19) — they name
+containers that exist only on that grid (Appointments, Files/Images, Bookmarks),
+so they are not something bootstrap could invent.
+
 
 A rule is an **operation pipeline** with an `onShare` trigger, stored and
 executed exactly like every other operation — but authored in the Imports tab.
@@ -256,6 +269,13 @@ label), Date, Time Slot and Duration. This is the same shape the `Work` row in
 `fieldBindings`, not just `fields`. A value written to an unbound field renders
 nowhere — the defect `addNewOption.js` already records ("*an ingredient module
 did not BIND the macro fields at all*").
+
+**Every event in the file is imported, with no cap** (D20). This is a deliberate
+choice, and its consequence should be stated plainly rather than discovered:
+sharing a calendar *subscription* rather than a single invite writes one row per
+event, which can be hundreds, and undoing that means deleting them by hand. The
+Imports log (§8a) names how many were created, which is the only warning the
+design offers. If this bites, a cap is an additive change to the ics rule.
 
 **Timezones are a correctness trap, not a detail.** `DTSTART` may carry a
 `TZID`, be UTC (`Z`-suffixed), or be floating. The parser must resolve to the
@@ -449,6 +469,7 @@ None blocks the first slice (D13), which uses the extension.
 1. **`serverExecutor` gains `CREATE` + `FIND`** (+ update its subset comment).
 2. **`POST /api/v1/share`** — classification, ingress prep, `onShare` dispatch.
 3. **Imports tab** — author one rule, reusing the operations components.
+   Includes catch-all bootstrap (D18).
 4. **Extension** posts to `/share`, plus the compatibility `link` rule and its
    before/after regression test (D15). *Tracer bullet complete: clip → row.*
 5. **Recent-shares log** in the Imports tab over the existing run log (D16).
@@ -458,3 +479,5 @@ None blocks the first slice (D13), which uses the extension.
    transport, since video is the case that needs it.
 8. **Manifest + service worker** → Android share.
 9. **`file_handlers` / `protocol_handlers`** → Windows open-with and `webcal://`.
+10. **Seed poms' typed rules** (D19) — a data task through the UI, not a code
+    change, once the tab can author them.
