@@ -15,6 +15,66 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (26) — `onAdd` WORKS, AND AN UNSCOPED ONE FIRES ON THE APP'S OWN PLUMBING
+
+Rebuild-via-UI, next area chosen by **census rather than by guess** — which trigger types poms
+depends on and this grid has never exercised:
+```
+onAdd     46 ops        onCreate  2      onGraphSelect 1
+onDelete  44 ops        onMove    2      the 4 pomodoro ones
+```
+`onAdd`/`onDelete` is **90 live triggers with zero coverage here** — the automation gap in concrete
+terms.
+
+**BUILT AN `onAdd` OP END TO END BY CLICKING**, which also walks the operations editor's own
+surfaces: `+ Operation` -> rename -> trigger `On Add · Module · Container` -> `+ Action` -> the
+action picker's drill-down (`Occurrences` -> `Update` -> `Set field`) -> field `Notes`, value
+`auto`. Then added a row to the Water container through its `+`:
+```
+before   Water lists 6
+add      "Item 34"
+after    179013:Item 34   notes="auto"     <- the op fired and wrote the trigger's own occurrence
+```
+`Set field` pre-fills its target with `$trigger › occurrenceId`, so the row it stamps is the row that
+was added. **The trigger surface is sound on a UI-made grid.**
+
+**AND THE INTERESTING HALF IS WHAT ELSE IT STAMPED.** The trigger was left at `targetId: ""` — the
+`Any container` option — so it fires for **every** container add on the grid, including ones the app
+makes for itself. Minutes later, integrity reported an error:
+```
+dcc51d7a   folderPage for Files/Images   module *** MISSING ***   listedBy 0   created 02:22:56
+  its only field:  Notes = "auto"        <- stamped by my op
+```
+The app minted a folder-page occurrence, **my unscoped op wrote to it**, and its module never
+landed (the documented create/disconnect asymmetry, this time losing the module rather than the
+occurrence — my probes close the browser seconds after acting). *An `onAdd` op scoped to "any
+container" is not scoped to user actions; it is scoped to the data model.* The trigger editor offers
+the specific containers (`Water`, `6:00am`, …) in the very next select, and a real op should name one.
+
+**THEN THE ORPHAN COULD NOT BE SWEPT, BECAUSE MY OP HAD WRITTEN TO IT:**
+```
+KEEPING module-less dcc51d7a — has field values
+```
+`sweepOrphans`' guard is exactly right — it protects real writing — and the only "writing" here was
+the stamp. *A test op's write can make the janitor refuse to collect the thing the test created.*
+Repaired through the app's own `delete_occurrence` on a socket joined to THIS grid (never a raw
+Mongo write), behind a guard that re-checks module-less + listed-by-nobody + childless and refuses
+otherwise. Integrity back to **clean**; the test op and its row removed through the UI, and the grid
+keeps the two real improvements from (22).
+
+**THREE PROBE FAULTS, and the first is the one that matters.** My cleanup probe emitted through
+`window.__moduli_socket` — **which does not exist** — and then reported `deleted row: 179013`
+because it had successfully *found* the row. Mongo said otherwise. *Report what the write did, not
+what the lookup did.* Also: a `+ Action` coordinate measured before `scrollIntoView` was stale by
+128px and clicked into the run-history panel (the hit-test assert is what caught it); and the action
+picker's rows carry their description in the same element (`"Occurrences Create, update, delete grid
+occurrences"`), so an exact-match `^Occurrences$` finds nothing — match the leading title.
+
+**NOT TESTED, said plainly: `onDelete` (44 poms ops).** It is a separate branch of `matchesTrigger`
+(`OccurrenceDeleteOp`, not `OccurrenceCreateOp`), so `onAdd` passing says nothing about it.
+
+---
+
 ### 2026-09-22 (25) — THE POMODORO DESTINATION COULD NEVER BE SET, ON ANY GRID
 
 Rebuild-via-UI, next area **pomodoro** — picked because the rebuild grid had ZERO of it (poms
