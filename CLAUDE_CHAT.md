@@ -3555,3 +3555,12 @@ preview allows you to open it inline in web. why cant we."
 **2026-09-23 08:06 CDT** — "also those layout stuff should be tested and fixed if its breaking places" (the page layout modes — stack / grid / flex-row from `resolveEffectiveLayout` — need testing, and fixing wherever a mode breaks a surface.) → clarified 08:06: **"but that should be tested with the grid rebuild not now"** — do it as part of rebuilding the grid, not as a separate pass.
 
 **2026-09-23 08:10 CDT** — "note that when testing layout or really any of the rebuild stuff, we are testing all drag and drop to make sure i can reorder everywhere" (drag-and-drop REORDER is part of the acceptance for every rebuild surface — not a separate area. Every page/container/row built during the rebuild gets its reorder exercised, in every layout mode.) → clarified 08:11: **"that includes all pages, containers, occurances, manifest, folders, etc"** — every entity type that can be ordered: page cards, containers on a page, rows in a container, manifest tree nodes and folders.
+
+**2026-09-23 08:24 CDT** — "please continue what my other claude account was working on. we were looking into drop highlights, schedule rebuild issue, and continuing the rebuild of poms grid using ui still (would like a report of how much is left), and the occupational should have a container called employment, and inside should be an instance that shows work and has a select field on it that has job (from a job board, containing Mr Brews Taphouse for now) and Date and timeslot and diration. so I can start adding my work schedule to mr brews taphouse container in tasks page (dragging work). so then i can add it to my opration that grabs appointments and puts it in the correct timeslots on the schedule (via Date, timeslot, and duration)."
+
+Four things: (1) pick up the other account's drop-highlight and schedule-rebuild threads; (2) keep
+rebuilding poms grid through the UI, **with a report of how much is left**; (3) build
+`Occupational › Employment` holding a **Work** instance whose fields are **Job** (a select sourced
+from a JOB BOARD, seeded with "Mr Brews Taphouse"), **Date**, **Timeslot** and **Duration**; (4) the
+point of it: drag Work into a "Mr Brews Taphouse" container on the Tasks page to log a shift, so the
+appointment operation can place it into the right Schedule timeslot from Date + Timeslot + Duration.
