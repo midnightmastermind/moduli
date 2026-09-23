@@ -81,9 +81,19 @@ describe("tileMeta — container vs page labels", () => {
     expect(tileMeta("page-table", "instance").label).toBe("Table page");
   });
 
-  it("other roles offer only one of the two, so labels stay short", () => {
-    expect(tileMeta("board", "page").label).toBe("Board");
-    expect(tileMeta("doc", "container").label).toBe("Document");
+  // INVERTED 2026-09-23, with the old reasoning kept because it was sound about
+  // the MENU and wrong about the PERSON. It said: "other roles offer only one of
+  // the two, so labels stay short" — true, a page's menu has no page tiles to be
+  // confused with. But the same four tiles then read three different ways
+  // depending on where you opened the menu (measured on prod: "Board container"
+  // from a container, "Board" from a page, "Board" from a panel), and a palette
+  // is learned once, not once per surface. A tile is now named for WHAT IT
+  // CREATES. See ui/QuickAddMenu.jsx tileMeta.
+  it("a tile is named for what it creates, in EVERY role's menu", () => {
+    expect(tileMeta("board", "container").label).toBe("Board container");  // a page's menu
+    expect(tileMeta("doc", "container").label).toBe("Doc container");
+    expect(tileMeta("board", "page").label).toBe("Board page");            // a panel's menu
+    expect(tileMeta("folder", "page").label).toBe("Folder page");
   });
 });
 

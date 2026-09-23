@@ -69,15 +69,37 @@ export const KIND_TILE = {
   "page-folder": { label: "Folder page", desc: "New folder page, previewed here" },
 };
 
-// Container-vs-page disambiguation. Inside a CONTAINER's add menu both exist, so
-// the four bare kinds have to read as containers ("Board" alone is ambiguous
-// next to "Board page"). Every other role's menu offers only one of the two, so
-// their labels stay short.
+// A TILE IS NAMED FOR WHAT IT CREATES, wherever the menu was opened from.
+//
+// This used to be scoped to `targetRole === "instance"`, on the reasoning that a
+// container's menu is the only one where containers and pages sit side by side
+// and therefore the only one that NEEDS disambiguating. True of the menu, false
+// of the person: they learn one palette, not one per surface. Measured on prod
+// 2026-09-23 — the same four tiles, three different wordings:
+//
+//   from a CONTAINER   Board container · Doc container · Table container
+//   from a PAGE        Board · Document · Canvas · Table
+//   from a PANEL       Board · Document · Canvas · Table · Folder
+//
+// (User: *"it should use quick add, not a dedicated add container button"* —
+// every one of those affordances ALREADY was quick-add; the wording is what
+// made a page's read like a different control.)
+//
+// Only the LABEL is decided here. The `kind` values are deliberately untouched:
+// `tileKindsForRole` records that a "page-folder" KIND would persist as an
+// invalid kind on the created page, and that hazard is about the value.
 const CONTAINER_TILE_LABEL = { board: "Board container", doc: "Doc container", table: "Table container", canvas: "Canvas container" };
+const PAGE_TILE_LABEL = { board: "Board page", doc: "Doc page", table: "Table page", canvas: "Canvas page", folder: "Folder page" };
 export function tileMeta(kind, targetRole) {
   const base = KIND_TILE[kind] || { label: kind, desc: "" };
-  if (targetRole === "instance" && CONTAINER_TILE_LABEL[kind]) {
+  // `instance` = a container's menu, `container` = a page's menu — both create
+  // CONTAINERS from these four kinds.
+  if ((targetRole === "instance" || targetRole === "container") && CONTAINER_TILE_LABEL[kind]) {
     return { label: CONTAINER_TILE_LABEL[kind], desc: `Nested ${kind} container` };
+  }
+  // `page` = a panel's menu — these kinds create PAGES.
+  if (targetRole === "page" && PAGE_TILE_LABEL[kind]) {
+    return { label: PAGE_TILE_LABEL[kind], desc: KIND_TILE[`page-${kind}`]?.desc || base.desc };
   }
   return base;
 }
