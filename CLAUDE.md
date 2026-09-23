@@ -15,6 +15,88 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (2) — A REFUSED DUPLICATE WHOSE HOLDER NOBODY LISTS WAS A PERMANENT DEAD END
+
+The schedule "disappeared" twice — 2026-09-19 and again this morning — and both times the data was
+the same shape: the day column was IN MONGO with its `identitySignature`, its 49 slots and a
+`parentId` naming the Schedule page, and **the page's `occurrences[]` never learned it.** Every
+renderer reads the PARENT's list, so the column rendered nowhere; and `refusedDuplicateCreates`
+then correctly refused every rebuild as a duplicate of it.
+
+***The thing blocking the repair WAS the thing that needed repairing.*** That is what makes this
+class permanent rather than transient: a missing row heals on the next load, a refused-and-invisible
+row never does.
+
+**MEASURED ACROSS EVERY GRID BEFORE WRITING ANYTHING, which is what says the rule is narrow:**
+```
+25,285 occurrences · 1,776 signed · 76 signatureUnique · 1 listed by nobody
+daypage:col:2026-08-26   parent 8gpoqzx32h7   5 children   unreachable since Aug 26
+```
+So this is not a sweep over the grid; it is one row in a hundred thousand, and the guard only ever
+looks at creates the refusal already rejected.
+
+**`isDeadHolder` WAS ALREADY HALF OF THIS, and naming the other half is the whole fix.** That rule
+(2026-09-19) says a holder whose MODULE is gone blocks nothing. `adoptableHolders` is its sibling: a
+holder whose module is fine but which **no parent lists** is RE-LISTED into that parent, through the
+app's own `$ne`-guarded `link_occurrence_to_parent`. **The refusal still stands** — allowing the
+duplicate would mint a SECOND column and leave the first as debris, which is the trade the 09-22 (7)
+entry already paid for once. Same 5-minute age floor as `isDeadHolder`, same reason: `create_batch`
+emits a child before its parent's list write lands, so a holder seconds old may be about to be
+listed by a write already in flight.
+
+**VERIFIED ON PROD BY REPRODUCING THE DEFECT, on test grid 2 (the seed's own target, never poms):**
+unlist a real signed day column, then emit the create the rebuild would send. The server's own log
+is the evidence, and it names both halves in order:
+```
+REFUSED (duplicate signature) 1 [ b56cbf6b… ]      <- the rebuild, correctly refused
+ADOPTED unlisted holder 38def427… -> Vaau-lsCuQDh  <- and the invisible column re-listed
+mongo after   board lists holder true · 6 children · holder alive with its 5 · duplicate created FALSE
+```
+**A "board lists the holder" read on its own would have proven NOTHING** — it is equally satisfied
+by an unlist that never landed. The log line is what distinguishes "the fix ran" from "nothing
+happened", and the A/B's control (a holder the parent DOES list must write nothing) is what stops
+the fix degrading into a pass that re-pushes every refusal on every load. No debris: the adoption
+IS the cleanup.
+
+**A/B'd, five mutations, each asserted to land: 5 of 5 fail exactly one test** — dropping the
+reachability check, the age floor, the opt-in check, the refused-only rule or the dedupe.
+**One of those tests was VACUOUS on its first pass and the A/B is what said so:** "only considers
+creates that were actually refused" passed against the mutation, because the function returns early
+on an empty refusal set anyway. It now carries a SECOND, unrefused create in the same batch, so the
+rule has something to discriminate against.
+
+**THE USER ASKED WHETHER WE SHOULD BE CLONING FROM THE TEMPLATE RATHER THAN A SIBLING — CHECKED ON
+PROD, AND WE ALREADY ARE.** Read out of the live pipelines rather than assumed:
+```
+Schedule: Build Schedule   COPY_LINK sourceId $tplChildId   <- Schedule Template › Day (49 slots)
+                           APPLY_TEMPLATE templateRef $tplInstId
+Day Page: Build            APPLY_TEMPLATE templateRef $tplId rootSignature daypage:col:${$day}
+```
+Both clone from a template in the Templates folder; neither copies yesterday's column. **"Sibling"
+is only where the DUPLICATE CHECK looks, never where content comes from:** the check asks *does a
+child of this same parent already carry this identitySignature*, and the signature itself is
+stamped by the template application (`rootSignature`), so identity is already template-derived.
+
+**AND THE TWO FAILURES ARE NOT ONE FAILURE — the Aug 26 row is a different shape, reported not
+fixed.** `Schedule: Build Schedule` finds its column by `_ancestors HAS_ANCESTOR`, which is built
+from `occurrences[]`, so it CANNOT see an unlisted holder and falls through to a create — the path
+this fix repairs. `Day Page: Build` finds its column by `parentId`, so it DOES see one, takes the
+merge branch, and **never lists it either** (its `ADD_CHILD` is only in the create branch). That row
+is therefore invisible forever and this fix never fires for it. It holds **no text and no true
+fields** — empty scaffolding, not lost writing — so it is left alone rather than re-listed on a
+guess; moving `ADD_CHILD` below the if/else is a change to a live op pipeline and wants its own pass.
+
+**A PAPERCUT THAT COST TWO SILENT GREPS, and it is worth knowing about:** `duplicateSignature.js`
+held two **literal NUL bytes** in a template literal (`` `${parentId}\0${sig}` ``), so `file` called
+it `data` and **grep matched nothing in it while reporting success.** I read "no exports" twice
+before noticing. Replaced with the `\u0000` escape — the same character in the resulting string,
+and the file is text again. *A grep that returns nothing on a file you can see the contents of is a
+claim about the FILE, not the pattern.*
+
+2,450 server tests. Deployed, pm2 restarted (server file).
+
+---
+
 ### 2026-09-23 — SAME-NAMED ROWS GET THEIR ANCESTOR CHAIN; and the fix was inert twice before it showed
 
 Rebuild-via-UI. Two areas, and one user request that arrived mid-session and turned out to be the

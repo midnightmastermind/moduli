@@ -2,6 +2,30 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-23 (2) — a refused duplicate whose holder nobody lists is ADOPTED)
+- **`utils/duplicateSignature.adoptableHolders` (NEW, 7 tests, A/B'd 5/5)** — the sibling of
+  `isDeadHolder`. That rule says a holder whose MODULE is gone blocks nothing; this one says a holder
+  whose module is fine but which **no parent lists** gets RE-LISTED into its parent. Twice (09-19,
+  09-23) a day column reached Mongo with its signature, its children and a resolving `parentId` while
+  the parent's `occurrences[]` never learned it: invisible to every renderer, and blocking every
+  rebuild as a duplicate of itself. **The thing blocking the repair was the thing needing repair.**
+- **The refusal STILL STANDS** — allowing the duplicate mints a second column and leaves the first as
+  debris. `handleCreateBatch` links through the app's own `$ne`-guarded `handleLinkToParent`, so a
+  listing that lands first makes it a no-op. Same 5-minute age floor as `isDeadHolder`: `create_batch`
+  emits a child before its parent's list write lands.
+- **Measured first, across every grid:** 25,285 occurrences · 1,776 signed · 76 `signatureUnique` ·
+  **1** listed by nobody. This is not a sweep; it only ever looks at creates the refusal rejected.
+- **Verified on prod by REPRODUCING the defect on test grid 2** (unlist a real signed column, emit the
+  rebuild's create). The server log names both halves — `REFUSED (duplicate signature)` then
+  `ADOPTED unlisted holder … -> …` — and that log line is the evidence: reading "the board lists it"
+  alone is equally satisfied by an unlist that never landed.
+- **Reported, not fixed:** `Day Page: Build` finds its column by `parentId`, so it FINDS an unlisted
+  holder, merges into it, and never lists it (its `ADD_CHILD` is only in the create branch) — a second
+  shape this fix cannot reach. The one live instance holds no text and no true fields.
+- **`duplicateSignature.js` held two LITERAL NUL bytes** in a template literal, so `file` called it
+  `data` and grep matched nothing in it while reporting success. Now the `\u0000` escape — same
+  character, greppable file.
+
 ## Recent Changes (2026-09-22 (3) — a fan-out is ONE undo step)
 `update_occurrence` propagates a field write to every member of a linked group and recorded ONE doc —
 the row edited — so undo reverted the source and left the copies on the new value. Each fanned member
