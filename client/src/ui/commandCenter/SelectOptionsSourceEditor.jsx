@@ -276,10 +276,24 @@ function FindBody({ source, onChange, fieldType = "select" }) {
   const ctx = useGridActions();
   const { fieldsById, modulesById, occurrencesById, foldersById } = ctx;
 
-  const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, ...findValueDefaults(fieldType) };
+  // THE GRID STORES THIS FLAT, AND THIS EDITOR ONLY EVER READ THE NESTED FORM.
+  // Measured 2026-09-23 across every grid: 98 of 107 find-mode fields are FLAT
+  // ({mode:"find", over, predicate, …}) and 9 are nested under `find`. So for
+  // almost every field the editor opened with NO rules and previewed the whole
+  // pool — and Save would have written that empty predicate over the real one.
+  // `optionsResolver` has read both since 2026-05-17 (`src.find || src`); only
+  // the editor was left behind.
+  const nested = !!source?.find;
+  const find = source?.find
+    || (source?.mode === "find" ? source : null)
+    || { over: "$allInstances", predicate: { rules: [] }, ...findValueDefaults(fieldType) };
 
+  // WRITE BACK THE SHAPE WE READ. Converting a flat field to nested on save
+  // would silently rewrite 98 fields the first time anyone opened one, and
+  // leave both shapes on the record where the resolver prefers `find`.
   function patch(p) {
-    onChange({ ...source, mode: "find", find: { ...find, ...p } });
+    const next = { ...find, ...p };
+    onChange(nested ? { ...source, mode: "find", find: next } : { ...source, ...next, mode: "find" });
   }
 
   const fields = useMemo(() => Object.values(fieldsById), [fieldsById]);
