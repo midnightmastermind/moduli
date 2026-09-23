@@ -63,6 +63,22 @@ describe("CREATE, server-side", () => {
     expect(minted.map(m => m.label)).toEqual(["a", "b", "c"]);
   });
 
+  it("refuses a CREATE with no gridId, loudly, and mints nothing", async () => {
+    // A CREATE reaching here with gridId undefined (e.g. apiV1.js's current call site,
+    // which does not pass one yet) must not reach mintOccurrence's existence lookup —
+    // that would run findOne({ userId, gridId: undefined, ... }), which can match
+    // across grids, and a mint with no match would write gridId: undefined. Refuse
+    // before any of that.
+    const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "CREATE", parentId: "literal:c", label: "literal:x",
+        externalId: "literal:e" } },
+    ]), { userId: "u1" }); // no gridId
+
+    expect(minted).toHaveLength(0);
+    expect(res.ok).toBe(false);
+    expect(res.error.message).toMatch(/gridId/i);
+  });
+
   it("CONTROL — an action still outside the subset does not half-run", async () => {
     // Scope discipline: only CREATE and FIND are added. APPLY_TEMPLATE must
     // still be refused rather than silently doing nothing.

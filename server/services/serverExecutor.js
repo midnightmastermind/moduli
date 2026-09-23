@@ -225,6 +225,17 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
     if (type === "CREATE") {
       // Server-side row creation. Wires to `occurrenceMint`, the same path
       // `/api/v1/ingest` uses — this executor does not own a second minter.
+      //
+      // gridId is REQUIRED here, not just documented as such. Without this
+      // guard an undefined gridId reaches Mongo silently: mintOccurrence's own
+      // existence lookup becomes `findOne({ userId, gridId: undefined, ... })`,
+      // which can match a row on the WRONG grid, and a mint with no match
+      // writes a new occurrence carrying `gridId: undefined` — a silent
+      // wrong-grid write. Refuse loudly instead; the outer try/catch turns
+      // this into a structured execution_error.
+      if (!gridId) {
+        throw new Error("CREATE requires gridId — runOperationServerSide was called without it");
+      }
       const parentId   = await resolveExprAsync(cfg.parentId, $vars, opts);
       const label      = await resolveExprAsync(cfg.label, $vars, opts);
       const externalId = await resolveExprAsync(cfg.externalId, $vars, opts);
