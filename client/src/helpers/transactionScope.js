@@ -52,3 +52,39 @@ export function transactionTouchesModule(tx, { moduleId, occurrenceIds } = {}) {
   }
   return false;
 }
+
+/**
+ * A human line for a SnapshotOp — the shape every write takes now, and the one
+ * `TransactionHistory.getDescription` had no branch for, so every row read
+ * "Unknown operation" (200 of 242 transactions on the rebuild grid).
+ *
+ * There is nothing to guess: the transaction carries the label the gesture
+ * opened with (`withAction("Created item", …)`) and the docs it wrote. The
+ * label alone is the fallback, then a plain count, and only with neither does
+ * it admit it does not know — inventing a description would be worse.
+ */
+export function describeSnapshotTransaction(tx, { occurrencesById = {}, modulesById = {} } = {}) {
+  const label = String(tx?.description || "").trim();
+  const docs = Array.isArray(tx?.docs) ? tx.docs : [];
+
+  const names = [];
+  for (const d of docs) {
+    if (!d?.id) continue;
+    const occ = occurrencesById[d.id];
+    const mod = modulesById[d.id] || (occ?.moduleId ? modulesById[occ.moduleId] : null);
+    const name = occ?.label || mod?.label;
+    if (name) names.push(name);
+  }
+
+  if (label && names.length) {
+    // The overflow counts DOCS, not resolvable names: a transaction that wrote
+    // three rows and can only name two must not read as if it wrote two.
+    const shown = names.slice(0, 2);
+    const extra = docs.length - shown.length;
+    const list = shown.join(", ");
+    return extra > 0 ? `${label} — ${list} +${extra}` : `${label} — ${list}`;
+  }
+  if (label) return label;
+  if (docs.length) return `${docs.length} change${docs.length === 1 ? "" : "s"}`;
+  return "Unknown operation";
+}

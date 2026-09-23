@@ -66,3 +66,45 @@ describe("which transactions belong to a module", () => {
     expect(transactionTouchesModule(null, scope)).toBe(false);
   });
 });
+
+// AND THE ROWS THAT DID APPEAR ALL READ "Unknown operation".
+//
+// `getDescription` bails on a missing `operations[0]`, which is EVERY
+// SnapshotOp — 200 of 242 on the rebuild grid, 200 of 1200 on poms. Each one
+// carries the label its gesture opened with ("Created item", "Broke link",
+// "Deactivated filter") and the docs it wrote, so there is nothing to guess.
+import { describeSnapshotTransaction } from "../helpers/transactionScope";
+
+const maps = {
+  occurrencesById: { "occ-a": { id: "occ-a", moduleId: "m1" }, "occ-b": { id: "occ-b", moduleId: "m2" } },
+  modulesById: { m1: { id: "m1", label: "Morning Walk" }, m2: { id: "m2", label: "Mind" } },
+};
+
+describe("describing a snapshot transaction", () => {
+  it("uses the gesture's own label and names what it touched", () => {
+    const tx = { description: "Created item", docs: [{ model: "occurrence", id: "occ-a" }] };
+    expect(describeSnapshotTransaction(tx, maps)).toBe("Created item — Morning Walk");
+  });
+
+  it("names several, then counts the rest", () => {
+    const tx = { description: "Pasted 3 items", docs: [
+      { model: "occurrence", id: "occ-a" }, { model: "occurrence", id: "occ-b" }, { model: "occurrence", id: "occ-z" }] };
+    expect(describeSnapshotTransaction(tx, maps)).toBe("Pasted 3 items — Morning Walk, Mind +1");
+  });
+
+  it("falls back to the label alone when nothing resolves", () => {
+    const tx = { description: "Broke link", docs: [{ model: "occurrence", id: "gone" }] };
+    expect(describeSnapshotTransaction(tx, maps)).toBe("Broke link");
+  });
+
+  it("counts the changes when there is no label at all", () => {
+    expect(describeSnapshotTransaction({ docs: [{ id: "x" }, { id: "y" }] }, maps)).toBe("2 changes");
+    expect(describeSnapshotTransaction({ docs: [{ id: "x" }] }, maps)).toBe("1 change");
+  });
+
+  // The control: with neither a label nor docs there is genuinely nothing to
+  // say, and inventing something would be worse than admitting it.
+  it("says unknown only when there is nothing to describe", () => {
+    expect(describeSnapshotTransaction({}, maps)).toBe("Unknown operation");
+  });
+});

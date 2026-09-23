@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
-import { transactionTouchesModule } from "../helpers/transactionScope";
+import { transactionTouchesModule, describeSnapshotTransaction } from "../helpers/transactionScope";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { pushTxNotification } from "../state/notificationStore";
 import { formatDistanceToNow } from "date-fns";
@@ -76,6 +76,9 @@ function TransactionRow({
   containersById,
   panelsById,
   fieldsById,
+  // A SnapshotOp names occurrences; resolving them to labels needs these two.
+  occurrencesById = {},
+  modulesById = {},
   onUndo,
   onRedo,
 }) {
@@ -110,7 +113,11 @@ function TransactionRow({
 
   // Build human-readable description
   const getDescription = useCallback(() => {
-    if (!primaryOp) return "Unknown operation";
+    // A SnapshotOp carries no `operations[]` — its payload is `docs[]` — and
+    // that is the shape EVERY write takes now, so this used to read "Unknown
+    // operation" for 200 of the rebuild grid's 242 transactions. The label the
+    // gesture opened with is right there on the record.
+    if (!primaryOp) return describeSnapshotTransaction(transaction, { occurrencesById, modulesById });
 
     if (primaryOp.type === "occurrence_list" && primaryOp.occurrenceList) {
       const ol = primaryOp.occurrenceList;
@@ -289,7 +296,7 @@ export default function TransactionHistory({
   gridId,
   moduleId,   // optional — when set, filters to transactions affecting this module
 }) {
-  const { socket, instancesById, containersById, panelsById, fieldsById, occurrencesById } = useGridActions();
+  const { socket, instancesById, containersById, panelsById, fieldsById, occurrencesById, modulesById } = useGridActions();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -501,6 +508,8 @@ export default function TransactionHistory({
                   containersById={containersById}
                   panelsById={panelsById}
                   fieldsById={fieldsById}
+                  occurrencesById={occurrencesById}
+                  modulesById={modulesById}
                   onUndo={handleUndoTransaction}
                   onRedo={handleRedoTransaction}
                 />
