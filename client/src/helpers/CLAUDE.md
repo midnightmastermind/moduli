@@ -2,6 +2,27 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (6) — `duration.js` NEW: a duration field is MINUTES, in one place)
+- **`duration.js` (NEW, pure, 13 tests)** — `toMinutes` / `isMinutes` / `splitDuration` /
+  `formatDuration`. The stored value is a NUMBER OF MINUTES — what the hours+minutes editor writes
+  (`h*60+m`) and what every display reads back. It was written out FOUR times and the copies
+  disagreed: `Field.jsx case "duration"` gave `120 -> "2h"`, `useDocFieldValues.js` gave `"2h 0m"`,
+  the COMPACT pill never formatted at all (`"120"`), and the h/m editor split into two boxes. The
+  first is canonical — it is what the app shows most, and its own empty branch already documents
+  `"0m"`.
+- **`toMinutes` COERCES because the type is not guaranteed.** poms' `Duration` holds **12 numbers and
+  7 strings**, and `useDocFieldValues` formatted only `typeof value === "number"`, falling through to
+  `String(value)` — so those seven rendered as a bare `60` in every doc pill. **What wrote the seven
+  is NOT established** and the data argues against the obvious answer: none carries a `timestamp` or
+  a `userTouched` row, which a UI edit leaves. What IS established is that the compact editor stored
+  a string (watched on prod), so readers must cope with both.
+- **`formatDuration` returns prose UNCHANGED rather than "0m".** A value nobody can read as minutes
+  is shown as itself instead of being silently replaced by a confident, wrong zero.
+- **The compact editor is numeric now** (`Field.jsx`), and gets the narrow centred box the comment
+  beside it already promised durations — that comment was the control, not a guess. A/B'd from the
+  pre-fix files: 5 of 13 fail, exactly the wiring cases; the other 8 are pure-helper contract pins
+  that pass in both arms and are NOT counted as coverage.
+
 ## Recent Changes (2026-09-22 (5) — `filterConfig.js` NEW: configuring a filter is one undo step)
 - The three filter-CONFIGURATION gestures — `activateFilter` / `deactivateFilter` /
   `clearFilterOverride` — each in one `withAction`. Deactivate's two writes (mute the field, hide its

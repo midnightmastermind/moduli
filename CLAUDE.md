@@ -15,6 +15,101 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (20) — FIVE FIELD TYPES THIS GRID HAD NEVER HAD; a duration meant four things, an address meant nothing
+
+Rebuild-via-UI, next area **field types** — picked from a census rather than guessed. Eleven types
+exist (`helpers/fieldTypes.js`, checked against the server enum); the rebuild grid had exercised six:
+```
+TYPE        poms   rebuild          TYPE        poms   rebuild
+text          71      0   <-        rating        3       0   <-
+number       133      3             duration      2       0   <-
+occurrence    49      1             address       1       0   <-
+select        19      1             markdown      ?       0   <-
+date          15      1             boolean/button   exercised
+```
+**`text` is poms' SECOND most-used type and the rebuild had none.** All five were created through the
+Fields tab, bound to a row through its Settings, and filled through the row — and two of them were
+broken in ways only filling them could show.
+
+**DEFECT 1 — A `duration` MEANS MINUTES, AND FOUR RENDERERS DISAGREED.** Typing `1` into the compact
+pill (what every board row shows) stored the STRING `"1"` and the pill read `1`, while the same value
+read `1m` through the display path:
+```
+Field.jsx case "duration"    120 -> "2h"
+useDocFieldValues.js         120 -> "2h 0m"        <- a doc pill and a row pill, same value
+Field.jsx compact pill       120 -> "120"          <- never formatted at all
+Field.jsx h/m editor         two boxes, writes h*60+m as a NUMBER
+```
+`helpers/duration.js` is that decision once. **`toMinutes` COERCES, because the type is not
+guaranteed:** poms' `Duration` holds **12 numbers and 7 strings**, and `useDocFieldValues` formatted
+only `typeof value === "number"`, so those seven rendered as a bare `60` in every doc pill.
+**WHAT WROTE THE SEVEN IS NOT ESTABLISHED, and I nearly claimed it was** — the commit message said the
+compact editor made them until the data said otherwise: **none carries a `timestamp` or a
+`userTouched` row**, which a UI edit leaves behind. What was WATCHED is that the compact editor stores
+a string; the provenance of the seven is not mine to assert. *Corrected before it shipped, not after.*
+The compact editor is numeric now and gets the narrow centred box **the comment beside it already
+promised durations** — that comment was the control.
+
+**DEFECT 2 — PICKING AN ADDRESS STORED NOTHING.** The picker searched fine; clicking the result wrote
+a cell with no value:
+```
+fields["<Location>"]  ->  { "flow": "in" }
+```
+`handleChange(loc); handleCommit(loc);` — and **`handleCommit` takes NO PARAMETERS**. It reads
+`localValue` out of its own closure, so `loc` was ignored and `setLocalValue` had not landed in the
+same tick; it committed the previous, empty value.
+
+**WIDENING `handleCommit` IS NOT THE FIX, and that is the load-bearing half.** Measured before
+touching it: **one** call site passes an argument and **EIGHT** pass it straight to `onBlur`, where
+the first argument is a React SyntheticEvent. A positional value parameter would commit the event
+object as the field's value on every blur — worse than the bug. The branch calls `onCommit` directly.
+**Corroboration, stated as suggestive rather than proof:** across every grid all 22 stored address
+values were written by SEEDS (bulk timestamps milliseconds apart, plain strings). The only entry the
+picker itself ever wrote is the valueless one above.
+
+**VERIFIED ON PROD AFTER EACH DEPLOY, by doing the thing:**
+```
+                  stored                     on screen
+duration, rest    "1" (legacy STRING)        1m          <- the coercion, on data already there
+duration, editor  type=number, 56px, centred (was a 180px LEFT-aligned text box)
+duration, typed   90 (NUMBER)                1h 30m
+address           {label, address, lat, lon, osmId}      (was {flow:"in"})
+```
+
+**THE INTEGRITY CHECKER CAUGHT ME OVER-CORRECTING.** I first "cleaned up" by unbinding all five from
+the row — and `checkGrid` immediately warned **`unused-field: Notes, Focus Rating, Session Length,
+Journal, Location`**. It was right, and so was the opposite reading: poms carries these types BOUND
+and VALUED, and a task with notes, a focus rating and a session length is this app's own premise
+("every task can be a checkbox **or** a measurement"). The fix was to USE them, not delete them.
+*A tidy-up that trips an integrity rule is a tidy-up that removed something real.*
+
+**FIVE PROBE FAULTS, all mine, and the first two cost the most.**
+```
+"+ Field" -> the button's text is "Field"; the "+" is a separate node
+the picker row       innerText is "Notes\ntext\ntext field" — the name is its FIRST LINE, not a
+                     prefix of the whole string. A startsWith(name + " ") test matched NOTHING
+                     while the picker was demonstrably open with 39 rows
+the editor covers    after Save, the field editor sits ON TOP of the list; the next row's span is
+  the list          unreachable until you walk back via the breadcrumb
+the address search   runs on FORM SUBMIT, deliberately not per keystroke (it is a third-party
+                     geocoder). Typing alone left STALE results on screen and read exactly like
+                     a broken search — I nearly filed it
+each probe run       "+ Field" mints a field every time. Two runs left two; they were REPURPOSED
+  mints a field      into the first two targets rather than deleted
+```
+Also: the address picker **seeds its search from the row's label** — clicking it on "Email Sam"
+searches "Email" and returns French enamel villages. That is deliberate (the code says so) and is
+kept as a control test.
+
+Client **4,817 pass / 1 fail** — `stampCompletedOn`, confirmed pre-existing by re-running it with
+both fixed files reverted, where it fails identically. Both fixes A/B'd from `git show <commit>^`:
+duration 5 of 13 fail (the wiring cases), address 4 of 7 (three behavioural + the guard); the
+remainder pass in both arms and are reported as **contract pins, not coverage**. Two client-only
+deploys, `deploy.sh` correctly reporting *"Server unchanged — NOT restarting"* each time. Grid
+integrity **clean**, and the row now carries all five types with the right stored types.
+
+---
+
 ### 2026-09-22 (19) — SEARCH PUT THE FIVE ROWS YOU CANNOT OPEN ABOVE THE ONE YOU CAN
 
 Closing the item (7) left open this morning: *"the first of six same-named hits opened nothing …
