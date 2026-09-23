@@ -1,5 +1,6 @@
 import { evalGroupAgainstRecord, resolveRecordPath } from "./operationActions";
 import { cachedParentMap } from "./dragHitTesting";
+import { disambiguateOptions, crumbFromAncestors } from "./occurrenceCrumbs";
 
 const COLLECTION_KEYS = {
   $allOccurrences: "all",
@@ -232,7 +233,25 @@ export function resolveOptions(field, ctx, ownerOccurrence = null) {
     }
 
     const limit = typeof cfg.limit === "number" && cfg.limit > 0 ? cfg.limit : 100;
-    const options = deduped.slice(0, limit).map(({ _record, ...rest }) => rest);
+    const windowed = deduped.slice(0, limit);
+
+    // SAME-NAMED ROWS GET THEIR ANCESTOR CHAIN (user, 2026-09-23). Sharing a
+    // label is the norm — 6,763 of poms grid's 22,479 rows do — and a picker
+    // offering five bare "Sleep"s is asking the user to guess.
+    //
+    // Only the options that COLLIDE INSIDE THIS LIST are crumbed: a list with
+    // no duplicates reads better without breadcrumbs, and doing the work for
+    // the duplicates only is what keeps it off this hot path (`resolveOptions`
+    // was 1,381ms of the 2026-08-07 profile). The records still carry
+    // `_ancestors` here, so no second walk over the tree is needed — which is
+    // also why this sits BEFORE `_record` is stripped.
+    const { options: labelled } = disambiguateOptions(windowed, (p) =>
+      crumbFromAncestors(p._record?._ancestors, {
+        occurrencesById: ctx?.occurrencesById,
+        modulesById: ctx?.modulesById,
+        foldersById: ctx?.foldersById,
+      }));
+    const options = labelled.map(({ _record, ...rest }) => rest);
 
     // Frozen because it is now SHARED across every row rendering this field —
     // one caller mutating it would change what every other row sees. Every
