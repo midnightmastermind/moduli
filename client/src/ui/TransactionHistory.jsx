@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
+import { transactionTouchesModule } from "../helpers/transactionScope";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { pushTxNotification } from "../state/notificationStore";
 import { formatDistanceToNow } from "date-fns";
@@ -288,7 +289,7 @@ export default function TransactionHistory({
   gridId,
   moduleId,   // optional — when set, filters to transactions affecting this module
 }) {
-  const { socket, instancesById, containersById, panelsById, fieldsById } = useGridActions();
+  const { socket, instancesById, containersById, panelsById, fieldsById, occurrencesById } = useGridActions();
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -359,20 +360,23 @@ export default function TransactionHistory({
     };
   }, [open, socket, handleRefresh]);
 
+  // The occurrences that render this module — what its transactions name.
+  const moduleOccIds = useMemo(() => {
+    if (!moduleId) return null;
+    const out = new Set();
+    for (const occ of Object.values(occurrencesById || {})) {
+      if (occ?.moduleId === moduleId) out.add(occ.id);
+    }
+    return out;
+  }, [moduleId, occurrencesById]);
+
   // Filter transactions
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      // Per-module filter: only show transactions that reference this moduleId
-      if (moduleId) {
-        const affected = tx.operations?.some(op =>
-          op.measure?.panelId === moduleId ||
-          op.measure?.containerId === moduleId ||
-          op.occurrence_list?.from?.containerId === moduleId ||
-          op.occurrence_list?.to?.containerId === moduleId ||
-          op.entity?.moduleId === moduleId
-        );
-        if (!affected) return false;
-      }
+      // Per-module filter. A transaction names an OCCURRENCE (or the module
+      // itself), never the panel/container ids the old test asked for — which
+      // is why this panel was empty on every grid (helpers/transactionScope).
+      if (moduleId && !transactionTouchesModule(tx, { moduleId, occurrenceIds: moduleOccIds })) return false;
       // State filter
       if (filter.state !== "all" && tx.state !== filter.state) {
         return false;
@@ -401,7 +405,7 @@ export default function TransactionHistory({
 
       return true;
     });
-  }, [transactions, filter]);
+  }, [transactions, filter, moduleId, moduleOccIds]);
 
   // Stats
   const stats = useMemo(() => {

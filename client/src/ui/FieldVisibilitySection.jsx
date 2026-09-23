@@ -46,12 +46,30 @@ const REVEAL_MODES = [
   { key: "hover", label: "On hover" },
 ];
 
-export default function FieldVisibilitySection({ occurrence }) {
+// THE GRID IS THE ROOT OF THIS CASCADE, and until now nothing could set it.
+// `grid.meta.fieldVisibility` is READ in exactly one place (selectors.js) and
+// was WRITTEN nowhere in the source — measured 2026-09-22: of ten grids only
+// poms carried one, hiding Tags / Date / Kanban Column, i.e. the very request
+// the root was added for ("hide tags everywhere"). Expressing that meant a hand
+// write. GridSettingsTab already hosts the STYLE cascade's root beside this
+// one, so the control belongs there too.
+//
+// Pass `grid` + `gridId` instead of `occurrence` for the root. Two things are
+// genuinely different there and are not oversights:
+//   - there is no "Inherit": nothing sits above the grid. Its off state IS
+//     "no default", so Off CLEARS the key rather than storing {mode:"off"}
+//     (the resolver already treats absent and off identically).
+//   - the REVEAL cascade is not shown: `getEffectiveFieldRevealForOccurrence`
+//     walks occurrences only and has no grid root, so a control here would
+//     write a key nothing reads.
+export default function FieldVisibilitySection({ occurrence, grid = null, gridId = null }) {
   const ctx = useGridActions();
   const { dispatch, socket, fieldsById, occurrencesById } = ctx;
+  const isGrid = !!grid;
 
-  const own = occurrence?.fieldVisibility || null;
-  const currentMode = own == null ? "inherit" : (own.mode || "inherit");
+  const own = isGrid ? (grid?.meta?.fieldVisibility || null) : (occurrence?.fieldVisibility || null);
+  // At the root, "nothing set" reads as Off — there is no level to inherit from.
+  const currentMode = own == null ? (isGrid ? "off" : "inherit") : (own.mode || (isGrid ? "off" : "inherit"));
   const ownFieldIds = Array.isArray(own?.fieldIds) ? own.fieldIds : [];
 
   const parentByChildId = useMemo(
@@ -62,15 +80,20 @@ export default function FieldVisibilitySection({ occurrence }) {
   // What this occurrence would inherit if it set nothing — the nearest
   // ancestor's resolved field-visibility (start from the PARENT, not self).
   const inherited = useMemo(() => {
+    if (isGrid) return null;   // nothing above the root
     const parent = getParentOccurrence(occurrence, { occurrencesById, parentByChildId });
     if (!parent) return null;
     return getEffectiveFieldVisibilityForOccurrence(parent, { occurrencesById, parentByChildId });
-  }, [occurrence, occurrencesById, parentByChildId]);
+  }, [isGrid, occurrence, occurrencesById, parentByChildId]);
 
   // The setting actually applied AT THIS LEVEL after the cascade resolves.
   const effective = useMemo(
-    () => getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById, parentByChildId }),
-    [occurrence, occurrencesById, parentByChildId],
+    () => (isGrid
+      ? (own && (own.mode === "show" || own.mode === "hide")
+          ? { mode: own.mode, fieldIds: Array.isArray(own.fieldIds) ? own.fieldIds : [] }
+          : null)
+      : getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById, parentByChildId })),
+    [isGrid, own, occurrence, occurrencesById, parentByChildId],
   );
   // effective comes from this occurrence's own override only when it set a
   // show/hide. "off" or "inherit" → the source is ancestor (or nothing).
@@ -84,6 +107,15 @@ export default function FieldVisibilitySection({ occurrence }) {
   );
 
   const write = (nextFieldVisibility) => {
+    if (isGrid) {
+      // Spread the WHOLE meta: a partial write drops every other key on it
+      // (defaultStyle, scheduleFieldIds, autoAppliedFieldIds all live here).
+      const nextMeta = { ...(grid?.meta || {}) };
+      if (nextFieldVisibility == null || nextFieldVisibility.mode === "off") delete nextMeta.fieldVisibility;
+      else nextMeta.fieldVisibility = nextFieldVisibility;
+      CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+      return;
+    }
     if (!occurrence?.id) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
@@ -134,6 +166,8 @@ export default function FieldVisibilitySection({ occurrence }) {
 
   const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
   const showList = currentMode === "show" || currentMode === "hide";
+  // No "Inherit" at the root — there is no level above it to inherit from.
+  const modes = isGrid ? MODES.filter(m => m.key !== "inherit") : MODES;
 
   return (
     <section style={{ marginBottom: 8, borderTop: "1px solid var(--panel-border, #374151)", paddingTop: 8 }}>
@@ -141,7 +175,7 @@ export default function FieldVisibilitySection({ occurrence }) {
 
       {/* Mode cascade control */}
       <div style={{ display: "flex", gap: 2, marginBottom: 6 }}>
-        {MODES.map(m => {
+        {modes.map(m => {
           const isActive = currentMode === m.key;
           return (
             <button
@@ -171,7 +205,9 @@ export default function FieldVisibilitySection({ occurrence }) {
         )}
       </div>
 
-      {/* Reveal cascade — WHEN the fields show. Its own nearest-wins walk. */}
+      {/* Reveal cascade — WHEN the fields show. Its own nearest-wins walk.
+          Absent at the grid root: that resolver walks occurrences only. */}
+      {!isGrid && (<>
       <div style={{ ...sectionHeader, marginTop: 6 }}>Reveal</div>
       <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
         {REVEAL_MODES.map(m => {
@@ -198,6 +234,7 @@ export default function FieldVisibilitySection({ occurrence }) {
         Effective: <strong>{effectiveReveal === "hover" ? "On hover" : "Always"}</strong>
         {` · ${revealMode === "inherit" ? "Ancestor" : "Local"}`}
       </div>
+      </>)}
 
       {/* Field checklist — only when this occurrence sets a local show/hide.
           Each row shows: include-in-list checkbox + field name + compact value
