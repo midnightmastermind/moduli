@@ -29,6 +29,7 @@
 // occurrences via CommitHelpers so optimistic dispatches stay consistent.
 
 import * as LayoutHelpers from "./LayoutHelpers";
+import { withAction } from "./actionScope";
 import * as CommitHelpers from "./CommitHelpers";
 
 // Heuristic: the helper accepts either a container occurrence or a page
@@ -172,6 +173,23 @@ export function runPasteClipboard({
   if (!mode || !Array.isArray(ids) || ids.length === 0) return { pasted: 0 };
   if (!destinationOccurrence?.id) return { pasted: 0 };
 
+  // ONE GESTURE, ONE UNDO STEP. Pasting N rows used to write N transactions
+  // with N action ids, so a single Ctrl+Z took back HALF a paste and left the
+  // rest behind (measured on prod, 2026-09-22: two "Created item" transactions
+  // under b52c615a and 9ea65562 for one two-row paste). Each row's create was
+  // already grouped with the parent's list write; what was missing was the
+  // gesture around the pair. `withAction` NESTS, so the inner helpers reuse
+  // this id rather than opening their own.
+  const verb = mode === "move" ? "Moved" : mode === "copylink" ? "Linked" : "Pasted";
+  return withAction(`${verb} ${ids.length} item${ids.length === 1 ? "" : "s"}`, () =>
+    _pasteInto({ mode, ids, destinationOccurrence, destinationModule, occurrencesById,
+                 dispatch, socket, gridId, userId, panelId, panelLabel }));
+}
+
+function _pasteInto({
+  mode, ids, destinationOccurrence, destinationModule, occurrencesById,
+  dispatch, socket, gridId, userId, panelId, panelLabel,
+}) {
   let pasted = 0;
   const toContainer = buildToContainerShim(destinationOccurrence, destinationModule);
 
