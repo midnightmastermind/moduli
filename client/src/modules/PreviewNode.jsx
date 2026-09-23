@@ -18,7 +18,7 @@
 // main.jsx still works for any outstanding iframe consumers.
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { File, Image as ImageIcon, X, Trash2 } from "lucide-react";
+import { File, Image as ImageIcon, X, Trash2, Pencil } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
@@ -29,6 +29,7 @@ import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import ContextMenu from "../ui/ContextMenu";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { buildRenameItem } from "./pageCardRename";
 import { PagePreviewBody } from "../PagePreviewApp.jsx";
 import { requestPreviewSlot } from "../helpers/previewAdmission.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
@@ -271,6 +272,16 @@ export default function PreviewNode({
     confirmDeleteOccurrence({ occurrence, module, dispatch, socket });
   }, [occurrence, module, dispatch, socket]);
 
+  // The prompt is the host: this card has no inline editor, and mounting one
+  // inside a portalled context menu is how the caret bugs in this repo start.
+  const renameItem = buildRenameItem({
+    module, dispatch, socket,
+    onStart: (mod, commit) => {
+      const next = typeof window !== "undefined" ? window.prompt("Rename page", mod.label ?? "") : null;
+      if (next != null) commit(next);
+    },
+  });
+
   const handleContextMenu = useCallback((e) => {
     if (!occurrence?.id) return;
     e.preventDefault();
@@ -279,13 +290,18 @@ export default function PreviewNode({
       x: e.clientX, y: e.clientY,
       items: [
         ...(extraMenuItems ? [...extraMenuItems(occurrence, module), { separator: true }] : []),
+        // RENAME — the page had no other path to one. See modules/pageCardRename.js:
+        // the page header's radial is the PANEL's settings, and double-clicking
+        // the header opens nothing, so this card was the only surface that
+        // already treats the page as an object.
+        renameItem ? { label: renameItem.label, icon: Pencil, onClick: renameItem.onClick } : null,
         { label: coverSrc ? "Change cover image…" : "Set cover image…", icon: ImageIcon, onClick: handleSetCover },
         coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover, danger: true } : null,
         { separator: true },
         { label: "Delete", icon: Trash2, onClick: handleDelete, danger: true },
       ].filter(Boolean),
     });
-  }, [occurrence, module, extraMenuItems, coverSrc, handleSetCover, handleClearCover, handleDelete]);
+  }, [occurrence, module, extraMenuItems, coverSrc, handleSetCover, handleClearCover, handleDelete, renameItem]);
 
   // Representation mode renders a single chip (no iframe, no preview
   // body) — the user can still drill in by clicking it.

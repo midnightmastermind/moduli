@@ -3583,3 +3583,19 @@ Schedule Type   Doctor · Dentist · Therapy · … · Employment   <- the TYPE 
 Employer/Job    Mr Brews Taphouse                             <- WHICH employer, a separate list
 ```
 So the row added to the schedule-types board is **Employment**, not Mr Brews Taphouse. In the shipped build the EMPLOYER is expressed by which container the shift is dragged into (`Mr Brews Taphouse` on Tasks), which is what the 08:24 message described doing; a dedicated `Job` field over an employers board is still open.
+
+**2026-09-23 13:52 CDT** — "ask the questions you need" → four answers, plus a correction on the first:
+
+1. **Job field: YES** — but *"job should be used as a multiselect on work and the op looks at schedule types (for adding to the schedule, does it for any schedule type not just employment). it shouldnt do anything else but that, ill add stuff to Mr Brews Taphouse myself."*
+   So: `Job` is **multiSelect**, bound to **Work only**; `Schedule: Place Dated Work` is NOT to be
+   touched — it already gates on *binding the Schedule Type field*, whatever the value, and must keep
+   doing only that; and **I do not put anything into the `Mr Brews Taphouse` container** — the user
+   logs their own shifts there.
+2. **Job's options come from a NEW Employers board** (not the existing Tasks containers), tagged
+   `Board Category: employment` — the value added earlier today.
+3. **Rename the `Appointments` page AND container to "Schedule Types"**, since the board now holds
+   `Employment` beside Doctor/Dentist.
+4. **`Day Page: Build`: fix the op** — move its `ADD_CHILD` below the if/else so the MERGE path
+   re-lists an existing-but-unlisted column too (ADD_CHILD is idempotent, so the create path is
+   unaffected).
+5. **Next after that: keep rebuilding poms through the UI** — the agreed structure+samples scope.
