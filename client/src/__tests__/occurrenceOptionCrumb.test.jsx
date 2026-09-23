@@ -47,3 +47,30 @@ describe("the wiring, pinned at the source", () => {
     expect(code).toMatch(/const label = card\?\.label \|\|/);
   });
 });
+
+describe("there is ONE option renderer, not three", () => {
+  const src = require("node:fs").readFileSync(
+    require("node:path").resolve(__dirname, "../ui/Field.jsx"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("no option LIST builds its own OccurrenceOption inline", () => {
+    // Three copies existed. The crumb was added to one, so the chain showed in
+    // the multi-select picker and silently not in either single-select one —
+    // and a second copy had already drifted (no chipDisplay, no onSetImage).
+    // An inline `renderOption={(o) => <OccurrenceOption .../>}` is the shape
+    // that let them disagree.
+    const inline = code.match(/renderOption=\{\([^)]*\)\s*=>\s*\(?\s*<OccurrenceOption/g) || [];
+    expect(inline).toEqual([]);
+  });
+
+  it("every option list uses the shared renderer", () => {
+    const shared = code.match(/renderOption=\{renderOccurrenceOption\}/g) || [];
+    expect(shared.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("the SELECTED-value display may still build its own (the control)", () => {
+    // It renders the chosen value, not a row of a list — a crumb there would
+    // be noise, so this is a deliberate exception rather than a missed copy.
+    expect(code).toMatch(/localValue\s*\?\s*<div[^>]*><OccurrenceOption occId=\{localValue\}/);
+  });
+});

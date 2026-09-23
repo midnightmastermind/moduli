@@ -1199,6 +1199,14 @@ function Field({
     });
   }, [getOccMap, modulesById, fieldsById, dispatch, socket]);
 
+  // THE ONE OPTION RENDERER. Three copies of this existed — this callback plus
+  // an inline `renderOption={(o) => <OccurrenceOption .../>}` in each of the two
+  // single-select popovers. The ancestor-chain crumb was added to this one, so
+  // the chain showed in the MULTI-select picker and silently not in either
+  // single-select one; a second copy had already drifted (no chipDisplay, no
+  // onSetImage). "Two implementations of one question, only one ever fixed" is
+  // this log's most-repeated class, and one definition cannot disagree with
+  // itself. `occurrenceOptionCrumb.test.jsx` fails if an inline copy returns.
   const renderOccurrenceOption = useCallback(
     (o) => <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} crumb={o._crumb || null} />,
     [occMaps, chipDisplay, handleSetOptionImage]
@@ -1989,10 +1997,7 @@ function Field({
               searchProvider={occSearchProvider}
               onImportResult={importProviderResult}
               emptyText="No occurrences available"
-              renderOption={(o) => (
-                <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps}
-                  chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />
-              )}
+              renderOption={renderOccurrenceOption}
             />
           </PopoverContent>
         </Popover>
@@ -2442,9 +2447,7 @@ function Field({
                 searchProvider={occSearchProvider}
                 onImportResult={importProviderResult}
                 emptyText="No occurrences available"
-                renderOption={(o) => (
-                  <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} />
-                )}
+                renderOption={renderOccurrenceOption}
               />
             </PopoverContent>
           </Popover>
