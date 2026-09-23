@@ -12,6 +12,27 @@ const MODES = [
   { key: "find",   label: "Find" },
 ];
 
+// WHAT A NEW "Find" SOURCE STORES, and why it depends on the field type.
+//
+// An OCCURRENCE field holds a REFERENCE — the point of the type is that it
+// names a row, so its value must be the row's ID with the label merely shown.
+// A SELECT holds the value itself, so there the label IS the value.
+//
+// The editor defaulted BOTH to `valuePath: "label"`, which is the shape 5 of
+// the 106 live find-mode fields use; the other 101 key by id. On an occurrence
+// field that default is actively wrong in two ways, measured 2026-09-23:
+//   - the stored value is a label STRING, so renaming the row silently breaks
+//     every reference to it;
+//   - options are de-duplicated BY VALUE, so a board holding four rows called
+//     "Stretch" collapses to ONE option and the other three cannot be picked
+//     at all — which is also why the ancestor-chain crumbs added the same day
+//     could never appear on a UI-made occurrence field.
+function findValueDefaults(fieldType) {
+  return fieldType === "occurrence"
+    ? { valuePath: "id", labelPath: "label" }
+    : { valuePath: "label" };
+}
+
 const pillStyle = (active) => ({
   padding: "3px 10px",
   borderRadius: 999,
@@ -30,7 +51,7 @@ export default function SelectOptionsSourceEditor({ source, onChange, fieldType 
     if (next === mode) return;
     if (next === "manual") onChange({ mode: "manual", values: [] });
     else if (next === "range") onChange({ mode: "range", range: { start: 0, end: 10, step: 1 } });
-    else if (next === "find") onChange({ mode: "find", find: { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" } });
+    else if (next === "find") onChange({ mode: "find", find: { over: "$allInstances", predicate: { rules: [] }, ...findValueDefaults(fieldType) } });
   }
 
   return (
@@ -245,7 +266,7 @@ function FindBody({ source, onChange }) {
   const ctx = useGridActions();
   const { fieldsById, modulesById, occurrencesById, foldersById } = ctx;
 
-  const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, valuePath: "label" };
+  const find = source?.find || { over: "$allInstances", predicate: { rules: [] }, ...findValueDefaults(fieldType) };
 
   function patch(p) {
     onChange({ ...source, mode: "find", find: { ...find, ...p } });
