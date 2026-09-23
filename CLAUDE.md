@@ -15,6 +15,60 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (24) — "MODULE HISTORY" WAS EMPTY ON EVERY GRID, and the rows it should have shown said "Unknown operation"
+
+Rebuild-via-UI, next area **the transaction history panel** — the surface that displays everything
+this week's undo work produces, reachable from every container's and panel's radial, and never once
+opened on this grid.
+
+**IT OPENED CONTRADICTING ITSELF.** From the Mind container:
+```
+Module History | 98 active, 0 undone | No transactions found | 0 of 100 transactions
+```
+242 transactions exist on this grid. **The "0 undone" is CORRECT and was checked before being
+filed** — the one transaction I undid earlier had since been superseded, and the grid genuinely
+holds `applied 234 / superseded 8 / undone 0`. The empty LIST is the defect.
+
+**THE FILTER ASKED FOR IDS THE DATA HAS NEVER CARRIED.** It matched `measure.panelId`,
+`measure.containerId`, `occurrence_list.*.containerId` and `entity.moduleId`. Measured on both
+grids:
+```
+rebuild   242 transactions   200 SnapshotOp — operations[] EMPTY, payload in docs[]
+                              42 MeasureOp  — measure = { occurrenceId, fieldId, value, flow }
+poms     1200 transactions   15,831 measure payloads, ZERO carrying panelId or containerId
+                             0 occurrence_list ops · 0 entity ops
+```
+So the panel could not match a single row **on either grid** — a shipped surface that is always
+empty, everywhere. What a transaction actually names is an OCCURRENCE (or the module itself, for a
+module write), and `helpers/transactionScope` reads that; the legacy shapes are kept for a grid
+whose older rows carry them.
+
+**AND WITH THE ROWS BACK, EVERY ONE OF THEM READ "Unknown operation".** `getDescription` bails on a
+missing `operations[0]` — which is every SnapshotOp, i.e. 200 of 242 here and 200 of 1200 on poms.
+Nothing had to be guessed: the record carries the label its gesture opened with
+(`withAction("Created item", …)`) and the docs it wrote.
+
+**VERIFIED ON PROD, the same panel before and after:**
+```
+before   No transactions found · 0 of 100
+after    Updated occurrence — Mind        Applied
+         Created item — Mind +2           Applied     <- the one-action paste from (21)
+         Created item — Mind +1           Applied
+         5 of 100 transactions            every row carrying an enabled "Undo this transaction"
+```
+**The overflow counts DOCS, not resolvable names** — a transaction that wrote three rows and can
+only name two must not read as if it wrote two. (The unnamed ones here are rows I deleted
+afterwards, which is exactly when a count beats a name.)
+
+**NOT PRESSED, and said plainly:** nobody has clicked the panel's own Undo. Each row offers an
+enabled button and it goes through the same `undoTransaction` socket path Ctrl+Z uses — which this
+session has exercised repeatedly — but pressing it would revert an hour-old transaction on a grid I
+want left tidy, so the button's own wiring is unproven.
+
+Client tests green, integrity **clean**, 315 occurrences.
+
+---
+
 ### 2026-09-22 (23) — THE FIELD-VISIBILITY CASCADE'S ROOT WAS UNREACHABLE; and a parallel deploy ate my A/B
 
 Rebuild-via-UI, next area **field visibility** — picked from the census: poms carries 9 occurrences

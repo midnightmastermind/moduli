@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (4) — TransactionHistory: the per-module panel shows rows, and says what they were)
+- **The module filter matched ids the data never had** (`measure.panelId` / `measure.containerId` /
+  `occurrence_list.*.containerId` / `entity.moduleId`). Measured: 200 of the rebuild grid's 242
+  transactions are SnapshotOps whose `operations[]` is EMPTY (payload in `docs[]`), and poms' 15,831
+  measure payloads carry NONE of those keys — so "Module History" was empty on every grid. It asks
+  `helpers/transactionScope.transactionTouchesModule` now, which reads the OCCURRENCE ids a
+  transaction names (plus the module's own id); the legacy shapes still match.
+- **Every row then read "Unknown operation"** — `getDescription` bails without `operations[0]`.
+  `describeSnapshotTransaction` uses the label the gesture opened with and names what it touched
+  ("Created item — Morning Walk"), counting the OVERFLOW BY DOCS so a three-row write cannot read as
+  a two-row one. Label alone, then a plain count, then "Unknown operation" only when there is
+  genuinely nothing to say.
+- The row takes `occurrencesById` / `modulesById` as props (it already took the other maps that way).
+  12 tests in `__tests__/transactionScope.test.js`, A/B'd against the old shape (3 fail).
+
 ## Recent Changes (2026-09-22 (3) — RadialMenu: submenus, and an arc that cannot stack items)
 - **`arcItemsFor(items, openLabel)` (NEW, exported)** — a submenu REPLACES the arc it opened from,
   with a `Back` item first. User: *"make a convert submenu so we dont have 4 convert buttons on the
