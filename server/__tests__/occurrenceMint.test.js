@@ -5,6 +5,46 @@
 // parent" — this repo's most-repeated defect class.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Minimal filter/update support shared by updateOne/findOneAndUpdate below —
+// NOT in the task brief's original draft. Review round 1 (CRITICAL 1) requires
+// mintOccurrence's STANDALONE parent-link fallback (used when no `linkToParent`
+// callback is injected) to be genuinely atomic — the same `$push` guarded by
+// `occurrences: { $ne: childId } }` that `linkIntoParent` in apiV1.js already
+// uses at 8 call sites. `/ingest` always injects `linkToParent`, so this
+// fallback (and hence `Occurrence.updateOne`) is never exercised by
+// apiIngest.test.js — it is exercised ONLY by this file's own tests 1-3, which
+// call mintOccurrence with no `linkToParent`. Extending THIS mock (which this
+// task authors) is how that got satisfied without touching the protected
+// apiIngest.test.js regression guard at all.
+function matchesOccFilter(doc, filter = {}) {
+  for (const [k, v] of Object.entries(filter)) {
+    if (k === "occurrences") {
+      const list = doc.occurrences || [];
+      if (v && typeof v === "object" && "$ne" in v) {
+        if (list.includes(v.$ne)) return false;
+      } else if (!list.includes(v)) return false;
+      continue;
+    }
+    if (doc[k] !== v) return false;
+  }
+  return true;
+}
+function applyOccUpdate(doc, update) {
+  if (update.$set) Object.assign(doc, update.$set);
+  if (update.$push) {
+    const spec = update.$push.occurrences;
+    const list = [...(doc.occurrences || [])];
+    if (spec && typeof spec === "object" && "$each" in spec) {
+      const pos = spec.$position;
+      if (Number.isInteger(pos)) list.splice(pos, 0, ...spec.$each);
+      else list.push(...spec.$each);
+    } else {
+      list.push(spec);
+    }
+    doc.occurrences = list;
+  }
+}
+
 const modules = new Map(), occurrences = new Map();
 vi.mock("../models/Module.js", () => ({ default: {
   findOne: async (q) => [...modules.values()].find(m => m.id === q.id) || null,
@@ -18,19 +58,20 @@ vi.mock("../models/Occurrence.js", () => ({ default: {
   create:  async (d) => { occurrences.set(d.id, { ...d }); return { ...d }; },
   updateOne: async (q, u) => {
     const o = [...occurrences.values()].find(x => x.id === q.id);
-    Object.assign(o, u.$set || {});
-    return { modifiedCount: 1 };
+    if (!o || !matchesOccFilter(o, q)) return { matchedCount: 0, modifiedCount: 0 };
+    applyOccUpdate(o, u);
+    return { matchedCount: 1, modifiedCount: 1 };
   },
   // NOT in the task brief's original draft: `mintOccurrence` (see its own
-  // header) uses `findOneAndUpdate` rather than `updateOne` so the SAME
-  // implementation also satisfies `apiIngest.test.js`'s existing model mock,
-  // which has `findOneAndUpdate` but no `updateOne`. Added here rather than
-  // touching that regression-guard file. `updateOne` above is kept as given
-  // and is simply unused by the current implementation.
+  // header) uses `findOneAndUpdate` rather than `updateOne` for the
+  // existing-occurrence UPDATE path, so the SAME implementation also
+  // satisfies `apiIngest.test.js`'s existing model mock, which has
+  // `findOneAndUpdate` but no `updateOne`. Added here rather than touching
+  // that regression-guard file.
   findOneAndUpdate: async (q, u) => {
     const o = [...occurrences.values()].find(x => x.id === q.id);
-    if (!o) return null;
-    if (u.$set) Object.assign(o, u.$set);
+    if (!o || !matchesOccFilter(o, q)) return null;
+    applyOccUpdate(o, u);
     return { ...o };
   },
 }}));

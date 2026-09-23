@@ -1020,6 +1020,15 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           // ONLY when no existing (source, externalId) row is found — that
           // preserves this route's original order, where a "skip"-mode
           // record never touches the Module collection at all.
+          //
+          // `parentExists` and `linkToParent` hand mintOccurrence THIS
+          // route's own already-warmed, batch-scoped cache and its atomic
+          // `linkIntoParent` (the `$push`/`{$ne: childId}` guard used at 8
+          // other call sites in this file) — the same injection technique as
+          // `resolveModule`/`mirror`, so this call gets both the batch-cache
+          // performance (no second, uncached `Occurrence.exists` per record)
+          // and the atomicity `linkIntoParent` exists to guarantee, rather
+          // than mintOccurrence's own standalone fallbacks for either.
           const result = await mintOccurrence({
             userId: req.userId, gridId, label: rec.label ?? null, parentId,
             resolveModule: async () => {
@@ -1027,6 +1036,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
               if (!mod) throw new Error("moduleId or moduleLabel required (module not found)");
               return mod;
             },
+            parentExists,
+            linkToParent: ({ childId, index }) => linkIntoParent({
+              userId: req.userId, parentId, childId, index,
+            }),
             fields: rec.fields || {},
             occurrenceId: rec.id || ingestOccId(source, externalId),
             index: rec.index,
