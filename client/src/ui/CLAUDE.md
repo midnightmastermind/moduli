@@ -2,6 +2,23 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (5) — PomodoroTimer: the destination picker could never be used)
+- **`PomodoroTimer.jsx`** — its dismiss handler asked `panelRef.current.contains(e.target)`, which is
+  a lie for `DestinationPicker`'s Radix popover (portalled to `document.body`, a SIBLING of the
+  panel). Pressing a destination row collapsed the panel on MOUSEDOWN, and `containerOptions` is
+  memoized on `expanded`, so the list emptied between mousedown and mouseup — the button being
+  pressed no longer existed when the click completed (measured on prod: rows 33 -> 0). `onPick` never
+  fired; `grid.meta.pomodoroTargetContainerId` is unset on poms grid for this reason, not by choice.
+- Fixed by CALLING `helpers/outsideClick.clickedInsidePortalLayer` — the rule written 2026-08-27 for
+  the identical QuickAdd symptom, whose header already says it is safe on every such handler because
+  it can only ever prevent a close. 16 hand-rolled `mousedown` outside-close handlers exist; 8 used
+  it. `__tests__/pomodoroDestinationPicker.test.js` is a WALKER (the defect is that one file was
+  missed, not that one file was wrong) + controls that the picker, the handler and the `expanded`
+  gate all still exist. Verified on prod: pick persists across a reload, None clears it, and ordinary
+  outside click / Escape / re-click all still dismiss.
+- **Reported, not fixed:** 7 other handlers do not use the rule. NOT blanket-applied — the rule counts
+  `[role="dialog"]` as a portal layer, so a menu that itself lives inside a dialog would wedge open.
+
 ## Recent Changes (2026-09-22 (4) — TransactionHistory: the per-module panel shows rows, and says what they were)
 - **The module filter matched ids the data never had** (`measure.panelId` / `measure.containerId` /
   `occurrence_list.*.containerId` / `entity.moduleId`). Measured: 200 of the rebuild grid's 242

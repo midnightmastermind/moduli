@@ -15,6 +15,76 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (25) — THE POMODORO DESTINATION COULD NEVER BE SET, ON ANY GRID
+
+Rebuild-via-UI, next area **pomodoro** — picked because the rebuild grid had ZERO of it (poms
+runs 4 pomodoro ops; `grid.meta` here was entirely empty), which is the shape (16) found with
+alarms.
+
+**THE TIMER ITSELF IS SOUND, driven from the toolbar on a grid with no `meta` at all:** Start ->
+`24:56` -> `24:53`, Pause holds, Reset returns to `25:00`. **0 transactions throughout, and that is
+correct** — no op here carries an `onPomoStart` trigger, so there is nothing to match and nothing
+to write.
+
+**BUT THE DESTINATION PICKER ("Send pomodoros to") DOES NOTHING, AND IT HAS NEVER WORKED.**
+`DestinationPicker` is a Radix Popover: its list portals to `document.body`, a **sibling** of the
+pomodoro panel rather than a descendant. The panel's own dismiss handler asks
+`panelRef.current.contains(e.target)` — a lie for a portalled layer — so pressing a row collapsed
+the panel on **MOUSEDOWN**; and `containerOptions` is memoized **on `expanded`** (a deliberate
+2026-08-30 perf decision: 156ms of the load spent filling a `<select>` nobody is looking at). The
+list therefore emptied BETWEEN mousedown and mouseup:
+```
+picker open              popover open   rows 33
+after MOUSEDOWN only     popover open   rows  0   <- panel collapsed, options gated off
+after mouseup            popover open   rows  0   <- the button you pressed no longer exists
+```
+So `onPick` never fired, the trigger label stayed `None`, and nothing was written. **Two decisions
+each correct alone, cancelling each other out — the shape (17) found in the panel stack.**
+
+**IT IS NOT COSMETIC, and one field says so: `pomodoroTargetContainerId` is unset on POMS GRID
+TOO.** The feature has shipped for weeks and there has never been a way to set it.
+
+**THE RULE ALREADY EXISTED AND THIS FILE WAS ONE OF EIGHT THAT NEVER ADOPTED IT.**
+`helpers/outsideClick.clickedInsidePortalLayer` was written 2026-08-27 for the IDENTICAL symptom
+(*"whenever i select anything from the quickadds field value selection, it closes out of the
+quickadd menu"*), and its own header says it is safe on every such handler **because it can only
+ever prevent a close, never cause one**. Measured: 16 hand-rolled `mousedown` outside-close
+handlers, 8 using the rule. The fix is one guarded early return.
+
+**THE WALKER IS THE TEST, not a pin on one file** — the whole defect is that one file was missed
+while eight were not. It fails when any component that renders a portalling picker hand-rolls an
+outside-close without CALLING the rule. **A/B'd, and the first version of the walker was too weak:
+deleting the call left the IMPORT, and an identifier check passed on the import line alone.**
+Tightened to require a call, both tests now fail against the unfixed source and the walker NAMES
+the offender.
+
+**VERIFIED ON PROD, both directions AND the controls that make the fix safe:**
+```
+pick a destination   target null -> 45bd85bb…   label "Basic Nutrition Guide › Container"
+after a RELOAD       45bd85bb…                  <- persisted server-side
+pick None            back to null, survives a reload
+ordinary outside click / Escape / re-click the trigger   panel still dismisses (opacity 0)
+```
+The arbitrary destination was set only to prove the mechanism and was cleared again; the grid ends
+as it was found. Integrity **clean**.
+
+**AND THE PROBE FAULT IS THE REUSABLE HALF.** My first click on `+ Attach a field` (in the
+operations editor, the same day) matched the element by INNERTEXT and landed on the wrapping
+`<div>` — and because a wrapper and its button render the same text, `elementFromPoint` returned
+that text and the hit-test guard PASSED. The picker silently never opened, which reads as a broken
+control. *Hit-test on element IDENTITY, not on the text it renders.* Also: the pomodoro's own
+controls are **icon-only buttons**, so a filter on `innerText` finds none of them ((14) recorded
+the same thing on the radial arc) — and the value editor in the operations builder defaults to
+**path** mode, which renders a picker and no text box, so "there is no input" is a mode, not a bug.
+
+**REPORTED, NOT FIXED — 7 other hand-rolled handlers do not use the rule** (`TransactionNotification
+Stack` ×2, `RadialMenu`, `NavPickerPopover`, `FootnoteNode`, `ActionPicker`, `containerPopups`,
+`ManifestTree`). They are NOT blanket-fixed on purpose: the rule treats `[role="dialog"]` as a
+portal layer, so applying it to a menu that itself lives inside a dialog (the command center) would
+wedge that menu open — the exact inverse defect. Each wants checking against what it actually hosts.
+
+---
+
 ### 2026-09-22 (24) — "MODULE HISTORY" WAS EMPTY ON EVERY GRID, and the rows it should have shown said "Unknown operation"
 
 Rebuild-via-UI, next area **the transaction history panel** — the surface that displays everything
