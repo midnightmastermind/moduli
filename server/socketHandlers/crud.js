@@ -1,7 +1,7 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
 import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
-import { refusedDuplicateCreates, refusedByStoredSiblings } from "../utils/duplicateSignature.js";
+import { refusedDuplicateCreates, refusedByStoredSiblings, adoptableHolders } from "../utils/duplicateSignature.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -1571,6 +1571,20 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
           const msg = { occurrenceId: rid };
           socket.emit("occurrence_deleted", msg);
           socket.to(userRoomFn(userId)).emit("occurrence_deleted", msg);
+        }
+
+        // A REFUSAL WHOSE HOLDER NOBODY LISTS IS A PERMANENT DEAD END, and it
+        // has happened twice (2026-09-19, 2026-09-23): the column is in Mongo
+        // with its signature, its children and a `parentId` that resolves, the
+        // parent's `occurrences[]` never learned it, so it renders NOWHERE —
+        // and every rebuild is refused as a duplicate of the row the user
+        // cannot see. Re-list it instead of only saying no. Allowing the
+        // duplicate would mint a SECOND column and leave the first as debris.
+        // `handleLinkToParent` is the app's own atomic link: `$ne`-guarded, so
+        // a listing that lands first makes this a no-op.
+        for (const { holderId, parentId } of adoptableHolders(batch, uc.occurrencesById, { refused: refusedIds })) {
+          console.log("🟣 create_batch ADOPTED unlisted holder", holderId, "->", parentId);
+          await handleLinkToParent(holderId, parentId);
         }
       }
 
