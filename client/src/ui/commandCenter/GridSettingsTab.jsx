@@ -14,6 +14,7 @@ import { LAYOUT_MODES } from "../../helpers/layoutRules";
 import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
 import LayoutCascadeEditor from "../LayoutCascadeEditor";
+import FieldVisibilitySection from "../FieldVisibilitySection";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },
@@ -400,6 +401,19 @@ export function GridSettingsTab() {
             CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
           }}
         />
+      </div>
+
+      <Separator className="mb-3" />
+
+      {/* ── Grid-wide field visibility — root of the OTHER field cascade ─────
+          Writes `grid.meta.fieldVisibility`. `selectors.js` has read it since
+          2026-08-11 and NOTHING wrote it: of ten grids only poms carried one
+          (hiding Tags / Date / Kanban Column — the exact "hide tags everywhere"
+          request it was added for), which had to be put there by hand. Pages /
+          containers / instances override it at their own level through the same
+          section in their header dropdown. */}
+      <div className="mb-3">
+        <FieldVisibilitySection grid={grid} gridId={gridId} />
       </div>
 
       <Separator className="mb-3" />
