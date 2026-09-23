@@ -7,18 +7,19 @@
 //   INIT_VAR / SET_VAR — set a $var from an expression
 //   IF + AND/OR/NOT predicates with basic comparators
 //   LOOP over an array $var (as / overExpr)
-//   CALL_API — outbound HTTP (the headliner)
+//   CALL_API — outbound HTTP
 //   SHOW_VALUE — stage a named result for the caller
+//   CREATE — mint a row (via services/occurrenceMint), WITH fieldBindings
+//   FIND — resolve one occurrence by predicate
 //
-// The full client-side executor handles dozens more action types
-// (FIND / CREATE / COPY_LINK / APPLY_TEMPLATE / aggregations / etc.)
-// — anything beyond the subset above needs a connected browser tab
-// today. Phase 4+ work will either port the full executor server-side
-// or refactor the client one into a shared isomorphic module.
+// Still client-only: COPY_LINK / APPLY_TEMPLATE / aggregations / the rest.
+// Anything outside this list is collected in the returned `unsupported[]`
+// rather than silently skipped.
 //
 // Per docs/api-plan.md §2.
 
 import Secret from "../models/Secret.js";
+import { mintOccurrence } from "./occurrenceMint.js";
 
 const SCALAR_LITERAL_RE = /^literal:/;
 const NUMBER_LITERAL_RE = /^-?\d+(\.\d+)?$/;
@@ -147,7 +148,7 @@ function appendQuery(url, query) {
  * Caller supplies vars (folded into $vars under "$name" keys) plus
  * userId for secrets lookup.
  */
-export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
+export async function runOperationServerSide(op, { vars = {}, userId, gridId, io = null } = {}) {
   const startedAt = Date.now();
   const $vars = {};
   // Fold caller vars (both "$foo" and "foo" forms).
@@ -156,6 +157,7 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
   }
 
   const effects = [];
+  const unsupported = [];
   const opts = { userId };
 
   async function executeStep(step) {
@@ -220,6 +222,43 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       }
       return;
     }
+    if (type === "CREATE") {
+      // Server-side row creation. Wires to `occurrenceMint`, the same path
+      // `/api/v1/ingest` uses — this executor does not own a second minter.
+      const parentId   = await resolveExprAsync(cfg.parentId, $vars, opts);
+      const label      = await resolveExprAsync(cfg.label, $vars, opts);
+      const externalId = await resolveExprAsync(cfg.externalId, $vars, opts);
+
+      // Values, resolved one at a time so a $var in any of them works.
+      const fields = {};
+      for (const [fid, expr] of Object.entries(cfg.fields || {})) {
+        const value = await resolveExprAsync(expr, $vars, opts);
+        if (value !== undefined && value !== null && value !== "") {
+          fields[fid] = { value, flow: "in" };
+        }
+      }
+
+      // BINDINGS (D17). Default: bind exactly what we wrote. `bindFields`
+      // widens that so a field can be bound with NO value — which is what puts
+      // an ics row in front of `Schedule: Place Dated Work`, since that op
+      // gates on `_boundFieldIds`, not on the value.
+      const bindIds = Array.isArray(cfg.bindFields) && cfg.bindFields.length
+        ? cfg.bindFields
+        : Object.keys(fields);
+      const fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
+
+      const res = await mintOccurrence({
+        userId, gridId, label, parentId, fields, fieldBindings, externalId,
+        moduleRole: cfg.moduleRole || "instance",
+        moduleKind: cfg.moduleKind || null,
+        moduleFileRef: await resolveExprAsync(cfg.moduleFileRef, $vars, opts),
+        source: cfg.source || "share",
+        io,
+      });
+      if (cfg.resultVar) $vars[cfg.resultVar] = res;
+      effects.push({ _effect: "CREATE", ...res });
+      return;
+    }
     if (step.type === "if") {
       // The IF block's predicate sits on step.condition, not cfg.
       const group = step.condition || { operator: "AND", rules: step.rules || [] };
@@ -240,8 +279,11 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       }
       return;
     }
-    // Unknown action type — silently skip (this executor is intentionally
-    // a subset; complex ops need the browser-tab executor for now).
+    // Unknown action type — this executor is intentionally a subset; complex
+    // ops need the browser-tab executor for now. Record it rather than
+    // silently skipping, so a caller can tell "ran everything" from "ran
+    // everything IT KNOWS HOW TO RUN".
+    if (type) unsupported.push(type);
   }
 
   try {
@@ -255,6 +297,7 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       durationMs: Date.now() - startedAt,
       vars: {},
       effects,
+      unsupported,
     };
   }
 
@@ -269,5 +312,6 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
     durationMs: Date.now() - startedAt,
     vars: responseVars,
     effects,
+    unsupported,
   };
 }
