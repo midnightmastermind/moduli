@@ -15,6 +15,94 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (23) — THE FIELD-VISIBILITY CASCADE'S ROOT WAS UNREACHABLE; and a parallel deploy ate my A/B
+
+Rebuild-via-UI, next area **field visibility** — picked from the census: poms carries 9 occurrences
+with a `fieldVisibility`, the rebuild grid **0**, and this file already records the semantics going
+subtly wrong (2026-09-18 (8): *"a cascade level is a complete answer, not a delta"*).
+
+**THE CASCADE ITSELF IS SOUND, driven end to end by clicking**, on a row carrying all six field
+types. The load-bearing step is the third, and the CONTROL is what makes it mean anything:
+```
+                         page          container      what the ROW shows
+baseline                 inherit       inherit        all six
+PAGE   hide[Location]    hide[Loc]     inherit        Location gone
+CONT   hide[Notes]       hide[Loc]     hide[Notes]    Notes gone, LOCATION BACK   <- REPLACE
+CONT   Off               hide[Loc]     off            all six  (page's hide ignored)
+reset                    inherit       inherit        all six
+```
+*Location returning is the proof.* A merge would have hidden both; the nearer level replaced the
+page's answer wholesale, exactly as documented.
+
+**BUT THE ROOT OF THAT CASCADE COULD NOT BE SET BY ANY USER.** `grid.meta.fieldVisibility` is the
+top of the walk and it is **READ in exactly one place and WRITTEN nowhere in the source**:
+```
+grids carrying one   1 of 10   — poms: hide[Tags, Date, Kanban Column]
+client writers       0
+server writers       0         (every createLiveData write is OCCURRENCE-level)
+```
+Those three fields are verbatim the request the root was added for on 2026-08-11 — *"hide tags
+everywhere, and hide date everywhere thats not tasks, schedule, trackers"* — so the only way to
+express "everywhere" was a hand write into Mongo, **which this log records going badly on this key's
+occurrence-level sibling** (09-18 (8): a hand-written `fieldVisibility` un-hid three fields and named
+another grid's field id).
+
+***AND THE ROOT WAS IMPLEMENTED, DOCUMENTED AND UNIT-TESTED THE WHOLE TIME.***
+`fieldVisibilityGridRoot.test.js` has 7 tests proving the resolver honours it. A green suite over a
+setting nothing can set is the sharpest form of this defect — same shape as the button field whose
+`meta.operationId` had no editor (09-21 (3)) and `grid.meta.scheduleFieldIds`, seed-only (16).
+
+**THE CONTROL IS THE EXISTING SECTION, not a second one.** `FieldVisibilitySection` takes an optional
+`grid`/`gridId`; `GridSettingsTab` mounts it beside the **style** cascade's root, which was already
+sitting there. Two differences at the root are deliberate and are ASSERTED so a later tidy-up cannot
+quietly restore them:
+- **no "Inherit"** — nothing sits above the grid, and its off state IS "no default", so Off CLEARS
+  the key (the resolver already treats absent and `{mode:"off"}` identically);
+- **no REVEAL control** — `getEffectiveFieldRevealForOccurrence` walks occurrences only and has no
+  grid root, so a control there would write a key nothing reads.
+
+**VERIFIED ON PROD THROUGH THE UI:**
+```
+Grid tab -> Field Visibility        mode buttons ["Off","Show","Hide"]   <- no Inherit
+Hide + tick Notes                   grid = hide[Notes]
+the row (nothing nearer set)        Notes GONE — the root reached an instance
+Off                                 grid = none, Notes back
+```
+**The meta-preservation guard is unit-tested and NOT watched, and saying so matters:** the write
+spreads the whole `meta` because `defaultStyle` / `scheduleFieldIds` / `autoAppliedFieldIds` live
+there — but the rebuild grid's `meta` is **empty**, so live data could not exercise it.
+
+---
+
+**AND THE A/B WAS VACUOUS FOR A REASON WORTH MORE THAN THE FEATURE: `deploy.sh` RUNS `git add -A`.**
+It commits the WHOLE working tree, not the deploying session's files. With three accounts sharing one
+checkout, another account's deploy committed my half-finished component — twice, minutes apart
+(`cd085a36`, then `7c21a121 "deploy: update site"`), and later `d69a0692` took the rest INCLUDING my
+test file.
+
+**So the defect arm and the fixed arm were the same bytes, and all 11 tests passed in both.** That
+reads exactly like *"my tests do not discriminate"* — and the previous entry in this file had just
+spent a paragraph on tests that genuinely did not. What separated them was **asserting the mutation
+LANDED**: `grep -c isGrid` read **11** after `git checkout --`, i.e. the arm never changed.
+`git checkout --` restores from the INDEX, and `git show HEAD:` from a HEAD that now contained my own
+work. Re-run against `99d8ac05` — found with `git log -S` and verified at **0** — it fails 6 of 8.
+
+*The rule: before believing an A/B, print a count of the thing you removed. And in a shared checkout,
+find the pre-change commit by SEARCHING for the symbol, never by assuming HEAD predates you.*
+Saved as memory; nothing in the repo documented it.
+
+**Probe faults, mine.** The dropdown's field rows sit at **y=1012-1074 in a 1000px viewport** —
+`getBoundingClientRect` reports a box for a clipped element, so a coordinate click there silently
+misses and the second field I ticked was never ticked; the safe path hit-tests and falls back to
+`element.click()`, **reporting which it used**. And a page's chevron is not found by its name: a page
+header's first line is the DATE pill, so matching "Tasks" against it finds nothing and reads as *"the
+page has no chevron"* — it is found from the ROW via `closest(".page-shell")`.
+
+Grid integrity **clean**; grid meta and all occurrence-level settings back to none. 8 new tests
+(A/B'd 6 of 8), 76 across the field-visibility suites.
+
+---
+
 ### 2026-09-22 (22) — THE TRACKER WAS RIGHT AND MY PROBE WAS WRONG; and a tracker that went stale without saying so
 
 Rebuild-via-UI, next area **trackers**. The handoff carried a defect from this session's own earlier
