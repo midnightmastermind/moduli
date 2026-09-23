@@ -15,6 +15,82 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (4) — RETRACTION: ALL THREE "GAPS" I REPORTED WERE MY PROBE; and the drop highlights are watched working
+
+User: *"fix those things and let me know if you finished those other requests along with the
+highlights."* **There was nothing to fix. Every one of the three defects entry (3) reported is
+withdrawn, and the evidence is the app doing the thing I said it could not.**
+
+```
+reported                                          actual
+"+ Add new never renders"                         it does — the add control is an ICON-ONLY
+                                                  <Plus> button beside a "Search or add…" box.
+                                                  My scan looked for a TEXT-labelled Add.
+"a UI-created board row gets no Board Category"   the DESIGNED path stamps it: adding through
+                                                  the dropdown minted `ZZ Probe Type` with
+                                                  BC ["appointment"] already on it.
+"the search finds a row and does not navigate"    it navigates. The row fires on MOUSEDOWN
+                                                  (`onMouseDown` + preventDefault, so the search
+                                                  input does not blur first) and my probe used
+                                                  synthetic el.click(), which never dispatches
+                                                  one. A real press: Appointments -> Routines.
+```
+***Three reports, one root cause: I was asserting against the DOM I imagined instead of the one the
+app builds.*** The icon-only-button trap is already written down in this file from the pomodoro work
+(14) and from the radial arc (15). It cost a whole entry anyway.
+
+**AND IT EXPLAINS THE ROW I COULD NOT ACCOUNT FOR.** Entry (3) records a `Mr Brews Taphouse` row
+appearing with a uuid id and `BC ["appointment"]` already stamped, which I could not attribute. It
+was the add-new flow working — one of my "failed" clicks had landed. *A mystery row is a strong hint
+that something you believe is broken is not.*
+
+---
+
+**THE DROP HIGHLIGHTS ARE VERIFIED BY DRAGGING, which is what they never had.** They shipped earlier
+today A/B'd against their tests and never watched. All three pieces, on poms' Routines page:
+```
+page-level insert gaps      187 on the page, one BEFORE the first container;
+                            hovering one reveals exactly 1 line
+container drag, IN THE GAP  #__moduli_insert_line  display:block  701x3px, no box
+container drag, OVER a box  page line correctly NULL — it already defers
+nested container dragged    Environmental [Cleaning, Chores, Upkeep, Container]
+  OUT to page level         ->  top level [... Environmental, Container, Creative]
+                            and it landed exactly where the line showed
+```
+The nested drag-out is the user's own bug report (*"i cant drag new containers outside of containers
+in routine"*), and it was exercised on a THROWAWAY container created for the purpose, then removed —
+their three real nested containers were never touched.
+
+**AND I SHIPPED A FIX FOR A NON-PROBLEM, THEN REVERTED IT — recorded because the revert is the
+lesson.** Mid-drag I measured **2 insertion lines** over a container against **1** for an instance
+drag, concluded the new page line was stacking on `useDragDrop`'s closestEdge bars, wrote a guard,
+tested it, deployed it. Then I measured again with the RIGHT element and the story collapsed:
+```
+the two lines      BOTH closestEdge bars — container:Environmental and container:Upkeep
+                   (an outer box and the box nested inside it)
+the page line      #__moduli_insert_line, which is NOT a .drop-indicator at all
+                   and reads display:none over a container
+```
+So the code already deferred, my guard changed nothing observable, and — worse — it keyed on
+`rawContainerEl`, which would have SUPPRESSED the gap line in exactly the place the user asked for
+it. Reverted the same session. ***A fix that is inert is not harmless: this one was one measurement
+away from removing the feature it claimed to protect.***
+**Two nested containers each drawing an edge bar is pre-existing and is left alone** — an outer
+container and an inner one are both real drop targets, and nothing in this week's work created it.
+
+**THE SCAN THAT WAS WRONG THREE TIMES, stated so the next session stops paying for it:** the page
+line is the singleton `#__moduli_insert_line` written by `showDropIndicators`; the per-container bars
+are `.drop-indicator` from `useDragDrop`. They are different mechanisms and a probe that greps one
+class reports the other as absent. *Ask which element DRAWS it before measuring whether it drew.*
+
+**Debris: none.** The throwaway container was removed through the container radial's **Remove**
+(which is a full delete here — 0 leftover modules read back out of Mongo), the probe option row was
+deleted, and poms' module-less occurrences still read **17, all dated 2026-09-22, 0 from today**. The
+`Work` template now carries `Schedule Type = Employment` so every shift dragged from the bank arrives
+already typed.
+
+---
+
 ### 2026-09-23 (3) — A WORK SHIFT REACHES THE SCHEDULE WITH NO CHANGE TO THE OPERATION; and the field editor had two data-loss defects
 
 User: *"the occupational should have a container called employment, and inside should be an instance
