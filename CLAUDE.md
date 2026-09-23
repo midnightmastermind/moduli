@@ -15,6 +15,112 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 — SAME-NAMED ROWS GET THEIR ANCESTOR CHAIN; and the fix was inert twice before it showed
+
+Rebuild-via-UI. Two areas, and one user request that arrived mid-session and turned out to be the
+bigger job.
+
+**TEMPLATES: MERGE IS IDEMPOTENT, and the CONTROL is what makes that mean anything.** The rebuild
+grid had 2 templates (my census metric `meta.templateModule` read 0 and was the WRONG PROXY —
+`templateHelpers.js` says location is the only marker and the flag is legacy that *"points at
+exactly the wrong occurrences"*; checked before filing a defect). Re-applying "Morning Slot":
+```
+                              before   after
+12:00pm (already holds them)     4   ->   4     no duplication
+9:00am  (does not)               2   ->   4     Stretch + Breakfast, signed auto:<templateChildId>
+```
+The second arm is the point: 4→4 alone is equally satisfied by a merge that does nothing. The
+template's own children are UNSIGNED, so this exercises the 2026-08-07 auto-signature fallback —
+the machinery behind the bug that *"permanently doubled the column"*.
+
+---
+
+**THE USER'S REQUEST: *"in those places where its hard to tell occurances apart due to same name
+(diff selects and such), we need to show the occurances ancestor chain"*.** Measured before
+designing, and the measurement decided the design:
+```
+poms   22,479 occurrences · 1,972 labels shared by 2+ · 6,763 rows (30%) carry a shared label
+       worst: "Sleep" x158 · "Drink" x105 · "Eat" x94
+       101 of 106 find-mode fields key their options by ID, so the collisions REACH the user
+```
+`helpers/occurrenceCrumbs.js` is the decision once. **Only the options that collide INSIDE THE LIST
+are crumbed** — ambiguity is a property of the list you are looking at, not of the grid; crumbing
+everything would decorate 15,901 unique labels to help 1,972. It is also what keeps it off a hot
+path (`resolveOptions` was 1,381ms of the 2026-08-07 profile): an O(n) count first, the walk only
+for duplicates, reading the `_ancestors` the resolver already enriches. And it **reports what it
+cannot separate** rather than silently decorating — two rows sharing a label AND a parent get the
+same crumb, which is exactly the template picker's shape.
+
+**THEN IT WAS INERT, TWICE, AND ONLY OPENING THE DROPDOWN SAID SO.**
+1. `OccurrenceOption` does `const label = card?.label || (... fallbackLabel ...)`. `card.label` is
+   re-resolved from the live occurrence and rightly WINS, so the crumbed LABEL was never read. The
+   chain is its own muted line now; the live label still wins for the label, so a renamed row still
+   shows its new name.
+2. Still nothing on screen. `Field.jsx` built `<OccurrenceOption>` in **THREE** places — the shared
+   `renderOccurrenceOption` plus an inline `renderOption={(o) => …}` in EACH single-select popover.
+   The crumb went to the shared one, so it showed in the MULTI-select picker and silently nowhere
+   else; the field I was testing is single-select. **One of the copies had already DRIFTED** (no
+   `chipDisplay`, no `onSetImage`) — the duplication was costing something before anyone noticed it
+   was also missing a crumb. *"Two implementations of one question, only one ever fixed"* — this
+   log's most-repeated class, walked into while fixing something else.
+
+**AND MY FIRST ATTEMPT AT THAT FIX DID NOT COMPILE.** The explanation went in as `{/* … */}`
+**between JSX attributes**, which is not a legal position. **All four source guards passed** — they
+read the file as TEXT — and only `vite build` said so. The same lesson this file records for a
+broken import in `Editor.jsx`: *a source guard cannot see a broken parse.*
+
+**VERIFIED ON PROD BY OPENING THE DROPDOWN** (38 options, **19 chained**, uniques untouched):
+```
+Schedule › 6:00am   ⏎ Wake Up    ⏎ Logged On: Sep 21 ⏎ Done: false
+Schedule › 7:00am   ⏎ Stretch    ⏎ Logged On: Sep 21
+Deep Work           ⏎ Logged On: Sep 21        <- unique, no crumb
+```
+**Then the user: *"you are missing a part of the ancestory"* → *"oh nvm"* → *"and yes full
+ancestory"*.** The first version kept the nearest TWO ancestors. On the rebuild grid the chain
+really is only two deep, which is why it looked right; on poms a schedule row lives under
+`Schedule Template › Schedule: Routine › 6:00am` and the cap hid a level. It shows the whole chain
+now, **stopping at the PAGE** — above that is layout chrome, and the panel is called "Panel D".
+
+---
+
+**FOUND ON THE WAY: A UI-MADE OCCURRENCE FIELD STORED A LABEL, NOT A REFERENCE.** The rebuild's only
+occurrence field could not show a collision at all, because the Fields tab defaults a new Find
+source to `valuePath: "label"` for every type. Of 106 live find-mode fields **101 key by `id`** — the
+editor shipped the minority shape. On an occurrence field it is wrong twice: the stored value is a
+label STRING, so renaming the row silently breaks every reference; and options de-duplicate BY
+VALUE, so a board holding four "Stretch" rows collapses to ONE pickable option. A SELECT keeps
+"label" — there the value IS the label, which is why this is per-type and why the select case is a
+test rather than an afterthought.
+
+**`deploy.sh` RUNS `git add -A`, and it VOIDED AN A/B.** With three accounts on one checkout,
+another account's deploy committed my half-finished files — twice, minutes apart — so
+`git checkout --` restored MY OWN work as the "defect" arm and all 11 tests passed in both. That
+reads exactly like *"my tests do not discriminate"*. What caught it was **asserting the mutation
+landed**: `grep -c isGrid` read 11, not 0. Re-run against the true pre-change commit (found with
+`git log -S`) it fails 6 of 8. Saved as memory; nothing in the repo documented it.
+
+Client **4,871 pass / 1 fail** — `stampCompletedOn`, confirmed pre-existing by reverting both fixed
+files and seeing it fail identically. Every fix A/B'd with the mutation asserted to land. Grid
+integrity **clean**.
+
+**THE REBUILD'S TARGET IS NOW NAMED, at the user's ask (*"i hope we plan on recreating all of poms
+with this rebuild"*).** Censused rather than estimated:
+```
+            poms   rebuild   gap            180 DISTINCT POMS PAGES have no counterpart:
+pages        214       20    194            Mind · Money · Home · Social · Creative ·
+containers   855       34    821            Ingredients · Grocery List · Meals · Beverages ·
+fields       296       14    282            Supplements · Movements · Routes · Readings ·
+operations    78        4     74            Verses · Courses · Practices · Prompts · Topics ·
+occurrences 22479     314  22165            Skills · Ideas · Wish List · People · …
+```
+**Scope chosen: STRUCTURE + SAMPLES** — all 180 pages, their containers, the 282 fields and 74
+operations, each with a handful of real rows so the ops and trackers have something to compute
+over. Deliberately NOT the bulk content (3,558 artifacts, 1,464 bookmarks, 540 quotes, months of
+day columns): those came from uploads and importers, not from clicking, and they are not where the
+defects have been.
+
+---
+
 ### 2026-09-22 (26) — `onAdd` WORKS, AND AN UNSCOPED ONE FIRES ON THE APP'S OWN PLUMBING
 
 Rebuild-via-UI, next area chosen by **census rather than by guess** — which trigger types poms

@@ -3545,3 +3545,5 @@ preview allows you to open it inline in web. why cant we."
 **2026-09-23 07:52 CDT** — "you are missing a part of the ancestory (the container in between schedule and the timeslot)" → then "oh nvm then" (the rebuild grid's chain really is only `6:00am › Schedule`; poms is the one with day-column containers between) → then **"and yes full ancestory"**: show the WHOLE chain, not the nearest-two cap I had shipped.
 
 **2026-09-23 07:52 CDT** — "i hope we plan on recreating all of poms with this rebuild" — the rebuild is not just a place to spot-test surfaces; the goal is to reproduce ALL of poms through the UI. Census the gap and work it down.
+
+**2026-09-23 07:58 CDT** — AskUserQuestion on what "all of poms" means for the rebuild → **"Structure + samples"**: all 180 missing pages, their containers, the 282 missing fields and 74 operations, each with a handful of real rows so the ops and trackers have something to compute over. Explicitly SKIPS the bulk content (3,558 artifacts, 1,464 bookmarks, 540 quotes, months of day columns).
