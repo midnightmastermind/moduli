@@ -755,9 +755,27 @@ export function DragProvider({
       } else if (t === DragType.PAGE) {
         hideDropIndicators();
         if (last.panelId !== panelId) setDropHighlight(panelId || null, "data-panel-id");
+      } else if (t === DragType.CONTAINER) {
+        // A CONTAINER DRAG GETS AN INSERTION LINE TOO, among the PAGE's own
+        // top-level containers. Until now this branch drew nothing and left it
+        // to `useDragDrop`'s closestEdge bars, which only appear while the
+        // pointer is OVER a container — so the gap between two of them, and
+        // the space before the first and after the last, showed nothing at all
+        // and there was no way to see where a drop would land (user,
+        // 2026-09-23: *"the highlights for dropping places should be in
+        // between those containers too (and before and after)"*).
+        //
+        // LINE ONLY, never the box: outlining the page would flash a border
+        // around the entire surface on every crossing, which is the flicker
+        // the leaf path documents and deliberately avoids.
+        const el = typeof document !== "undefined"
+          ? document.elementFromPoint(clientX, clientY)?.closest?.("[data-page-occ-id]")
+          : null;
+        if (el) showDropIndicators(el, clientX, clientY, false);
+        else hideDropIndicators();
       } else {
-        // container / panel drags — edge indicators come from useDragDrop's
-        // closestEdge; no outline or line here.
+        // panel drags — edge indicators come from useDragDrop's closestEdge;
+        // no outline or line here.
         hideDropIndicators();
       }
       if (last.panelId !== panelId || last.containerId !== containerId || last.instanceId !== instanceId) {

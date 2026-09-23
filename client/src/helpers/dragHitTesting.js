@@ -376,6 +376,19 @@ export function buildRawDropEvent({ dropTarget, payload, sessionMode, hovered = 
 // definition, two consumers.
 export function collectMemberCards(containerEl) {
   if (!containerEl) return [];
+  // A PAGE's members are its TOP-LEVEL CONTAINERS. A page element carries
+  // `data-page-occ-id`, not `data-container-id`, so the owner test below
+  // matches none of its children and the page came back with no members at
+  // all — which is why a container drag had nowhere to draw an insertion line
+  // and the gap between two containers showed nothing (user, 2026-09-23:
+  // *"i see no highlight lines for dropping containers"*).
+  if (containerEl.hasAttribute?.("data-page-occ-id") && !containerEl.hasAttribute?.("data-container-id")) {
+    return Array.from(containerEl.querySelectorAll("[data-container-id]")).filter((el) =>
+      // top level only: not nested inside another container…
+      el.parentElement?.closest?.("[data-container-id]") == null
+      // …and belonging to THIS page, not a page rendered inside it.
+      && el.closest("[data-page-occ-id]") === containerEl);
+  }
   return Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) => {
     if (el === containerEl) return false;
     const owner = el.classList.contains("instance-wrap")
