@@ -2139,7 +2139,18 @@ function Field({
                   || hostOccurrence?.label
                   || "",
                 value: addr,
-                onPick: (loc) => { handleChange(loc); handleCommit(loc); },
+                // COMMIT THE PICKED LOCATION DIRECTLY, never through
+                // `handleCommit`. That callback takes NO parameters — it reads
+                // `localValue` out of its own closure — so the `loc` passed here
+                // was ignored and the stale (usually empty) value was written:
+                // picking an address stored `{flow:"in"}` with no value at all,
+                // measured on prod 2026-09-22.
+                //
+                // And widening `handleCommit`'s signature is NOT the fix: eight
+                // inputs pass it straight to `onBlur`, where the first argument
+                // is a React SyntheticEvent. Accepting a positional value there
+                // would commit the event object as the field's value.
+                onPick: (loc) => { handleChange(loc); onCommit?.(loc); },
               });
             }}
             className={`inline-flex items-start gap-2 px-2 py-1 text-xs rounded border transition-all self-start text-left
