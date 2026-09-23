@@ -15,6 +15,118 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (5) — THE EMPLOYER IS DATA NOW; and a PAGE could not be renamed from the UI at all
+
+Four decisions, answered by the user and then built by clicking. The two that
+produced code are the two the UI could not do.
+
+**A PAGE HAD NO RENAME.** Carrying out *"rename the Appointments page to Schedule
+Types"*, the CONTAINER renamed the way every container does — double-click its
+header label. The PAGE had nothing:
+```
+double-click the page header   nothing opens
+the page header's radial       "Settings" is the PANEL's  (BOTH handles in
+                               .page-header resolve to it — measured)
+right-click its card           New * page · Set cover image… · Delete
+  hit-tested on the TITLE,     ^ no Rename
+  so not a missed click
+```
+Only a FOLDER page could ever change name, and only by following its folder
+(`planFolderPageRename`). **214 pages on this grid were stuck with the name they
+were created with.** `modules/pageCardRename.js` puts it on the card's context
+menu — the one surface that already treats a page as an object — and writes
+through `CommitHelpers.updateModule({ label })`, the SAME call a container's
+inline rename makes. The MODULE's label, not the occurrence's: `occurrence.label`
+overrides one PLACEMENT, and a page's name is a property of the page. **Then used
+it for the thing that surfaced it:** page and container both read `Schedule Types`.
+
+**AND THE SAME TILE READ THREE WAYS.** User: *"it should use quick add, not a
+dedicated add container button"* — and every affordance on a board page ALREADY
+was QuickAddMenu (three of them: header + two insert gaps, all `.quick-add-btn`,
+all titled "Add container"). What differed was the WORDING, which is also what
+made my own probe fall through and click a different trigger:
+```
+from a CONTAINER   Board container · Doc container · Table container
+from a PAGE        Board · Document · Canvas · Table
+from a PANEL       Board · Document · Canvas · Table · Folder
+```
+The disambiguation existed — scoped to `targetRole:"instance"`, on the reasoning
+that a container's menu is the only AMBIGUOUS one. Sound about the menu, wrong
+about the person: *a palette is learned once, not once per surface.* A tile is
+named for what it CREATES now. Only the label moved — `tileKindsForRole`'s own
+comment records that a `page-folder` KIND persists as an invalid kind, and that
+hazard is about the value. **The test that pinned the short labels is INVERTED
+with its old reasoning kept.** Verified on prod: the page's menu reads
+`Board container · Doc container · Canvas container · Table container`.
+
+---
+
+**THE EMPLOYER IS A FIELD NOW, and the user's correction is what shaped it.** I
+first built `Mr Brews Taphouse` as a row on the schedule-types board. *"mr brews
+taphouse should not be an appointment type, the appointment type is employment
+and mr brews taphouse is one of the employments"* — two levels, not one:
+```
+Schedule Type   Doctor · Dentist · … · Employment    the TYPE (the op's gate)
+Job             Mr Brews Taphouse                    WHICH employer, multiSelect
+```
+Built end to end by clicking: `Boards › Money › Employers › Employers` (board +
+container), `Mr Brews Taphouse` tagged `Board Category: employment`, and a `Job`
+field — occurrence, multiSelect, bound to **Work only**, as asked. The example
+shift now reads
+`Work · Employment · Sep 23 · 3:00pm · 6h 30m · Job: Mr Brews Taphouse`
+and is still placed in all 13 slots. **The operation was not touched**, per
+*"it shouldnt do anything else but that"* — it gates on BINDING Schedule Type,
+whatever the value, so Work was eligible the moment it bound the field.
+
+**THE PREDICATE IS `parentId IS <the Employers container>`, AND THAT IS A
+WORKAROUND, NOT A PREFERENCE.** The convention on this grid is Board Category,
+and I could not author it: **drilling `fields` in the find-predicate's record
+picker returns "Nothing to drill into here."** The rule the board's own field
+carries (`fields.<Board Category>.value CONTAINS appointment`) RENDERS correctly
+and cannot be BUILT — every such predicate on this grid was written by a seed.
+`fieldsMapItems(ctx)` reads `ctx.fields`, and the same editor's chip-display list
+(same `fieldsById`) is fully populated, so the maps are there and the drill still
+comes back empty. **Reported, not fixed** — it is a picker bug, not a data one,
+and `parentId IS <board>` is exactly as correct for "the options are this board's
+rows" (preview: **1 match**).
+
+**`Day Page: Build` NOW LISTS ITS COLUMN FROM BOTH BRANCHES** (`0350`, the user's
+pick). It finds a column by `parentId`, so unlike the Schedule build it DOES see
+an unlisted one — and merged into it without ever listing it, leaving it
+invisible for good. Moving the `ADD_CHILD` below the if/else makes both paths
+run it; it is idempotent, so the create path is unchanged and healthy columns are
+untouched. Dry run named exactly the intended move, applied and read back, and
+the structure is confirmed in Mongo:
+```
+if  then APPLY_TEMPLATE(create) · FIND   else APPLY_TEMPLATE(merge)
+ADD_CHILD parent=8gpoqzx32h7 child=$colId    <- below the branch, both paths
+ADD_CHILD parent=$colId child=<the wheel>    <- untouched, and it is the control
+```
+**NOT OBSERVED HEALING THE LIVE ROW, and that is the honest gap.** The op runs
+over `$activePeriodDates`, so reaching 2026-08-26 means moving the grid's date —
+and **`Grid: Snap Filter To Today` fires on every load** (measured, 0 effects,
+so it did not undo my change either). My date probe therefore left the grid on a
+multi-selection `[Aug 26, Aug 30]`; **restored to `Wed, Sep 23` through the
+picker's own Today**, verified in Mongo. The Aug 26 column is empty scaffolding —
+no text, no true fields — so nothing is lost while it waits for a real visit.
+
+**PROBE FAULTS, five, and every one is a selector reading the DOM I imagined:**
+```
+the "+ Add" in a dropdown   an ICON-ONLY <Plus>; I scanned for a text "Add"
+picker rows                 "parentId / string / Parent occurrence ID" — match
+                            the FIRST LINE, never the whole innerText
+an occurrence option        a rich card (label + chips + the ancestor chain I
+                            shipped this morning) — first line again
+the rule's VALUE box        defaults to PATH mode: a picker, no input. There is
+                            a path/text toggle. "No input" is a mode.
+a settings TAB              needed a REAL mouse press; the synthetic .click()
+                            left the panel on the previous tab
+```
+Debris: none. Grid integrity is its two pre-existing errors, and poms'
+module-less occurrences still read **17, all dated 2026-09-22, 0 from today**.
+
+---
+
 ### 2026-09-23 (4) — RETRACTION: ALL THREE "GAPS" I REPORTED WERE MY PROBE; and the drop highlights are watched working
 
 User: *"fix those things and let me know if you finished those other requests along with the
