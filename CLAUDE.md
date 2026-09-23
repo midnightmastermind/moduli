@@ -15,6 +15,125 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (3) — A WORK SHIFT REACHES THE SCHEDULE WITH NO CHANGE TO THE OPERATION; and the field editor had two data-loss defects
+
+User: *"the occupational should have a container called employment, and inside should be an instance
+that shows work … so I can start adding my work schedule to mr brews taphouse container in tasks
+page (dragging work). so then i can add it to my opration that grabs appointments"*.
+
+**THE OPERATION WAS NEVER EDITED, and reading it first is why.** `Schedule: Place Dated Work` does
+not select rows by container or by label — it gates on a **field binding**:
+```
+$appt._boundFieldIds ARRAY_INCLUDES <Appointment Type>
+AND Date SAME_DAY $day  AND Time Slot IS_NOT_EMPTY  AND meta.feedSourceId IS_EMPTY
+  -> SLOTS_COVERED(Time Slot, Duration) -> ADD_CHILD into every covered slot
+```
+So anything that BINDS that field is eligible. The user's own answer — *"make it Schedule type and
+have employment and appointment be the thing for it"* — turns that into a rename, and **a rename
+keeps the field's id**, which is what the op gates on. Zero pipeline edits, and zero migration of
+the 7 modules / 18 occurrences already binding it.
+
+**AND THE USER CORRECTED MY MODEL, twice, which is the part worth keeping.** I first built
+`Mr Brews Taphouse` as a row on the schedule-types board. *"mr brews taphouse should not be an
+appointment type, the appointment type is employment and mr brews taphouse is one of the
+employments"* — two levels, not one:
+```
+Schedule Type   Doctor · Dentist · … · Employment   <- the TYPE
+the employer    Mr Brews Taphouse                   <- WHICH one
+```
+The row was renamed to **Employment**; the employer is expressed by the container the shift is
+dragged into, which is exactly what the original message described.
+
+**BUILT BY CLICKING, END TO END, and watched working on prod:**
+```
+Routines › Occupational › Employment › Work     binds Schedule Type · Date · Time Slot · Duration
+drag (COPY mode, so the bank keeps its template) -> Tasks › Mr Brews Taphouse
+set   Employment · Sep 23 · 3:00pm · 6h 30m
+LOAD  Schedule: Place Dated Work runs
+```
+```
+slots now listing the shift   13
+3:00pm 3:30pm 4:00pm 4:30pm 5:00pm 5:30pm 6:00pm 6:30pm 7:00pm 7:30pm 8:00pm 8:30pm 9:00pm
+```
+3:00pm + 6h30m, to the slot. **`Duration: 6h 30m` on screen is this morning's `helpers/duration`
+fix rendering its stored 390.**
+
+---
+
+**TWO DEFECTS IN THE FIELDS EDITOR, BOTH FOUND BY TRYING TO USE IT, AND BOTH WORSE THAN COSMETIC.**
+
+**1 — OPENING AN OCCURRENCE FIELD WHITE-SCREENED THE WHOLE APP.** Clicking the `Appointment Type`
+chip threw `ReferenceError: fieldType is not defined` and `document.getElementById("root")` measured
+**0 bytes of HTML** afterwards. `FindBody` called `findValueDefaults(fieldType)` while `fieldType`
+is a prop of the PARENT. **My probe reported it as "the Command Center closed"** — the `pageerror`
+listener is the only reason it was not filed as a UI quirk.
+
+**2 — THE EDITOR SHOWED AN EMPTY QUERY FOR 98 OF 107 FIELDS, AND SAVE WOULD HAVE WRITTEN IT.** With
+the crash fixed, the Find editor rendered **no rule rows** and previewed **1548 matches** — the whole
+instance pool — for a field whose predicate matches 9. Measured before fixing:
+```
+find-mode fields 107 · FLAT 98 · nested 9        poms 48/2 · test grid 2 41/2
+```
+`FindBody` read `source?.find`; the grid stores it FLAT. **`optionsResolver` has read both since
+2026-05-17 (`src.find || src`) — only the editor was left behind**, and that same split is what hid
+defect 1 (only the flat shape reaches the fallback that threw). It now writes back the SHAPE IT
+READ: converting on save would silently rewrite 98 fields the first time anyone opened one.
+
+***THE TWO ARE ONE STORY: the editor could not read the data the app actually stores, and the two
+consequences were a white screen and a silent overwrite.*** Neither is reachable by a test that
+builds its own fixture — the shapes only diverge in live data. 8 tests, A/B'd 5 of 8; the nested
+cases pass in both arms and are the controls.
+
+---
+
+**THREE MORE GAPS, REPORTED NOT FIXED** — each blocked a step and each was worked around:
+- **"+ Add new" never renders on the Schedule Type dropdown** although `optionsSource.addNew` is
+  configured (`parentOccurrenceId`). Typing a new name reads *"No matches"* with no add row. The
+  2026-07-25 entry says single-select occurrence fields were given this; it is not appearing.
+- **A UI-created board row gets no Board Category**, so it is invisible to the very dropdown whose
+  board it sits on. The rows that DO carry it were either seeded or minted by the add-new flow,
+  which stamps the predicate's fields.
+- **The occurrence search finds a row and does not navigate to it** — clicking the hit left the
+  panel where it was. (Its ancestor chains render correctly, which is this morning's fix live.)
+
+**PROBE FAULTS, and the first is the reusable one.** `scrollIntoView({block:"center"})` on a
+container that is TALLER than the viewport puts its HEADER off-screen — the quick-add button
+measured `y = -102` in a 1000px window and `elementFromPoint` returned **null**, which reads as
+"the button is covered". *Scroll the header, not the container.* Also: `input[type=text]` does not
+match an input with no `type` attribute (the field NAME box); the Command Center **drills down**, so
+reopening it shows the last field's detail rather than the chip list and every later lookup fails;
+and the `Date` chip carries **no `title`**, so a title-based finder misses a chip that is plainly on
+screen.
+
+**Debris: none.** The rows my wrong first model created were removed through the app's own radial
+Delete, and the board reads exactly its 9 original types + `Employment`, with no duplicate listings.
+All 17 module-less occurrences on poms date to **2026-09-22** — **0 from today**.
+
+---
+
+**THE REBUILD COVERAGE REPORT, re-measured rather than quoted:**
+```
+             poms   rebuild     gap   done
+pages         214        20     194    9%
+containers    857        34     823    4%
+instances    1019        29     990    3%
+fields        296        14     282    5%
+operations     78         4      74    5%
+occurrences 22484       314   22170    1%
+
+180 of 197 distinct poms page names have no counterpart:
+Mind · Money · Home · Social · Creative · Ingredients · Grocery List · Meals · Beverages ·
+Supplements · Movements · Routes · Readings · Verses · Courses · Practices · Prompts · Topics ·
+Skills · Ideas · Wish List · Savings Goals · Charities · Gift Ideas · Areas · Equipment · Plants ·
+People · Locations · Events · Leisure · Gratitude Log · Wins · Projects · Mediums · Songs · …
+```
+Against the agreed scope (**structure + samples**, not the 3,558 artifacts / 1,464 bookmarks / 540
+quotes / months of day columns) the honest read is **~5% done by structure**. The percentages are
+not equally meaningful: `occurrences` at 1% is dominated by bulk content that is deliberately out of
+scope, while **pages 9% / fields 5% / operations 5%** are the numbers that describe the work left.
+
+---
+
 ### 2026-09-23 (2) — A REFUSED DUPLICATE WHOSE HOLDER NOBODY LISTS WAS A PERMANENT DEAD END
 
 The schedule "disappeared" twice — 2026-09-19 and again this morning — and both times the data was

@@ -3572,3 +3572,14 @@ appointment operation can place it into the right Schedule timeslot from Date + 
 So: rename the field **`Appointment Type` → `Schedule Type`**, and the board it already draws its options from (the `Appointments` container: Doctor · Dentist · Therapy · Optometrist) should now **contain employment entries too** — "Mr Brews Taphouse" among them. ONE field and ONE option board instead of the separate `Job` field the 08:24 message described.
 
 **This supersedes the 08:45 answer and removes the op edit entirely.** A rename keeps the field's id, and the op gates on that id, so `Schedule: Place Dated Work` is untouched and anything binding `Schedule Type` becomes eligible for free — no OR rule, and no migration of the 7 modules / 18 occurrences that already bind it.
+
+**2026-09-23 08:50 CDT** — "include an example work instance dragged from routine into mr brews taphouse in tasks" → "that has today set for 3pm till 930" (so the deliverable is not just the structure: an actual example shift, dragged from the ROUTINES task-bank into the Tasks page's `Mr Brews Taphouse` container, Date = today, 3:00pm, 6h30m).
+
+**2026-09-23 09:00 CDT** — "remember mr brews taphouse should not be an appointment type, the appointment type is employment and mr brews taphouse is one of the employments".
+
+The decisive correction, and it defines TWO levels where I had built one:
+```
+Schedule Type   Doctor · Dentist · Therapy · … · Employment   <- the TYPE (the op's gate field)
+Employer/Job    Mr Brews Taphouse                             <- WHICH employer, a separate list
+```
+So the row added to the schedule-types board is **Employment**, not Mr Brews Taphouse. In the shipped build the EMPLOYER is expressed by which container the shift is dragged into (`Mr Brews Taphouse` on Tasks), which is what the 08:24 message described doing; a dedicated `Job` field over an employers board is still open.
