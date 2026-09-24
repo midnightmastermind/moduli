@@ -13,6 +13,8 @@
 //   FIND — resolve one occurrence over $allContainers / $allInstances /
 //          $allOccurrences by predicate, binding itemIdVar / itemVar (null
 //          when nothing matches — never throws on a miss)
+//   MOVE_OCCURRENCE — move a row under a container or a folder on this grid
+//          (share rules: file a shared upload somewhere other than Files)
 //
 // Still client-only: COPY_LINK / APPLY_TEMPLATE / aggregations / the rest.
 // Anything outside this list is collected in the returned `unsupported[]`
@@ -404,6 +406,57 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       if (cfg.itemIdVar) $vars[cfg.itemIdVar] = res?.occurrenceId ?? null;
       if (cfg.itemVar) $vars[cfg.itemVar] = res ?? null;
       effects.push({ _effect: "CREATE", ...res });
+      return;
+    }
+    if (type === "MOVE_OCCURRENCE") {
+      // Move one existing row under a new parent — a CONTAINER (listed in its
+      // occurrences[]) or a FOLDER (held by parentId alone). Same config as the
+      // client executor's MOVE_OCCURRENCE: { occurrenceIdExpr, toContainerId |
+      // toContainerIdExpr }.
+      //
+      // Added 2026-09-24 as a recorded decision (the share plan limited this
+      // executor to CREATE + FIND): a shared FILE is uploaded into Files before
+      // any rule runs, so "put shared PDFs in Documents" needs to MOVE that
+      // upload — creating a second row would leave the file in two places.
+      //
+      // Both ends are checked to be on THIS grid; a move across grids is the
+      // silent wrong-grid write the CREATE/FIND guards exist to refuse.
+      if (!gridId) throw new Error("MOVE_OCCURRENCE requires gridId");
+      const occId = await resolveExprAsync(cfg.occurrenceIdExpr ?? cfg.occurrenceId, $vars, opts);
+      const to = cfg.toContainerId
+        ? await resolveExprAsync(cfg.toContainerId, $vars, opts)
+        : await resolveExprAsync(cfg.toContainerIdExpr, $vars, opts);
+      if (!occId || !to) return;
+      const occ = await Occurrence.findOne({ id: occId, userId, gridId }).lean();
+      if (!occ) throw new Error(`MOVE_OCCURRENCE: ${occId} not found on this grid`);
+      if (occ.parentId === to) return;
+      const folder = await Folder.findOne({ id: to, userId, gridId }).lean();
+      const parent = folder ? null : await Occurrence.findOne({ id: to, userId, gridId }).lean();
+      if (!folder && !parent) throw new Error(`MOVE_OCCURRENCE: destination ${to} not found on this grid`);
+
+      const touched = [];
+      // Leave the old home: an occurrence parent lists it; a folder does not.
+      if (occ.parentId) {
+        const r = await Occurrence.findOneAndUpdate(
+          { id: occ.parentId, userId, occurrences: occId }, { $pull: { occurrences: occId } }, { returnDocument: "after", lean: true },
+        );
+        if (r) touched.push(r);
+      }
+      const moved = await Occurrence.findOneAndUpdate(
+        { id: occId, userId }, { $set: { parentId: to } }, { returnDocument: "after", lean: true },
+      );
+      if (moved) touched.push(moved);
+      if (parent) {
+        const r = await Occurrence.findOneAndUpdate(
+          { id: to, userId, occurrences: { $ne: occId } }, { $push: { occurrences: occId } }, { returnDocument: "after", lean: true },
+        );
+        if (r) touched.push(r);
+      }
+      for (const doc of touched) {
+        mirror?.("occurrence", doc);
+        io?.to?.(`user:${userId}`)?.emit?.("occurrence_updated", { occurrence: doc });
+      }
+      effects.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: occId, to });
       return;
     }
     if (type === "FIND") {

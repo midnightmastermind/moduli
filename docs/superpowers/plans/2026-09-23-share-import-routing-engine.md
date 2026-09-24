@@ -51,6 +51,10 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
   too, plus `deploy/nginx/moduli.conf` raising nginx's 64 MB cap for `/api/v1/share` only — the LIVE
   nginx config needs that edit by hand (it was installed once by provision.sh).
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
+- **Decision 2026-09-24 (user: "add pdfs to the documents folder"):** `serverExecutor` gains
+  `MOVE_OCCURRENCE` (the client's config: `occurrenceIdExpr`, `toContainerId`) — a shared FILE is uploaded
+  into Files before any rule runs, so filing it elsewhere is a MOVE; a CREATE would leave the file in two
+  places. Both ends are checked to be on this grid. This is the third action beyond the plan's CREATE + FIND.
 - **Task 8:** the editor's CREATE is written as `name/parent/role/kind/attachFields`, which the server
   executor did not read — a rule built by clicking would have made rows with no name and no parent. The
   server now reads both spellings, and keys a share rule's CREATE with no externalId on
