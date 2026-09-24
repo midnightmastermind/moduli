@@ -63,6 +63,16 @@ describe("fileShare", () => {
     expect(fetchImpl.mock.calls[0][1].body.get("files").name).toBe("m.ics");
   });
 
+  it("sends the grid this device last had open as the fallback", async () => {
+    localStorage.setItem("moduli-gridId", "g-last");
+    const fd = new FormData(); fd.append("text", "x");
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s4"), new Response(fd));
+    const fetchImpl = okFetch();
+    await fileShare({ fetchImpl, token: "t", location: loc("/share-pending?id=s4") });
+    expect(fetchImpl.mock.calls[0][1].body.get("fallbackGridId")).toBe("g-last");
+    localStorage.removeItem("moduli-gridId");
+  });
+
   it("a failed share is reported, not dressed up as done", async () => {
     const fd = new FormData(); fd.append("text", "x");
     await (await caches.open(SHARE_CACHE)).put(stashUrl("s3"), new Response(fd));

@@ -54,6 +54,15 @@ const isZone = (z) => {
  *   read in the zone its own invite names — the time the invite shows — and
  *   `zoneGuessed` is set so the caller can say so. UTC is the last resort.
  */
+// A property that carries PARAMETERS (Outlook writes `SUMMARY;LANGUAGE=en-US:…`)
+// comes out of node-ical as `{ params, val }`, not a string — String() on it
+// titled every such invite "[object Object]" (found on real invites, 2026-09-24).
+export function icsText(v) {
+  if (v == null) return "";
+  if (typeof v === "object") return icsText(v.val ?? "");
+  return String(v);
+}
+
 export function parseIcs(text, { timeZone = null } = {}) {
   let parsed;
   try { parsed = ical.sync.parseICS(String(text || "")); }
@@ -75,14 +84,14 @@ export function parseIcs(text, { timeZone = null } = {}) {
     const e = v.end ? inZone(v.end, zone) : null;
 
     events.push({
-      summary: String(v.summary || "").trim() || "(no title)",
+      summary: icsText(v.summary).trim() || "(no title)",
       start: { date: s.date, time: allDay ? null : s.time, timeSlot: null },
       end:   e ? { date: e.date, time: allDay ? null : e.time } : null,
       durationMin: (v.end && !allDay)
         ? Math.max(0, Math.round((v.end - v.start) / 60000)) : null,
       allDay,
-      location: v.location ? String(v.location) : null,
-      description: v.description ? String(v.description) : null,
+      location: icsText(v.location) || null,
+      description: icsText(v.description) || null,
       organizer: v.organizer?.val ? String(v.organizer.val) : null,
       uid: v.uid ? String(v.uid) : null,
       recurring: !!v.rrule,          // FIRST OCCURRENCE ONLY — not expanded
