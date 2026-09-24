@@ -27,7 +27,6 @@ const __dirname = path.dirname(__filename);
 import Module from "./models/Module.js";
 import Grid from "./models/Grid.js";
 import { requireSession, ownsGrid } from "./middleware/sessionAuth.js";
-import { resolveInside } from "./utils/safePath.js";
 import User from "./models/User.js";
 import Occurrence from "./models/Occurrence.js";
 import Field from "./models/Field.js";
@@ -679,57 +678,10 @@ app.post("/api/artifacts/upload", requireSession, upload.single("file"), async (
 // manifest.meta.storageSettings, which nothing ever read, with no auth.
 // Storage choice lives on the user now (plan 2026-09-24-connections-storage-gdrive).
 
-const CONNECTIONS = [
-  { id: "file_storage", name: "File Storage", path: "/home/joshpoms/files" },
-  { id: "external_notebook", name: "Notebook", path: "/home/joshpoms/notebook" },
-];
-
-app.get("/api/connections", requireSession, (_req, res) => {
-  const result = CONNECTIONS.map((c) => {
-    try { const exists = fs.existsSync(c.path); return { ...c, exists, fileCount: exists ? fs.readdirSync(c.path).length : 0 }; }
-    catch { return { ...c, exists: false, fileCount: 0 }; }
-  });
-  res.json({ connections: result });
-});
-
-app.get("/api/connections/:id/files", requireSession, (req, res) => {
-  const conn = CONNECTIONS.find((c) => c.id === req.params.id);
-  if (!conn) return res.status(404).json({ error: "Connection not found" });
-  try {
-    if (!fs.existsSync(conn.path)) return res.json({ files: [] });
-    const entries = fs.readdirSync(conn.path).map((name) => {
-      const full = path.join(conn.path, name);
-      try { const stat = fs.statSync(full); return { name, isDirectory: stat.isDirectory(), size: stat.size, mtime: stat.mtimeMs }; }
-      catch { return { name, isDirectory: false, size: 0, mtime: 0 }; }
-    });
-    res.json({ files: entries });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post("/api/connections/:id/import", requireSession, async (req, res) => {
-  const conn = CONNECTIONS.find((c) => c.id === req.params.id);
-  if (!conn) return res.status(404).json({ error: "Connection not found" });
-  const userId = req.userId;
-  const { fileName, gridId, parentFolderId, manifestId } = req.body;
-  if (!fileName) return res.status(400).json({ error: "Missing fileName" });
-  if (!(await ownsGrid(userId, gridId))) return res.status(404).json({ error: "grid not found" });
-  // A name must stay INSIDE its connection's folder (audit A3): "../../x"
-  // used to copy any readable server file into uploads.
-  const srcPath = resolveInside(conn.path, fileName);
-  if (!srcPath) return res.status(400).json({ error: "invalid file name" });
-  if (!fs.existsSync(srcPath) || !fs.statSync(srcPath).isFile()) return res.status(404).json({ error: "File not found" });
-  try {
-    const ext = path.extname(fileName);
-    const mimeMap = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json", ".ics": "text/calendar" };
-    // The SAME path as an upload (audit A4): dedup, EXIF, thumbnails, the
-    // Files/<kind> home folder, the storage backend, cache mirror, broadcasts.
-    const { sha256: _sha256, ...out } = await artifactUploader.storeFileFromPath({
-      srcPath, originalName: path.basename(srcPath), mimeType: mimeMap[ext.toLowerCase()] || "application/octet-stream",
-      userId, gridId, parentFolderId, manifestId,
-    });
-    res.json(out);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+// The hardcoded "folder" connections (/api/connections, /:id/files, /:id/import)
+// were removed 2026-09-24 at the user's ask: they pointed at paths on the old
+// dev machine and read "not found" on prod. Storage connections (the Server,
+// Google Drive) are /api/v1/connections + the Google routes above.
 
 // ========================================================
 // /api/v1 — REST surface (see docs/api-plan.md)

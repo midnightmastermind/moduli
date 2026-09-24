@@ -2,6 +2,11 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (4) — Connections tab: external path section removed)
+- User: remove the "External path connections" section. `ConnectionsTab` is now Storage + Upload only; the
+  upload status says when a file was kept on the Server because Drive could not take it (`storageFallback`).
+  Server routes `/api/connections`, `/:id/files`, `/:id/import` removed with it (hardcoded dev-machine paths).
+
 ## Recent Changes (2026-09-24 (3) — Connections tab: a Storage section (Google Drive))
 - **`commandCenter/StorageConnections.jsx` (NEW)**, rendered at the top of `ConnectionsTab`: Server + each
   Drive, a radio for the default for NEW uploads (`PUT /api/v1/me/storage`), Connect Google Drive
