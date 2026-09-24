@@ -15,6 +15,66 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (7) — SOCIAL, BY CLICKING; and a card's top strip is not its click target
+
+Rebuild-via-UI, next area **Social**, built the same way as Mind and against the
+same recipe. Six board pages (`Wins · Gratitude Log · Leisure · Locations ·
+People · Events`) under `Boards/Social`, their containers and 22 rows.
+
+**THE RECIPE HELD, AND THAT IS THE POINT.** Everything (6) learned applied
+unchanged: the six new `Board Category` options added through the Fields tab
+(10 -> 16); the folder minted at root, renamed by double-click and DRAGGED into
+`Boards`; the field picker LEFT ALONE so each row inherits its siblings'
+bindings; the option scrolled into view before the click. **22/22 bound and
+22/22 valued**, integrity clean.
+
+**THREE NEW PROBE FAULTS, and the first is a real property of the UI.**
+
+**1 — A CARD'S TOP STRIP IS NOT ITS DRILLDOWN TARGET.** `_ui.mjs openCard` clicked
+`r.y + 10`, and every Social page sat empty for four minutes while the build
+"ran". Measured by trying three points on the same card:
+```
+click top (y+10)   header stays "Social"   <- does nothing
+click mid          header becomes "Wins"   <- opens
+```
+A card's top band is its DATE PILL, and on a card whose page is still empty that
+pill is most of what is rendered — so the click lands on chrome. The Mind cards
+only worked because their pages already had content by the time they were
+reopened. Fixed in `_ui.mjs` for every future probe: click the CENTRE.
+
+**2 — THE TREE CHEVRON TOGGLES, so expanding an already-open tree COLLAPSES it**
+and every later row lookup reads as "the folder is not there". The Mind run
+survived only because the tree happened to start collapsed. The helper now
+expands *only what is missing* (`ensureVisible`).
+
+**3 — AND I TURNED A VALUE OFF WHILE TRYING TO SET IT.** The last untagged row
+read `null` in Mongo, so I clicked its option — and the chip had ALREADY said
+`place`:
+```
+chip before my click   "Board Category:|place"    <- the sweep had set it
+after                  "Board Category:|—"        <- a multiSelect option TOGGLES
+```
+My Mongo read was simply older than the screen. *Read the control before acting on
+a stale snapshot of the data behind it* — the probe now checks the chip's own text
+and only clicks when the value is absent.
+
+**A FOLDER PAGE WITH NO CARDS HAS NOTHING TO ANCHOR A MENU ON.** The page-creation
+script drives `New * page` from an EXISTING card's context menu, so the first page
+of a new folder has to come from the TREE (`folder row -> New page… -> Board page`).
+Mind hid this because its seed page was created in an earlier step.
+
+**THE SOCIAL AREA, READ BACK OUT OF MONGO:**
+```
+Boards/Social   6 board pages · 6 containers · 22 rows · 22/22 bound · 22/22 valued
+Wins win · Gratitude Log gratitude · Leisure leisure · Locations place ·
+People person · Events event
+```
+Rebuild grid **360 -> 395 occurrences · 29 -> 36 pages · 42 -> 48 containers ·
+58 -> 80 instances**, integrity **clean**. Two areas done of the ~50-page target;
+**no code changed** — `_ui.mjs` is probe tooling, not the app.
+
+---
+
 ### 2026-09-23 (6) — THE MIND AREA, BY CLICKING; and the picker that pre-ticks was never a bug
 
 Rebuild-via-UI, next area **Mind** — the first of the areas the coverage report
