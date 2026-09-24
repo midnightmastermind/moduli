@@ -19,7 +19,7 @@
 | 1 parse, timezone-correct | done — `node-ical` 0.27 |
 | 2 floor onto slot labels | done |
 | 3 wire ics into ingress | done |
-| 4 the ics rule + reaching the Schedule | **code proven end to end; the rule itself is data the user authors, and the Schedule check needs prod** |
+| 4 the ics rule + reaching the Schedule | **verified on prod 2026-09-24** (test grid 2, by the API): a 2:17pm invite → one row in Tasks › Appointments, Date 2026-09-26, Time Slot **2:00pm**, Duration 60, Appointment Type BOUND with no value, listed by its container, logged `landed`, present in the warm cache. Test rows removed. **Still to watch:** the Schedule page placing it (needs the Schedule op to run on that date in a browser). |
 
 **Where the code differs from the sketches below:**
 - **Library:** node-ical passed every zoned case, including Outlook's WINDOWS zone names ("Central
@@ -36,6 +36,7 @@
 - **An edited invite moves its row:** the editor has no externalId box, and the share's own key is the
   file's bytes (which change when an invite is edited). A CREATE inside a LOOP over items that carry an
   `externalId` (events: `ics:<UID>`) is keyed on the ITEM.
+- **Side note found on prod:** a shared .ics is stored as an artifact of kind `markdown` (`mimeToKind` has no calendar kind), so the file itself shows as text in Files. Harmless; the events are what matter.
 - **Notices** (`$share.notices`, shown in Recent shares): recurrence not imported, zone guessed, no
   slots on the grid, no events found.
 - `server/__tests__/shareIcsEndToEnd.test.js` shares a real .ics over HTTP through the real engine and
