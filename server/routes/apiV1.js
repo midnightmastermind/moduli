@@ -1176,6 +1176,76 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   });
 
   // ====================================================================
+  // POST /share — share → import routing (spec docs/superpowers/specs/
+  // 2026-09-23-share-import-routing-design.md). INGRESS PREPARES, THE RULE
+  // ROUTES: this handler classifies the payload and fetches link metadata,
+  // makes sure the grid's catch-all rule exists (D3/D18), then runs the
+  // grid's `onShare` operations server-side. It owns no content handler.
+  //
+  // Body: { gridId?, url?, text?, title?, label?, shape?, source? }
+  //   gridId  — falls back to user.meta.share.gridId (D10)
+  //   shape   — the extension's clip shape, so a re-routed clip keeps its
+  //             `<shape>:<url>` identity (D15)
+  // Files are refused (415) until the artifact upload is shared with this
+  // path — refused out loud, never dropped (§12).
+  // ====================================================================
+  router.post("/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      let gridId = body.gridId || null;
+      if (!gridId) {
+        const { default: User } = await import("../models/User.js");
+        const user = await User.findById(req.userId).lean().catch(() => null);
+        gridId = user?.meta?.share?.gridId || null;
+      }
+      if (!gridId) return err(res, 400, "validation_error", "no gridId, and no share grid is configured");
+      const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
+      if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
+      if (!body.url && !body.text) return err(res, 400, "validation_error", "url or text required");
+
+      const { ensureCatchAllRule } = await import("../utils/shareRulesEnsure.js");
+      const { prepareShare } = await import("../services/shareIngress.js");
+      const { runShareRules } = await import("../services/shareRules.js");
+      const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
+      const { fetchLinkPreview } = await import("../utils/linkPreview.js");
+
+      try {
+        await ensureCatchAllRule({ userId: req.userId, gridId });
+      } catch (e) {
+        return err(res, 409, "no_destination", e.message);
+      }
+
+      let share;
+      try {
+        share = await prepareShare({
+          userId: req.userId, gridId,
+          source: body.source || "api",
+          url: body.url || null, text: body.text || null, title: body.title || null,
+          label: body.label || null, shape: body.shape || null,
+          fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
+        });
+      } catch (e) {
+        if (e.code === "files_unsupported") return err(res, 415, "files_unsupported", e.message);
+        throw e;
+      }
+
+      const result = await runShareRules({
+        share, userId: req.userId, gridId, io,
+        mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
+      });
+      const created = result.ran.flatMap(r => r.created || []);
+      const failed = result.ran.filter(r => !r.ok);
+      // A share that produced no row and hit a failing rule did not land —
+      // say so with a non-2xx, so the sender cannot read it as success.
+      const status = created.length === 0 && failed.length ? 502 : 201;
+      res.status(status).json({
+        type: share.type, label: share.label, externalId: share.externalId, gridId,
+        ...result,
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
   // SECRETS — encrypted per-user values usable in CALL_API as $secrets.KEY
   // ====================================================================
 

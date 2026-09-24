@@ -1,0 +1,123 @@
+// server/__tests__/apiShare.test.js — POST /api/v1/share, driven through the
+// REAL router (router.handle, as apiIngest.test.js does) with the engine and
+// models mocked. What it pins is the ROUTE's own contract: grid resolution,
+// ownership, the catch-all being ensured before rules run, and that a share
+// which lands nowhere is never reported as a success.
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+const grids = new Set(["g1"]);
+let userMeta = {};
+vi.mock("../models/Grid.js", () => ({ default: {
+  exists: async (q) => (grids.has(q._id) && q.userId === "u1" ? { _id: q._id } : null),
+}}));
+vi.mock("../models/User.js", () => ({ default: {
+  findById: () => ({ lean: async () => ({ _id: "u1", meta: userMeta }) }),
+}}));
+vi.mock("../models/Occurrence.js", () => ({ default: {} }));
+vi.mock("../models/Module.js", () => ({ default: {} }));
+
+const calls = [];
+let ensureThrows = false;
+vi.mock("../utils/shareRulesEnsure.js", () => ({
+  ensureCatchAllRule: async (a) => {
+    calls.push(["ensure", a.gridId]);
+    if (ensureThrows) throw new Error("this grid has no Files folder, so a share has nowhere to land");
+    return { created: false };
+  },
+}));
+let ruleResult = { ran: [{ ruleId: "r1", ok: true, created: [{ _effect: "CREATE", occurrenceId: "o1" }] }], halted: false };
+vi.mock("../services/shareRules.js", () => ({
+  runShareRules: async (a) => { calls.push(["rules", a.share, typeof a.mirror]); return ruleResult; },
+}));
+vi.mock("../utils/linkPreview.js", () => ({
+  fetchLinkPreview: async (url) => ({ ok: true, url, title: "Fetched Title", favicon: null, cover: null }),
+}));
+vi.mock("../utils/safeFetchUrl.js", () => ({ fetchPageHtml: async () => ({}) }));
+
+const { makeApiV1Router } = await import("../routes/apiV1.js");
+
+function makeRouter() {
+  return makeApiV1Router({
+    getUserCache: async () => ({ _loaded: true, occurrencesById: {}, modulesById: {} }),
+    peekUserCache: () => null,
+    io: { to: () => ({ emit: () => {} }), sockets: { adapter: { rooms: new Map() } } },
+    userRoom: (u) => `user:${u}`,
+    opRunBridge: { await: async () => ({}) },
+  });
+}
+function call(router, body) {
+  return new Promise((resolve) => {
+    const req = {
+      method: "POST", url: "/share", originalUrl: "/share", path: "/share",
+      headers: { "content-type": "application/json" },
+      apiToken: { tokenId: "t1", scopes: ["read", "write"] },
+      userId: "u1", body, query: {}, params: {}, get: () => undefined,
+    };
+    let statusCode = 200;
+    const res = {
+      status(c) { statusCode = c; return this; },
+      json(payload) { resolve({ status: statusCode, body: payload }); return this; },
+      send(payload) { resolve({ status: statusCode, body: payload }); return this; },
+      setHeader() { return this; }, getHeader() { return null; },
+      end() { resolve({ status: statusCode, body: null }); return this; },
+    };
+    router.handle(req, res, () => resolve({ status: 404, body: null }));
+  });
+}
+
+beforeEach(() => {
+  calls.length = 0; userMeta = {}; ensureThrows = false;
+  ruleResult = { ran: [{ ruleId: "r1", ok: true, created: [{ _effect: "CREATE", occurrenceId: "o1" }] }], halted: false };
+});
+
+describe("POST /share", () => {
+  it("ensures the catch-all, THEN runs the rules with a prepared $share", async () => {
+    const r = await call(makeRouter(), { gridId: "g1", url: "https://x.test/a", shape: "page", source: "extension" });
+    expect(r.status).toBe(201);
+    expect(calls.map(c => c[0])).toEqual(["ensure", "rules"]);
+    const share = calls[1][1];
+    expect(share.type).toBe("link");
+    expect(share.label).toBe("Fetched Title");
+    expect(share.externalId).toBe("page:https://x.test/a");
+    expect(share.source).toBe("extension");
+    expect(calls[1][2]).toBe("function"); // the warm-cache mirror is supplied
+  });
+
+  it("falls back to the user's share grid (D10)", async () => {
+    userMeta = { share: { gridId: "g1" } };
+    const r = await call(makeRouter(), { url: "https://x.test/a" });
+    expect(r.status).toBe(201);
+    expect(r.body.gridId).toBe("g1");
+  });
+
+  it("with no grid named and none configured, refuses", async () => {
+    const r = await call(makeRouter(), { url: "https://x.test/a" });
+    expect(r.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a grid the caller does not own, before writing anything", async () => {
+    const r = await call(makeRouter(), { gridId: "someone-elses", url: "https://x.test/a" });
+    expect(r.status).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a grid with nowhere to land says so (409), and runs no rule", async () => {
+    ensureThrows = true;
+    const r = await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(r.status).toBe(409);
+    expect(r.body.error?.message || JSON.stringify(r.body)).toMatch(/Files folder/);
+    expect(calls.map(c => c[0])).toEqual(["ensure"]);
+  });
+
+  it("a share that created nothing because a rule failed is NOT a success", async () => {
+    ruleResult = { ran: [{ ruleId: "r1", ok: false, error: { message: "boom" }, created: [] }], halted: false };
+    const r = await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(r.status).toBe(502);
+  });
+
+  it("requires something to share", async () => {
+    const r = await call(makeRouter(), { gridId: "g1" });
+    expect(r.status).toBe(400);
+  });
+});

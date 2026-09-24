@@ -6,6 +6,11 @@ const UserSchema = new mongoose.Schema(
   {
     email: { type: String, unique: true, required: true },
     password: { type: String, required: true },
+    // Per-user settings that belong to no grid. First tenant:
+    //   meta.share.gridId — where a share lands when the sender names no grid
+    //   (share → import routing, spec D10). Mixed so later settings need no
+    //   schema change.
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );
