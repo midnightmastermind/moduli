@@ -6,6 +6,7 @@
 // same rules.
 
 const CODE_EXTENSIONS = new Set([".js",".jsx",".ts",".tsx",".py",".sh",".bash",".json",".yaml",".yml",".toml",".css",".html",".xml",".sql",".go",".rs",".c",".cpp",".h",".rb",".php",".swift",".kt"]);
+const CALENDAR_EXTENSIONS = new Set([".ics", ".ical", ".ifb", ".vcs"]);
 export function mimeToKind(mime, filename = "") {
   if (mime?.startsWith("image/")) return "image";
   if (mime?.startsWith("video/")) return "video";
@@ -13,6 +14,10 @@ export function mimeToKind(mime, filename = "") {
   if (mime === "application/pdf") return "pdf";
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
   if (CODE_EXTENSIONS.has(ext)) return "code";
+  // A calendar file is data, not a note: as "markdown" it opened in the note
+  // editor, which runs its lines together, and saving there would rewrite the
+  // invite. The code viewer shows it read-only, exactly as sent (2026-09-24).
+  if (mime === "text/calendar" || CALENDAR_EXTENSIONS.has(ext)) return "code";
   return "markdown";
 }
 // Derives the panel-display View fields from the artifact module's kind.
