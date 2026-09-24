@@ -61,6 +61,13 @@ vi.mock("../models/Occurrence.js", () => ({
   default: { find: (query) => ({ lean: async () => OCCURRENCES.filter(o => matches(o, query)) }) },
 }));
 
+// A folder parent (the share catch-all → Files). One folder on g1, none on g2,
+// so the grid scope of the check is what a cross-grid test exercises.
+const FOLDERS = [{ id: "files-folder-g1", userId: "u1", gridId: "g1", name: "Files" }];
+vi.mock("../models/Folder.js", () => ({
+  default: { findOne: (query) => ({ lean: async () => FOLDERS.find(f => matches(f, query)) || null }) },
+}));
+
 const { runOperationServerSide } = await import("../services/serverExecutor.js");
 
 const op = (steps) => ({ id: "op1", name: "t", pipeline: { steps } });
@@ -312,5 +319,44 @@ describe("FIND, server-side", () => {
       { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "literal:x" } },
     ]), { userId: "u1", gridId: "g1" });
     expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("x");
+  });
+});
+
+describe("CREATE into a folder, and the returned scope", () => {
+  it("passes a folder parent through to the mint, separately from parentId", async () => {
+    const r = await runOperationServerSide(op([
+      { type: "action", config: { type: "CREATE", parentFolderId: "literal:files-folder-g1",
+        label: "literal:x", externalId: "literal:link:x" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(r.ok).toBe(true);
+    expect(minted[0].parentFolderId).toBe("files-folder-g1");
+    expect(minted[0].parentId).toBeFalsy();
+  });
+
+  it("refuses a folder that is not on THIS grid, and mints nothing", async () => {
+    const r = await runOperationServerSide(op([
+      { type: "action", config: { type: "CREATE", parentFolderId: "literal:files-folder-g1",
+        label: "literal:x", externalId: "literal:link:x" } },
+    ]), { userId: "u1", gridId: "g2" });
+    expect(r.ok).toBe(false);
+    expect(r.error.message).toMatch(/folder/);
+    expect(minted).toHaveLength(0);
+  });
+
+  it("hands the mirror callback to the mint so the warm cache learns the row", async () => {
+    const mirror = () => {};
+    await runOperationServerSide(op([
+      { type: "action", config: { type: "CREATE", label: "literal:x", externalId: "literal:link:x" } },
+    ]), { userId: "u1", gridId: "g1", mirror });
+    expect(minted[0].mirror).toBe(mirror);
+  });
+
+  it("returns the whole variable scope, not only SHOW_VALUE output", async () => {
+    const r = await runOperationServerSide(op([
+      { type: "action", config: { type: "SET_VAR", name: "$share.handled", value: "true" } },
+    ]), { userId: "u1", gridId: "g1", vars: { $share: { type: "link" } } });
+    expect(r.vars).toEqual({});
+    expect(r.scope["$share.handled"]).toBe(true);
+    expect(r.scope.$share.type).toBe("link");
   });
 });

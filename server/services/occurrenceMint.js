@@ -88,8 +88,14 @@ async function pushChildIntoParent({ parentId, userId, childId, index, mirror, i
   return !!parent;
 }
 
+//   - `parentFolderId` — a FOLDER parent (the share catch-all's Files
+//     folder). A folder holds rows by `parentId` alone — the tree places an
+//     occurrence whose parentId names it — and has no `occurrences[]`, so
+//     there is nothing to push and nothing to check against Occurrence. The
+//     CALLER validates the folder (the executor checks it is on this grid).
+//     Mutually exclusive with `parentId`.
 export async function mintOccurrence({
-  userId, gridId, label, parentId = null,
+  userId, gridId, label, parentId = null, parentFolderId = null,
   moduleId: explicitModuleId = null,
   moduleRole = "instance", moduleKind = null, moduleFileRef = null,
   resolveModule = null,
@@ -102,6 +108,7 @@ export async function mintOccurrence({
   io = null, mirror = null,
 }) {
   if (!externalId) throw new Error("externalId required — without it a re-share duplicates");
+  if (parentId && parentFolderId) throw new Error("parentId and parentFolderId are mutually exclusive");
   if (parentId) {
     const exists = parentExistsCheck
       ? await parentExistsCheck(parentId)
@@ -155,7 +162,7 @@ export async function mintOccurrence({
   const occId = explicitOccurrenceId || randomUUID();
   const createdOcc = await Occurrence.create({
     id: occId, userId, gridId, moduleId: mod.id,
-    ...(parentId ? { parentId } : {}),
+    ...(parentId ? { parentId } : parentFolderId ? { parentId: parentFolderId } : {}),
     label: label ?? null, fields, occurrences: [],
     meta: { ...meta, source, externalId, ingestedAt: new Date().toISOString() },
   });

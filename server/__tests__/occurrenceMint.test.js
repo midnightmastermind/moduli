@@ -123,3 +123,28 @@ describe("mintOccurrence", () => {
       .rejects.toThrow(/parent/i);
   });
 });
+
+// A FOLDER parent (the share catch-all → Files). The row names the folder in
+// parentId and NOTHING is pushed — a folder has no occurrences[].
+describe("mintOccurrence — folder parent", () => {
+  it("places the row in the folder without touching any occurrence's list", async () => {
+    const { mintOccurrence } = await import("../services/occurrenceMint.js");
+    const r = await mintOccurrence({
+      userId: "u1", gridId: "g1", label: "a link", parentFolderId: "files-folder-g1",
+      externalId: "link:https://x.test/folder",
+    });
+    expect(r.status).toBe("created");
+    expect(r.linked).toBe(false);
+    const Occurrence = (await import("../models/Occurrence.js")).default;
+    const row = await Occurrence.findOne({ id: r.occurrenceId });
+    expect(row.parentId).toBe("files-folder-g1");
+  });
+
+  it("refuses both parent kinds at once", async () => {
+    const { mintOccurrence } = await import("../services/occurrenceMint.js");
+    await expect(mintOccurrence({
+      userId: "u1", gridId: "g1", label: "x", parentId: "p", parentFolderId: "f",
+      externalId: "link:https://x.test/both",
+    })).rejects.toThrow(/mutually exclusive/);
+  });
+});

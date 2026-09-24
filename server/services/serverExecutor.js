@@ -23,6 +23,7 @@
 import Secret from "../models/Secret.js";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
+import Folder from "../models/Folder.js";
 import { mintOccurrence } from "./occurrenceMint.js";
 
 const SCALAR_LITERAL_RE = /^literal:/;
@@ -206,7 +207,7 @@ function appendQuery(url, query) {
  * Caller supplies vars (folded into $vars under "$name" keys) plus
  * userId for secrets lookup.
  */
-export async function runOperationServerSide(op, { vars = {}, userId, gridId, io = null } = {}) {
+export async function runOperationServerSide(op, { vars = {}, userId, gridId, io = null, mirror = null } = {}) {
   const startedAt = Date.now();
   const $vars = {};
   // Fold caller vars (both "$foo" and "foo" forms).
@@ -316,13 +317,24 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         : Object.keys(fields);
       const fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
 
+      // A FOLDER parent (the share catch-all's Files folder) is its own key:
+      // a folder holds rows by `parentId` alone and has no occurrences[] to
+      // push onto, so it must not go through the occurrence-parent path.
+      // Validated here, on THIS grid — a folder id from another grid is
+      // refused rather than written into.
+      const parentFolderId = await resolveExprAsync(cfg.parentFolderId, $vars, opts);
+      if (parentFolderId) {
+        const folder = await Folder.findOne({ id: parentFolderId, userId, gridId }).lean();
+        if (!folder) throw new Error(`CREATE: folder ${parentFolderId} not found on this grid`);
+      }
+
       const res = await mintOccurrence({
-        userId, gridId, label, parentId, fields, fieldBindings, externalId,
+        userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
         moduleRole: cfg.moduleRole || "instance",
         moduleKind: cfg.moduleKind || null,
         moduleFileRef: await resolveExprAsync(cfg.moduleFileRef, $vars, opts),
         source: cfg.source || "share",
-        io,
+        io, mirror,
       });
       if (cfg.resultVar) $vars[cfg.resultVar] = res;
       effects.push({ _effect: "CREATE", ...res });
@@ -424,6 +436,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       error: { code: "execution_error", message: String(err?.message || err) },
       durationMs: Date.now() - startedAt,
       vars: {},
+      scope: { ...$vars },
       effects,
       unsupported,
     };
@@ -439,6 +452,11 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
     ok: true,
     durationMs: Date.now() - startedAt,
     vars: responseVars,
+    // The WHOLE variable scope at the end of the run. `vars` above is only
+    // what SHOW_VALUE published (the /operations/:id/run contract); a caller
+    // that chains runs — the share engine reading `$share.handled` between
+    // rules (D9) — needs what the pipeline actually SET.
+    scope: { ...$vars },
     effects,
     unsupported,
   };
