@@ -11,10 +11,13 @@ import { CLIP_MENUS } from "../../extension/clip.js";
 
 const DIR = path.join(import.meta.dirname, "..", "..", "extension");
 const read = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), "utf8"));
-const chrome = read("manifest.json");
-const firefox = read("manifest.firefox.json");
+// ONE manifest for both browsers. There used to be a `manifest.firefox.json`,
+// but Firefox's "Load Temporary Add-on" reads the FOLDER's `manifest.json`
+// whichever file you pick — so Firefox loaded the Chrome manifest and refused
+// it: "background.service_worker is currently disabled. Add background.scripts."
+const m = read("manifest.json");
 
-describe.each([["chrome", chrome], ["firefox", firefox]])("%s manifest", (_name, m) => {
+describe("manifest", () => {
   it("asks for every permission the code uses", () => {
     // background.js calls contextMenus, storage and notifications. A missing
     // one throws inside a service worker, where nobody sees it.
@@ -42,13 +45,21 @@ describe.each([["chrome", chrome], ["firefox", firefox]])("%s manifest", (_name,
   });
 });
 
-describe("the two manifests stay in step", () => {
-  it("agree on permissions and version", () => {
-    // They drift the moment one is edited alone, and the Firefox build is the
-    // one nobody remembers to check.
-    expect([...firefox.permissions].sort()).toEqual([...chrome.permissions].sort());
-    expect(firefox.version).toBe(chrome.version);
-    expect(firefox.options_ui.page).toBe(chrome.options_ui.page);
+describe("loads in BOTH browsers", () => {
+  it("names the background for Chrome AND for Firefox", () => {
+    // Chrome MV3 runs `service_worker`; Firefox MV3 has service workers
+    // disabled and runs `scripts`. Each ignores the key it does not use, so
+    // one manifest carries both, pointing at the same file.
+    expect(m.background.service_worker).toBe("background.js");
+    expect(m.background.scripts).toEqual(["background.js"]);
+  });
+
+  it("carries Firefox's add-on id", () => {
+    expect(m.browser_specific_settings.gecko.id).toBeTruthy();
+  });
+
+  it("there is no second manifest to drift", () => {
+    expect(fs.existsSync(path.join(DIR, "manifest.firefox.json"))).toBe(false);
   });
 });
 

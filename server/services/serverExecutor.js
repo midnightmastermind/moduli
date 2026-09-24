@@ -300,7 +300,21 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       const externalId = await resolveExprAsync(cfg.externalId, $vars, opts);
 
       // Values, resolved one at a time so a $var in any of them works.
+      //
+      // `fieldsFrom` names a WHOLE field map held in a variable — the
+      // extension's clip carries its `{ fieldId: { value, flow } }` already
+      // resolved by field NAME against this grid, and a rule cannot know those
+      // ids ahead of time. Explicit `fields` entries win over it.
       const fields = {};
+      const fromMap = cfg.fieldsFrom ? await resolveExprAsync(cfg.fieldsFrom, $vars, opts) : null;
+      if (isObject(fromMap)) {
+        for (const [fid, cell] of Object.entries(fromMap)) {
+          const value = isObject(cell) && "value" in cell ? cell.value : cell;
+          if (value !== undefined && value !== null && value !== "") {
+            fields[fid] = { value, flow: (isObject(cell) && cell.flow) || "in" };
+          }
+        }
+      }
       for (const [fid, expr] of Object.entries(cfg.fields || {})) {
         const value = await resolveExprAsync(expr, $vars, opts);
         if (value !== undefined && value !== null && value !== "") {
@@ -328,12 +342,23 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         if (!folder) throw new Error(`CREATE: folder ${parentFolderId} not found on this grid`);
       }
 
+      const moduleRole = (await resolveExprAsync(cfg.moduleRole, $vars, opts)) || "instance";
+      const moduleKind = (await resolveExprAsync(cfg.moduleKind, $vars, opts)) || null;
+      const moduleFileRef = (await resolveExprAsync(cfg.moduleFileRef, $vars, opts)) || null;
+      const metaVal = cfg.meta ? await resolveExprAsync(cfg.meta, $vars, opts) : null;
+
       const res = await mintOccurrence({
         userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
-        moduleRole: cfg.moduleRole || "instance",
-        moduleKind: cfg.moduleKind || null,
-        moduleFileRef: await resolveExprAsync(cfg.moduleFileRef, $vars, opts),
-        source: cfg.source || "share",
+        moduleRole, moduleKind, moduleFileRef,
+        // A `fileRef` IS a module's identity when it has one — /ingest's own
+        // rule (a bookmark is keyed by its URL). Reusing the module keeps a
+        // clip routed through /share landing on the SAME module the old
+        // /ingest path would have found.
+        resolveModule: moduleFileRef
+          ? async () => Module.findOne({ userId, gridId, role: moduleRole, fileRef: moduleFileRef }).lean()
+          : null,
+        meta: isObject(metaVal) ? metaVal : {},
+        source: (await resolveExprAsync(cfg.source, $vars, opts)) || "share",
         io, mirror,
       });
       if (cfg.resultVar) $vars[cfg.resultVar] = res;

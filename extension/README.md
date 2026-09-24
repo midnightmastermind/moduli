@@ -67,8 +67,14 @@ The same limit applies to the right-click menu when it is built.
 pick this folder.
 
 **Firefox** — `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on*
-→ pick `manifest.firefox.json`. (Firefox unloads temporary add-ons on restart;
-signing is needed for a permanent install.)
+→ pick `manifest.json` in this folder. (Firefox unloads temporary add-ons on
+restart; signing is needed for a permanent install.)
+
+One `manifest.json` serves both browsers: `background` names the file as a
+`service_worker` for Chrome and in `scripts` for Firefox, and each ignores the
+other key. (There used to be a separate `manifest.firefox.json` — but Firefox
+always reads the folder's `manifest.json`, whichever file you pick, so it never
+loaded.)
 
 ## Clipping from inside a panel
 
@@ -127,11 +133,17 @@ Open the extension's options and fill in:
 - **API token** — Command Center → Connections. It needs the `write` scope.
 - **Grid id** — which grid to clip into.
 - **Destination** *(optional)* — a container or page id. Leave it blank and
-  clips are created unfiled; you can move them later.
+  clips land in the grid's Files folder; you can move them later.
 
-It posts to `POST /api/v1/ingest`, which is **idempotent on (source,
-externalId)** — so clipping the same page twice updates one row rather than
-making two.
+It posts to `POST /api/v1/share` — the same **share rules** a phone share
+goes through (Command Center → Imports, once that tab exists). On a grid with
+no rule of your own, the grid's catch-all rule writes the clip exactly as the
+old `/api/v1/ingest` path did: same bookmark, same fields, and the same
+identity, so **clipping the same page twice still updates one row** — including
+pages clipped before this change.
+
+One difference: with **no Destination** set, a clip now lands in the grid's
+**Files** folder instead of being created unfiled (where nothing showed it).
 
 ### What it deliberately does not do
 

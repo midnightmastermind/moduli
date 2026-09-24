@@ -22,25 +22,57 @@ import { randomUUID } from "node:crypto";
 
 export const CATCH_ALL_PRIORITY = 99;
 export const CATCH_ALL_NAME = "Share: anything else";
+// Bumped whenever the pipeline below changes. An existing catch-all nobody has
+// edited (`meta.userEdited` unset) is brought up to date; an edited one is the
+// user's and is never overwritten.
+export const CATCH_ALL_VERSION = 2;
+
+const ifStep = (rules, then, otherwise = []) => ({
+  id: randomUUID(), type: "if",
+  condition: { operator: "AND", rules },
+  then, else: otherwise,
+});
+const create = (config) => ({ id: randomUUID(), type: "action", config: { type: "CREATE", ...config } });
+
+// D15 — AN EXTENSION CLIP LANDS EXACTLY AS IT DID THROUGH /ingest. Same label,
+// same bookmark/image module shape keyed by the URL, same URL/Excerpt/Cover
+// field writes, and `source: "clip"` with the extension's `<shape>:<url>`
+// externalId — /ingest's identity is (source, externalId), so a page clipped
+// before the re-route is UPDATED, not duplicated. The spec asked for a shipped
+// `link` rule; D18 forbids bootstrapping typed rules, so the compatibility
+// lives here, and a link rule the user writes (and halts) takes precedence.
+//
+// The one deliberate difference: a clip with no destination configured used
+// to land parented to nothing, where nothing renders it. It lands in Files.
+const clipCreate = (parent) => create({
+  ...parent,
+  label: "$share.clip.label",
+  externalId: "$share.externalId",
+  source: "literal:clip",
+  moduleRole: "$share.clip.moduleRole",
+  moduleKind: "$share.clip.moduleKind",
+  moduleFileRef: "$share.clip.moduleFileRef",
+  fieldsFrom: "$share.clip.fields",
+  meta: "$share.clip.meta",
+});
 
 export function catchAllPipeline(filesFolderId) {
+  const inFiles = { parentFolderId: `literal:${filesFolderId}` };
   return { steps: [
-    {
-      id: randomUUID(), type: "if",
-      condition: { operator: "AND", rules: [
-        { left: "$share.props.occurrenceId", comparator: "IS_EMPTY", right: "" },
-      ]},
-      then: [
-        { id: randomUUID(), type: "action", config: {
-          type: "CREATE",
-          parentFolderId: `literal:${filesFolderId}`,
-          label: "$share.label",
-          externalId: "$share.externalId",
-          source: "share",
-        }},
-      ],
-      else: [],
-    },
+    ifStep(
+      [{ left: "$share.clip", comparator: "IS_NOT_EMPTY", right: "" }],
+      [ifStep(
+        [{ left: "$share.clip.parentId", comparator: "IS_NOT_EMPTY", right: "" }],
+        [clipCreate({ parentId: "$share.clip.parentId" })],
+        [clipCreate(inFiles)],
+      )],
+      // Anything else: a file ingress already uploaded IS its row, so only a
+      // link or text with no row yet is minted.
+      [ifStep(
+        [{ left: "$share.props.occurrenceId", comparator: "IS_EMPTY", right: "" }],
+        [create({ ...inFiles, label: "$share.label", externalId: "$share.externalId", source: "share" })],
+      )],
+    ),
   ]};
 }
 
@@ -49,13 +81,24 @@ export async function ensureCatchAllRule({ userId, gridId }) {
     userId, gridId,
     triggerObjects: { $elemMatch: { eventType: "onShare", shareType: "*" } },
   }).lean();
-  if (existing) return { ruleId: existing.id, created: false };
+  const stale = existing
+    && (existing.meta?.catchAllVersion ?? 1) < CATCH_ALL_VERSION
+    && !existing.meta?.userEdited;
+  if (existing && !stale) return { ruleId: existing.id, created: false };
 
   const files = await Folder.findOne({
     userId, gridId, name: FILES_FOLDER_NAME, "meta.protected": true,
   }).lean();
   if (!files) {
     throw new Error("this grid has no Files folder, so a share has nowhere to land");
+  }
+
+  if (stale) {
+    await Operation.updateOne({ id: existing.id, userId }, { $set: {
+      pipeline: catchAllPipeline(files.id),
+      "meta.catchAllVersion": CATCH_ALL_VERSION,
+    }});
+    return { ruleId: existing.id, created: false, upgraded: true };
   }
 
   const op = await Operation.create({
@@ -65,6 +108,7 @@ export async function ensureCatchAllRule({ userId, gridId }) {
     triggerType: "onShare",
     triggerObjects: [{ eventType: "onShare", shareType: "*" }],
     pipeline: catchAllPipeline(files.id),
+    meta: { catchAllVersion: CATCH_ALL_VERSION },
   });
   return { ruleId: op.id, created: true };
 }
