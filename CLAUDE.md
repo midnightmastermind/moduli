@@ -26,8 +26,11 @@ no SSH) — the calendar fix is SERVER code, so it needs `./deploy.sh` and its r
 - **Schedule Type (data, poms).** The calendar rule attached the field with no value. There was no generic
   row, so `Appointment` was added to Schedule Types (tagged `appointment` like its siblings) and the rule's
   CREATE sets it; the three test rows were patched. Their labels heal when each invite is re-shared after
-  the deploy (`ics:<UID>` updates in place). All three read **Duration 0** — likely end == start in those
-  invites; unconfirmed without the file.
+  the deploy (`ics:<UID>` updates in place). **Confirmed from the stored files** (each shared .ics is kept
+  as an artifact, linked from `shareLog[].fileOccurrenceId`): every one has `DTEND == DTSTART`. Such an
+  event now stores **no** duration (null, not 0); the Schedule places both in the start slot. The three
+  rows were then repaired directly — real titles on module AND occurrence label (the occurrence's
+  `[object Object]` override outranked the module), Duration cleared — so no re-share is needed.
 - **"No share grid is configured" on Windows.** `/share` now falls back to `fallbackGridId` (the grid the
   device last had open) after an explicit grid and the saved share grid; ownership still checked.
   `/me/share` takes the session JWT and the Imports tab has a "Shares land in" picker.
