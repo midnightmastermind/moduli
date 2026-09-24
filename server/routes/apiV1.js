@@ -44,6 +44,7 @@ import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 import { verifyToken } from "../utils/jwts.js";
 import ApiToken from "../models/ApiToken.js";
 import { handleProvidersList, handleProviderSearch, handleProviderDetail } from "../utils/searchRouteHandlers.js";
+import { listConnections, renameConnection, removeConnection, setDefaultConnection } from "../services/connections.js";
 
 // Loopback base for the assistant's self-calls (see header comment).
 const SELF_BASE_URL =
@@ -1357,6 +1358,34 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // `user.meta.share` holds the grid a share lands in when the sender names
   // none, and the timezone a shared calendar is read in. Both were readable by
   // /share and settable by NOTHING.
+  // ── Storage connections (plan 2026-09-24-connections-storage-gdrive, Task 3) ──
+  // Where uploaded file bytes live. "server" is always present; a Drive
+  // connection is created by the Google sign-in flow (Task 4), not here.
+  // Credentials never leave the server (services/connections.publicConnection).
+  const connErr = (res, e) => err(res, e.status || 500, e.status === 404 ? "not_found" : e.status === 400 ? "validation_error" : "internal_error", e.message);
+  router.get("/connections", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try { res.json(await listConnections(req.userId)); } catch (e) { connErr(res, e); }
+  });
+  router.patch("/connections/:id", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (typeof req.body?.name !== "string") return err(res, 400, "validation_error", "send a name");
+      res.json({ connection: await renameConnection(req.userId, req.params.id, req.body.name) });
+    } catch (e) { connErr(res, e); }
+  });
+  router.delete("/connections/:id", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try { await removeConnection(req.userId, req.params.id); res.json({ ok: true, ...(await listConnections(req.userId)) }); }
+    catch (e) { connErr(res, e); }
+  });
+  // Which connection NEW uploads go to. Existing files stay where they are.
+  router.put("/me/storage", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const id = req.body?.defaultConnectionId;
+      if (typeof id !== "string" || !id) return err(res, 400, "validation_error", "send defaultConnectionId");
+      await setDefaultConnection(req.userId, id);
+      res.json(await listConnections(req.userId));
+    } catch (e) { connErr(res, e); }
+  });
+
   router.get("/me/share", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { default: User } = await import("../models/User.js");

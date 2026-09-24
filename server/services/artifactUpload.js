@@ -23,7 +23,8 @@ import { nanoid } from "nanoid";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 import View from "../models/View.js";
-import { mimeToKind, viewFieldsForKind, yearMonthShard } from "../utils/uploadKinds.js";
+import { mimeToKind, viewFieldsForKind } from "../utils/uploadKinds.js";
+import { makeStorageRegistry } from "./storage/index.js";
 
 // SHA-256 content hash for upload dedup (files/artifact audit gap #3). Streamed
 // so 50MB uploads don't load into RAM. Returns a 64-char hex string.
@@ -83,7 +84,11 @@ export function extractImageMetadata(filePath, mimeType) {
   }
 }
 
-export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom }) {
+export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom, storage = null }) {
+  // WHERE the bytes go is the storage registry's decision (services/storage);
+  // everything below it — hash, dedup, EXIF, thumbnails, records — is backend-blind.
+  const registry = storage || makeStorageRegistry({ uploadsDir });
+  const urlForRef = (ref) => registry.backendForRef(ref)?.urlFor(ref) ?? `/uploads/${ref}`;
   // Image thumbnails via sharp (files audit gap #4). Writes
   // `<sha256>-256.webp` + `<sha256>-1024.webp` into uploads/thumbnails/.
   // WebP for compression (~30% smaller than JPEG at comparable quality).
@@ -203,38 +208,28 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
         module: dedupCandidate,
         occurrence: occObj,
         fileRef: dedupCandidate.fileRef,
-        url: `/uploads/${dedupCandidate.fileRef}`,
+        url: urlForRef(dedupCandidate.fileRef),
         dedup: true,
       };
     }
 
-    // Sharded layout: uploads/user/YYYY-MM/<file>. fileRef is the
-    // POSIX-style path stored on the Module — always uses `/` regardless
-    // of platform separator (URL semantics + cross-OS portability).
-    const shard = yearMonthShard();
-    const subfolder = `user/${shard}`;
-    const artifactSubdir = path.join(uploadsDir, "user", shard);
-    fs.mkdirSync(artifactSubdir, { recursive: true });
-    const destFileName = file.filename;
-    const destPath = path.join(artifactSubdir, destFileName);
-    fs.renameSync(file.path, destPath);
-    const fileRef = `${subfolder}/${destFileName}`;
     const kind = mimeToKind(file.mimetype, file.originalname);
     const { viewType, artifactType } = viewFieldsForKind(kind);
 
+    // Metadata and thumbnails are read from the TEMP file, before the bytes go
+    // to their backend — a remote backend (Drive) leaves nothing local to read.
+    // EXIF + dimensions (audit gap #12) and sha256-keyed thumbnails (gap #4);
+    // thumbnails always stay on the server (small, and they make grids load fast).
+    const imageMeta = extractImageMetadata(file.path, file.mimetype);
+    const thumbs = await generateImageThumbnails(file.path, sha256, file.mimetype);
+
+    const backend = await registry.backendForUpload(userId);
+    const { ref: fileRef } = await backend.put({
+      tmpPath: file.path, name: file.filename, mime: file.mimetype, size: file.size, userId,
+    });
+
     const existingMod = await Module.findOne({ id: moduleId });
     const isUpdate = !!existingMod;
-
-    // Extract EXIF + dimensions for image uploads (audit gap #12).
-    // Read from the renamed destPath; metadata becomes part of
-    // module.meta so the image artifact viewer + future
-    // chronological gallery can use it without re-parsing.
-    const imageMeta = extractImageMetadata(destPath, file.mimetype);
-
-    // Generate sharp thumbnails for image uploads (audit gap #4).
-    // sha256-keyed so dedup'd uploads reuse the existing thumbs.
-    // Awaited because the response includes the thumb refs.
-    const thumbs = await generateImageThumbnails(destPath, sha256, file.mimetype);
 
     const moduleDoc = {
       id: moduleId, userId, gridId: gridId || null,
@@ -316,8 +311,33 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
     // Serve under /uploads/; the legacy /artifacts/ mount was removed
     // in March 2026 (see server/CLAUDE.md). The url field is purely
     // informational — clients resolve via helpers/fileRef.resolveFileRef.
-    return { sha256,  module: modObj, occurrence: occObj, fileRef, url: `/uploads/${fileRef}` };
+    return { sha256,  module: modObj, occurrence: occObj, fileRef, url: backend.urlFor(fileRef) };
   }
 
-  return { storeUploadedFile, generateImageThumbnails };
+  /**
+   * A file already on the server's disk (a folder connection) becomes an
+   * artifact through the SAME path as an upload (audit A4 — the connection
+   * import used to be a hand-copied second uploader with no dedup, EXIF or
+   * thumbnails). The source is COPIED to a temp file first; it is never moved.
+   */
+  async function storeFileFromPath({ srcPath, originalName, mimeType, ...rest }) {
+    const ext = path.extname(originalName || srcPath);
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    const tmp = path.join(uploadsDir, filename);
+    fs.copyFileSync(srcPath, tmp);
+    const size = fs.statSync(tmp).size;
+    return storeUploadedFile({ ...rest, file: { path: tmp, filename, originalname: originalName, mimetype: mimeType, size } });
+  }
+
+  /**
+   * A bare file with no artifact record (an image picked as a FIELD value —
+   * a person's photo, a poster). Same backend choice as every upload.
+   */
+  async function storeBareFile({ file, userId }) {
+    const backend = await registry.backendForUpload(userId);
+    const { ref } = await backend.put({ tmpPath: file.path, name: file.filename, mime: file.mimetype, size: file.size, userId });
+    return { fileRef: ref, url: backend.urlFor(ref) };
+  }
+
+  return { storeUploadedFile, storeFileFromPath, storeBareFile, generateImageThumbnails, storage: registry };
 }

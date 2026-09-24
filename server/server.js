@@ -36,8 +36,9 @@ import Manifest from "./models/Manifest.js";
 import View from "./models/View.js";
 import Folder from "./models/Folder.js";
 import { resolveFilesFolderId } from "./utils/filesFolder.js";
-import { mimeToKind, viewFieldsForKind, yearMonthShard } from "./utils/uploadKinds.js";
 import { makeArtifactUploader } from "./services/artifactUpload.js";
+import { makeStorageRegistry } from "./services/storage/index.js";
+import { getConnection, defaultConnectionId } from "./services/connections.js";
 import { ARTIFACT_MAX_BYTES, SHARE_MAX_BYTES } from "./config/uploadLimits.js";
 import Operation from "./models/Operation.js";
 
@@ -580,7 +581,13 @@ async function homeFolderForUpload({ userId, gridId, parentFolderId, kind }) {
 
 // One uploader for every path that turns a file into an artifact: this route
 // and POST /api/v1/share (share → import routing). See services/artifactUpload.js.
-const artifactUploader = makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom });
+// WHERE uploaded bytes live (plan 2026-09-24-connections-storage-gdrive):
+// one registry, shared by every upload path below.
+const storageRegistry = makeStorageRegistry({
+  uploadsDir,
+  getDefaultConnection: async (userId) => getConnection(userId, await defaultConnectionId(userId)),
+});
+const artifactUploader = makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom, storage: storageRegistry });
 
 // requireSession BEFORE multer: an unauthenticated request must not reach the
 // disk at all (audit A2). The user is the session's, never the body's.
@@ -656,83 +663,14 @@ app.post("/api/connections/:id/import", requireSession, async (req, res) => {
   if (!fs.existsSync(srcPath) || !fs.statSync(srcPath).isFile()) return res.status(404).json({ error: "File not found" });
   try {
     const ext = path.extname(fileName);
-    const mimeMap = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".pdf": "application/pdf", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json" };
-    const mime = mimeMap[ext.toLowerCase()] || "application/octet-stream";
-
-    // Mirror /api/artifacts/upload: write into uploads/user/YYYY-MM/ +
-    // mint a full Module + Occurrence + View triple. The legacy
-    // flat-uploads/ path is gone; connection imports now sit alongside
-    // drag-drop uploads in the sharded layout (audit gap #18).
-    const shard = yearMonthShard();
-    const subfolder = `user/${shard}`;
-    const artifactSubdir = path.join(uploadsDir, "user", shard);
-    fs.mkdirSync(artifactSubdir, { recursive: true });
-    const destFileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    fs.copyFileSync(srcPath, path.join(artifactSubdir, destFileName));
-    const fileRef = `${subfolder}/${destFileName}`;
-    const stat = fs.statSync(path.join(artifactSubdir, destFileName));
-
-    const kind = mimeToKind(mime, fileName);
-    const { viewType, artifactType } = viewFieldsForKind(kind);
-
-    const moduleId = nanoid();
-    const occurrenceId = nanoid();
-    const viewIdNew = nanoid();
-
-    const moduleDoc = {
-      id: moduleId, userId, gridId: gridId || null,
-      role: "artifact", kind,
-      label: fileName,
-      fileRef, defaultDragMode: "copy",
-      meta: {
-        mimeType: mime,
-        originalName: fileName,
-        uploadSize: stat.size,
-        folderId: parentFolderId || null,
-        uploadStatus: "ready",
-      },
-    };
-    await Module.findOneAndUpdate({ id: moduleId }, moduleDoc, { upsert: true });
-
-    const artifactView = new View({ id: viewIdNew, userId, gridId: gridId || null, viewType, artifactType, layout: {} });
-    await artifactView.save();
-
-    const occDoc = {
-      id: occurrenceId, userId, gridId: gridId || null,
-      moduleId,
-      // Same rule as /api/artifacts/upload — a connection import is an upload
-      // that happened to come from disk, so it homes in Files/<kind> unless the
-      // caller picked a folder.
-      parentId: await homeFolderForUpload({ userId, gridId, parentFolderId, kind }),
-      viewId: viewIdNew,
-      textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
-    };
-    await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
-
-    if (manifestId) {
-      const manifestView = await View.findOne({ manifestId, userId });
-      if (manifestView) {
-        manifestView.activeOccurrenceId = occurrenceId;
-        await manifestView.save();
-        const vc = { ...manifestView.toObject(), id: manifestView.id };
-        const cache = routeCache(userId, gridId);
-        if (cache) cache.viewsById[vc.id] = vc;
-        io.to(userRoom(userId)).emit("view_updated", vc);
-      }
-    }
-
-    const modObj = await Module.findOne({ id: moduleId }).lean();
-    const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
-    const cache = routeCache(userId, gridId);
-    if (cache) {
-      cache.modulesById[modObj.id] = modObj;
-      cache.occurrencesById[occObj.id] = occObj;
-    }
-
-    io.to(userRoom(userId)).emit("module_created", modObj);
-    io.to(userRoom(userId)).emit("occurrence_created", occObj);
-    io.to(userRoom(userId)).emit("artifact_created", { moduleId, occurrenceId, fileRef });
-    res.json({ module: modObj, occurrence: occObj, fileRef, url: `/uploads/${fileRef}` });
+    const mimeMap = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".pdf": "application/pdf", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json", ".ics": "text/calendar" };
+    // The SAME path as an upload (audit A4): dedup, EXIF, thumbnails, the
+    // Files/<kind> home folder, the storage backend, cache mirror, broadcasts.
+    const { sha256: _sha256, ...out } = await artifactUploader.storeFileFromPath({
+      srcPath, originalName: path.basename(srcPath), mimeType: mimeMap[ext.toLowerCase()] || "application/octet-stream",
+      userId, gridId, parentFolderId, manifestId,
+    });
+    res.json(out);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -882,13 +820,8 @@ app.post("/api/images/upload", requireSession, upload.single("file"), async (req
       fs.unlinkSync(req.file.path);
       return res.status(400).json({ error: "image files only" });
     }
-    const shard = yearMonthShard();
-    const shardDir = path.join(uploadsDir, "user", shard);
-    fs.mkdirSync(shardDir, { recursive: true });
-    const destPath = path.join(shardDir, req.file.filename);
-    fs.renameSync(req.file.path, destPath);
-    const fileRef = `user/${shard}/${req.file.filename}`;
-    res.json({ fileRef, url: `/uploads/${fileRef}` });
+    // Same storage choice as every upload (services/storage).
+    res.json(await artifactUploader.storeBareFile({ file: req.file, userId: req.userId }));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
