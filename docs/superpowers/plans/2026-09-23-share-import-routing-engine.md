@@ -35,7 +35,7 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 | 7 `POST /share` | done for **links + text**; **files refused (415)** | same |
 | 8 Imports tab — rules editor | not started | |
 | 9 Imports tab — recent-shares log | not started | |
-| 10 re-route the extension | done — needs the real-browser check (Step 6) | `claude/share-input-routing-plan-pigwol` |
+| 10 re-route the extension | done — **verified on prod 2026-09-24** (Firefox, test grid 2) | merged |
 
 **Where the sketches below did not match the code** (the code is what shipped):
 - Triggers are `triggerObjects[{ eventType: "onShare", shareType }]`, not `triggers[{ type }]`.
@@ -46,6 +46,13 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 - `services/artifactUpload.js` does not exist. The upload lives inline in `server.js`; extracting it
   (so `/share` reuses it rather than copying it) is the open prerequisite for file shares.
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
+- **Prod check (Task 10 Step 6), read back through `/api/v1/occurrences`:** page, selection, link and
+  image clips on test grid 2 all landed in `Root / Files` (`3684044d…`, the protected folder) with
+  `source: "clip"`; clipping the same page twice left ONE row. It also found a defect: an image on a
+  Google results page is a `data:` URL, which classified as a bare `file` and derived externalId
+  `text:` (empty) — every such image would share one identity. Fixed: the clip's own externalId wins.
+  Also found: the extension's notification icon never existed, so no outcome was ever shown (fixed),
+  and Firefox reads only `manifest.json` (the separate Firefox manifest was removed).
 - **Task 10:** there is no separate shipped `link` rule (D18 allows bootstrap to mint only the
   catch-all). The extension still builds its record and sends it as `$share.clip`; the catch-all's
   first branch writes it exactly as `/ingest` did (`source: "clip"`, `<shape>:<url>`, same fields, the
