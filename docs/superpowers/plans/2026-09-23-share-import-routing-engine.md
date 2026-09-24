@@ -51,6 +51,11 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
   too, plus `deploy/nginx/moduli.conf` raising nginx's 64 MB cap for `/api/v1/share` only — the LIVE
   nginx config needs that edit by hand (it was installed once by provision.sh) — **done by the user 2026-09-24**.
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
+- **D10's "a rule may override the grid" is NOT built, on purpose.** A rule is stored on, and writes into,
+  its own grid, and only the share grid's rules run — so an override would mean one grid's rule writing
+  into another, which every executor action refuses (same-grid checks). Choosing the grid is done before
+  any rule runs instead: the sender's explicit `gridId`, else `user.meta.share.gridId` (the Imports tab's
+  "Shares land in"), else the device's last-opened grid (`fallbackGridId`).
 - **Decision 2026-09-24 (user: "add pdfs to the documents folder"):** `serverExecutor` gains
   `MOVE_OCCURRENCE` (the client's config: `occurrenceIdExpr`, `toContainerId`) — a shared FILE is uploaded
   into Files before any rule runs, so filing it elsewhere is a MOVE; a CREATE would leave the file in two
