@@ -33,6 +33,7 @@ import { buildRenameItem } from "./pageCardRename";
 import { PagePreviewBody } from "../PagePreviewApp.jsx";
 import { requestPreviewSlot } from "../helpers/previewAdmission.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
+import { ArtifactThumbnail } from "./ArtifactCard.jsx";
 
 // Inline preview — mounts PagePreviewBody directly in the parent React tree.
 // Scaled to fit the card via CSS transform; pointer-events:none keeps it
@@ -209,7 +210,11 @@ export default function PreviewNode({
     });
   }, [module, occurrence?.id, role]);
 
-  const canDrillDown = role === "page" || kind === "folder";
+  // An ARTIFACT card opens too: PageFolder's handleDrillDown already turns it
+  // into a full-screen artifact page (ensureArtifactPageOcc). Gating this on
+  // page/folder alone left every file in Files/Images unclickable.
+  const isArtifact = role === "artifact";
+  const canDrillDown = role === "page" || kind === "folder" || isArtifact;
   const isLandscape = kind === "folder";
   const shouldLoadIframe = loadPreview && hasBeenVisible && hasSlot;
 
@@ -359,6 +364,12 @@ export default function PreviewNode({
               loading="lazy"
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
+          : isArtifact
+          // A file's preview is the FILE — a scaled render of its artifact page
+          // was a dark box with a few pixels of title (user, 2026-09-24: "i
+          // cant see what any of the images are"). No page body is mounted, so
+          // it needs no admission slot either.
+          ? <div className="preview-node-artifact"><ArtifactThumbnail module={module} occurrence={occurrence} /></div>
           : shouldLoadIframe
           ? <InlinePreview occurrenceId={occurrence?.id} landscape={isLandscape} />
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>

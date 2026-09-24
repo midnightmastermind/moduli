@@ -2,6 +2,19 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-24 — folder-page cards for FILES show the file and open it)
+- User (Files › Images folder page): *"i cant see what any of the images are and clicking them does nothing."*
+- **`PreviewNode.jsx`** — `canDrillDown` was `role === "page" || kind === "folder"`, so an artifact card's
+  click never reached `PageFolder.handleDrillDown` (which already opens an artifact as a full-screen page via
+  `ensureArtifactPageOcc`). Artifacts now drill. Their face is the file itself (`ArtifactThumbnail`), not
+  a scaled `PagePreviewBody` of the artifact page (a dark box with a few pixels of title); no page body is
+  mounted for them, so they skip the preview admission queue.
+- **`ArtifactCard.jsx`** — new export `ArtifactThumbnail({module, occurrence})`: the card's own
+  `renderThumbnail` with its src/thumb/cover resolution (thumb1024 → thumb256 → file; occurrence cover →
+  module cover), so both surfaces show the same face. `index.css` `.preview-node-artifact` fills the card.
+- Test `__tests__/previewNodeArtifact.test.jsx` (4; 3 fail with the PreviewNode change reverted, the page
+  control passes both ways). **Not checked in a browser.**
+
 ## Recent Changes (2026-09-22 (3) — ContainerGraph reports BOTH halves of a chart's warnings)
 It destructured `option` from `buildEChartsOption` and dropped that function's `warnings`, so the
 chip could report a row that contributed nothing (`buildGraphData`) but NOT that the chart layer had

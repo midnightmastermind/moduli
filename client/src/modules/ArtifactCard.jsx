@@ -643,6 +643,21 @@ function formatBytes(bytes) {
 // The PREVIEW half of the card — picture, frame, or type glyph. It never prints
 // the file name: that is the info block's job and it always sits underneath, so
 // printing it here too showed it twice.
+/**
+ * An artifact's face on its own — the picture a folder-page card shows
+ * (PreviewNode) — resolved exactly as this card resolves it: the 256px
+ * thumbnail when there is one, else the file; a cover (occurrence, then
+ * module) for kinds whose content is not a picture.
+ */
+export function ArtifactThumbnail({ module, occurrence = null }) {
+  const src = resolveFileRef(module?.fileRef);
+  const imgSrc = module?.meta?.thumb1024 ? resolveFileRef(module.meta.thumb1024)
+    : module?.meta?.thumb256 ? resolveFileRef(module.meta.thumb256) : src;
+  const cover = occurrence?.meta?.cover ? resolveFileRef(occurrence.meta.cover)
+    : (module?.meta?.cover ? resolveFileRef(module.meta.cover) : null);
+  return renderThumbnail(module?.kind, src, module?.label, imgSrc, cover);
+}
+
 function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   // A DEAD COVER FALLS BACK TO THE KIND'S OWN THUMBNAIL, not to a broken-image

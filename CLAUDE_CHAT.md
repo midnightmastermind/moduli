@@ -3623,3 +3623,5 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
   Removed the section (and its three server routes, which pointed at dev-machine paths).
 - > "if i up,load via the connections tab, where does it go in modulis manifest, nothing popped up."
   It went to the first manifest's root folder (possibly Templates / another grid). Now: Files › <kind>, and the tab lists where each file landed and on which storage.
+- > "can you fix the previews in the FIles images folder page. i cant see what any of the images are and clicking them does nothing (this is in the folder page)."
+  Artifact cards now show the file as their preview and open on click.
