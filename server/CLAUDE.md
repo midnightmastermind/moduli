@@ -2,6 +2,23 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (7) — a row keeps its own grid; poms' Schedule/Trackers/Day Page vanished)
+- **What happened, on prod:** the user switched a tab to test grid 2; its load-time date ops rewrote the
+  `filterOverride` of every page that tab held — including poms pages it had received through the
+  user-wide broadcast. `update_occurrence` resolved `prev` from the ACTIVE grid's cache, missed, and
+  fell back to `socket.data.activeGridId`, stamping **test grid 2's id** onto poms' Schedule, Trackers
+  and Day Page (and a Sep 24 day column). They vanished from poms. Switching back re-stamped them, but
+  the same fallback wrote each back into poms' cache as a PARTIAL row (the Day Page as 5 fields, no
+  module) — so it still rendered nothing until refreshed from Mongo (a no-op REST PATCH mirrors the
+  full doc). Data in Mongo was intact throughout.
+- **Fix (`socketHandlers/occurrences.js`):** a row the active cache does not hold is looked up in Mongo;
+  if it belongs to another grid the write targets THAT grid — its cache if warm, else Mongo only — and
+  an existing row's grid always wins over the payload/socket (`txGridId = foreignGridId || prev.gridId
+  || occurrence.gridId || activeGridId`). `__tests__/updateKeepsRowGrid.test.js` (6; A/B: 4 fail
+  without, the 2 controls pass both ways).
+- **Still open:** the root leak (every write broadcast to the USER room, so a tab holds other grids'
+  rows and its ops touch them). This fix makes those writes harmless; it does not stop them.
+
 ## Recent Changes (2026-09-24 (6) — /api/v1 gaps closed; webhook secrets no longer leak)
 - **`GET /{modules,fields,folders,operations,views,manifests}/:id`** — only occurrences had a single read.
 - **Webhook secrets were returned in plain text** by `GET /operations` and `PATCH /operations/:id` (the
