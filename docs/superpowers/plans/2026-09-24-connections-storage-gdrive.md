@@ -70,6 +70,19 @@ OAuth 2.0 web flow, scope **`drive.file`** — the app can only see files IT cre
 your Drive. (It is also the scope Google does not put through a security review.) The refresh token
 is encrypted with `Secret.js`. Revoked or expired → the connection shows **Reconnect**.
 
+### 2.5a Load time (user: *"will this also increase the wait time to load in images and videos"*)
+What does NOT get slower: every grid, board and card — they show the **thumbnails**, which stay on the
+server. What does: opening a full original (full-size image, video, PDF) that lives on Drive — the
+server has to ask Drive first, roughly **+0.1–0.5 s to first byte**. Countered by:
+- **Browser caching:** `/files/…` answers with a long private `Cache-Control` + `ETag` (a Drive file id
+  never changes content), so a file opened once opens instantly afterwards on that device.
+- **Streaming with Range:** video and audio start playing after the first chunk; nothing waits for the
+  whole file.
+- **A small, BOUNDED server cache** of recently opened Drive files (LRU, default 1 GB, set in `.env`),
+  so a file several devices open repeatedly is served from the server's disk. Bounded, so it cannot
+  regrow the problem this plan solves.
+- Later, if big videos still feel slow: redirect those straight to Drive with a short-lived link.
+
 ### 2.6 Connections in operations (user, 2026-09-24: *"these connections and what we can do like
 upload download etc, should be available in operations as well"*)
 A new **Files & storage** category in the action picker (`ui/actionTree.js`, beside Outbound), every
@@ -109,7 +122,7 @@ Every action checks the connection belongs to the op's user and the target row t
 
 ---
 
-## 4. Decisions for you (defaults proposed)
+## 4. Decisions — ALL FOUR ACCEPTED by the user as proposed (2026-09-24)
 
 1. **Drive unreachable at upload time** (token revoked, Google down): *proposed* — store on the Server
    instead and say so in the upload result, rather than fail. Never lose an upload.
