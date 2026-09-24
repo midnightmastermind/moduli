@@ -53,8 +53,15 @@
 // fileRef itself via `isExternalFileRef`.
 // ============================================================
 
+// A file stored on a storage connection (plan 2026-09-24-connections-storage-
+// gdrive): "gdrive:<connectionId>:<driveFileId>" is served by the server's
+// /files proxy. It is the user's OWN storage, so it is INTERNAL, not external.
+const DRIVE_REF = /^gdrive:([^:]+):([^:]+)$/;
+
 export function resolveFileRef(fileRef) {
   if (!fileRef) return null;
+  const drive = DRIVE_REF.exec(fileRef);
+  if (drive) return `/files/${encodeURIComponent(drive[1])}/${encodeURIComponent(drive[2])}`;
   if (/^(?:https?:|data:|blob:|\/)/i.test(fileRef)) return fileRef;
   return `/uploads/${fileRef}`;
 }

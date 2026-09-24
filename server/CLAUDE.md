@@ -2,6 +2,26 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (8) — Google Drive storage: connect flow + backend + /files proxy)
+Plan `docs/superpowers/plans/2026-09-24-connections-storage-gdrive.md`, Tasks 4–5 (1–3 were the other account's).
+- **`services/googleOAuth.js`** — `startUrl` (drive.file, offline, consent, signed 15-min `state` naming the
+  user), `completeConnect` (code → refresh token ENCRYPTED on the Connection + "Moduli uploads" folder;
+  same Google account or `reconnectId` → updates in place, keeping the id every `gdrive:` ref names),
+  `refreshAccessToken`, `googleSetupMissing` (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SECRETS_KEY;
+  GOOGLE_REDIRECT_URI optional). Plain fetch, no SDK.
+- **`services/storage/gdrive.js`** — the backend (resumable put into `<YYYY-MM>` subfolders, original
+  file name; Range open; remove; health). A failed put KEEPS the temp file.
+- **`services/storage/index.js`** — `putForUser` (default backend, Server fallback with `fallback` reason),
+  `backendForConnectionId` (the proxy has only an id), `urlForRef` (works for a backend not built since
+  boot). Backends are cached per connection until its credentials change.
+- **`services/storage/serveFile.js`** — Range/ETag/304/cache headers for any backend.
+- **`services/connections.js`** — `storageFactories` (the ONLY place credentials are decrypted),
+  `getConnectionById`, `setConnectionStatus`.
+- **server.js routes:** `POST /api/connections/google/start`, `GET /api/connections/google/callback`,
+  `GET /api/connections/:id/health`, `GET /files/:connectionId/:fileId`.
+- `artifactUpload` passes `originalName`; results may carry `storageFallback`.
+- Tests `__tests__/storageGdrive.test.js` (13). **Nothing has talked to real Google yet** — needs §5 setup.
+
 ## Recent Changes (2026-09-24 (7) — a row keeps its own grid; poms' Schedule/Trackers/Day Page vanished)
 - **What happened, on prod:** the user switched a tab to test grid 2; its load-time date ops rewrote the
   `filterOverride` of every page that tab held — including poms pages it had received through the

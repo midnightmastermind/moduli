@@ -5,6 +5,8 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { ChevronDown, ChevronRight, FolderOpen, RefreshCw, Upload, Download } from "lucide-react";
 
 import { useGridActions } from "../../GridActionsContext";
+import { sessionHeaders } from "../../helpers/authStorage";
+import { StorageConnections } from "./StorageConnections";
 
 const labelStyle = {
   fontSize: 10,
@@ -49,7 +51,7 @@ export function ConnectionsTab() {
   const uploadInputRef = useRef(null);
 
   const fetchConnections = useCallback(() => {
-    fetch("/api/connections")
+    fetch("/api/connections", { headers: sessionHeaders() })
       .then((r) => r.json())
       .then((d) => setConnections(d.connections || []))
       .catch(() => {});
@@ -63,7 +65,7 @@ export function ConnectionsTab() {
     if (filesByConn[connId]) return;
     setLoadingId(connId);
     try {
-      const r = await fetch(`/api/connections/${connId}/files`);
+      const r = await fetch(`/api/connections/${connId}/files`, { headers: sessionHeaders() });
       const d = await r.json();
       setFilesByConn((prev) => ({ ...prev, [connId]: d.files || [] }));
     } catch {}
@@ -73,7 +75,7 @@ export function ConnectionsTab() {
   const refreshFiles = async (connId) => {
     setLoadingId(connId);
     try {
-      const r = await fetch(`/api/connections/${connId}/files`);
+      const r = await fetch(`/api/connections/${connId}/files`, { headers: sessionHeaders() });
       const d = await r.json();
       setFilesByConn((prev) => ({ ...prev, [connId]: d.files || [] }));
     } catch {}
@@ -86,7 +88,7 @@ export function ConnectionsTab() {
     try {
       const r = await fetch(`/api/connections/${connId}/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...sessionHeaders() },
         body: JSON.stringify({ fileName, userId, gridId, parentFolderId: folderId }),
       });
       const d = await r.json();
@@ -112,7 +114,7 @@ export function ConnectionsTab() {
       if (gridId) form.append("gridId", gridId);
       if (folderId) form.append("parentFolderId", folderId);
       try {
-        const r = await fetch("/api/artifacts/upload", { method: "POST", body: form });
+        const r = await fetch("/api/artifacts/upload", { method: "POST", headers: sessionHeaders(), body: form });
         const d = await r.json();
         if (d.module) ok++; else fail++;
       } catch { fail++; }
@@ -128,7 +130,8 @@ export function ConnectionsTab() {
 
   return (
     <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+      <StorageConnections />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, marginTop: 6 }}>
         <span style={{ ...labelStyle, fontSize: 11, color: "var(--text-muted)", marginBottom: 0 }}>
           External path connections
         </span>

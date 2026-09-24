@@ -28,6 +28,7 @@ const DBLCLICK_MS = 260;
 import { edgeForPoint, sortOrderForDrop, sortOrderAtEnd, wouldNestInsideItself, isInnermostTarget } from "../helpers/treeOrder.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
+import { sessionHeaders } from "../helpers/authStorage";
 
 /**
  * The pinned section's contents: a FLAT list of the panel's pinned page ids.
@@ -406,7 +407,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
       const gridId = window?.__moduliGridId || "";
       fd.append("userId", userId);
       fd.append("gridId", gridId);
-      const res = await fetch("/api/artifacts/upload", { method: "POST", body: fd });
+      const res = await fetch("/api/artifacts/upload", { method: "POST", headers: sessionHeaders(), body: fd });
       const body = await res.json().catch(() => null);
       if (body?.fileRef) setCover({ kind: "image", value: body.fileRef });
     } finally {

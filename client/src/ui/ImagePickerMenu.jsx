@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Upload, Link2, X, Loader2, ImageOff } from "lucide-react";
 import LoadingImage from "./LoadingImage.jsx";
+import { sessionHeaders } from "../helpers/authStorage";
 
 // ── Imperative controller ────────────────────────────────────────────────
 // Call sites live inside popovers/dropdowns that unmount on outside clicks —
@@ -120,7 +121,7 @@ export default function ImagePickerMenu({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await fetch("/api/images/upload", { method: "POST", body: fd });
+      const r = await fetch("/api/images/upload", { method: "POST", headers: sessionHeaders(), body: fd });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error || `upload failed (${r.status})`);
       onPick?.(j.url);

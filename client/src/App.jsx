@@ -294,6 +294,22 @@ export default function App() {
   // Once CC opens for the first time, keep it mounted so slide animation works on close
   const [commandCenterEverOpened, setCommandCenterEverOpened] = useState(false);
   useEffect(() => { if (commandCenterOpen) setCommandCenterEverOpened(true); }, [commandCenterOpen]);
+  // Returning from the Google Drive sign-in (/api/connections/google/callback
+  // redirects to "/?connections=1&google=…"): open Connections, say how it
+  // went, and take the parameters off the address bar.
+  const [commandCenterTab, setCommandCenterTab] = useState(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has("connections")) return;
+    const outcome = q.get("google");
+    if (outcome === "connected") toast.success("Google Drive connected.");
+    else if (outcome === "reconnected") toast.success("Google Drive reconnected.");
+    else if (outcome === "denied") toast.warning("Google Drive was not connected — access was declined.");
+    else if (outcome === "error") toast.error(`Google Drive could not be connected: ${q.get("message") || "unknown error"}`);
+    setCommandCenterTab("connections");
+    setCommandCenterOpen(true);
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, []);
 
   // Prevent OS from intercepting unhandled drags. Per user request, the
   // CommandCenter does NOT auto-collapse on drag start — only file (artifact)
@@ -1069,6 +1085,7 @@ export default function App() {
             <CommandCenter
               open={commandCenterOpen}
               onOpenChange={setCommandCenterOpen}
+              initialTab={commandCenterTab}
               isMobileLayout={isMobileLayout}
             />
           </React.Suspense>

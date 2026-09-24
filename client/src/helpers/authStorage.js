@@ -46,3 +46,13 @@ export function readToken() {
 export function hasSession() {
   return Boolean(readToken());
 }
+
+/**
+ * The signed-in session as request headers, for the app's own non-socket
+ * routes (uploads, connections). Empty when signed out — the server answers
+ * 401 and the caller reports it; it never guesses a user from the body.
+ */
+export function sessionHeaders() {
+  const t = readToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}

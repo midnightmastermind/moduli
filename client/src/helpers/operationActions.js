@@ -30,6 +30,12 @@ import { isDueOn } from "./dueSpan";
 import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
 import { startAlarmRing } from "../state/alarmRingStore";
+import { sessionHeaders } from "./authStorage";
+
+/** A path on THIS site: "/api/…", not "//host/…" and not "https://…". */
+export function isSameSiteUrl(url) {
+  return typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
+}
 
 // ============================================================
 // FILTERED VALUE EXTRACTION
@@ -2495,6 +2501,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       })();
 
       const init = { method, headers: { ...headers } };
+      // The app's OWN routes authenticate the session (2026-09-24: uploads and
+      // imports stopped trusting a userId in the body). A same-site URL gets the
+      // signed-in Bearer unless the op set its own Authorization. Never another
+      // origin: a token handed to a third-party URL is a token leaked.
+      if (isSameSiteUrl(finalUrl) && !Object.keys(init.headers).some((k) => k.toLowerCase() === "authorization")) {
+        Object.assign(init.headers, sessionHeaders());
+      }
       if (body != null && method !== "GET") {
         init.body = typeof body === "string" ? body : JSON.stringify(body);
         if (typeof body !== "string" && !init.headers["Content-Type"]) {
