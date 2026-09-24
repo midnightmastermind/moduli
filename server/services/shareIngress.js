@@ -93,7 +93,7 @@ export async function prepareShare({
   files = [], url = null, text = null, title = null, label = null, shape = null,
   clip = null,
   fetchPreview = null, storeFile = null,
-  timeZone = null, resolveSlotLabels = null,
+  timeZone = null, resolveSlotLabels = null, fetchCalendar = null,
 }) {
   const { type, props } = classifyShare({ files, url, text, title });
   const enriched = { ...props, shape: shape || null };
@@ -102,6 +102,19 @@ export async function prepareShare({
 
   // A CALENDAR is read BEFORE the file is stored — storing moves the temp file.
   let calendar = null;
+  let shareType = type;
+
+  // A calendar LINK — a `webcal://` subscription, or an https link to an
+  // .ics — is fetched and read as a calendar, so its events reach the rules
+  // exactly as a shared .ics file's would. A link that turns out not to be a
+  // calendar stays a link.
+  if (type === "link" && fetchCalendar && isCalendarUrl(props.url)) {
+    const fetched = await fetchCalendar(calendarFetchUrl(props.url)).catch(() => null);
+    if (typeof fetched === "string" && /BEGIN:VCALENDAR/i.test(fetched)) {
+      calendar = await icsEvents(fetched, { timeZone, resolveSlotLabels });
+      shareType = "ics";
+    }
+  }
   if (type === "ics" && files.length) {
     const f = files[0];
     const icsText = f.text ?? await fs.readFile(f.path, "utf8").catch(() => "");
@@ -142,12 +155,14 @@ export async function prepareShare({
   }
 
   return {
-    type, source,
+    type: shareType, source,
     props: enriched,
     clip: cleanClip,
     ...(calendar ? { events: calendar.events, notices: calendar.notices } : {}),
     label: shareLabelFor(type, enriched, label || cleanClip?.label),
-    externalId: cleanClip?.externalId || shareExternalIdFor(type, enriched, { shape, sha256 }),
+    externalId: cleanClip?.externalId || (shareType === "ics" && type === "link"
+      ? `webcal:${calendarFetchUrl(enriched.url)}`
+      : shareExternalIdFor(type, enriched, { shape, sha256 })),
     receivedAt: new Date().toISOString(),
   };
 }
@@ -175,3 +190,10 @@ export async function icsEvents(text, { timeZone = null, resolveSlotLabels = nul
   if (needsSlots && !slotLabels.length) notices.push("this grid has no time slots — events have no Time Slot");
   return { events: out, notices };
 }
+
+/** A link that names a calendar: `webcal(s)://…`, or an http(s) link ending in .ics. */
+export const isCalendarUrl = (url) =>
+  typeof url === "string" && (/^webcals?:\/\//i.test(url) || /^https?:\/\/[^?#]+\.ics(?:[?#]|$)/i.test(url));
+
+/** webcal:// is https:// with a different name (RFC-less but universal). */
+export const calendarFetchUrl = (url) => String(url).replace(/^webcals?:\/\//i, "https://");

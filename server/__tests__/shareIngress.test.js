@@ -145,3 +145,35 @@ describe("ics ingress", () => {
     expect(asked).toBe(0);
   });
 });
+
+// ── A calendar LINK (webcal:// or an .ics url) ────────────────────────────
+import { isCalendarUrl, calendarFetchUrl } from "../services/shareIngress.js";
+describe("a calendar link is read as a calendar", () => {
+  const CAL = cal(vevent("w1", "Standup", "20260925T090000", "20260925T093000"));
+  it("fetches a webcal:// link over https and exposes its events", async () => {
+    const asked = [];
+    const share = await prepareShare({ userId: "u1", gridId: "g1", timeZone: "America/Chicago",
+      url: "webcal://cal.test/team.ics", fetchCalendar: async (u) => { asked.push(u); return CAL; },
+      resolveSlotLabels: async () => ["9:00am"] });
+    expect(asked).toEqual(["https://cal.test/team.ics"]);
+    expect(share.type).toBe("ics");
+    expect(share.events[0].start.timeSlot).toBe("9:00am");
+    expect(share.externalId).toBe("webcal:https://cal.test/team.ics");
+  });
+  it("a link that is NOT a calendar stays a link", async () => {
+    const share = await prepareShare({ userId: "u1", gridId: "g1", url: "https://x.test/page.ics",
+      fetchCalendar: async () => "<html>not a calendar</html>" });
+    expect(share.type).toBe("link");
+  });
+  it("an ordinary link is never fetched as a calendar", async () => {
+    let asked = 0;
+    await prepareShare({ userId: "u1", gridId: "g1", url: "https://x.test/article", fetchCalendar: async () => { asked++; return CAL; } });
+    expect(asked).toBe(0);
+  });
+  it("recognises calendar urls", () => {
+    expect(isCalendarUrl("webcal://a.test/x")).toBe(true);
+    expect(isCalendarUrl("https://a.test/x.ics?key=1")).toBe(true);
+    expect(isCalendarUrl("https://a.test/ics-guide")).toBe(false);
+    expect(calendarFetchUrl("webcals://a.test/x.ics")).toBe("https://a.test/x.ics");
+  });
+});

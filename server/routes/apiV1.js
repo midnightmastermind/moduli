@@ -1296,6 +1296,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           } : null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
           timeZone,
+          fetchCalendar: async (u) => {
+            const r = await fetchPageHtml(u, { allowTypes: /text\/calendar|text\/plain|application\/octet-stream|text\/html/i });
+            return r.ok ? r.html : null;
+          },
           resolveSlotLabels: async () => {
             const { scheduleSlotLabels } = await import("../services/scheduleSlots.js");
             return scheduleSlotLabels({ userId: req.userId, gridId });
