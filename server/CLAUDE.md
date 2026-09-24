@@ -2,6 +2,19 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (4) — files can be shared; the upload is a service now)
+- **`services/artifactUpload.js`** — `POST /api/artifacts/upload`'s body moved VERBATIM out of server.js
+  (`makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom })` →
+  `storeUploadedFile`). `sha256OfFile` / `extractImageMetadata` / thumbnails moved with it;
+  `mimeToKind` / `viewFieldsForKind` / `yearMonthShard` → **`utils/uploadKinds.js`** (server.js imports
+  them). The route's response is unchanged. Tested for REAL on disk (real PNG, sha256, sharp thumbs).
+- **`/api/v1/share` takes multipart** — parsed only AFTER auth (a bad token writes nothing — proven over
+  real HTTP in `apiShareHttp.test.js`). First file is the share; extras are deleted and reported.
+  **`services/shareFiles.js`**: a re-share of the same bytes on the same grid reuses its row.
+- **`config/uploadLimits.js`**: shares 500 MB (D14), artifact route 50 MB; 413 names the limit.
+  `deploy/nginx/moduli.conf` gains `location = /api/v1/share { client_max_body_size 512M; }` — the live
+  nginx must be edited by hand.
+
 ## Recent Changes (2026-09-24 (3) — editor-built CREATE runs server-side; Grid.shareLog)
 - `serverExecutor` CREATE also reads the editor's `name/parent/role/kind/attachFields`, `itemIdVar/itemVar`,
   and a `meta` object of expressions. In a share rule, a CREATE with no externalId is keyed

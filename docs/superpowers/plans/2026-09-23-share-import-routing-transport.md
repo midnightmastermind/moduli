@@ -82,6 +82,9 @@ git commit -m "docs(share): §11 verified on device — <one line per finding>"
 
 ## Task 2: Raise the upload cap for shares
 
+> **Done 2026-09-24** with the engine plan's file shares: `server/config/uploadLimits.js`, a separate
+> 500 MB multer for `/api/v1/share`, and the nginx `location = /api/v1/share` block.
+
 **Files:**
 - Modify: `server/server.js:497` (`const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });`)
 - Create: `server/__tests__/shareUploadLimit.test.js`

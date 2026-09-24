@@ -22,6 +22,7 @@
 // resulting change to the user's socket room so connected clients sync.
 
 import express from "express";
+import fsSync from "fs";
 import crypto from "crypto";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -85,7 +86,7 @@ const CACHE_BUCKET = {
   operation: "operationsById",
 };
 
-export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge }) {
+export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge, shareUpload = null, storeUploadedFile = null }) {
   const router = express.Router();
 
   // Per-token rate limit (600 req/min) + Idempotency-Key support.
@@ -1191,7 +1192,25 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // Files are refused (415) until the artifact upload is shared with this
   // path — refused out loud, never dropped (§12).
   // ====================================================================
-  router.post("/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+  // Multipart (a shared FILE) is parsed only AFTER auth, so an unauthenticated
+  // request never gets to stream 500 MB to disk. JSON shares skip it entirely.
+  const acceptShareFiles = (req, res, next) => {
+    if (!shareUpload || !req.is?.("multipart/form-data")) return next();
+    shareUpload.any()(req, res, async (e) => {
+      if (!e) return next();
+      const { describeTooLarge, SHARE_MAX_BYTES } = await import("../config/uploadLimits.js");
+      if (e.code === "LIMIT_FILE_SIZE") return err(res, 413, "too_large", describeTooLarge(null, SHARE_MAX_BYTES));
+      return err(res, 400, "upload_error", e.message);
+    });
+  };
+
+  router.post("/share", authAndLimit({ requireScope: "write" }), acceptShareFiles, async (req, res) => {
+    // The first file IS the payload (spec §3). Any others are removed rather
+    // than left in the uploads dir, and the response says they were ignored.
+    const uploaded = Array.isArray(req.files) ? req.files : [];
+    const [firstFile, ...extraFiles] = uploaded;
+    const dropTemp = (f) => { try { if (f?.path) fsSync.unlinkSync(f.path); } catch { /* gone */ } };
+    extraFiles.forEach(dropTemp);
     try {
       const body = req.body || {};
       let gridId = body.gridId || null;
@@ -1200,10 +1219,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         const user = await User.findById(req.userId).lean().catch(() => null);
         gridId = user?.meta?.share?.gridId || null;
       }
-      if (!gridId) return err(res, 400, "validation_error", "no gridId, and no share grid is configured");
+      if (!gridId) { dropTemp(firstFile); return err(res, 400, "validation_error", "no gridId, and no share grid is configured"); }
       const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
-      if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
-      if (!body.url && !body.text) return err(res, 400, "validation_error", "url or text required");
+      if (!owned) { dropTemp(firstFile); return err(res, 404, "not_found", `grid ${gridId} not found`); }
+      if (!body.url && !body.text && !firstFile) { dropTemp(firstFile); return err(res, 400, "validation_error", "url, text or a file required"); }
 
       const { shareLogEntry, recordShare } = await import("../services/shareLog.js");
       // Every outcome from here on is logged — the failures most of all (§12).
@@ -1221,6 +1240,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       try {
         await ensureCatchAllRule({ userId: req.userId, gridId });
       } catch (e) {
+        dropTemp(firstFile);
         await logShare(null, null, e.message);
         return err(res, 409, "no_destination", e.message);
       }
@@ -1233,6 +1253,15 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           url: body.url || null, text: body.text || null, title: body.title || null,
           label: body.label || null, shape: body.shape || null,
           clip: body.clip || null,
+          files: firstFile ? [{ filename: firstFile.originalname, mimetype: firstFile.mimetype,
+            size: firstFile.size, path: firstFile.path, _multer: firstFile }] : [],
+          storeFile: storeUploadedFile ? async ({ file }) => {
+            const { storeSharedFile } = await import("../services/shareFiles.js");
+            return storeSharedFile({
+              file: file._multer, userId: req.userId, gridId, storeUploadedFile,
+              mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
+            });
+          } : null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
         });
       } catch (e) {
@@ -1253,9 +1282,11 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const status = created.length === 0 && failed.length ? 502 : 201;
       res.status(status).json({
         type: share.type, label: share.label, externalId: share.externalId, gridId,
+        ...(share.props?.occurrenceId ? { fileOccurrenceId: share.props.occurrenceId } : {}),
+        ...(extraFiles.length ? { ignoredFiles: extraFiles.map(f => f.originalname) } : {}),
         ...result,
       });
-    } catch (e) { err(res, 500, "internal_error", e.message); }
+    } catch (e) { dropTemp(firstFile); err(res, 500, "internal_error", e.message); }
   });
 
   // ====================================================================

@@ -32,7 +32,7 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 | 4 classify | done (+ F1–F5 fixes) | `feat/share-import-routing` |
 | 5 rule engine | done — adapted, see below | `claude/share-input-routing-plan-pigwol` |
 | 6 catch-all bootstrap | done — adapted | same |
-| 7 `POST /share` | done for **links + text**; **files refused (415)** | same |
+| 7 `POST /share` | done — links, text **and files** (files added 2026-09-24) | merged via PR |
 | 8 Imports tab — rules editor | done — see deviations | merged via PR |
 | 9 Imports tab — recent-shares log | done — see deviations | merged via PR |
 | 10 re-route the extension | done — **verified on prod 2026-09-24** (Firefox, test grid 2) | merged |
@@ -43,8 +43,13 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
   that, a rule's `$share.handled` could never halt the chain.
 - The Files folder is a `Folder`, not an `Occurrence` — CREATE gained `parentFolderId`.
 - The catch-all mints only when ingress did NOT already upload a file (an upload is its own row).
-- `services/artifactUpload.js` does not exist. The upload lives inline in `server.js`; extracting it
-  (so `/share` reuses it rather than copying it) is the open prerequisite for file shares.
+- `services/artifactUpload.js` did not exist; the upload lived inline in `server.js`. It is now that
+  service, moved VERBATIM (only `req.file`→`file` and `res.json`→`return` changed), and both
+  `/api/artifacts/upload` and `/share` call it. `services/shareFiles.js` makes a shared file
+  idempotent on its bytes (`sha256:<hash>` stamped on the occurrence), since the upload route makes a
+  new placement every time. Plan 3's Task 2 (500 MB share cap, `config/uploadLimits.js`) is done here
+  too, plus `deploy/nginx/moduli.conf` raising nginx's 64 MB cap for `/api/v1/share` only — the LIVE
+  nginx config needs that edit by hand (it was installed once by provision.sh).
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
 - **Task 8:** the editor's CREATE is written as `name/parent/role/kind/attachFields`, which the server
   executor did not read — a rule built by clicking would have made rows with no name and no parent. The

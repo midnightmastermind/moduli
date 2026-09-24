@@ -48,3 +48,12 @@ describe("recordShare", () => {
     expect(emitted[0][1].grid.shareLog).toEqual([{ at: "t" }]);
   });
 });
+
+describe("shareLogEntry — a shared file", () => {
+  it("is 'landed' by its upload even when no rule created anything", () => {
+    const e = shareLogEntry({ share: { type: "image", props: { occurrenceId: "file-occ" } },
+      result: { ran: [{ ruleId: "c", ok: true, created: [] }] } });
+    expect(e.status).toBe("landed");
+    expect(e.fileOccurrenceId).toBe("file-occ");
+  });
+});

@@ -31,7 +31,10 @@ export function shareLogEntry({ share = null, result = null, error = null, at = 
     rules,
     // "landed" only when something was actually written; a share every rule
     // skipped or failed is exactly what this log exists to surface.
-    status: error ? "failed" : createdCount > 0 ? "landed" : "nothing",
+    // A shared FILE is stored before any rule runs (spec §3) — that upload is
+    // itself a row, so a file share landed even when no rule created anything.
+    fileOccurrenceId: share?.props?.occurrenceId ?? null,
+    status: error ? "failed" : (createdCount > 0 || share?.props?.occurrenceId) ? "landed" : "nothing",
     error: error ? clip(String(error), 300) : null,
   };
 }
