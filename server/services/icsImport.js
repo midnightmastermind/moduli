@@ -87,8 +87,12 @@ export function parseIcs(text, { timeZone = null } = {}) {
       summary: icsText(v.summary).trim() || "(no title)",
       start: { date: s.date, time: allDay ? null : s.time, timeSlot: null },
       end:   e ? { date: e.date, time: allDay ? null : e.time } : null,
-      durationMin: (v.end && !allDay)
-        ? Math.max(0, Math.round((v.end - v.start) / 60000)) : null,
+      // An invite whose DTEND equals its DTSTART states no length (the clinic
+      // invites that found this: every one, 2026-09-24). null, not 0 — a
+      // "Duration 0" chip claims a length the sender never gave, and the
+      // Schedule places both the same way (in the start slot).
+      durationMin: (v.end && !allDay && v.end > v.start)
+        ? Math.round((v.end - v.start) / 60000) : null,
       allDay,
       location: icsText(v.location) || null,
       description: icsText(v.description) || null,

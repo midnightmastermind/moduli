@@ -161,3 +161,13 @@ describe("a property carrying parameters (Outlook's SUMMARY;LANGUAGE=…)", () =
     expect(events[0].location).toBe("Main St");
   });
 });
+
+describe("an invite whose end equals its start (real clinic invites, 2026-09-24)", () => {
+  it("states no duration — null, not 0 — while a real length still comes through", async () => {
+    const { parseIcs } = await import("../services/icsImport.js");
+    const ev = (s, e) => ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", `UID:${s}`, "SUMMARY:x",
+      `DTSTART:${s}`, `DTEND:${e}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    expect(parseIcs(ev("20260925T141500Z", "20260925T141500Z"), { timeZone: "America/Chicago" }).events[0].durationMin).toBeNull();
+    expect(parseIcs(ev("20260925T141500Z", "20260925T151500Z"), { timeZone: "America/Chicago" }).events[0].durationMin).toBe(60);
+  });
+});

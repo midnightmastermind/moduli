@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-24 (2) — REAL INVITES TITLED "[object Object]"; and the phone read a mosaic by stale placements
+
+From the user's own tests on devices. Merged as PR #7; **not deployed from here** (the cloud session has
+no SSH) — the calendar fix is SERVER code, so it needs `./deploy.sh` and its restart.
+- **Invite titles.** Clinic invites write `SUMMARY;LANGUAGE=en-US:…`; node-ical returns a property with
+  parameters as `{ params, val }`, and `String()` on it gave `[object Object]`. `icsImport.icsText` reads
+  `val` (summary, location, description). Every earlier fixture had a bare `SUMMARY:` — *a fixture you
+  wrote cannot carry the parameter a real sender adds.*
+- **Schedule Type (data, poms).** The calendar rule attached the field with no value. There was no generic
+  row, so `Appointment` was added to Schedule Types (tagged `appointment` like its siblings) and the rule's
+  CREATE sets it; the three test rows were patched. Their labels heal when each invite is re-shared after
+  the deploy (`ics:<UID>` updates in place). **Confirmed from the stored files** (each shared .ics is kept
+  as an artifact, linked from `shareLog[].fileOccurrenceId`): every one has `DTEND == DTSTART`. Such an
+  event now stores **no** duration (null, not 0); the Schedule places both in the start slot. The three
+  rows were then repaired directly — real titles on module AND occurrence label (the occurrence's
+  `[object Object]` override outranked the module), Duration cleared — so no re-share is needed.
+- **"No share grid is configured" on Windows.** `/share` now falls back to `fallbackGridId` (the grid the
+  device last had open) after an explicit grid and the saved share grid; ownership still checked.
+  `/me/share` takes the session JWT and the Imports tab has a "Shares land in" picker.
+- **Phone swapped Schedule and Tasks on poms.** `MosaicMobileNav` navigated by `occurrence.placement`,
+  which only the rows×cols editor writes — stale once a mosaic is rearranged (tree: D right, full height;
+  placement: D below A). `bspTree.treeToCells` turns the tree into rows×cols; placements are the fallback.
+- **Date nav on the phone** moved into the Filters popover (not removed — a phone once had no way to
+  change the date).
+
+---
+
 ### 2026-09-24 — SHARE → IMPORT ROUTING BUILT (Plans 1–3); and poms' Schedule vanished because a tab was on another grid
 
 Share routing, all three plans (`docs/superpowers/plans/2026-09-23-share-import-routing-*.md`, each with

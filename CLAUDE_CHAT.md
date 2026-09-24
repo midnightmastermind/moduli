@@ -3599,3 +3599,14 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
    re-lists an existing-but-unlisted column too (ADD_CHILD is idempotent, so the create path is
    unaffected).
 5. **Next after that: keep rebuilding poms through the UI** — the agreed structure+samples scope.
+
+---
+
+## 2026-09-24 — share routing on real devices; phone layout
+
+- **Calendar invites** (user's tests): > "the names same object object, the time is right, the date is right, schedule type didnt get set" · > "we should set schedule type to generic appointment right now so the operation to add to schedule picks it up" · > "idk if theres an appointment row yet so you may have to make that in schedule types".
+  Done: an `Appointment` row on the Schedule Types board, and the calendar share rule now sets Schedule Type to it.
+- **Windows share** failed with "no share grid is configured". The share grid was set to poms; a new device now falls back to the grid it last had open; the Imports tab has a "Shares land in" picker.
+- **Phone**: > "when i open poms grid on my phone, the schedule and tasks switch panels so i would press down to view schedule instead of right (to match the deskops layout)" · > "ik desktop is mosaic but the phone should be smart with it and place them in relevant spots in a row/col fashion".
+  So the phone's cell map comes from the desktop split tree, not stored placements.
+- > "remove the date input on the toolbar on mobile, we can just use the filters button" (the main toolbar) · > "we need that helper" → the date nav MOVES into the Filters popover on mobile; it is not dropped.
