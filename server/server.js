@@ -1051,6 +1051,15 @@ if (fs.existsSync(path.join(clientDistDir, "index.html"))) {
       );
     },
   }));
+  // A phone/Windows SHARE posts here. Normally the app's service worker
+  // (client/public/sw.js) catches it first; this runs only when it did not —
+  // the worker not installed yet, or a browser without one. The share cannot
+  // be handed on (the form carries no credential), so it SAYS so rather than
+  // vanishing into a 404 (spec §12). 303 turns the POST into a GET.
+  app.post("/share-target", (_req, res) => {
+    const msg = "Moduli wasn't ready to receive shares on this device yet. Open Moduli once, then share again.";
+    res.redirect(303, `/share-pending?error=${encodeURIComponent(msg)}`);
+  });
   app.get("/{*splat}", (_req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(clientDistDir, "index.html"));

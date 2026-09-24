@@ -1231,7 +1231,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     });
   };
 
-  router.post("/share", authAndLimit({ requireScope: "write" }), acceptShareFiles, async (req, res) => {
+  router.post("/share", authAndLimit({ requireScope: "write", allowSessionJwt: true }), acceptShareFiles, async (req, res) => {
     // The first file IS the payload (spec §3). Any others are removed rather
     // than left in the uploads dir, and the response says they were ignored.
     const uploaded = Array.isArray(req.files) ? req.files : [];
