@@ -49,13 +49,10 @@ describe("the extension's framing rules", () => {
     for (const h of headers) expect(h.operation).toBe("remove");
   });
 
-  it("the two manifests agree on the ruleset", () => {
-    const chrome = JSON.parse(readFileSync(path.join(here, "..", "..", "extension", "manifest.json"), "utf8"));
-    const firefox = JSON.parse(readFileSync(path.join(here, "..", "..", "extension", "manifest.firefox.json"), "utf8"));
-    for (const m of [chrome, firefox]) {
-      expect(m.manifest_version).toBe(3);
-      expect(m.permissions).toContain("declarativeNetRequest");
-      expect(m.declarative_net_request.rule_resources[0].path).toBe("rules.json");
-    }
+  it("the manifest carries the ruleset", () => {
+    const m = JSON.parse(readFileSync(path.join(here, "..", "..", "extension", "manifest.json"), "utf8"));
+    expect(m.manifest_version).toBe(3);
+    expect(m.permissions).toContain("declarativeNetRequest");
+    expect(m.declarative_net_request.rule_resources[0].path).toBe("rules.json");
   });
 });

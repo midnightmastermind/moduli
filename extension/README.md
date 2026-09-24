@@ -67,8 +67,14 @@ The same limit applies to the right-click menu when it is built.
 pick this folder.
 
 **Firefox** — `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on*
-→ pick `manifest.firefox.json`. (Firefox unloads temporary add-ons on restart;
-signing is needed for a permanent install.)
+→ pick `manifest.json` in this folder. (Firefox unloads temporary add-ons on
+restart; signing is needed for a permanent install.)
+
+One `manifest.json` serves both browsers: `background` names the file as a
+`service_worker` for Chrome and in `scripts` for Firefox, and each ignores the
+other key. (There used to be a separate `manifest.firefox.json` — but Firefox
+always reads the folder's `manifest.json`, whichever file you pick, so it never
+loaded.)
 
 ## Clipping from inside a panel
 
