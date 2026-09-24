@@ -7,18 +7,24 @@
 //   INIT_VAR / SET_VAR — set a $var from an expression
 //   IF + AND/OR/NOT predicates with basic comparators
 //   LOOP over an array $var (as / overExpr)
-//   CALL_API — outbound HTTP (the headliner)
+//   CALL_API — outbound HTTP
 //   SHOW_VALUE — stage a named result for the caller
+//   CREATE — mint a row (via services/occurrenceMint), WITH fieldBindings
+//   FIND — resolve one occurrence over $allContainers / $allInstances /
+//          $allOccurrences by predicate, binding itemIdVar / itemVar (null
+//          when nothing matches — never throws on a miss)
 //
-// The full client-side executor handles dozens more action types
-// (FIND / CREATE / COPY_LINK / APPLY_TEMPLATE / aggregations / etc.)
-// — anything beyond the subset above needs a connected browser tab
-// today. Phase 4+ work will either port the full executor server-side
-// or refactor the client one into a shared isomorphic module.
+// Still client-only: COPY_LINK / APPLY_TEMPLATE / aggregations / the rest.
+// Anything outside this list is collected in the returned `unsupported[]`
+// rather than silently skipped.
 //
 // Per docs/api-plan.md §2.
 
 import Secret from "../models/Secret.js";
+import Module from "../models/Module.js";
+import Occurrence from "../models/Occurrence.js";
+import Folder from "../models/Folder.js";
+import { mintOccurrence } from "./occurrenceMint.js";
 
 const SCALAR_LITERAL_RE = /^literal:/;
 const NUMBER_LITERAL_RE = /^-?\d+(\.\d+)?$/;
@@ -96,23 +102,58 @@ async function deepResolveExprAsync(value, $vars, opts) {
   return resolveExprAsync(value, $vars, opts);
 }
 
+// Dot-walk a record for FIND's predicates. Mirrors operationActions.js's
+// resolveRecordPath (client) for the subset FIND needs server-side, including
+// the legacy `$item.`/`$record.` prefix some seeded predicates still carry
+// (e.g. `$record._ancestors HAS_ANCESTOR <library>`, seen in optionsSource
+// find predicates on the live grid).
+//
+// REVIEW FIX (Critical 1): this is now the ONLY path a FIND's `rule.left`
+// takes. The prior version routed through an `isBareRecordPath` guard that
+// returned false for anything starting with "$" — which excluded the very
+// `$item.`/`$record.` prefixes this function exists to strip, so a predicate
+// written that way silently fell through to `resolveExpr($vars)`, resolved to
+// undefined, and matched nothing. The CLIENT's own FIND
+// (`operationActions.js` `evalRuleAgainstRecord` → `resolveRecordPath`) has
+// no such branch: every `rule.left` in a FIND predicate is a record path,
+// unconditionally. There is no `$vars` fallback here to diverge from.
+function resolveRecordPath(record, path) {
+  if (record == null || !path) return null;
+  const normalized = path.startsWith("$item.") ? path.slice(6)
+    : path.startsWith("$record.") ? path.slice(8)
+    : path;
+  const parts = String(normalized).split(".");
+  let cur = record;
+  for (const seg of parts) {
+    if (cur == null) return null;
+    cur = cur[seg];
+  }
+  return cur ?? null;
+}
+
 // Minimal predicate eval: AND/OR with rules { left, comparator, right }.
 // Supports a subset of comparators — enough for typical guards.
-function evalGroup(group, $vars) {
+//
+// `record`, when supplied (FIND only), routes `left` through
+// resolveRecordPath unconditionally — every other caller (IF) passes no
+// record and keeps the original $vars-only behavior.
+function evalGroup(group, $vars, record = null) {
   if (!group) return true;
   const op = (group.operator || "AND").toUpperCase();
   const rules = group.rules || [];
   const evaluated = rules.map(r => {
-    if (r.operator) return evalGroup(r, $vars);
-    return evalRule(r, $vars);
+    if (r.operator) return evalGroup(r, $vars, record);
+    return evalRule(r, $vars, record);
   });
   if (op === "OR") return evaluated.some(Boolean);
   if (op === "NOT") return !evaluated.every(Boolean);
   return evaluated.every(Boolean);
 }
 
-function evalRule(rule, $vars) {
-  const left = resolveExpr(rule.left, $vars);
+function evalRule(rule, $vars, record = null) {
+  const left = record
+    ? resolveRecordPath(record, rule.left)
+    : resolveExpr(rule.left, $vars);
   const right = resolveExpr(rule.right, $vars);
   switch (rule.comparator) {
     case "IS":             return left == right; // eslint-disable-line eqeqeq
@@ -127,6 +168,25 @@ function evalRule(rule, $vars) {
     case "ARRAY_INCLUDES": return Array.isArray(left) && left.includes(right);
     default:               return left == right; // eslint-disable-line eqeqeq
   }
+}
+
+// REVIEW FIX (Important 4, cheap half only — per Ruling 16, no DB-side
+// pushdown). Mirrors the client's `singleIdEquals`
+// (client/src/helpers/operationActions.js:1580-1590) bit for bit: the id a
+// predicate asks for when it is EXACTLY `id IS <x>` (with or without a legacy
+// `$item.`/`$record.` prefix), else null. One plain rule only — a second
+// rule, a nested group, or any other comparator still needs the full scan.
+// The client's own comment records why this exists: a bare `id IS <x>` FIND
+// walking every record cost 65-80ms per op on a ~22,000-occurrence grid.
+function singleIdEquals(predicate, $vars) {
+  const rules = predicate?.rules;
+  if (!Array.isArray(rules) || rules.length !== 1) return null;
+  const r = rules[0];
+  if (!r || Array.isArray(r.rules) || r.comparator !== "IS") return null;
+  const left = typeof r.left === "string" ? r.left.replace(/^\$(item|record)\./, "") : "";
+  if (left !== "id") return null;
+  const v = resolveExpr(r.right, $vars);
+  return typeof v === "string" && v ? v : null;
 }
 
 // Append a query string to a URL (preserves existing one).
@@ -147,7 +207,7 @@ function appendQuery(url, query) {
  * Caller supplies vars (folded into $vars under "$name" keys) plus
  * userId for secrets lookup.
  */
-export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
+export async function runOperationServerSide(op, { vars = {}, userId, gridId, io = null, mirror = null } = {}) {
   const startedAt = Date.now();
   const $vars = {};
   // Fold caller vars (both "$foo" and "foo" forms).
@@ -156,6 +216,7 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
   }
 
   const effects = [];
+  const unsupported = [];
   const opts = { userId };
 
   async function executeStep(step) {
@@ -220,6 +281,124 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       }
       return;
     }
+    if (type === "CREATE") {
+      // Server-side row creation. Wires to `occurrenceMint`, the same path
+      // `/api/v1/ingest` uses — this executor does not own a second minter.
+      //
+      // gridId is REQUIRED here, not just documented as such. Without this
+      // guard an undefined gridId reaches Mongo silently: mintOccurrence's own
+      // existence lookup becomes `findOne({ userId, gridId: undefined, ... })`,
+      // which can match a row on the WRONG grid, and a mint with no match
+      // writes a new occurrence carrying `gridId: undefined` — a silent
+      // wrong-grid write. Refuse loudly instead; the outer try/catch turns
+      // this into a structured execution_error.
+      if (!gridId) {
+        throw new Error("CREATE requires gridId — runOperationServerSide was called without it");
+      }
+      const parentId   = await resolveExprAsync(cfg.parentId, $vars, opts);
+      const label      = await resolveExprAsync(cfg.label, $vars, opts);
+      const externalId = await resolveExprAsync(cfg.externalId, $vars, opts);
+
+      // Values, resolved one at a time so a $var in any of them works.
+      const fields = {};
+      for (const [fid, expr] of Object.entries(cfg.fields || {})) {
+        const value = await resolveExprAsync(expr, $vars, opts);
+        if (value !== undefined && value !== null && value !== "") {
+          fields[fid] = { value, flow: "in" };
+        }
+      }
+
+      // BINDINGS (D17). Default: bind exactly what we wrote. `bindFields`
+      // widens that so a field can be bound with NO value — which is what puts
+      // an ics row in front of `Schedule: Place Dated Work`, since that op
+      // gates on `_boundFieldIds`, not on the value.
+      const bindIds = Array.isArray(cfg.bindFields) && cfg.bindFields.length
+        ? cfg.bindFields
+        : Object.keys(fields);
+      const fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
+
+      // A FOLDER parent (the share catch-all's Files folder) is its own key:
+      // a folder holds rows by `parentId` alone and has no occurrences[] to
+      // push onto, so it must not go through the occurrence-parent path.
+      // Validated here, on THIS grid — a folder id from another grid is
+      // refused rather than written into.
+      const parentFolderId = await resolveExprAsync(cfg.parentFolderId, $vars, opts);
+      if (parentFolderId) {
+        const folder = await Folder.findOne({ id: parentFolderId, userId, gridId }).lean();
+        if (!folder) throw new Error(`CREATE: folder ${parentFolderId} not found on this grid`);
+      }
+
+      const res = await mintOccurrence({
+        userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
+        moduleRole: cfg.moduleRole || "instance",
+        moduleKind: cfg.moduleKind || null,
+        moduleFileRef: await resolveExprAsync(cfg.moduleFileRef, $vars, opts),
+        source: cfg.source || "share",
+        io, mirror,
+      });
+      if (cfg.resultVar) $vars[cfg.resultVar] = res;
+      effects.push({ _effect: "CREATE", ...res });
+      return;
+    }
+    if (type === "FIND") {
+      // Server-side resolution — a share rule locating a destination
+      // container (or an existing option row) with no browser tab.
+      //
+      // Same `gridId` reasoning as CREATE, but the failure mode is a READ
+      // instead of a WRITE: an undefined gridId reaching Mongo does not miss
+      // cleanly — `Occurrence.find({ userId, gridId: undefined })` drops the
+      // undefined key entirely, so the query becomes `{ userId }` and matches
+      // occurrences across EVERY grid the user owns. A FIND that "succeeds"
+      // that way can hand a wrong-grid id to a CREATE's parentId right after,
+      // which is a silent cross-grid write with no error anywhere. Refuse
+      // loudly instead, same as CREATE.
+      if (!gridId) {
+        throw new Error("FIND requires gridId — runOperationServerSide was called without it");
+      }
+      const roleFor = { $allContainers: "container", $allInstances: "instance" };
+      const role = roleFor[cfg.over] || null;
+      const mods = await Module.find({ userId, gridId, ...(role ? { role } : {}) }).lean();
+      const modById = Object.fromEntries(mods.map(m => [m.id, m]));
+      const occs = await Occurrence.find({ userId, gridId }).lean();
+
+      // A record's label falls back to its module's — mirrors the client
+      // executor's enrichment (operationExecutor.js `enrichOne`:
+      // `label: occ.label ?? tpl?.label ?? tpl?.name ?? null`), which is what
+      // a predicate's bare `label` path expects to read.
+      //
+      // REVIEW FIX (Critical 2): excludes anything carrying `meta.isTemplate`
+      // on either the occurrence or its module (occurrence wins, mirroring
+      // the client's `meta: {...tpl.meta, ...occ.meta}` merge order). The
+      // client's own FIND filters `!it.meta?.isTemplate` before evaluating
+      // any predicate (operationActions.js:1592) — a template scaffold (e.g.
+      // the day-page template, `meta.isTemplate:true` per
+      // createDefaultUserData.js) is not a real row and the UI never offers
+      // it as a match. Filtered upstream of BOTH the scan and the id fast
+      // path below, so neither has to repeat the check.
+      const records = occs
+        .filter(o => !role || modById[o.moduleId]?.role === role)
+        .filter(o => {
+          const mod = modById[o.moduleId];
+          const mergedIsTemplate = (o.meta && "isTemplate" in o.meta) ? o.meta.isTemplate : mod?.meta?.isTemplate;
+          return !mergedIsTemplate;
+        })
+        .map(o => ({ ...o, label: o.label || modById[o.moduleId]?.label || "" }));
+
+      // A bare `id IS <x>` predicate is a lookup, not a scan (Important 4) —
+      // skip evalGroup's per-record resolveRecordPath/comparator work
+      // entirely rather than run it once per record just to compare `id`.
+      const wantedId = singleIdEquals(cfg.predicate, $vars);
+      let match;
+      if (wantedId != null) {
+        const recordsById = new Map(records.map(r => [r.id, r]));
+        match = recordsById.get(wantedId) ?? null;
+      } else {
+        match = records.find(r => evalGroup(cfg.predicate, $vars, r)) ?? null;
+      }
+      if (cfg.itemIdVar) $vars[cfg.itemIdVar] = match?.id ?? null;
+      if (cfg.itemVar) $vars[cfg.itemVar] = match ?? null;
+      return;
+    }
     if (step.type === "if") {
       // The IF block's predicate sits on step.condition, not cfg.
       const group = step.condition || { operator: "AND", rules: step.rules || [] };
@@ -240,8 +419,11 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       }
       return;
     }
-    // Unknown action type — silently skip (this executor is intentionally
-    // a subset; complex ops need the browser-tab executor for now).
+    // Unknown action type — this executor is intentionally a subset; complex
+    // ops need the browser-tab executor for now. Record it rather than
+    // silently skipping, so a caller can tell "ran everything" from "ran
+    // everything IT KNOWS HOW TO RUN".
+    if (type) unsupported.push(type);
   }
 
   try {
@@ -254,7 +436,9 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
       error: { code: "execution_error", message: String(err?.message || err) },
       durationMs: Date.now() - startedAt,
       vars: {},
+      scope: { ...$vars },
       effects,
+      unsupported,
     };
   }
 
@@ -268,6 +452,12 @@ export async function runOperationServerSide(op, { vars = {}, userId } = {}) {
     ok: true,
     durationMs: Date.now() - startedAt,
     vars: responseVars,
+    // The WHOLE variable scope at the end of the run. `vars` above is only
+    // what SHOW_VALUE published (the /operations/:id/run contract); a caller
+    // that chains runs — the share engine reading `$share.handled` between
+    // rules (D9) — needs what the pipeline actually SET.
+    scope: { ...$vars },
     effects,
+    unsupported,
   };
 }

@@ -2,6 +2,31 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 — share → import routing, engine Tasks 5–7)
+Plan: `docs/superpowers/plans/2026-09-23-share-import-routing-engine.md`. Tasks 1–4 (mint extraction,
+executor CREATE/FIND, classifier) came from `feat/share-import-routing`; this adds:
+- **`services/shareRules.js`** — runs a grid's `onShare` operations. A rule's trigger is
+  `triggerObjects[{ eventType: "onShare", shareType }]` (the model's real shape — the plan sketched
+  `triggers[].type`). Typed rules first by priority, the `*` catch-all LAST. A rule halts the chain
+  with `SET_VAR $share.handled = true` (flat or nested both work). A throwing rule is reported and the
+  catch-all still runs.
+- **`serverExecutor` returns `scope`** (the final `$vars`) — `vars` is only SHOW_VALUE output, so the
+  halt flag was invisible to the engine. **CREATE takes `parentFolderId`** (checked on this grid) and
+  passes **`mirror`** to the mint so a shared row reaches the warm cache.
+- **`occurrenceMint` takes `parentFolderId`** — a folder holds rows by `parentId` alone; nothing is
+  pushed. Mutually exclusive with `parentId`.
+- **`utils/shareRulesEnsure.js`** — find-or-mint the per-grid catch-all (priority 99) into the
+  protected Files folder. It mints only when `$share.props.occurrenceId` is empty (an uploaded file IS
+  its row). No Files folder → throws; the route answers 409 rather than writing an invisible row.
+- **`services/shareIngress.js`** — classify, fetch link metadata (injected `fetchLinkPreview`), pick
+  `$share.label`, derive `externalId` (`<shape>:<url>` for links, the extension's scheme).
+- **`POST /api/v1/share`** (apiV1.js) — JSON `{ gridId?, url?, text?, title?, label?, shape?, source? }`.
+  gridId falls back to **`user.meta.share.gridId`** (new `User.meta` Mixed field). Ownership checked.
+  **502** when a rule failed and nothing was created — never a silent 201.
+- **NOT DONE: files.** The upload is inline in `server.js /api/artifacts/upload`; it must be
+  extracted and shared, not copied. Until then `prepareShare` refuses a file (`files_unsupported`, 415).
+- Verified by unit + router tests only (A/B'd). **Nobody has POSTed to it on prod.**
+
 ## Recent Changes (2026-09-23 (2) — a refused duplicate whose holder nobody lists is ADOPTED)
 - **`utils/duplicateSignature.adoptableHolders` (NEW, 7 tests, A/B'd 5/5)** — the sibling of
   `isDeadHolder`. That rule says a holder whose MODULE is gone blocks nothing; this one says a holder

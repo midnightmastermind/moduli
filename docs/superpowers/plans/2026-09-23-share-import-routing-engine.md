@@ -22,6 +22,31 @@ The spec covers three independently shippable pieces. Each produces working soft
 
 Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a row on the grid.**
 
+## Progress (updated 2026-09-24)
+
+| task | state | where |
+|---|---|---|
+| 1 extract the mint | done | `feat/share-import-routing` |
+| 2 CREATE | done | `feat/share-import-routing` |
+| 3 FIND | done | `feat/share-import-routing` |
+| 4 classify | done (+ F1–F5 fixes) | `feat/share-import-routing` |
+| 5 rule engine | done — adapted, see below | `claude/share-input-routing-plan-pigwol` |
+| 6 catch-all bootstrap | done — adapted | same |
+| 7 `POST /share` | done for **links + text**; **files refused (415)** | same |
+| 8 Imports tab — rules editor | not started | |
+| 9 Imports tab — recent-shares log | not started | |
+| 10 re-route the extension | not started | |
+
+**Where the sketches below did not match the code** (the code is what shipped):
+- Triggers are `triggerObjects[{ eventType: "onShare", shareType }]`, not `triggers[{ type }]`.
+- `runOperationServerSide` only exposed SHOW_VALUE output, so it now also returns `scope`; without
+  that, a rule's `$share.handled` could never halt the chain.
+- The Files folder is a `Folder`, not an `Occurrence` — CREATE gained `parentFolderId`.
+- The catch-all mints only when ingress did NOT already upload a file (an upload is its own row).
+- `services/artifactUpload.js` does not exist. The upload lives inline in `server.js`; extracting it
+  (so `/share` reuses it rather than copying it) is the open prerequisite for file shares.
+- `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
+
 ## Global Constraints
 
 Copied verbatim from the spec and this repo's standing rules. Every task's requirements implicitly include this section.
