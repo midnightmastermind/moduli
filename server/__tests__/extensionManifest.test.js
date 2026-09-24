@@ -76,6 +76,16 @@ describe("the menu the code registers", () => {
     for (const m of CLIP_MENUS) expect(m.title.length).toBeGreaterThan(0);
   });
 
+  it("the notification icon EXISTS — a missing one silences every notification", () => {
+    // Firefox refuses a notification whose icon cannot load, and the refusal
+    // is a rejected promise nobody sees. That hid every clip's outcome.
+    const src = fs.readFileSync(path.join(DIR, "background.js"), "utf8");
+    const icons = [...src.matchAll(/iconUrl:\s*"([^"]+)"/g)].map(x => x[1]);
+    expect(icons.length).toBeGreaterThan(0);
+    for (const f of icons) expect(fs.existsSync(path.join(DIR, f))).toBe(true);
+    for (const f of Object.values(m.icons || {})) expect(fs.existsSync(path.join(DIR, f))).toBe(true);
+  });
+
   it("every background.js import resolves to a real file", () => {
     const src = fs.readFileSync(path.join(DIR, "background.js"), "utf8");
     const imports = [...src.matchAll(/from\s+"\.\/([^"]+)"/g)].map(m => m[1]);

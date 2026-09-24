@@ -3,6 +3,9 @@
   "name": "Moduli Companion",
   "version": "0.1.0",
   "description": "Lets Moduli open web pages inside a panel, and clip anything into your grid from the right-click menu.",
+  "icons": {
+    "128": "icon128.png"
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "moduli-companion@viafluere.com",
