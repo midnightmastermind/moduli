@@ -1182,7 +1182,9 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // makes sure the grid's catch-all rule exists (D3/D18), then runs the
   // grid's `onShare` operations server-side. It owns no content handler.
   //
-  // Body: { gridId?, url?, text?, title?, label?, shape?, source? }
+  // Body: { gridId?, url?, text?, title?, label?, shape?, source?, clip? }
+  //   clip    — the extension's own clip record (see shareIngress.sanitizeClip);
+  //             the catch-all writes it exactly as /ingest did (D15)
   //   gridId  — falls back to user.meta.share.gridId (D10)
   //   shape   — the extension's clip shape, so a re-routed clip keeps its
   //             `<shape>:<url>` identity (D15)
@@ -1222,6 +1224,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           source: body.source || "api",
           url: body.url || null, text: body.text || null, title: body.title || null,
           label: body.label || null, shape: body.shape || null,
+          clip: body.clip || null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
         });
       } catch (e) {

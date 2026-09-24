@@ -13,6 +13,15 @@ const hasCatchAll = (o, q) =>
 vi.mock("../models/Operation.js", () => ({ default: {
   findOne: (q) => ({ lean: async () => store.find(o => hasCatchAll(o, q)) || null }),
   create: async (d) => { store.push({ ...d }); return { ...d }; },
+  updateOne: async (q, u) => {
+    const o = store.find(x => x.id === q.id);
+    if (!o) return { matchedCount: 0 };
+    for (const [k, v] of Object.entries(u.$set || {})) {
+      if (k.startsWith("meta.")) o.meta = { ...(o.meta || {}), [k.slice(5)]: v };
+      else o[k] = v;
+    }
+    return { matchedCount: 1 };
+  },
 }}));
 let folders = [];
 vi.mock("../models/Folder.js", () => ({ default: {
@@ -96,5 +105,24 @@ describe("the catch-all pipeline", () => {
       $share: { type: "image", label: "a.jpg", externalId: "sha256:abc", props: { occurrenceId: "occ-file" } },
     }});
     expect(minted).toHaveLength(0);
+  });
+});
+
+describe("upgrading an existing catch-all", () => {
+  it("brings an UNEDITED older catch-all up to date", async () => {
+    store.push({ id: "old", userId: "u1", gridId: "g1", meta: {},
+      triggerObjects: [{ eventType: "onShare", shareType: "*" }], pipeline: { steps: [] } });
+    const r = await ensureCatchAllRule({ userId: "u1", gridId: "g1" });
+    expect(r.upgraded).toBe(true);
+    expect(store[0].pipeline.steps).toHaveLength(1);
+    expect(store[0].meta.catchAllVersion).toBe(2);
+  });
+
+  it("NEVER overwrites one the user edited", async () => {
+    store.push({ id: "mine", userId: "u1", gridId: "g1", meta: { userEdited: true },
+      triggerObjects: [{ eventType: "onShare", shareType: "*" }], pipeline: { steps: ["theirs"] } });
+    const r = await ensureCatchAllRule({ userId: "u1", gridId: "g1" });
+    expect(r.upgraded).toBeFalsy();
+    expect(store[0].pipeline.steps).toEqual(["theirs"]);
   });
 });

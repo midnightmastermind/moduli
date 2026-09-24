@@ -2,6 +2,19 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (2) — the extension clips through the share rules, Task 10)
+- `extension/background.js` posts to **`/api/v1/share`** with its `buildClipRecord` output as `clip`.
+- `shareIngress.sanitizeClip` type-checks that record into `$share.clip`; a clip is NOT fetched
+  (a link clip is "bookmark without visiting").
+- **Catch-all v2** (`CATCH_ALL_VERSION = 2`): if `$share.clip` → CREATE exactly as `/ingest` did
+  (`source: "clip"` so old clips dedup, module kind/role/fileRef, `fieldsFrom`, `meta`) into the clip's
+  destination, else into Files. An existing catch-all is upgraded unless `meta.userEdited`.
+- **Executor CREATE** gained `fieldsFrom` (a whole field map from a var), `meta`, expression-resolved
+  `moduleRole/moduleKind/source`, and reuses a module by `fileRef` (/ingest's identity rule).
+- `__tests__/shareLinkCompat.test.js` drives the extension's own `buildClipRecord` → ingress → real
+  catch-all → real executor for page/selection/link/image. A/B: `source` or `fieldsFrom` wrong → 5/6 fail.
+- **Unverified in a real browser.** MV3 does not load headlessly.
+
 ## Recent Changes (2026-09-24 — share → import routing, engine Tasks 5–7)
 Plan: `docs/superpowers/plans/2026-09-23-share-import-routing-engine.md`. Tasks 1–4 (mint extraction,
 executor CREATE/FIND, classifier) came from `feat/share-import-routing`; this adds:

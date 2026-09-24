@@ -41,13 +41,53 @@ export function shareExternalIdFor(type, props = {}, { shape = null, sha256 = nu
   return `text:${trimTo(props.text, 200)}`;
 }
 
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/**
+ * The browser extension's clip record (its `buildClipRecord` output), reduced
+ * to the keys the catch-all writes. It arrives from the caller, so every key
+ * is type-checked and anything else is DROPPED — a rule reads `$share.clip.*`
+ * and must not be handed arbitrary structure.
+ *
+ * This is what keeps D15's "day one is identical": the extension still decides
+ * the label, the bookmark/image shape and the field ids (resolved by NAME on
+ * this grid), exactly as it did when it posted to /ingest.
+ */
+export function sanitizeClip(raw) {
+  if (!isObj(raw)) return null;
+  const fields = {};
+  if (isObj(raw.fields)) {
+    for (const [fid, cell] of Object.entries(raw.fields)) {
+      if (typeof fid === "string" && fid && isObj(cell) && "value" in cell) {
+        fields[fid] = { value: cell.value, flow: cell.flow === "out" ? "out" : "in" };
+      }
+    }
+  }
+  const meta = {};
+  if (isObj(raw.meta)) {
+    if (str(raw.meta.clipShape)) meta.clipShape = str(raw.meta.clipShape);
+    if (str(raw.meta.clippedFrom)) meta.clippedFrom = str(raw.meta.clippedFrom);
+  }
+  return {
+    label: str(raw.label),
+    moduleRole: str(raw.moduleRole) || "artifact",
+    moduleKind: str(raw.moduleKind),
+    moduleFileRef: str(raw.moduleFileRef),
+    parentId: str(raw.parentId),
+    fields, meta,
+  };
+}
+
 export async function prepareShare({
   userId, gridId, source = "api",
   files = [], url = null, text = null, title = null, label = null, shape = null,
+  clip = null,
   fetchPreview = null, storeFile = null,
 }) {
   const { type, props } = classifyShare({ files, url, text, title });
-  const enriched = { ...props };
+  const enriched = { ...props, shape: shape || null };
+  const cleanClip = sanitizeClip(clip);
   let sha256 = null;
 
   if (files.length) {
@@ -61,7 +101,10 @@ export async function prepareShare({
     enriched.occurrenceId = stored.occurrenceId;
     enriched.fileRef = stored.fileRef;
     sha256 = stored.sha256 || f.sha256 || null;
-  } else if (type === "link" && fetchPreview) {
+  } else if (type === "link" && fetchPreview && !cleanClip) {
+    // A CLIP IS NOT FETCHED. The extension already knows the page's title,
+    // and a link clip is deliberately "bookmark it without visiting it"
+    // (extension/README.md) — fetching it here would undo that.
     // A dead site still shares — the preview failing leaves the url itself as
     // the label, which is what /bookmarks does too.
     const preview = await fetchPreview(enriched.url).catch(() => null);
@@ -83,7 +126,8 @@ export async function prepareShare({
   return {
     type, source,
     props: enriched,
-    label: shareLabelFor(type, enriched, label),
+    clip: cleanClip,
+    label: shareLabelFor(type, enriched, label || cleanClip?.label),
     externalId: shareExternalIdFor(type, enriched, { shape, sha256 }),
     receivedAt: new Date().toISOString(),
   };

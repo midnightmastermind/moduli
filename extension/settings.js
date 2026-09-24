@@ -44,9 +44,24 @@ export function fieldIdsFrom(fields = []) {
   return out;
 }
 
-/** What to tell the user after a clip. */
+/**
+ * What to tell the user after a clip.
+ *
+ * Reads BOTH response shapes: `/api/v1/share` (what the extension posts to now)
+ * reports `{ ran: [{ ruleName, ok, error, created: [{ status }] }] }`, and
+ * `/api/v1/ingest` reported `{ results: [{ status }] }`. The first row any rule
+ * created is the clip's outcome.
+ */
 export function clipOutcomeMessage(result) {
   if (!result || result.ok === false) return `Clip failed: ${result?.error || "unknown error"}`;
+  if (Array.isArray(result.ran)) {
+    const created = result.ran.flatMap((r) => r.created || [])[0];
+    if (!created) {
+      const failed = result.ran.find((r) => r.ok === false);
+      return `Clip failed: ${failed?.error?.message || "no share rule wrote anything"}`;
+    }
+    return clipOutcomeMessage({ results: [created] });
+  }
   const r = (result.results || [])[0] || {};
   if (r.status === "created") return "Clipped to Moduli";
   if (r.status === "updated") return "Already clipped — updated it";

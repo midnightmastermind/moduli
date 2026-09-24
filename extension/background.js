@@ -1,6 +1,7 @@
 // extension/background.js
 //
-// The service worker: register the menu, and turn a click into one POST.
+// The service worker: register the menu, and turn a click into one POST to
+// /api/v1/share.
 //
 // It is DELIBERATELY THIN. Every decision it could get wrong lives in
 // `clip.js` and `settings.js`, which are pure and tested, because an MV3
@@ -61,14 +62,23 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   // `null` means the click carried no URL at all — nothing to be idempotent on.
   if (!record) { notify("Nothing to clip here — no address on that item."); return; }
 
+  // Through the SHARE RULES (D15), not straight to /ingest — so a clip and a
+  // phone share of the same link obey the same rules. The record still rides
+  // along as `clip`: the grid's catch-all writes it exactly as /ingest did, so
+  // day one is unchanged, and a `link` rule you write can take over.
   try {
-    const res = await fetch(`${baseUrl}/api/v1/ingest`, {
+    const res = await fetch(`${baseUrl}/api/v1/share`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ gridId, source: "clip", records: [record] }),
+      body: JSON.stringify({
+        gridId, source: "extension",
+        url: record.moduleFileRef, shape: record.meta?.clipShape, title: tab?.title || null,
+        text: info.selectionText || null,
+        clip: record,
+      }),
     });
     const body = await res.json().catch(() => ({}));
-    notify(clipOutcomeMessage(res.ok ? body : { ok: false, error: body.error || `HTTP ${res.status}` }));
+    notify(clipOutcomeMessage(res.ok ? body : { ok: false, error: body.message || body.error || `HTTP ${res.status}` }));
   } catch (e) {
     notify(`Clip failed: ${e?.message || "could not reach Moduli"}`);
   }

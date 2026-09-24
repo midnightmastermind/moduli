@@ -81,3 +81,18 @@ describe("clipOutcomeMessage", () => {
     expect(clipOutcomeMessage({ results: [] })).toMatch(/failed/);
   });
 });
+
+describe("clipOutcomeMessage — the /share response", () => {
+  const share = (ran) => ({ type: "link", ran, halted: false });
+  it("reads the first row a rule created", () => {
+    expect(clipOutcomeMessage(share([{ ok: true, created: [{ status: "created" }] }]))).toMatch(/Clipped/);
+    expect(clipOutcomeMessage(share([{ ok: true, created: [{ status: "updated" }] }]))).toMatch(/updated/);
+  });
+  it("names the failing rule's error when nothing was written", () => {
+    expect(clipOutcomeMessage(share([{ ok: false, error: { message: "parent box not found" }, created: [] }])))
+      .toMatch(/failed: parent box not found/);
+  });
+  it("a share no rule wrote anything for is a failure, not 'Clipped'", () => {
+    expect(clipOutcomeMessage(share([{ ok: true, created: [] }]))).toMatch(/failed/);
+  });
+});
