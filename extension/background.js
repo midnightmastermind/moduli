@@ -24,13 +24,22 @@ api.runtime.onInstalled.addListener(registerMenus);
 api.runtime.onStartup?.addListener(registerMenus);
 
 const notify = (message) => {
+  // The outcome is ALSO logged, so it can be read in the extension's console
+  // (about:debugging → Inspect) even when notifications are off at the OS
+  // level — a clip that says nothing anywhere cannot be diagnosed.
+  console.log(`[moduli] ${message}`);
   // Notifications are optional — the permission may be declined, and a clip
   // that worked must not fail because we could not announce it.
+  //
+  // `create` returns a PROMISE in Firefox, so a rejection escapes a plain
+  // try/catch. That is how a missing `icon128.png` hid every outcome: the
+  // icon did not exist, every notification was refused, and nothing said so.
   try {
-    api.notifications?.create({
+    const p = api.notifications?.create({
       type: "basic", iconUrl: "icon128.png", title: "Moduli", message,
     });
-  } catch { /* the clip already landed; saying so is best-effort */ }
+    p?.catch?.((e) => console.warn("[moduli] notification not shown:", e?.message || e));
+  } catch (e) { console.warn("[moduli] notification not shown:", e?.message || e); }
 };
 
 // The field table changes rarely and costs a round trip, so it is cached for
