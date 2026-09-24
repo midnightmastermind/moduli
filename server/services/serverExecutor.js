@@ -10,7 +10,9 @@
 //   CALL_API — outbound HTTP
 //   SHOW_VALUE — stage a named result for the caller
 //   CREATE — mint a row (via services/occurrenceMint), WITH fieldBindings
-//   FIND — resolve one occurrence by predicate
+//   FIND — resolve one occurrence over $allContainers / $allInstances /
+//          $allOccurrences by predicate, binding itemIdVar / itemVar (null
+//          when nothing matches — never throws on a miss)
 //
 // Still client-only: COPY_LINK / APPLY_TEMPLATE / aggregations / the rest.
 // Anything outside this list is collected in the returned `unsupported[]`
@@ -19,6 +21,8 @@
 // Per docs/api-plan.md §2.
 
 import Secret from "../models/Secret.js";
+import Module from "../models/Module.js";
+import Occurrence from "../models/Occurrence.js";
 import { mintOccurrence } from "./occurrenceMint.js";
 
 const SCALAR_LITERAL_RE = /^literal:/;
@@ -97,23 +101,59 @@ async function deepResolveExprAsync(value, $vars, opts) {
   return resolveExprAsync(value, $vars, opts);
 }
 
+// A bare record path (`label`, `fields.x.value`, `_ancestors`) — no $-prefix,
+// no literal:/json: prefix. FIND's predicates are written against a RECORD
+// (mirroring the client executor's evalGroupAgainstRecord in
+// client/src/helpers/operationActions.js), not against $vars — resolveExpr
+// would just hand a bare path back to itself as a literal string.
+function isBareRecordPath(s) {
+  if (typeof s !== "string" || s === "") return false;
+  if (s.startsWith("$")) return false;
+  if (SCALAR_LITERAL_RE.test(s) || s.startsWith("json:")) return false;
+  return true;
+}
+
+// Dot-walk a record for FIND's bare-path predicates. Mirrors
+// operationActions.js's resolveRecordPath (client) for the subset FIND needs
+// server-side, including the legacy `$item.`/`$record.` prefix some seeded
+// predicates still carry.
+function resolveRecordPath(record, path) {
+  if (record == null || !path) return null;
+  const normalized = path.startsWith("$item.") ? path.slice(6)
+    : path.startsWith("$record.") ? path.slice(8)
+    : path;
+  const parts = String(normalized).split(".");
+  let cur = record;
+  for (const seg of parts) {
+    if (cur == null) return null;
+    cur = cur[seg];
+  }
+  return cur ?? null;
+}
+
 // Minimal predicate eval: AND/OR with rules { left, comparator, right }.
 // Supports a subset of comparators — enough for typical guards.
-function evalGroup(group, $vars) {
+//
+// `record`, when supplied (FIND only), routes a bare-path `left` through
+// resolveRecordPath instead of resolveExpr — every other caller (IF) passes
+// no record and gets the original $vars-only behavior unchanged.
+function evalGroup(group, $vars, record = null) {
   if (!group) return true;
   const op = (group.operator || "AND").toUpperCase();
   const rules = group.rules || [];
   const evaluated = rules.map(r => {
-    if (r.operator) return evalGroup(r, $vars);
-    return evalRule(r, $vars);
+    if (r.operator) return evalGroup(r, $vars, record);
+    return evalRule(r, $vars, record);
   });
   if (op === "OR") return evaluated.some(Boolean);
   if (op === "NOT") return !evaluated.every(Boolean);
   return evaluated.every(Boolean);
 }
 
-function evalRule(rule, $vars) {
-  const left = resolveExpr(rule.left, $vars);
+function evalRule(rule, $vars, record = null) {
+  const left = (record && isBareRecordPath(rule.left))
+    ? resolveRecordPath(record, rule.left)
+    : resolveExpr(rule.left, $vars);
   const right = resolveExpr(rule.right, $vars);
   switch (rule.comparator) {
     case "IS":             return left == right; // eslint-disable-line eqeqeq
@@ -268,6 +308,40 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       });
       if (cfg.resultVar) $vars[cfg.resultVar] = res;
       effects.push({ _effect: "CREATE", ...res });
+      return;
+    }
+    if (type === "FIND") {
+      // Server-side resolution — a share rule locating a destination
+      // container (or an existing option row) with no browser tab.
+      //
+      // Same `gridId` reasoning as CREATE, but the failure mode is a READ
+      // instead of a WRITE: an undefined gridId reaching Mongo does not miss
+      // cleanly — `Occurrence.find({ userId, gridId: undefined })` drops the
+      // undefined key entirely, so the query becomes `{ userId }` and matches
+      // occurrences across EVERY grid the user owns. A FIND that "succeeds"
+      // that way can hand a wrong-grid id to a CREATE's parentId right after,
+      // which is a silent cross-grid write with no error anywhere. Refuse
+      // loudly instead, same as CREATE.
+      if (!gridId) {
+        throw new Error("FIND requires gridId — runOperationServerSide was called without it");
+      }
+      const roleFor = { $allContainers: "container", $allInstances: "instance" };
+      const role = roleFor[cfg.over] || null;
+      const mods = await Module.find({ userId, gridId, ...(role ? { role } : {}) }).lean();
+      const modById = Object.fromEntries(mods.map(m => [m.id, m]));
+      const occs = await Occurrence.find({ userId, gridId }).lean();
+
+      // A record's label falls back to its module's — mirrors the client
+      // executor's enrichment (operationExecutor.js `enrichOne`:
+      // `label: occ.label ?? tpl?.label ?? tpl?.name ?? null`), which is what
+      // a predicate's bare `label` path expects to read.
+      const records = occs
+        .filter(o => !role || modById[o.moduleId]?.role === role)
+        .map(o => ({ ...o, label: o.label || modById[o.moduleId]?.label || "" }));
+
+      const match = records.find(r => evalGroup(cfg.predicate, $vars, r));
+      if (cfg.itemIdVar) $vars[cfg.itemIdVar] = match?.id ?? null;
+      if (cfg.itemVar) $vars[cfg.itemVar] = match ?? null;
       return;
     }
     if (step.type === "if") {
