@@ -46,8 +46,8 @@ export function classifyShare({ files = [], url = null, text = null, title = nul
   const trimmedUrl = (url || "").trim();
   if (trimmedUrl && URL_RE.test(trimmedUrl)) {
     const cleanUrl = stripTrailingPunct(trimmedUrl);
-    // F5: link props gains text field
-    return { type: "link", props: { url: cleanUrl, title: title || null, text: null } };
+    // F5: preserve text field when both url and text are present
+    return { type: "link", props: { url: cleanUrl, title: title || null, text: text || null } };
   }
   // F2: Find URL anywhere in text, not only as the whole string
   if (typeof text === "string") {

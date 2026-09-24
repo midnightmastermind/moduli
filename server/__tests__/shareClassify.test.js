@@ -93,4 +93,12 @@ describe("classifyShare", () => {
     expect(r.type).toBe("link");
     expect(r.props.text).toBe("Check this out https://example.com/x");
   });
+
+  // F5: url + text as separate fields (Android share sheet case)
+  it("preserves caption text when both url and text fields are present", () => {
+    const r = classifyShare({ url: "https://example.com/x", text: "my note" });
+    expect(r.type).toBe("link");
+    expect(r.props.url).toBe("https://example.com/x");
+    expect(r.props.text).toBe("my note");
+  });
 });
