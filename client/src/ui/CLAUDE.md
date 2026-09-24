@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (5) — Connections tab upload lands in Files/<kind>, and says where)
+- User: *"if i upload via the connections tab, where does it go in moduli's manifest, nothing popped up."*
+  The tab sent `parentFolderId` = the FIRST manifest's root (could be the Templates manifest or another
+  grid's), so uploads were filed out of sight. It now sends no folder, so the server files each upload in
+  `Files › Images|Video|Audio|Documents`, and the status lists `name → Files › Images · Google Drive|Server`
+  (plus "reused" for a duplicate and "kept on the Server" for a Drive fallback). Test
+  `__tests__/ConnectionsTabUpload.test.jsx`.
+
 ## Recent Changes (2026-09-24 (4) — Connections tab: external path section removed)
 - User: remove the "External path connections" section. `ConnectionsTab` is now Storage + Upload only; the
   upload status says when a file was kept on the Server because Drive could not take it (`storageFallback`).

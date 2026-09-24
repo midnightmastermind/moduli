@@ -3621,3 +3621,5 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
   `claude/share-input-routing-plan-pigwol`, so this work builds on it. Task 4 = Google connect flow, Task 5 = Drive backend + `/files` proxy.
 - > "okay i connected it. could you get rid of the external path connection section please and tell me what to do to test this file storage feature"
   Removed the section (and its three server routes, which pointed at dev-machine paths).
+- > "if i up,load via the connections tab, where does it go in modulis manifest, nothing popped up."
+  It went to the first manifest's root folder (possibly Templates / another grid). Now: Files › <kind>, and the tab lists where each file landed and on which storage.
