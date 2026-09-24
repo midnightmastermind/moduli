@@ -2,6 +2,19 @@
 
 _Updated: 2026-08-17. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 — the phone follows the desktop's split layout; the date nav moves into Filters on mobile)
+- **`helpers/bspTree.treeToCells` (NEW) + `Grid.jsx MosaicMobileNav`.** The phone's cell map came
+  from `occurrence.placement`, which only the rows×cols editor writes. It goes stale once a mosaic
+  is rearranged. On poms grid the tree put Panel D (Schedule) on the RIGHT at full height while its
+  placement said BELOW Panel A, so the phone said "down" where the desktop said "right". The tree is
+  now turned into rows×cols (every pane edge becomes a grid line). Placements are only the fallback
+  for panels outside the tree. `__tests__/bspTreeToCells.test.js` uses poms grid's live tree.
+- **`Toolbar.jsx` + `ui/ToolbarFilterDropdown.jsx`.** On a mobile layout the date nav is no longer
+  inline on the toolbar. It renders at the top of the Filters popover (new `children` slot). It
+  MOVED rather than being removed: before 2026-08-05 a phone had no way to change the date. The
+  popover is also clamped on screen. `__tests__/toolbarMobileDateNav.test.jsx`, A/B'd against the
+  inline version.
+
 ## Recent Changes (2026-09-12 — `PagePreviewApp`: `scroll` + `publishComputed`, and a stale comment that hid a landmine)
 - **`PagePreviewBody` gained two props.** `scroll` — a preview CARD is a fixed-size thumbnail and
   must not scroll, a READER is a page of prose and must; same subtree, one axis of difference.

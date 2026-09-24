@@ -36,7 +36,12 @@ function Switch({ checked, onChange, title }) {
   );
 }
 
-export default function ToolbarFilterDropdown() {
+// `children` render at the TOP of the popover. The phone toolbar passes its date
+// nav here instead of showing it inline (user, 2026-09-24: "remove the date
+// input on the toolbar on mobile, we can just use the filters button") — the
+// nav moves, it is not dropped: a phone once had NO way to change the date
+// (2026-08-05), and this keeps one.
+export default function ToolbarFilterDropdown({ children = null } = {}) {
   const ctx = useGridActions();
   const { socket, dispatch, state, fieldsById, onSelectFilter } = ctx;
   const grid = state?.grid;
@@ -115,7 +120,9 @@ export default function ToolbarFilterDropdown() {
           ref={popRef}
           role="dialog"
           style={{
-            position: "fixed", top: anchor.bottom + 4, left: anchor.left,
+            position: "fixed", top: anchor.bottom + 4,
+            // Kept on screen: on a phone the funnel sits near the right edge.
+            left: Math.max(8, Math.min(anchor.left, (window.innerWidth || 9999) - 296)),
             zIndex: 1100, minWidth: 280, maxWidth: 340,
             background: "var(--panel-bg, #1f2937)",
             // `--panel-fg` WAS NEVER DEFINED — not in index.css, not in the skin
@@ -133,6 +140,11 @@ export default function ToolbarFilterDropdown() {
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {children && (
+            <div data-testid="toolbar-filter-date" style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}>
+              {children}
+            </div>
+          )}
           <div style={{ fontSize: 10, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontWeight: 600 }}>
             Filters
           </div>

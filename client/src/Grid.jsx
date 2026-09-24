@@ -18,7 +18,7 @@ import Panel from "./modules/ModulePanel";
 import GridMosaic from "./modules/GridMosaic";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
-import { allPanelOccIds } from "./helpers/bspTree";
+import { allPanelOccIds, treeToCells } from "./helpers/bspTree";
 
 import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
@@ -392,16 +392,28 @@ function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setAc
     () => allPanelOccIds(layoutTree).filter((id) => panelByOccId[id]),
     [layoutTree, panelByOccId]
   );
-  // The mosaic tree is the DESKTOP arrangement. On mobile, navigate the
-  // UNDERLYING rows×cols cell map — visiblePanels already carry the real
-  // `occurrence.placement` (row/col/width/height), which the mosaic
-  // conversion never mutates. This restores the 2D map + 4-direction rail
+  // The mosaic tree is the DESKTOP arrangement, and on mobile it is turned
+  // into a rows×cols cell map (treeToCells, below) so the phone's directions
+  // match the desktop's. (It used to read `occurrence.placement`, which the
+  // mosaic never updates — stale after any rearrangement.) This restores the 2D map + 4-direction rail
   // buttons (2026-07-14: "no longer 3 by 2 with the 4 buttons around each
   // side… its just a line now" — the old synthetic 1×N strip). Panels
   // without distinct placements (all stacked at one cell) fall back to the
   // 1×N strip so a placement-less grid still navigates.
   const { rows, cols, navPanels } = useMemo(() => {
     const panels = order.map((occId) => panelByOccId[occId]);
+    // The TREE's own arrangement wins (helpers/bspTree.treeToCells): a stored
+    // placement goes stale once the mosaic is rearranged, and navigating by it
+    // sent the phone DOWN to a panel the desktop shows on the RIGHT (poms grid,
+    // 2026-09-24). Placements remain the fallback for panels outside the tree.
+    const fromTree = treeToCells(layoutTree);
+    if (panels.length && panels.every((p) => fromTree.cells[p._occurrenceId])) {
+      return {
+        rows: fromTree.rows,
+        cols: fromTree.cols,
+        navPanels: panels.map((p) => ({ ...p, ...fromTree.cells[p._occurrenceId] })),
+      };
+    }
     const distinctCells = new Set(panels.map((p) => `${p.row ?? 0}:${p.col ?? 0}`));
     if (panels.length > 1 && distinctCells.size <= 1) {
       return {

@@ -253,3 +253,32 @@ export function findLeaf(tree, panelOccId) {
   })(tree);
   return found;
 }
+
+// ---------------------------------------------------------------------------
+// treeToCells(tree) → { rows, cols, cells: { [panelOccId]: {row,col,width,height} } }
+// The DESKTOP arrangement as a rows×cols cell map, for the phone's cell
+// navigation. The tree is the truth: `occurrence.placement` is only written
+// by the rows×cols editor and goes stale once a mosaic is rearranged (poms
+// grid, 2026-09-24: the tree put the Schedule panel on the RIGHT, its stale
+// placement put it BELOW, so the phone said "down" where the desktop said
+// "right"). Every distinct pane edge becomes a grid line; a pane spans the
+// lines between its edges.
+// ---------------------------------------------------------------------------
+export function treeToCells(tree) {
+  const { panes } = computeLayout(tree, { x: 0, y: 0, w: 1, h: 1 }, 0);
+  if (!panes.length) return { rows: 1, cols: 1, cells: {} };
+  const q = (n) => Math.round(n * 1e6) / 1e6;
+  const lines = (pick) => [...new Set(panes.flatMap(pick).map(q))].sort((a, b) => a - b);
+  const xs = lines((p) => [p.rect.x, p.rect.x + p.rect.w]);
+  const ys = lines((p) => [p.rect.y, p.rect.y + p.rect.h]);
+  const cells = {};
+  for (const { panelOccId, rect } of panes) {
+    const col = xs.indexOf(q(rect.x)), row = ys.indexOf(q(rect.y));
+    cells[panelOccId] = {
+      row, col,
+      width: xs.indexOf(q(rect.x + rect.w)) - col,
+      height: ys.indexOf(q(rect.y + rect.h)) - row,
+    };
+  }
+  return { rows: ys.length - 1, cols: xs.length - 1, cells };
+}
