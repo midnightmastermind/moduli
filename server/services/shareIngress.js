@@ -70,6 +70,12 @@ export function sanitizeClip(raw) {
     if (str(raw.meta.clippedFrom)) meta.clippedFrom = str(raw.meta.clippedFrom);
   }
   return {
+    // The clip's OWN identity (`<shape>:<url>`) is authoritative. Re-deriving
+    // it here from the classified url breaks on anything that is not an http
+    // link — an image on a search page is a `data:` URL, classifies as a bare
+    // "file", and derived `text:` with nothing after it, so every such image
+    // clip shared one identity and each overwrote the last.
+    externalId: str(raw.externalId),
     label: str(raw.label),
     moduleRole: str(raw.moduleRole) || "artifact",
     moduleKind: str(raw.moduleKind),
@@ -128,7 +134,7 @@ export async function prepareShare({
     props: enriched,
     clip: cleanClip,
     label: shareLabelFor(type, enriched, label || cleanClip?.label),
-    externalId: shareExternalIdFor(type, enriched, { shape, sha256 }),
+    externalId: cleanClip?.externalId || shareExternalIdFor(type, enriched, { shape, sha256 }),
     receivedAt: new Date().toISOString(),
   };
 }

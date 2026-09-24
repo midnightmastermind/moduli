@@ -86,6 +86,18 @@ describe("an extension clip through /share is the /ingest clip", () => {
     expect(m.fields.fCov.value).toBe("https://ex.test/i.png");
   });
 
+  it("an image whose address is a data: URL keeps its OWN identity", async () => {
+    // Found on prod: an image clipped from a Google results page is a data:
+    // URL, which classifies as a bare "file" — and derived `text:` (empty), so
+    // every such clip shared ONE identity and overwrote the last.
+    const src = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ";
+    const record = buildClipRecord({ info: { menuItemId: "clip-image", pageUrl: "https://www.google.com/search?q=x",
+      srcUrl: src }, tab: { url: "https://www.google.com/search?q=x", title: "x - Google Search" }, fieldIds, parentId: "box" });
+    const m = await viaShare(record);
+    expectSameAsIngest(m, record);
+    expect(m.externalId).toBe(`image:${src}`);
+  });
+
   it("with no destination it lands in Files instead of nowhere (the one deliberate change)", async () => {
     const record = buildClipRecord({ info: { menuItemId: "clip-page", pageUrl: "https://ex.test/a" },
       tab: { url: "https://ex.test/a", title: "A" }, fieldIds });
