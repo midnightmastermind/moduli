@@ -15,6 +15,7 @@
 // immediately with a DOMException("aborted","AbortError"). Otherwise an
 // abort during flight cancels the XHR and rejects with the same error.
 
+import { sessionHeaders } from "./authStorage";
 export function uploadFileWithProgress({ url, formData, onProgress, signal }) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -23,6 +24,8 @@ export function uploadFileWithProgress({ url, formData, onProgress, signal }) {
     }
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+    // The upload routes authenticate the session (the body's userId is not trusted).
+    for (const [k, v] of Object.entries(sessionHeaders())) xhr.setRequestHeader(k, v);
     if (typeof onProgress === "function") {
       xhr.upload.addEventListener("progress", (e) => {
         if (e.lengthComputable) onProgress(e.loaded / e.total);

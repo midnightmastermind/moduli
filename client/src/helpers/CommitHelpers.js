@@ -34,6 +34,7 @@ import {
   updateModuleAction,
   deleteModuleAction,
 } from "../state/actions";
+import { sessionHeaders } from "./authStorage";
 
 /**
  * Commit helper contract:
@@ -1240,7 +1241,7 @@ export async function addArtifactToContainer({
   formData.append("moduleId", moduleId);
   formData.append("occurrenceId", occurrenceId);
   try {
-    const res = await fetch("/api/artifacts/upload", { method: "POST", body: formData });
+    const res = await fetch("/api/artifacts/upload", { method: "POST", headers: sessionHeaders(), body: formData });
     const data = await res.json();
     // Server emits module_created + occurrence_created; reducer is idempotent on id.
     // Ensure the artifact occurrence stays parented into the container.
@@ -1635,7 +1636,7 @@ export async function uploadFile({ file, userId, gridId, parentFolderId = null, 
   if (manifestId) formData.append("manifestId", manifestId);
 
   try {
-    const res = await fetch("/api/artifacts/upload", { method: "POST", body: formData });
+    const res = await fetch("/api/artifacts/upload", { method: "POST", headers: sessionHeaders(), body: formData });
     const data = await res.json();
     // Server emits module_created + occurrence_created via socket.
     return data.module;

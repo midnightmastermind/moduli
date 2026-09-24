@@ -26,6 +26,8 @@ const __dirname = path.dirname(__filename);
 // ========================================================
 import Module from "./models/Module.js";
 import Grid from "./models/Grid.js";
+import { requireSession, ownsGrid } from "./middleware/sessionAuth.js";
+import { resolveInside } from "./utils/safePath.js";
 import User from "./models/User.js";
 import Occurrence from "./models/Occurrence.js";
 import Field from "./models/Field.js";
@@ -580,10 +582,17 @@ async function homeFolderForUpload({ userId, gridId, parentFolderId, kind }) {
 // and POST /api/v1/share (share → import routing). See services/artifactUpload.js.
 const artifactUploader = makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom });
 
-app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
+// requireSession BEFORE multer: an unauthenticated request must not reach the
+// disk at all (audit A2). The user is the session's, never the body's.
+app.post("/api/artifacts/upload", requireSession, upload.single("file"), async (req, res) => {
   try {
-    const { userId, gridId, parentFolderId, manifestId } = req.body;
-    if (!userId || !req.file) return res.status(400).json({ error: "Missing userId or file" });
+    const userId = req.userId;
+    const { gridId, parentFolderId, manifestId } = req.body;
+    if (!req.file) return res.status(400).json({ error: "Missing file" });
+    if (!(await ownsGrid(userId, gridId))) {
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+      return res.status(404).json({ error: "grid not found" });
+    }
     // The upload itself lives in services/artifactUpload.js — shared with the
     // share route, so a shared photo lands exactly as an uploaded one does.
     // `sha256` is for the share path; this route's response is unchanged.
@@ -602,32 +611,16 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
 // /api/artifacts/upload (canonical: Module + Occurrence + View, optimistic-id
 // aware, idempotent on moduleId). See docket §8 quick wins.
 
-app.post("/api/storage-settings", async (req, res) => {
-  try {
-    const { userId, manifestId, settings } = req.body;
-    if (!manifestId) return res.status(400).json({ error: "Missing manifestId" });
-    const manifest = await Manifest.findOneAndUpdate({ id: manifestId }, { $set: { "meta.storageSettings": settings } }, { returnDocument: 'after' });
-    if (!manifest) return res.status(404).json({ error: "Manifest not found" });
-    const obj = manifest.toObject();
-    // This route has no gridId in its body — the manifest carries its own, and
-    // the cache is keyed by (user, grid). (A blanket rename here would have been
-    // a ReferenceError; the 2026-08-01 "I shipped `watchRegion is not defined`"
-    // lesson is that every edit of this shape needs its scope checked.)
-    const cache = routeCache(userId, obj.gridId);
-    if (cache) cache.manifestsById[obj.id] = obj;
-    io.to(userRoom(userId)).emit("manifest_updated", obj);
-    res.json({ manifest: obj });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// /api/storage-settings removed 2026-09-24 (audit A5): it wrote
+// manifest.meta.storageSettings, which nothing ever read, with no auth.
+// Storage choice lives on the user now (plan 2026-09-24-connections-storage-gdrive).
 
 const CONNECTIONS = [
   { id: "file_storage", name: "File Storage", path: "/home/joshpoms/files" },
   { id: "external_notebook", name: "Notebook", path: "/home/joshpoms/notebook" },
 ];
 
-app.get("/api/connections", (_req, res) => {
+app.get("/api/connections", requireSession, (_req, res) => {
   const result = CONNECTIONS.map((c) => {
     try { const exists = fs.existsSync(c.path); return { ...c, exists, fileCount: exists ? fs.readdirSync(c.path).length : 0 }; }
     catch { return { ...c, exists: false, fileCount: 0 }; }
@@ -635,7 +628,7 @@ app.get("/api/connections", (_req, res) => {
   res.json({ connections: result });
 });
 
-app.get("/api/connections/:id/files", (req, res) => {
+app.get("/api/connections/:id/files", requireSession, (req, res) => {
   const conn = CONNECTIONS.find((c) => c.id === req.params.id);
   if (!conn) return res.status(404).json({ error: "Connection not found" });
   try {
@@ -649,13 +642,18 @@ app.get("/api/connections/:id/files", (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/connections/:id/import", async (req, res) => {
+app.post("/api/connections/:id/import", requireSession, async (req, res) => {
   const conn = CONNECTIONS.find((c) => c.id === req.params.id);
   if (!conn) return res.status(404).json({ error: "Connection not found" });
-  const { fileName, userId, gridId, parentFolderId, manifestId } = req.body;
-  if (!fileName || !userId) return res.status(400).json({ error: "Missing fileName or userId" });
-  const srcPath = path.join(conn.path, fileName);
-  if (!fs.existsSync(srcPath)) return res.status(404).json({ error: "File not found" });
+  const userId = req.userId;
+  const { fileName, gridId, parentFolderId, manifestId } = req.body;
+  if (!fileName) return res.status(400).json({ error: "Missing fileName" });
+  if (!(await ownsGrid(userId, gridId))) return res.status(404).json({ error: "grid not found" });
+  // A name must stay INSIDE its connection's folder (audit A3): "../../x"
+  // used to copy any readable server file into uploads.
+  const srcPath = resolveInside(conn.path, fileName);
+  if (!srcPath) return res.status(400).json({ error: "invalid file name" });
+  if (!fs.existsSync(srcPath) || !fs.statSync(srcPath).isFile()) return res.status(404).json({ error: "File not found" });
   try {
     const ext = path.extname(fileName);
     const mimeMap = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".pdf": "application/pdf", ".mp4": "video/mp4", ".mp3": "audio/mpeg", ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json" };
@@ -877,7 +875,7 @@ app.get("/api/addresses/search", async (req, res) => {
 // its URL. Mints NO module/occurrence (unlike /api/artifacts/upload): the
 // ImagePickerMenu uses this when the picked image becomes a FIELD VALUE
 // (person photo, movie poster) rather than a standalone artifact.
-app.post("/api/images/upload", upload.single("file"), async (req, res) => {
+app.post("/api/images/upload", requireSession, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "file required" });
     if (!req.file.mimetype?.startsWith("image/")) {
@@ -901,11 +899,14 @@ app.post("/api/images/upload", upload.single("file"), async (req, res) => {
 // request body the same way /api/artifacts/upload does. Lets the in-app
 // "Import from Wikipedia" operation hit it via CALL_API without minting an
 // API token first. Same-origin only is enforced upstream by CORS settings.
-app.post("/api/research/wikipedia/import", async (req, res) => {
+app.post("/api/research/wikipedia/import", requireSession, async (req, res) => {
   try {
-    const { userId, gridId, parentId = null, query, title: explicitTitle, dryRun = false } = req.body || {};
-    if (!userId) return res.status(400).json({ error: "userId required" });
+    // The session is the user (CALL_API sends it on same-site URLs); a body
+    // userId is ignored. CORS never protected this — it only restrains browsers.
+    const userId = req.userId;
+    const { gridId, parentId = null, query, title: explicitTitle, dryRun = false } = req.body || {};
     if (!gridId) return res.status(400).json({ error: "gridId required" });
+    if (!(await ownsGrid(userId, gridId))) return res.status(404).json({ error: "grid not found" });
     if (!query && !explicitTitle) return res.status(400).json({ error: "query or title required" });
 
     const { search, fullMarkdown } = await import("./services/wikipediaTools.js");

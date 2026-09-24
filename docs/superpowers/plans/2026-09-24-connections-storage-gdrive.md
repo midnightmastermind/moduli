@@ -160,4 +160,5 @@ file appears in a Drive folder (needs polling or Drive push notifications — it
 
 | task | state |
 |---|---|
-| 1–11 | not started |
+| 1 security | **done 2026-09-24** — `middleware/sessionAuth` (`requireSession` before multer, `ownsGrid`), `utils/safePath.resolveInside`; the upload/image/connection/wikipedia routes take the user from the session; `/api/storage-settings` deleted; client sends `sessionHeaders()` (XHR helper + every direct fetch) and `CALL_API` adds it to same-site URLs only. Tests: `sessionAuthRoutes` (A/B'd: wiring fails on the old server.js), `callApiSession`. **Deploy note:** a tab still on the old bundle gets 401 on upload until reloaded. |
+| 2–11 | not started |
