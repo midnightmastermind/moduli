@@ -7,8 +7,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const grids = new Set(["g1"]);
 let userMeta = {};
+const logged = [];
 vi.mock("../models/Grid.js", () => ({ default: {
   exists: async (q) => (grids.has(q._id) && q.userId === "u1" ? { _id: q._id } : null),
+  findOneAndUpdate: (q, u) => { logged.push(u.$push.shareLog.$each[0]); return { lean: async () => ({ shareLog: [] }) }; },
 }}));
 vi.mock("../models/User.js", () => ({ default: {
   findById: () => ({ lean: async () => ({ _id: "u1", meta: userMeta }) }),
@@ -66,6 +68,7 @@ function call(router, body) {
 }
 
 beforeEach(() => {
+  logged.length = 0;
   calls.length = 0; userMeta = {}; ensureThrows = false;
   ruleResult = { ran: [{ ruleId: "r1", ok: true, created: [{ _effect: "CREATE", occurrenceId: "o1" }] }], halted: false };
 });
@@ -119,5 +122,24 @@ describe("POST /share", () => {
   it("requires something to share", async () => {
     const r = await call(makeRouter(), { gridId: "g1" });
     expect(r.status).toBe(400);
+  });
+});
+
+describe("POST /share — every outcome is logged (D16, §12)", () => {
+  it("a landed share", async () => {
+    await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(logged).toHaveLength(1);
+    expect(logged[0].status).toBe("landed");
+    expect(logged[0].type).toBe("link");
+  });
+  it("a share with nowhere to land", async () => {
+    ensureThrows = true;
+    await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(logged[0].status).toBe("failed");
+    expect(logged[0].error).toMatch(/Files folder/);
+  });
+  it("NOT for a grid the caller does not own — nothing to write it on", async () => {
+    await call(makeRouter(), { gridId: "someone-elses", url: "https://x.test/a" });
+    expect(logged).toHaveLength(0);
   });
 });

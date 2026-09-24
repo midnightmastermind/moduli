@@ -5,18 +5,11 @@
 // ============================================================
 
 import React, { useState } from "react";
-import {
-  User,
-  Settings2,
-  Workflow,
-  Link2,
-  Keyboard,
-  LayoutGrid,
-  Palette,
-} from "lucide-react";
+import { User, Settings2, Workflow, Link2, Keyboard, LayoutGrid, Palette, Share2 } from "lucide-react";
 
 import { FieldsTab } from "./commandCenter/FieldsTab";
 import { OperationsTab } from "./commandCenter/OperationsTab";
+import { ImportsTab } from "./commandCenter/ImportsTab";
 import { ConnectionsTab } from "./commandCenter/ConnectionsTab";
 import { ShortcutsTab } from "./commandCenter/ShortcutsTab";
 import { UserSettingsTab } from "./commandCenter/UserSettingsTab";
@@ -30,6 +23,7 @@ const TABS = [
   { id: "grid", label: "Grid", icon: LayoutGrid },
   { id: "fields", label: "Fields", icon: Settings2 },
   { id: "operations", label: "Operations", icon: Workflow },
+  { id: "imports", label: "Imports", icon: Share2 },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "connections", label: "Connections", icon: Link2 },
   { id: "settings", label: "User Settings", icon: User },
@@ -115,6 +109,7 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout }) {
         <div style={{ overflow: "auto", flex: 1, minHeight: 0 }}>
           {activeTab === "fields"      && <FieldsTab />}
           {activeTab === "operations"  && <OperationsTab />}
+          {activeTab === "imports"     && <ImportsTab />}
           {activeTab === "grid"        && <GridSettingsTab />}
           {activeTab === "appearance"  && <AppearanceTab />}
           {activeTab === "shortcuts"   && <ShortcutsTab />}

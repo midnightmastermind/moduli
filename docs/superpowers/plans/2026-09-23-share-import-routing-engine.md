@@ -33,8 +33,8 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 | 5 rule engine | done — adapted, see below | `claude/share-input-routing-plan-pigwol` |
 | 6 catch-all bootstrap | done — adapted | same |
 | 7 `POST /share` | done for **links + text**; **files refused (415)** | same |
-| 8 Imports tab — rules editor | not started | |
-| 9 Imports tab — recent-shares log | not started | |
+| 8 Imports tab — rules editor | done — see deviations | merged via PR |
+| 9 Imports tab — recent-shares log | done — see deviations | merged via PR |
 | 10 re-route the extension | done — **verified on prod 2026-09-24** (Firefox, test grid 2) | merged |
 
 **Where the sketches below did not match the code** (the code is what shipped):
@@ -46,6 +46,17 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 - `services/artifactUpload.js` does not exist. The upload lives inline in `server.js`; extracting it
   (so `/share` reuses it rather than copying it) is the open prerequisite for file shares.
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
+- **Task 8:** the editor's CREATE is written as `name/parent/role/kind/attachFields`, which the server
+  executor did not read — a rule built by clicking would have made rows with no name and no parent. The
+  server now reads both spellings, and keys a share rule's CREATE with no externalId on
+  `<share externalId>::<step id>[::<loop index>]`. The "stop here" checkbox is the D9 halt (a
+  `SET_VAR $share.handled` step). Share rules are hidden from the Operations tab, whose trigger editor
+  does not know `onShare`. The catch-all can be switched off but not deleted from the tab (D3).
+- **Task 9:** the existing run log (`getOpRunHistory`) is in the BROWSER and never sees a rule the
+  server ran, so it could not be the log. `Grid.shareLog` (top-level, capped at 50 by an atomic
+  `$push/$slice`, metadata only) is appended for every share — failures included (§12) — and pushed to
+  open tabs as `grid_updated`. It says where each created row landed rather than linking to it: a row in
+  the Files folder has no page to open.
 - **Prod check (Task 10 Step 6), read back through `/api/v1/occurrences`:** page, selection, link and
   image clips on test grid 2 all landed in `Root / Files` (`3684044d…`, the protected folder) with
   `source: "clip"`; clipping the same page twice left ONE row. It also found a defect: an image on a

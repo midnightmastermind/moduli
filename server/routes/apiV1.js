@@ -1205,6 +1205,13 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
       if (!body.url && !body.text) return err(res, 400, "validation_error", "url or text required");
 
+      const { shareLogEntry, recordShare } = await import("../services/shareLog.js");
+      // Every outcome from here on is logged — the failures most of all (§12).
+      const logShare = (share, result, error) => recordShare({
+        userId: req.userId, gridId, io, userRoom,
+        entry: shareLogEntry({ share: share || { type: null, source: body.source || "api",
+          label: body.label || body.title || body.url || null }, result, error }),
+      });
       const { ensureCatchAllRule } = await import("../utils/shareRulesEnsure.js");
       const { prepareShare } = await import("../services/shareIngress.js");
       const { runShareRules } = await import("../services/shareRules.js");
@@ -1214,6 +1221,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       try {
         await ensureCatchAllRule({ userId: req.userId, gridId });
       } catch (e) {
+        await logShare(null, null, e.message);
         return err(res, 409, "no_destination", e.message);
       }
 
@@ -1228,6 +1236,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
         });
       } catch (e) {
+        await logShare(null, null, e.message);
         if (e.code === "files_unsupported") return err(res, 415, "files_unsupported", e.message);
         throw e;
       }
@@ -1236,6 +1245,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         share, userId: req.userId, gridId, io,
         mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
       });
+      await logShare(share, result, null);
       const created = result.ran.flatMap(r => r.created || []);
       const failed = result.ran.filter(r => !r.ok);
       // A share that produced no row and hit a failing rule did not land —

@@ -2,6 +2,14 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (3) — editor-built CREATE runs server-side; Grid.shareLog)
+- `serverExecutor` CREATE also reads the editor's `name/parent/role/kind/attachFields`, `itemIdVar/itemVar`,
+  and a `meta` object of expressions. In a share rule, a CREATE with no externalId is keyed
+  `<share externalId>::<step id>[::<loop index>]`.
+- **`Grid.shareLog`** (top-level, not in `meta` — tabs write `meta` back whole) + `services/shareLog.js`:
+  every `/share` outcome is appended (`$push/$slice -50`, metadata only) and broadcast as `grid_updated`.
+- An image clip keeps the extension's own externalId (a `data:` URL derived `text:` — found on prod).
+
 ## Recent Changes (2026-09-24 (2) — the extension clips through the share rules, Task 10)
 - `extension/background.js` posts to **`/api/v1/share`** with its `buildClipRecord` output as `clip`.
 - `shareIngress.sanitizeClip` type-checks that record into `$share.clip`; a clip is NOT fetched
