@@ -360,3 +360,65 @@ describe("CREATE into a folder, and the returned scope", () => {
     expect(r.scope.$share.type).toBe("link");
   });
 });
+
+// A share rule is built in the Imports tab with the SAME editor every
+// operation uses — which writes CREATE as name/parent/role/kind/attachFields.
+// Before these were read, such a rule ran here with no label and no parent.
+describe("CREATE written by the operations editor", () => {
+  it("reads name / parent / role / kind / attachFields", async () => {
+    const r = await runOperationServerSide(op([
+      { id: "s1", type: "action", config: { type: "CREATE", name: "$share.label", parent: "literal:cont-bookmarks",
+        role: "instance", kind: "bookmark", attachFields: ["fTags"], fields: { fUrl: "$share.props.url" } } },
+    ]), { userId: "u1", gridId: "g1", vars: { $share: { label: "A page", externalId: "link:https://x.test", props: { url: "https://x.test" } } } });
+    expect(r.ok).toBe(true);
+    const m = minted[0];
+    expect(m.label).toBe("A page");
+    expect(m.parentId).toBe("cont-bookmarks");
+    expect(m.moduleRole).toBe("instance");
+    expect(m.moduleKind).toBe("bookmark");
+    expect(m.fieldBindings.map(b => b.fieldId).sort()).toEqual(["fTags", "fUrl"]);
+    expect(m.fields.fUrl.value).toBe("https://x.test");
+  });
+
+  it("keys a share rule's row on the share + the step, so a re-share updates it", async () => {
+    const pipeline = op([{ id: "s1", type: "action", config: { type: "CREATE", name: "literal:x" } }]);
+    const vars = { $share: { externalId: "link:https://x.test" } };
+    await runOperationServerSide(pipeline, { userId: "u1", gridId: "g1", vars });
+    await runOperationServerSide(pipeline, { userId: "u1", gridId: "g1", vars });
+    expect(minted[0].externalId).toBe("link:https://x.test::s1");
+    expect(minted[1].externalId).toBe(minted[0].externalId);
+  });
+
+  it("a LOOP of creates gets one key per item, not one for all", async () => {
+    await runOperationServerSide(op([
+      { id: "L", type: "loop", over: "$share.events", as: "$e", body: [
+        { id: "s1", type: "action", config: { type: "CREATE", name: "$e.summary" } },
+      ]},
+    ]), { userId: "u1", gridId: "g1", vars: { $share: { externalId: "ics:f", events: [{ summary: "A" }, { summary: "B" }] } } });
+    expect(minted.map(m => m.externalId)).toEqual(["ics:f::s1::0", "ics:f::s1::1"]);
+    expect(minted.map(m => m.label)).toEqual(["A", "B"]);
+  });
+
+  it("resolves an editor-style meta object value by value", async () => {
+    await runOperationServerSide(op([
+      { id: "s1", type: "action", config: { type: "CREATE", name: "literal:x", externalId: "literal:k",
+        meta: { from: "$share.source", fixed: "literal:yes" } } },
+    ]), { userId: "u1", gridId: "g1", vars: { $share: { source: "android" } } });
+    expect(minted[0].meta).toEqual({ from: "android", fixed: "yes" });
+  });
+
+  it("sets itemIdVar to the new row's id", async () => {
+    const r = await runOperationServerSide(op([
+      { id: "s1", type: "action", config: { type: "CREATE", name: "literal:x", externalId: "literal:k", itemIdVar: "$newId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(r.scope.$newId).toBe("occ1");
+  });
+
+  it("the server's own spelling still wins when a step carries both", async () => {
+    await runOperationServerSide(op([
+      { id: "s1", type: "action", config: { type: "CREATE", label: "literal:server", name: "literal:editor",
+        externalId: "literal:k" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(minted[0].label).toBe("server");
+  });
+});
