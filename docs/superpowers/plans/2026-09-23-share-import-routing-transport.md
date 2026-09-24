@@ -12,6 +12,31 @@
 
 **Depends on:** Plan 1 (the `/api/v1/share` endpoint and the rules engine). Plan 2 is not required — transport is content-agnostic — but sharing an `.ics` is the acceptance test, so do Plan 2 first if you want the headline case.
 
+## Progress (updated 2026-09-24)
+
+| task | state |
+|---|---|
+| 1 verify on device | **installability confirmed by the user** (Android/Chrome, Windows/Edge); share-sheet and "Open with" can only be checked after this deploys |
+| 2 upload cap | done (with the engine plan's file shares) |
+| 3 stash | done — differently, see below |
+| 4 manifest + worker + pending page | done; **needs the on-phone check (Step 6)** |
+| 5 Windows open-with + webcal | done in code (manifest + `launchQueue`); needs the on-Windows check |
+| 6 seed poms' rules | next |
+
+**Where the code differs from the sketches:**
+- **No IndexedDB stash.** The worker keeps the ORIGINAL share form in Cache Storage
+  (`new Response(formData)`), and the page reads it back with `response.formData()`. The form is the
+  one shape; only the cache name and key are shared, and a test reads `sw.js` to keep them equal
+  (the worker is a classic script and cannot import the helper). Consumed on read.
+- **Auth:** the page sends the signed-in SESSION (`localStorage["moduli-token"]`) as the Bearer;
+  `POST /share` alone accepts it (`apiAuth({ allowSessionJwt })`), every other route still refuses it.
+- **`sw.js` answers exactly one request** (POST /share-target) and passes everything else through —
+  no caching, no offline mode. Redirect URLs are absolute (built from the request).
+- **Server fallback:** `POST /share-target` with no worker installed yet → 303 to the pending page
+  saying to open Moduli once and share again (not a 404).
+- **The pending page** (`/share-pending`, `/share-target`) is its own entry in `main.jsx`, rendered
+  without the grid, so it works signed out ("Sign in, then share again") and never shows an empty grid.
+- `sw.js` is tested by running the REAL file in a simulated worker scope.
 ## Global Constraints
 
 - **Auth stays `Bearer`-only.** Verified: no cookie middleware anywhere in `server/`. **Do not add cookie auth to make the share POST easier** — the service-worker hand-off is the design (spec §8).

@@ -57,7 +57,19 @@ const previewOcc = params.get("previewOcc");
 const isPromoPath = (p) =>
   PROMO_PATHS.some((base) => p === base || p.startsWith(base + "/"));
 
-if (previewOcc) {
+// A phone/Windows SHARE lands here (share plan 3). Its own page, rendered
+// without the grid app: it must work before the grid loads and while signed
+// out (to say "sign in, then share again" rather than show an empty grid).
+const isSharePath = ["/share-pending", "/share-target"].includes(window.location.pathname);
+
+if (isSharePath) {
+  const SharePending = React.lazy(() => import("./ui/SharePending.jsx"));
+  root.render(
+    <React.Suspense fallback={null}>
+      <SharePending />
+    </React.Suspense>
+  );
+} else if (previewOcc) {
   // Lightweight preview app — only loads the occurrence subtree
   import("./PagePreviewApp.jsx").then(({ default: PagePreviewApp }) => {
     root.render(<PagePreviewApp occurrenceId={previewOcc} />);
@@ -80,3 +92,13 @@ if (previewOcc) {
 }
 
 reportWebVitals();
+
+// The service worker exists ONLY to receive shares (public/sw.js): it answers
+// the share_target POST and passes every other request through untouched.
+// Registered everywhere the browser allows one (HTTPS or localhost); a
+// registration failure costs nothing but the ability to receive a share.
+if ("serviceWorker" in navigator && window.isSecureContext && !previewOcc) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((e) => console.warn("[share] service worker not registered:", e?.message || e));
+  });
+}

@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (2) — sharing from the phone / Windows)
+- **`ui/SharePending.jsx`** (routes `/share-pending`, `/share-target`, own entry in `main.jsx`, works signed
+  out): takes a share from the service worker's stash, a `webcal://` link or Windows "Open with" files
+  (`launchQueue`), posts to `/api/v1/share` with the session as Bearer, and reports it honestly
+  (`describeShareResult`: a 2xx that wrote nothing is a failure).
+- **`helpers/shareHandoff.js`** — the tested logic; **`public/sw.js`** — the worker (POST /share-target
+  only); **`public/manifest.json`** — `share_target`, `file_handlers` (.ics), `protocol_handlers` (webcal).
+- Tests: `shareHandoff.test.jsx` (runs the real sw.js in a vm), `sharePending.test.jsx`.
+
 ## Recent Changes (2026-09-24 — the Imports tab: share rules + recent shares)
 - **`commandCenter/ImportsTab.jsx` (NEW, tab "Imports")** — share → import routing, Tasks 8–9. A share
   rule is an operation with trigger `{ eventType: "onShare", shareType }` that the SERVER runs. The tab
