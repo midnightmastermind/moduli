@@ -427,6 +427,16 @@ the real devices:
 
 None blocks the first slice (D13), which uses the extension.
 
+**Status 2026-09-24:**
+1. **Installability — confirmed by the user on the real devices:** Moduli installs as an app from
+   Chrome on the Android phone and from Edge on the Windows PC, with the current manifest and no
+   service worker. (Which of the two was needed is moot — it installs.)
+2. **Windows `share_target` — not yet checkable:** the manifest has no `share_target` until Plan 3
+   ships it. Checked after that deploy.
+3. **`file_handlers` for `text/calendar` — same:** checked after Plan 3's deploy.
+4. **ics library — decided by test:** `node-ical` 0.27. It passes TZID, UTC, another zone and
+   Outlook's Windows zone names; floating and all-day values are read as written (Plan 2 Task 1).
+
 ---
 
 ## 12. Error handling

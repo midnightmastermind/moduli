@@ -96,6 +96,13 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   const idem = idempotency();
   const authAndLimit = (opts) => [apiAuth(opts), limiter, idem];
 
+  // A webhook secret is a credential. The route that SETS one already refuses
+  // to echo it ("never echo the real value"), but the list and the update
+  // returned it in plain text — so any read-scoped token could lift it and sign
+  // webhooks. Every REST response carrying an operation goes through this.
+  const maskOp = (op) => (op && op.webhookSecret ? { ...op, webhookSecret: "***" } : op);
+
+
   // ====================================================================
   // WRITE-PATH INVARIANTS
   //
@@ -472,6 +479,23 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // ── Single-record reads ──────────────────────────────────────────────
+  // Only occurrences could be fetched by id; everything else had to be found
+  // by listing a whole grid and filtering (found 2026-09-24 looking up one
+  // module). Scoped to the caller like every other read.
+  for (const [path, Model, key, shape] of [
+    ["modules", Module, "module"], ["fields", Field, "field"], ["folders", Folder, "folder"],
+    ["operations", Operation, "operation", maskOp], ["views", View, "view"], ["manifests", Manifest, "manifest"],
+  ]) {
+    router.get(`/${path}/:id`, authAndLimit({ requireScope: "read" }), async (req, res) => {
+      try {
+        const doc = await Model.findOne({ id: req.params.id, userId: req.userId }).lean();
+        if (!doc) return err(res, 404, "not_found", `${key} not found`);
+        res.json({ [key]: shape ? shape(doc) : doc });
+      } catch (e) { err(res, 500, "internal_error", e.message); }
+    });
+  }
+
   router.post("/occurrences", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
@@ -716,7 +740,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         );
       }
       const { items, nextCursor, total } = paginate(ops, { limit, cursor });
-      res.json({ operations: items, nextCursor, total });
+      res.json({ operations: items.map(maskOp), nextCursor, total });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -741,7 +765,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       );
       if (!next) return err(res, 404, "not_found", "Operation not found");
       io.to(userRoom(req.userId)).emit("operation_updated", { operation: next });
-      res.json({ operation: next });
+      res.json({ operation: maskOp(next) });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -1192,6 +1216,9 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // Files are refused (415) until the artifact upload is shared with this
   // path — refused out loud, never dropped (§12).
   // ====================================================================
+  // A real IANA zone name, as Intl understands it (share timezones, D10 / Plan 2).
+  const validZone = (z) => { try { return !!z && !!new Intl.DateTimeFormat("en-US", { timeZone: z }); } catch { return false; } };
+
   // Multipart (a shared FILE) is parsed only AFTER auth, so an unauthenticated
   // request never gets to stream 500 MB to disk. JSON shares skip it entirely.
   const acceptShareFiles = (req, res, next) => {
@@ -1220,7 +1247,6 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       // that knows it (the extension, the phone's page) sends it; it is
       // remembered so a sender that cannot (curl, Windows "open with") still
       // gets the right day. Only a real zone name is kept.
-      const validZone = (z) => { try { return !!z && !!new Intl.DateTimeFormat("en-US", { timeZone: z }); } catch { return false; } };
       const timeZone = validZone(body.timeZone) ? body.timeZone : (user?.meta?.share?.timeZone || null);
       if (validZone(body.timeZone) && body.timeZone !== user?.meta?.share?.timeZone) {
         User.updateOne({ _id: req.userId }, { $set: { "meta.share.timeZone": body.timeZone } }).catch(() => {});
@@ -1299,6 +1325,76 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         ...result,
       });
     } catch (e) { dropTemp(firstFile); err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── Share settings (spec D10) ─────────────────────────────────────────
+  // `user.meta.share` holds the grid a share lands in when the sender names
+  // none, and the timezone a shared calendar is read in. Both were readable by
+  // /share and settable by NOTHING.
+  router.get("/me/share", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { default: User } = await import("../models/User.js");
+      const user = await User.findById(req.userId).lean();
+      res.json({ gridId: user?.meta?.share?.gridId || null, timeZone: user?.meta?.share?.timeZone || null });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.patch("/me/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { default: User } = await import("../models/User.js");
+      const body = req.body || {};
+      const $set = {}, $unset = {};
+      if ("gridId" in body) {
+        if (body.gridId == null) $unset["meta.share.gridId"] = 1;
+        else {
+          const owned = await Grid.exists({ _id: body.gridId, userId: req.userId }).catch(() => null);
+          if (!owned) return err(res, 404, "not_found", `grid ${body.gridId} not found`);
+          $set["meta.share.gridId"] = String(body.gridId);
+        }
+      }
+      if ("timeZone" in body) {
+        if (body.timeZone == null) $unset["meta.share.timeZone"] = 1;
+        else if (!validZone(body.timeZone)) return err(res, 400, "validation_error", `not a timezone: ${body.timeZone}`);
+        else $set["meta.share.timeZone"] = body.timeZone;
+      }
+      if (!Object.keys($set).length && !Object.keys($unset).length) {
+        return err(res, 400, "validation_error", "send gridId and/or timeZone");
+      }
+      await User.updateOne({ _id: req.userId }, { ...(Object.keys($set).length ? { $set } : {}), ...(Object.keys($unset).length ? { $unset } : {}) });
+      const user = await User.findById(req.userId).lean();
+      res.json({ gridId: user?.meta?.share?.gridId || null, timeZone: user?.meta?.share?.timeZone || null });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── Recent shares (D16) — the same log the Imports tab shows ─────────────
+  router.get("/grids/:id/shares", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const grid = await Grid.findOne({ _id: req.params.id, userId: req.userId }, { shareLog: 1 }).lean().catch(() => null);
+      if (!grid) return err(res, 404, "not_found", "Grid not found");
+      res.json({ shares: [...(grid.shareLog || [])].reverse() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── API tokens: list and revoke your own ─────────────────────────────────
+  // A token that leaks (pasted into a chat, a log) could only be revoked by
+  // hand in Mongo. Listing never returns a secret — only the stored hash
+  // exists, and it is not sent either. Minting stays a server-side script: a
+  // token able to mint tokens could make a leak permanent.
+  router.get("/tokens", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const docs = await ApiToken.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+      res.json({ tokens: docs.map(t => ({
+        tokenId: t.tokenId, name: t.name, scopes: t.scopes, revoked: !!t.revoked,
+        lastUsedAt: t.lastUsedAt, createdAt: t.createdAt,
+        current: t.tokenId === req.apiToken?.tokenId,
+      })) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/tokens/:tokenId", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const r = await ApiToken.updateOne({ tokenId: req.params.tokenId, userId: req.userId }, { $set: { revoked: true } });
+      if (!r.matchedCount) return err(res, 404, "not_found", "Token not found");
+      res.json({ ok: true, tokenId: req.params.tokenId, revoked: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
   // ====================================================================

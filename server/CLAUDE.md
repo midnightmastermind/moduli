@@ -2,6 +2,18 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (6) — /api/v1 gaps closed; webhook secrets no longer leak)
+- **`GET /{modules,fields,folders,operations,views,manifests}/:id`** — only occurrences had a single read.
+- **Webhook secrets were returned in plain text** by `GET /operations` and `PATCH /operations/:id` (the
+  route that sets one already masked it). `maskOp` masks every REST response carrying an operation.
+- **`GET/PATCH /me/share`** — `user.meta.share.{gridId,timeZone}` (D10) was read by /share and settable
+  by nothing. Grid ownership and zone validity are checked; null clears.
+- **`GET /grids/:id/shares`** — the share log (newest first).
+- **`GET /tokens`, `DELETE /tokens/:tokenId`** — list/revoke your own tokens (no secret or hash sent).
+  Minting stays a server-side script: a token that can mint tokens makes a leak permanent.
+- OpenAPI doc: GET-by-id on every CRUD resource, plus the share and token routes.
+- `__tests__/apiGaps.test.js`: real HTTP, real auth middleware. A/B: unmasking the list fails the secret test.
+
 ## Recent Changes (2026-09-24 (5) — calendar invites can be shared, Plan 2)
 - **`services/icsImport.js`** (`parseIcs`, node-ical): timezone-correct; zoneless values read as written.
 - **`services/slotSnap.js`** (`floorToSlot`, FLOOR not nearest) + a server twin of the client's
