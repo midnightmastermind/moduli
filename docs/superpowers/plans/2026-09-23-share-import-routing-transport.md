@@ -21,7 +21,7 @@
 | 3 stash | done — differently, see below |
 | 4 manifest + worker + pending page | done; **needs the on-phone check (Step 6)** |
 | 5 Windows open-with + webcal | done in code (manifest + `launchQueue`); needs the on-Windows check |
-| 6 seed poms' rules | next |
+| 6 seed poms' rules | **done 2026-09-24** (data, via the API): ics → Tasks › Appointments, link → Bookmarks, image, video; the `*` catch-all mints itself on the first share. Needs Step 2's by-sharing check after deploy |
 
 **Where the code differs from the sketches:**
 - **No IndexedDB stash.** The worker keeps the ORIGINAL share form in Cache Storage
