@@ -19,6 +19,7 @@ import GridMosaic from "./modules/GridMosaic";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
 import { allPanelOccIds, treeToCells } from "./helpers/bspTree";
+import { trackLastPanel, getLastPanelId } from "./helpers/lastPanel";
 
 import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
@@ -784,15 +785,9 @@ function GridInner() {
   // it ADDS a row/col and moves the panel into the new track (Win+Arrow
   // semantics — the vacated cell stays free for new panels). Tablet landscape
   // gets the drag-to-edge variant (DragProvider getSnapEdge → snapPanelToEdge).
-  const lastPanelIdRef = useRef(null);
-  useEffect(() => {
-    const onDown = (e) => {
-      const el = e.target?.closest?.("[data-panel-id]");
-      if (el) lastPanelIdRef.current = el.getAttribute("data-panel-id");
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, []);
+  // The last-clicked panel is shared state (helpers/lastPanel) — the Command
+  // Center's Imports tab opens a shared item there too.
+  useEffect(() => trackLastPanel(), []);
 
   useEffect(() => {
     if (isMobileLayout) return;   // mobile pages one panel at a time; no regions
@@ -803,7 +798,7 @@ function GridInner() {
       if (!direction) return;
       const ae = document.activeElement;
       if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
-      const panel = visiblePanels.find((p) => p.id === lastPanelIdRef.current) || visiblePanels[0];
+      const panel = visiblePanels.find((p) => p.id === getLastPanelId()) || visiblePanels[0];
       const occ = panel?._occurrenceId ? occurrencesById?.[panel._occurrenceId] : null;
       if (!occ) return;
       e.preventDefault();
@@ -834,7 +829,7 @@ function GridInner() {
   useEffect(() => {
     if (isMobileLayout) return;
     const mark = (on) => {
-      const id = lastPanelIdRef.current;
+      const id = getLastPanelId();
       document
         .querySelectorAll("[data-snap-target]")
         .forEach((el) => el.removeAttribute("data-snap-target"));

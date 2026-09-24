@@ -16,12 +16,12 @@
 
 | task | state |
 |---|---|
-| 1 verify on device | **installability confirmed by the user** (Android/Chrome, Windows/Edge); share-sheet and "Open with" can only be checked after this deploys |
+| 1 verify on device | installability confirmed (Android/Chrome, Windows/Edge). **Windows share verified 2026-09-24**: three real clinic invites shared from Windows landed (`source: windows` in poms' shareLog, rows in Tasks › Appointments). **Android share sheet: not yet exercised.** |
 | 2 upload cap | done (with the engine plan's file shares) |
 | 3 stash | done — differently, see below |
 | 4 manifest + worker + pending page | done; **needs the on-phone check (Step 6)** |
-| 5 Windows open-with + webcal | done in code (manifest + `launchQueue`); needs the on-Windows check |
-| 6 seed poms' rules | **done 2026-09-24** (data, via the API): ics → Tasks › Appointments, link → Bookmarks, image, video; the `*` catch-all mints itself on the first share. Needs Step 2's by-sharing check after deploy |
+| 5 Windows open-with + webcal | done in code; the Windows SHARE path is verified (above); "Open with" and `webcal://` not separately exercised |
+| 6 seed poms' rules | **done 2026-09-24** (data, via the API): ics → Tasks › Appointments (Schedule Type = the new `Appointment` row), link → Bookmarks, YouTube → YouTube folder (bookmark), text/clips → Lookup, pdf → Documents, image → Files/Images, video → Files, `*` → Files. The ics rule is exercised by real shares; the others by the extension clips |
 
 **Where the code differs from the sketches:**
 - **No IndexedDB stash.** The worker keeps the ORIGINAL share form in Cache Storage

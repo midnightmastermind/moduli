@@ -18,6 +18,12 @@ vi.mock("../blocks", () => ({
   PipelineEditor: ({ pipeline }) => <div data-testid="pipeline-editor">{(pipeline?.steps || []).length} steps</div>,
 }));
 
+const opened = [];
+vi.mock("../helpers/openOccurrenceInPanel", () => ({
+  openOccurrenceInPanel: (args) => { opened.push(args); return { ok: true }; },
+}));
+vi.mock("sonner", () => ({ toast: () => {} }));
+
 let STATE;
 vi.mock("../GridActionsContext", () => ({
   useGridActions: () => ({
@@ -35,7 +41,7 @@ const rule = (id, name, shareType, priority, extra = {}) => ({
 });
 
 beforeEach(() => {
-  created.length = 0; updated.length = 0; deleted.length = 0;
+  created.length = 0; updated.length = 0; deleted.length = 0; opened.length = 0;
   STATE = {
     gridId: "g1",
     operations: [
@@ -44,18 +50,30 @@ beforeEach(() => {
       { id: "x", name: "Unrelated op", gridId: "g1", triggerObjects: [{ eventType: "onLoad" }] },
     ],
     fields: [],
-    grid: { shareLog: [
+    grid: { occurrences: ["p1", "p2"], shareLog: [
+      { at: "2026-09-24T11:00:00Z", type: "ics", source: "windows", label: "invite.ics", status: "landed",
+        fileOccurrenceId: "f1", notices: ["Recurring event — only the first occurrence was imported."],
+        rules: [{ ruleId: "i", ruleName: "Share: calendar", ok: true, created: [{ occurrenceId: "o1", status: "created" }] }] },
       { at: "2026-09-24T12:00:00Z", type: "link", source: "extension", label: "Older", status: "landed",
         rules: [{ ruleId: "c", ruleName: "Share: anything else", ok: true, created: [{ occurrenceId: "o1", status: "created" }] }] },
       { at: "2026-09-24T13:00:00Z", type: null, source: "api", label: "Newer", status: "failed",
         error: "this grid has no Files folder", rules: [] },
     ]},
-    occurrencesById: { o1: { id: "o1", label: "About Alan Watts", parentId: "files" } },
+    occurrencesById: {
+      o1: { id: "o1", label: "About Alan Watts", parentId: "files" },
+      p1: { id: "p1", moduleId: "panelModA" }, p2: { id: "p2", moduleId: "panelModB" },
+      f1: { id: "f1", label: "invite.ics", parentId: "files" },
+    },
     foldersById: { files: { id: "files", name: "Files" } },
   };
 });
 
 describe("ImportsTab — rules", () => {
+  it("opens on the first rule instead of an empty editor", () => {
+    render(<ImportsTab />);
+    expect(screen.getByLabelText("Rule name").value).toBe("Share: links");
+  });
+
   it("lists only share rules, in run order (typed first, catch-all last)", () => {
     render(<ImportsTab />);
     const names = screen.getAllByRole("button").map(b => b.textContent);
@@ -68,7 +86,7 @@ describe("ImportsTab — rules", () => {
 
   it("adds a rule as an onShare OPERATION, and does not offer a type already taken (D8)", () => {
     render(<ImportsTab />);
-    fireEvent.click(screen.getByText(/Rule for a type/));
+    fireEvent.click(screen.getByText(/Add rule/));
     expect(screen.queryByRole("button", { name: "Link" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Calendar (.ics)" }));
     expect(created).toHaveLength(1);
@@ -79,7 +97,7 @@ describe("ImportsTab — rules", () => {
   it("the halt checkbox adds the $share.handled step, and Save marks the rule the user's", () => {
     render(<ImportsTab />);
     fireEvent.click(screen.getByText("Share: links"));
-    fireEvent.click(screen.getByLabelText(/stop here/));
+    fireEvent.click(screen.getByLabelText(/Stop here/));
     fireEvent.click(screen.getByText(/Save/));
     expect(updated).toHaveLength(1);
     expect(updated[0].pipeline.steps.at(-1).config).toEqual({ type: "SET_VAR", name: "$share.handled", value: "true" });
@@ -101,7 +119,27 @@ describe("ImportsTab — recent shares", () => {
     const text = screen.getByTestId("imports-tab").textContent;
     expect(text.indexOf("Newer")).toBeLessThan(text.indexOf("Older"));
     expect(text).toMatch(/no Files folder/);
-    expect(text).toMatch(/created “About Alan Watts” in Files folder/);
+    expect(text).toMatch(/created\s*About Alan Watts\s*in Files folder/);
+  });
+
+  it("says the shared FILE was saved too, and shows an invite's notices", () => {
+    render(<ImportsTab />);
+    fireEvent.click(screen.getByText(/Recent shares/));
+    const text = screen.getByTestId("imports-tab").textContent;
+    expect(text).toMatch(/saved the file\s*invite\.ics/);
+    expect(text).toMatch(/only the first occurrence was imported/);
+  });
+
+  it("a created row links to it: opens it in the panel last clicked", async () => {
+    const { _setLastPanelId } = await import("../helpers/lastPanel");
+    _setLastPanelId("panelModB");
+    render(<ImportsTab />);
+    fireEvent.click(screen.getByText(/Recent shares/));
+    fireEvent.click(screen.getAllByTitle("Open it in the panel you last used")[0]);
+    expect(opened).toHaveLength(1);
+    expect(opened[0].occId).toBe("o1");
+    expect(opened[0].panelOccurrence.id).toBe("p2");   // the LAST-clicked panel, not the first
+    _setLastPanelId(null);
   });
 
   it("offers no re-run — the log keeps no content to re-run (D16)", () => {

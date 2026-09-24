@@ -2,6 +2,18 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 — Imports tab clean-up; a log row opens what it made)
+- **`commandCenter/ImportsTab.jsx`** — header is one row (Rules / Recent shares tabs left, "Shares land
+  in" right). The rules list auto-selects its first rule (no empty "pick a rule" pane) and drops the type
+  chip when the rule's name already says it. The editor is two rows (name + Save/Delete, then "Runs for" /
+  Enabled / Stop here); the readable `$share.*` values fold into a `<details>`. Buttons are inline-flex, so
+  an icon no longer stacks above its label.
+- **Recent shares:** each created row is a LINK (spec §8a) that opens it with `openOccurrenceInPanel` in the
+  panel you last clicked (`helpers/lastPanel`, which Grid's Ctrl+Alt snap now shares); a deleted row says
+  "(since deleted)". The shared FILE gets its own "saved the file" line (a file share "added 2 things" read
+  as a duplicate), and ics `notices` are shown — both were recorded by the server and never displayed.
+- Checked by rendering the tab in a real browser against a stub context, not only in jsdom.
+
 ## Recent Changes (2026-09-24 (2) — sharing from the phone / Windows)
 - **`ui/SharePending.jsx`** (routes `/share-pending`, `/share-target`, own entry in `main.jsx`, works signed
   out): takes a share from the service worker's stash, a `webcal://` link or Windows "Open with" files

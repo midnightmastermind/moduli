@@ -34,7 +34,7 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
 | 6 catch-all bootstrap | done — adapted | same |
 | 7 `POST /share` | done — links, text **and files** (files added 2026-09-24) | merged via PR |
 | 8 Imports tab — rules editor | done — see deviations | merged via PR |
-| 9 Imports tab — recent-shares log | done — see deviations | merged via PR |
+| 9 Imports tab — recent-shares log | done — see deviations. 2026-09-24: each created row now LINKS to it (opens in the last-clicked panel, spec §8a), the saved file and ics notices are shown | merged via PR |
 | 10 re-route the extension | done — **verified on prod 2026-09-24** (Firefox, test grid 2) | merged |
 
 **Where the sketches below did not match the code** (the code is what shipped):
@@ -49,7 +49,7 @@ Plan 1 ends with: **right-click clip in the browser → a rule you wrote → a r
   idempotent on its bytes (`sha256:<hash>` stamped on the occurrence), since the upload route makes a
   new placement every time. Plan 3's Task 2 (500 MB share cap, `config/uploadLimits.js`) is done here
   too, plus `deploy/nginx/moduli.conf` raising nginx's 64 MB cap for `/api/v1/share` only — the LIVE
-  nginx config needs that edit by hand (it was installed once by provision.sh).
+  nginx config needs that edit by hand (it was installed once by provision.sh) — **done by the user 2026-09-24**.
 - `User` had no `meta`; `meta.share.gridId` (D10) is now a field.
 - **Decision 2026-09-24 (user: "add pdfs to the documents folder"):** `serverExecutor` gains
   `MOVE_OCCURRENCE` (the client's config: `occurrenceIdExpr`, `toContainerId`) — a shared FILE is uploaded
