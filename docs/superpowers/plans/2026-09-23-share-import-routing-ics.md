@@ -19,7 +19,7 @@
 | 1 parse, timezone-correct | done — `node-ical` 0.27 |
 | 2 floor onto slot labels | done |
 | 3 wire ics into ingress | done |
-| 4 the ics rule + reaching the Schedule | **verified on prod 2026-09-24** (test grid 2, by the API): a 2:17pm invite → one row in Tasks › Appointments, Date 2026-09-26, Time Slot **2:00pm**, Duration 60, Appointment Type BOUND with no value, listed by its container, logged `landed`, present in the warm cache. Test rows removed. **Still to watch:** the Schedule page placing it (needs the Schedule op to run on that date in a browser). |
+| 4 the ics rule + reaching the Schedule | **verified on prod 2026-09-24** (test grid 2, by the API): a 2:17pm invite → one row in Tasks › Appointments, Date 2026-09-26, Time Slot **2:00pm**, Duration 60, Appointment Type BOUND with no value, listed by its container, logged `landed`, present in the warm cache. Test rows removed. **Still to watch:** the Schedule page placing it (needs the Schedule op to run on that date in a browser). **Real invites 2026-09-24:** three clinic invites from Windows landed; they exposed `SUMMARY;LANGUAGE=` (fixed: `icsText`) and `DTEND == DTSTART` (now no duration), and the rule now sets Schedule Type = `Appointment`. |
 
 **Where the code differs from the sketches below:**
 - **Library:** node-ical passed every zoned case, including Outlook's WINDOWS zone names ("Central
