@@ -288,11 +288,17 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ folders });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+  // Folders, manifests, views and operations mirror into / evict from the warm
+  // cache like every other REST write (invariant (1) above). They did not until
+  // 2026-09-24: a rule created through the API ran (the rule engine reads
+  // Mongo) but was missing from the Imports tab until the server restarted,
+  // because `full_state` is served from the cache.
   router.post("/folders", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       const id = body.id || uid();
       const doc = await Folder.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "folder", doc.toObject());
       io.to(userRoom(req.userId)).emit("folder_created", { folder: doc.toObject() });
       res.status(201).json({ folder: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -301,6 +307,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await Folder.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "Folder not found");
+      mirrorToCache(req.userId, next.gridId, "folder", next);
       io.to(userRoom(req.userId)).emit("folder_updated", { folder: next });
       res.json({ folder: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -309,6 +316,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Folder.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Folder not found");
+      evictFromCache(req.userId, doomed.gridId, "folder", req.params.id);
       io.to(userRoom(req.userId)).emit("folder_deleted", { folderId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -331,6 +339,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const body = req.body || {};
       const id = body.id || uid();
       const doc = await Manifest.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "manifest", doc.toObject());
       io.to(userRoom(req.userId)).emit("manifest_created", { manifest: doc.toObject() });
       res.status(201).json({ manifest: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -339,6 +348,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await Manifest.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "Manifest not found");
+      mirrorToCache(req.userId, next.gridId, "manifest", next);
       io.to(userRoom(req.userId)).emit("manifest_updated", { manifest: next });
       res.json({ manifest: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -347,6 +357,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Manifest.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Manifest not found");
+      evictFromCache(req.userId, doomed.gridId, "manifest", req.params.id);
       io.to(userRoom(req.userId)).emit("manifest_deleted", { manifestId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -369,6 +380,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
       const id = body.id || uid();
       const doc = await View.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "view", doc.toObject());
       io.to(userRoom(req.userId)).emit("view_created", { view: doc.toObject() });
       res.status(201).json({ view: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -377,6 +389,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await View.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "View not found");
+      mirrorToCache(req.userId, next.gridId, "view", next);
       io.to(userRoom(req.userId)).emit("view_updated", { view: next });
       res.json({ view: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -385,6 +398,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await View.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "View not found");
+      evictFromCache(req.userId, doomed.gridId, "view", req.params.id);
       io.to(userRoom(req.userId)).emit("view_deleted", { viewId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -751,6 +765,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!body.name) return err(res, 400, "validation_error", "name required");
       const id = body.id || uid();
       const doc = await Operation.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "operation", doc.toObject());
       io.to(userRoom(req.userId)).emit("operation_created", { operation: doc.toObject() });
       res.status(201).json({ operation: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -764,6 +779,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Operation not found");
+      mirrorToCache(req.userId, next.gridId, "operation", next);
       io.to(userRoom(req.userId)).emit("operation_updated", { operation: next });
       res.json({ operation: maskOp(next) });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -773,6 +789,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Operation.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Operation not found");
+      evictFromCache(req.userId, doomed.gridId, "operation", req.params.id);
       io.to(userRoom(req.userId)).emit("operation_deleted", { operationId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
