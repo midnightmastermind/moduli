@@ -33,6 +33,7 @@ import Folder from "../models/Folder.js";
 import View from "../models/View.js";
 import Manifest from "../models/Manifest.js";
 import { cloneSubtree } from "../utils/cloneSubtree.js";
+import { mintOccurrence } from "../services/occurrenceMint.js";
 
 import { apiAuth } from "../middleware/apiAuth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -1010,72 +1011,47 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
             continue;
           }
 
-          const existing = await Occurrence.findOne({
-            userId: req.userId, gridId,
-            "meta.source": source, "meta.externalId": externalId,
-          }).lean();
-
           const onExisting = rec.onExisting || body.onExisting || "skip";
 
-          if (existing) {
-            if (onExisting === "skip") {
-              results.push({ ok: true, externalId, status: "skipped", occurrenceId: existing.id });
-              continue;
-            }
-            // "update" merges the incoming fields over what is there;
-            // "replace" takes the incoming set as authoritative. Neither
-            // touches parentId — a row you have since moved by hand stays
-            // where you put it.
-            const nextFields = onExisting === "replace"
-              ? (rec.fields || {})
-              : { ...(existing.fields || {}), ...(rec.fields || {}) };
-            const updated = await Occurrence.findOneAndUpdate(
-              { id: existing.id, userId: req.userId },
-              {
-                $set: {
-                  fields: nextFields,
-                  ...(rec.label !== undefined ? { label: rec.label } : {}),
-                  meta: {
-                    ...(existing.meta || {}), ...(rec.meta || {}),
-                    source, externalId, ingestedAt: new Date().toISOString(),
-                  },
-                },
-              },
-              { returnDocument: "after", lean: true },
-            );
-            mirrorToCache(req.userId, gridId, "occurrence", updated);
-            io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: updated });
-            results.push({ ok: true, externalId, status: "updated", occurrenceId: updated.id });
-            continue;
-          }
-
-          const mod = await resolveModule(rec);
-          if (!mod) {
-            results.push({ ok: false, externalId, status: "error", error: "moduleId or moduleLabel required (module not found)" });
-            continue;
-          }
-
-          const id = rec.id || ingestOccId(source, externalId);
-          const doc = await Occurrence.create({
-            id, userId: req.userId, gridId,
-            moduleId: mod.id,
-            ...(parentId ? { parentId } : {}),
-            label: rec.label ?? null,
-            fields: rec.fields || {},
-            meta: {
-              ...(rec.meta || {}),
-              source, externalId, ingestedAt: new Date().toISOString(),
+          // Delegated to the ONE mint implementation (occurrenceMint.js) so
+          // this route and the share engine's future CREATE action cannot
+          // grow two copies of "find-or-create a module, then mint an
+          // occurrence under a parent". `resolveModule` is invoked lazily,
+          // ONLY when no existing (source, externalId) row is found — that
+          // preserves this route's original order, where a "skip"-mode
+          // record never touches the Module collection at all.
+          //
+          // `parentExists` and `linkToParent` hand mintOccurrence THIS
+          // route's own already-warmed, batch-scoped cache and its atomic
+          // `linkIntoParent` (the `$push`/`{$ne: childId}` guard used at 8
+          // other call sites in this file) — the same injection technique as
+          // `resolveModule`/`mirror`, so this call gets both the batch-cache
+          // performance (no second, uncached `Occurrence.exists` per record)
+          // and the atomicity `linkIntoParent` exists to guarantee, rather
+          // than mintOccurrence's own standalone fallbacks for either.
+          const result = await mintOccurrence({
+            userId: req.userId, gridId, label: rec.label ?? null, parentId,
+            resolveModule: async () => {
+              const mod = await resolveModule(rec);
+              if (!mod) throw new Error("moduleId or moduleLabel required (module not found)");
+              return mod;
             },
+            parentExists,
+            linkToParent: ({ childId, index }) => linkIntoParent({
+              userId: req.userId, parentId, childId, index,
+            }),
+            fields: rec.fields || {},
+            occurrenceId: rec.id || ingestOccId(source, externalId),
+            index: rec.index,
+            externalId, source, onExisting,
+            meta: rec.meta || {},
+            io,
+            mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
           });
-          const obj = doc.toObject();
-          mirrorToCache(req.userId, gridId, "occurrence", obj);
-          io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: obj });
-          const parent = await linkIntoParent({
-            userId: req.userId, parentId, childId: id, index: rec.index,
-          });
+
           results.push({
-            ok: true, externalId, status: "created", occurrenceId: id,
-            linkedToParent: !!parent,
+            ok: true, externalId, status: result.status, occurrenceId: result.occurrenceId,
+            ...(result.status === "created" ? { linkedToParent: !!result.linked } : {}),
           });
         } catch (recErr) {
           // A duplicate key here means a concurrent request for the same
