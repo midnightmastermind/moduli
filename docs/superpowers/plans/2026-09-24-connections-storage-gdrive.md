@@ -70,6 +70,25 @@ OAuth 2.0 web flow, scope **`drive.file`** — the app can only see files IT cre
 your Drive. (It is also the scope Google does not put through a security review.) The refresh token
 is encrypted with `Secret.js`. Revoked or expired → the connection shows **Reconnect**.
 
+### 2.6 Connections in operations (user, 2026-09-24: *"these connections and what we can do like
+upload download etc, should be available in operations as well"*)
+A new **Files & storage** category in the action picker (`ui/actionTree.js`, beside Outbound), every
+action taking a **connection** chosen from a picker of your connections (Server, each Drive, each folder):
+
+| action | does | result var |
+|---|---|---|
+| `FILE_SAVE` | store bytes in a connection: an artifact's file, a URL's content, or text → a file | `{ ref, url, name, size }` |
+| `FILE_FETCH` | bring a file in from a connection (by path or id) or a URL → a new artifact row in a container/folder | `{ occurrenceId, fileRef }` |
+| `FILE_LIST` | list a connection folder | array of `{ name, ref, size, mime, modifiedAt }` — LOOP over it |
+| `FILE_MOVE` | move an artifact's bytes to another connection, repointing `fileRef` (Task 9, one file) | `{ ref }` |
+| `FILE_DELETE` | remove a file from a connection | `{ ok }` |
+
+**Where they run:** the backends and tokens live only on the server. The **server executor** calls the
+storage service directly (so share rules can use them — e.g. "save every shared PDF to Drive"); the
+**client executor** suspends and calls one REST route (`POST /api/v1/storage/actions`), the pattern
+`CALL_API` and `IMPORT_TEXT` already use. One implementation of each action, on the server.
+Every action checks the connection belongs to the op's user and the target row to the op's grid.
+
 ---
 
 ## 3. Tasks (in order — each shippable alone)
@@ -86,6 +105,7 @@ is encrypted with `Secret.js`. Revoked or expired → the connection shows **Rec
 | 8 | **Revamped Connections tab.** Sections: **Storage** (a card per connection, a "Default for new uploads" choice, health, "Connect Google Drive", usage: count + total size per connection); **Upload** (kept); **Folders** (the old path browser, only if a `folder` connection exists — otherwise gone). | Rendered in a real browser before shipping, like the Imports tab. |
 | 9 | **Move existing files** — `scripts/moveUploads.js --to <connectionId> [--apply]`: copy → verify by SHA-256 read-back → repoint `fileRef` → only then delete the local copy (a separate `--delete-local` flag). Dry run by default, resumable, logs every file. | This is what actually shrinks the server. Run on poms only when you say so. |
 | 10 | **Deleting an artifact deletes its file** when no other module references the same bytes (A6), in any backend. | The other half of "disk only grows". |
+| 11 | **Operation actions (§2.6)** — `FILE_SAVE / FETCH / LIST / MOVE / DELETE`: server service + `/api/v1/storage/actions`, client suspend bridge, server-executor cases, action-tree category with a connection picker, and the `$share.*`-style result shapes documented in the picker. | After 5 (needs a second backend to be worth testing). Tests drive both executors against the mocked Drive. |
 
 ---
 
@@ -119,10 +139,12 @@ is encrypted with `Secret.js`. Revoked or expired → the connection shows **Rec
 
 ## 6. Out of scope (v1)
 Dropbox / S3 / OneDrive backends (the interface makes each one file later); per-grid defaults; storage
-quotas; importing files that already exist in your Drive (only files uploaded through Moduli).
+quotas; importing files that already exist in your Drive beyond what `drive.file` allows (only files
+Moduli created, or ones you pick with Google's file picker — a later add); a trigger that fires when a
+file appears in a Drive folder (needs polling or Drive push notifications — its own plan).
 
 ## Progress
 
 | task | state |
 |---|---|
-| 1–10 | not started |
+| 1–11 | not started |
