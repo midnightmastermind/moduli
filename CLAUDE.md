@@ -15,6 +15,128 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-23 (6) — THE MIND AREA, BY CLICKING; and the picker that pre-ticks was never a bug
+
+Rebuild-via-UI, next area **Mind** — the first of the areas the coverage report
+named. Eight board pages (`Verses · Practices · Topics · Skills · Ideas ·
+Courses · Readings · Prompts`), their containers and their rows, every one
+created through the app.
+
+**AND THE COVERAGE NUMBER WAS WRONG, WHICH IS THE FIRST THING TO FIX.** Entry (3)
+reported *"180 of 197 distinct poms page names have no counterpart"* and read
+that as the work remaining. Broken down by FOLDER rather than counted, most of it
+is explicitly out of the agreed scope:
+```
+Root/Documents/Codex (+ its 8 subfolders)   84   imported documents
+display pages (bookmarks, articles)         21   importer output
+Root/Boards/* · Library · Projects         ~50   the STRUCTURE — the actual scope
+```
+So the honest target is **~50 pages, not 180** — the rest came from uploads and
+importers, which the scope decision already excluded. Mind is 8 of that 50.
+
+**THE OPTIONS CAME FIRST, through the Fields tab's manual options editor** — the
+rebuild grid offered `meal · ingredient`, poms has 48. The eight Mind values were
+typed into `Add option (Enter)` and saved, read back out of state AND Mongo. That
+is what makes a Mind board a materialized view over its tag rather than a list of
+names.
+
+**A SUBFOLDER CANNOT BE CREATED IN PLACE — reported, not fixed.** `Mind` belongs
+under `Boards`, and the tree offers no way to put it there directly:
+```
+the folder's own right-click   New page… · Open folder page · Rename ·
+                               Set cover… · Delete folder      <- no "New folder"
+the tree header's + button     handleCreateFolder, which HARDCODES
+                               parentId: manifest.rootFolderId
+```
+Every folder is therefore born at the root. The workaround is the designed one and
+it works — create at root, rename by double-click (the 09-22 (9) empty-folder fix),
+then DRAG the row onto `Boards` (`Mind parent = Boards`, read back). On a grid whose
+target is poms' four-deep folder tree that is a per-folder detour.
+
+---
+
+**THE HEADLINE IS A RETRACTION OF MY OWN: THE FIELD PICKER PRE-TICKS, AND THAT IS
+A FEATURE.** A row is `+ → Item → (pick fields) → Create`, and only the FIRST row
+of each page came out carrying `Board Category`; 24 rows had no chip at all. I
+chased it as a scroll-timing fault, shipped that, and **it changed nothing.**
+
+What the DOM said, once I read the picker's own header instead of my assumption:
+```
+first Item    "Pick fields to attach to the new instance (0 selected)"
+every later   "Pick fields to attach to the new instance (1 selected)"  <- already ticked
+```
+`QuickAddMenu` says why in its own comment — `siblingFieldBindings` pre-ticks
+whatever the row's SIBLINGS already bind, *"so the common case is one Enter and
+the uncommon case is unticking."* **My probe clicked `Board Category`
+unconditionally, so from row two onward it was UN-TICKING it.** The app was right;
+every row would have been bound had I done nothing. The probe reads the
+`(N selected)` count now and only clicks when it is 0.
+
+*A plausible fix that moves no number is evidence you have the wrong cause* — and
+this log's most-repeated shape, paid again: a mystery is a strong hint that
+something you believe is broken is not.
+
+**THE REPAIR IS THE SAME GESTURE DONE RIGHT:** each unbound row deleted through its
+radial and re-added through the container's `+` with the picker left ALONE, then
+tagged with its board's value. The rows carried nothing but a label, so nothing was
+lost.
+
+**AND THE LAST TEN VALUES FAILED FOR A DIFFERENT REASON, which the probe's own log
+named rather than my guessing.** Five boards tagged; `Courses · Readings · Prompts`
+reported `0/N` with **no "unhittable" line** — so the chip opened and the OPTION was
+not reachable. Those three values are the LAST THREE of ten in the list, below the
+popover's fold: `getBoundingClientRect` still reports a box, `elementFromPoint`
+returns whatever is on top, and the click silently misses. Scroll the option in,
+then measure:
+```
+before   Courses 0/3 · Readings 0/4 · Prompts 0/3
+after    Courses 3/3 · Readings 4/4 · Prompts 3/3
+```
+*The clipped-element trap this file records for dropdown rows and day-page cards,
+one layer further in — inside a portalled popover's own scroller.*
+
+**THE MIND AREA, READ BACK OUT OF MONGO:**
+```
+Boards/Mind   8 board pages · 8 containers · 29 rows
+bound to Board Category   29/29        valued   29/29
+Verses verse · Practices practice · Topics topic · Skills skill · Ideas idea ·
+Courses course · Readings reading · Prompts prompt
+```
+Rebuild grid **314 -> 360 occurrences · 20 -> 29 pages · 34 -> 42 containers ·
+29 -> 58 instances**, integrity **clean**. poms unchanged at its 2 pre-existing
+errors. **No code changed this session** — it is all data, built by clicking.
+
+**ONE STALE SIGNAL NEARLY BECAME A DEFECT REPORT.** prod's error log ends with five
+`ENOENT: /var/www/moduli/client/dist/index.html` stacks. The mtime settles it:
+```
+error log last write   17:56:59 UTC
+dist/index.html        written 23:07 UTC   <- a LATER deploy
+https://viafluere.com/ 200
+```
+Stale, from a window mid-deploy. *Check a log's mtime against the deploy before
+reading its tail as current* — the discipline 2026-09-18 (5) used on the
+`io is not defined` stacks.
+
+**FOUND ON POMS, NOT TOUCHED:** today's 5 PM alarm minted its Schedule instance
+(`⏰ 5 PM · Date 2026-09-23 · Time Slot 5:00pm`) with `parentId` naming today's
+5:00pm slot, and **the slot does not list it**:
+```
+alarm:* rows 11 · listed 10 · UNLISTED 1     <- today's
+the slot   lists 3 children · includes it FALSE · listed by 0
+```
+Same created-but-never-listed class as the day columns, on the alarm→schedule
+path — and one `adoptableHolders` cannot reach, because no rebuild ever retries
+that create, so nothing is refused and nothing is adopted. Almost certainly one of
+my own probe tabs firing the alarm and closing mid-burst (the documented
+create/disconnect asymmetry). It holds no writing; the repair is one
+`link_occurrence_to_parent` and is the user's call.
+
+**AND A SHELL TRAP THAT COST THREE SHELLS:** `pkill -f "<script>"` matches the
+command line of the shell RUNNING it, so it kills its own parent. Use a
+self-excluding pattern — `pgrep -f "node _mind[X].mjs"` — and kill by PID.
+
+---
+
 ### 2026-09-23 (5) — THE EMPLOYER IS DATA NOW; and a PAGE could not be renamed from the UI at all
 
 Four decisions, answered by the user and then built by clicking. The two that
