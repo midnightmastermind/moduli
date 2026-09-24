@@ -3625,3 +3625,5 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
   It went to the first manifest's root folder (possibly Templates / another grid). Now: Files › <kind>, and the tab lists where each file landed and on which storage.
 - > "can you fix the previews in the FIles images folder page. i cant see what any of the images are and clicking them does nothing (this is in the folder page)."
   Artifact cards now show the file as their preview and open on click.
+- > "could you organize the files folder a little bit more like images/import images/people images/ingrediants etc. this is for poms grid" · > "like images/books" · > "put imports in the imports folder"
+  Migration 0351 (dry run first): Files/Images/<Books|People|Ingredients|…> by what uses each image; imported article images → the Imports folder.
