@@ -14,7 +14,10 @@
 // `/api/artifacts/upload`; the share path must reuse it, not grow a second
 // uploader (engine plan, Global Constraints). Until it is extracted, a share
 // carrying a file is refused with a message that says so — never dropped.
+import fs from "fs/promises";
 import { classifyShare } from "./shareClassify.js";
+import { parseIcs } from "./icsImport.js";
+import { floorToSlot } from "./slotSnap.js";
 
 const trimTo = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -90,11 +93,20 @@ export async function prepareShare({
   files = [], url = null, text = null, title = null, label = null, shape = null,
   clip = null,
   fetchPreview = null, storeFile = null,
+  timeZone = null, resolveSlotLabels = null,
 }) {
   const { type, props } = classifyShare({ files, url, text, title });
   const enriched = { ...props, shape: shape || null };
   const cleanClip = sanitizeClip(clip);
   let sha256 = null;
+
+  // A CALENDAR is read BEFORE the file is stored — storing moves the temp file.
+  let calendar = null;
+  if (type === "ics" && files.length) {
+    const f = files[0];
+    const icsText = f.text ?? await fs.readFile(f.path, "utf8").catch(() => "");
+    calendar = await icsEvents(icsText, { timeZone, resolveSlotLabels });
+  }
 
   if (files.length) {
     if (!storeFile) {
@@ -133,8 +145,33 @@ export async function prepareShare({
     type, source,
     props: enriched,
     clip: cleanClip,
+    ...(calendar ? { events: calendar.events, notices: calendar.notices } : {}),
     label: shareLabelFor(type, enriched, label || cleanClip?.label),
     externalId: cleanClip?.externalId || shareExternalIdFor(type, enriched, { shape, sha256 }),
     receivedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * A calendar's events as a rule sees them: `$share.events[]`, each with its
+ * start FLOORED onto the grid's slot labels (D11) and its OWN identity
+ * (`ics:<UID>`), so re-sharing an edited invite moves its row instead of adding
+ * one (spec §7). Recurrence is not expanded (D12) and there is no cap (D20);
+ * both are reported in `notices`, as is a timezone that had to be guessed.
+ */
+export async function icsEvents(text, { timeZone = null, resolveSlotLabels = null } = {}) {
+  const { events, zoneGuessed } = parseIcs(text, { timeZone });
+  const needsSlots = events.some((e) => e.start?.time);
+  const slotLabels = needsSlots && resolveSlotLabels ? (await resolveSlotLabels()) || [] : [];
+  const out = events.map((e) => ({
+    ...e,
+    start: { ...e.start, timeSlot: floorToSlot(e.start.time, slotLabels) },
+    externalId: e.uid ? `ics:${e.uid}` : `ics:${e.summary}:${e.start.date}:${e.start.time ?? "allday"}`,
+  }));
+  const notices = [];
+  if (!events.length) notices.push("no events found in this calendar");
+  if (out.some((e) => e.recurring)) notices.push("recurrence not imported — first occurrence only");
+  if (zoneGuessed) notices.push("your timezone is unknown — times read in each invite's own zone");
+  if (needsSlots && !slotLabels.length) notices.push("this grid has no time slots — events have no Time Slot");
+  return { events: out, notices };
 }

@@ -1213,11 +1213,17 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     extraFiles.forEach(dropTemp);
     try {
       const body = req.body || {};
-      let gridId = body.gridId || null;
-      if (!gridId) {
-        const { default: User } = await import("../models/User.js");
-        const user = await User.findById(req.userId).lean().catch(() => null);
-        gridId = user?.meta?.share?.gridId || null;
+      const { default: User } = await import("../models/User.js");
+      const user = await User.findById(req.userId).lean().catch(() => null);
+      let gridId = body.gridId || user?.meta?.share?.gridId || null;
+      // The user's TIMEZONE, for reading a shared calendar (Plan 2). A sender
+      // that knows it (the extension, the phone's page) sends it; it is
+      // remembered so a sender that cannot (curl, Windows "open with") still
+      // gets the right day. Only a real zone name is kept.
+      const validZone = (z) => { try { return !!z && !!new Intl.DateTimeFormat("en-US", { timeZone: z }); } catch { return false; } };
+      const timeZone = validZone(body.timeZone) ? body.timeZone : (user?.meta?.share?.timeZone || null);
+      if (validZone(body.timeZone) && body.timeZone !== user?.meta?.share?.timeZone) {
+        User.updateOne({ _id: req.userId }, { $set: { "meta.share.timeZone": body.timeZone } }).catch(() => {});
       }
       if (!gridId) { dropTemp(firstFile); return err(res, 400, "validation_error", "no gridId, and no share grid is configured"); }
       const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
@@ -1263,6 +1269,11 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
             });
           } : null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
+          timeZone,
+          resolveSlotLabels: async () => {
+            const { scheduleSlotLabels } = await import("../services/scheduleSlots.js");
+            return scheduleSlotLabels({ userId: req.userId, gridId });
+          },
         });
       } catch (e) {
         await logShare(null, null, e.message);
@@ -1284,6 +1295,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         type: share.type, label: share.label, externalId: share.externalId, gridId,
         ...(share.props?.occurrenceId ? { fileOccurrenceId: share.props.occurrenceId } : {}),
         ...(extraFiles.length ? { ignoredFiles: extraFiles.map(f => f.originalname) } : {}),
+        ...(share.events ? { events: share.events.length, notices: share.notices } : {}),
         ...result,
       });
     } catch (e) { dropTemp(firstFile); err(res, 500, "internal_error", e.message); }

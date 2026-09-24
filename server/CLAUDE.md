@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (5) — calendar invites can be shared, Plan 2)
+- **`services/icsImport.js`** (`parseIcs`, node-ical): timezone-correct; zoneless values read as written.
+- **`services/slotSnap.js`** (`floorToSlot`, FLOOR not nearest) + a server twin of the client's
+  `slotLabelToMinutes`, pinned against it by a test.
+- **`services/scheduleSlots.js`**: the grid's slot vocabulary (Time Slot options, else time-shaped rows).
+- `prepareShare` parses a shared .ics into `$share.events` (floored, `ics:<UID>`) + `$share.notices`,
+  reading the file BEFORE it is stored. The route passes `timeZone` (body, else remembered in
+  `user.meta.share.timeZone`) and logs the event count + notices.
+- Executor: a CREATE in a LOOP over items with their own `externalId` is keyed on the item.
+
 ## Recent Changes (2026-09-24 (4) — files can be shared; the upload is a service now)
 - **`services/artifactUpload.js`** — `POST /api/artifacts/upload`'s body moved VERBATIM out of server.js
   (`makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom })` →

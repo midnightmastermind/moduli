@@ -27,8 +27,11 @@ export const SHARE_PROPS = {
           "$share.props.image", "$share.props.favicon", "$share.props.text", "$share.props.shape"],
   text:  ["$share.props.text", "$share.props.firstLine"],
   html:  ["$share.props.text", "$share.props.firstLine", "$share.props.html"],
-  ics:   ["$share.events", "$e.summary", "$e.start.date", "$e.start.timeSlot", "$e.durationMin",
-          "$e.location", "$e.uid"],
+  // LOOP $share.events as $e — each event is floored onto the grid's slots
+  // and keyed on its UID (a row made in the loop follows its event on re-share).
+  ics:   ["$share.events", "$share.notices", "$e.summary", "$e.start.date", "$e.start.time",
+          "$e.start.timeSlot", "$e.durationMin", "$e.allDay", "$e.location", "$e.description",
+          "$e.recurring", "$e.uid"],
   image: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.mimeType"],
   video: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.sizeBytes"],
   audio: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.sizeBytes"],

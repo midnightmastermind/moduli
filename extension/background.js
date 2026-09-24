@@ -83,6 +83,9 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
         gridId, source: "extension",
         url: record.moduleFileRef, shape: record.meta?.clipShape, title: tab?.title || null,
         text: info.selectionText || null,
+        // So a shared calendar is read in YOUR zone; the server remembers it
+        // for senders that cannot say (curl, Windows "open with").
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
         clip: record,
       }),
     });

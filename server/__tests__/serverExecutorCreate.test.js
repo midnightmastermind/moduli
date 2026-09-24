@@ -422,3 +422,20 @@ describe("CREATE written by the operations editor", () => {
     expect(minted[0].label).toBe("server");
   });
 });
+
+describe("CREATE in a loop over things with their own identity", () => {
+  it("keys each row on the ITEM's externalId, so an edited invite moves its row", async () => {
+    const pipeline = op([
+      { id: "L", type: "loop", over: "$share.events", as: "$e", body: [
+        { id: "s1", type: "action", config: { type: "CREATE", name: "$e.summary" } },
+      ]},
+    ]);
+    // The same event (UID a) in two different files — the share key differs.
+    await runOperationServerSide(pipeline, { userId: "u1", gridId: "g1",
+      vars: { $share: { externalId: "sha256:v1", events: [{ summary: "Dentist", externalId: "ics:a" }] } } });
+    await runOperationServerSide(pipeline, { userId: "u1", gridId: "g1",
+      vars: { $share: { externalId: "sha256:v2", events: [{ summary: "Dentist (moved)", externalId: "ics:a" }] } } });
+    expect(minted[0].externalId).toBe("ics:a::s1");
+    expect(minted[1].externalId).toBe("ics:a::s1");
+  });
+});

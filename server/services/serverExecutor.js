@@ -220,6 +220,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
   // Loop positions of the step being run, outermost first — part of a CREATE's
   // default share key, so a LOOP of creates does not collapse to one row.
   const loopPath = [];
+  const loopItems = [];
   const opts = { userId };
 
   async function executeStep(step) {
@@ -312,8 +313,15 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       // The editor has no externalId box. Inside a share rule, a row with none
       // is keyed on the share + THIS step (+ loop position), so re-sharing the
       // same thing updates the same row instead of refusing or duplicating.
-      if (!externalId && $vars.$share?.externalId) {
-        externalId = [$vars.$share.externalId, step.id || "create", ...loopPath].join("::");
+      //
+      // Inside a LOOP over things that carry their own identity (a calendar's
+      // events: `ics:<UID>`), THAT identity is the key — the share's own is
+      // the file's bytes, which change when an invite is edited, and an edited
+      // invite must MOVE its row, not add a second one (spec §7).
+      if (!externalId && $vars.$share) {
+        const owned = [...loopItems].reverse().find(it => typeof it?.externalId === "string" && it.externalId);
+        if (owned) externalId = [owned.externalId, step.id || "create"].join("::");
+        else if ($vars.$share.externalId) externalId = [$vars.$share.externalId, step.id || "create", ...loopPath].join("::");
       }
 
       // Values, resolved one at a time so a $var in any of them works.
@@ -473,9 +481,10 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
           $vars[as] = items[i];
           $vars[`${as}.__index`] = i;
           loopPath.push(i);
+          loopItems.push(items[i]);
           try {
             for (const s of step.body || []) await executeStep(s);
-          } finally { loopPath.pop(); }
+          } finally { loopPath.pop(); loopItems.pop(); }
         }
       }
       return;

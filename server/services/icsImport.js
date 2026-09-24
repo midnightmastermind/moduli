@@ -44,18 +44,35 @@ function inZone(d, timeZone) {
   };
 }
 
-export function parseIcs(text, { timeZone = "UTC" } = {}) {
+const isZone = (z) => {
+  if (!z || typeof z !== "string") return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return true; } catch { return false; }
+};
+
+/**
+ * @param timeZone the USER's zone. When it is unknown (null), each event is
+ *   read in the zone its own invite names — the time the invite shows — and
+ *   `zoneGuessed` is set so the caller can say so. UTC is the last resort.
+ */
+export function parseIcs(text, { timeZone = null } = {}) {
   let parsed;
   try { parsed = ical.sync.parseICS(String(text || "")); }
-  catch { return { events: [], skipped: 0 }; }
+  catch { return { events: [], skipped: 0, zoneGuessed: false }; }
 
+  const userZone = isZone(timeZone) ? timeZone : null;
+  let zoneGuessed = false;
   const events = [];
   for (const v of Object.values(parsed || {})) {
     if (!v || v.type !== "VEVENT" || !v.start) continue;
 
     const allDay = v.datetype === "date";
-    const s = inZone(v.start, timeZone);
-    const e = v.end ? inZone(v.end, timeZone) : null;
+    let zone = userZone;
+    if (!zone) {
+      zoneGuessed = true;
+      zone = isZone(v.start.tz) ? v.start.tz : "UTC";
+    }
+    const s = inZone(v.start, zone);
+    const e = v.end ? inZone(v.end, zone) : null;
 
     events.push({
       summary: String(v.summary || "").trim() || "(no title)",
@@ -71,5 +88,5 @@ export function parseIcs(text, { timeZone = "UTC" } = {}) {
       recurring: !!v.rrule,          // FIRST OCCURRENCE ONLY — not expanded
     });
   }
-  return { events, skipped: 0 };
+  return { events, skipped: 0, zoneGuessed };
 }

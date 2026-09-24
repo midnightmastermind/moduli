@@ -28,6 +28,10 @@ export function shareLogEntry({ share = null, result = null, error = null, at = 
     label: clip(share?.label, 200),
     externalId: clip(share?.externalId, 300),
     halted: !!result?.halted,
+    // A calendar: how many events it held, and what was NOT done with them
+    // (recurrence, a guessed zone) — the only warning D20's "no cap" offers.
+    ...(Array.isArray(share?.events) ? { events: share.events.length } : {}),
+    ...(share?.notices?.length ? { notices: share.notices.slice(0, 5) } : {}),
     rules,
     // "landed" only when something was actually written; a share every rule
     // skipped or failed is exactly what this log exists to surface.

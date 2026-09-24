@@ -130,3 +130,22 @@ describe("parseIcs", () => {
   });
 });
 
+
+describe("parseIcs with no user zone known", () => {
+  it("reads each event in the zone its own invite names, and says it guessed", () => {
+    const r = parseIcs(wrap(
+      `BEGIN:VEVENT\r\nUID:ny\r\nSUMMARY:NY call\r\n` +
+      `DTSTART;TZID=America/New_York:20260925T220000\r\nEND:VEVENT`), { timeZone: null });
+    expect(r.events[0].start.time).toBe("22:00");
+    expect(r.zoneGuessed).toBe(true);
+  });
+  it("a known zone is not a guess", () => {
+    const r = parseIcs(wrap(`BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20260926T013000Z\r\nEND:VEVENT`), { timeZone: "America/Chicago" });
+    expect(r.zoneGuessed).toBe(false);
+  });
+  it("an invalid zone name is treated as unknown rather than throwing", () => {
+    const r = parseIcs(wrap(`BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20260926T013000Z\r\nEND:VEVENT`), { timeZone: "Not/AZone" });
+    expect(r.events[0].start.time).toBe("01:30");
+    expect(r.zoneGuessed).toBe(true);
+  });
+});
