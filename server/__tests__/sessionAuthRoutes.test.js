@@ -56,8 +56,8 @@ describe("server.js wiring", () => {
   const src = fs.readFileSync(path.resolve(__dirname, "../server.js"), "utf8");
   const routeLine = (r) => src.split("\n").find((l) => l.includes(`"${r}"`) && /app\.(get|post)\(/.test(l)) || "";
   it("every audited route authenticates, and BEFORE multer on uploads", () => {
-    for (const r of ["/api/artifacts/upload", "/api/images/upload", "/api/connections", "/api/connections/:id/files",
-                     "/api/connections/:id/import", "/api/research/wikipedia/import"]) {
+    for (const r of ["/api/artifacts/upload", "/api/images/upload", "/api/connections/google/start",
+                     "/api/connections/:id/health", "/api/research/wikipedia/import"]) {
       expect(routeLine(r), r).toMatch(/requireSession/);
     }
     for (const r of ["/api/artifacts/upload", "/api/images/upload"]) {
@@ -68,6 +68,7 @@ describe("server.js wiring", () => {
   it("no audited route reads userId from the body any more; the dead storage-settings route is gone", () => {
     expect(src).not.toMatch(/const \{[^}]*\buserId\b[^}]*\} = req\.body/);
     expect(src).not.toMatch(/app\.post\("\/api\/storage-settings"/);
-    expect(src).toMatch(/resolveInside\(conn\.path, fileName\)/);
+    // The folder-connection routes (the audit-A3 traversal surface) are gone entirely.
+    expect(src).not.toMatch(/app\.(get|post)\("\/api\/connections\/:id\/(files|import)"/);
   });
 });

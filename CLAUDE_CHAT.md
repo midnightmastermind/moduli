@@ -3619,3 +3619,5 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
 - > "could you continue what my other claude account was working on with the moving the file storage to google drive. we were on tasks 4 and 5 of the plan"
   Plan `docs/superpowers/plans/2026-09-24-connections-storage-gdrive.md`; tasks 1–3 were on the unmerged branch
   `claude/share-input-routing-plan-pigwol`, so this work builds on it. Task 4 = Google connect flow, Task 5 = Drive backend + `/files` proxy.
+- > "okay i connected it. could you get rid of the external path connection section please and tell me what to do to test this file storage feature"
+  Removed the section (and its three server routes, which pointed at dev-machine paths).
