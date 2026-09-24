@@ -70,3 +70,13 @@ describe("isExternalArtifact", () => {
     expect(isExternalArtifact({})).toBe(false);
   });
 });
+
+describe("a file stored on a storage connection (gdrive:)", () => {
+  it("resolves to the server's /files proxy, never to /uploads", () => {
+    expect(resolveFileRef("gdrive:c1:1AbC-_x")).toBe("/files/c1/1AbC-_x");
+  });
+  it("is the user's own storage — internal, not external", () => {
+    expect(isExternalFileRef("gdrive:c1:1AbC")).toBe(false);
+    expect(isExternalArtifact({ fileRef: "gdrive:c1:1AbC" })).toBe(false);
+  });
+});

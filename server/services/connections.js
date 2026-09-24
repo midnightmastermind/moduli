@@ -3,6 +3,8 @@
 // Connection collection, used by the REST routes and the storage registry.
 import Connection from "../models/Connection.js";
 import User from "../models/User.js";
+import { decryptCipherShape } from "../models/Secret.js";
+import { makeGdriveBackend } from "./storage/gdrive.js";
 
 export const SERVER_CONNECTION = Object.freeze({
   id: "server", type: "server", name: "Server", status: "ok", removable: false,
@@ -66,4 +68,36 @@ export async function removeConnection(userId, id) {
   if (!out.deletedCount) { const e = new Error(`connection ${id} not found`); e.status = 404; throw e; }
   if ((await defaultConnectionId(userId)) === id) await setDefaultConnection(userId, "server");
   return true;
+}
+
+/** A connection by id alone — for the /files proxy, which has no session. */
+export async function getConnectionById(id) {
+  if (!id || id === "server") return null;
+  return Connection.findOne({ id }).lean();
+}
+
+/** Persist what a backend learned about its connection (ok / needs_reconnect / error). */
+export async function setConnectionStatus(id, status, message = null) {
+  await Connection.updateOne({ id }, { $set: { status, statusMessage: message, lastCheckedAt: new Date() } }).catch(() => {});
+}
+
+/**
+ * The storage registry's backend factories, one per connection type. The only
+ * place a connection's credentials are decrypted.
+ */
+export function storageFactories({ fetchImpl } = {}) {
+  return {
+    gdrive: async (connection) => {
+      if (!connection?.credentials) return null;
+      const refreshToken = decryptCipherShape(connection.credentials);
+      return makeGdriveBackend({
+        connection, refreshToken, ...(fetchImpl ? { fetchImpl } : {}),
+        onStatus: async (status, message) => {
+          if (status === connection.status && (message || null) === (connection.statusMessage || null)) return;
+          connection.status = status; connection.statusMessage = message || null;
+          await setConnectionStatus(connection.id, status, message);
+        },
+      });
+    },
+  };
 }

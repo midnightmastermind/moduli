@@ -4,7 +4,7 @@
 // Collapses to tab bar only while dragging so grid is accessible
 // ============================================================
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Settings2, Workflow, Link2, Keyboard, LayoutGrid, Palette, Share2 } from "lucide-react";
 
 import { FieldsTab } from "./commandCenter/FieldsTab";
@@ -33,8 +33,9 @@ const TABS = [
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function CommandCenter({ open, onOpenChange, isMobileLayout }) {
-  const [activeTab, setActiveTab] = useState("fields");
+export default function CommandCenter({ open, onOpenChange, isMobileLayout, initialTab = null }) {
+  const [activeTab, setActiveTab] = useState(initialTab || "fields");
+  useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
 
   // Per user request: CC is centered horizontally with no side backdrop,
   // and the max height is fixed (no longer scales with active tab) so it

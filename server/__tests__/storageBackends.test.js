@@ -24,6 +24,7 @@ vi.mock("../models/View.js", () => ({ default: class { constructor(d) { Object.a
 
 const { makeArtifactUploader } = await import("../services/artifactUpload.js");
 const { makeLocalBackend } = await import("../services/storage/local.js");
+const { makeStorageRegistry } = await import("../services/storage/index.js");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "moduli-stor-"));
 const uploadsDir = path.join(tmp, "uploads");
@@ -70,7 +71,9 @@ describe("the uploader with ANOTHER backend (the seam Drive plugs into)", () => 
     id: "fake", owns: (r) => String(r).startsWith("fake:"), urlFor: (r) => `/files/${r}`,
     put: async ({ tmpPath, name }) => { received.push({ exists: fs.existsSync(tmpPath), name }); fs.unlinkSync(tmpPath); return { ref: `fake:${name}` }; },
   };
-  const uploader = makeArtifactUploader({ ...deps, storage: { backendForUpload: async () => remote, backendForRef: (r) => (remote.owns(r) ? remote : null) } });
+  const uploader = makeArtifactUploader({ ...deps, storage: makeStorageRegistry({
+    uploadsDir, factories: { fake: async () => remote }, getDefaultConnection: async () => ({ id: "fake", type: "fake" }),
+  }) });
 
   it("hands the bytes to the backend, and STILL gets EXIF + thumbnails (read from the temp file first)", async () => {
     const out = await uploader.storeUploadedFile({ file: file(tempCopy()), userId: "u1", gridId: "g1" });

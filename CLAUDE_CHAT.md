@@ -3613,3 +3613,9 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
 
 - **Connections + Google Drive storage (plan `docs/superpowers/plans/2026-09-24-connections-storage-gdrive.md`):** > "audit the connections tab, revamp it, and make it accept google drive info so we can use my google drive for storage of artifact files. the default can be what we had before but we can change it to use our other connections. this is so my server doesnt increase in size dramatically due to file uploads" · > "these connections and what we can do like upload download etc, should be available in operations as well".
   Decisions — "yes to all of those": Drive unreachable → store on the server and say so; existing uploads move only by an explicit run; the default is per USER; thumbnails stay on the server. Asked about load time → plan §2.5a (browser caching, Range streaming, bounded server cache).
+
+## 2026-09-24 (later) — Google Drive storage, tasks 4–5
+
+- > "could you continue what my other claude account was working on with the moving the file storage to google drive. we were on tasks 4 and 5 of the plan"
+  Plan `docs/superpowers/plans/2026-09-24-connections-storage-gdrive.md`; tasks 1–3 were on the unmerged branch
+  `claude/share-input-routing-plan-pigwol`, so this work builds on it. Task 4 = Google connect flow, Task 5 = Drive backend + `/files` proxy.

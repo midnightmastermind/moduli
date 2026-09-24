@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (3) — Connections tab: a Storage section (Google Drive))
+- **`commandCenter/StorageConnections.jsx` (NEW)**, rendered at the top of `ConnectionsTab`: Server + each
+  Drive, a radio for the default for NEW uploads (`PUT /api/v1/me/storage`), Connect Google Drive
+  (`POST /api/connections/google/start` → `window.location.assign`), Reconnect when health says so,
+  Disconnect (confirm). Test `__tests__/StorageConnections.test.jsx`.
+- **`CommandCenter` takes `initialTab`**; `App.jsx` reads `?connections=1&google=…` after the Google
+  redirect, opens Connections, toasts the outcome and strips the params.
+- `helpers/fileRef.resolveFileRef("gdrive:c:f")` → `/files/c/f` (internal, not external).
+
 ## Recent Changes (2026-09-24 — Imports tab clean-up; a log row opens what it made)
 - **`commandCenter/ImportsTab.jsx`** — header is one row (Rules / Recent shares tabs left, "Shares land
   in" right). The rules list auto-selects its first rule (no empty "pick a rule" pane) and drops the type

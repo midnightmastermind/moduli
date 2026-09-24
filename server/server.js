@@ -38,7 +38,9 @@ import Folder from "./models/Folder.js";
 import { resolveFilesFolderId } from "./utils/filesFolder.js";
 import { makeArtifactUploader } from "./services/artifactUpload.js";
 import { makeStorageRegistry } from "./services/storage/index.js";
-import { getConnection, defaultConnectionId } from "./services/connections.js";
+import { getConnection, defaultConnectionId, getConnectionById, storageFactories } from "./services/connections.js";
+import { googleSetupMissing, redirectUriFor, startUrl as googleStartUrl, completeConnect as googleCompleteConnect } from "./services/googleOAuth.js";
+import { serveStoredFile } from "./services/storage/serveFile.js";
 import { ARTIFACT_MAX_BYTES, SHARE_MAX_BYTES } from "./config/uploadLimits.js";
 import Operation from "./models/Operation.js";
 
@@ -585,7 +587,62 @@ async function homeFolderForUpload({ userId, gridId, parentFolderId, kind }) {
 // one registry, shared by every upload path below.
 const storageRegistry = makeStorageRegistry({
   uploadsDir,
+  factories: storageFactories(),
   getDefaultConnection: async (userId) => getConnection(userId, await defaultConnectionId(userId)),
+  getConnectionById,
+});
+
+// ── Google Drive connect flow (plan Task 4) ─────────────────────────────────
+// The app asks for the consent URL with its session (a browser navigation to
+// Google carries no Authorization header, so the user is named in a signed,
+// 15-minute `state` instead), then Google redirects back to /callback.
+app.post("/api/connections/google/start", requireSession, (req, res) => {
+  const missing = googleSetupMissing();
+  if (missing.length) return res.status(503).json({ error: "not_configured", missing,
+    message: `Google Drive is not set up on this server yet — missing ${missing.join(", ")} in server/.env.` });
+  const reconnectId = typeof req.body?.reconnectId === "string" ? req.body.reconnectId : null;
+  res.json({ url: googleStartUrl(req.userId, { redirectUri: redirectUriFor(req), reconnectId }) });
+});
+
+app.get("/api/connections/google/callback", async (req, res) => {
+  const back = (params) => res.redirect(`/?${new URLSearchParams({ connections: "1", ...params })}`);
+  if (req.query.error) return back({ google: "denied", message: String(req.query.error) });
+  try {
+    const conn = await googleCompleteConnect({ code: req.query.code, state: req.query.state, redirectUri: redirectUriFor(req) });
+    back({ google: conn.reconnected ? "reconnected" : "connected", connectionId: conn.id });
+  } catch (e) {
+    console.error("[google connect]", e.message);
+    back({ google: "error", message: e.message.slice(0, 200) });
+  }
+});
+
+// A connection's live check (the Connections tab's status dot). Also refreshes
+// the stored status, so a revoked token shows "Reconnect" without an upload failing first.
+app.get("/api/connections/:id/health", requireSession, async (req, res) => {
+  try {
+    const conn = await getConnection(req.userId, req.params.id);
+    if (!conn) return res.status(404).json({ error: "not_found" });
+    const backend = conn.id === "server" ? storageRegistry.server : await storageRegistry.backendForConnectionId(conn.id);
+    if (!backend) return res.json({ ok: false, message: "this connection type cannot be used on this server" });
+    res.json(await backend.health());
+  } catch (e) { res.status(500).json({ ok: false, message: e.message }); }
+});
+
+// ── Files stored on a connection (plan Task 5) ──────────────────────────────
+// A Drive file streams THROUGH the server: the file stays private in the
+// user's Drive and the Google token never reaches a browser. Range is honoured
+// (video seeks); a Drive file id never changes content, so it caches hard.
+app.get("/files/:connectionId/:fileId", async (req, res) => {
+  try {
+    const backend = await storageRegistry.backendForConnectionId(req.params.connectionId);
+    if (!backend || backend.type === "server") return res.status(404).json({ error: "not_found", message: "No such storage connection." });
+    await serveStoredFile(req, res, backend, `gdrive:${req.params.connectionId}:${req.params.fileId}`);
+  } catch (e) {
+    if (res.headersSent) return res.destroy(e);
+    if (e.status === 401) return res.status(502).json({ error: "needs_reconnect", message: "Google Drive needs to be reconnected (Command Center → Connections)." });
+    console.error("[files proxy]", e.message);
+    res.status(502).json({ error: "storage_error", message: e.message });
+  }
 });
 const artifactUploader = makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom, storage: storageRegistry });
 

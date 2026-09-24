@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, FolderOpen, RefreshCw, Upload, Download } fr
 
 import { useGridActions } from "../../GridActionsContext";
 import { sessionHeaders } from "../../helpers/authStorage";
+import { StorageConnections } from "./StorageConnections";
 
 const labelStyle = {
   fontSize: 10,
@@ -129,7 +130,8 @@ export function ConnectionsTab() {
 
   return (
     <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+      <StorageConnections />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, marginTop: 6 }}>
         <span style={{ ...labelStyle, fontSize: 11, color: "var(--text-muted)", marginBottom: 0 }}>
           External path connections
         </span>

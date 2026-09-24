@@ -88,7 +88,7 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
   // WHERE the bytes go is the storage registry's decision (services/storage);
   // everything below it — hash, dedup, EXIF, thumbnails, records — is backend-blind.
   const registry = storage || makeStorageRegistry({ uploadsDir });
-  const urlForRef = (ref) => registry.backendForRef(ref)?.urlFor(ref) ?? `/uploads/${ref}`;
+  const urlForRef = (ref) => (registry.urlForRef ? registry.urlForRef(ref) : registry.backendForRef(ref)?.urlFor(ref) ?? `/uploads/${ref}`);
   // Image thumbnails via sharp (files audit gap #4). Writes
   // `<sha256>-256.webp` + `<sha256>-1024.webp` into uploads/thumbnails/.
   // WebP for compression (~30% smaller than JPEG at comparable quality).
@@ -223,9 +223,8 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
     const imageMeta = extractImageMetadata(file.path, file.mimetype);
     const thumbs = await generateImageThumbnails(file.path, sha256, file.mimetype);
 
-    const backend = await registry.backendForUpload(userId);
-    const { ref: fileRef } = await backend.put({
-      tmpPath: file.path, name: file.filename, mime: file.mimetype, size: file.size, userId,
+    const { ref: fileRef, backend, fallback: storageFallback } = await registry.putForUser(userId, {
+      tmpPath: file.path, name: file.filename, originalName: file.originalname, mime: file.mimetype, size: file.size, userId,
     });
 
     const existingMod = await Module.findOne({ id: moduleId });
@@ -311,7 +310,8 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
     // Serve under /uploads/; the legacy /artifacts/ mount was removed
     // in March 2026 (see server/CLAUDE.md). The url field is purely
     // informational — clients resolve via helpers/fileRef.resolveFileRef.
-    return { sha256,  module: modObj, occurrence: occObj, fileRef, url: backend.urlFor(fileRef) };
+    return { sha256,  module: modObj, occurrence: occObj, fileRef, url: backend.urlFor(fileRef),
+      ...(storageFallback ? { storageFallback } : {}) };
   }
 
   /**
@@ -334,9 +334,8 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
    * a person's photo, a poster). Same backend choice as every upload.
    */
   async function storeBareFile({ file, userId }) {
-    const backend = await registry.backendForUpload(userId);
-    const { ref } = await backend.put({ tmpPath: file.path, name: file.filename, mime: file.mimetype, size: file.size, userId });
-    return { fileRef: ref, url: backend.urlFor(ref) };
+    const { ref, backend, fallback } = await registry.putForUser(userId, { tmpPath: file.path, name: file.filename, mime: file.mimetype, size: file.size, userId });
+    return { fileRef: ref, url: backend.urlFor(ref), ...(fallback ? { storageFallback: fallback } : {}) };
   }
 
   return { storeUploadedFile, storeFileFromPath, storeBareFile, generateImageThumbnails, storage: registry };
