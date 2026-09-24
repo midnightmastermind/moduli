@@ -217,6 +217,10 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
 
   const effects = [];
   const unsupported = [];
+  // Loop positions of the step being run, outermost first — part of a CREATE's
+  // default share key, so a LOOP of creates does not collapse to one row.
+  const loopPath = [];
+  const loopItems = [];
   const opts = { userId };
 
   async function executeStep(step) {
@@ -295,9 +299,30 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       if (!gridId) {
         throw new Error("CREATE requires gridId — runOperationServerSide was called without it");
       }
-      const parentId   = await resolveExprAsync(cfg.parentId, $vars, opts);
-      const label      = await resolveExprAsync(cfg.label, $vars, opts);
-      const externalId = await resolveExprAsync(cfg.externalId, $vars, opts);
+      // TWO SPELLINGS, ONE ACTION. The operations editor (client
+      // blocks/OperationsBuilder.jsx) and the client executor write a CREATE
+      // as `name` / `parent` / `role` / `kind` / `attachFields`; this
+      // executor was written against `label` / `parentId` / `moduleRole` /
+      // `moduleKind` / `bindFields`. A share rule built by CLICKING in the
+      // Imports tab would therefore have run here with no label and no
+      // parent — a row nothing renders. Both are read; the server's own
+      // name wins when a step carries both.
+      const parentId   = await resolveExprAsync(cfg.parentId ?? cfg.parent, $vars, opts);
+      const label      = await resolveExprAsync(cfg.label ?? cfg.name, $vars, opts);
+      let externalId   = await resolveExprAsync(cfg.externalId, $vars, opts);
+      // The editor has no externalId box. Inside a share rule, a row with none
+      // is keyed on the share + THIS step (+ loop position), so re-sharing the
+      // same thing updates the same row instead of refusing or duplicating.
+      //
+      // Inside a LOOP over things that carry their own identity (a calendar's
+      // events: `ics:<UID>`), THAT identity is the key — the share's own is
+      // the file's bytes, which change when an invite is edited, and an edited
+      // invite must MOVE its row, not add a second one (spec §7).
+      if (!externalId && $vars.$share) {
+        const owned = [...loopItems].reverse().find(it => typeof it?.externalId === "string" && it.externalId);
+        if (owned) externalId = [owned.externalId, step.id || "create"].join("::");
+        else if ($vars.$share.externalId) externalId = [$vars.$share.externalId, step.id || "create", ...loopPath].join("::");
+      }
 
       // Values, resolved one at a time so a $var in any of them works.
       //
@@ -326,8 +351,12 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       // widens that so a field can be bound with NO value — which is what puts
       // an ics row in front of `Schedule: Place Dated Work`, since that op
       // gates on `_boundFieldIds`, not on the value.
-      const bindIds = Array.isArray(cfg.bindFields) && cfg.bindFields.length
-        ? cfg.bindFields
+      const explicitBind = [
+        ...(Array.isArray(cfg.bindFields) ? cfg.bindFields : []),
+        ...(Array.isArray(cfg.attachFields) ? cfg.attachFields : []),
+      ].filter(Boolean);
+      const bindIds = explicitBind.length
+        ? [...new Set([...explicitBind, ...Object.keys(fields)])]
         : Object.keys(fields);
       const fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
 
@@ -342,10 +371,19 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         if (!folder) throw new Error(`CREATE: folder ${parentFolderId} not found on this grid`);
       }
 
-      const moduleRole = (await resolveExprAsync(cfg.moduleRole, $vars, opts)) || "instance";
-      const moduleKind = (await resolveExprAsync(cfg.moduleKind, $vars, opts)) || null;
+      const moduleRole = (await resolveExprAsync(cfg.moduleRole ?? cfg.role, $vars, opts)) || "instance";
+      const moduleKind = (await resolveExprAsync(cfg.moduleKind ?? cfg.kind, $vars, opts)) || null;
       const moduleFileRef = (await resolveExprAsync(cfg.moduleFileRef, $vars, opts)) || null;
-      const metaVal = cfg.meta ? await resolveExprAsync(cfg.meta, $vars, opts) : null;
+      // `meta` is either an expression naming an object (share rules:
+      // "$share.clip.meta") or, as the editor writes it, an object whose VALUES
+      // are expressions — resolved one by one, as the client executor does.
+      let metaVal = null;
+      if (isObject(cfg.meta)) {
+        metaVal = {};
+        for (const [k, v] of Object.entries(cfg.meta)) metaVal[k] = (await resolveExprAsync(v, $vars, opts)) ?? v;
+      } else if (cfg.meta) {
+        metaVal = await resolveExprAsync(cfg.meta, $vars, opts);
+      }
 
       const res = await mintOccurrence({
         userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
@@ -362,6 +400,9 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         io, mirror,
       });
       if (cfg.resultVar) $vars[cfg.resultVar] = res;
+      // The editor's names for "remember what I made" (client CREATE sets both).
+      if (cfg.itemIdVar) $vars[cfg.itemIdVar] = res?.occurrenceId ?? null;
+      if (cfg.itemVar) $vars[cfg.itemVar] = res ?? null;
       effects.push({ _effect: "CREATE", ...res });
       return;
     }
@@ -439,7 +480,11 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         for (let i = 0; i < items.length; i++) {
           $vars[as] = items[i];
           $vars[`${as}.__index`] = i;
-          for (const s of step.body || []) await executeStep(s);
+          loopPath.push(i);
+          loopItems.push(items[i]);
+          try {
+            for (const s of step.body || []) await executeStep(s);
+          } finally { loopPath.pop(); loopItems.pop(); }
         }
       }
       return;

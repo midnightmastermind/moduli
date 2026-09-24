@@ -79,9 +79,35 @@ export function registerOccurrenceHandlers(socket, {
     let { occurrence } = payload;
     try {
       if (!userId) return;
-      const uc = await getUc();
+      let uc = await getUc();
       const id = occurrence?.id;
       if (!id) return;
+
+      // ── A ROW KEEPS ITS OWN GRID ─────────────────────────────────────────
+      // Every row change is broadcast to ALL of a user's tabs, whatever grid
+      // they are on (2026-09-22 (5)), so a tab on grid B holds some of grid A's
+      // rows and its operations can write them. This handler resolved `prev`
+      // from the ACTIVE grid's cache, missed, and fell back to
+      // `socket.data.activeGridId` — re-stamping the row with grid B's id, which
+      // made it VANISH from grid A. Found 2026-09-24: switching to test grid 2
+      // ran the load-time date ops there, and poms grid's Schedule and Trackers
+      // pages disappeared from poms (their `filterOverride` date was rewritten
+      // with test grid 2's id stamped on).
+      //
+      // So a row the active cache does not hold is looked up in the DATABASE,
+      // and when it belongs to another grid the write is done against THAT
+      // grid: its cache if warm (so its next load is right), or none at all —
+      // never the active grid's cache, which is how the row leaked into it.
+      let foreignGridId = null;
+      if (!uc.occurrencesById[id]) {
+        const stored = await Occurrence.findOne({ id, userId }, { gridId: 1 }).lean().catch(() => null);
+        if (stored?.gridId && stored.gridId !== socket.data.activeGridId) {
+          foreignGridId = stored.gridId;
+          uc = userCacheReady(userId, foreignGridId)
+            ? ensureUserCache(userId, foreignGridId)
+            : { occurrencesById: {}, modulesById: {} };   // cold: write Mongo only
+        }
+      }
 
       const prev = uc.occurrencesById[id] || {};
       // Snapshot the prior state for undo BEFORE anything mutates it. This one
@@ -198,7 +224,9 @@ export function registerOccurrenceHandlers(socket, {
       // Without this the MeasureOp Transaction below threw `gridId required` on
       // partial-shape updates from FieldRenderer, the outer catch bailed out, and
       // the field change never persisted (looked like "nothing is being saved").
-      const txGridId = occurrence.gridId || prev.gridId || socket.data.activeGridId;
+      // An EXISTING row's grid wins over anything the payload or the socket says
+      // (see "A ROW KEEPS ITS OWN GRID" above); only a brand-new row takes one.
+      const txGridId = foreignGridId || prev.gridId || occurrence.gridId || socket.data.activeGridId;
       // `withoutMongoId` on BOTH sides: `next` becomes the update payload, and a
       // `_id` in it is `$set` on an immutable path. The cache is stripped at load
       // now, but a tab opened before that shipped still holds `_id` from its

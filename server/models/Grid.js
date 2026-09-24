@@ -72,6 +72,14 @@ const GridSchema = new mongoose.Schema({
   // the whole object.
   meta: { type: mongoose.Schema.Types.Mixed, default: {} },
 
+  // RECENT SHARES (share → import routing, D16). The last SHARE_LOG_MAX shares
+  // on this grid, newest last: what arrived, which rules ran, what each created
+  // or why it failed. METADATA ONLY — never the shared content, which is why
+  // the Imports tab can show a log but offers no "re-run" (D16). A top-level
+  // field rather than inside `meta`, because tabs write `meta` back whole and
+  // would clobber entries appended server-side between their read and write.
+  shareLog: { type: [mongoose.Schema.Types.Mixed], default: undefined },
+
 }, { timestamps: true });
 
 export default mongoose.model("Grid", GridSchema);

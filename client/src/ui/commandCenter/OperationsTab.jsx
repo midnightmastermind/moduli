@@ -13,6 +13,7 @@ import { PipelineEditor } from "../../blocks";
 import { executePipeline } from "../../helpers/operationExecutor";
 import Field from "../Field";
 import OperationLogPanel from "./OperationLogPanel";
+import { shareTriggerOf } from "../../helpers/shareRulesUi";
 import { buildTargetOccurrenceOptions } from "../../helpers/operationTargetOptions";
 
 // Shared style helpers
@@ -906,9 +907,12 @@ export function OperationsTab() {
   const { state, operationsById, foldersById, fieldsById, socket, dispatch } = ctx;
   const gridId = state?.gridId;
 
+  // Share rules (onShare operations) are authored in the Imports tab (spec
+  // D6). This tab's trigger editor does not know the onShare trigger, so
+  // editing one here could rewrite it into something that never runs.
   const gridOperations = useMemo(
     () => (state?.operations || [])
-      .filter((o) => o.gridId === gridId)
+      .filter((o) => o.gridId === gridId && !shareTriggerOf(o))
       .sort((a, b) => (a.sortOrder ?? 50) - (b.sortOrder ?? 50)),
     [state?.operations, gridId]
   );

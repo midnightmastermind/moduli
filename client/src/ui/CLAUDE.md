@@ -2,6 +2,27 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (2) — sharing from the phone / Windows)
+- **`ui/SharePending.jsx`** (routes `/share-pending`, `/share-target`, own entry in `main.jsx`, works signed
+  out): takes a share from the service worker's stash, a `webcal://` link or Windows "Open with" files
+  (`launchQueue`), posts to `/api/v1/share` with the session as Bearer, and reports it honestly
+  (`describeShareResult`: a 2xx that wrote nothing is a failure).
+- **`helpers/shareHandoff.js`** — the tested logic; **`public/sw.js`** — the worker (POST /share-target
+  only); **`public/manifest.json`** — `share_target`, `file_handlers` (.ics), `protocol_handlers` (webcal).
+- Tests: `shareHandoff.test.jsx` (runs the real sw.js in a vm), `sharePending.test.jsx`.
+
+## Recent Changes (2026-09-24 — the Imports tab: share rules + recent shares)
+- **`commandCenter/ImportsTab.jsx` (NEW, tab "Imports")** — share → import routing, Tasks 8–9. A share
+  rule is an operation with trigger `{ eventType: "onShare", shareType }` that the SERVER runs. The tab
+  lists them in run order, adds one per type (D8), edits steps with the SAME `PipelineEditor`, and saves
+  through `CommitHelpers.create/update/deleteOperation`. "stop here" = the D9 halt step. The catch-all
+  is kept (D3): it can be switched off, not deleted. Saving marks `meta.userEdited` so the server never
+  upgrades a catch-all you changed.
+- **Recent shares** reads `state.grid.shareLog` (server-appended, capped at 50, metadata only, pushed live via
+  `grid_updated`). No re-run by design (D16).
+- Decisions live in **`helpers/shareRulesUi.js`** (tested, 7). The tab has a mounted test (8).
+- **`OperationsTab` hides onShare operations** — its trigger editor does not know `onShare`.
+
 ## Recent Changes (2026-09-22 (5) — PomodoroTimer: the destination picker could never be used)
 - **`PomodoroTimer.jsx`** — its dismiss handler asked `panelRef.current.contains(e.target)`, which is
   a lie for `DestinationPicker`'s Radix popover (portalled to `document.body`, a SIBLING of the

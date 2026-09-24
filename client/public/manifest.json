@@ -11,5 +11,48 @@
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "id": "/",
+  "scope": "/",
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": [
+            "text/calendar",
+            ".ics",
+            "image/*",
+            "video/*",
+            "audio/*",
+            "application/pdf",
+            "*/*"
+          ]
+        }
+      ]
+    }
+  },
+  "file_handlers": [
+    {
+      "action": "/share-target",
+      "accept": {
+        "text/calendar": [
+          ".ics",
+          ".ical"
+        ]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "webcal",
+      "url": "/share-target?url=%s"
+    }
+  ]
 }

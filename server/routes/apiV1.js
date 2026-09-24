@@ -22,6 +22,7 @@
 // resulting change to the user's socket room so connected clients sync.
 
 import express from "express";
+import fsSync from "fs";
 import crypto from "crypto";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -85,7 +86,7 @@ const CACHE_BUCKET = {
   operation: "operationsById",
 };
 
-export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge }) {
+export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge, shareUpload = null, storeUploadedFile = null }) {
   const router = express.Router();
 
   // Per-token rate limit (600 req/min) + Idempotency-Key support.
@@ -94,6 +95,13 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   const limiter = rateLimit();
   const idem = idempotency();
   const authAndLimit = (opts) => [apiAuth(opts), limiter, idem];
+
+  // A webhook secret is a credential. The route that SETS one already refuses
+  // to echo it ("never echo the real value"), but the list and the update
+  // returned it in plain text — so any read-scoped token could lift it and sign
+  // webhooks. Every REST response carrying an operation goes through this.
+  const maskOp = (op) => (op && op.webhookSecret ? { ...op, webhookSecret: "***" } : op);
+
 
   // ====================================================================
   // WRITE-PATH INVARIANTS
@@ -280,11 +288,17 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ folders });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+  // Folders, manifests, views and operations mirror into / evict from the warm
+  // cache like every other REST write (invariant (1) above). They did not until
+  // 2026-09-24: a rule created through the API ran (the rule engine reads
+  // Mongo) but was missing from the Imports tab until the server restarted,
+  // because `full_state` is served from the cache.
   router.post("/folders", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const body = req.body || {};
       const id = body.id || uid();
       const doc = await Folder.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "folder", doc.toObject());
       io.to(userRoom(req.userId)).emit("folder_created", { folder: doc.toObject() });
       res.status(201).json({ folder: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -293,6 +307,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await Folder.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "Folder not found");
+      mirrorToCache(req.userId, next.gridId, "folder", next);
       io.to(userRoom(req.userId)).emit("folder_updated", { folder: next });
       res.json({ folder: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -301,6 +316,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Folder.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Folder not found");
+      evictFromCache(req.userId, doomed.gridId, "folder", req.params.id);
       io.to(userRoom(req.userId)).emit("folder_deleted", { folderId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -323,6 +339,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const body = req.body || {};
       const id = body.id || uid();
       const doc = await Manifest.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "manifest", doc.toObject());
       io.to(userRoom(req.userId)).emit("manifest_created", { manifest: doc.toObject() });
       res.status(201).json({ manifest: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -331,6 +348,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await Manifest.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "Manifest not found");
+      mirrorToCache(req.userId, next.gridId, "manifest", next);
       io.to(userRoom(req.userId)).emit("manifest_updated", { manifest: next });
       res.json({ manifest: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -339,6 +357,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Manifest.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Manifest not found");
+      evictFromCache(req.userId, doomed.gridId, "manifest", req.params.id);
       io.to(userRoom(req.userId)).emit("manifest_deleted", { manifestId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -361,6 +380,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
       const id = body.id || uid();
       const doc = await View.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "view", doc.toObject());
       io.to(userRoom(req.userId)).emit("view_created", { view: doc.toObject() });
       res.status(201).json({ view: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -369,6 +389,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const next = await View.findOneAndUpdate({ id: req.params.id, userId: req.userId }, { $set: req.body || {} }, { returnDocument: "after", lean: true });
       if (!next) return err(res, 404, "not_found", "View not found");
+      mirrorToCache(req.userId, next.gridId, "view", next);
       io.to(userRoom(req.userId)).emit("view_updated", { view: next });
       res.json({ view: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -377,6 +398,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await View.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "View not found");
+      evictFromCache(req.userId, doomed.gridId, "view", req.params.id);
       io.to(userRoom(req.userId)).emit("view_deleted", { viewId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -470,6 +492,23 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ occurrence: occ });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+
+  // ── Single-record reads ──────────────────────────────────────────────
+  // Only occurrences could be fetched by id; everything else had to be found
+  // by listing a whole grid and filtering (found 2026-09-24 looking up one
+  // module). Scoped to the caller like every other read.
+  for (const [path, Model, key, shape] of [
+    ["modules", Module, "module"], ["fields", Field, "field"], ["folders", Folder, "folder"],
+    ["operations", Operation, "operation", maskOp], ["views", View, "view"], ["manifests", Manifest, "manifest"],
+  ]) {
+    router.get(`/${path}/:id`, authAndLimit({ requireScope: "read" }), async (req, res) => {
+      try {
+        const doc = await Model.findOne({ id: req.params.id, userId: req.userId }).lean();
+        if (!doc) return err(res, 404, "not_found", `${key} not found`);
+        res.json({ [key]: shape ? shape(doc) : doc });
+      } catch (e) { err(res, 500, "internal_error", e.message); }
+    });
+  }
 
   router.post("/occurrences", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
@@ -715,7 +754,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         );
       }
       const { items, nextCursor, total } = paginate(ops, { limit, cursor });
-      res.json({ operations: items, nextCursor, total });
+      res.json({ operations: items.map(maskOp), nextCursor, total });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -726,6 +765,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!body.name) return err(res, 400, "validation_error", "name required");
       const id = body.id || uid();
       const doc = await Operation.create({ ...body, id, userId: req.userId });
+      mirrorToCache(req.userId, doc.gridId, "operation", doc.toObject());
       io.to(userRoom(req.userId)).emit("operation_created", { operation: doc.toObject() });
       res.status(201).json({ operation: doc.toObject() });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -739,8 +779,9 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Operation not found");
+      mirrorToCache(req.userId, next.gridId, "operation", next);
       io.to(userRoom(req.userId)).emit("operation_updated", { operation: next });
-      res.json({ operation: next });
+      res.json({ operation: maskOp(next) });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -748,6 +789,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const doomed = await Operation.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Operation not found");
+      evictFromCache(req.userId, doomed.gridId, "operation", req.params.id);
       io.to(userRoom(req.userId)).emit("operation_deleted", { operationId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -1191,20 +1233,53 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // Files are refused (415) until the artifact upload is shared with this
   // path — refused out loud, never dropped (§12).
   // ====================================================================
-  router.post("/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+  // A real IANA zone name, as Intl understands it (share timezones, D10 / Plan 2).
+  const validZone = (z) => { try { return !!z && !!new Intl.DateTimeFormat("en-US", { timeZone: z }); } catch { return false; } };
+
+  // Multipart (a shared FILE) is parsed only AFTER auth, so an unauthenticated
+  // request never gets to stream 500 MB to disk. JSON shares skip it entirely.
+  const acceptShareFiles = (req, res, next) => {
+    if (!shareUpload || !req.is?.("multipart/form-data")) return next();
+    shareUpload.any()(req, res, async (e) => {
+      if (!e) return next();
+      const { describeTooLarge, SHARE_MAX_BYTES } = await import("../config/uploadLimits.js");
+      if (e.code === "LIMIT_FILE_SIZE") return err(res, 413, "too_large", describeTooLarge(null, SHARE_MAX_BYTES));
+      return err(res, 400, "upload_error", e.message);
+    });
+  };
+
+  router.post("/share", authAndLimit({ requireScope: "write", allowSessionJwt: true }), acceptShareFiles, async (req, res) => {
+    // The first file IS the payload (spec §3). Any others are removed rather
+    // than left in the uploads dir, and the response says they were ignored.
+    const uploaded = Array.isArray(req.files) ? req.files : [];
+    const [firstFile, ...extraFiles] = uploaded;
+    const dropTemp = (f) => { try { if (f?.path) fsSync.unlinkSync(f.path); } catch { /* gone */ } };
+    extraFiles.forEach(dropTemp);
     try {
       const body = req.body || {};
-      let gridId = body.gridId || null;
-      if (!gridId) {
-        const { default: User } = await import("../models/User.js");
-        const user = await User.findById(req.userId).lean().catch(() => null);
-        gridId = user?.meta?.share?.gridId || null;
+      const { default: User } = await import("../models/User.js");
+      const user = await User.findById(req.userId).lean().catch(() => null);
+      let gridId = body.gridId || user?.meta?.share?.gridId || null;
+      // The user's TIMEZONE, for reading a shared calendar (Plan 2). A sender
+      // that knows it (the extension, the phone's page) sends it; it is
+      // remembered so a sender that cannot (curl, Windows "open with") still
+      // gets the right day. Only a real zone name is kept.
+      const timeZone = validZone(body.timeZone) ? body.timeZone : (user?.meta?.share?.timeZone || null);
+      if (validZone(body.timeZone) && body.timeZone !== user?.meta?.share?.timeZone) {
+        User.updateOne({ _id: req.userId }, { $set: { "meta.share.timeZone": body.timeZone } }).catch(() => {});
       }
-      if (!gridId) return err(res, 400, "validation_error", "no gridId, and no share grid is configured");
+      if (!gridId) { dropTemp(firstFile); return err(res, 400, "validation_error", "no gridId, and no share grid is configured"); }
       const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
-      if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
-      if (!body.url && !body.text) return err(res, 400, "validation_error", "url or text required");
+      if (!owned) { dropTemp(firstFile); return err(res, 404, "not_found", `grid ${gridId} not found`); }
+      if (!body.url && !body.text && !firstFile) { dropTemp(firstFile); return err(res, 400, "validation_error", "url, text or a file required"); }
 
+      const { shareLogEntry, recordShare } = await import("../services/shareLog.js");
+      // Every outcome from here on is logged — the failures most of all (§12).
+      const logShare = (share, result, error) => recordShare({
+        userId: req.userId, gridId, io, userRoom,
+        entry: shareLogEntry({ share: share || { type: null, source: body.source || "api",
+          label: body.label || body.title || body.url || null }, result, error }),
+      });
       const { ensureCatchAllRule } = await import("../utils/shareRulesEnsure.js");
       const { prepareShare } = await import("../services/shareIngress.js");
       const { runShareRules } = await import("../services/shareRules.js");
@@ -1214,6 +1289,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       try {
         await ensureCatchAllRule({ userId: req.userId, gridId });
       } catch (e) {
+        dropTemp(firstFile);
+        await logShare(null, null, e.message);
         return err(res, 409, "no_destination", e.message);
       }
 
@@ -1225,9 +1302,28 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           url: body.url || null, text: body.text || null, title: body.title || null,
           label: body.label || null, shape: body.shape || null,
           clip: body.clip || null,
+          files: firstFile ? [{ filename: firstFile.originalname, mimetype: firstFile.mimetype,
+            size: firstFile.size, path: firstFile.path, _multer: firstFile }] : [],
+          storeFile: storeUploadedFile ? async ({ file }) => {
+            const { storeSharedFile } = await import("../services/shareFiles.js");
+            return storeSharedFile({
+              file: file._multer, userId: req.userId, gridId, storeUploadedFile,
+              mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
+            });
+          } : null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
+          timeZone,
+          fetchCalendar: async (u) => {
+            const r = await fetchPageHtml(u, { allowTypes: /text\/calendar|text\/plain|application\/octet-stream|text\/html/i });
+            return r.ok ? r.html : null;
+          },
+          resolveSlotLabels: async () => {
+            const { scheduleSlotLabels } = await import("../services/scheduleSlots.js");
+            return scheduleSlotLabels({ userId: req.userId, gridId });
+          },
         });
       } catch (e) {
+        await logShare(null, null, e.message);
         if (e.code === "files_unsupported") return err(res, 415, "files_unsupported", e.message);
         throw e;
       }
@@ -1236,6 +1332,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         share, userId: req.userId, gridId, io,
         mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
       });
+      await logShare(share, result, null);
       const created = result.ran.flatMap(r => r.created || []);
       const failed = result.ran.filter(r => !r.ok);
       // A share that produced no row and hit a failing rule did not land —
@@ -1243,8 +1340,81 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const status = created.length === 0 && failed.length ? 502 : 201;
       res.status(status).json({
         type: share.type, label: share.label, externalId: share.externalId, gridId,
+        ...(share.props?.occurrenceId ? { fileOccurrenceId: share.props.occurrenceId } : {}),
+        ...(extraFiles.length ? { ignoredFiles: extraFiles.map(f => f.originalname) } : {}),
+        ...(share.events ? { events: share.events.length, notices: share.notices } : {}),
         ...result,
       });
+    } catch (e) { dropTemp(firstFile); err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── Share settings (spec D10) ─────────────────────────────────────────
+  // `user.meta.share` holds the grid a share lands in when the sender names
+  // none, and the timezone a shared calendar is read in. Both were readable by
+  // /share and settable by NOTHING.
+  router.get("/me/share", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { default: User } = await import("../models/User.js");
+      const user = await User.findById(req.userId).lean();
+      res.json({ gridId: user?.meta?.share?.gridId || null, timeZone: user?.meta?.share?.timeZone || null });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.patch("/me/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { default: User } = await import("../models/User.js");
+      const body = req.body || {};
+      const $set = {}, $unset = {};
+      if ("gridId" in body) {
+        if (body.gridId == null) $unset["meta.share.gridId"] = 1;
+        else {
+          const owned = await Grid.exists({ _id: body.gridId, userId: req.userId }).catch(() => null);
+          if (!owned) return err(res, 404, "not_found", `grid ${body.gridId} not found`);
+          $set["meta.share.gridId"] = String(body.gridId);
+        }
+      }
+      if ("timeZone" in body) {
+        if (body.timeZone == null) $unset["meta.share.timeZone"] = 1;
+        else if (!validZone(body.timeZone)) return err(res, 400, "validation_error", `not a timezone: ${body.timeZone}`);
+        else $set["meta.share.timeZone"] = body.timeZone;
+      }
+      if (!Object.keys($set).length && !Object.keys($unset).length) {
+        return err(res, 400, "validation_error", "send gridId and/or timeZone");
+      }
+      await User.updateOne({ _id: req.userId }, { ...(Object.keys($set).length ? { $set } : {}), ...(Object.keys($unset).length ? { $unset } : {}) });
+      const user = await User.findById(req.userId).lean();
+      res.json({ gridId: user?.meta?.share?.gridId || null, timeZone: user?.meta?.share?.timeZone || null });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── Recent shares (D16) — the same log the Imports tab shows ─────────────
+  router.get("/grids/:id/shares", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const grid = await Grid.findOne({ _id: req.params.id, userId: req.userId }, { shareLog: 1 }).lean().catch(() => null);
+      if (!grid) return err(res, 404, "not_found", "Grid not found");
+      res.json({ shares: [...(grid.shareLog || [])].reverse() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── API tokens: list and revoke your own ─────────────────────────────────
+  // A token that leaks (pasted into a chat, a log) could only be revoked by
+  // hand in Mongo. Listing never returns a secret — only the stored hash
+  // exists, and it is not sent either. Minting stays a server-side script: a
+  // token able to mint tokens could make a leak permanent.
+  router.get("/tokens", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const docs = await ApiToken.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+      res.json({ tokens: docs.map(t => ({
+        tokenId: t.tokenId, name: t.name, scopes: t.scopes, revoked: !!t.revoked,
+        lastUsedAt: t.lastUsedAt, createdAt: t.createdAt,
+        current: t.tokenId === req.apiToken?.tokenId,
+      })) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/tokens/:tokenId", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const r = await ApiToken.updateOne({ tokenId: req.params.tokenId, userId: req.userId }, { $set: { revoked: true } });
+      if (!r.matchedCount) return err(res, 404, "not_found", "Token not found");
+      res.json({ ok: true, tokenId: req.params.tokenId, revoked: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

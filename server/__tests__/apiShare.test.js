@@ -7,13 +7,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const grids = new Set(["g1"]);
 let userMeta = {};
+const logged = [];
 vi.mock("../models/Grid.js", () => ({ default: {
   exists: async (q) => (grids.has(q._id) && q.userId === "u1" ? { _id: q._id } : null),
+  findOneAndUpdate: (q, u) => { logged.push(u.$push.shareLog.$each[0]); return { lean: async () => ({ shareLog: [] }) }; },
 }}));
 vi.mock("../models/User.js", () => ({ default: {
   findById: () => ({ lean: async () => ({ _id: "u1", meta: userMeta }) }),
 }}));
-vi.mock("../models/Occurrence.js", () => ({ default: {} }));
+vi.mock("../models/Occurrence.js", () => ({ default: {
+  findOne: () => ({ lean: async () => null }),
+  updateOne: async () => ({}),
+}}));
 vi.mock("../models/Module.js", () => ({ default: {} }));
 
 const calls = [];
@@ -36,8 +41,9 @@ vi.mock("../utils/safeFetchUrl.js", () => ({ fetchPageHtml: async () => ({}) }))
 
 const { makeApiV1Router } = await import("../routes/apiV1.js");
 
-function makeRouter() {
+function makeRouter(extra = {}) {
   return makeApiV1Router({
+    ...extra,
     getUserCache: async () => ({ _loaded: true, occurrencesById: {}, modulesById: {} }),
     peekUserCache: () => null,
     io: { to: () => ({ emit: () => {} }), sockets: { adapter: { rooms: new Map() } } },
@@ -45,9 +51,10 @@ function makeRouter() {
     opRunBridge: { await: async () => ({}) },
   });
 }
-function call(router, body) {
+function call(router, body, reqExtra = {}) {
   return new Promise((resolve) => {
     const req = {
+      ...reqExtra,
       method: "POST", url: "/share", originalUrl: "/share", path: "/share",
       headers: { "content-type": "application/json" },
       apiToken: { tokenId: "t1", scopes: ["read", "write"] },
@@ -66,6 +73,7 @@ function call(router, body) {
 }
 
 beforeEach(() => {
+  logged.length = 0;
   calls.length = 0; userMeta = {}; ensureThrows = false;
   ruleResult = { ran: [{ ruleId: "r1", ok: true, created: [{ _effect: "CREATE", occurrenceId: "o1" }] }], halted: false };
 });
@@ -119,5 +127,86 @@ describe("POST /share", () => {
   it("requires something to share", async () => {
     const r = await call(makeRouter(), { gridId: "g1" });
     expect(r.status).toBe(400);
+  });
+});
+
+describe("POST /share — every outcome is logged (D16, §12)", () => {
+  it("a landed share", async () => {
+    await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(logged).toHaveLength(1);
+    expect(logged[0].status).toBe("landed");
+    expect(logged[0].type).toBe("link");
+  });
+  it("a share with nowhere to land", async () => {
+    ensureThrows = true;
+    await call(makeRouter(), { gridId: "g1", url: "https://x.test/a" });
+    expect(logged[0].status).toBe("failed");
+    expect(logged[0].error).toMatch(/Files folder/);
+  });
+  it("NOT for a grid the caller does not own — nothing to write it on", async () => {
+    await call(makeRouter(), { gridId: "someone-elses", url: "https://x.test/a" });
+    expect(logged).toHaveLength(0);
+  });
+});
+
+// A SHARED FILE. multer is stubbed (it cannot run on a hand-built request), so
+// what is pinned is the route's side: the file goes through the injected
+// uploader BEFORE the rules, extras are removed, and oversize says so.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+const tmpFile = (name, bytes = "photo bytes") => {
+  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "share-")), name);
+  fs.writeFileSync(p, bytes);
+  return { path: p, originalname: name, mimetype: "image/jpeg", size: bytes.length, fieldname: "files" };
+};
+const multipart = { is: (t) => t === "multipart/form-data" };
+const fakeMulter = (files, error = null) => ({ any: () => (req, _res, next) => { if (!error) req.files = files; next(error); } });
+
+describe("POST /share — a file", () => {
+  it("stores the file through the ONE uploader before the rules run, and logs it as landed", async () => {
+    const stored = [];
+    const f = tmpFile("photo.jpg");
+    const router = makeRouter({
+      shareUpload: fakeMulter([f]),
+      storeUploadedFile: async ({ file }) => { stored.push(file.path); return { occurrence: { id: "file-occ", meta: {} }, fileRef: "user/2026-09/photo.jpg" }; },
+    });
+    const r = await call(router, { gridId: "g1", source: "android" }, multipart);
+    expect(r.status).toBe(201);
+    expect(stored).toEqual([f.path]);
+    expect(r.body.fileOccurrenceId).toBe("file-occ");
+    const share = calls.find(c => c[0] === "rules")[1];
+    expect(share.type).toBe("image");
+    expect(share.props.occurrenceId).toBe("file-occ");
+    expect(share.externalId).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(logged[0].status).toBe("landed");
+  });
+
+  it("only the first file is the share; the others are removed and reported", async () => {
+    const a = tmpFile("a.jpg", "a"), b = tmpFile("b.jpg", "b");
+    const router = makeRouter({
+      shareUpload: fakeMulter([a, b]),
+      storeUploadedFile: async () => ({ occurrence: { id: "o", meta: {} }, fileRef: "x" }),
+    });
+    const r = await call(router, { gridId: "g1" }, multipart);
+    expect(r.body.ignoredFiles).toEqual(["b.jpg"]);
+    expect(fs.existsSync(b.path)).toBe(false);
+  });
+
+  it("an oversized file is refused with a 413 that names the limit", async () => {
+    const tooBig = Object.assign(new Error("File too large"), { code: "LIMIT_FILE_SIZE" });
+    const router = makeRouter({ shareUpload: fakeMulter([], tooBig), storeUploadedFile: async () => ({}) });
+    const r = await call(router, { gridId: "g1" }, multipart);
+    expect(r.status).toBe(413);
+    expect(r.body.message).toMatch(/500 MB/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a file sent to a grid the caller does not own is refused AND its temp file removed", async () => {
+    const f = tmpFile("x.jpg");
+    const router = makeRouter({ shareUpload: fakeMulter([f]), storeUploadedFile: async () => ({}) });
+    const r = await call(router, { gridId: "someone-elses" }, multipart);
+    expect(r.status).toBe(404);
+    expect(fs.existsSync(f.path)).toBe(false);
   });
 });

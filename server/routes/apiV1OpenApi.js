@@ -43,6 +43,12 @@ function _basicCRUD(tag, item, idParam = "id") {
       },
     },
     [`/${item.toLowerCase()}s/{${idParam}}`]: {
+      get: {
+        tags: [tag], summary: `Get one ${item.toLowerCase()}`,
+        security: SECURITY,
+        parameters: [{ name: idParam, in: "path", required: true, schema: { type: "string" } }],
+        responses: { 200: { description: "OK", content: { "application/json": { schema: created } } }, 404: { description: "Not found" } },
+      },
       patch: {
         tags: [tag], summary: `Update ${item.toLowerCase()}`,
         security: SECURITY,
@@ -126,6 +132,37 @@ export function buildOpenApiDoc() {
       ..._basicCRUD("Occurrences", "Occurrence"),
       ..._basicCRUD("Fields", "Field"),
       ..._basicCRUD("Operations", "Operation"),
+      "/share": {
+        post: {
+          tags: ["Share"], summary: "Share a link, text or file into a grid; the grid's onShare rules decide where it lands",
+          description: "JSON { gridId?, url?, text?, title?, label?, shape?, source?, timeZone?, clip? } or multipart with `files` (first file is the share; 500 MB cap). gridId falls back to /me/share. A calendar (.ics) is parsed into $share.events for the rules.",
+          security: SECURITY,
+          responses: { 201: { description: "Landed — { type, label, externalId, ran[], halted, events?, notices? }" },
+            409: { description: "The grid has nowhere to land a share (no Files folder)" },
+            413: { description: "Too large (names the limit)" }, 502: { description: "A rule failed and nothing was written" } },
+        },
+      },
+      "/me/share": {
+        get: { tags: ["Share"], summary: "Your share settings: default grid and timezone", security: SECURITY,
+          responses: { 200: { description: "{ gridId, timeZone }" } } },
+        patch: { tags: ["Share"], summary: "Set your default share grid and/or timezone (null clears)", security: SECURITY,
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { gridId: { type: "string", nullable: true }, timeZone: { type: "string", nullable: true } } } } } },
+          responses: { 200: { description: "{ gridId, timeZone }" }, 400: { description: "Not a timezone" }, 404: { description: "Grid not found" } } },
+      },
+      "/grids/{id}/shares": {
+        get: { tags: ["Share"], summary: "Recent shares on a grid, newest first (the Imports tab's log)", security: SECURITY,
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "{ shares: [...] }" }, 404: { description: "Grid not found" } } },
+      },
+      "/tokens": {
+        get: { tags: ["Tokens"], summary: "List your API tokens (never their secrets); `current` marks the one making this call", security: SECURITY,
+          responses: { 200: { description: "{ tokens: [{ tokenId, name, scopes, revoked, lastUsedAt, createdAt, current }] }" } } },
+      },
+      "/tokens/{tokenId}": {
+        delete: { tags: ["Tokens"], summary: "Revoke one of your tokens (it stops working immediately)", security: SECURITY,
+          parameters: [{ name: "tokenId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "{ ok, tokenId, revoked }" }, 404: { description: "Not found" } } },
+      },
       "/occurrences/{id}/fields/{fieldId}": {
         put: {
           tags: ["Occurrences"], summary: "Write a single field value on an occurrence",

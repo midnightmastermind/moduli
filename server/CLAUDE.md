@@ -2,6 +2,66 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (7) — a row keeps its own grid; poms' Schedule/Trackers/Day Page vanished)
+- **What happened, on prod:** the user switched a tab to test grid 2; its load-time date ops rewrote the
+  `filterOverride` of every page that tab held — including poms pages it had received through the
+  user-wide broadcast. `update_occurrence` resolved `prev` from the ACTIVE grid's cache, missed, and
+  fell back to `socket.data.activeGridId`, stamping **test grid 2's id** onto poms' Schedule, Trackers
+  and Day Page (and a Sep 24 day column). They vanished from poms. Switching back re-stamped them, but
+  the same fallback wrote each back into poms' cache as a PARTIAL row (the Day Page as 5 fields, no
+  module) — so it still rendered nothing until refreshed from Mongo (a no-op REST PATCH mirrors the
+  full doc). Data in Mongo was intact throughout.
+- **Fix (`socketHandlers/occurrences.js`):** a row the active cache does not hold is looked up in Mongo;
+  if it belongs to another grid the write targets THAT grid — its cache if warm, else Mongo only — and
+  an existing row's grid always wins over the payload/socket (`txGridId = foreignGridId || prev.gridId
+  || occurrence.gridId || activeGridId`). `__tests__/updateKeepsRowGrid.test.js` (6; A/B: 4 fail
+  without, the 2 controls pass both ways).
+- **Still open:** the root leak (every write broadcast to the USER room, so a tab holds other grids'
+  rows and its ops touch them). This fix makes those writes harmless; it does not stop them.
+
+## Recent Changes (2026-09-24 (6) — /api/v1 gaps closed; webhook secrets no longer leak)
+- **`GET /{modules,fields,folders,operations,views,manifests}/:id`** — only occurrences had a single read.
+- **Webhook secrets were returned in plain text** by `GET /operations` and `PATCH /operations/:id` (the
+  route that sets one already masked it). `maskOp` masks every REST response carrying an operation.
+- **`GET/PATCH /me/share`** — `user.meta.share.{gridId,timeZone}` (D10) was read by /share and settable
+  by nothing. Grid ownership and zone validity are checked; null clears.
+- **`GET /grids/:id/shares`** — the share log (newest first).
+- **`GET /tokens`, `DELETE /tokens/:tokenId`** — list/revoke your own tokens (no secret or hash sent).
+  Minting stays a server-side script: a token that can mint tokens makes a leak permanent.
+- OpenAPI doc: GET-by-id on every CRUD resource, plus the share and token routes.
+- `__tests__/apiGaps.test.js`: real HTTP, real auth middleware. A/B: unmasking the list fails the secret test.
+
+## Recent Changes (2026-09-24 (5) — calendar invites can be shared, Plan 2)
+- **`services/icsImport.js`** (`parseIcs`, node-ical): timezone-correct; zoneless values read as written.
+- **`services/slotSnap.js`** (`floorToSlot`, FLOOR not nearest) + a server twin of the client's
+  `slotLabelToMinutes`, pinned against it by a test.
+- **`services/scheduleSlots.js`**: the grid's slot vocabulary (Time Slot options, else time-shaped rows).
+- `prepareShare` parses a shared .ics into `$share.events` (floored, `ics:<UID>`) + `$share.notices`,
+  reading the file BEFORE it is stored. The route passes `timeZone` (body, else remembered in
+  `user.meta.share.timeZone`) and logs the event count + notices.
+- Executor: a CREATE in a LOOP over items with their own `externalId` is keyed on the item.
+
+## Recent Changes (2026-09-24 (4) — files can be shared; the upload is a service now)
+- **`services/artifactUpload.js`** — `POST /api/artifacts/upload`'s body moved VERBATIM out of server.js
+  (`makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUpload, io, userRoom })` →
+  `storeUploadedFile`). `sha256OfFile` / `extractImageMetadata` / thumbnails moved with it;
+  `mimeToKind` / `viewFieldsForKind` / `yearMonthShard` → **`utils/uploadKinds.js`** (server.js imports
+  them). The route's response is unchanged. Tested for REAL on disk (real PNG, sha256, sharp thumbs).
+- **`/api/v1/share` takes multipart** — parsed only AFTER auth (a bad token writes nothing — proven over
+  real HTTP in `apiShareHttp.test.js`). First file is the share; extras are deleted and reported.
+  **`services/shareFiles.js`**: a re-share of the same bytes on the same grid reuses its row.
+- **`config/uploadLimits.js`**: shares 500 MB (D14), artifact route 50 MB; 413 names the limit.
+  `deploy/nginx/moduli.conf` gains `location = /api/v1/share { client_max_body_size 512M; }` — the live
+  nginx must be edited by hand.
+
+## Recent Changes (2026-09-24 (3) — editor-built CREATE runs server-side; Grid.shareLog)
+- `serverExecutor` CREATE also reads the editor's `name/parent/role/kind/attachFields`, `itemIdVar/itemVar`,
+  and a `meta` object of expressions. In a share rule, a CREATE with no externalId is keyed
+  `<share externalId>::<step id>[::<loop index>]`.
+- **`Grid.shareLog`** (top-level, not in `meta` — tabs write `meta` back whole) + `services/shareLog.js`:
+  every `/share` outcome is appended (`$push/$slice -50`, metadata only) and broadcast as `grid_updated`.
+- An image clip keeps the extension's own externalId (a `data:` URL derived `text:` — found on prod).
+
 ## Recent Changes (2026-09-24 (2) — the extension clips through the share rules, Task 10)
 - `extension/background.js` posts to **`/api/v1/share`** with its `buildClipRecord` output as `clip`.
 - `shareIngress.sanitizeClip` type-checks that record into `$share.clip`; a clip is NOT fetched

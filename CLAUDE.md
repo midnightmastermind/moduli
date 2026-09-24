@@ -15,6 +15,39 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-24 — SHARE → IMPORT ROUTING BUILT (Plans 1–3); and poms' Schedule vanished because a tab was on another grid
+
+Share routing, all three plans (`docs/superpowers/plans/2026-09-23-share-import-routing-*.md`, each with
+a progress table of where the code departs from the plan). Worked from the Claude app, merged via PRs #1–#4,
+the rest on #5. **Browser extension clips verified on prod** (page/selection/link/image into test grid 2's
+Files; a re-clip left one row). Everything else — the Imports tab, file shares, calendar invites, the phone
+and Windows share target — is tested but **not yet exercised on prod or a device.**
+
+**THE INCIDENT, and the defect under it.** The user switched a tab to test grid 2 (to look at clips).
+Every write is broadcast to ALL of a user's tabs (09-22 (5)), so that tab held poms pages, and its
+load-time date ops rewrote their `filterOverride`. `update_occurrence` resolved `prev` from the ACTIVE
+grid's cache, missed, and fell back to `socket.data.activeGridId`:
+```
+poms Schedule / Trackers / Day Page / a Sep 24 day column   gridId -> test grid 2   12:04:02–05 UTC
+```
+They vanished from poms. Switching back re-stamped them — but wrote each into poms' warm cache as a
+PARTIAL row: **the Day Page as 5 fields, no module**, so it still rendered nothing. Mongo was intact
+throughout. Repaired by a no-op REST PATCH (which mirrors the full doc into the cache); the Day Page build
+had meanwhile minted a second Sep 24 column, and the unlisted original (template scaffolding, no writing)
+was removed with a backup. **Fix:** a row the active cache does not hold is looked up in Mongo and written
+against ITS grid (`updateKeepsRowGrid.test.js`, 4 fail without it). **Still open:** the user-room broadcast
+itself — the fix makes those foreign writes harmless, it does not stop them.
+
+**Found on the way, fixed:** `GET /operations` and `PATCH /operations/:id` returned webhook secrets in plain
+text; REST writes to operations/folders/views/manifests never reached the warm cache (an API-made rule ran
+but was invisible in the tab until a restart); a CREATE built in the operations editor
+(`name/parent/role/kind`) did nothing on the server executor (it read `label/parentId/…`); an image clip of
+a `data:` URL collapsed every such clip onto one identity; the extension's notification icon never existed,
+so no clip outcome was ever shown; Firefox loads only `manifest.json` (the separate Firefox manifest never
+worked).
+
+---
+
 ### 2026-09-23 (7) — SOCIAL, BY CLICKING; and a card's top strip is not its click target
 
 Rebuild-via-UI, next area **Social**, built the same way as Mind and against the

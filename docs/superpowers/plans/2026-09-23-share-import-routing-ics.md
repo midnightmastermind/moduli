@@ -12,6 +12,37 @@
 
 **Depends on:** Plan 1 (`2026-09-23-share-import-routing-engine.md`) — specifically `prepareShare`, `runShareRules`, and the executor's `CREATE` with `bindFields`.
 
+## Progress (updated 2026-09-24)
+
+| task | state |
+|---|---|
+| 1 parse, timezone-correct | done — `node-ical` 0.27 |
+| 2 floor onto slot labels | done |
+| 3 wire ics into ingress | done |
+| 4 the ics rule + reaching the Schedule | **code proven end to end; the rule itself is data the user authors, and the Schedule check needs prod** |
+
+**Where the code differs from the sketches below:**
+- **Library:** node-ical passed every zoned case, including Outlook's WINDOWS zone names ("Central
+  Standard Time"). It failed the two ZONELESS cases (floating, all-day): it builds them in the SERVER's
+  zone, so `inZone` reads a value with no `tz` back as written. Tests pass with the server in UTC,
+  Los Angeles and Tokyo.
+- **Slot labels:** ingress runs before any rule, so it cannot read "the destination's slots".
+  `services/scheduleSlots.js` reads the grid's own vocabulary: the "Time Slot" field's static options,
+  else the distinct time-shaped labels of the grid's occurrences (the slot rows). None → `timeSlot:
+  null` and a notice — never a guessed list.
+- **Timezone:** nothing stored one. The sender sends `timeZone` (the extension now does); the server
+  remembers it in `user.meta.share.timeZone` for senders that cannot. Unknown → each event is read in
+  its own invite's zone, with a notice.
+- **An edited invite moves its row:** the editor has no externalId box, and the share's own key is the
+  file's bytes (which change when an invite is edited). A CREATE inside a LOOP over items that carry an
+  `externalId` (events: `ics:<UID>`) is keyed on the ITEM.
+- **Notices** (`$share.notices`, shown in Recent shares): recurrence not imported, zone guessed, no
+  slots on the grid, no events found.
+- `server/__tests__/shareIcsEndToEnd.test.js` shares a real .ics over HTTP through the real engine and
+  executor with a rule in the editor's exact shape: SUMMARY → label, 2:17pm → "2:00pm", Date/Duration
+  written, **Schedule Type bound with no value**, keyed `ics:<UID>::<step>`; re-sharing an edited
+  invite keys the same row.
+
 ## Global Constraints
 
 - **`SUMMARY` → the row's LABEL** (D4). Not the Schedule Type.

@@ -116,6 +116,10 @@ const RETRY_WITH_PLAIN_UA = new Set([401, 403]);
  */
 export async function fetchPageHtml(raw, {
   timeoutMs = 20000, maxBytes = 5 * 1024 * 1024, maxRedirects = 5, fetchImpl,
+  // Which content types count as a success. Web pages by default; a caller
+  // fetching a CALENDAR (share → import, webcal://) widens it rather than this
+  // guard growing a second fetcher with its own SSRF checks.
+  allowTypes = /text\/html|application\/xhtml|text\/plain/i,
 } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
   const deadline = Date.now() + timeoutMs;
@@ -163,7 +167,7 @@ export async function fetchPageHtml(raw, {
       if (!res.ok) return { ok: false, status: res.status, reason: `fetch failed (${res.status})` };
 
       const type = res.headers?.get?.("content-type") || "";
-      if (type && !/text\/html|application\/xhtml|text\/plain/i.test(type)) {
+      if (type && !allowTypes.test(type)) {
         return { ok: false, reason: `not a web page (content-type: ${type})` };
       }
 

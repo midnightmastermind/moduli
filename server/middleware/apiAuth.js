@@ -5,8 +5,15 @@
 // scopes (e.g. write + admin) without re-fetching the token.
 
 import ApiToken from "../models/ApiToken.js";
+import { verifyToken } from "../utils/jwts.js";
 
-export function apiAuth({ requireScope = null } = {}) {
+// `allowSessionJwt`: ALSO accept the signed-in app's own session token (the
+// JWT in localStorage["moduli-token"]) as the Bearer. Opted into per route —
+// only `POST /share`, whose phone/Windows share page runs inside the app and
+// holds that session, not an API token. The session already grants everything
+// over the socket, so this widens no one's reach; it is still a Bearer header,
+// never a cookie (share plan, Global Constraints).
+export function apiAuth({ requireScope = null, allowSessionJwt = false } = {}) {
   return async (req, res, next) => {
     try {
       // Already authenticated (e.g. by a parent /batch handler) — just
@@ -24,7 +31,13 @@ export function apiAuth({ requireScope = null } = {}) {
         return res.status(401).json({ error: "unauthorized", message: "Missing Bearer token" });
       }
       const rawToken = header.slice("Bearer ".length).trim();
-      const tokenDoc = await ApiToken.authenticate(rawToken);
+      let tokenDoc = await ApiToken.authenticate(rawToken);
+      if (!tokenDoc && allowSessionJwt) {
+        const session = verifyToken(rawToken);
+        if (session?.userId) {
+          tokenDoc = { tokenId: "session", userId: String(session.userId), scopes: ["read", "write"], session: true };
+        }
+      }
       if (!tokenDoc) {
         return res.status(401).json({ error: "unauthorized", message: "Invalid or revoked token" });
       }
