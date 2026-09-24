@@ -99,12 +99,32 @@ describe("Schedule: Stamp Completed On — after 0210", () => {
     expect(stampedOn()).toBeNull();
   });
 
-  it("the ORIGINAL pipeline stamps nothing — the A/B, in the suite", () => {
-    // `$trigger.value` is undefined on a real field change, so the gate takes
-    // its ELSE every time. This is what shipped, and it is why 0 of 7,322
-    // occurrences ever carried a value.
+  // THE A/B, RE-STATED 2026-09-24. When 0210 shipped, `$trigger.value` was
+  // undefined on EVERY field change, so the original gate always took its ELSE.
+  // Then 2026-09-22 (6) taught the executor to lift a SINGLE changed field into
+  // `$trigger.value` — which revived the original gate for the ordinary tick and
+  // left this test asserting a bug that had been fixed elsewhere (it failed from
+  // then on and was filed as "pre-existing"). Both facts are pinned now:
+  it("the ORIGINAL pipeline now stamps a single-field tick too (the executor lifts $trigger.value)", () => {
     operations[0].pipeline.steps = storedSteps();
     tick(true);
-    expect(stampedOn()).toBeNull();
+    expect(stampedOn()).toBe(todayKey);
+  });
+
+  it("…but on a MULTI-field change $trigger.value is still empty: the original gate fails, 0210's holds", () => {
+    const multiTick = () => {
+      occurrencesById[ROW].fields[COMPLETED] = { value: true };
+      const tx = { type: "MeasureOp", occurrenceId: ROW, instanceId: "m-task",
+        fields: { [COMPLETED]: true, "fld-other": 3 }, _ancestorIds: [], _ancestorLabels: [] };
+      applyEffectsToLiveOccs(occurrencesById, runMatchingOperations(operations, "MeasureOp", tx, ctx()));
+    };
+    operations[0].pipeline.steps = storedSteps();
+    multiTick();
+    expect(stampedOn()).toBeNull();                 // the original: ELSE branch
+
+    occurrencesById[ROW].fields[COMPLETED_ON] = { value: null };
+    operations[0].pipeline.steps = fixed;
+    multiTick();
+    expect(stampedOn()).toBe(todayKey);             // 0210's reads the occurrence
   });
 });
