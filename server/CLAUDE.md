@@ -2,6 +2,21 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (10) — `0352`: People from the Facebook + Instagram exports)
+- User: add Facebook friends and Instagram accounts that are real people to poms grid's People board,
+  remove the seeded test people, keep Keith and Angela, give each person fields (create some if needed).
+  Plan: `docs/superpowers/plans/2026-09-24-people-from-social-exports.md`.
+- **The names never enter git.** `0352` reads `PEOPLE_IMPORT_PATH` (a JSON file kept outside the repo)
+  and THROWS without it — so the runner stops there until it is set.
+- Each person copies the People board's existing bindings (from an exemplar person) plus three new fields,
+  found or created by name: `Facebook Friends Since` (date), `Instagram Following Since` (date),
+  `Found Via` (multi-select, includes `unconfirmed` for Instagram accounts kept on judgment alone).
+  Idempotent via `meta.source: "social-import"` + `meta.externalId` (`fb:<name>` / `ig:<user>`).
+- The 10 seeded people are matched by name AND seed email. Before deleting, every reference is cleared:
+  parent lists, field values, textmap embeds (a wrapGroup left with fewer than 2 members is flattened),
+  and photos nothing else uses. Pure helpers tested in `__tests__/peopleFromSocialExports.test.js` (8).
+- **Not run against poms grid from here** — dry run first; restart pm2 after `--apply`.
+
 ## Recent Changes (2026-09-24 (9) — `0351`: Files/Images sorted by what uses each image)
 - User: *"organize the files folder … images/import images/people images/ingredients … like images/books"*,
   *"put imports in the imports folder"*. `0351` moves images whose parent is Files/Images into
