@@ -6,7 +6,7 @@ import React from "react";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const created = [], updated = [], deleted = [];
 vi.mock("../helpers/CommitHelpers", () => ({
@@ -119,5 +119,32 @@ describe("ImportsTab — source", () => {
   });
   it("does not seed typed rules — bootstrap is catch-all only (D18)", () => {
     expect(src).not.toMatch(/shareType:\s*["'](ics|link|image)["']/);
+  });
+});
+
+describe("ShareGridPicker (where a share lands when the sender names no grid)", () => {
+  it("reads the share grid and saves a new one with the session token", async () => {
+    const { ShareGridPicker } = await import("../ui/commandCenter/ImportsTab");
+    localStorage.setItem("moduli-token", "sess");
+    const fetchImpl = vi.fn(async (url, init) => ({ ok: true, status: 200,
+      json: async () => (init?.method === "PATCH" ? JSON.parse(init.body) : { gridId: "g1" }) }));
+    render(<ShareGridPicker fetchImpl={fetchImpl} grids={[{ id: "g1", name: "poms grid" }, { _id: "g2", name: "test grid 2" }]} />);
+    const select = await screen.findByRole("combobox");
+    await waitFor(() => expect(select.value).toBe("g1"));
+    expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe("Bearer sess");
+    fireEvent.change(select, { target: { value: "g2" } });
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+    const [url, init] = fetchImpl.mock.calls[1];
+    expect(url).toBe("/api/v1/me/share");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ gridId: "g2" });
+    localStorage.removeItem("moduli-token");
+  });
+  it("signed out: renders nothing and fetches nothing", async () => {
+    const { ShareGridPicker } = await import("../ui/commandCenter/ImportsTab");
+    const fetchImpl = vi.fn();
+    const { container } = render(<ShareGridPicker fetchImpl={fetchImpl} grids={[]} />);
+    expect(container.innerHTML).toBe("");
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

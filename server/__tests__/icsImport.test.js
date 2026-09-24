@@ -149,3 +149,15 @@ describe("parseIcs with no user zone known", () => {
     expect(r.zoneGuessed).toBe(true);
   });
 });
+
+describe("a property carrying parameters (Outlook's SUMMARY;LANGUAGE=…)", () => {
+  it("reads its text, not [object Object]", async () => {
+    const { parseIcs } = await import("../services/icsImport.js");
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "UID:p1",
+      "SUMMARY;LANGUAGE=en-US:Dentist cleaning", "LOCATION;LANGUAGE=en-US:Main St",
+      "DTSTART:20260930T150000Z", "DTEND:20260930T160000Z", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    const { events } = parseIcs(ics, { timeZone: "America/Chicago" });
+    expect(events[0].summary).toBe("Dentist cleaning");
+    expect(events[0].location).toBe("Main St");
+  });
+});

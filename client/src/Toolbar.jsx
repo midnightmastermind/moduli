@@ -290,26 +290,33 @@ const gridOptions = useMemo(
             FiltersSection mounts: arrows + NavPickerPopover with the on/link/off
             tri-state day cycle. onNav writes to grid.activeFilterValues so the
             widget stays the toolbar's source of truth. */}
-        <ToolbarFilterDropdown />
-        {/* Mobile gets the date nav too. It used to be desktop-only, which meant
-            a phone had NO way to change the date at all and the mini-calendar
-            simply did not exist there — a probe found 1 trigger on desktop and 0
-            on mobile (2026-08-05). The widget is compact (two arrows + the
-            calendar button) and shrinks, so it fits beside the drawer toggle. */}
-        {activeFilter && primaryNavFieldId && (
-          <FilterNavWidget
-            filter={activeFilter}
-            navConfig={null}
-            value={primaryNavValue}
-            fieldsById={fieldsById}
-            occurrencesById={occurrencesById}
-            modulesById={modulesById}
-            foldersById={foldersById}
-            dispatch={dispatch}
-            onNav={handleToolbarNav}
-            nowrap
-          />
-        )}
+        {(() => {
+          const dateNav = activeFilter && primaryNavFieldId ? (
+            <FilterNavWidget
+              filter={activeFilter}
+              navConfig={null}
+              value={primaryNavValue}
+              fieldsById={fieldsById}
+              occurrencesById={occurrencesById}
+              modulesById={modulesById}
+              foldersById={foldersById}
+              dispatch={dispatch}
+              onNav={handleToolbarNav}
+              nowrap
+            />
+          ) : null;
+          // On a phone the date nav lives INSIDE the Filters button rather than
+          // on the toolbar (user, 2026-09-24). It must not disappear: before
+          // 2026-08-05 a phone had no way to change the date at all.
+          return isMobileLayout ? (
+            <ToolbarFilterDropdown>{dateNav}</ToolbarFilterDropdown>
+          ) : (
+            <>
+              <ToolbarFilterDropdown />
+              {dateNav}
+            </>
+          );
+        })()}
 
         {/* ── Right: Filter + Pomodoro + Terminal + Account ── */}
         <div className="flex items-center gap-1 shrink-0">

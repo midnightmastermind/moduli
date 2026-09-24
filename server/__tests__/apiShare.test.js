@@ -98,6 +98,25 @@ describe("POST /share", () => {
     expect(r.body.gridId).toBe("g1");
   });
 
+  it("with no share grid, falls back to the grid the device last had open", async () => {
+    const r = await call(makeRouter(), { fallbackGridId: "g1", url: "https://x.test/a" });
+    expect(r.status).toBe(201);
+    expect(r.body.gridId).toBe("g1");
+  });
+
+  it("the share grid outranks the device's fallback", async () => {
+    userMeta = { share: { gridId: "g1" } };
+    const r = await call(makeRouter(), { fallbackGridId: "someone-elses", url: "https://x.test/a" });
+    expect(r.status).toBe(201);
+    expect(r.body.gridId).toBe("g1");
+  });
+
+  it("a fallback grid the caller does not own is refused like any other", async () => {
+    const r = await call(makeRouter(), { fallbackGridId: "someone-elses", url: "https://x.test/a" });
+    expect(r.status).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+
   it("with no grid named and none configured, refuses", async () => {
     const r = await call(makeRouter(), { url: "https://x.test/a" });
     expect(r.status).toBe(400);

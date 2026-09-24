@@ -1259,7 +1259,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const body = req.body || {};
       const { default: User } = await import("../models/User.js");
       const user = await User.findById(req.userId).lean().catch(() => null);
-      let gridId = body.gridId || user?.meta?.share?.gridId || null;
+      // Which grid: the sender's explicit choice, else the user's share grid
+      // (D10, set in the Imports tab), else the grid the app last had open
+      // (`fallbackGridId`, sent by the phone/Windows share page) — so a first
+      // share from a new device lands somewhere instead of failing with "no
+      // share grid is configured" (found on Windows, 2026-09-24).
+      let gridId = body.gridId || user?.meta?.share?.gridId || body.fallbackGridId || null;
       // The user's TIMEZONE, for reading a shared calendar (Plan 2). A sender
       // that knows it (the extension, the phone's page) sends it; it is
       // remembered so a sender that cannot (curl, Windows "open with") still
@@ -1352,14 +1357,14 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // `user.meta.share` holds the grid a share lands in when the sender names
   // none, and the timezone a shared calendar is read in. Both were readable by
   // /share and settable by NOTHING.
-  router.get("/me/share", authAndLimit({ requireScope: "read" }), async (req, res) => {
+  router.get("/me/share", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { default: User } = await import("../models/User.js");
       const user = await User.findById(req.userId).lean();
       res.json({ gridId: user?.meta?.share?.gridId || null, timeZone: user?.meta?.share?.timeZone || null });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
-  router.patch("/me/share", authAndLimit({ requireScope: "write" }), async (req, res) => {
+  router.patch("/me/share", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
     try {
       const { default: User } = await import("../models/User.js");
       const body = req.body || {};

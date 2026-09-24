@@ -54,6 +54,10 @@ export async function fileShare({ fetchImpl = fetch, token = readToken(), ...whe
   if (got.error) return { ok: false, message: got.error };
   if (!token) return { ok: false, message: "Sign in to Moduli on this device, then share again.", needsSignIn: true };
   const body = buildShareForm(got.parts, { source: shareSourceFor(navigator.userAgent), timeZone: userZone() });
+  // Only used when no share grid is set (the server's order: explicit →
+  // share grid → this) — the grid this device last had open.
+  const lastGrid = (() => { try { return localStorage.getItem(AUTH_KEYS.gridId); } catch { return null; } })();
+  if (lastGrid) body.append("fallbackGridId", lastGrid);
   const res = await fetchImpl("/api/v1/share", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
   const json = await res.json().catch(() => ({}));
   return describeShareResult(res.status, json);

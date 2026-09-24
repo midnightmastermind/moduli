@@ -20,6 +20,7 @@ import { useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { PipelineEditor } from "../../blocks";
+import { AUTH_KEYS } from "../../helpers/authStorage";
 import {
   shareRulesFrom, freeShareTypes, newShareRule, shareTriggerOf, isCatchAll,
   haltsChain, setHaltsChain, markUserEdited, recentShares, sharePropsFor, SHARE_TYPES,
@@ -162,6 +163,51 @@ function ShareLog({ entries }) {
   );
 }
 
+// Where a share lands when its sender names no grid (the phone/Windows share
+// page, the extension without a grid set). Stored on the USER, not the grid —
+// `user.meta.share.gridId` via /api/v1/me/share, with the signed-in session as
+// the Bearer. Without one, the first share from a new device had nowhere to go
+// ("no share grid is configured", 2026-09-24).
+export function ShareGridPicker({ grids, fetchImpl = (...a) => fetch(...a) }) {
+  const [value, setValue] = useState(undefined);   // undefined = loading
+  const [status, setStatus] = useState(null);
+  const token = (() => { try { return localStorage.getItem(AUTH_KEYS.token); } catch { return null; } })();
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    fetchImpl("/api/v1/me/share", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : {})
+      .then(j => { if (live) setValue(j?.gridId || ""); })
+      .catch(() => { if (live) setValue(""); });
+    return () => { live = false; };
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!token) return null;
+  const save = async (gridId) => {
+    setValue(gridId);
+    setStatus("saving…");
+    try {
+      const r = await fetchImpl("/api/v1/me/share", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ gridId: gridId || null }),
+      });
+      setStatus(r.ok ? "saved" : `failed (${r.status})`);
+    } catch (e) { setStatus(`failed (${e.message})`); }
+  };
+  const options = (grids || []).map(g => ({ id: String(g.id || g._id), name: g.name || g.gridName || `Grid ${String(g.id || g._id).slice(-4)}` }));
+  return (
+    <label data-testid="share-grid-picker" style={{ ...small, display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+      Shares land in:
+      <select value={value ?? ""} disabled={value === undefined} onChange={e => save(e.target.value)}
+        style={{ ...btn, padding: "2px 4px" }}>
+        <option value="">(the grid this device last had open)</option>
+        {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+      {status && <span>{status}</span>}
+    </label>
+  );
+}
+
 export function ImportsTab() {
   const { state, socket, dispatch } = useGridActions();
   const gridId = state?.gridId;
@@ -184,6 +230,7 @@ export function ImportsTab() {
 
   return (
     <div data-testid="imports-tab" style={{ padding: 10, ...mono }}>
+      <ShareGridPicker grids={state?.availableGrids} />
       <SubTabs value={sub} onChange={setSub} logCount={log.length} />
 
       {sub === "log" ? <ShareLog entries={log} /> : (

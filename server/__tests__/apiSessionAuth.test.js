@@ -40,6 +40,13 @@ describe("the app's session token as a Bearer", () => {
     expect(r.status).toBe(401);
     expect((await post("/occurrences", session(), { gridId: "g1", moduleId: "m" })).status).toBe(401);
   });
+  it("is accepted by GET/PATCH /me/share (the Imports tab sets the share grid)", async () => {
+    const g = await fetch(`${base}/me/share`, { headers: { authorization: `Bearer ${session()}` } });
+    expect(g.status).toBe(200);
+    const p = await fetch(`${base}/me/share`, { method: "PATCH",
+      headers: { authorization: `Bearer ${session()}`, "content-type": "application/json" }, body: JSON.stringify({ gridId: "g1" }) });
+    expect(p.status).toBe(200);
+  });
   it("a forged or expired session is refused by /share too", async () => {
     expect((await post("/share", "not-a-jwt", { gridId: "g1", text: "x" })).status).toBe(401);
   });
