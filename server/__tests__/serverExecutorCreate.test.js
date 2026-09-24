@@ -26,15 +26,30 @@ vi.mock("../models/Secret.js", () => ({ default: { findOne: async () => null } }
 //     doesn't prove much; the point is it must never break the real test by
 //     matching first, and the dedicated role-discrimination test below reads
 //     it explicitly.
+// mod-template-cont / occ-template: REVIEW FIX (Critical 2) fixture — a
+// container module+occurrence flagged isTemplate:true, matching the shape
+// createDefaultUserData.js stamps on the day-page template
+// (`meta: { isTemplate: true }` on the OCCURRENCE). Gives FIND something real
+// to wrongly match if the exclusion regresses.
+//
+// occ-cross-probe-g2 / occ-cross-probe-g1: REVIEW FIX (Important 3) fixture —
+// two occurrences sharing a label unique to this pair, one on g1 and one on
+// g2, with the WRONG-grid row listed FIRST. Used with `over: $allOccurrences`
+// (role: null) so the role-based module filter — which incidentally also
+// excludes cross-grid rows via modById, since Module.find is itself scoped by
+// gridId — cannot be the thing making the test pass. Only Occurrence.find's
+// own `{ gridId }` key can exclude occ-cross-probe-g2 here.
 const MODULES = [
   { id: "mod-bookmarks-cont", userId: "u1", gridId: "g1", role: "container", label: "Bookmarks" },
   { id: "mod-bookmarks-inst", userId: "u1", gridId: "g1", role: "instance", label: "Bookmarks" },
-  { id: "mod-other-grid-cont", userId: "u1", gridId: "g2", role: "container", label: "Bookmarks" },
+  { id: "mod-template-cont", userId: "u1", gridId: "g1", role: "container", label: "TemplateOnly" },
 ];
 const OCCURRENCES = [
   { id: "cont-bookmarks", userId: "u1", gridId: "g1", moduleId: "mod-bookmarks-cont", label: null },
   { id: "inst-bookmarks", userId: "u1", gridId: "g1", moduleId: "mod-bookmarks-inst", label: null },
-  { id: "occ-other-grid", userId: "u1", gridId: "g2", moduleId: "mod-other-grid-cont", label: null },
+  { id: "occ-template", userId: "u1", gridId: "g1", moduleId: "mod-template-cont", label: null, meta: { isTemplate: true } },
+  { id: "occ-cross-probe-g2", userId: "u1", gridId: "g2", moduleId: "mod-bookmarks-cont", label: "CrossGridProbe" },
+  { id: "occ-cross-probe-g1", userId: "u1", gridId: "g1", moduleId: "mod-bookmarks-cont", label: "CrossGridProbe" },
 ];
 function matches(doc, query) {
   return Object.entries(query).every(([k, v]) => doc[k] === v);
@@ -162,17 +177,117 @@ describe("FIND, server-side", () => {
     expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("inst-bookmarks");
   });
 
-  it("scopes by gridId — a same-labelled container on another grid is not a match", async () => {
+  it("scopes by gridId — a same-labelled occurrence on another grid never leaks in", async () => {
+    // REVIEW FIX (Important 3). The PRIOR version of this test used
+    // `$allContainers` with the `occ-other-grid` decoy, and it was VACUOUS:
+    // the reviewer's targeted mutation (drop only `gridId` from
+    // Occurrence.find, leave Module.find alone) left it passing, because
+    // Module.find is STILL scoped to gridId g1 regardless — so the leaked
+    // cross-grid occurrence's module was never fetched, its role filter
+    // failed to match, and it was excluded for a reason that had nothing to
+    // do with the thing under test.
+    //
+    // This version uses `$allOccurrences` (role: null), which skips the
+    // role/module filter entirely — so ONLY Occurrence.find's own
+    // `{ gridId }` key can keep occ-cross-probe-g2 out. It is listed BEFORE
+    // the real match in the fixture array (see OCCURRENCES above), so a
+    // leaked cross-grid row would be the FIRST match `Array.prototype.find`
+    // sees if gridId scoping regressed.
     const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "FIND", over: "$allOccurrences",
+        predicate: { operator: "AND", rules: [
+          { left: "label", comparator: "IS", right: "literal:CrossGridProbe" }] },
+        itemIdVar: "$destId" } },
+      { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "$destId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("occ-cross-probe-g1");
+  });
+
+  it("resolves a $item.-prefixed predicate left the same as a bare one", async () => {
+    // REVIEW FIX (Critical 1). evalRule used to route a bare-path `left`
+    // through resolveRecordPath ONLY when it did not start with "$" — which
+    // excluded the very `$item.`/`$record.` legacy prefixes
+    // resolveRecordPath exists to strip. A predicate written that way (real
+    // seeded shape, e.g. `$record._ancestors HAS_ANCESTOR <library>`) fell
+    // through to resolveExpr($vars), resolved to undefined, and matched
+    // nothing — the opposite of what the UI's own FIND does for the
+    // identical predicate.
+    const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "FIND", over: "$allContainers",
+        predicate: { operator: "AND", rules: [
+          { left: "$item.label", comparator: "IS", right: "literal:Bookmarks" }] },
+        itemIdVar: "$destId" } },
+      { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "$destId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("cont-bookmarks");
+  });
+
+  it("excludes a template-flagged occurrence, even when it otherwise matches", async () => {
+    // REVIEW FIX (Critical 2). `occ-template` binds a container module
+    // labelled "TemplateOnly" and carries `meta.isTemplate: true` — the exact
+    // shape createDefaultUserData.js stamps on the day-page template
+    // occurrence. The client's own FIND filters `!it.meta?.isTemplate` before
+    // ever evaluating a predicate; without the equivalent server-side
+    // exclusion this row is a legitimate-looking match a share rule could
+    // silently route into.
+    const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "FIND", over: "$allContainers",
+        predicate: { operator: "AND", rules: [
+          { left: "label", comparator: "IS", right: "literal:TemplateOnly" }] },
+        itemIdVar: "$destId" } },
+      { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "$destId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value ?? null).toBe(null);
+  });
+
+  it("a single `id IS <x>` predicate is a lookup, not a scan", async () => {
+    // REVIEW FIX (Important 4, cheap half). Proven BEHAVIORALLY, not just by
+    // correctness — a spy on Array.prototype.find is the same technique the
+    // client's own `findByIdIsALookup.test.js` uses (there: spying on
+    // Array.prototype.filter) to prove the id-equals path bypasses the
+    // general per-record scan rather than merely returning the right answer,
+    // which a scan would too. Removing the fast path here would still make
+    // this test's VALUE assertion pass — only the spy assertion catches it,
+    // which is exactly the point.
+    const spy = vi.spyOn(Array.prototype, "find");
+    const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "FIND", over: "$allContainers",
+        predicate: { operator: "AND", rules: [
+          { left: "id", comparator: "IS", right: "literal:cont-bookmarks" }] },
+        itemIdVar: "$destId" } },
+      { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "$destId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("cont-bookmarks");
+  });
+
+  it("CONTROL — a non-id predicate still scans (Array.prototype.find IS called)", async () => {
+    // The discriminating sibling to the id-lookup test above: without this,
+    // "Array.prototype.find is not called" could just mean nothing runs.
+    const spy = vi.spyOn(Array.prototype, "find");
+    await runOperationServerSide(op([
       { type: "action", config: { type: "FIND", over: "$allContainers",
         predicate: { operator: "AND", rules: [
           { left: "label", comparator: "IS", right: "literal:Bookmarks" }] },
         itemIdVar: "$destId" } },
+    ]), { userId: "u1", gridId: "g1" });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("the id fast path still excludes a template-flagged record", async () => {
+    // Same exclusion as the scan path — verified because records are
+    // filtered UPSTREAM of the id/scan branch, so this pins that ordering
+    // rather than assuming it.
+    const res = await runOperationServerSide(op([
+      { type: "action", config: { type: "FIND", over: "$allContainers",
+        predicate: { operator: "AND", rules: [
+          { left: "id", comparator: "IS", right: "literal:occ-template" }] },
+        itemIdVar: "$destId" } },
       { type: "action", config: { type: "SHOW_VALUE", name: "$out", value: "$destId" } },
     ]), { userId: "u1", gridId: "g1" });
-    // Would be "occ-other-grid" if gridId scoping were dropped and g1 came
-    // second in iteration order — asserting the g1 id directly is the guard.
-    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value).toBe("cont-bookmarks");
+    expect(res.effects.find(e => e._effect === "SHOW_VALUE").value ?? null).toBe(null);
   });
 
   it("refuses a FIND with no gridId, loudly", async () => {

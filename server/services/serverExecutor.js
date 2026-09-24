@@ -101,22 +101,21 @@ async function deepResolveExprAsync(value, $vars, opts) {
   return resolveExprAsync(value, $vars, opts);
 }
 
-// A bare record path (`label`, `fields.x.value`, `_ancestors`) — no $-prefix,
-// no literal:/json: prefix. FIND's predicates are written against a RECORD
-// (mirroring the client executor's evalGroupAgainstRecord in
-// client/src/helpers/operationActions.js), not against $vars — resolveExpr
-// would just hand a bare path back to itself as a literal string.
-function isBareRecordPath(s) {
-  if (typeof s !== "string" || s === "") return false;
-  if (s.startsWith("$")) return false;
-  if (SCALAR_LITERAL_RE.test(s) || s.startsWith("json:")) return false;
-  return true;
-}
-
-// Dot-walk a record for FIND's bare-path predicates. Mirrors
-// operationActions.js's resolveRecordPath (client) for the subset FIND needs
-// server-side, including the legacy `$item.`/`$record.` prefix some seeded
-// predicates still carry.
+// Dot-walk a record for FIND's predicates. Mirrors operationActions.js's
+// resolveRecordPath (client) for the subset FIND needs server-side, including
+// the legacy `$item.`/`$record.` prefix some seeded predicates still carry
+// (e.g. `$record._ancestors HAS_ANCESTOR <library>`, seen in optionsSource
+// find predicates on the live grid).
+//
+// REVIEW FIX (Critical 1): this is now the ONLY path a FIND's `rule.left`
+// takes. The prior version routed through an `isBareRecordPath` guard that
+// returned false for anything starting with "$" — which excluded the very
+// `$item.`/`$record.` prefixes this function exists to strip, so a predicate
+// written that way silently fell through to `resolveExpr($vars)`, resolved to
+// undefined, and matched nothing. The CLIENT's own FIND
+// (`operationActions.js` `evalRuleAgainstRecord` → `resolveRecordPath`) has
+// no such branch: every `rule.left` in a FIND predicate is a record path,
+// unconditionally. There is no `$vars` fallback here to diverge from.
 function resolveRecordPath(record, path) {
   if (record == null || !path) return null;
   const normalized = path.startsWith("$item.") ? path.slice(6)
@@ -134,9 +133,9 @@ function resolveRecordPath(record, path) {
 // Minimal predicate eval: AND/OR with rules { left, comparator, right }.
 // Supports a subset of comparators — enough for typical guards.
 //
-// `record`, when supplied (FIND only), routes a bare-path `left` through
-// resolveRecordPath instead of resolveExpr — every other caller (IF) passes
-// no record and gets the original $vars-only behavior unchanged.
+// `record`, when supplied (FIND only), routes `left` through
+// resolveRecordPath unconditionally — every other caller (IF) passes no
+// record and keeps the original $vars-only behavior.
 function evalGroup(group, $vars, record = null) {
   if (!group) return true;
   const op = (group.operator || "AND").toUpperCase();
@@ -151,7 +150,7 @@ function evalGroup(group, $vars, record = null) {
 }
 
 function evalRule(rule, $vars, record = null) {
-  const left = (record && isBareRecordPath(rule.left))
+  const left = record
     ? resolveRecordPath(record, rule.left)
     : resolveExpr(rule.left, $vars);
   const right = resolveExpr(rule.right, $vars);
@@ -168,6 +167,25 @@ function evalRule(rule, $vars, record = null) {
     case "ARRAY_INCLUDES": return Array.isArray(left) && left.includes(right);
     default:               return left == right; // eslint-disable-line eqeqeq
   }
+}
+
+// REVIEW FIX (Important 4, cheap half only — per Ruling 16, no DB-side
+// pushdown). Mirrors the client's `singleIdEquals`
+// (client/src/helpers/operationActions.js:1580-1590) bit for bit: the id a
+// predicate asks for when it is EXACTLY `id IS <x>` (with or without a legacy
+// `$item.`/`$record.` prefix), else null. One plain rule only — a second
+// rule, a nested group, or any other comparator still needs the full scan.
+// The client's own comment records why this exists: a bare `id IS <x>` FIND
+// walking every record cost 65-80ms per op on a ~22,000-occurrence grid.
+function singleIdEquals(predicate, $vars) {
+  const rules = predicate?.rules;
+  if (!Array.isArray(rules) || rules.length !== 1) return null;
+  const r = rules[0];
+  if (!r || Array.isArray(r.rules) || r.comparator !== "IS") return null;
+  const left = typeof r.left === "string" ? r.left.replace(/^\$(item|record)\./, "") : "";
+  if (left !== "id") return null;
+  const v = resolveExpr(r.right, $vars);
+  return typeof v === "string" && v ? v : null;
 }
 
 // Append a query string to a URL (preserves existing one).
@@ -335,11 +353,36 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       // executor's enrichment (operationExecutor.js `enrichOne`:
       // `label: occ.label ?? tpl?.label ?? tpl?.name ?? null`), which is what
       // a predicate's bare `label` path expects to read.
+      //
+      // REVIEW FIX (Critical 2): excludes anything carrying `meta.isTemplate`
+      // on either the occurrence or its module (occurrence wins, mirroring
+      // the client's `meta: {...tpl.meta, ...occ.meta}` merge order). The
+      // client's own FIND filters `!it.meta?.isTemplate` before evaluating
+      // any predicate (operationActions.js:1592) — a template scaffold (e.g.
+      // the day-page template, `meta.isTemplate:true` per
+      // createDefaultUserData.js) is not a real row and the UI never offers
+      // it as a match. Filtered upstream of BOTH the scan and the id fast
+      // path below, so neither has to repeat the check.
       const records = occs
         .filter(o => !role || modById[o.moduleId]?.role === role)
+        .filter(o => {
+          const mod = modById[o.moduleId];
+          const mergedIsTemplate = (o.meta && "isTemplate" in o.meta) ? o.meta.isTemplate : mod?.meta?.isTemplate;
+          return !mergedIsTemplate;
+        })
         .map(o => ({ ...o, label: o.label || modById[o.moduleId]?.label || "" }));
 
-      const match = records.find(r => evalGroup(cfg.predicate, $vars, r));
+      // A bare `id IS <x>` predicate is a lookup, not a scan (Important 4) —
+      // skip evalGroup's per-record resolveRecordPath/comparator work
+      // entirely rather than run it once per record just to compare `id`.
+      const wantedId = singleIdEquals(cfg.predicate, $vars);
+      let match;
+      if (wantedId != null) {
+        const recordsById = new Map(records.map(r => [r.id, r]));
+        match = recordsById.get(wantedId) ?? null;
+      } else {
+        match = records.find(r => evalGroup(cfg.predicate, $vars, r)) ?? null;
+      }
       if (cfg.itemIdVar) $vars[cfg.itemIdVar] = match?.id ?? null;
       if (cfg.itemVar) $vars[cfg.itemVar] = match ?? null;
       return;
