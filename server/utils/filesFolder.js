@@ -80,9 +80,18 @@ export function placementSemanticForKind(kind) {
 export function filesFolderIdSet(uc, { gridId, userId }) {
   const root = findFilesFolder(uc, { gridId, userId });
   if (!root) return new Set();
+  // The WHOLE tree under Files, not just its direct subfolders: files are
+  // sorted deeper (Files/Images/Books — 0351), and a file homed there must
+  // still count as "in Files", or removing a book cover from a page would
+  // delete the file instead of unlinking that one placement.
   const ids = new Set([root.id]);
-  for (const f of Object.values(uc?.foldersById || {})) {
-    if (f && f.gridId === gridId && f.userId === userId && f.parentId === root.id) ids.add(f.id);
+  const folders = Object.values(uc?.foldersById || {})
+    .filter(f => f && f.gridId === gridId && f.userId === userId);
+  for (let grew = true, hops = 0; grew && hops < MAX_FOLDER_DEPTH; hops++) {
+    grew = false;
+    for (const f of folders) {
+      if (!ids.has(f.id) && ids.has(f.parentId)) { ids.add(f.id); grew = true; }
+    }
   }
   return ids;
 }

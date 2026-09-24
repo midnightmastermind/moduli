@@ -2,6 +2,19 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-24 (9) — `0351`: Files/Images sorted by what uses each image)
+- User: *"organize the files folder … images/import images/people images/ingredients … like images/books"*,
+  *"put imports in the imports folder"*. `0351` moves images whose parent is Files/Images into
+  `Files/Images/<Books|People|Ingredients|…>` by the Board Category (else Library) of the rows that
+  reference them through a field value (most votes wins), and remote-URL images embedded in a document
+  (importer output) into the root `Imports` folder. Everything else stays. Only `parentId` changes,
+  guarded on the current parent. Pure planner `planImageSort` + `categoryFolderName`, tested.
+- **`utils/filesFolder.filesFolderIdSet` now covers the WHOLE Files tree.** It only took Files' direct
+  subfolders, so a file in Files/Images/Books would have counted as "not in Files" and removing its
+  placement from a page would have deleted the file. A/B'd: the old version fails the sub-subfolder case.
+- Test `__tests__/sortImagesIntoSubfolders.test.js` (8). **Not run against poms grid from here** (no DB
+  access in the cloud session) — dry run first; restart pm2 after `--apply`.
+
 ## Recent Changes (2026-09-24 (8) — Google Drive storage: connect flow + backend + /files proxy)
 Plan `docs/superpowers/plans/2026-09-24-connections-storage-gdrive.md`, Tasks 4–5 (1–3 were the other account's).
 - **`services/googleOAuth.js`** — `startUrl` (drive.file, offline, consent, signed 15-min `state` naming the
