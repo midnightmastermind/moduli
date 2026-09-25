@@ -2,6 +2,21 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (7) — undo only the stack top; `0359` Instagram CSV merge)
+- **`socketHandlers/transactions.js undo_transaction`** refuses an explicit `transactionId` unless it is
+  the newest undoable one (`nextUndoable`); a derived write is never on that stack. Undo writes back
+  each doc's whole `before`, so an out-of-order undo erased later edits — the removed history panel's
+  per-row Undo did exactly that. `__tests__/undoOnlyTopOfStack.test.js` (4; A/B 2 fail without).
+- **`update_occurrence`'s MeasureOp** carries `meta.actionId` (the gesture) so the client folds it into
+  that gesture's notification pill. In `meta`, NOT top-level `actionId`: txRecorder merges snapshots
+  into ANY applied transaction with that actionId.
+- **`migrations/0359`** reads `PEOPLE_IG_CSV_PATH` (the scraped Instagram following list, outside git):
+  handle -> the `ig:` card; full name (NFKC-folded, >= 2 words, exactly one card; first+last allowed)
+  -> a Facebook card. Both on different cards -> 0357's merge (pictures carried, duplicate removed).
+  Name-only -> gains the handle. One CSV row per person. Photos DOWNLOADED (CDN links expire):
+  no picture -> cover; different picture -> added to Files beside it; same sha256 -> skipped.
+  **Must run ON THE PROD BOX** — it writes files into that machine's `uploads/`. Tests (6).
+
 ## Recent Changes (2026-09-25 (6) — `0358`: people photos beside the fields)
 - The imported people's modules lacked `meta.mediaInline`, so photos rendered as the block UNDER the
   fields. `0358` sets it (dotted `$set`, meta merged) on every social-import person module.

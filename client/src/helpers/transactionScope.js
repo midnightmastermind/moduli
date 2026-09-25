@@ -1,57 +1,16 @@
 // client/src/helpers/transactionScope.js
 //
-// DOES THIS TRANSACTION BELONG TO THIS MODULE?
+// Reading transactions for the notification stack, which is the change history
+// since 2026-09-25 (the per-module history panel was removed: its per-row Undo
+// restored a whole `before` snapshot out of order, erasing later edits).
 //
-// `ui/TransactionHistory` opens per-module from every container's and panel's
-// radial ("Module History"), and it showed NOTHING on any grid. Measured
-// 2026-09-22:
+//   describeSnapshotTransaction  a readable line for a gesture's undo record
+//   touchesScope / openPageScopes  the dropdown's "this page" filter
 //
-//   rebuild   242 transactions   200 SnapshotOp — operations[] EMPTY, the
-//                                payload is docs[]; 42 MeasureOp whose measure
-//                                is { occurrenceId, fieldId, value, flow }
-//   poms     1200 transactions   15,831 measure payloads and ZERO carrying
-//                                panelId or containerId; no occurrence_list or
-//                                entity ops at all
-//
-// The old filter asked for `measure.panelId` / `measure.containerId` /
-// `occurrence_list.*.containerId` / `entity.moduleId`, so it could not match a
-// single row. What a transaction actually names is an OCCURRENCE — or the
-// module itself, for a module write — and that is what this reads.
-//
-// The legacy shapes are kept: they cost one comparison and a grid whose older
-// transactions carry them should keep working.
+// What a transaction names is an OCCURRENCE (or a module, for a module write) —
+// measured 2026-09-22, no record carries a panel or container id.
 
-/**
- * @param tx    a transaction record ({ docs?, operations? })
- * @param scope { moduleId, occurrenceIds } — occurrenceIds is a Set of the
- *              occurrence ids that render this module. Without a moduleId every
- *              transaction belongs (the grid-wide panel).
- */
-export function transactionTouchesModule(tx, { moduleId, occurrenceIds } = {}) {
-  if (!moduleId) return true;
-  if (!tx) return false;
-  const ids = occurrenceIds instanceof Set ? occurrenceIds : new Set(occurrenceIds || []);
-
-  // SnapshotOp — the shape every write takes now. A doc names the row it wrote
-  // (or the module, for a module write).
-  for (const d of tx.docs || []) {
-    if (!d?.id) continue;
-    if (d.id === moduleId || ids.has(d.id)) return true;
-  }
-
-  for (const op of tx.operations || []) {
-    const mo = op?.measure;
-    if (mo) {
-      if (mo.occurrenceId && ids.has(mo.occurrenceId)) return true;
-      // legacy: some grids' measures carried the surface ids directly
-      if (mo.panelId === moduleId || mo.containerId === moduleId) return true;
-    }
-    const list = op?.occurrence_list;
-    if (list && (list.from?.containerId === moduleId || list.to?.containerId === moduleId)) return true;
-    if (op?.entity?.moduleId === moduleId) return true;
-  }
-  return false;
-}
+import { cachedParentMap } from "./dragHitTesting";
 
 /**
  * A human line for a SnapshotOp — the shape every write takes now, and the one
@@ -87,4 +46,42 @@ export function describeSnapshotTransaction(tx, { occurrencesById = {}, modulesB
   if (label) return label;
   if (docs.length) return `${docs.length} change${docs.length === 1 ? "" : "s"}`;
   return "Unknown operation";
+}
+
+// ── SCOPED NOTIFICATION HISTORY (2026-09-25) ─────────────────────────────────
+// The notification dropdown IS the change history now, and the user wanted it
+// scoped ("scoped history please"): All, or the page a panel is showing. A
+// gesture pill carries the ids of every row it touched; it belongs to a page
+// when any of them sits under that page.
+
+
+/** Does any touched row live on (or under) `scopeOccId`? */
+export function touchesScope(touchedIds, scopeOccId, occurrencesById = {}) {
+  if (!scopeOccId) return true;
+  if (!Array.isArray(touchedIds) || touchedIds.length === 0) return false;
+  const pbc = cachedParentMap(occurrencesById);
+  for (const start of touchedIds) {
+    let cur = start;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      if (cur === scopeOccId) return true;
+      seen.add(cur);
+      cur = pbc[cur] ?? occurrencesById[cur]?.parentId ?? null;
+    }
+  }
+  return false;
+}
+
+/** The pages panels are showing right now, as scope choices. */
+export function openPageScopes({ views = [], occurrencesById = {}, modulesById = {} } = {}) {
+  const out = [];
+  const seen = new Set();
+  for (const v of views) {
+    const id = v?.activeOccurrenceId;
+    if (!id || seen.has(id) || !occurrencesById[id]) continue;
+    seen.add(id);
+    const occ = occurrencesById[id];
+    out.push({ id, label: occ.label || modulesById[occ.moduleId]?.label || "Page" });
+  }
+  return out;
 }

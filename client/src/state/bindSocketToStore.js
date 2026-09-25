@@ -10,7 +10,8 @@ import { dropEmbedsOf } from "../helpers/embedRegistry";
 import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
-import { toast, pushTxNotification } from "./notificationStore";
+import { toast, pushTxNotification, upsertGesturePill } from "./notificationStore";
+import { describeSnapshotTransaction } from "../helpers/transactionScope";
 import { afterPaint } from "../helpers/afterPaint";
 import { measureCoalesceKey, mergeMeasureTransaction } from "../helpers/measureCoalesce";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
@@ -2712,9 +2713,30 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // machinery below is O(grid) per transaction (it rebuilds modulesById,
     // occurrencesById and a full parent reverse map). Since every write now
     // produces one, that work would run on every keystroke-debounced doc save.
-    // TransactionHistory has its own `transaction_created` listener and still
-    // live-updates from these.
-    if (transaction.type === "SnapshotOp") return;
+    // A user gesture's snapshot still becomes (or updates) its notification
+    // pill below — that is the change history now — at O(docs) cost.
+    // A transaction for another grid (every write is broadcast to all of the
+    // user's tabs) never becomes a pill here.
+    const _curGridId = stateRef.current?.gridId || stateRef.current?.grid?._id || null;
+    const _sameGrid = !transaction.gridId || !_curGridId || String(transaction.gridId) === String(_curGridId);
+    if (transaction.type === "SnapshotOp") {
+      // The undo record of a USER gesture ties that gesture's pill to the
+      // transaction Undo would take back. Derived writes (ops, scheduler, feed
+      // sync) carry no actionId and never get an undoable pill.
+      if (_sameGrid && transaction.actionId && !transaction.meta?.derived) {
+        upsertGesturePill({
+          actionId: transaction.actionId,
+          gridId: transaction.gridId,
+          transactionId: transaction.id,
+          fallbackLabel: describeSnapshotTransaction(transaction, {
+            occurrencesById: byIdCached(stateRef.current?.occurrences),
+            modulesById: byIdCached(stateRef.current?.modules),
+          }),
+          touchedIds: (transaction.docs || []).map(d => d?.id).filter(Boolean),
+        });
+      }
+      return;
+    }
 
     // ── A MeasureOp TRANSACTION MUST NOT RE-FIRE OPERATIONS ───────────────
     // A MeasureOp transaction is the RECORD of a field write. The write itself
@@ -2860,7 +2882,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const label = head
           ? `${head} · ${fieldName}: ${desc}`
           : `${fieldName}: ${desc}`;
-        pushTxNotification({ kind: "success", label });
+        const gestureId = transaction.meta?.actionId;
+        if (!_sameGrid) { /* another grid's write */ }
+        else if (gestureId) {
+          // Part of a user gesture: fold into that gesture's ONE pill.
+          upsertGesturePill({ actionId: gestureId, gridId: transaction.gridId, label, bump: 1, touchedIds: [m.occurrenceId].filter(Boolean) });
+        } else {
+          // An operation's own write: information, never undoable.
+          pushTxNotification({ kind: "info", label });
+        }
       }
     } else if (transaction.type === "OccurrenceListOp" && ops.length > 0) {
       const op = ops[0];

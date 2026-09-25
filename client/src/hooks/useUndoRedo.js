@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getUndoState, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
-import { pushTxNotification } from "../state/notificationStore";
+import { pushTxNotification, setUndoTop, markTransactionUndone } from "../state/notificationStore";
 
 /**
  * useUndoRedo - Hook for managing undo/redo state
@@ -52,8 +52,14 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
   useEffect(() => {
     if (!socket) return;
 
-    const handleUndoState = ({ canUndo, canRedo }) => {
+    const handleUndoState = ({ canUndo, canRedo, lastUndoableId }) => {
       setCanUndo(canUndo);
+      // The notification pill holding this transaction is the only one that
+      // offers Undo. It sends the id so the server can refuse a stale pill.
+      setUndoTop(canUndo ? lastUndoableId : null, (transactionId) => {
+        setIsProcessing(true);
+        undoTransaction({ socket, gridId, transactionId });
+      });
       // Gated here rather than at the button, so every consumer of `canRedo`
       // agrees — App, Grid, the canvas and the history panel all read it.
       setCanRedo(REDO_ENABLED && canRedo);
@@ -63,6 +69,7 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
       setIsProcessing(false);
 
       if (success) {
+        markTransactionUndone(transactionId);
         pushTxNotification({ kind: "success", label: "Undone" });
 
         // Trigger animation if there are move operations to animate
@@ -131,7 +138,7 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
       socket.off("sync_state", handleSyncState);
       socket.off("transaction_created", handleTransactionCreated);
     };
-  }, [socket, refreshUndoState, onUndoAnimation]);
+  }, [socket, gridId, refreshUndoState, onUndoAnimation]);
 
   // Refresh when gridId changes
   useEffect(() => {
@@ -145,8 +152,8 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
   // made Ctrl+Z undo an OLD transaction — the id is only as fresh as the last
   // `undo_state` round trip, so after a few edits it pointed several steps
   // back, restoring a stale document while the newer transactions stayed
-  // `applied`. The explicit-id path still exists on the server for the history
-  // panel, which legitimately targets one specific entry.
+  // `applied`. A notification pill sends the id it holds; the server accepts it
+  // only when it is still the stack top.
   const undo = useCallback(() => {
     if (!socket || isProcessing) return;
 

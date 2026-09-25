@@ -13,7 +13,7 @@ import { toast } from "../state/notificationStore";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import ContainerForm from "../ui/ContainerForm";
-import TransactionHistory from "../ui/TransactionHistory";
+import PastValuesDialog from "../ui/PastValuesDialog";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { markLoadOnce } from "../helpers/loadDiag";
@@ -2053,12 +2053,9 @@ function Container({
         document.body
       )}
 
-      <TransactionHistory
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-        gridId={ctxGridId}
-        moduleId={module.id}
-      />
+      {historyOpen && (
+        <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={containerOccurrence} />
+      )}
 
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>

@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, Undo2, RotateCw } from "lucide-react";
+import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Menu, X, Undo2, RotateCw } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import OpActivityPill from "./ui/OpActivityPill.jsx";
@@ -53,8 +53,6 @@ export default function Toolbar({
   onCommandCenter,
   commandCenterOpen = false,
   // History
-  onHistory,
-  historyOpen = false,
   // Account
   userId,
   userEmail,
@@ -328,16 +326,6 @@ const gridOptions = useMemo(
               <AlarmDropdown />
               <div className="w-px h-4 bg-border-default mx-0.5" />
 
-              {/* History */}
-              <Button
-                size="sm"
-                variant={historyOpen ? "secondary" : "ghost"}
-                onClick={onHistory}
-                title="Transaction history"
-                style={{ height: 26, width: 26, padding: 0 }}
-              >
-                <Clock className="h-3.5 w-3.5" />
-              </Button>
             </>
           )}
 
@@ -522,19 +510,6 @@ const gridOptions = useMemo(
             <AlarmDropdown />
 
             <div style={{ height: 1, background: "var(--border-default)" }} />
-
-            {/* History */}
-            <button
-              onClick={() => { onHistory?.(); setDrawerOpen(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
-                background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
-                fontSize: 12, fontFamily: "var(--font-mono)",
-              }}
-            >
-              <Clock size={14} style={{ opacity: 0.7 }} />
-              Transaction History
-            </button>
 
             {/* Hide toolbar */}
             <button

@@ -156,11 +156,19 @@ export function registerTransactionHandlers(socket, {
     try {
       if (!userId) return;
       const gId = gridId || socket.data.activeGridId;
-      // Resolve from the STACK by default; an explicit id still works so the
-      // history panel can undo a specific entry.
-      const tx = transactionId
-        ? await Transaction.findOne({ id: transactionId, userId })
-        : await nextUndoable(gId);
+      // ONLY THE TOP OF THE STACK IS UNDOABLE (2026-09-25). Undo writes back each
+      // document's whole `before` snapshot, so undoing an OLDER transaction out
+      // of order also erases every later edit to the same rows. An explicit id
+      // is accepted only when it names the newest undoable transaction — the
+      // notification pill sends one so a stale pill cannot undo the wrong
+      // thing — and a derived (operation/background) write is never undoable.
+      const top = await nextUndoable(gId);
+      if (transactionId && transactionId !== top?.id) {
+        return socket.emit("undo_result", {
+          success: false, error: "Only the most recent change can be undone",
+        });
+      }
+      const tx = top;
 
       if (!tx || tx.state === "undone") {
         return socket.emit("undo_result", { success: false, error: "Nothing to undo" });

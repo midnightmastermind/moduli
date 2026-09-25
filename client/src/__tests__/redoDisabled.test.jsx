@@ -40,8 +40,10 @@ describe("redo is disabled", () => {
     expect(read("hooks/useUndoRedo.js")).toContain("setCanRedo(REDO_ENABLED && canRedo)");
   });
 
-  it("the history panel — the SECOND surface — is gated too", () => {
-    expect(read("ui/TransactionHistory.jsx")).toContain("REDO_ENABLED && UNDO_REDO_ENABLED");
+  // The history panel (the second surface that offered redo) was removed
+  // 2026-09-25 — the notification stack offers only Undo, on the newest pill.
+  it("no surface offers redo: the notification stack has no Redo control", () => {
+    expect(read("ui/TransactionNotificationStack.jsx")).not.toMatch(/redo/i);
   });
 
   it("UNDO is untouched — the control", () => {

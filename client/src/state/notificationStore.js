@@ -79,6 +79,103 @@ export function dismissTxNotification(id) {
 }
 
 
+// ---------------------------------------------------------------------------
+// GESTURE PILLS — the notification stack IS the change history (2026-09-25).
+//
+// The separate transaction-history panel is gone: its per-row Undo restored a
+// whole `before` snapshot out of order, erasing later edits. Everything a user
+// gesture writes shares one `actionId` (helpers/actionScope), so each gesture
+// is ONE pill here, however many rows it and the operations it set off wrote:
+// the first readable field change names it, the rest count as "+N updates".
+//
+// Only the pill holding the newest undoable transaction offers Undo — the same
+// step Ctrl+Z takes, and the only one the server will accept (undo_transaction
+// refuses anything but the stack top). Operation writes with no gesture behind
+// them are never pills with Undo.
+//
+// Session-only by design (user: "dont let it survive reload").
+// ---------------------------------------------------------------------------
+let _undoTopId = null;
+let _undoHandler = null;
+
+export function upsertGesturePill({
+  actionId, gridId = null, label = null, fallbackLabel = null,
+  transactionId = null, touchedIds = [], bump = 0,
+}) {
+  if (!actionId) return null;
+  const id = `gesture:${actionId}`;
+  const existing = _items.find(n => n.id === id);
+  if (existing) {
+    _items = _items.map(n => {
+      if (n.id !== id) return n;
+      const touched = new Set([...(n.touchedIds || []), ...touchedIds]);
+      const readable = n.readable || !!label;
+      return {
+        ...n,
+        label: n.readable ? n.label : (label || n.label),
+        readable,
+        // A write that finally NAMES the gesture replaces the fallback label
+        // and is not itself counted as an extra update.
+        extra: (n.extra || 0) + (!n.readable && label ? 0 : bump),
+        transactionId: transactionId || n.transactionId,
+        touchedIds: [...touched],
+      };
+    });
+    _emit();
+    return id;
+  }
+  const text = label || fallbackLabel;
+  if (!text) return null;
+  _items = [{
+    id, kind: "success", label: text, readable: !!label, extra: 0,
+    createdAt: Date.now(), dismissed: false,
+    gesture: true, actionId, gridId, transactionId, touchedIds: [...touchedIds], state: "applied",
+  }, ..._items];
+  if (_items.length > MAX_HISTORY) _items = _items.slice(0, MAX_HISTORY);
+  _emit();
+  return id;
+}
+
+export function markTransactionUndone(transactionId) {
+  if (!transactionId) return;
+  let changed = false;
+  _items = _items.map(n => {
+    if (n.transactionId !== transactionId || n.state === "undone") return n;
+    changed = true;
+    return { ...n, state: "undone" };
+  });
+  if (changed) _emit();
+}
+
+/** The transaction the next undo would take back (from the server's undo_state). */
+export function setUndoTop(transactionId, handler) {
+  const next = transactionId || null;
+  if (handler !== undefined) _undoHandler = handler;
+  if (next === _undoTopId) return;
+  _undoTopId = next;
+  _emit();
+}
+
+export function getUndoTop() { return _undoTopId; }
+
+/** A pill can undo only when it holds the stack top and has not been undone. */
+export function canUndoPill(note) {
+  return !!(note?.gesture && note.transactionId && note.state !== "undone" && note.transactionId === _undoTopId);
+}
+
+export function undoPill(note) {
+  if (!canUndoPill(note) || !_undoHandler) return false;
+  _undoHandler(note.transactionId);
+  return true;
+}
+
+/** "Drink Water · Done: false → true · +3 updates" */
+export function gesturePillText(note) {
+  if (!note?.gesture) return note?.label || "";
+  const extra = note.extra > 0 ? ` · +${note.extra} update${note.extra === 1 ? "" : "s"}` : "";
+  return `${note.label}${extra}${note.state === "undone" ? " — undone" : ""}`;
+}
+
 export function subscribeTxNotifications(fn) {
   _subs.add(fn);
   fn(_items);

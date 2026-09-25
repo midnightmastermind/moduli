@@ -21,7 +21,7 @@ import { Spinner } from "@/components/ui/spinner";
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
 import LayoutForm from "../ui/LayoutForm";
-import TransactionHistory from "../ui/TransactionHistory";
+import PastValuesDialog from "../ui/PastValuesDialog";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
 import { useGridActionsSelector } from "../GridActionsContext";
@@ -1360,12 +1360,9 @@ function Panel({
         position={kindSelectorPos}
       />
 
-      <TransactionHistory
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-        gridId={state.grid?._id || state.gridId}
-        moduleId={module.id}
-      />
+      {historyOpen && (
+        <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={occurrencesById?.[startPageId] || null} />
+      )}
 
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>

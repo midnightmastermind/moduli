@@ -2,6 +2,26 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (3) — the notification stack IS the change history; radial History = past values)
+- **`ui/TransactionHistory.jsx` DELETED** (+ its App/Toolbar/ModuleContainer/ModulePanel mounts). Its
+  per-row Undo restored an old transaction's whole snapshot out of order, erasing later edits.
+- **`state/notificationStore.js`** — gesture pills: `upsertGesturePill` (one pill per `actionId`; the
+  first readable field change names it, the rest count "+N updates"), `setUndoTop`/`canUndoPill`/
+  `undoPill` (Undo only on the pill holding the server's stack top, and it sends that id),
+  `markTransactionUndone`, `gesturePillText`. Session-only by design.
+- **`bindSocketToStore onTransactionCreated`** — a user SnapshotOp ties its pill to the transaction; a
+  MeasureOp with `meta.actionId` folds into the gesture pill; one without is an operation's own write
+  (info pill, never undoable). Other grids' transactions make no pill.
+- **`hooks/useUndoRedo`** feeds `lastUndoableId` + the undo handler to the store.
+- **`helpers/transactionScope.js`** — `transactionTouchesModule` removed (only the panel used it);
+  `touchesScope`/`openPageScopes` back the dropdown's "this page" filter.
+- **`helpers/pastValues.js` + `ui/PastValuesDialog.jsx`** — the radial History: other copies of the
+  block across its clone lineage (`meta.clonedFromModuleId`), dated by the block's own join field
+  (`headerLink/bodyLink.link`) else the effective filter's fields (value read off the copy or its
+  ancestors, never the filter's today) else creation time; shows text + field values of the copy and
+  its descendants (listed AND textmap-embedded). Nothing names Date.
+- Tests: `gesturePills` (5), `pastValues` (8), `transactionScope` (rewritten).
+
 ## Recent Changes (2026-09-25 (2) — `linkedFanFields.js` NEW: the on-screen copy-link sync skips placement fields)
 - `CommitHelpers.updateOccurrence` pushes a field write onto every copy-link sibling in the same frame,
   and it shared EVERY field. The server's fan-out (`socketHandlers/occurrences.js`) leaves out the

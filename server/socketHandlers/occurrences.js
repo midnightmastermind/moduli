@@ -416,6 +416,11 @@ export function registerOccurrenceHandlers(socket, {
               id: nanoid(12), userId, gridId: txGridId,
               type: "MeasureOp", timestamp: new Date(),
               operations: ops, state: "applied",
+              // The gesture this write belongs to, so the notification stack can
+              // fold it into that gesture's ONE pill (2026-09-25). In `meta`, NOT
+              // the top-level `actionId`: txRecorder merges snapshots into any
+              // applied transaction carrying that actionId, whatever its type.
+              meta: { actionId: payload?.__actionId || null },
             });
             await tx.save();
             const txJson = tx.toJSON();

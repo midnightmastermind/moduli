@@ -27,7 +27,6 @@ import { initActiveCellForGrid } from "./state/activeCellStore";
 import { useBoardState } from "./state/useBoardState";
 
 import Toolbar from "./Toolbar";
-import TransactionHistory from "./ui/TransactionHistory";
 // Lazy: CommandCenter pulls the whole settings-tab tree + the blocks
 // operations editor — none of it is needed before the user opens it.
 const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
@@ -289,7 +288,6 @@ export default function App() {
   });
 
   // Undo/Redo state (lifted from Grid so Toolbar can access it)
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [commandCenterOpen, setCommandCenterOpen] = useState(false);
   // Once CC opens for the first time, keep it mounted so slide animation works on close
   const [commandCenterEverOpened, setCommandCenterEverOpened] = useState(false);
@@ -327,18 +325,17 @@ export default function App() {
     });
   }, []);
 
-  // Global Escape key: close history dialog first, then CommandCenter
+  // Global Escape key: close the CommandCenter
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.contentEditable === "true") return;
-      if (historyOpen) { setHistoryOpen(false); return; }
       if (commandCenterOpen) { setCommandCenterOpen(false); return; }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [commandCenterOpen, historyOpen]);
+  }, [commandCenterOpen]);
 
   const { captureAllPositions, animateToNewPositions, flashElement } = useAnimations();
   useTheme(); // Applies data-theme + dark class from localStorage on mount
@@ -1071,8 +1068,6 @@ export default function App() {
           undoBusy={isProcessing}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
           commandCenterOpen={commandCenterOpen}
-          onHistory={() => setHistoryOpen((prev) => !prev)}
-          historyOpen={historyOpen}
           userId={state.userId}
           userEmail={state.userEmail}
           onLogout={() => { socket?.emit("logout"); dispatch(logoutAction()); }}
@@ -1091,13 +1086,6 @@ export default function App() {
           </React.Suspense>
         )}
         </div>{/* end header wrapper */}
-
-        {/* Transaction History Dialog */}
-        <TransactionHistory
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-          gridId={state.gridId}
-        />
 
         {/* Jarvis — bottom-right floating chat. See docs/assistant-guide.md. */}
         <AssistantDrawer />

@@ -17,7 +17,31 @@ import { Check, AlertTriangle, Loader2, X, Maximize2, Info } from "lucide-react"
 import {
   subscribeTxNotifications,
   dismissTxNotification,
+  canUndoPill,
+  undoPill,
+  gesturePillText,
 } from "../state/notificationStore";
+import { touchesScope, openPageScopes } from "../helpers/transactionScope";
+
+// Undo lives on exactly ONE pill: the gesture holding the newest undoable
+// transaction (the server refuses any other). It is the same step Ctrl+Z takes.
+function UndoButton({ note, color, size = 10 }) {
+  if (!canUndoPill(note)) return null;
+  return (
+    <button
+      type="button"
+      title="Undo this change (same as Ctrl+Z)"
+      onClick={(e) => { e.stopPropagation(); undoPill(note); }}
+      style={{
+        flex: "0 0 auto", padding: "0 6px", height: size + 8, borderRadius: 999,
+        border: `1px solid ${color}`, background: "transparent", color,
+        fontSize: size, cursor: "pointer", fontFamily: "inherit", lineHeight: 1,
+      }}
+    >
+      Undo
+    </button>
+  );
+}
 
 // Each chip uses two background layers — a colored tint over an
 // opaque surface — so stacked chips don't bleed through each other.
@@ -87,7 +111,8 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
     const single = el.querySelector("[data-tx-label-copy]");
     if (!single) return;
     setOverflows(single.scrollWidth > el.clientWidth);
-  }, [note.label, treatAsOpen]);
+  }, [note.label, note.extra, note.state, treatAsOpen]);
+  const text = gesturePillText(note);
 
   const animate = treatAsOpen && overflows;
   const durationSec = animate
@@ -109,7 +134,7 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
           onOpen?.(note.id);
         }
       }}
-      title={`${note.label} · ${formatClockTime(note.createdAt)}`}
+      title={`${text} · ${formatClockTime(note.createdAt)}`}
       style={{
         ...positional,
         display: "inline-flex",
@@ -183,8 +208,8 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
                 willChange: animate ? "transform" : "auto",
               }}
             >
-              <span data-tx-label-copy style={{ paddingRight: LABEL_TRACK_GAP }}>{note.label}</span>
-              {animate && <span aria-hidden style={{ paddingRight: LABEL_TRACK_GAP }}>{note.label}</span>}
+              <span data-tx-label-copy style={{ paddingRight: LABEL_TRACK_GAP }}>{text}</span>
+              {animate && <span aria-hidden style={{ paddingRight: LABEL_TRACK_GAP }}>{text}</span>}
             </div>
           </div>
           <span
@@ -206,6 +231,7 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
         <span style={{ flex: "1 1 auto" }} aria-hidden />
       )}
 
+      {treatAsOpen && <UndoButton note={note} color={style.color} />}
       {treatAsOpen && <ExpandButton note={note} color={style.color} />}
     </div>
   );
@@ -381,8 +407,13 @@ function NotificationCard({ note }) {
           wordBreak: "break-word",
         }}
       >
-        {note.label}
+        {gesturePillText(note)}
       </div>
+      {canUndoPill(note) && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <UndoButton note={note} color={style.color} size={11} />
+        </div>
+      )}
     </div>
   );
 }
@@ -391,8 +422,44 @@ function NotificationCard({ note }) {
 // opens a portal-rendered list of EVERY notification (visible + overflow)
 // anchored under the pill. Portal avoids stacking-context conflicts that
 // were letting the dropdown "blank out" the page tabs underneath.
+// "All" or one of the pages the panels are showing. Read from the live state
+// at open time — the toolbar stack has no subscription to the grid.
+function liveOccurrencesById() {
+  const st = (typeof window !== "undefined" && window.__moduli_state__) || {};
+  return Object.fromEntries((st.occurrences || []).map(o => [o.id, o]));
+}
+
+function ScopeSelect({ scope, setScope }) {
+  const st = (typeof window !== "undefined" && window.__moduli_state__) || {};
+  const pages = useMemo(
+    () => openPageScopes({ views: st.views || [], occurrencesById: liveOccurrencesById() }),
+    [st.views], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  return (
+    <select
+      value={scope || ""}
+      onChange={(e) => setScope(e.target.value || null)}
+      style={{
+        fontSize: 12, padding: "3px 6px", borderRadius: 6, fontFamily: "inherit",
+        background: "var(--input-bg)", color: "var(--text-primary)",
+        border: "1px solid var(--border-default)",
+      }}
+      title="Show changes for one page"
+    >
+      <option value="">All changes</option>
+      {pages.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+    </select>
+  );
+}
+
 function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
   const [open, setOpen] = useState(false);
+  const [scope, setScope] = useState(null);
+  const scopedItems = useMemo(() => {
+    if (!scope) return allItems;
+    const occ = liveOccurrencesById();
+    return allItems.filter(n => n.gesture && touchesScope(n.touchedIds, scope, occ));
+  }, [allItems, scope]);
   const [anchorRect, setAnchorRect] = useState(null);
   const ref = useRef(null);
 
@@ -486,7 +553,11 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
             gap: 6,
           }}
         >
-          {allItems.map((n) => (
+          <ScopeSelect scope={scope} setScope={setScope} />
+          {scopedItems.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, padding: 8 }}>No changes on this page this session.</div>
+          )}
+          {scopedItems.map((n) => (
             <NotificationCard key={n.id} note={n} />
           ))}
         </div>,
