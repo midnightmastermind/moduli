@@ -59,7 +59,7 @@ import {
   getAutoAppliedRoles,
 } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
-import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
+import { primaryMediaOf, filesFieldIdFor, mediaSignature } from "../helpers/occurrenceMedia";
 import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
@@ -478,6 +478,14 @@ function InstanceInner({
   // The media value is an artifact OCCURRENCE ID now, resolved through the one
   // resolver every thumbnail site reads (2026-08-06). It handles the local vs
   // absolute fileRef split that used to be re-derived here.
+  // SUBSCRIBED to this row's own face only: artifacts arrive in full_state's
+  // DEFERRED half, after this row first renders, and the maps below are read
+  // through non-subscribing getters — so without this the row decided "no
+  // picture" once and never looked again. A primitive, so a row re-renders
+  // only when ITS picture changes, never for another row's write.
+  useGridActionsSelector(s => mediaSignature(occurrence, {
+    occurrencesById: s.occurrencesById, modulesById: s.modulesById,
+  }));
   const primaryMedia = primaryMediaOf(occurrence, {
     occurrencesById: getOccMap(), modulesById, fieldsById,
   });
