@@ -104,7 +104,7 @@ export async function mintOccurrence({
   fields = {}, fieldBindings = [],
   occurrenceId: explicitOccurrenceId = null,
   index = null,
-  externalId, source = "share", meta = {}, onExisting = "update",
+  externalId, source = "share", meta = {}, onExisting = "update", moduleMeta = null,
   io = null, mirror = null,
 }) {
   if (!externalId) throw new Error("externalId required — without it a re-share duplicates");
@@ -153,6 +153,7 @@ export async function mintOccurrence({
       id: moduleIdToUse, userId, gridId, label,
       role: moduleRole, kind: moduleKind, fileRef: moduleFileRef,
       fieldBindings,
+      ...(moduleMeta ? { meta: moduleMeta } : {}),
     });
     mod = asPlain(created);
     mirror?.("module", mod);

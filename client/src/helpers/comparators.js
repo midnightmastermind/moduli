@@ -11,6 +11,7 @@ export const COMPARATOR_OPTIONS = [
   { value: "IS",           label: "is" },
   { value: "IS_NOT",       label: "is not" },
   { value: "CONTAINS",     label: "contains" },
+  { value: "SAME_TEXT",    label: "same text (ignores case, accents)" },
   { value: "GREATER",      label: ">" },
   { value: "LESS",         label: "<" },
   { value: "IS_EMPTY",     label: "is empty" },

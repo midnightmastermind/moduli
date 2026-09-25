@@ -2,6 +2,24 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (9) — share a PERSON: `.vcf` contacts and profile links → the People board)
+- **`services/sharePerson.js` (NEW)** — `parseVcards` (FN/N, TEL, EMAIL, BDAY, ORG, TITLE, PHOTO base64/uri,
+  quoted-printable, folded lines), `profileLinkInfo` (Instagram / Facebook / TikTok PROFILE urls only — posts,
+  reels, groups, X, LinkedIn are not), `profileFromHtml` (og:title/og:image; a login wall falls back to the
+  handle). Measured from the prod box: fetched as a link-preview bot (`facebookexternalhit` UA) all three
+  return name + photo.
+- **`shareClassify`** — new tokens `contact` (.vcf / text/vcard / text/x-vcard) and `profile`.
+  **`shareIngress`** builds `$share.person` (photo stored via the share uploader → `photoOccurrenceId` /
+  `photoIds`); the .vcf itself is NOT stored; ids `contact:<name>` / `profile:<network>:<handle>`; a
+  profile counts as a link for label/id/catch-all. The route injects `fetchProfile` + `fetchImage`.
+- **`serverExecutor`** — comparator `SAME_TEXT` (case/accents/punctuation folded; client twin in
+  `operationActions.evalRule`), CREATE `bindingsLike` (copy a module's field set, un-hiding written
+  fields), `moduleMeta` (→ `occurrenceMint`), and `mergeInto` (fill an existing row's EMPTY fields,
+  union list fields, never overwrite; pure `planFieldMerge`).
+- **`migrations/0361`** — rules "Share: add contact" (FIND on the board by SAME_TEXT label → CREATE
+  mergeInto the match) and "Share: add profile" (always a new person; Instagram handle for IG, profile
+  in Website). Tests: `sharePerson` (11), `sharePersonRules` (5, real executor).
+
 ## Recent Changes (2026-09-25 (8) — `0360`: Instagram people not yet on the board; 0359 reads the FOLLOWING export)
 - `0360` reads `PEOPLE_IG_ADD_PATH` (`{add:[{handle,name,followsYou}], attach:[{handle,externalIdPrefix}]}`, built
   outside git by judging the unmatched rows — celebrities, creators, meme pages, brands, pets left out) and mints

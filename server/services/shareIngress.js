@@ -18,6 +18,14 @@ import fs from "fs/promises";
 import { classifyShare } from "./shareClassify.js";
 import { parseIcs } from "./icsImport.js";
 import { floorToSlot } from "./slotSnap.js";
+import { parseVcards, profileLinkInfo, profileFromHtml } from "./sharePerson.js";
+import os from "os";
+import path from "path";
+import { randomUUID } from "crypto";
+
+// A profile link is still a link everywhere a link is meant (its label, its
+// identity, the catch-all's row on a grid with no people rule).
+const isLinkType = (t) => t === "link" || t === "profile";
 
 const trimTo = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
@@ -27,7 +35,10 @@ const trimTo = (s, n) => {
 /** The one display label for a share — what the catch-all names its row. */
 export function shareLabelFor(type, props = {}, explicit = null) {
   if (explicit && String(explicit).trim()) return trimTo(explicit, 200);
-  if (type === "link") return trimTo(props.title || props.url, 200) || "Shared link";
+  if (type === "contact" || type === "profile") {
+    if (props.personName) return trimTo(props.personName, 200);
+  }
+  if (isLinkType(type)) return trimTo(props.title || props.url, 200) || "Shared link";
   if (type === "text" || type === "html") return trimTo(props.firstLine || props.text, 120) || "Shared text";
   return trimTo(props.filename, 200) || "Shared file";
 }
@@ -38,7 +49,11 @@ export function shareLabelFor(type, props = {}, explicit = null) {
  * /ingest path made instead of duplicating it. Shape defaults to `link`.
  */
 export function shareExternalIdFor(type, props = {}, { shape = null, sha256 = null } = {}) {
-  if (type === "link") return `${shape || "link"}:${props.url}`;
+  // A profile is keyed on WHO it is, so re-sharing the same person updates
+  // their row instead of adding them twice.
+  if (type === "profile" && props.network && props.handle) return `profile:${props.network}:${props.handle.toLowerCase()}`;
+  if (type === "contact" && props.personName) return `contact:${String(props.personName).toLowerCase().replace(/\s+/g, " ").trim()}`;
+  if (isLinkType(type)) return `${shape || "link"}:${props.url}`;
   if (sha256) return `sha256:${sha256}`;
   if (props.filename) return `file:${props.filename}:${props.sizeBytes ?? ""}`;
   return `text:${trimTo(props.text, 200)}`;
@@ -88,11 +103,31 @@ export function sanitizeClip(raw) {
   };
 }
 
+const EXT_FOR = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+
+/** A person's photo (vCard base64 or a URL) → stored like a shared image → its occurrence id. */
+async function storePersonPhoto(photo, { storeFile, fetchImage, userId, gridId, name }) {
+  let buf = null, mime = photo.mime || "image/jpeg";
+  if (photo.base64) buf = Buffer.from(photo.base64, "base64");
+  else if (photo.url && fetchImage) {
+    const got = await fetchImage(photo.url);
+    if (!got?.buf) return null;
+    buf = got.buf; mime = got.type || mime;
+  }
+  if (!buf?.length || !EXT_FOR[mime]) return null;
+  const safe = String(name || "person").replace(/[^\w .-]+/g, "").trim() || "person";
+  const tmp = path.join(os.tmpdir(), `share-person-${randomUUID()}.${EXT_FOR[mime]}`);
+  await fs.writeFile(tmp, buf);
+  const file = { path: tmp, originalname: `${safe}.${EXT_FOR[mime]}`, mimetype: mime, size: buf.length };
+  const stored = await storeFile({ file: { ...file, filename: file.originalname, _multer: file }, userId, gridId });
+  return stored?.occurrenceId || null;
+}
+
 export async function prepareShare({
   userId, gridId, source = "api",
   files = [], url = null, text = null, title = null, label = null, shape = null,
   clip = null,
-  fetchPreview = null, storeFile = null,
+  fetchPreview = null, storeFile = null, fetchProfile = null, fetchImage = null,
   timeZone = null, resolveSlotLabels = null, fetchCalendar = null,
 }) {
   const { type, props } = classifyShare({ files, url, text, title });
@@ -119,6 +154,34 @@ export async function prepareShare({
     const f = files[0];
     const icsText = f.text ?? await fs.readFile(f.path, "utf8").catch(() => "");
     calendar = await icsEvents(icsText, { timeZone, resolveSlotLabels });
+  }
+
+  // ── A PERSON (contact card or profile link) → `$share.person` ─────────────
+  // The .vcf itself is NOT stored — the person is the thing, not the file.
+  // The photo is stored like any shared image and handed to the rule by id.
+  let person = null;
+  if (type === "contact" && files.length) {
+    const f = files[0];
+    const vcf = f.text ?? await fs.readFile(f.path, "utf8").catch(() => "");
+    person = parseVcards(vcf)[0] || null;
+    if (f.path) await fs.unlink(f.path).catch(() => {});
+    files = [];
+    if (!person) throw Object.assign(new Error("no contact with a name was found in that card"), { code: "empty_contact" });
+  }
+  if (type === "profile" && fetchProfile) {
+    const info = profileLinkInfo(props.url);
+    const html = await fetchProfile(info.profileUrl).catch(() => null);
+    person = profileFromHtml(info, html || "");
+    Object.assign(enriched, { network: info.network, handle: info.handle, url: info.profileUrl });
+  }
+  if (person) {
+    let photoOccurrenceId = null;
+    if (person.photo && storeFile) {
+      photoOccurrenceId = await storePersonPhoto(person.photo, { storeFile, fetchImage, userId, gridId, name: person.name }).catch(() => null);
+    }
+    const { photo, ...rest } = person;
+    person = { ...rest, photoOccurrenceId, photoIds: photoOccurrenceId ? [photoOccurrenceId] : [] };
+    enriched.personName = person.name;
   }
 
   if (files.length) {
@@ -148,7 +211,7 @@ export async function prepareShare({
   }
   // The catalogue (spec §3) promises these keys on a link; present-but-null
   // beats absent, so a rule reading one resolves to null rather than failing.
-  if (type === "link") {
+  if (isLinkType(type)) {
     for (const k of ["title", "description", "siteName", "image", "favicon"]) {
       if (!(k in enriched)) enriched[k] = null;
     }
@@ -158,6 +221,7 @@ export async function prepareShare({
     type: shareType, source,
     props: enriched,
     clip: cleanClip,
+    ...(person ? { person } : {}),
     ...(calendar ? { events: calendar.events, notices: calendar.notices } : {}),
     label: shareLabelFor(type, enriched, label || cleanClip?.label),
     externalId: cleanClip?.externalId || (shareType === "ics" && type === "link"

@@ -28,6 +28,9 @@
           "accept": [
             "text/calendar",
             ".ics",
+            "text/vcard",
+            "text/x-vcard",
+            ".vcf",
             "image/*",
             "video/*",
             "audio/*",

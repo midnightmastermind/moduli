@@ -133,6 +133,28 @@ function resolveRecordPath(record, path) {
   return cur ?? null;
 }
 
+/**
+ * PURE: what merging `incoming` fields into an existing row writes. An empty
+ * field takes the value; two lists are unioned (a person gains a second photo);
+ * anything else already there is kept.
+ */
+export function planFieldMerge(existing, incoming) {
+  const set = {}, filled = [];
+  const empty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
+  for (const [fid, cell] of Object.entries(incoming)) {
+    const now = existing[fid]?.value;
+    if (empty(now)) { set[`fields.${fid}`] = cell; filled.push(fid); continue; }
+    if (Array.isArray(now) && Array.isArray(cell.value)) {
+      const union = [...new Set([...now, ...cell.value])];
+      if (union.length !== now.length) {
+        set[`fields.${fid}`] = { ...existing[fid], value: union };
+        filled.push(fid);
+      }
+    }
+  }
+  return { set, filled };
+}
+
 // Minimal predicate eval: AND/OR with rules { left, comparator, right }.
 // Supports a subset of comparators — enough for typical guards.
 //
@@ -152,6 +174,13 @@ function evalGroup(group, $vars, record = null) {
   return evaluated.every(Boolean);
 }
 
+export const foldText = (v) => String(v ?? "").normalize("NFKC").normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+export const sameText = (a, b) => {
+  const x = foldText(a), y = foldText(b);
+  return !!x && x === y;
+};
+
 function evalRule(rule, $vars, record = null) {
   const left = record
     ? resolveRecordPath(record, rule.left)
@@ -168,6 +197,9 @@ function evalRule(rule, $vars, record = null) {
     case "LESS_OR_EQUAL":  return Number(left) <= Number(right);
     case "CONTAINS":       return typeof left === "string" && left.includes(String(right));
     case "ARRAY_INCLUDES": return Array.isArray(left) && left.includes(right);
+    // Same words, ignoring case, accents, punctuation and spacing — how a
+    // person's name is "the same" ("Inês O'Neil" / "ines oneil").
+    case "SAME_TEXT":      return sameText(left, right);
     default:               return left == right; // eslint-disable-line eqeqeq
   }
 }
@@ -360,7 +392,61 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       const bindIds = explicitBind.length
         ? [...new Set([...explicitBind, ...Object.keys(fields)])]
         : Object.keys(fields);
-      const fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
+      let fieldBindings = bindIds.map((fieldId, order) => ({ fieldId, role: "input", order }));
+
+      // `bindingsLike` — give the new row the SAME field set as an existing
+      // module (roles, order, hidden flags): a person added to the People
+      // board must render like every other person, photo as "media" included.
+      // Any field written here that the model hides is shown, and any written
+      // field the model lacks is appended.
+      const likeId = cfg.bindingsLike ? await resolveExprAsync(cfg.bindingsLike, $vars, opts) : null;
+      if (likeId) {
+        const like = await Module.findOne({ id: likeId, userId, gridId }).lean();
+        if (!like) throw new Error(`CREATE: bindingsLike module ${likeId} not found on this grid`);
+        const base = (like.fieldBindings || []).filter(b => b?.fieldId)
+          .map(b => (fields[b.fieldId] && b.hidden ? { ...b, hidden: false } : { ...b }));
+        const have = new Set(base.map(b => b.fieldId));
+        let order = Math.max(0, ...base.map(b => b.order ?? 0)) + 1;
+        for (const fid of bindIds) if (!have.has(fid)) base.push({ fieldId: fid, role: "input", order: order++ });
+        fieldBindings = base;
+      }
+
+      // `mergeInto` — when it names an existing row, the values FILL THAT ROW
+      // instead of minting a new one: an empty field takes the value, a list
+      // field gains the new entries, and nothing the row already holds is
+      // overwritten. Empty (no match) falls through to an ordinary create.
+      const mergeId = cfg.mergeInto ? await resolveExprAsync(cfg.mergeInto, $vars, opts) : null;
+      if (mergeId && typeof mergeId === "string") {
+        const target = await Occurrence.findOne({ id: mergeId, userId, gridId }).lean();
+        if (!target) throw new Error(`CREATE: mergeInto ${mergeId} not found on this grid`);
+        const { set, filled } = planFieldMerge(target.fields || {}, fields);
+        if (Object.keys(set).length) {
+          await Occurrence.updateOne({ id: mergeId, userId }, { $set: set });
+          const updated = await Occurrence.findOne({ id: mergeId, userId }).lean();
+          mirror?.("occurrence", updated);
+          io?.to?.(`user:${userId}`)?.emit?.("occurrence_updated", { occurrence: updated });
+        }
+        // A field that now holds a value but is hidden on this person is shown.
+        const mod = await Module.findOne({ id: target.moduleId, userId }).lean();
+        if (mod) {
+          const bound = new Set((mod.fieldBindings || []).map(b => b.fieldId));
+          const nextB = (mod.fieldBindings || []).map(b => (filled.includes(b.fieldId) && b.hidden && b.role === "input" ? { ...b, hidden: false } : b));
+          let order = Math.max(0, ...nextB.map(b => b.order ?? 0)) + 1;
+          for (const fid of filled) if (!bound.has(fid)) nextB.push({ fieldId: fid, role: "input", order: order++ });
+          if (JSON.stringify(nextB) !== JSON.stringify(mod.fieldBindings || [])) {
+            await Module.updateOne({ id: mod.id, userId }, { $set: { fieldBindings: nextB } });
+            const m2 = { ...mod, fieldBindings: nextB };
+            mirror?.("module", m2);
+            io?.to?.(`user:${userId}`)?.emit?.("module_updated", { module: m2 });
+          }
+        }
+        const res = { occurrenceId: mergeId, moduleId: target.moduleId, status: "merged", filled };
+        if (cfg.resultVar) $vars[cfg.resultVar] = res;
+        if (cfg.itemIdVar) $vars[cfg.itemIdVar] = mergeId;
+        if (cfg.itemVar) $vars[cfg.itemVar] = res;
+        effects.push({ _effect: "CREATE", ...res });
+        return;
+      }
 
       // A FOLDER parent (the share catch-all's Files folder) is its own key:
       // a folder holds rows by `parentId` alone and has no occurrences[] to
@@ -398,6 +484,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
           ? async () => Module.findOne({ userId, gridId, role: moduleRole, fileRef: moduleFileRef }).lean()
           : null,
         meta: isObject(metaVal) ? metaVal : {},
+        moduleMeta: isObject(cfg.moduleMeta) ? cfg.moduleMeta : null,
         source: (await resolveExprAsync(cfg.source, $vars, opts)) || "share",
         io, mirror,
       });

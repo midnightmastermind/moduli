@@ -1318,6 +1318,23 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
             });
           } : null,
           fetchPreview: (u) => fetchLinkPreview(u, { fetchPageHtml }),
+          // A PROFILE page, read the way link previews read it: these sites
+          // answer a preview bot with the person's og:title / og:image and a
+          // browser with a login wall. Only ever called for an Instagram /
+          // Facebook / TikTok profile URL (sharePerson.profileLinkInfo).
+          fetchProfile: async (u) => {
+            const r = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(15000),
+              headers: { "user-agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)" } });
+            return r.ok ? (await r.text()).slice(0, 2_000_000) : null;
+          },
+          fetchImage: async (u) => {
+            if (!/^https:\/\//i.test(u)) return null;
+            const r = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+            const type = String(r.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+            if (!r.ok || !type.startsWith("image/")) return null;
+            const buf = Buffer.from(await r.arrayBuffer());
+            return buf.length && buf.length <= 5 * 1024 * 1024 ? { buf, type } : null;
+          },
           timeZone,
           fetchCalendar: async (u) => {
             const r = await fetchPageHtml(u, { allowTypes: /text\/calendar|text\/plain|application\/octet-stream|text\/html/i });
@@ -1331,6 +1348,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       } catch (e) {
         await logShare(null, null, e.message);
         if (e.code === "files_unsupported") return err(res, 415, "files_unsupported", e.message);
+        if (e.code === "empty_contact") return err(res, 422, "empty_contact", e.message);
         throw e;
       }
 
@@ -1349,6 +1367,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         ...(share.props?.occurrenceId ? { fileOccurrenceId: share.props.occurrenceId } : {}),
         ...(extraFiles.length ? { ignoredFiles: extraFiles.map(f => f.originalname) } : {}),
         ...(share.events ? { events: share.events.length, notices: share.notices } : {}),
+        ...(share.person ? { person: share.person.name } : {}),
         ...result,
       });
     } catch (e) { dropTemp(firstFile); err(res, 500, "internal_error", e.message); }

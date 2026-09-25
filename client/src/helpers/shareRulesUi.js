@@ -16,6 +16,8 @@ export const SHARE_TYPES = [
   { id: "audio", label: "Audio" },
   { id: "pdf",   label: "PDF" },
   { id: "ics",   label: "Calendar (.ics)" },
+  { id: "contact", label: "Contact card (.vcf)" },
+  { id: "profile", label: "Profile link (Instagram / Facebook / TikTok)" },
   { id: "file",  label: "Other file" },
 ];
 
@@ -32,6 +34,13 @@ export const SHARE_PROPS = {
   ics:   ["$share.events", "$share.notices", "$e.summary", "$e.start.date", "$e.start.time",
           "$e.start.timeSlot", "$e.durationMin", "$e.allDay", "$e.location", "$e.description",
           "$e.recurring", "$e.uid"],
+  // A person — from a contact card or a profile page. `photoIds` is the
+  // stored photo as a list, ready for the Files field.
+  contact: ["$share.person.name", "$share.person.phone", "$share.person.email", "$share.person.birthday",
+            "$share.person.company", "$share.person.jobTitle", "$share.person.photoOccurrenceId", "$share.person.photoIds"],
+  profile: ["$share.person.name", "$share.person.network", "$share.person.handle", "$share.person.profileUrl",
+            "$share.person.foundVia", "$share.person.photoOccurrenceId", "$share.person.photoIds",
+            "$share.props.url"],
   image: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.mimeType"],
   video: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.sizeBytes"],
   audio: ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.sizeBytes"],

@@ -612,6 +612,14 @@ export function evalRule(rule, $vars) {
       if (lk == null || rk == null) return false;
       return comparator === "DATE_BEFORE" ? lk < rk : lk > rk;
     }
+    // Same words, ignoring case, accents, punctuation and spacing — how a
+    // person's name is "the same". Twin of the server executor's SAME_TEXT.
+    case "SAME_TEXT": {
+      const fold = (v) => String(v ?? "").normalize("NFKC").normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const a = fold(leftVal);
+      return !!a && a === fold(rightVal);
+    }
     // Array comparators — left resolves to an array (e.g. $item._ancestors)
     case "HAS_ANCESTOR":
     case "ARRAY_INCLUDES":
