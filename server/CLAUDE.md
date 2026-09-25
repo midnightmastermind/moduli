@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (3) — `0355`: Facebook friends get their profile photos)
+- Reads `PEOPLE_PHOTOS_PATH` (`{photos:[{externalId,name,url,wasName?}]}`, built outside git from the
+  user's own friends-list scrape) and THROWS without it. Matches 0352 people by `meta.externalId`.
+- **Downloads each photo** to `uploads/user/<YYYY-MM>/fb-<sha>.jpg` — the URLs are signed fbcdn links
+  that EXPIRE (`oe=`), so linking them would break every card within days. Mints an image artifact
+  in Files/Images/People (created if missing), sets the person's media-role field (+ Files, `main`).
+  People who already have a picture are skipped. Dry run probes ONE download to show reachability.
+- Repairs the 6 names 0352 stored as mojibake (FB export's Latin-1-escaped UTF-8) while the label
+  is still the broken form. Pure `planPhotos` / `commonBindingField`, tested (3).
+
 ## Recent Changes (2026-09-25 (2) — `0354`: the rest of the profile links)
 - Link templates on Website (`{value}` = the value is the address), Twitter / X (`https://x.com/{value}`),
   LinkedIn (`https://www.linkedin.com/in/{value}`), each shown only on people with a value (0353's
