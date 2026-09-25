@@ -2,6 +2,10 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (6) — `0358`: people photos beside the fields)
+- The imported people's modules lacked `meta.mediaInline`, so photos rendered as the block UNDER the
+  fields. `0358` sets it (dotted `$set`, meta merged) on every social-import person module.
+
 ## Recent Changes (2026-09-25 (5) — `0357`: one person, both links)
 - 0352 merged FB + IG only on an exact name, so 3 people had both. `0357` reads `PEOPLE_PAIRS_PATH`
   (68 pairs, built outside git: the 62 "possibly the same person" hints — every handle contains the
