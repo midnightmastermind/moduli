@@ -119,6 +119,21 @@ export function primaryMediaOf(occ, ctx) {
   return id ? resolveArtifact(id, ctx) : null;
 }
 
+// A primitive that changes exactly when this occurrence's FACE resolves or
+// changes — for a component to SUBSCRIBE to (2026-09-25). Rows read the maps
+// through non-subscribing getters (ModuleInstance, 2026-09-01), and artifacts
+// arrive in the DEFERRED half of full_state (utils/splitFullState), after the
+// row's first render. Without a subscription the row resolved "no picture" on
+// that first render and never looked again: "Drop media here" on every person
+// whose photo is an artifact. Null for an occurrence binding neither media nor
+// files, so ordinary rows never re-render for this.
+export function mediaSignature(occ, ctx) {
+  const module = ctx?.modulesById?.[occ?.moduleId];
+  if (!mediaFieldIdFor(module) && !filesFieldIdFor(module)) return null;
+  const m = primaryMediaOf(occ, ctx);
+  return m ? `${m.kind || ""}|${m.src || ""}` : "";
+}
+
 // Every artifact belonging to this occurrence — the UNION of what is ATTACHED
 // (the Files field) and what lives INSIDE it (`occurrences[]` children).
 // PRIMARY FIRST, deduped, with unresolvable ids skipped rather than rendered

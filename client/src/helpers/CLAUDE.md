@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 — `occurrenceMedia.mediaSignature`: a row's photo appears when it arrives)
+- **User: 706 Facebook photos imported, every card still said "Drop media here".** The data was
+  right (media field -> artifact occurrence -> file served 200). Artifacts ship in full_state's
+  DEFERRED half (`server/utils/splitFullState`), after rows first render, and `ModuleInstance` reads
+  `getOccMap()`/`getModMap()` through NON-subscribing getters (2026-09-01 perf) — so a row resolved
+  "no picture" once and never looked again. Every artifact-backed face was exposed, not just people.
+- `mediaSignature(occ, ctx)` returns a primitive (`kind|src`, `""`, or `null` for rows binding no
+  media/files) and `ModuleInstance` subscribes to it via `useGridActionsSelector` — so a row
+  re-renders only when ITS face changes. Tests `__tests__/mediaSignature.test.js` (3).
+- **Ruled out first:** server migration `0356` (copy sync) dry-ran 0 copies — the rows were sources.
+
 ## Recent Changes (2026-09-22 (6) — `duration.js` NEW: a duration field is MINUTES, in one place)
 - **`duration.js` (NEW, pure, 13 tests)** — `toMinutes` / `isMinutes` / `splitDuration` /
   `formatDuration`. The stored value is a NUMBER OF MINUTES — what the hours+minutes editor writes
