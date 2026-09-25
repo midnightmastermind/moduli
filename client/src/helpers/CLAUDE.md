@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (2) — `linkedFanFields.js` NEW: the on-screen copy-link sync skips placement fields)
+- `CommitHelpers.updateOccurrence` pushes a field write onto every copy-link sibling in the same frame,
+  and it shared EVERY field. The server's fan-out (`socketHandlers/occurrences.js`) leaves out the
+  per-placement fields — grid filter fields (Date) and fields an op stamps from the destination
+  (Time Slot). So setting Date / Time Slot on one copy showed it on its siblings in this tab and it
+  vanished on the next sync. The client now applies the SAME rule, imported from
+  `server/utils/filterFields.js` (one definition). Placement ids are cached per operations array and
+  scoped to this grid's ops. Fails open with no grid, like the server. A sibling whose patch would be
+  empty is skipped. Field VISIBILITY was never shared by a copy-link and still is not.
+- `__tests__/linkedFanSkipsPlacementFields.test.js` (4): the two behaviour cases fail on the old code.
+
 ## Recent Changes (2026-09-25 — `occurrenceMedia.mediaSignature`: a row's photo appears when it arrives)
 - **User: 706 Facebook photos imported, every card still said "Drop media here".** The data was
   right (media field -> artifact occurrence -> file served 200). Artifacts ship in full_state's

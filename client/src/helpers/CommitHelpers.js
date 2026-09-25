@@ -6,6 +6,7 @@ import { recordActive } from "./panelHistory";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
 import { computePageFilterFields } from "./filterFieldStamp";
+import { linkedFanFields } from "./linkedFanFields";
 import { normalizeFieldBindings } from "./siblingFieldBindings.js";
 import {
   createGridAction,
@@ -402,10 +403,17 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     ?? null;
   if (linkedGroupId && (occurrence.fields || occurrence.textmap !== undefined)) {
     const siblings = operationsBridge.getLinkedOccs?.(linkedGroupId, occurrence.id) || [];
+    // Per-placement fields (Date, Time Slot) stay on the row that was edited —
+    // the server never fans them out, so sharing them here showed a value on
+    // the siblings that vanished on the next sync. See helpers/linkedFanFields.
+    const fanFields = occurrence.fields
+      ? linkedFanFields(occurrence.fields, operationsBridge.getFilterContext?.()?.state)
+      : null;
     for (const sib of siblings) {
       const patch = { id: sib.id };
-      if (occurrence.fields) patch.fields = { ...(sib.fields || {}), ...occurrence.fields };
+      if (fanFields && Object.keys(fanFields).length) patch.fields = { ...(sib.fields || {}), ...fanFields };
       if (occurrence.textmap !== undefined) patch.textmap = occurrence.textmap;
+      if (Object.keys(patch).length === 1) continue;   // only placement fields changed
       dispatch?.(updateOccurrenceAction(patch));
       operationsBridge.updateLocalOcc?.({ ...sib, ...patch });
     }
