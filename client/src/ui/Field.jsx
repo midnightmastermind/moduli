@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin, ExternalLink } from "lucide-react";
 
 // Icon-name → lucide component lookup for display rules.
 // Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
@@ -58,6 +58,7 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 import { formatDuration, splitDuration } from "../helpers/duration.js";
+import { fieldLinkHref } from "../helpers/fieldLink.js";
 
 // The type size of a field on a row — its pill and its caption. ONE constant,
 // because these were scattered inline literals and an inline style is exactly
@@ -981,6 +982,22 @@ export function ArrayCell({ value, maps }) {
  * - flow, onCommit, onChange, onFlowChange
  * - disabled, usedCompletedValues, onAddOption
  */
+
+/** A small "open in a new tab" link beside a field whose value names a page
+ *  (field.meta.linkTemplate). Its own element, never inside the edit button,
+ *  so following the link never starts an edit. */
+function FieldLinkOut({ href, name }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      className="field-link-out inline-flex items-center justify-center rounded-full border hover:brightness-125"
+      style={{ width: 20, height: 20, flex: "0 0 auto", borderColor: "rgba(255,255,255,0.18)", color: "var(--accent-blue-text)" }}
+      title={`Open ${name || "link"}: ${href}`} aria-label={`Open ${name || "link"}`}>
+      <ExternalLink style={{ width: 11, height: 11 }} />
+    </a>
+  );
+}
+
 function Field({
   // Common
   field,
@@ -1765,7 +1782,7 @@ function Field({
         );
       }
 
-      return withFlowToggle(
+      const restPill = withFlowToggle(
         <button type="button" disabled={disabled}
           onClick={() => !disabled && setIsClickEditing(true)}
           className={`field-input inline-flex items-center gap-1
@@ -1780,6 +1797,14 @@ function Field({
           {!hideName && name && <span className="opacity-70">{name}:</span>}
           <span>{formattedDisplay}</span>
         </button>
+      );
+      const linkHref = type === "text" ? fieldLinkHref(field, localValue) : null;
+      if (!linkHref) return restPill;
+      return (
+        <span className="inline-flex items-center gap-1">
+          {restPill}
+          <FieldLinkOut href={linkHref} name={name} />
+        </span>
       );
     }
 
@@ -2122,11 +2147,14 @@ function Field({
       return (
         <div className="field-input field-input-text" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
-          <Input type="text" value={localValue ?? ""} disabled={disabled}
-            placeholder=""
-            className={compact ? "h-6 text-xs" : "h-7 text-sm"}
-            onChange={e => handleChange(e.target.value)}
-            onBlur={handleCommit} onKeyDown={handleKeyDown} />
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Input type="text" value={localValue ?? ""} disabled={disabled}
+              placeholder=""
+              className={compact ? "h-6 text-xs" : "h-7 text-sm"}
+              onChange={e => handleChange(e.target.value)}
+              onBlur={handleCommit} onKeyDown={handleKeyDown} />
+            {fieldLinkHref(field, localValue) && <FieldLinkOut href={fieldLinkHref(field, localValue)} name={name} />}
+          </div>
         </div>
       );
     }
