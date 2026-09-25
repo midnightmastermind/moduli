@@ -96,5 +96,7 @@ describe("Share: add profile", () => {
   it("a TikTok profile has no Instagram handle", async () => {
     await run(PROFILE, { name: "Zed", network: "tiktok", handle: "zed", profileUrl: "https://www.tiktok.com/@zed", foundVia: [], photoIds: [] });
     expect(minted[0].fields.fIg).toBeUndefined();
+    expect(minted[0].fields.fFiles).toBeUndefined();   // no photo → no empty list written
+    expect(minted[0].fields.fVia).toBeUndefined();
   });
 });

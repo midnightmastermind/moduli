@@ -2,6 +2,17 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (10) — "Instance Defaults" never saved; 0362 gives Routines containers an item colour)
+- **`models/Module.js`** — the client writes and resolves `childInstanceStyle` / `childContainerStyle`
+  (StyleHelpers, ContainerForm, LayoutForm) but the schema declared only `defaultInstanceStyle`, which
+  nothing used — so strict mode dropped the setting on every save (0 modules on any grid held one).
+  Declared the real keys, removed the dead one. `moduleSchema.test.js` (A/B: fails without).
+- **`migrations/0362`** — user: Visited (Routines › Physical › Nutrition) looked different from Cook /
+  Drink / Eat. Those carry their OWN colour (seeded per item so it follows them into the Schedule);
+  Visited inherits and its container had no item default. Each Routines / Tasks container whose
+  own-coloured items agree on one colour gets it as `childInstanceStyle` (32 on poms). Own colours untouched.
+- **`serverExecutor` CREATE** skips an empty list value (no `[]` written into Files / Found Via).
+
 ## Recent Changes (2026-09-25 (9) — share a PERSON: `.vcf` contacts and profile links → the People board)
 - **`services/sharePerson.js` (NEW)** — `parseVcards` (FN/N, TEL, EMAIL, BDAY, ORG, TITLE, PHOTO base64/uri,
   quoted-printable, folded lines), `profileLinkInfo` (Instagram / Facebook / TikTok PROFILE urls only — posts,

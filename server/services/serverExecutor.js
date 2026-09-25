@@ -376,7 +376,9 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       }
       for (const [fid, expr] of Object.entries(cfg.fields || {})) {
         const value = await resolveExprAsync(expr, $vars, opts);
-        if (value !== undefined && value !== null && value !== "") {
+        // An empty list is "no value" too — a contact with no photo must not
+        // write `[]` into Files (or reveal a field that holds nothing).
+        if (value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && !value.length)) {
           fields[fid] = { value, flow: "in" };
         }
       }

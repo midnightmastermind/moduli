@@ -91,4 +91,12 @@ describe("Module schema validation", () => {
     expect(err).toBeUndefined();
     expect(m.meta.templateModule).toBe(true);
   });
+
+  // The container / panel "… Defaults" style the client writes and resolves
+  // (StyleHelpers) — undeclared until 2026-09-25, so strict mode dropped it.
+  it("keeps childInstanceStyle and childContainerStyle", () => {
+    const m = makeValid({ childInstanceStyle: { bg: "#98431f" }, childContainerStyle: { bg: "#111" } });
+    expect(m.toObject().childInstanceStyle).toEqual({ bg: "#98431f" });
+    expect(m.toObject().childContainerStyle).toEqual({ bg: "#111" });
+  });
 });

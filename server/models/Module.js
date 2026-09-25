@@ -109,8 +109,14 @@ const ModuleSchema = new mongoose.Schema(
     styleMode: { type: String, enum: ["inherit", "own"], default: "inherit" },
     ownStyle: { type: mongoose.Schema.Types.Mixed, default: null },
 
-    // Cascading defaults for children
-    defaultInstanceStyle: { type: mongoose.Schema.Types.Mixed, default: null },
+    // Cascading defaults for children — the style a child takes when it
+    // inherits (client StyleHelpers.resolveInstanceStyle / resolveContainerStyle;
+    // set from ContainerForm / LayoutForm "… Defaults"). These keys were never
+    // declared, so strict mode dropped them on every save: the setting could be
+    // chosen and was never stored (0 modules held one on 2026-09-25). The
+    // declared `defaultInstanceStyle` was read and written by nothing.
+    childInstanceStyle: { type: mongoose.Schema.Types.Mixed, default: null },
+    childContainerStyle: { type: mongoose.Schema.Types.Mixed, default: null },
 
     // ─── Sibling links ───────────────────────────────────────
     // Linked peer modules (Q↔A pairs, linked containers, etc.)
