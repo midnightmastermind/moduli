@@ -82,7 +82,7 @@ export function readRows(text) {
     const href = r[col.href] || "";
     const handle = (href.match(/instagram\.com\/([^/?#]+)/i) || [])[1];
     if (!handle) continue;
-    let name = String(r[col.text] || "").normalize("NFKC").replace(/\bRemove\s*$/, "").trim();
+    let name = String(r[col.text] || "").normalize("NFKC").replace(/\b(Remove|Following|Follow)\s*$/, "").trim();
     if (name.toLowerCase().startsWith(handle.toLowerCase())) name = name.slice(handle.length);
     name = name.replace(/^\s*·\s*(Follow\s*)?/, "").trim();
     if (normName(name) === normName(handle)) name = "";

@@ -47,10 +47,12 @@ describe("0359 readRows", () => {
   it("reads handle, display name and photo from the scraped following list", () => {
     const csv = '﻿"index","tag","text","href","linkText","src","alt"\n'
       + '"1","div","tclark · Follow 𝗧𝗶𝗺 𝗖𝗹𝗮𝗿𝗸 Remove","https://www.instagram.com/tclark/","","https://x/p.jpg","a"\n'
-      + '"2","div","nobody Remove","https://www.instagram.com/nobody/","","https://x/q.jpg","b"\n';
+      + '"2","div","nobody Remove","https://www.instagram.com/nobody/","","https://x/q.jpg","b"\n'
+      + '"3","div","msheehan Megan Sheehan Following","https://www.instagram.com/msheehan/","","https://x/r.jpg","c"\n';
     expect(readRows(csv)).toEqual([
       { handle: "tclark", name: "Tim Clark", src: "https://x/p.jpg" },
       { handle: "nobody", name: "", src: "https://x/q.jpg" },
+      { handle: "msheehan", name: "Megan Sheehan", src: "https://x/r.jpg" },   // the FOLLOWING export's shape
     ]);
   });
   it("normName folds accents and punctuation", () => {

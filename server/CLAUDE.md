@@ -2,6 +2,14 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (8) — `0360`: Instagram people not yet on the board; 0359 reads the FOLLOWING export)
+- `0360` reads `PEOPLE_IG_ADD_PATH` (`{add:[{handle,name,followsYou}], attach:[{handle,externalIdPrefix}]}`, built
+  outside git by judging the unmatched rows — celebrities, creators, meme pages, brands, pets left out) and mints
+  each as 0352 minted Instagram people (exemplar bindings, `ig:<handle>`, `personFieldValues`, `mediaInline`).
+  An attach needs EXACTLY one person by id prefix (stored ids keep 0352's mojibake). Pure `planAdd`, tested (2).
+- `0359.readRows` strips a trailing `Following`/`Follow` as well as `Remove` — the following export ends each
+  name with it, so no name matched (0 merges) until then.
+
 ## Recent Changes (2026-09-25 (7) — undo only the stack top; `0359` Instagram CSV merge)
 - **`socketHandlers/transactions.js undo_transaction`** refuses an explicit `transactionId` unless it is
   the newest undoable one (`nextUndoable`); a derived write is never on that stack. Undo writes back
