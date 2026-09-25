@@ -368,7 +368,19 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
 // (it is by construction the nearest setting in the chain). When that nearest
 // setting is mode:"off" the function returns null — "show all fields here".
 // Returns { mode: "show"|"hide", fieldIds: string[] } or null.
-export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId, grid } = {}) {
+// `viaParentId` — the parent this row is RENDERED in. A row listed by two
+// parents (an Appointments row the Schedule op also placed in a slot) would
+// otherwise resolve through `buildParentMap`'s single, last-scanned lister, so
+// it showed the OTHER page's hide list (2026-09-25, "Follow-Up Therapy with
+// Julie S": Date + Time Slot vanished in Appointments once the Schedule listed
+// it). The first hop goes to the rendering parent; the rest of the walk is
+// unchanged. Unknown id -> the normal walk.
+function nextHop(cur, occ, viaParentId, pbc, occurrencesById) {
+  if (cur === occ && viaParentId && occurrencesById?.[viaParentId]) return viaParentId;
+  return pbc[cur.id] ?? cur.parentId;
+}
+
+export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId, grid, viaParentId } = {}) {
   // THE GRID IS THE ROOT OF THIS CASCADE TOO, and it had none until 2026-08-11.
   // User: *"hide tags everywhere, and hide date everywhere thats not tasks,
   // schedule, trackers"* — a default with three exceptions, which is exactly a
@@ -402,7 +414,7 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
       }
       // Unknown/empty mode — treat as no constraint, keep walking up.
     }
-    const nextId = pbc[cur.id] ?? cur.parentId;
+    const nextId = nextHop(cur, occ, viaParentId, pbc, occurrencesById);
     cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
   // Nothing in the chain said anything — fall back to the grid's default.
@@ -424,7 +436,7 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
 // fields show on a container would wipe WHEN they show, inherited from its page.
 //
 // Nearest-wins, same walk and the same memoised parent map.
-export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
+export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, parentByChildId, viaParentId } = {}) {
   if (!occ) return "always";
   const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
   let cur = occ;
@@ -433,7 +445,7 @@ export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, par
     guard.add(cur.id);
     const r = cur.fieldReveal;
     if (r === "hover" || r === "always") return r;
-    const nextId = pbc[cur.id] ?? cur.parentId;
+    const nextId = nextHop(cur, occ, viaParentId, pbc, occurrencesById);
     cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
   return "always";

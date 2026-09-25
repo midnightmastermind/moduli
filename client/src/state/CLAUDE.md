@@ -2,6 +2,17 @@
 
 _Updated: 2026-08-08. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 — field visibility follows the parent a row is RENDERED in)
+- **User: "Follow-Up Therapy with Julie S" (an ICS share in Tasks › Appointments) — filled Date + Time
+  Slot and the fields disappeared.** Filling them let `Schedule: Place Dated Work` also list the row in
+  the 9:00am slot; `buildParentMap` keeps ONE lister per child (the last scanned), so the row in
+  Appointments resolved through the SCHEDULE page's hide list (Tags, Time Slot, Last Seen, Date).
+- `getEffectiveFieldVisibilityForOccurrence` / `getEffectiveFieldRevealForOccurrence` take
+  `viaParentId`: the first hop goes to the rendering parent, the rest of the walk is unchanged, an
+  unknown id falls back. `ModuleInstance` passes `containerOccurrence.id`. Doc embeds
+  (`ModuleEmbedNode`, `ModuleTextblock`) pass none and keep the old walk.
+- `__tests__/fieldVisibilityRenderedParent.test.js` (6): 2 fail without the hop, 4 controls.
+
 ## Recent Changes (2026-08-10 — `getEffectiveFieldRevealForOccurrence`: WHEN fields show)
 - **`selectors.js`** — new nearest-wins cascade `occurrence.fieldReveal: "always" | "hover"`, beside
   the existing field-VISIBILITY one.
