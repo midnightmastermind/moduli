@@ -2,6 +2,15 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (4) — `0356`: board copies of people take their photos)
+- After 0355 the People board still said "Drop media here": it (likely) renders feed COPIES /
+  linked copies, whose fields are a snapshot, and 0355's direct Mongo write never fans out (only a
+  socket `update_occurrence` does). `0356` copies each social-import source's media + files values
+  onto its `meta.feedSourceId` copies and `linkedGroupId` siblings, plus mojibake name values
+  0355 repaired. Never blanks a copy; dry run reports how many copies exist (0 = not the cause).
+  Same shape as `0135`. Pure `planCopySync`, tested (3). **Lesson: a data migration that writes a
+  source row must also carry the value to that row's copies.**
+
 ## Recent Changes (2026-09-25 (3) — `0355`: Facebook friends get their profile photos)
 - Reads `PEOPLE_PHOTOS_PATH` (`{photos:[{externalId,name,url,wasName?}]}`, built outside git from the
   user's own friends-list scrape) and THROWS without it. Matches 0352 people by `meta.externalId`.
