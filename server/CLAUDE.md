@@ -2,6 +2,14 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (5) — `0357`: one person, both links)
+- 0352 merged FB + IG only on an exact name, so 3 people had both. `0357` reads `PEOPLE_PAIRS_PATH`
+  (68 pairs, built outside git: the 62 "possibly the same person" hints — every handle contains the
+  friend's first+last name — plus 6 handle-only matches; doubtful first names left out). Copies every
+  field empty on the FB row from the IG row, unions Found Via (minus "unconfirmed"), raises
+  Relationship to "close friend", un-hides the Instagram binding, then deletes the IG-only duplicate
+  unless anything outside the People board refers to it. Pure `mergeFields`, tested (4).
+
 ## Recent Changes (2026-09-25 (4) — `0356`: board copies of people take their photos)
 - After 0355 the People board still said "Drop media here": it (likely) renders feed COPIES /
   linked copies, whose fields are a snapshot, and 0355's direct Mongo write never fans out (only a
