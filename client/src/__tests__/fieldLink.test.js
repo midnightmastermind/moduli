@@ -22,4 +22,12 @@ describe("fieldLinkHref", () => {
     expect(fieldLinkHref({ meta: {} }, "x")).toBeNull();
     expect(fieldLinkHref({ meta: { linkTemplate: "https://x.com/" } }, "x")).toBeNull();
   });
+  it("a bare {value} template passes a web address through", () => {
+    const site = { meta: { linkTemplate: "{value}" } };
+    expect(fieldLinkHref(site, "https://chen.dev/a?b=1")).toBe("https://chen.dev/a?b=1");
+    expect(fieldLinkHref(site, "chen.dev")).toBe("https://chen.dev");
+  });
+  it("never links a non-web scheme", () => {
+    expect(fieldLinkHref({ meta: { linkTemplate: "{value}" } }, "javascript:alert(1)")).toBeNull();
+  });
 });

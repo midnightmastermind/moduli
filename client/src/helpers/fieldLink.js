@@ -8,7 +8,16 @@
 export function fieldLinkHref(field, value) {
   const tpl = field?.meta?.linkTemplate;
   if (typeof tpl !== "string" || !tpl.includes("{value}")) return null;
-  const v = String(value ?? "").trim().replace(/^@+/, "");
+  const raw = String(value ?? "").trim();
+  // A template of just "{value}" means the value IS the address (a Website field).
+  // Only web addresses pass through — never javascript: or any other scheme.
+  if (tpl.trim() === "{value}") {
+    if (!raw || raw === "—") return null;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return null;
+    return `https://${raw}`;
+  }
+  const v = raw.replace(/^@+/, "");
   if (!v || v === "—") return null;
   return tpl.replace("{value}", encodeURIComponent(v));
 }
