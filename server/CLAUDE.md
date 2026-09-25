@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (2) — `0354`: the rest of the profile links)
+- Link templates on Website (`{value}` = the value is the address), Twitter / X (`https://x.com/{value}`),
+  LinkedIn (`https://www.linkedin.com/in/{value}`), each shown only on people with a value (0353's
+  `planUnhide`). New **Facebook** text field — the export has no profile link or id, so it is a Facebook
+  people SEARCH for the person's name, filled on imported `fb:` people. Pure `planFacebook`, tested (4).
+  Run after 0352/0353. Client: `fieldLinkHref` passes a `{value}` template through for http(s) only.
+
 ## Recent Changes (2026-09-25 — `0353`: each person links to their Instagram profile)
 - The Instagram field gets `meta.linkTemplate = "https://www.instagram.com/{value}"` (the client shows an
   open-in-new-tab link beside any text field with a template) and is un-hidden on the modules of people
