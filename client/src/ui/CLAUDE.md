@@ -2,6 +2,12 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 — a text field can link out: `meta.linkTemplate`)
+- `helpers/fieldLink.fieldLinkHref(field, value)` fills a `{value}` URL template (leading `@` dropped,
+  value encoded). `Field.jsx` renders `FieldLinkOut` (a small ↗ link, new tab) beside the compact text pill
+  and the full text input. It sits OUTSIDE the edit button so following it never starts an edit. Generic —
+  the Instagram template is data set by migration 0353. Test `__tests__/fieldLink.test.js` (5).
+
 ## Recent Changes (2026-09-24 (5) — Connections tab upload lands in Files/<kind>, and says where)
 - User: *"if i upload via the connections tab, where does it go in moduli's manifest, nothing popped up."*
   The tab sent `parentFolderId` = the FIRST manifest's root (could be the Templates manifest or another

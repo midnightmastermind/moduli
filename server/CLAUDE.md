@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 — `0353`: each person links to their Instagram profile)
+- The Instagram field gets `meta.linkTemplate = "https://www.instagram.com/{value}"` (the client shows an
+  open-in-new-tab link beside any text field with a template) and is un-hidden on the modules of people
+  who have a handle. Pure `planUnhide`, tested (`__tests__/instagramProfileLinks.test.js`, 3). Run after 0352.
+
 ## Recent Changes (2026-09-24 (10) — `0352`: People from the Facebook + Instagram exports)
 - User: add Facebook friends and Instagram accounts that are real people to poms grid's People board,
   remove the seeded test people, keep Keith and Angela, give each person fields (create some if needed).
