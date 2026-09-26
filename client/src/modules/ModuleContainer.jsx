@@ -800,12 +800,27 @@ function Container({
   // textblock). The render loop below then branches by child role to mount <Container> vs <ModuleInstance>.
   const allowChildContainers = !!module?.meta?.allowChildContainers;
   const childModuleLookup = allowChildContainers ? modulesById : leafModulesById;
+  // The nearest ancestor's sort, as a string so this re-renders only when THAT
+  // changes. Walked only when this container sets no sort of its own.
+  const inheritedSortKey = useGridActionsSelector((st) => {
+    if (containerOccurrence?.meta?.localSort?.fieldId) return "";
+    const occs = st.occurrencesById || {};
+    const parentOf = st.getParentId || ((oid) => st.parentByChildId?.[oid] || occs[oid]?.parentId || null);
+    let id = containerOccurrence?.id ? parentOf(containerOccurrence.id) : null;
+    for (let hops = 0; id && hops < 12; hops++) {
+      const sort = occs[id]?.meta?.localSort;
+      if (sort?.fieldId) return JSON.stringify(sort);
+      id = parentOf(id);
+    }
+    return "";
+  });
   const allItemsWithOccurrences = useMemo(
     // childOccsKey is the reactive dep (direct child refs); the map is a
     // fresh read at compute time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    () => getContainerItemsWithOccurrences(module, getOccMap(), childModuleLookup, undefined, containerOccurrence),
-    [module, childOccsKey, childModuleLookup, containerOccurrence, getOccMap]
+    () => getContainerItemsWithOccurrences(module, getOccMap(), childModuleLookup, undefined, containerOccurrence,
+      inheritedSortKey ? JSON.parse(inheritedSortKey) : null),
+    [module, childOccsKey, childModuleLookup, containerOccurrence, getOccMap, inheritedSortKey]
   );
 
   // Apply active filter: hide occurrences that don't match the effective filter values

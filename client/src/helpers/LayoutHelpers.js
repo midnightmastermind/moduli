@@ -139,7 +139,13 @@ export function getContainerItems(container, occurrencesLookup, leafModulesLooku
  * Occurrence controls order via `containerOccurrence.occurrences`. Returns `{ instance, occurrence }`
  * tuples — the `instance` field is a misnomer kept for back-compat: it can be any leaf module.
  */
-export function getContainerItemsWithOccurrences(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence) {
+// `inheritedSort` is the nearest ANCESTOR's local sort (a page, or an outer
+// container), used when this container sets none of its own — so a sort picked
+// in a page's header orders the rows on that page, not only its containers
+// (user, 2026-09-26: "sorting by label isnt working" — it was set on the People
+// page, which holds one container, so nothing visibly moved). The container's
+// own sort always wins.
+export function getContainerItemsWithOccurrences(container, occurrencesLookup, leafModulesLookup, currentFilterValue, containerOccurrence, inheritedSort = null) {
   const ids = resolveChildOccurrenceIds(containerOccurrence);
   if (!ids.length) return [];
   const items = ids
@@ -151,7 +157,7 @@ export function getContainerItemsWithOccurrences(container, occurrencesLookup, l
       return { instance, occurrence: occ };
     })
     .filter(Boolean);
-  return applyLocalSort(items, containerOccurrence?.meta?.localSort, leafModulesLookup);
+  return applyLocalSort(items, containerOccurrence?.meta?.localSort || inheritedSort, leafModulesLookup);
 }
 
 /**
