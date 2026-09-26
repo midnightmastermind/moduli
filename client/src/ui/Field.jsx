@@ -1005,12 +1005,20 @@ export function ArrayCell({ value, maps }) {
 /** A small "open in a new tab" link beside a field whose value names a page
  *  (field.meta.linkTemplate). Its own element, never inside the edit button,
  *  so following the link never starts an edit. */
-function FieldLinkOut({ href, name }) {
+function FieldLinkOut({ href, name, tint = null }) {
+  // `tint` = the pill's colours: the link is then drawn as the pill's own END
+  // SEGMENT — same fill and border, a divider, rounded only on the right —
+  // rather than a separate circle beside it (user, 2026-09-26: "make the
+  // button to open up the instagram profile, connected to the instagram pill").
+  const joined = !!tint;
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
-      className="field-link-out inline-flex items-center justify-center rounded-full border hover:brightness-125"
-      style={{ width: 20, height: 20, flex: "0 0 auto", borderColor: "rgba(255,255,255,0.18)", color: "var(--accent-blue-text)" }}
+      className={`field-link-out inline-flex items-center justify-center border hover:brightness-125 ${joined ? "" : "rounded-full"}`}
+      style={joined
+        ? { alignSelf: "stretch", padding: "0 6px", flex: "0 0 auto", background: tint.bg, borderColor: tint.border,
+            borderLeftColor: "rgba(255,255,255,0.14)", borderRadius: "0 9999px 9999px 0", color: "var(--accent-blue-text)" }
+        : { width: 20, height: 20, flex: "0 0 auto", borderColor: "rgba(255,255,255,0.18)", color: "var(--accent-blue-text)" }}
       title={`Open ${name || "link"}: ${href}`} aria-label={`Open ${name || "link"}`}>
       <ExternalLink style={{ width: 11, height: 11 }} />
     </a>
@@ -1821,10 +1829,21 @@ function Field({
       );
       const linkHref = type === "text" ? fieldLinkHref(field, localValue) : null;
       if (!linkHref) return restPill;
+      // One pill: the value on the left, the open-link segment on the right.
+      // (A flow-toggle pill has no border of its own to join, so it keeps the
+      // separate button.)
+      if (showFlowToggle) {
+        return (
+          <span className="inline-flex items-center gap-1">
+            {restPill}
+            <FieldLinkOut href={linkHref} name={name} />
+          </span>
+        );
+      }
       return (
-        <span className="inline-flex items-center gap-1">
+        <span className="field-pill-joined inline-flex items-stretch">
           {restPill}
-          <FieldLinkOut href={linkHref} name={name} />
+          <FieldLinkOut href={linkHref} name={name} tint={pillTint} />
         </span>
       );
     }

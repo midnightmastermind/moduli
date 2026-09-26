@@ -8599,3 +8599,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border-radius: 3px;
   transition: opacity 90ms ease-out;
 }
+
+/* A pill with its open-link segment: square the pill's right end and drop its
+   right border so the two read as ONE pill (ui/Field.jsx FieldLinkOut tint). */
+.field-pill-joined > button.field-input {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-right-width: 0 !important;
+}
