@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-25 (11) — `0363`: Facebook About → Personal details onto People
+- A one-off browser extension (outside this repo) read each friend's About → Personal details into a CSV;
+  cleaned, it is read from `PEOPLE_FB_ABOUT_PATH` (outside git). Matches `fb:` people by label, by the
+  Facebook field's name value, or first + last (exactly one, else reported). Fills ONLY empty fields:
+  Birthday (date, when the year is known) · new text fields **Birthday (month/day)**, **Hometown**,
+  **Relationship Status**, **Languages** · City · Gender (mapped onto its select options) · "Family: …"
+  line in Person Notes. `Relationship` (how they relate to the user) is untouched. The **Facebook field
+  now holds real profile links** (`meta.linkTemplate: "{value}"`); unmatched people's name values became
+  the full search URL so their links still work. Applied: 708 people; 6 same-name pairs skipped.
+
 ## Recent Changes (2026-09-25 (10) — "Instance Defaults" never saved; 0362 gives Routines containers an item colour)
 - **`models/Module.js`** — the client writes and resolves `childInstanceStyle` / `childContainerStyle`
   (StyleHelpers, ContainerForm, LayoutForm) but the schema declared only `defaultInstanceStyle`, which
