@@ -98,4 +98,23 @@ describe("a new list starts a new window", () => {
     rerender({ total: 993, key: "b" });
     expect(result.current.count).toBe(WINDOW_INITIAL);
   });
+
+  // User, 2026-09-26: "i deleted a person and for some reason all the rows
+  // reloaded". The SAME list losing (or gaining) a row is not a new list: the
+  // window keeps what it had opened, so the rows past the first chunk stay
+  // mounted and the scroll position holds.
+  it("keeps the window when a row is deleted from the same list", () => {
+    const { result, rerender } = renderHook(
+      ({ total, key }) => useRenderWindow(total, { resetKey: key }),
+      { initialProps: { total: 1206, key: "people" } });
+    act(() => { result.current.sentinelRef(document.createElement("div")); });
+    act(() => { observers.forEach((o) => o.trigger()); });
+    act(() => { observers.forEach((o) => o.trigger()); });
+    const opened = result.current.count;
+    expect(opened).toBeGreaterThan(WINDOW_INITIAL);
+    rerender({ total: 1205, key: "people" });
+    expect(result.current.count).toBe(opened);
+    rerender({ total: 1206, key: "people" });
+    expect(result.current.count).toBe(opened);
+  });
 });

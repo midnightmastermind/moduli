@@ -70,7 +70,14 @@ export function useRenderWindow(total, { enabled = true, resetKey = null } = {})
   // A new list (navigation, a filter change) starts a new window. Without this
   // the count carries over and a freshly filtered 5-row list would claim to be
   // showing 240.
-  useEffect(() => { setCount(windowed ? WINDOW_INITIAL : total); }, [resetKey, windowed, total]);
+  //
+  // `total` is deliberately NOT a reason to reset: the same list losing or
+  // gaining a row is not a new list (user, 2026-09-26: "i deleted a person and
+  // for some reason all the rows reloaded" — the window fell back to 80 rows,
+  // unmounting every row past it and dropping the scroll). What is shown is
+  // clamped to `total` below, so a shrinking list never over-claims.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setCount(windowed ? WINDOW_INITIAL : total); }, [resetKey, windowed]);
 
   const showAll = useCallback(() => setCount((c) => (c >= total ? c : total)), [total]);
   useEffect(() => {

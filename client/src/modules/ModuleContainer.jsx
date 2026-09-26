@@ -850,7 +850,14 @@ function Container({
   // skips layout and paint, not node creation. Short containers are untouched
   // (the hook returns the full count below its threshold), so this changes
   // nothing for the ~1,300 containers on this grid holding a handful of rows.
-  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: childOccsKey });
+  // Reset only for a NEW list: another container, or a different filter. The
+  // child ids/objects are NOT the key — any row edited, added or deleted made a
+  // new key and dropped the window back to its first chunk (all rows "reloaded").
+  const windowResetKey = useMemo(
+    () => `${containerOccurrence?.id || module?.id}|${JSON.stringify(effectiveFilters ?? null)}`,
+    [containerOccurrence?.id, module?.id, effectiveFilters],
+  );
+  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: windowResetKey });
 
   // A panel the mobile grid has translated off screen renders NO rows. The
   // container shell, its header and its label stay — they are ~105 nodes across

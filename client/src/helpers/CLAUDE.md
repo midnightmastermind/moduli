@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-26 (2) — deleting a row no longer resets a long list's window)
+- User: "i deleted a person and for some reason all the rows reloaded". `useRenderWindow` reset its count on
+  `[resetKey, windowed, total]`, and ModuleContainer passed `childOccsKey` (the child occurrence OBJECTS) as
+  `resetKey` — so any row deleted, added or EDITED on a 1,200-row board dropped the window back to 80 rows,
+  unmounting everything past it and losing the scroll. Now `total` is not a reset reason (the returned count is
+  already clamped) and the key is `<container id>|<effective filter>` — only a genuinely new list resets.
+  Test: `renderWindow.test.jsx` "keeps the window when a row is deleted from the same list" (fails without).
+
 ## Recent Changes (2026-09-26 — a search result lands in the centre and is ringed)
 - **`jumpToOccurrence.scrollAndFlash`** — user: "the searched element doesnt land on the screen … should be
   scrolled to the center and highlighted for a second". One smooth scroll aimed at where the element was
