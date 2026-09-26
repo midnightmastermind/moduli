@@ -116,6 +116,28 @@ const seqByGrid = new Map();
  *   shaped unlike every other.
  * - `_id`/`__v` stripped: `$set: { _id }` on restore is rejected by Mongo.
  */
+// Deep copy with every ObjectId turned into its hex string.
+//
+// structuredClone does not know ObjectId: it copies one into a PLAIN object
+// holding its raw bytes, `{ buffer: <12 bytes> }` — every field binding and
+// other subdocument carries such an `_id`. socket.io then sees binary in the
+// transaction it broadcasts, sends it as a binary message with one attachment
+// per id, and the browser rejects it as a "parse error": the tab drops its
+// connection and reconnects, reloading the whole grid (user, 2026-09-26:
+// deleting a person reloaded every photo). The same objects were also stored
+// in the snapshot, so an undo wrote them back as garbage `_id`s. A hex string
+// is what the id means, JSON carries it, and Mongoose casts it back on restore.
+export function cloneForSnapshot(v) {
+  if (v == null || typeof v !== "object") return v;
+  if (v._bsontype === "ObjectId" || v._bsontype === "ObjectID") return v.toHexString();
+  if (v instanceof Date) return new Date(v.getTime());
+  if (Buffer.isBuffer(v) || ArrayBuffer.isView(v)) return Buffer.from(v);
+  if (Array.isArray(v)) return v.map(cloneForSnapshot);
+  const out = {};
+  for (const k of Object.keys(v)) out[k] = cloneForSnapshot(v[k]);
+  return out;
+}
+
 export function snapshotDoc(doc, precompressedTextmap) {
   if (!doc) return null;
   const plain = typeof doc.toObject === "function" ? doc.toObject() : doc;
@@ -123,12 +145,7 @@ export function snapshotDoc(doc, precompressedTextmap) {
   // decompressed textmap and then throwing it away is pure waste — on a
   // 310KB imported article that alone was ~1ms per snapshot.
   const { textmap, ...rest } = plain;
-  let clone;
-  try {
-    clone = structuredClone(rest);
-  } catch {
-    clone = JSON.parse(JSON.stringify(rest));
-  }
+  const clone = cloneForSnapshot(rest);
   delete clone._id;
   delete clone.__v;
   if (textmap != null) {
