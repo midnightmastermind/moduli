@@ -313,10 +313,11 @@ export default function FeedSection({ occurrence }) {
             <select
               value={feed.sort?.fieldId || ""}
               onChange={(e) => patch({ sort: e.target.value ? { fieldId: e.target.value, dir: feed.sort?.dir || "asc" } : null })}
-              title="Sort pulled items by field"
+              title="Sort pulled items by label or a field"
               style={{ ...inputStyle, flex: 3 }}
             >
               <option value="">no sort</option>
+              <option value="label">sort: Label</option>
               {fields.map(f => <option key={f.id} value={f.id}>sort: {f.name}</option>)}
             </select>
             {feed.sort?.fieldId && (

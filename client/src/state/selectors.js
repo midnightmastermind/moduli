@@ -666,6 +666,8 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   if (feed.sort?.fieldId) {
     const dir = feed.sort.dir === "desc" ? -1 : 1;
     const val = (o) => {
+      // "label": the row's own label, else its module's — what the row shows.
+      if (feed.sort.fieldId === "label") return o.occurrence.label || o.module?.label || "";
       const v = o.occurrence.fields?.[feed.sort.fieldId];
       return v && typeof v === "object" && "value" in v ? v.value : v;
     };

@@ -101,7 +101,7 @@ export function applyLocalSort(items, localSort, leafModulesLookup) {
     let v;
     if (fieldId === "label") {
       const mod = it.instance || (it.occurrence?.moduleId ? leafModulesLookup?.[it.occurrence.moduleId] : null);
-      v = mod?.label ?? "";
+      v = it.occurrence?.label || mod?.label || "";
     } else {
       v = it.occurrence?.fields?.[fieldId]?.value ?? null;
     }

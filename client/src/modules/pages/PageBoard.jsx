@@ -48,7 +48,12 @@ export function pageChildRenderer(role) {
 // Resolve a sortable numeric key from a child occurrence's field value.
 // Date-like strings → epoch ms; plain numbers → the number; everything
 // else (missing / non-numeric) → null (left unsorted by the caller).
-function childSortKey(occurrence, fieldId) {
+function childSortKey(occurrence, fieldId, modulesById) {
+  // "label": what the child shows as its name (its own label, else its module's).
+  if (fieldId === "label") {
+    const l = occurrence?.label || modulesById?.[occurrence?.moduleId]?.label || "";
+    return l ? l.toLowerCase() : null;
+  }
   const raw = occurrence?.fields?.[fieldId]?.value;
   if (raw == null || raw === "") return null;
   if (typeof raw === "number") return raw;
@@ -119,16 +124,18 @@ export default function PageBoard({
     // timestamp, numbers → number); unkeyed children keep their original
     // relative order below the keyed ones.
     return filtered
-      .map((e, i) => ({ e, i, k: childSortKey(e?.occurrence, sortField) }))
+      .map((e, i) => ({ e, i, k: childSortKey(e?.occurrence, sortField, modulesById) }))
       .sort((a, b) => {
         if (a.k == null && b.k == null) return a.i - b.i;
         if (a.k == null) return 1;
         if (b.k == null) return -1;
         if (a.k === b.k) return a.i - b.i;
-        return a.k - b.k;
+        return typeof a.k === "string" || typeof b.k === "string"
+          ? String(a.k).localeCompare(String(b.k), undefined, { numeric: true })
+          : a.k - b.k;
       })
       .map((x) => x.e);
-  }, [containersList, hideSet, sortField]);
+  }, [containersList, hideSet, sortField, modulesById]);
 
   // A LONE column fills the panel; the width caps only start mattering once
   // there are several to fit side by side (user 2026-08-01: "if its 1 daypage

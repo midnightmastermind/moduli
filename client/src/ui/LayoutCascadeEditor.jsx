@@ -218,6 +218,7 @@ export default function LayoutCascadeEditor({
             onChange={(v) => setKey("sortChildrenByField", v)}
             options={[
               { value: null, label: "Manual order" },
+              { value: "label", label: "Label" },
               ...fieldsList.map(f => ({ value: f.id, label: f.name })),
             ]}
           />
