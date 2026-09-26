@@ -19,16 +19,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { History } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import { buildPastValues } from "../helpers/pastValues";
-import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
+import { openOccurrenceInPanel, panelOccurrenceFor } from "../helpers/openOccurrenceInPanel";
 import { toast } from "../state/notificationStore";
-
-function panelOccurrenceFor(occId, occurrencesById) {
-  const el = document.querySelector(`[data-occurrence-id="${CSS.escape(String(occId))}"]`)
-    || document.querySelector(`[data-occ-id="${CSS.escape(String(occId))}"]`);
-  const panelModuleId = el?.closest("[data-panel-id]")?.getAttribute("data-panel-id");
-  if (!panelModuleId) return null;
-  return Object.values(occurrencesById || {}).find(o => o?.moduleId === panelModuleId) || null;
-}
 
 export default function PastValuesDialog({ open, onOpenChange, occurrence }) {
   const { state, dispatch, socket, occurrencesById, modulesById, fieldsById, viewsById } = useGridActions();

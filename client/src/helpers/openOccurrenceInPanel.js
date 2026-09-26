@@ -97,3 +97,14 @@ export function openOccurrenceInPanel({
   });
   return { ok: true, pageOccId, alreadyOpen, found };
 }
+
+/** The panel OCCURRENCE whose DOM holds this occurrence's row, or null — the
+ *  panel a "go to" from that row should navigate. */
+export function panelOccurrenceFor(occId, occurrencesById) {
+  if (!occId || typeof document === "undefined") return null;
+  const el = document.querySelector(`[data-occurrence-id="${CSS.escape(String(occId))}"]`)
+    || document.querySelector(`[data-occ-id="${CSS.escape(String(occId))}"]`);
+  const panelModuleId = el?.closest("[data-panel-id]")?.getAttribute("data-panel-id");
+  if (!panelModuleId) return null;
+  return Object.values(occurrencesById || {}).find((o) => o?.moduleId === panelModuleId) || null;
+}

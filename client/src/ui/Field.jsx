@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin, ExternalLink } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin, ExternalLink, ArrowUpRight } from "lucide-react";
 
 // Icon-name → lucide component lookup for display rules.
 // Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
@@ -54,6 +54,8 @@ import RepresentationView from "./RepresentationView";
 import AutoMarquee from "./AutoMarquee";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { useGridActionsSelector } from "../GridActionsContext";
+import { openOccurrenceInPanel, panelOccurrenceFor } from "../helpers/openOccurrenceInPanel";
+import { toast } from "../state/notificationStore";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
@@ -244,6 +246,55 @@ function RandomizeSegment({ onClick, disabled, compact }) {
     >
       <Shuffle className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
     </button>
+  );
+}
+
+// ─── GoToSegment ────────────────────────────────────────────────
+// A trailing segment on an occurrence pick that OPENS what it points at (user,
+// 2026-09-26: "another button next to the random button … to go to the
+// occurance it references … i would click the button to sara lee and it would
+// take me to the occurance"). One pick jumps straight there; several offer a
+// short list. It navigates the panel this row is in, the way the History
+// dialog opens a past copy.
+function GoToSegment({ ids, hostOccurrence, compact, labelFor }) {
+  const dispatch = useGridActionsSelector((s) => s.dispatch);
+  const socket = useGridActionsSelector((s) => s.socket);
+  const getOccMap = useGridActionsSelector((s) => s.getOccMap || (() => s.occurrencesById || {}));
+  const getModMap = useGridActionsSelector((s) => s.getModMap || (() => s.modulesById || {}));
+  const viewsById = useGridActionsSelector((s) => s.viewsById);
+  const [open, setOpen] = useState(false);
+  const go = (occId) => {
+    const occurrencesById = getOccMap();
+    const panelOccurrence = panelOccurrenceFor(hostOccurrence?.id, occurrencesById);
+    if (!panelOccurrence) { toast("Open this from a panel to go to it"); return; }
+    const res = openOccurrenceInPanel({
+      occId, panelOccurrence, occurrencesById, modulesById: getModMap(), viewsById, dispatch, socket,
+      onMissing: () => toast("Found it, but it's hidden by the current filter"),
+    });
+    if (!res.ok) toast("That isn't on a page");
+    setOpen(false);
+  };
+  const btn = (
+    <button type="button" title={ids.length === 1 ? `Go to ${labelFor(ids[0])}` : "Go to…"}
+      onClick={(e) => { e.stopPropagation(); if (ids.length === 1) go(ids[0]); else setOpen((v) => !v); }}
+      className="inline-flex items-center justify-center px-1.5 flex-shrink-0 cursor-pointer hover:bg-muted"
+      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}>
+      <ArrowUpRight className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+    </button>
+  );
+  if (ids.length === 1) return btn;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{btn}</PopoverTrigger>
+      <PopoverContent className="w-56 p-1" align="end">
+        {ids.map((id) => (
+          <button key={id} type="button" onClick={() => go(id)}
+            className="w-full text-left text-xs px-2 py-1 rounded hover:bg-muted truncate">
+            {labelFor(id)}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -438,7 +489,7 @@ export function OptionSearchList({
   );
 }
 
-function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null, searchProvider = null, onImportResult = null }) {
+function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null, searchProvider = null, onImportResult = null, goToHost = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
   const toggle = useCallback(
@@ -521,6 +572,10 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
         {randomize && options.length > 0 && (
           <RandomizeSegment compact={compact} disabled={disabled}
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }} />
+        )}
+        {goToHost && selected.length > 0 && (
+          <GoToSegment ids={selected} hostOccurrence={goToHost} compact={compact}
+            labelFor={(v) => options.find((o) => o.value === v)?.label || v} />
         )}
       </div>
     </div>
@@ -2008,6 +2063,7 @@ function Field({
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
+            goToHost={hostOccurrence}
             addNewTargets={addNewTargetOptions}
             searchProvider={occSearchProvider} onImportResult={importProviderResult} />
         );
@@ -2069,6 +2125,10 @@ function Field({
         {randomize && options.length > 1 && (
           <RandomizeSegment compact disabled={disabled}
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
+        )}
+        {hostOccurrence && localValue && (
+          <GoToSegment ids={[localValue]} hostOccurrence={hostOccurrence} compact
+            labelFor={(v) => options.find((o) => o.value === v)?.label || v} />
         )}
         </div>
       );
@@ -2479,6 +2539,7 @@ function Field({
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
+            goToHost={hostOccurrence}
             addNewTargets={addNewTargetOptions}
             searchProvider={occSearchProvider} onImportResult={importProviderResult} />
         );
@@ -2522,6 +2583,10 @@ function Field({
           {randomize && options.length > 1 && (
             <RandomizeSegment disabled={disabled}
               onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
+          )}
+          {hostOccurrence && localValue && (
+            <GoToSegment ids={[localValue]} hostOccurrence={hostOccurrence}
+              labelFor={(v) => options.find((o) => o.value === v)?.label || v} />
           )}
           </div>
         </div>

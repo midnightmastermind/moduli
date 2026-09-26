@@ -3627,3 +3627,14 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
   Artifact cards now show the file as their preview and open on click.
 - > "could you organize the files folder a little bit more like images/import images/people images/ingrediants etc. this is for poms grid" · > "like images/books" · > "put imports in the imports folder"
   Migration 0351 (dry run first): Files/Images/<Books|People|Ingredients|…> by what uses each image; imported article images → the Imports folder.
+
+## 2026-09-26 — people, birthdays, radial menu, unlinked day columns, queued work
+
+- Radial menu: > "i also dont like cycled buttons … things that cycle (like position) (or copy, copylink, move) etc, should have a submenu to select which one" and > "any thats like minded to consolidate to a submenu". Shipped.
+- Birthdays: > "make an operation to check the people page everyday and put a birthday occurance … in the todo section for that day … Birthday - Name - how old" (Schedule's day Todo; > "it would be full Name"; > "have it run on update of peoples board to"). Shipped as 0367.
+- People: merge duplicates, but > "keep the unsure ones untouched". Handle-style names → real names (> "alissabratz … so it would be Alissa Bratz").
+- A multi-select referencing occurrences needs > "another button next to the random button … to go to the occurance it references".
+- QUEUED after that, in order:
+  1. > "switch back to the UI test plan we were doing" (rebuild-via-UI).
+  2. Filter cascade: > "if a field is inherited and changed by a parent, it should switch to that (just for that change) on the children subscribed. So if i have a date set to today on the schedule page, and switch it to tomorrow in the top toolbar, it should change on the schedule page as well. if i change it on the schedule page again (then it overwrites the top toolbars." — filters only, > "not styling cascade".
+  3. > "my appointments should have a person field as well btw so i can set my physical therapist or therapist etc".
