@@ -1893,7 +1893,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // `helpers/autoScrollOnLoad.js` for why it ABANDONS rather than
         // deferring until the drag ends.
         autoScrollWhenReady({
-          jump: () => jumpToOccurrence(itemId, { scrollBlock: block || "center" }),
+          // A courtesy scroll must never open every long list to find its
+          // target (expandWindows: false — see jumpToOccurrence).
+          jump: () => jumpToOccurrence(itemId, { scrollBlock: block || "center", expandWindows: false }),
           isUserBusy: () => typeof window !== "undefined" && !!window.__moduli_interacting,
           schedule: (fn, ms) => setTimeout(fn, ms),
           unschedule: (t) => clearTimeout(t),

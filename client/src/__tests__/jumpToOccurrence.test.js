@@ -278,4 +278,19 @@ describe("jumpToOccurrence render-all timing", () => {
     expect(heard).toHaveBeenCalledTimes(1);
     window.removeEventListener(RENDER_ALL, heard);
   });
+
+  // The on-load SCROLL_TO poll (24 misses when the Schedule is not open) opened
+  // every long list in full — the 1,202-row People board ten seconds after each
+  // load (user, 2026-09-26). A jump nobody asked for must never expand.
+  it("expandWindows:false never expands, on either path", () => {
+    vi.useFakeTimers();
+    const heard = vi.fn();
+    window.addEventListener(RENDER_ALL, heard);
+    expect(jumpToOccurrence("nope", { expandWindows: false })).toBe(false);
+    jumpToOccurrence("nope", { expandWindows: false, retries: 3, retryMs: 10 });
+    vi.advanceTimersByTime(1000);
+    expect(heard).not.toHaveBeenCalled();
+    window.removeEventListener(RENDER_ALL, heard);
+    vi.useRealTimers();
+  });
 });

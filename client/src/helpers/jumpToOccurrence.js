@@ -48,6 +48,12 @@ const PAGE_SWITCH_GRACE_MS = 220;
  *   - highlightMs: override the flash duration (default 1200ms).
  *   - scrollBlock: "start" | "center" | "nearest" (default "center" so
  *     the flash lands in the middle of the viewport, easier to spot).
+ *   - expandWindows: false keeps every windowed list as it is on a miss. For a
+ *     jump nobody asked for (the on-load SCROLL_TO poll): it retries 24 times,
+ *     and each miss used to open EVERY long list in full — with the Schedule
+ *     not open in any panel, the People board went from 80 rows to all 1,202
+ *     (~194k nodes) ten seconds after every load, and each later delete then
+ *     froze the tab long enough to drop the socket (user, 2026-09-26).
  */
 export function jumpToOccurrence(occurrenceId, opts = {}) {
   const {
@@ -58,6 +64,7 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     retries = 0,
     retryMs = PAGE_SWITCH_GRACE_MS,
     onMissing,
+    expandWindows = true,
   } = opts;
   if (!occurrenceId) return false;
   const el = findOccurrenceElement(occurrenceId, root);
@@ -88,7 +95,7 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     const attempt = () => {
       const retry = findOccurrenceElement(occurrenceId, root);
       if (retry) { scrollAndFlash(retry, { highlightMs, scrollBlock }); return; }
-      if (!expanded) {
+      if (!expanded && expandWindows) {
         // One extra look once the windows have opened, so a caller with a
         // single retry still finds a row that was past the seam.
         expanded = true;
@@ -105,6 +112,7 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
   // retries:0 callers ("the page is already open, a miss means filtered out")
   // still deserve one look after the windows expand — the row may simply have
   // been past the seam. Nothing is changing page here, so expanding now is safe.
+  if (!expandWindows) return false;
   requestRenderAll();
   const afterExpand = findOccurrenceElement(occurrenceId, root);
   if (afterExpand) { scrollAndFlash(afterExpand, { highlightMs, scrollBlock }); return true; }
