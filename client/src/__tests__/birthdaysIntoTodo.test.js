@@ -5,7 +5,7 @@ import { executePipeline } from "../helpers/operationExecutor";
 import { buildBirthdayPipeline } from "../../../server/migrations/0367-birthdays-into-schedule-todo.mjs";
 
 const IDS = { schedPageId: "page", peopleContId: "people", birthdayFieldId: "bday", peopleFieldId: "who",
-  dateFieldId: "date", formatFieldId: "fmt", timeslotFieldId: "slot" };
+  dateFieldId: "date", formatFieldId: "fmt", timeslotFieldId: "slot", nameFieldId: "name" };
 
 function run({ people, todoKids = [] }) {
   const occurrencesById = {
@@ -19,7 +19,7 @@ function run({ people, todoKids = [] }) {
     "m-todo": { id: "m-todo", role: "container", label: "Todo" }, "m-people": { id: "m-people", role: "container", label: "People" },
   };
   for (const p of people) {
-    occurrencesById[p.id] = { id: p.id, moduleId: `m-${p.id}`, parentId: "people", fields: { bday: { value: p.bday } } };
+    occurrencesById[p.id] = { id: p.id, moduleId: `m-${p.id}`, parentId: "people", fields: { bday: { value: p.bday }, ...(p.full !== undefined ? { name: { value: p.full } } : {}) } };
     modulesById[`m-${p.id}`] = { id: `m-${p.id}`, role: "instance", label: p.name };
   }
   for (const k of todoKids) {
@@ -43,6 +43,13 @@ describe("People: Birthdays", () => {
       { id: "ann", name: "Ann", bday: "1990-10-01" },
     ] });
     expect(labels).toEqual(["Birthday - Mark - turns 44"]);
+  });
+  it("uses the full Name field over the card label", () => {
+    expect(run({ people: [{ id: "lx", name: "__lexi__", full: "Lexi Brody", bday: "1995-09-26" }] }).labels)
+      .toEqual(["Birthday - Lexi Brody - turns 31"]);
+  });
+  it("an empty Name falls back to the card label", () => {
+    expect(run({ people: [{ id: "k", name: "Keith", full: "", bday: "1970-09-26" }] }).labels).toEqual(["Birthday - Keith - turns 56"]);
   });
   it("no known year (1900) → no age", () => {
     expect(run({ people: [{ id: "jo", name: "Jo", bday: "1900-09-26" }] }).labels).toEqual(["Birthday - Jo"]);

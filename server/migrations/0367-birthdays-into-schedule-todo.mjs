@@ -7,7 +7,8 @@
 // A day's Todo is shared by its Schedule column and its Day Page column, so the
 // card shows in both.
 //
-//   label   "Birthday - <name> - turns <age>"; just "Birthday - <name>" when the
+//   label   "Birthday - <full name> - turns <age>" (the Name field; the card
+//           label when Name is empty); just "Birthday - <name>" when the
 //           year is not known (stored as 1900 — migration 0365)
 //   module  ONE shared "Birthday" item (CREATE reuses a module by name); each
 //           card's own label is set on the placement
@@ -30,7 +31,7 @@ const and = (...rules) => ({ operator: "AND", rules });
 const act = (id, config) => ({ id, type: "action", config });
 
 /** PURE. The pipeline, given the ids it needs. */
-export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayFieldId, peopleFieldId, dateFieldId, formatFieldId, timeslotFieldId }) {
+export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayFieldId, peopleFieldId, dateFieldId, formatFieldId, timeslotFieldId, nameFieldId }) {
   const B = `$p.fields.${birthdayFieldId}.value`;
   const create = act("bd-create", {
     type: "CREATE", name: "Birthday", role: "instance", parent: "$todoId",
@@ -66,12 +67,17 @@ export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayField
                 act("bd-bmd", { type: "DATE_FORMAT", date: B, format: "MM-dd", to: "$bMD" }),
                 { id: "bd-today", type: "if", condition: and(r("$bMD", "IS", "$dayMD")), then: [
                   act("bd-by", { type: "DATE_FORMAT", date: B, format: "yyyy", to: "$bY" }),
+                  // The person's FULL name (the Name field); the card label is
+                  // often an Instagram handle. Falls back to the label.
+                  act("bd-who", { type: "INIT_VAR", name: "$who", expr: `$p.fields.${nameFieldId}.value`, fallback: "$p.label" }),
+                  { id: "bd-noname", type: "if", condition: and(r("$who", "IS_EMPTY", "")),
+                    then: [act("bd-who2", { type: "INIT_VAR", name: "$who", expr: "$p.label" })] },
                   { id: "bd-noyear", type: "if", condition: and(r("$bY", "IS", "1900")),
-                    then: [act("bd-l1", { type: "INIT_VAR", name: "$bdayLabel", expr: "Birthday - ${$p.label}" })],
+                    then: [act("bd-l1", { type: "INIT_VAR", name: "$bdayLabel", expr: "Birthday - ${$who}" })],
                     else: [
                       act("bd-age", { type: "INIT_VAR", name: "$age", expr: "$dayY" }),
                       act("bd-sub", { type: "SUBTRACT_FROM_VAR", name: "$age", expr: "$bY" }),
-                      act("bd-l2", { type: "INIT_VAR", name: "$bdayLabel", expr: "Birthday - ${$p.label} - turns ${$age}" }),
+                      act("bd-l2", { type: "INIT_VAR", name: "$bdayLabel", expr: "Birthday - ${$who} - turns ${$age}" }),
                     ] },
                   act("bd-ex0", { type: "INIT_VAR", name: "$existingBday", expr: "literal:" }),
                   act("bd-ex", { type: "FIND", over: "$allInstances", itemIdVar: "$existingBday", predicate: and(
@@ -101,6 +107,7 @@ export async function up({ gridId, models, log, dryRun }) {
   const ids = {
     schedPageId: sf.pageOccurrenceId, dateFieldId: sf.dateFieldId, formatFieldId: sf.scheduleFormatFieldId,
     timeslotFieldId: sf.timeslotFieldId, birthdayFieldId: one("Birthday", "date"), peopleFieldId: one("People", "occurrence"),
+    nameFieldId: one("Name"),
   };
   // The People board: the container that holds the people (0352's social-import cards).
   const person = await Occurrence.findOne({ gridId, "meta.source": "social-import" }).lean();
