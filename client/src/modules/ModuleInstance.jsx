@@ -689,6 +689,9 @@ function InstanceInner({
       label: `Convert to ${r === "instance" ? "Instance" : "Textblock"}`,
       onClick: () => convertLeafRole({ dispatch, socket, occurrence, module: instance, targetRole: r }),
       color: "bg-teal-700 hover:bg-teal-600",
+      // One Convert submenu with the embed's "To pill" when both are present
+      // (RadialMenu.groupItems); alone, it stays a plain button.
+      group: "Convert", groupIcon: Shuffle, groupColor: "bg-teal-700 hover:bg-teal-600",
     }));
   }, [instance, occurrence, dispatch, socket]);
 
