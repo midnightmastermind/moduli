@@ -483,8 +483,10 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
-    console.log("❌ Client disconnected:", socket.id);
+  socket.on("disconnect", (reason) => {
+    // The reason separates a closed tab ("transport close") from a missed
+    // heartbeat ("ping timeout") or an oversized/garbled frame ("parse error").
+    console.log("❌ Client disconnected:", socket.id, reason);
     // Cache persists — TTL eviction handles cleanup after 30min inactivity
   });
 });
