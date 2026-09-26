@@ -89,11 +89,12 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // defaults to occurrence.dragMode → instance.defaultDragMode → "move". Stored
   // on the occurrence so the RadialMenu toggle persists.
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
-  const toggleEntityDragMode = useCallback(() => {
+  // `mode` is the one picked in the radial submenu; no argument cycles.
+  const toggleEntityDragMode = useCallback((mode) => {
     if (!occurrenceId || !dispatch || !socket) return;
     // Two-way: handleDocEmbedDrop branches on copy and nothing else, so a
     // doc embed must not be able to reach copylink (helpers/dragModes.js).
-    const nextMode = nextDragMode(entityDragMode);
+    const nextMode = typeof mode === "string" ? mode : nextDragMode(entityDragMode);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrenceId, dragMode: nextMode },

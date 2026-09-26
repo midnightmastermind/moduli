@@ -64,6 +64,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   const storedText = useMemo(() => textmapToInlineText(occurrence?.textmap), [occurrence?.textmap]);
   const [draft, setDraft] = useState(storedText);
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const contentRef = useRef(null);
   const wrapperRef = useRef(null);
   const handleRef = useRef(null);
@@ -229,8 +230,11 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
           window.addEventListener("dragend", disarm);
         }}
       >
-        {hovered && editable && (
-          <RadialMenu size="sm" forceDirection="down" items={radialItems} />
+        {/* Stays mounted while its menu is OPEN: the arc is portalled out of
+            the chip, so reaching it ends the hover — and unmounting here closed
+            the menu under the pointer (user, 2026-09-26). */}
+        {(hovered || menuOpen) && editable && (
+          <RadialMenu size="sm" forceDirection="down" items={radialItems} onOpenChange={setMenuOpen} />
         )}
       </span>
 

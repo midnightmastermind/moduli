@@ -383,9 +383,10 @@ function InstanceInner({
   // Cycle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template.
   // An instance is the ONE kind whose drop path runs copylinkInstanceToContainer,
   // so it is the one surface that cycles all three (helpers/dragModes.js).
-  const toggleEntityDragMode = useCallback(() => {
+  // `mode` is the one picked in the radial submenu; no argument cycles.
+  const toggleEntityDragMode = useCallback((mode) => {
     if (!occurrence?.id) return;
-    const newMode = nextDragMode(entityDragMode, INSTANCE_DRAG_MODES);
+    const newMode = typeof mode === "string" ? mode : nextDragMode(entityDragMode, INSTANCE_DRAG_MODES);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrence.id, dragMode: newMode },

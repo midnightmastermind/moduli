@@ -132,9 +132,11 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
   }, [editor, getPos, occurrenceId]);
 
   const radialItems = useMemo(() => [
-    { icon: Copy, label: "Copy", onClick: handleCopy, color: "bg-blue-600 hover:bg-blue-500" },
-    { icon: Link, label: "Copy Link", onClick: handleCopyLink, color: "bg-emerald-700 hover:bg-emerald-600" },
-    { icon: Move, label: "Move", onClick: handleMove, color: "bg-slate-600 hover:bg-slate-500" },
+    // Three clipboard copies of the same pill, so one "Copy" submenu
+    // (RadialMenu.groupItems). "Move" was a misnomer: it copies the id.
+    { icon: Copy, label: "Copy name", onClick: handleCopy, color: "bg-blue-600 hover:bg-blue-500", group: "Copy" },
+    { icon: Link, label: "Copy link", onClick: handleCopyLink, color: "bg-emerald-700 hover:bg-emerald-600", group: "Copy" },
+    { icon: Move, label: "Copy id", onClick: handleMove, color: "bg-slate-600 hover:bg-slate-500", group: "Copy" },
     { icon: Maximize2, label: "Convert to Embed", onClick: handleConvertToEmbed, color: "bg-indigo-600 hover:bg-indigo-500" },
     { icon: Trash2, label: "Remove", onClick: handleDelete, color: "bg-red-600 hover:bg-red-500" },
   ], [handleCopy, handleCopyLink, handleMove, handleDelete, handleConvertToEmbed]);

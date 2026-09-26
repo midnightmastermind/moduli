@@ -426,8 +426,9 @@ function Panel({
     return () => { document.getElementById(styleId)?.remove(); };
   }, [module?.customCss, module?.id]);
 
-  const togglePanelDragModeQuick = useCallback(() => {
-    const nextMode = nextDragMode(panelDragMode);
+  // `mode` is the one picked in the radial submenu; no argument cycles.
+  const togglePanelDragModeQuick = useCallback((mode) => {
+    const nextMode = typeof mode === "string" ? mode : nextDragMode(panelDragMode);
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
   }, [module, panelDragMode, dispatch, socket]);
 

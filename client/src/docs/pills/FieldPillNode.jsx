@@ -124,13 +124,15 @@ export default function FieldPillNode({ node, selected, deleteNode }) {
   const radialItems = useMemo(() => [
     {
       icon: Copy,
-      label: "Copy",
+      label: "Copy name",
+      group: "Copy",
       onClick: handleCopy,
       color: "bg-blue-600 hover:bg-blue-500",
     },
     {
       icon: Link,
-      label: "Copy Link",
+      label: "Copy link",
+      group: "Copy",
       onClick: handleCopyLink,
       color: "bg-purple-600 hover:bg-purple-500",
     },

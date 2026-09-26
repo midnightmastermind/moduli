@@ -82,6 +82,42 @@ export function arcItemsFor(items, openLabel) {
 }
 
 
+// ── LIKE-MINDED ITEMS SHARE ONE SUBMENU ───────────────────────────────────
+//
+// User, 2026-09-26: *"i also want any thats like minded to consolidate to a
+// submenu (like having all these seperate buttons for converting)"*. An item
+// that names a `group` is gathered with every other item of that group — and
+// into an existing submenu item of the same label, so the embed's "To pill"
+// joins a container's own "Convert" list instead of sitting beside it. A group
+// with ONE member stays a plain button: a submenu of one is an extra click that
+// buys nothing. The group lands where its first member was.
+export function groupItems(items) {
+  const out = [];
+  const slot = new Map();              // group label → index in `out`
+  for (const item of items || []) {
+    if (!item) continue;
+    const key = item.group || (Array.isArray(item.submenu) ? item.label : null);
+    if (!key) { out.push(item); continue; }
+    const members = item.group ? [{ ...item, group: undefined }] : item.submenu;
+    if (!slot.has(key)) {
+      slot.set(key, out.length);
+      out.push(item.group
+        ? { label: key, icon: item.groupIcon || item.icon, color: item.groupColor || item.color, submenu: members, __single: item }
+        : { ...item, submenu: [...members] });
+      continue;
+    }
+    const at = slot.get(key);
+    const host = out[at];
+    out[at] = { ...host, submenu: [...host.submenu, ...members], __single: undefined };
+  }
+  return out.map((it) => {
+    if (!it.__single) { const { __single, ...rest } = it; return rest; }
+    // A group of one: the member itself, without the group wrapper.
+    const { group, groupIcon, groupColor, ...solo } = it.__single;
+    return solo;
+  });
+}
+
 export default function RadialMenu({
   // Standard drag handle props (used when items not provided)
   dragMode = "move",
@@ -154,7 +190,6 @@ export default function RadialMenu({
   const portalRef = useRef(null);     // portaled wrapper
 
   const handleRef = useRef(null);
-  const timeoutRef = useRef(null);
 
   // HOLD THE LAYOUT WHILE OPEN. The menu is portalled out of the card it
   // belongs to, so moving onto an arc item ends the card's :hover — and its
@@ -173,6 +208,8 @@ export default function RadialMenu({
 
   // fixed-position anchor for portal (null until measured)
   const [anchor, setAnchor] = useState({ x: null, y: null });
+  const anchorRef = useRef(anchor);
+  anchorRef.current = anchor;
 
   // controls the "from -> to" animation after mount
   const [entered, setEntered] = useState(false);
@@ -196,6 +233,10 @@ export default function RadialMenu({
     const el = handleRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
+    // A handle hidden by a hover rule measures 0×0 at the viewport origin. Keep
+    // the menu where it is rather than teleporting it to the corner on the next
+    // scroll (the cog handles hid themselves as the pointer left for the arc).
+    if (!r.width && !r.height && anchorRef.current.x != null) return;
     const centerX = r.left + r.width / 2;
     const centerY = r.top + r.height / 2;
 
@@ -241,11 +282,10 @@ export default function RadialMenu({
     };
   }, [isOpen]);
 
-  // Auto-close after delay
-  useEffect(() => {
-    if (isOpen) timeoutRef.current = setTimeout(() => setIsOpen(false), 5000);
-    return () => timeoutRef.current && clearTimeout(timeoutRef.current);
-  }, [isOpen]);
+  // NO AUTO-CLOSE TIMER. It closed the menu 5s after opening whatever you were
+  // doing — mid-read, mid-submenu, with the pointer on an item (user,
+  // 2026-09-26: "it will close too early … by timed or something"). The menu
+  // closes on a pick, an outside press, or Escape.
 
   // when open, sync anchor before paint
   useLayoutEffect(() => {
@@ -369,7 +409,7 @@ export default function RadialMenu({
         const deleteItem = onDelete
           ? [{ icon: Trash2, label: deleteLabel, onClick: onDelete, color: "bg-red-700 hover:bg-red-600" }]
           : [];
-        const allItems = [...items, ...deleteItem, ...(extraItems || [])];
+        const allItems = groupItems([...items, ...deleteItem, ...(extraItems || [])]);
         const angles = getAnglesForDirection(openDirection, allItems.length);
         return allItems.map((item, i) => ({
           ...item,
@@ -445,8 +485,9 @@ export default function RadialMenu({
         });
       }
       if (extraItems?.length) defaultItems.push(...extraItems);
-      const angles = getAnglesForDirection(openDirection, defaultItems.length);
-      return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
+      const grouped = groupItems(defaultItems);
+      const angles = getAnglesForDirection(openDirection, grouped.length);
+      return grouped.map((item, i) => ({ ...item, angle: angles[i] }));
     },
     [items, extraItems, dragMode, allowedDragModes, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
@@ -479,8 +520,20 @@ export default function RadialMenu({
           pointerEvents: "none",
           zIndex: 2147483647,
         }}
+        // A PORTAL STILL BUBBLES THROUGH ITS REACT PARENTS. The arc lives under
+        // <body> in the DOM but inside the row / editor / container in the
+        // React tree, so a press on an item reached their handlers too (drag
+        // arming, editor focus, row selection) — "something behind the radial
+        // menu is stealing the focus" (user, 2026-09-26). Stop all of them here.
         onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
       >
         <div
           className={`
@@ -579,7 +632,7 @@ export default function RadialMenu({
                   rounded-full
                   flex items-center justify-center
                   ${item.color}
-                  border-2 border-white/80        /* ✅ white border like handle */
+                  ${item.active ? "border-2 border-emerald-300 ring-2 ring-emerald-300/60" : "border-2 border-white/80"}
                   shadow-lg
                   transition-all
                   ${entered ? "pointer-events-auto" : "pointer-events-none"}
@@ -591,7 +644,8 @@ export default function RadialMenu({
                   transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
                   transitionDelay: `${delay}ms`,
                 }}
-                title={item.label}
+                title={item.label + (item.active ? " (current)" : "") + (Array.isArray(item.submenu) ? " ›" : "")}
+                aria-pressed={item.active ? true : undefined}
               >
                 <span style={{
                   display: "inline-flex",
@@ -613,6 +667,7 @@ export default function RadialMenu({
     <div
       ref={menuRef}
       className={`radial-menu relative items-center flex flex-col ${className}`}
+      data-radial-open={isOpen ? "" : undefined}
       style={{ zIndex: isOpen ? 99999 : 1000, flex: "none", justifyContent: "flex-start" }}
     >
       {/* Central drag handle button with mode indicator */}

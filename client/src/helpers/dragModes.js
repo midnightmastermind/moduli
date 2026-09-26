@@ -95,19 +95,33 @@ export function nextDragMode(current, allowed = DEFAULT_DRAG_MODES) {
 }
 
 /**
- * The radial menu's mode button, as a ready-made item.
+ * The radial menu's drag-mode control, as a ready-made item: a SUBMENU that
+ * lists every allowed mode with the current one marked, and sets the one you
+ * pick (user, 2026-09-26: *"i also dont like cycled buttons … copy, copylink,
+ * move … should have a submenu to select which one, not a cycle"*). A cycle
+ * made you read the label to learn what the NEXT press would do, and reaching
+ * a mode two steps away took two trips through the menu.
  *
- * It names the NEXT mode ("Set to Copy-link"), because that is what pressing it
- * does — the CURRENT mode is what the handle itself draws. Both the default
- * menu (RadialMenu) and the copy-linked row's custom list (ModuleInstance)
- * render this, so the label, icon and colour cannot drift between them.
+ * `onClick(mode)` receives the chosen mode. The top-level button draws the
+ * CURRENT mode. Both the default menu (RadialMenu) and the copy-linked row's
+ * custom list (ModuleInstance) render this, so the two cannot drift.
  */
 export function dragModeItem({ dragMode = "move", allowed = DEFAULT_DRAG_MODES, onClick } = {}) {
-  const meta = dragModeMeta(nextDragMode(dragMode, allowed));
+  const list = Array.isArray(allowed) && allowed.length ? allowed : DEFAULT_DRAG_MODES;
+  const cur = dragModeMeta(list.includes(dragMode) ? dragMode : list[0]);
   return {
-    icon: meta.Icon,
-    label: meta.setLabel,
-    onClick,
-    color: meta.color,
+    icon: cur.Icon,
+    label: `Drag mode: ${cur.name}`,
+    color: cur.color,
+    submenu: list.map((mode) => {
+      const meta = dragModeMeta(mode);
+      return {
+        icon: meta.Icon,
+        label: meta.name,
+        color: meta.color,
+        active: mode === dragMode,
+        onClick: onClick ? () => onClick(mode) : undefined,
+      };
+    }),
   };
 }

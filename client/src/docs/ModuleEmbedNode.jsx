@@ -12,7 +12,7 @@ import ArtifactCard from "../modules/ArtifactCard.jsx";
 import ModuleTextblock from "../modules/ModuleTextblock.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText, Columns2, Shuffle } from "lucide-react";
 import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
@@ -143,8 +143,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
 
   // Injected into the module's own RadialMenu so there's only one menu.
   const embedRadialItems = useMemo(() => {
-    const nextAlign = ALIGN_CYCLE[(ALIGN_CYCLE.indexOf(align) + 1) % ALIGN_CYCLE.length];
-    const AlignIcon = ALIGN_ICONS[align];
+    const AlignIcon = ALIGN_ICONS[align] || AlignJustify;
 
     // Block-wrap (project_block_wrap_l_shape): figure out whether this embed sits
     // inside a wrapGroup (→ offer wrap on/off + unwrap) or has a previous-sibling
@@ -165,11 +164,20 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       } catch (_) { /* position not resolvable yet */ }
     }
 
+    // POSITION IS A PICK, NOT A CYCLE (user, 2026-09-26: "i also dont like
+    // cycled buttons … things that cycle (like position) … should have a
+    // submenu to select which one"). Reaching "right" from "full" took three
+    // presses and a read of the label before each.
     const items = [
       {
-        label: `Align: ${align} → ${nextAlign}`,
+        label: `Position: ${align}`,
         icon: AlignIcon,
-        onClick: () => updateAttributes({ align: nextAlign, width: null }),
+        submenu: ALIGN_CYCLE.map((a) => ({
+          label: a[0].toUpperCase() + a.slice(1),
+          icon: ALIGN_ICONS[a],
+          active: a === align,
+          onClick: () => updateAttributes({ align: a, width: null }),
+        })),
       },
     ];
 
@@ -179,6 +187,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
         label: "Wrap behind previous",
         icon: Combine,
         color: "bg-teal-700 hover:bg-teal-600",
+        group: "Wrap", groupIcon: WrapText,
         onClick: () => {
           if (!editor || typeof getPos !== "function") return;
           const pos = getPos();
@@ -207,22 +216,26 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       const hostOccId = wrapGroupNode.lastChild?.attrs?.occurrenceId || null;
       const hostOcc = hostOccId ? operationsBridge.getLocalOcc?.(hostOccId) : null;
       const hostMod = hostOcc?.moduleId ? modulesById?.[hostOcc.moduleId] : null;
-      if (isTextmappedModule(hostMod)) items.push({
-        label: wrapOn ? "Wrap: on → off" : "Wrap: off → on",
-        icon: WrapText,
-        onClick: () => {
-          if (!editor) return;
-          const grp = editor.state.doc.nodeAt(wrapGroupPos);
-          if (!grp || grp.type.name !== "wrapGroup") return;
-          editor.chain().focus().command(({ tr }) => {
-            tr.setNodeMarkup(wrapGroupPos, undefined, { ...grp.attrs, wrap: !wrapOn });
-            return true;
-          }).run();
-        },
-      });
+      // Wrap around vs side by side is a CHOICE between two layouts, so it is
+      // offered as both, the current one marked — not a toggle that names the
+      // state it is about to leave.
+      const setWrap = (on) => {
+        if (!editor) return;
+        const grp = editor.state.doc.nodeAt(wrapGroupPos);
+        if (!grp || grp.type.name !== "wrapGroup") return;
+        editor.chain().focus().command(({ tr }) => {
+          tr.setNodeMarkup(wrapGroupPos, undefined, { ...grp.attrs, wrap: on });
+          return true;
+        }).run();
+      };
+      if (isTextmappedModule(hostMod)) {
+        items.push({ label: "Wrap text around", icon: WrapText, active: wrapOn, group: "Wrap", groupIcon: WrapText, onClick: () => setWrap(true) });
+        items.push({ label: "Side by side", icon: Columns2, active: !wrapOn, group: "Wrap", groupIcon: WrapText, onClick: () => setWrap(false) });
+      }
       items.push({
         label: "Unwrap",
         icon: Ungroup,
+        group: "Wrap", groupIcon: WrapText,
         onClick: () => unwrapGroupAt(editor, wrapGroupPos),
       });
     }
@@ -231,6 +244,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       label: "To pill",
       icon: Box,
       color: "bg-indigo-600 hover:bg-indigo-500",
+      // Joins a container's own Convert submenu (RadialMenu.groupItems).
+      group: "Convert", groupIcon: Shuffle, groupColor: "bg-teal-700 hover:bg-teal-600",
       onClick: () => {
         if (!editor || !getPos || !mod) return;
         const pos = getPos();

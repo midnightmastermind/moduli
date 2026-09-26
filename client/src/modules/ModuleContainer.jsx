@@ -879,8 +879,9 @@ function Container({
     return afterPaint(() => { applyRowSeed(listDropRef.current); });
   }, [isLongList, childOccsKey]);
 
-  const toggleContainerDragModeQuick = useCallback(() => {
-    const nextMode = nextDragMode(containerDragMode);
+  // `mode` is the one picked in the radial submenu; no argument cycles.
+  const toggleContainerDragModeQuick = useCallback((mode) => {
+    const nextMode = typeof mode === "string" ? mode : nextDragMode(containerDragMode);
     if (containerOccurrence) {
       CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, dragMode: nextMode }, emit: true });
     } else {

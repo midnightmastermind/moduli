@@ -1732,6 +1732,23 @@ body[data-layout="mobile"] .container-header-label { font-size: 0.85rem !importa
 }
 
 
+/* An OPEN menu keeps its cog showing. The arc is portalled out of the card, so
+   reaching it ends the card's :hover — and the rules above hid the handle
+   (display:none), which left the menu anchored to a 0×0 box. */
+.container-cog-handle:has(.radial-menu[data-radial-open]),
+.page-cog-handle:has(.radial-menu[data-radial-open]) {
+  opacity: 1;
+  transform: translateY(0);
+}
+.container-cog-handle .radial-menu[data-radial-open],
+.page-cog-handle .radial-menu[data-radial-open] {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 /* Instance row — no overrides needed, radial menu flows naturally */
 
 /* Hide all handles during drag */

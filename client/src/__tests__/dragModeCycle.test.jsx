@@ -75,19 +75,21 @@ describe("dragModeMeta", () => {
   });
 });
 
-describe("dragModeItem — one definition for both call sites", () => {
-  test("the item is labelled for the NEXT mode and carries the click", () => {
+describe("dragModeItem — a submenu of every allowed mode, not a cycle", () => {
+  // User, 2026-09-26: "i also dont like cycled buttons … copy, copylink, move …
+  // should have a submenu to select which one, not a cycle of the buttons".
+  test("lists the allowed modes, marks the current one, and sets the one picked", () => {
     const onClick = vi.fn();
     const item = dragModeItem({ dragMode: "copy", allowed: INSTANCE_DRAG_MODES, onClick });
-    expect(item.label).toBe("Set to Copy-link");
-    expect(item.icon).toBe(dragModeMeta("copylink").Icon);
-    expect(item.color).toBe(dragModeMeta("copylink").color);
-    item.onClick();
-    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(item.submenu.map((i) => i.label)).toEqual(["Move", "Copy", "Copy-link"]);
+    expect(item.submenu.find((i) => i.active).label).toBe("Copy");
+    expect(item.icon).toBe(dragModeMeta("copy").Icon);   // the button draws the CURRENT mode
+    item.submenu[2].onClick();
+    expect(onClick).toHaveBeenCalledWith("copylink");
   });
 
-  test("on a two-way surface the item never offers copy-link", () => {
-    expect(dragModeItem({ dragMode: "copy" }).label).toBe("Set to Move");
+  test("on a two-way surface the submenu never offers copy-link", () => {
+    expect(dragModeItem({ dragMode: "copy" }).submenu.map((i) => i.label)).toEqual(["Move", "Copy"]);
   });
 });
 
@@ -115,17 +117,30 @@ describe("RadialMenu — the handle names the CURRENT mode", () => {
     expect(screen.getByTestId("radial-handle").getAttribute("title")).not.toContain("Move mode");
   });
 
-  test("opening an instance's menu in copy mode offers Copy-link", () => {
-    renderMenu("copy");
+  const openModes = () => {
     fireEvent.click(screen.getByTestId("radial-handle"));
-    expect(screen.getByTitle("Set to Copy-link")).toBeTruthy();
+    fireEvent.click(screen.getByTitle(/^Drag mode/));
+  };
+
+  test("an instance's drag-mode submenu offers Copy-link", () => {
+    renderMenu("copy");
+    openModes();
+    expect(screen.getByTitle(/^Copy-link/)).toBeTruthy();
   });
 
-  test("opening a two-way surface's menu offers Move, never Copy-link", () => {
+  test("a two-way surface's submenu offers Move, never Copy-link", () => {
     renderMenu("copy", DEFAULT_DRAG_MODES);
-    fireEvent.click(screen.getByTestId("radial-handle"));
-    expect(screen.getByTitle("Set to Move")).toBeTruthy();
-    expect(screen.queryByTitle("Set to Copy-link")).toBeNull();
+    openModes();
+    expect(screen.getByTitle(/^Move/)).toBeTruthy();
+    expect(screen.queryByTitle(/^Copy-link/)).toBeNull();
+  });
+
+  test("picking a mode sets THAT mode", () => {
+    const onToggle = vi.fn();
+    render(<RadialMenu dragMode="move" allowedDragModes={INSTANCE_DRAG_MODES} onToggleDragMode={onToggle} onSettings={() => {}} />);
+    openModes();
+    fireEvent.click(screen.getByTitle(/^Copy-link/));
+    expect(onToggle).toHaveBeenCalledWith("copylink");
   });
 });
 
