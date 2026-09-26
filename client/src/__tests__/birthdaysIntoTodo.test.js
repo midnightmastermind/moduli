@@ -23,8 +23,9 @@ function run({ people, todoKids = [] }) {
     modulesById[`m-${p.id}`] = { id: `m-${p.id}`, role: "instance", label: p.name };
   }
   for (const k of todoKids) {
-    occurrencesById[k.id] = { id: k.id, moduleId: "m-b", parentId: "todo", label: k.label, fields: {} };
-    modulesById["m-b"] = { id: "m-b", role: "instance", label: "Birthday" };
+    const mid = `m-${k.mod || "Birthday"}`;
+    occurrencesById[k.id] = { id: k.id, moduleId: mid, parentId: "todo", label: k.label, fields: {} };
+    modulesById[mid] = { id: mid, role: "instance", label: k.mod || "Birthday" };
   }
   const ctx = { state: { grid: { _id: "g" }, gridId: "g", userId: "u", fields: [], modules: Object.values(modulesById), occurrencesById, modulesById, fieldsById: {}, operations: [] },
     fieldsById: {}, occurrencesById, modulesById, operationsById: {}, operations: [] };
@@ -33,7 +34,8 @@ function run({ people, todoKids = [] }) {
   const effects = Array.isArray(out) ? out : (out?.effects || out?.updates || []);
   const creates = effects.filter((e) => e._effect === "CREATE_ITEM" || e.type === "CREATE_ITEM" || e.occurrence?.parentId === "todo");
   const labels = effects.map((e) => e.label ?? e.value).filter((v) => typeof v === "string" && v.startsWith("Birthday -"));
-  return { effects, creates, labels };
+  const deleted = effects.filter((e) => e._effect === "DELETE_ITEM").map((e) => e.itemId);
+  return { effects, creates, labels, deleted };
 }
 
 describe("People: Birthdays", () => {
@@ -58,5 +60,14 @@ describe("People: Birthdays", () => {
     const { labels } = run({ people: [{ id: "mark", name: "Mark", bday: "1982-09-26" }],
       todoKids: [{ id: "old", label: "Birthday - Mark - turns 44" }] });
     expect(labels).toEqual([]);
+  });
+  it("removes a card whose person is gone, keeps one still wanted", () => {
+    const { deleted } = run({ people: [{ id: "mark", name: "Mark", bday: "1982-09-26" }],
+      todoKids: [{ id: "keep", label: "Birthday - Mark - turns 44" }, { id: "gone", label: "Birthday - Deleted Person - turns 30" }] });
+    expect(deleted).toEqual(["gone"]);
+  });
+  it("never touches a Todo row that is not a birthday card", () => {
+    const { deleted } = run({ people: [], todoKids: [{ id: "task", label: null, mod: "Pay rent" }] });
+    expect(deleted).toEqual([]);
   });
 });

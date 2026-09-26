@@ -18,7 +18,10 @@
 // Same triggers and day list as "Schedule: Build Schedule" (grid load and
 // filter change, over `$activePeriodDates` of the Schedule page), and a later
 // priority so the day's column and Todo already exist when it runs. Idempotent:
-// a card with the same label already in that Todo is left alone.
+// a card with the same label already in that Todo is left alone, and a
+// birthday card no longer wanted (person deleted, birthday or name changed) is
+// removed. It also re-runs when a person is added or deleted or their Birthday
+// or Name is edited.
 
 export const id = "0367-birthdays-into-schedule-todo";
 export const describe = "Creates the 'People: Birthdays' operation: each Schedule day, people whose Birthday is that day get a 'Birthday - Name - turns N' card in the day's Todo.";
@@ -59,6 +62,10 @@ export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayField
           { id: "bd-hastodo", type: "if", condition: and(r("$todoId", "IS_NOT_EMPTY", "")), then: [
             act("bd-daymd", { type: "DATE_FORMAT", date: "$day", format: "MM-dd", to: "$dayMD" }),
             act("bd-dayy", { type: "DATE_FORMAT", date: "$day", format: "yyyy", to: "$dayY" }),
+            // Every card this day SHOULD have. Anything else labelled as a
+            // birthday in this Todo — a person deleted, a birthday or name
+            // edited — is swept after the loop.
+            act("bd-want0", { type: "INIT_VAR", name: "$wantedBdays", arrayOf: [] }),
             { id: "bd-people", type: "loop", overExpr: "$allInstances", as: "$p", body: [
               { id: "bd-isperson", type: "if", condition: and(
                 r("$p._ancestors", "HAS_ANCESTOR", peopleContId),
@@ -79,6 +86,7 @@ export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayField
                       act("bd-sub", { type: "SUBTRACT_FROM_VAR", name: "$age", expr: "$bY" }),
                       act("bd-l2", { type: "INIT_VAR", name: "$bdayLabel", expr: "Birthday - ${$who} - turns ${$age}" }),
                     ] },
+                  act("bd-want", { type: "PUSH_TO_VAR", name: "$wantedBdays", expr: "$bdayLabel" }),
                   act("bd-ex0", { type: "INIT_VAR", name: "$existingBday", expr: "literal:" }),
                   act("bd-ex", { type: "FIND", over: "$allInstances", itemIdVar: "$existingBday", predicate: and(
                     r("_ancestors", "HAS_ANCESTOR", "$todoId"),
@@ -91,11 +99,29 @@ export function buildBirthdayPipeline({ schedPageId, peopleContId, birthdayField
                 ] },
               ] },
             ] },
+            { id: "bd-sweep", type: "loop", overExpr: "$allInstances", as: "$c", body: [
+              { id: "bd-stale", type: "if", condition: and(
+                r("$c._ancestors", "HAS_ANCESTOR", "$todoId"),
+                r("$c.moduleLabel", "IS", "Birthday"),
+                r("$wantedBdays", "ARRAY_NOT_INCLUDES", "$c.label"),
+              ), then: [act("bd-del", { type: "DELETE", itemIdExpr: "$c.id" })] },
+            ] },
           ] },
         ] },
       ] },
     ],
   };
+}
+
+/** The People board's own events that should re-run it: a person added or
+ *  deleted, or their Birthday / Name edited. */
+export function peopleTriggers({ peopleContId, birthdayFieldId, nameFieldId }) {
+  return [
+    { eventType: "onAdd", subjectType: "module", subjectRole: "instance", targetId: "", priority: 6, ancestorId: peopleContId },
+    { eventType: "onDelete", subjectType: "module", subjectRole: "instance", targetId: "", priority: 6, ancestorId: peopleContId },
+    { eventType: "onChange", subjectType: "field", targetId: birthdayFieldId, priority: 6 },
+    { eventType: "onChange", subjectType: "field", targetId: nameFieldId, priority: 6 },
+  ];
 }
 
 export async function up({ gridId, models, log, dryRun }) {
@@ -125,10 +151,15 @@ export async function up({ gridId, models, log, dryRun }) {
     description: "Each Schedule day: a 'Birthday - Name - turns N' card in the day's Todo for everyone on the People board born that day.",
     pipeline,
     enabled: true,
-    triggerTypes: ["onLoad", "onFilterChange"],
-    triggerObjects: buildOp?.triggerObjects || [
-      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 1 },
-      { eventType: "onFilterChange", subjectType: "grid", targetId: "", priority: 1 },
+    triggerTypes: ["onLoad", "onFilterChange", "onAdd", "onDelete", "onChange"],
+    triggerObjects: [
+      ...(buildOp?.triggerObjects || [
+        { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 1 },
+        { eventType: "onFilterChange", subjectType: "grid", targetId: "", priority: 1 },
+      ]),
+      // User, 2026-09-26: "have it run on update of peoples board to, so the
+      // schedule updates if i delete or add a person".
+      ...peopleTriggers(ids),
     ],
     targetOccurrenceId: ids.schedPageId,
     priority: 6,                    // after Build Schedule (default 5)
