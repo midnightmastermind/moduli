@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-26 — people board, birthdays, radial menu, and why day columns kept getting unlinked
+
+- **Deleting a person froze the tab ~17s and reloaded every photo — three causes.** (1) The on-load
+  `SCROLL_TO` poll called `jumpToOccurrence` 24×; each miss fired render-all, so with the Schedule
+  closed the 1,202-row People board was fully mounted (~194k nodes). `expandWindows:false` for it.
+  (2) Rows re-rendered on any sibling change (memo compared `containerOccurrence` by identity) —
+  `rowPropsEqual`. (3) The tab then dropped its socket with **"parse error"**: `txRecorder.snapshotDoc`
+  structuredClone'd subdoc ObjectIds into `{buffer}` → a BINARY `transaction_created`. Now hex strings.
+  Found with two new diagnostics, kept: server logs the disconnect reason; the client reports its own
+  reason + last 5 emits after reconnecting (`📉 [socket] reconnected after …`).
+- **Day columns unlinked from the Schedule.** Found-but-unlisted is permanent: the build finds a column
+  via `_ancestors` (which falls back to parentId), so it never recreates or relists it. `0369` makes
+  Build Schedule `ADD_CHILD` its column every run (as 0350 did for the Day Page). And child-list writes
+  can now carry `occurrencesBase` → server `mergeChildListWithBase` applies only that writer's
+  removals/additions (stale whole-array writes erased columns other tabs/ops had just added). A single
+  field write sends only `{id, fields}`. The base is EXPLICIT per caller — ADD_CHILD/REMOVE_CHILD mutate
+  the local copy before emitting, so an inferred base would turn every removal into a no-op.
+- **People:** 0365 one Birthday field (year-less = 1900, rendered without a year); 0366 merged 11 groups
+  of duplicates (references repointed); 0368 97 handle-names → real names (hand-written list, outside
+  git); 0370 appointments get a People field. **0367 "People: Birthdays"** — a "Birthday - Full Name -
+  turns N" card in each Schedule day's Todo, re-run on People board changes, stale cards swept.
+- **Radial menu:** no cycles (drag mode / position / wrap are submenus with the current one marked),
+  like-minded items share a submenu (`groupItems`), no 5s auto-close, portal stops event bubbling.
+- **Other:** a picked occurrence past a dropdown's 100-option window still shows (`withSelectedOptions`);
+  a "go to" segment on occurrence picks; a toolbar filter change carries down to pages that pinned their
+  own value (`helpers/filterFollow.js`, pages only — day columns keep their structural date).
+- **Rebuild-via-UI:** Home built (Areas/Equipment/Plants, 9 rows, all tagged). Left: Creative, Money,
+  Body, Food, Media.
+
+---
+
 ### 2026-09-24 (2) — REAL INVITES TITLED "[object Object]"; and the phone read a mosaic by stale placements
 
 From the user's own tests on devices. Merged as PR #7; **not deployed from here** (the cloud session has
