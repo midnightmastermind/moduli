@@ -1801,7 +1801,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           if (prev) {
             setLocalOcc(effect.occurrence.id, { ...prev, ...effect.occurrence });
           }
-          updateOccurrence({ dispatch: socketDispatch, socket, occurrence: effect.occurrence });
+          updateOccurrence({ dispatch: socketDispatch, socket, occurrence: effect.occurrence, occurrencesBase: effect.occurrencesBase || null });
         }
         break;
 

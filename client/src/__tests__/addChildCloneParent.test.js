@@ -32,7 +32,7 @@ describe("ADD_CHILD onto a same-pipeline clone", () => {
     const stub = { id: "col", occurrences: ["a"] };
     const updates = executeActionItem("ADD_CHILD", { parentId: "col", childId: "b" },
       { $allOccurrences: [stub] }, ctx(), null);
-    expect(updates).toEqual([{ _effect: "UPDATE_OCCURRENCE", occurrence: { id: "col", occurrences: ["a", "b"] } }]);
+    expect(updates).toEqual([{ _effect: "UPDATE_OCCURRENCE", occurrence: { id: "col", occurrences: ["a", "b"] }, occurrencesBase: ["a"] }]);
   });
 
   // THE SECOND REPORT: the clone's CREATE_ITEM payload and its stub share one

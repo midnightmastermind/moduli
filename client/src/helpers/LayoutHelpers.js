@@ -1085,7 +1085,7 @@ export function addContainerToPanel({
       : insertAt(list, index, occurrenceId);
 
   const updated = { ...panelOccurrence, occurrences: nextList };
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: list });
 }
 
 export function removeContainerFromPanel({
@@ -1097,7 +1097,7 @@ export function removeContainerFromPanel({
 }) {
   if (!panelOccurrence || !occurrenceId) return;
   const updated = { ...panelOccurrence, occurrences: removeId(panelOccurrence.occurrences || [], occurrenceId) };
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: panelOccurrence.occurrences || [] });
 }
 
 export function reorderContainersInPanel({
@@ -1110,7 +1110,7 @@ export function reorderContainersInPanel({
 }) {
   if (!panelOccurrence) return;
   const next = arrayMove(panelOccurrence.occurrences || [], fromIndex, toIndex);
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelOccurrence, occurrences: next }, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelOccurrence, occurrences: next }, emit, occurrencesBase: panelOccurrence.occurrences || [] });
 }
 
 /**
@@ -1139,8 +1139,8 @@ export function moveContainerBetweenPanels({
     toIds.splice(toIndex, 0, occurrenceId);
   }
 
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...fromPanelOccurrence, occurrences: fromIds }, emit });
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...toPanelOccurrence, occurrences: toIds }, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...fromPanelOccurrence, occurrences: fromIds }, emit, occurrencesBase: fromPanelOccurrence.occurrences || [] });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...toPanelOccurrence, occurrences: toIds }, emit, occurrencesBase: toPanelOccurrence.occurrences || [] });
 }
 
 export function setPanelStackDisplay({
@@ -1194,7 +1194,7 @@ export function addInstanceToContainer({
       : insertAt(list, index, occurrenceId);
 
   const updated = { ...containerOccurrence, occurrences: nextList };
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: list });
 }
 
 export function removeInstanceFromContainer({
@@ -1206,7 +1206,7 @@ export function removeInstanceFromContainer({
 }) {
   if (!containerOccurrence || !occurrenceId) return;
   const updated = { ...containerOccurrence, occurrences: removeId(containerOccurrence.occurrences || [], occurrenceId) };
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: containerOccurrence.occurrences || [] });
 }
 
 export function reorderInstancesInContainer({
@@ -1220,7 +1220,7 @@ export function reorderInstancesInContainer({
   if (!containerOccurrence) return;
   const prev = containerOccurrence.occurrences || [];
   const next = arrayMove(prev, fromIndex, toIndex);
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, occurrences: next }, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, occurrences: next }, emit, occurrencesBase: containerOccurrence.occurrences || [] });
 }
 
 /**
@@ -1249,8 +1249,8 @@ export function moveInstanceBetweenContainers({
     toIds.splice(toIndex, 0, occurrenceId);
   }
 
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...fromContainerOccurrence, occurrences: fromIds }, emit });
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...toContainerOccurrence, occurrences: toIds }, emit });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...fromContainerOccurrence, occurrences: fromIds }, emit, occurrencesBase: fromContainerOccurrence.occurrences || [] });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...toContainerOccurrence, occurrences: toIds }, emit, occurrencesBase: toContainerOccurrence.occurrences || [] });
 }
 
 // ============================================================================

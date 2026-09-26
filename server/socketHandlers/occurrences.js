@@ -39,6 +39,43 @@ export function mergeStaleChildArray(incoming, prev, basisMs, prevMs, isKnown) {
   return merged;
 }
 
+/**
+ * A child list written against a KNOWN BASE: apply exactly the removals and
+ * additions the client made (base → next) to what is stored NOW (prev).
+ *
+ * WHY. A parent's `occurrences[]` is written whole, from the client's copy. Any
+ * child added since that copy was taken — a day column another tab or an op
+ * minted, the Schedule's today on 2026-09-26 — was simply absent from the
+ * array and the write erased it: the column stayed in Mongo, named the page as
+ * its parent, and rendered nowhere (user: "they get unlinked often"). The stale
+ * check above only catches a write whose `expectedUpdatedAt` is provably old,
+ * and the client advances its own `updatedAt` optimistically, so a stale ARRAY
+ * routinely arrives with a current-looking basis.
+ *
+ * With the base, "not in my copy" and "I removed it" are finally different
+ * things: only ids the client KNEW and dropped are removed. Ids it never knew
+ * are kept, in their stored order; the client's order wins for everything else.
+ */
+export function mergeChildListWithBase(prev, base, next) {
+  if (!Array.isArray(next) || !Array.isArray(base) || !Array.isArray(prev)) return next;
+  const nextSet = new Set(next);
+  const removed = new Set(base.filter((id) => !nextSet.has(id)));
+  const out = [...next];
+  for (let i = 0; i < prev.length; i++) {
+    const id = prev[i];
+    if (nextSet.has(id) || removed.has(id) || out.includes(id)) continue;
+    // Place it after every stored sibling that came before it and survived,
+    // so an item the writer reordered cannot land after it.
+    let at = 0;
+    for (let j = 0; j < i; j++) {
+      const k = out.indexOf(prev[j]);
+      if (k !== -1 && k + 1 > at) at = k + 1;
+    }
+    out.splice(at, 0, id);
+  }
+  return out;
+}
+
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
   userRoom,
@@ -75,7 +112,7 @@ export function registerOccurrenceHandlers(socket, {
     // threw `TypeError: Assignment to constant variable` and the whole write was
     // dropped, silently, every time two writes raced on the same field. Found in
     // the prod pm2 log 2026-08-07, firing repeatedly.
-    const { expectedUpdatedAt, expectedFieldUpdatedAt } = payload;
+    const { expectedUpdatedAt, expectedFieldUpdatedAt, occurrencesBase } = payload;
     let { occurrence } = payload;
     try {
       if (!userId) return;
@@ -291,7 +328,14 @@ export function registerOccurrenceHandlers(socket, {
       // KNOWN GAP, stated rather than papered over: a write that sends NO
       // `expectedUpdatedAt` cannot be shown to be stale, so it keeps today's
       // replace-verbatim behaviour. Every in-app path sends one.
-      if (Array.isArray(next.occurrences) && Array.isArray(prev.occurrences) && prev.occurrences.length) {
+      // A write that says what it started from is merged against that — the
+      // precise rule. Without a base, the stale-basis rule below still applies.
+      if (Array.isArray(occurrencesBase) && Array.isArray(next.occurrences) && Array.isArray(prev.occurrences)) {
+        const merged = mergeChildListWithBase(prev.occurrences, occurrencesBase, next.occurrences);
+        const kept = merged.length - next.occurrences.length;
+        if (kept > 0) console.log(`🛡  update_occurrence ${id}: kept ${kept} child(ren) this write never knew about`);
+        next.occurrences = merged;
+      } else if (Array.isArray(next.occurrences) && Array.isArray(prev.occurrences) && prev.occurrences.length) {
         const merged = mergeStaleChildArray(
           next.occurrences,
           prev.occurrences,

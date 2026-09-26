@@ -315,7 +315,7 @@ export function updateOccurrence(args) {
   return withAction(label, () => _updateOccurrence(args));
 }
 
-function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
+function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null, occurrencesBase = null }) {
   if (!occurrence?.id) return;
   // Conflict resolution (#26 cheapest-level): pass the local cache's
   // `updatedAt` so the server can reject this write when another window
@@ -342,6 +342,18 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
   if (shouldEmit(emit)) {
     const payload = { occurrence };
     if (expectedUpdatedAt) payload.expectedUpdatedAt = expectedUpdatedAt;
+    // A child-list write says what list it started from, so the server applies
+    // only the removals and additions made HERE — a child another tab or an op
+    // added meanwhile is kept instead of erased (server mergeChildListWithBase;
+    // user, 2026-09-26: the Schedule's day columns "get unlinked often").
+    // The base must be the list the CALLER started from. It is not inferred
+    // from the local copy: operation steps (ADD_CHILD / REMOVE_CHILD) update
+    // that copy before they emit, so it would equal the new list and turn
+    // every intended removal into a no-op. No base → the server's stale-basis
+    // rule, exactly as before.
+    if (Array.isArray(occurrence.occurrences) && Array.isArray(occurrencesBase)) {
+      payload.occurrencesBase = occurrencesBase;
+    }
     if (expectedFieldUpdatedAt) payload.expectedFieldUpdatedAt = expectedFieldUpdatedAt;
     safeEmit(socket, "update_occurrence", payload);
 
@@ -1002,7 +1014,10 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
       _ancestorIds: sfvAncestors.ids,
       _ancestorLabels: sfvAncestors.labels,
     });
-    safeEmit(socket, "update_occurrence", { occurrence: updatedOcc });
+    // Only the FIELDS go over the wire. Sending the whole row also rewrote its
+    // child list from this tab's copy — a field edit on a day column could
+    // unlist a child another tab had just added.
+    safeEmit(socket, "update_occurrence", { occurrence: { id: updatedOcc.id, fields: updatedOcc.fields } });
   } finally {
     endAction();
   }
@@ -1036,10 +1051,12 @@ export function createOccurrenceInContainer({ socket, instanceId, containerId, f
 export function spliceChildIntoParent({ dispatch, socket, parentOccurrence, occurrenceId, index = null }) {
   const existing = Array.isArray(parentOccurrence.occurrences) ? [...parentOccurrence.occurrences] : [];
   const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  const base = Array.isArray(parentOccurrence.occurrences) ? parentOccurrence.occurrences : [];
   existing.splice(at, 0, occurrenceId);
   updateOccurrence({
     dispatch, socket,
     occurrence: { id: parentOccurrence.id, occurrences: existing },
+    occurrencesBase: base,
     emit: true,
   });
   return at;

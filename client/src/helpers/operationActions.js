@@ -2786,7 +2786,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         if (Array.isArray(parentOcc.occurrences)) parentOcc.occurrences.push(childId);
         else parentOcc.occurrences = next;
       }
-      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      // `occurrencesBase`: the list this step started from, so the server adds
+      // exactly this child and keeps any sibling it never saw (server
+      // mergeChildListWithBase).
+      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next }, occurrencesBase: next.filter((id) => id !== childId) });
       break;
     }
 
@@ -2890,7 +2893,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (context.occurrencesById && context.occurrencesById[parentId]) {
         context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
       }
-      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next }, occurrencesBase: existing });
       break;
     }
 
@@ -3497,6 +3500,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
               updates.push({
                 _effect: "UPDATE_OCCURRENCE",
                 occurrence: { id: parentId, occurrences: nextSiblings },
+                occurrencesBase: nextSiblings.filter((id) => id !== matched.id),
               });
             }
             // Track child IDs we add this pass so downstream same-pipeline FINDs
