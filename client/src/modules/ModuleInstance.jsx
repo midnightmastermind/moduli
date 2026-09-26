@@ -66,6 +66,16 @@ import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import { useBodyOpen } from "../helpers/bodyOpen";
 import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
 
+// The container a row sits in, as it is NOW. The row's own prop can be an older
+// object (the row skips re-rendering when only the container's child list
+// changed — see rowPropsEqual), and a removal writes the parent's list from the
+// object it is handed, so it must be the live one or it would restore rows
+// deleted since.
+function liveContainerOccurrence(containerOccurrence, getOccMap) {
+  if (!containerOccurrence?.id) return containerOccurrence || null;
+  return getOccMap?.()?.[containerOccurrence.id] || containerOccurrence;
+}
+
 // Operation display widget — its own component so the per-key
 // computedValues subscription lives HERE, not on the whole instance
 // (which used to re-render every instance on every op-drain batch).
@@ -365,10 +375,10 @@ function InstanceInner({
       socket,
       occurrenceId: occurrence.id,
       occurrence,
-      parentOccurrence: containerOccurrence || null,
+      parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap),
       emit: true,
     });
-  }, [occurrence, containerOccurrence, dispatch, socket]);
+  }, [occurrence, containerOccurrence, getOccMap, dispatch, socket]);
 
   // Cycle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template.
   // An instance is the ONE kind whose drop path runs copylinkInstanceToContainer,
@@ -902,7 +912,7 @@ function InstanceInner({
                   deleteLabel={embedOnDelete ? (embedDeleteLabel || "Remove") : "Delete"}
                   onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
-                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
+                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), emit: true });
                   })}
                   extraItems={[...(embedRadialItems || []), ...convertLeafItems]}
                 />
@@ -1613,7 +1623,7 @@ function ModuleInstance({
         label: "Delete", icon: Trash2, danger: true,
         onClick: () => {
           if (!occurrence?.id) return;
-          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
+          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), emit: true });
         },
       },
     ].filter(Boolean);
@@ -1748,4 +1758,25 @@ function ModuleInstance({
 // Named export so Instance.jsx (stub) can re-export the inner row directly.
 // Memoized version used by ModuleContainer's canvas card rendering.
 
-export default React.memo(ModuleInstance);
+// A row reads its container's occurrence for two things: the container's ID
+// (render) and the container's CURRENT child list (the delete actions above,
+// which resolve it live through `liveContainerOccurrence`). So a new container
+// object whose id is unchanged is not a reason to re-render the row.
+//
+// This matters because every add, delete or reorder in a container replaces
+// that container's occurrence (its `occurrences[]` changed), and the default
+// shallow compare then re-rendered EVERY row in it. On the People board that is
+// ~1,200 rows with a photo and a dozen field chips each (user, 2026-09-26:
+// "i couldnt click anything for like 20 seconds after the delete" — the tab
+// froze long enough to miss the socket heartbeat, reconnected, and reloaded
+// every photo).
+export function rowPropsEqual(prev, next) {
+  for (const k in next) {
+    if (k === "containerOccurrence") continue;
+    if (prev[k] !== next[k]) return false;
+  }
+  for (const k in prev) if (!(k in next)) return false;
+  return (prev.containerOccurrence?.id ?? null) === (next.containerOccurrence?.id ?? null);
+}
+
+export default React.memo(ModuleInstance, rowPropsEqual);
