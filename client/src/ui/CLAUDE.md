@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+
+## Recent Changes (2026-09-26 — radial menu audit: submenus, not cycles; no early close)
+- **Closing early, three causes:** a 5s auto-close timer (removed); the portalled arc still BUBBLED
+  pointer/click events through its React parents (row, editor, container) — the portal wrapper now stops
+  pointerdown/up, mousedown/up, touch, click, dblclick, contextmenu; and hover-mounted handles unmounted
+  or hid while the pointer was on the arc (inline chip now stays mounted while `menuOpen`; cog handles
+  stay shown via `.radial-menu[data-radial-open]`; `updateAnchor` ignores a 0×0 hidden handle).
+- **No cycled buttons.** `helpers/dragModes.dragModeItem` is a "Drag mode" SUBMENU of the allowed modes,
+  current one `active` (ring + "(current)"); `onClick(mode)` gets the pick, and the four toggle handlers
+  accept it (no argument still cycles). Embed Position is a submenu; wrap around / side by side a choice.
+- **`RadialMenu.groupItems`:** items sharing `group` merge into one submenu (and into an existing
+  submenu item of that label — the embed's To pill joins a container's Convert). A group of one stays a
+  plain button. Pills' three clipboard copies → one "Copy" submenu. Tests: `radialMenuGrouping.test.jsx`,
+  `dragModeCycle.test.jsx`. Verified on prod: open after 7s; Drag mode → Back · Move (current) · Copy · Copy-link.
+
 ## Recent Changes (2026-09-25 — a text field can link out: `meta.linkTemplate`)
 - `helpers/fieldLink.fieldLinkHref(field, value)` fills a `{value}` URL template (leading `@` dropped,
   value encoded). `Field.jsx` renders `FieldLinkOut` (a small ↗ link, new tab) beside the compact text pill
