@@ -2,6 +2,20 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-26 — a delete dropped the browser's socket: snapshots carried ObjectIds as bytes)
+- **`utils/txRecorder.snapshotDoc`** cloned with `structuredClone`, which turns every subdocument `_id`
+  (ObjectId — every `fieldBindings[]` entry has one) into a plain `{ buffer: <12 bytes> }`. The
+  `transaction_created` broadcast then went out as a BINARY socket.io message with one attachment per id,
+  and the browser rejected it: the tab disconnected with `"parse error"`, reconnected, and reloaded the
+  whole grid (every photo) after every person delete. Snapshots also STORED those objects, so undo wrote
+  junk `_id`s back. Now `cloneForSnapshot` deep-copies with ObjectIds as hex strings (Mongoose casts them
+  back on restore). `__tests__/snapshotObjectIds.test.js` asserts the broadcast is ONE text packet
+  (A/B: 2 of 3 fail on the old clone). Verified on prod: the tx arrives with string ids, the tab stays up.
+- **Found with two new diagnostics, kept:** the server logs WHY a socket disconnected
+  (`server.js`, `❌ Client disconnected: <id> <reason>`), and the client reports its own reason plus the
+  last five messages it sent, after reconnecting (`client/src/socket.js`, `📉 [socket] reconnected after …`).
+  Transactions written before this fix still hold `{buffer}` ids in their snapshots.
+
 ## Recent Changes (2026-09-25 (11) — `0363`: Facebook About → Personal details onto People
 - A one-off browser extension (outside this repo) read each friend's About → Personal details into a CSV;
   cleaned, it is read from `PEOPLE_FB_ABOUT_PATH` (outside git). Matches `fb:` people by label, by the
