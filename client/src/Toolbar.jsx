@@ -25,6 +25,8 @@ import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
 import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
+import { operationsBridge } from "./state/bindSocketToStore";
+import { planFollowingPages } from "./helpers/filterFollow";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
@@ -106,12 +108,20 @@ export default function Toolbar({
       acc[c.fieldId] = next;
       return acc;
     }, { ...(grid?.activeFilterValues || {}) });
+    // Pages that pinned their own value for this filter follow the toolbar —
+    // written BEFORE the grid, whose NavigationOp fires a task later and reads
+    // each page's effective filter (helpers/filterFollow.js).
+    const changed = Object.fromEntries(navConditions.map((c) => [c.fieldId, next]));
+    for (const { id, filterOverride } of planFollowingPages(changed, occurrencesById, modulesById)) {
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id, filterOverride } });
+      operationsBridge.updateLocalOcc?.({ ...(occurrencesById[id] || { id }), filterOverride });
+    }
     CommitHelpers.updateGrid({
       dispatch, socket,
       gridId,
       grid: { activeFilterValues: updatedValues },
     });
-  }, [navConditions, grid?.activeFilterValues, gridId, dispatch, socket]);
+  }, [navConditions, grid?.activeFilterValues, gridId, dispatch, socket, occurrencesById, modulesById]);
 
 const gridOptions = useMemo(
     () =>
