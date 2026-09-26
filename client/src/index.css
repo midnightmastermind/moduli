@@ -1420,9 +1420,16 @@ select:disabled { cursor: not-allowed; }
    App level clears the selection. */
 .instance-wrap.is-selected > .instance-row,
 .container-shell.is-selected {
-  outline: 2px solid var(--accent-blue, #3b82f6);
+  /* A real BLUE, loud enough to see (user, 2026-09-26: "the highlight … is
+     almost invisible"). The old 8% tint lost to the inline background every
+     coloured row and container carries (ownStyle renders inline, which beats
+     any rule without !important), so only a thin outline was left. The ring
+     is a box-shadow as well as an outline: an ancestor's overflow clips an
+     outline drawn outside the box, not an inset shadow. */
+  outline: 2px solid #3b82f6 !important;
   outline-offset: 1px;
-  background-color: rgba(59, 130, 246, 0.08);
+  background-color: rgba(59, 130, 246, 0.28) !important;
+  box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.9) !important;
 }
 
 /* ── Clipboard-staged indicator ───────────────────────────────────────────
