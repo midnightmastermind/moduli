@@ -26,6 +26,28 @@ import { resolveAffix, affixMenu, withAffix } from "../helpers/fieldAffix";
 // read instead of every module write — worse than what it replaced.
 const EMPTY_MODULES = {};
 
+/**
+ * The options list, plus any occurrence this row has PICKED that the list does
+ * not reach. A find-mode dropdown resolves at most `limit` (100) matches, so on
+ * the 1,200-person People board a picked person past the first 100 had no
+ * option — and a chip is drawn from its option, so the field read EMPTY while
+ * holding a value (user, 2026-09-26: birthday cards showed a person for Sari Lee
+ * and nothing for the other four). The picked ones are added with their name.
+ */
+export function withSelectedOptions(options, field, selectedKey, getOccMap, modulesById) {
+  if (field?.type !== "occurrence" || !selectedKey) return options;
+  const have = new Set((options || []).map((o) => o.value));
+  const missing = selectedKey.split("|").filter((id) => id && !have.has(id));
+  if (!missing.length) return options;
+  const occs = getOccMap?.() || {};
+  const extra = missing.map((id) => {
+    const o = occs[id];
+    if (!o) return null;
+    return { value: id, label: String(o.label || modulesById?.[o.moduleId]?.label || id) };
+  }).filter(Boolean);
+  return extra.length ? [...options, ...extra] : options;
+}
+
 function FieldRenderer({
   field,
   binding,
@@ -142,6 +164,14 @@ function FieldRenderer({
     return resolveOptions(field, { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById }, occurrence ?? null);
   }, [field, wantsResolve, poolFromOccurrences, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
 
+  // This row's own pick(s), as a key so the options below recompute only when
+  // they change.
+  const selectedKey = useMemo(() => {
+    if (field?.type !== "occurrence") return "";
+    const v = occurrence?.fields?.[field.id]?.value;
+    return Array.isArray(v) ? v.join("|") : (v ? String(v) : "");
+  }, [field?.type, field?.id, occurrence?.fields]);
+
   // Expose resolved options under _resolvedOptions for select and occurrence
   // fields (other types don't render an options chooser so the meta isn't read).
   const effectiveField = useMemo(() => {
@@ -154,8 +184,9 @@ function FieldRenderer({
     // the ~99% of fields that declare none.
     const resolved = resolveDisplayConfig(field, fieldsById);
     if (resolved?.type !== "select" && resolved?.type !== "occurrence") return resolved;
-    return { ...resolved, meta: { ...resolved.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
-  }, [field, fieldsById, resolvedOptions, totalMatched]);
+    return { ...resolved, meta: { ...resolved.meta, _resolvedOptions: withSelectedOptions(resolvedOptions, resolved, selectedKey, getOccMap, modulesById), _totalMatched: totalMatched } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field, fieldsById, resolvedOptions, totalMatched, selectedKey]);
 
   // Determine field role — module.meta.disabled forces display-only
   const inputEnabled = !disabled && field.inputEnabled !== false;
