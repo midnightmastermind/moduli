@@ -16,8 +16,8 @@
 // friends are listed, not added (user's choice).
 //
 // FILL ONLY WHAT IS EMPTY:
-//   Birthday (date)              when the year is known   YYYY-MM-DD
-//   Birthday (month/day) (text)  when it is not           "July 4" — nothing invented
+//   Birthday (date)              YYYY-MM-DD; 1900-MM-DD when the year is not
+//                                shown (rendered without a year — 0365)
 //   City · Hometown · Relationship Status · Languages (text) · Gender (select,
 //     mapped onto its options: male / female / non-binary / other)
 //   Person Notes                 "Family: …" added as a line (kept if there already)
@@ -37,7 +37,7 @@ export const id = "0363-facebook-about-into-people";
 export const describe = "Fills each matched Facebook friend's empty person fields from the About-page CSV at PEOPLE_FB_ABOUT_PATH (birthday, city, hometown, relationship status, gender, languages, family in notes) and switches the Facebook field to real profile links.";
 export const touches = ["modules", "occurrences", "fields"];
 
-export const NEW_TEXT_FIELDS = ["Birthday (month/day)", "Hometown", "Relationship Status", "Languages"];
+export const NEW_TEXT_FIELDS = ["Hometown", "Relationship Status", "Languages"];
 const MONTH = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
 
 export const fold = (s) => String(s ?? "").normalize("NFKC").normalize("NFD")
@@ -94,9 +94,10 @@ export function valuesFor(occ, row, f) {
   const empty = (fid) => fid && (cur(fid) == null || cur(fid) === "" || (Array.isArray(cur(fid)) && !cur(fid).length));
   const set = {};
   const put = (fid, v) => { if (fid && v && empty(fid)) set[fid] = v; };
-  const iso = isoBirthday(row.birthday, row.birth_year);
+  // A birthday with no year is stored as 1900-MM-DD — the date field renders
+  // year 1900 without a year (0365 moved the old month/day text field here).
+  const iso = isoBirthday(row.birthday, row.birth_year) || isoBirthday(row.birthday, "1900");
   if (iso) put(f.birthday, iso);
-  else if (row.birthday && empty(f.birthday)) put(f.birthdayMonthDay, row.birthday);
   put(f.city, row.current_city);
   put(f.hometown, row.hometown);
   put(f.relationshipStatus, row.relationship);
@@ -136,7 +137,6 @@ export async function up({ gridId, models, log, dryRun }) {
 
   const newIds = {};
   for (const name of NEW_TEXT_FIELDS) newIds[name] = byName(name)?.id || null;
-  f.birthdayMonthDay = newIds["Birthday (month/day)"] || "__new_Birthday (month/day)";
   f.hometown = newIds["Hometown"] || "__new_Hometown";
   f.relationshipStatus = newIds["Relationship Status"] || "__new_Relationship Status";
   f.languages = newIds["Languages"] || "__new_Languages";
@@ -144,7 +144,7 @@ export async function up({ gridId, models, log, dryRun }) {
   const plans = matches.map(({ occ, row }) => ({ occ, row, set: valuesFor(occ, row, f) })).filter(p => Object.keys(p.set).length);
   const count = (fid) => plans.filter(p => p.set[fid]).length;
   log(`${rows.length} CSV rows · ${matches.length} matched · ${unmatched.length} not on the board · ${ambiguous.length} ambiguous (skipped)`);
-  log(`fills: birthday ${count(f.birthday)} · birthday (month/day) ${count(f.birthdayMonthDay)} · city ${count(f.city)} · hometown ${count(f.hometown)} · relationship status ${count(f.relationshipStatus)} · gender ${count(f.gender)} · languages ${count(f.languages)} · family note ${count(f.notes)} · facebook profile link ${count(f.facebook)}`);
+  log(`fills: birthday ${count(f.birthday)} · city ${count(f.city)} · hometown ${count(f.hometown)} · relationship status ${count(f.relationshipStatus)} · gender ${count(f.gender)} · languages ${count(f.languages)} · family note ${count(f.notes)} · facebook profile link ${count(f.facebook)}`);
   for (const r of ambiguous.slice(0, 15)) log(`   ambiguous: ${r.name}`);
   log(`   not on the board: ${unmatched.slice(0, 25).map(r => r.name).join(", ")}${unmatched.length > 25 ? ` … +${unmatched.length - 25}` : ""}`);
   const convert = people.filter(o => { const v = fbValueOf(o); return v && !/^https?:/i.test(v) && !plans.some(p => p.occ.id === o.id && p.set[f.facebook]); });
@@ -156,7 +156,7 @@ export async function up({ gridId, models, log, dryRun }) {
     if (newIds[name]) continue;
     const fid = crypto.randomUUID();
     await Field.create({ id: fid, userId, gridId, name, type: "text", inputEnabled: true, displayEnabled: false, meta: {} });
-    const key = { "Birthday (month/day)": "birthdayMonthDay", Hometown: "hometown", "Relationship Status": "relationshipStatus", Languages: "languages" }[name];
+    const key = { Hometown: "hometown", "Relationship Status": "relationshipStatus", Languages: "languages" }[name];
     for (const p of plans) if (p.set[f[key]] !== undefined) { p.set[fid] = p.set[f[key]]; delete p.set[f[key]]; }
     f[key] = fid;
     log(`CREATE field "${name}"`);

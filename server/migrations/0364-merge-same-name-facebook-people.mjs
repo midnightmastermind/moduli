@@ -32,14 +32,14 @@ export async function up({ gridId, models, log, dryRun }) {
   const fields = await Field.find({ gridId }).lean();
   const id1 = (n) => { const h = fields.filter(x => (x.name || "").toLowerCase() === n.toLowerCase()); return h.length === 1 ? h[0].id : null; };
   const f = {
-    birthday: id1("Birthday"), birthdayMonthDay: id1("Birthday (month/day)"), city: id1("City"), hometown: id1("Hometown"),
+    birthday: id1("Birthday"), city: id1("City"), hometown: id1("Hometown"),
     relationshipStatus: id1("Relationship Status"), languages: id1("Languages"), gender: id1("Gender"),
     notes: id1("Person Notes"), facebook: id1("Facebook"),
     since: id1("Facebook Friends Since"), howMet: id1("How We Met"),
     foundVia: id1("Found Via"), relationship: id1("Relationship"),
     instagram: fields.find(x => x.name === "Instagram" && x.type === "text")?.id || null,
   };
-  const missing = ["birthday", "birthdayMonthDay", "city", "hometown", "facebook", "since"].filter(k => !f[k]);
+  const missing = ["birthday", "city", "hometown", "facebook", "since"].filter(k => !f[k]);
   if (missing.length) { log(`missing fields: ${missing.join(", ")} — run 0363 first; refusing`); return; }
 
   for (const m of merges) {
