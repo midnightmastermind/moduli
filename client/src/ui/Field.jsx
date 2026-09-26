@@ -58,6 +58,18 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 import { formatDuration, splitDuration } from "../helpers/duration.js";
+
+// "Sep 23" for this year, "Aug 21, 1982" for any other. A date field used to
+// drop the year always, so a birthday stored as 1982-08-21 read exactly like a
+// year-less "August 21" and "Friends since" hid its year entirely (user,
+// 2026-09-26). This year's dates stay short — the Schedule and Tasks are full
+// of them and the year there is noise.
+export function shortDate(date, now = new Date()) {
+  if (!date || Number.isNaN(date.getTime?.())) return null;
+  const opts = { month: "short", day: "numeric" };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return date.toLocaleDateString(undefined, opts);
+}
 import { fieldLinkHref } from "../helpers/fieldLink.js";
 
 // The type size of a field on a row — its pill and its caption. ONE constant,
@@ -1488,7 +1500,7 @@ function Field({
           // a confident claim about a date nobody could parse. Showing the raw
           // text says what is actually stored; the same thing the catch does.
           if (diff === null) return String(rawDisplayValue);
-          const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const dateStr = shortDate(date);
           if (diff === 0) return `${dateStr} · today`;
           if (diff === 1) return `${dateStr} · tomorrow`;
           if (diff > 0) return `${dateStr} · in ${diff}d`;
@@ -1903,7 +1915,7 @@ function Field({
       };
       const inputDate = toInputDate(localValue);
       const formatted = inputDate
-        ? parseLocalDay(inputDate)?.toLocaleDateString(undefined, { month: "short", day: "numeric" }) ?? "—"
+        ? shortDate(parseLocalDay(inputDate)) ?? "—"
         : "—";
       // The hidden input has 0 size + pointer-events:none, so the browser
       // can't auto-open its picker via label-click forwarding. Trigger
