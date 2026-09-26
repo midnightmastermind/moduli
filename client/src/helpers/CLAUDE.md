@@ -2,6 +2,20 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+
+## Recent Changes (2026-09-26 — deleting a person froze the tab: the on-load scroll opened every list)
+- **The cause was not the delete.** `SCROLL_TO` (the Schedule's onLoad "scroll to the current timeslot")
+  polls `jumpToOccurrence` 24 times, and every miss fired `requestRenderAll`. With the Schedule open in no
+  panel, the People board went from 80 rows to all 1,202 (~194k DOM nodes) ~10s after EVERY load. A delete
+  then re-laid-out that whole board — on the user's Firefox ~17s, long enough to miss the socket heartbeat,
+  reconnect and reload `full_state`, whose deferred half carries the artifacts, so every photo blanked.
+  Found by listening for `moduli:render-all` on load and mapping the stack through the sourcemap.
+- `jumpToOccurrence({ expandWindows: false })` — never expands, on either path; SCROLL_TO passes it.
+  Measured on prod after deploy: the board stays at 80 rows, container 193,753 → 12,728 nodes.
+- `modules/ModuleInstance` memo compares `containerOccurrence` BY ID (`rowPropsEqual`): any add/delete
+  replaces the container object and re-rendered every row. Delete actions read the live container at
+  click time (`liveContainerOccurrence`). Tests: `rowPropsEqual.test.js`, `jumpToOccurrence.test.js` (A/B'd).
+
 ## Recent Changes (2026-09-26 (2) — deleting a row no longer resets a long list's window)
 - User: "i deleted a person and for some reason all the rows reloaded". `useRenderWindow` reset its count on
   `[resetKey, windowed, total]`, and ModuleContainer passed `childOccsKey` (the child occurrence OBJECTS) as
