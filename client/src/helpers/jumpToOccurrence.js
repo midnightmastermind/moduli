@@ -146,30 +146,86 @@ export function findOccurrenceElement(occurrenceId, root = null) {
   return null;
 }
 
+// ── Landing ON the element, then showing it ─────────────────────────────────
+// User, 2026-09-26: "the searched element doesnt land on the screen. the
+// searched element should be scrolled to the center and highlighted for a
+// second to show its the one". One smooth scroll aims at where the element IS
+// when the scroll starts — and the page keeps moving after that: lazy rows and
+// editors above it mount at their real height, images load, a long list opens
+// its window. So the scroll landed where the element WAS, and the flash (a
+// faint background tint that the row's own background hides anyway) played
+// off screen. Now: scroll, then keep checking and re-center until the element
+// holds still in the middle of its scroll area, THEN ring it.
+const SETTLE_CHECK_MS = 250;
+const SETTLE_MAX_CHECKS = 12;      // ~3s, then flash wherever it is
+const CENTER_TOLERANCE_PX = 48;
+
+function scrollParentOf(el) {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight + 1) return p;
+  }
+  return null;
+}
+
 /**
- * Scroll an element into view + flash the highlight animation. Exported
- * so callers that already have the element (e.g. drag handlers) can skip
- * the lookup.
+ * PURE: how far (px) the element sits from where it should be in the visible
+ * area — its centre from the area's centre, or, for an element taller than the
+ * area, its top from a little below the area's top. Positive = below.
+ */
+export function offTargetBy(elRect, viewRect, block = "center") {
+  if (block === "start" || elRect.height > viewRect.height - 32) return elRect.top - viewRect.top - 16;
+  return (elRect.top + elRect.height / 2) - (viewRect.top + viewRect.height / 2);
+}
+
+function viewRectFor(el) {
+  const sp = scrollParentOf(el);
+  if (sp) return sp.getBoundingClientRect();
+  return { top: 0, height: window.innerHeight || document.documentElement.clientHeight || 0 };
+}
+
+function scrollToTarget(el, block, behavior) {
+  // A doc's own scroller: aim its centre, same as scrollIntoView would.
+  const sc = el.closest(".artifact-markdown");
+  if (sc) {
+    const r = el.getBoundingClientRect(), s = sc.getBoundingClientRect();
+    const offset = block === "center" && r.height < s.height ? (s.height - r.height) / 2 : 16;
+    sc.scrollTo({ top: sc.scrollTop + r.top - s.top - offset, behavior });
+    return;
+  }
+  try { el.scrollIntoView({ behavior, block: block === "nearest" ? "center" : block }); }
+  catch { el.scrollIntoView(); }
+}
+
+/**
+ * Scroll an element to the centre of its scroll area, keep it there while the
+ * page settles, then ring it for ~a second. Exported so callers that already
+ * have the element can skip the lookup.
  */
 export function scrollAndFlash(el, opts = {}) {
   const { highlightMs = HIGHLIGHT_MS, scrollBlock = "center" } = opts;
   if (!el) return;
-  // Scroll first — use the nearest .artifact-markdown scroll container
-  // for richer-positioned scroll, fall back to scrollIntoView for
-  // anything outside a doc.
-  const sc = el.closest(".artifact-markdown");
-  if (sc) {
-    const top = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top;
-    sc.scrollTo({ top, behavior: "smooth" });
-  } else {
-    try { el.scrollIntoView({ behavior: "smooth", block: scrollBlock }); }
-    catch { el.scrollIntoView(); }
-  }
-  // Restart the CSS animation by toggling the class. `void el.offsetWidth`
-  // forces a reflow so the second add() retriggers the animation when
-  // the class was just removed in the same tick.
-  el.classList.remove("anchor-highlight");
-  void el.offsetWidth;
-  el.classList.add("anchor-highlight");
-  setTimeout(() => el.classList.remove("anchor-highlight"), highlightMs);
+  scrollToTarget(el, scrollBlock, "smooth");
+
+  const flash = () => {
+    el.classList.remove("anchor-highlight");
+    void el.offsetWidth;            // restart the animation if it was just removed
+    el.classList.add("anchor-highlight");
+    setTimeout(() => el.classList.remove("anchor-highlight"), highlightMs);
+  };
+  let checks = 0, still = 0, lastTop = null;
+  const settle = () => {
+    if (!el.isConnected) return;
+    checks++;
+    const r = el.getBoundingClientRect();
+    const off = offTargetBy(r, viewRectFor(el), scrollBlock);
+    const moved = lastTop != null && Math.abs(r.top - lastTop) > 2;
+    lastTop = r.top;
+    // Give the smooth scroll two checks to arrive before correcting it.
+    if (checks >= 2 && Math.abs(off) > CENTER_TOLERANCE_PX) { scrollToTarget(el, scrollBlock, "auto"); still = 0; lastTop = null; }
+    else if (!moved && Math.abs(off) <= CENTER_TOLERANCE_PX) still++;
+    if (still >= 2 || checks >= SETTLE_MAX_CHECKS) flash();
+    else setTimeout(settle, SETTLE_CHECK_MS);
+  };
+  setTimeout(settle, SETTLE_CHECK_MS);
 }

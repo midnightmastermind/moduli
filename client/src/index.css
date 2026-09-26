@@ -1969,14 +1969,18 @@ body[data-drag-kind="panel"] .container-shell {
    and the middle is a normal editable again. */
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
+/* A RING, not a background tint: a row / card paints its own background over
+   its wrapper's, so a tint was invisible on most targets. The ring sits outside
+   the element (box-shadow), above whatever it contains, on every surface. */
 @keyframes anchor-flash {
-  0%, 100% { background: transparent; }
-  20%, 60% { background: rgba(100,180,255,0.25); }
-  40%, 80% { background: transparent; }
+  0%   { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
+  15%  { box-shadow: 0 0 0 3px rgba(56,189,248,0.95), 0 0 18px 4px rgba(56,189,248,0.55); }
+  70%  { box-shadow: 0 0 0 3px rgba(56,189,248,0.85), 0 0 14px 3px rgba(56,189,248,0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
 }
 .anchor-highlight {
-  animation: anchor-flash 1.2s ease;
-  border-radius: 4px;
+  animation: anchor-flash 1.2s ease-out;
+  border-radius: 6px;
 }
 
 /* Newly-added folder-page card flash (e.g. a fresh import landing in the

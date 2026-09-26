@@ -53,13 +53,46 @@ describe("scrollAndFlash", () => {
     expect(el.scrollIntoView).toHaveBeenCalled();
   });
 
-  it("adds the anchor-highlight class and removes it after the timeout", async () => {
+  // jsdom lays nothing out, so each test says where the element is. Centre of a
+  // 768px window is 384: a 40px row at top 364 is "centred".
+  const at = (el, top) => { el.getBoundingClientRect = () => ({ top, bottom: top + 40, height: 40, left: 0, right: 100, width: 100 }); };
+
+  it("rings the element only once it has settled in the centre, then clears it", () => {
     vi.useFakeTimers();
     const el = mountOccurrence("a");
+    at(el, 364);
     scrollAndFlash(el, { highlightMs: 50 });
+    expect(el.classList.contains("anchor-highlight")).toBe(false);   // not while it is still moving
+    vi.advanceTimersByTime(260);
+    expect(el.classList.contains("anchor-highlight")).toBe(false);   // one still check is not "settled"
+    vi.advanceTimersByTime(260);
     expect(el.classList.contains("anchor-highlight")).toBe(true);
     vi.advanceTimersByTime(60);
     expect(el.classList.contains("anchor-highlight")).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("re-centres an element that drifted after the first scroll (content above it loaded)", () => {
+    vi.useFakeTimers();
+    const el = mountOccurrence("a");
+    at(el, 364);
+    el.scrollIntoView = vi.fn(() => at(el, 364));   // any scroll puts it back in the centre
+    scrollAndFlash(el, { highlightMs: 5000 });
+    at(el, 1400);                                   // rows above mounted: pushed off screen
+    vi.advanceTimersByTime(600);
+    expect(el.scrollIntoView).toHaveBeenLastCalledWith({ behavior: "auto", block: "center" });
+    vi.advanceTimersByTime(600);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("still flashes after a few seconds even if it never holds still", () => {
+    vi.useFakeTimers();
+    const el = mountOccurrence("a");
+    let top = 0; el.getBoundingClientRect = () => ({ top: (top += 300), height: 40 });
+    scrollAndFlash(el, { highlightMs: 5000 });
+    vi.advanceTimersByTime(3100);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
     vi.useRealTimers();
   });
 
@@ -88,8 +121,9 @@ describe("jumpToOccurrence", () => {
     const result = jumpToOccurrence("late", { onActivatePage: activate });
     expect(result).toBe(true);
     expect(activate).toHaveBeenCalledWith("late");
-    // The retry runs after PAGE_SWITCH_GRACE_MS (220ms internally).
-    vi.advanceTimersByTime(300);
+    // The retry runs after PAGE_SWITCH_GRACE_MS (220ms internally); the ring
+    // follows once the element has settled (jsdom never settles, so ~3s).
+    vi.advanceTimersByTime(3500);
     const el = document.querySelector('[data-occ-id="late"]');
     expect(el?.classList.contains("anchor-highlight")).toBe(true);
     vi.useRealTimers();
@@ -169,7 +203,7 @@ describe("jumpToOccurrence retries", () => {
     el.setAttribute("data-occ-id", "late");
     el.scrollIntoView = vi.fn();
     document.querySelector("#panelB").appendChild(el);
-    vi.advanceTimersByTime(20);
+    vi.advanceTimersByTime(3500);
     expect(el.classList.contains("anchor-highlight")).toBe(true);
     expect(onMissing).not.toHaveBeenCalled();
     vi.useRealTimers();
@@ -209,7 +243,7 @@ describe("jumpToOccurrence render-all timing", () => {
     el.setAttribute("data-page-occ-id", "page-1");
     el.scrollIntoView = vi.fn();
     document.querySelector("#panelB").appendChild(el);
-    vi.advanceTimersByTime(15);
+    vi.advanceTimersByTime(3500);   // found on the retry; the ring follows the settle
     expect(el.classList.contains("anchor-highlight")).toBe(true);
     expect(heard).not.toHaveBeenCalled();
     window.removeEventListener(RENDER_ALL, heard);
@@ -231,7 +265,7 @@ describe("jumpToOccurrence render-all timing", () => {
     window.addEventListener(RENDER_ALL, mountOnExpand, { once: true });
     // A single retry must still get its look AFTER the expansion.
     jumpToOccurrence("row-800", { root: () => document.querySelector("#panelB"), retries: 1, retryMs: 10, onMissing });
-    vi.advanceTimersByTime(30);
+    vi.advanceTimersByTime(3500);   // found after the expansion; the ring follows the settle
     expect(document.querySelector('[data-occ-id="row-800"]').classList.contains("anchor-highlight")).toBe(true);
     expect(onMissing).not.toHaveBeenCalled();
     vi.useRealTimers();

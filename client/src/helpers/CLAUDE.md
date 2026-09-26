@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-26 — a search result lands in the centre and is ringed)
+- **`jumpToOccurrence.scrollAndFlash`** — user: "the searched element doesnt land on the screen … should be
+  scrolled to the center and highlighted for a second". One smooth scroll aimed at where the element was
+  when it started; lazy rows/editors above it, images and opening list windows then moved it, and the flash
+  (a background tint, hidden by the row's own background) played off screen. Now it scrolls, checks every
+  250ms and re-centres (instantly) while the element sits > 48px off the centre of its scroll area, and
+  flashes once it has held still for two checks (or after ~3s regardless). Pure `offTargetBy` (an element
+  taller than the area aims its top). `.anchor-highlight` is a glowing RING (box-shadow) now, visible over
+  any surface. Tests: `jumpToOccurrence.test.js` (drift re-centred; ring waits for the settle), A/B'd.
+
 ## Recent Changes (2026-09-25 (3) — the notification stack IS the change history; radial History = past values)
 - **`ui/TransactionHistory.jsx` DELETED** (+ its App/Toolbar/ModuleContainer/ModulePanel mounts). Its
   per-row Undo restored an old transaction's whole snapshot out of order, erasing later edits.
