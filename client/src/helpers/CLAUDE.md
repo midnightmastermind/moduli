@@ -1,7 +1,49 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-09-11. Check this file before re-reading source._
+_Updated: 2026-09-27. Check this file before re-reading source._
 
+
+## Recent Changes (2026-09-27 — `comparators.js` is THE catalog; `activePeriod.js` NEW; `isAncestorScopable`)
+- **`comparators.js` — one comparator catalog, was THREE.** This file's 12 (grid named filters, table
+  column filters, feed conditions), `blocks/ConditionGroup.jsx`'s 20 (pipeline IF rules, find
+  predicates) and `evalRule`'s 34. Measured across every grid: **138 of 248 operations (56%) use a
+  comparator NO editor could offer** — `DATE_IN_PERIOD` alone is 390 rules, `ARRAY_NOT_INCLUDES` 107 —
+  so 576 live rules were seed-written because the dropdown had no option. `COMPARATOR_CATALOG` carries
+  `{value, label, group, unary?, alias?, simple?}`; `PIPELINE_COMPARATOR_GROUPS` is what
+  ConditionGroup offers (grouped, aliases hidden), `COMPARATOR_OPTIONS` stays the simple subset.
+  - **The simple subset's ORDER is spelled out, not derived.** Those three dropdowns are mostly used on
+    DATE filters and the day/week/month/year block has led the list since it existed; deriving it would
+    silently re-sort three live surfaces. A test pins the sequence.
+  - **The two UNARY sets had drifted in OPPOSITE directions** — ConditionGroup listed the
+    `DATE_*_TODAY` trio, this file did not — so a value box appeared on a comparator that ignores it.
+  - **`comparatorCatalog.test.js` WALKS `evalRule`'s source** (its switch cases plus the two
+    `comparator === "…"` checks that run BEFORE the switch) and fails when the evaluator learns a
+    comparator the catalog lacks. It carries its own not-vacuous check, because a scan whose bounds
+    slipped would make both directions pass while verifying nothing.
+- **`activePeriod.js` (NEW, 13 tests)** — `pickActivePeriod(efv, grid)` / `navFieldIds` /
+  `isDateShaped`. `$activeDate` was `Object.values(efv).find(isDateShaped)`, i.e. the first date-shaped
+  value in INSERTION ORDER. `grid.activeFilterValues` is keyed by field id and **nothing prunes it**, so
+  a grid whose named filter is re-pointed keeps the abandoned field's value:
+  ```
+  rebuild grid   Logged On = 2026-09-21   Date = 2026-09-27
+  the toolbar navigates Date · $activeDate resolved to 2026-09-21
+  ```
+  It asks the filter which field it navigates (`primaryDateFieldId`, then condition order) and falls
+  back to the shape guess — still the only answer for a grid with no named filter (4 of 10) and for an
+  ancestor `filterOverride` keyed by a date the filter never mentions. **Measured across every grid:
+  exactly ONE resolves differently**, and that equality is the control test.
+- **`triggerTypes.isAncestorScopable`** — `matchAncestorScope` gates EVERY trigger type whose
+  transaction carries `_ancestorIds`, while the editor rendered its ancestor inputs for
+  `onFilterChange` alone: **364 ancestor-scoped onAdd/onDelete triggers across 43 operations**, all
+  enforced, none authorable. **DERIVED from the transaction types** that get the enrichment (traced to
+  the call sites in CommitHelpers, dropHandlers and bindSocketToStore's echo handlers), so a new event
+  mapping to one is scopable without anyone remembering to flag it — and the editor cannot offer a
+  control the runtime ignores nor hide one it honours.
+- **`manualOpRun` gained its third caller** — the operations editor's "Run now". It computed every
+  effect and dropped them (its own tooltip promised "Run pipeline now"), leaving **6 operations with no
+  invoke path at all**. The applier has existed since 09-21 for the identical defect on the trigger
+  widget and the `button` field; this was the site missed. The confirm is derived from what the run
+  PRODUCED — `_effect` is a write, no `_effect` is a display value, `_suspend` is a continuation.
 
 ## Recent Changes (2026-09-26 — deleting a person froze the tab: the on-load scroll opened every list)
 - **The cause was not the delete.** `SCROLL_TO` (the Schedule's onLoad "scroll to the current timeslot")

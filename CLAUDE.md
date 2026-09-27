@@ -15,6 +15,117 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-27 (2) — THE COFFEE TRACKER, BUILT BY CLICKING; and 56% of live operations used a comparator no editor could offer
+
+Picked up the other account's rebuild-via-UI session (limit at 12:21, mid-build: it had just
+created and named the `Coffee` operation and gone no further). The task was to recreate poms'
+Coffee tracker end to end through the UI. **It works — `20 → 8 → 20` on screen and in the stored
+field, driven by a real click** — and getting there found four gaps of one shape.
+
+**THE HEADLINE: THE CONDITION EDITOR COULD NOT EXPRESS WHAT LIVE OPERATIONS RUN ON.** Building the
+op's IF needed `DATE_IN_PERIOD` and `ARRAY_NOT_INCLUDES`, and the `<select>` carried neither.
+Measured across every grid before touching anything:
+```
+248 operations · 3,475 condition rules
+138 operations (56%) use at least one comparator NO editor could offer
+DATE_IN_PERIOD 390 rules · ARRAY_NOT_INCLUDES 107 · DATE_AFTER 35 ·
+DATE_ON_OR_BEFORE_PERIOD 14 · ARRAY_INCLUDES 12 · TIME_BEFORE 6 · TIME_AFTER 5 ·
+NOT_HAS_ANCESTOR 4 · DATE_BEFORE 3
+```
+Every one of those 576 rules was written by a seed or a migration. **There were THREE
+hand-maintained comparator lists** — `helpers/comparators.js`'s 12, `ConditionGroup.jsx`'s 20,
+`evalRule`'s 34 — and the two UNARY sets had drifted in OPPOSITE directions, so a value box
+appeared on a comparator that ignores it. One catalog now; `comparatorCatalog.test.js` **WALKS
+`evalRule`'s own source** and fails when the evaluator learns a comparator the list does not carry.
+**A stored comparator the list lacks gets its own `<option>`** — a `<select>` whose value is absent
+renders blank or shows the first entry, so all 576 rules read as something they were not.
+
+**THE SAME SHAPE, THREE MORE TIMES, each measured rather than guessed:**
+```
+_boundFieldIds as a rule LEFT        113 rules · 38 ops   no picker entry
+ancestor-scoped onAdd/onDelete       364 triggers · 43 ops  editor rendered the inputs
+                                                            for onFilterChange ALONE
+"Run now"                            computed every effect and DROPPED it
+```
+- **`_boundFieldIds`** is how a tracker says *"this row never bound Completed, so scope membership
+  alone counts it"*. The executor has enriched it since 2026-07-11. One line, same gap as
+  `meta.feedSourceId` got that morning. (Same scan: `_ancestors` 299 · `meta.feedSourceId` 177.)
+- **The ancestor scope is NOT cosmetic** — 09-22 (26) records an UNSCOPED `onAdd` firing on the
+  app's own plumbing, so the scope is what keeps a tracker off every create on the grid, and poms'
+  whole tracker set depends on it. **`matchAncestorScope` gates EVERY trigger type**; only the
+  editor was hardcoded. `isAncestorScopable` DERIVES the set from the transaction types that
+  actually carry `_ancestorIds` (traced to the call sites), so a new event mapping to one is
+  scopable without anyone remembering to flag it. **And the readout now names the scope** — before,
+  a page-scoped trigger and an unscoped one both read `onAdd · Instance · Any`.
+- **"Run now" is the third hand-run surface and it was the one missed.** `applyManualOpUpdates` has
+  existed since 09-21 for this exact defect on the trigger widget and the `button` field. **The
+  confirm is derived from what the run PRODUCED** — an entry carrying `_effect` is a write, one
+  without is a display value, `_suspend` is a continuation — so a tracker that only shows a number
+  applies silently and anything that creates or deletes asks. The user's call was apply-with-confirm
+  over renaming the button. **6 operations had no invoke path at all** until this.
+
+**AND `$activeDate` WAS READING AN ABANDONED FILTER.** `grid.activeFilterValues` is keyed by field id
+and nothing prunes it; the executor took the FIRST date-shaped value in insertion order. The rebuild
+grid's Daily filter had moved from `Logged On` to `Date`:
+```
+activeFilterValues   Logged On = 2026-09-21   Date = 2026-09-27
+the toolbar navigates            Date
+$activeDate resolved to          2026-09-21   <- read out of the app's own var panel
+```
+So every date-dependent op on that grid computed against a date the user could not see or change.
+`pickActivePeriod` asks the filter which field it navigates. **Measured across every grid: exactly
+ONE resolves differently — the one whose field moved** — and that equality is the control test.
+
+**THE PIPELINE, BUILT ENTIRELY BY CLICKING** (4 INIT_VARs → a loop over `$allInstances` → a 6-rule
+IF with a nested OR group → `$acc +=` → an UPDATE), then six triggers, then watched:
+```
+Daily Coffee   20      8 + 12, on screen and stored in Mongo
+untick the 9:00am drink's Completed    ->  8     the onChange trigger, from a real click
+re-tick                                -> 20
+```
+`onAdd · Instance · Any · in Schedule` on the deployed build, `$activeDate` now `2026-09-27`.
+
+**FOUR PROBE FAULTS, and TWO of them are ones this file already pinned as probe faults.**
+```
+the rule row has TWO identical "+ Pick path" placeholders — left and right (an
+  empty right defaults to PATH mode). Addressing them globally put every picked
+  LEFT path into the RIGHT side — which is EXACTLY what
+  `conditionRuleSides.test.jsx` was written to pin as a probe fault, not a
+  component bug. I walked into it anyway. Scope to the ROW, take its FIRST.
+`__moduli_state__` carries `occurrences` as an ARRAY — there is no
+  `occurrencesById`. Every read through that key returned undefined and printed
+  as `stored: null`, and I reported "the write did not land" until MONGO said 20.
+  helpers/CLAUDE.md records the identical trap for `viewsById`.
+the loop body's footer renders BEFORE the top-level one, so the LAST "+ If" is
+  the TOP-LEVEL one — the whole IF landed outside the loop. Scope to the loop.
+the Completed control is a `button[role="switch"]` whose naming TITLE is on its
+  WRAPPING div, so a filter on the button's own title finds nothing on a row
+  that plainly shows a toggle.
+```
+***And a fifth that nearly became a false debris report:*** my own scan found *"20 occurrences
+created today, parented but listed by nobody"*. All 20 are **board pages homed in FOLDERS**, which is
+the designed shape — `checkGrid`'s **0 errors** was right and my ad-hoc heuristic was the exact trap
+09-22 (2) warns about (*"a naive parentId-but-not-listed check would fire 240 times on poms grid"*).
+**Debris: none.** 0 module-less occurrences, 0 dangling refs, integrity clean (its one warning is the
+205 unbound fields the previous session created in bulk).
+
+Client **5,112 pass / 0 fail** (the 2 worker errors are the documented `trackerValues` OOM family).
+Every fix A/B'd with the mutation asserted to land: the old comparator catalog fails 3, the old unary
+set 1, deriving the simple-filter order 1, `ConditionGroup`'s local literal 4 of 5, dropping Run now's
+results 4 of 6, removing its confirm 2, re-hardcoding `onFilterChange` 1, hand-listing
+`isAncestorScopable` 2, the `_boundFieldIds` entry 1, and the old `$activeDate` guess 2. **Reported
+honestly: several cases pass in BOTH arms and are contract pins, not coverage** — including Run now's
+"still records the run", which also asserts the apply and so is not an independent control. Four
+client-only deploys, each with `deploy.sh` correctly reporting *"Server unchanged — NOT restarting"*,
+and the served chunk sha256-identical to the local build with the feature present beside a non-zero
+control and a nonsense string at 0.
+
+**Left for the next pass:** the stale `Logged On` value is inert now but still stored (pruning it is a
+write to grid data, not a fix); `Grid: Snap Filter To Today` and the rest of poms' 74 operations are
+unbuilt; fields stand at 205 created and unbound.
+
+---
+
 ### 2026-09-27 — REBUILD-VIA-UI: EVERY BOARDS AREA BUILT; and the options editor accepted duplicates
 
 Continuing *"keep going testing the ui by recreating poms grid"*. The Social recipe is now GENERIC:

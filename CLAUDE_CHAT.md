@@ -3638,3 +3638,18 @@ So the row added to the schedule-types board is **Employment**, not Mr Brews Tap
   1. > "switch back to the UI test plan we were doing" (rebuild-via-UI).
   2. Filter cascade: > "if a field is inherited and changed by a parent, it should switch to that (just for that change) on the children subscribed. So if i have a date set to today on the schedule page, and switch it to tomorrow in the top toolbar, it should change on the schedule page as well. if i change it on the schedule page again (then it overwrites the top toolbars." — filters only, > "not styling cascade".
   3. > "my appointments should have a person field as well btw so i can set my physical therapist or therapist etc".
+
+## 2026-09-27 — rebuild-via-UI: the Coffee tracker, and two decisions
+
+Continuing the rebuild-via-UI plan (picked up mid-session from the other account, which
+hit its limit while naming the Coffee operation).
+
+- Two questions put to the user while building the operation by clicking, and both answered:
+  - **"Run now" computed every effect and applied none of them.** Its tooltip promised
+    "Run pipeline now"; 6 operations have no trigger at all, so a hand-run is the only
+    thing that could ever fire them (`Project: Create` and `Import from Wikipedia` on poms
+    grid among them). Options offered were apply-with-confirm, rename it to "Dry run", or
+    apply with no confirm. → **"Apply the effects"** (the with-confirm variant).
+  - How much of poms' six-trigger set to recreate on the Coffee op. → **"All six, as poms
+    has them"**, including the ancestor-scoped onAdd/onDelete.
+

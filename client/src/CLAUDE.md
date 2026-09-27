@@ -1,6 +1,30 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-08-17. Check this file before re-reading source._
+_Updated: 2026-09-27. Check this file before re-reading source._
+
+## Recent Changes (2026-09-27 — the operations editor: comparators, ancestor scope, and Run now APPLIES)
+Four gaps of one shape, all found building poms' Coffee tracker by clicking. Full numbers in
+`helpers/CLAUDE.md`; what matters at this level is which surfaces changed.
+- **`blocks/ConditionGroup.jsx`** — its local `COMPARATORS` (20) and `NO_RIGHT_COMPARATORS` literals are
+  gone; both come from `helpers/comparators.js` now. **56% of live operations used a comparator it could
+  not offer.** The options are grouped by `<optgroup>` (Value / Numbers / Dates / Time of day / Lists /
+  Structure) because the list is 30 long, aliases are hidden, and **a STORED comparator the list does
+  not carry gets its own `<option>`** — a `<select>` whose value is absent renders blank or shows the
+  first entry, so 576 live rules read as something they were not.
+- **`ui/DrilldownPicker.jsx`** — the occurrence shape offers `_boundFieldIds` (113 rules in 38 ops).
+- **`ui/commandCenter/OperationsTab.jsx`** — the ancestor-scope inputs are gated on
+  `isAncestorScopable(eventType)` rather than hardcoded to `onFilterChange` (364 onAdd/onDelete triggers
+  across 43 ops were enforced and unauthorable), and the per-trigger readout NAMES the scope: before,
+  a page-scoped trigger and an unscoped one both read `onAdd · Instance · Any`.
+- **`ui/commandCenter/OperationLogPanel.jsx`** — "Run now" APPLIES its effects via
+  `helpers/manualOpRun`, behind a confirm when the run WRITES. It computed everything and dropped it,
+  which left 6 operations (`Project: Create`, `Import from Wikipedia`) with no invoke path at all.
+- **PROBE NOTE worth more than any of it:** the rule row holds TWO identical `+ Pick path`
+  placeholders — the left side's and the right's (an empty right defaults to PATH mode). Addressing
+  them globally puts every picked LEFT path into the RIGHT side, which is **exactly** what
+  `__tests__/conditionRuleSides.test.jsx` pins as a PROBE fault rather than a component bug. Scope to
+  the row and take its FIRST. Also: `window.__moduli_state__` carries `occurrences` as an ARRAY, not
+  `occurrencesById` — reading that key returns undefined and prints as `stored: null`.
 
 ## Recent Changes (2026-09-24 — the phone follows the desktop's split layout; the date nav moves into Filters on mobile)
 - **`helpers/bspTree.treeToCells` (NEW) + `Grid.jsx MosaicMobileNav`.** The phone's cell map came
