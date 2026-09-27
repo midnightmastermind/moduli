@@ -104,6 +104,12 @@ const SHAPES = {
       { value: "_boundFieldIds", title: "_boundFieldIds", sub: "string[]", description: "Field ids this row's template binds — use with list includes / does not include", hasChildren: false },
       { value: "label",       title: "label",       sub: "string",   description: "Module label (resolved from template)",           hasChildren: false },
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
+      // THE ORDERED CHILD LIST. `occurrences[]` is how every renderer finds a
+      // parent's children and it is the commonest loop target after the built-in
+      // collections — 45 pipeline strings across 8 operations read
+      // `$var.occurrences` (42 as a loop's collection, 3 as a predicate left),
+      // and none could be picked (2026-09-27).
+      { value: "occurrences",  title: "occurrences",  sub: "string[]", description: "This parent's ordered child occurrence ids — loop it, or test it with list includes", hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
       // Occurrence.meta sub-keys are hoisted as first-class occurrence keys
       // so authors never have to traverse a "meta" step. Each item's `value`

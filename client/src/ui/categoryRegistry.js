@@ -257,6 +257,32 @@ const COLLECTION_ITEMS = [
   },
 ];
 
+// A loop or a find iterates an ARRAY, and a grid-wide collection is only the
+// commonest kind. Measured across every grid on 2026-09-27:
+//
+//     308 loops · 232 over one of the nine built-in collections
+//                  76 over something else, across 27 operations
+//     $dayCol.occurrences 6 · $dcOcc.occurrences 6 · $col.occurrences 4 ·
+//     $item.fields.<fid>.value 6 · $covered 2 · …
+//
+// A parent's CHILD LIST, an array FIELD's value and a local var built earlier in
+// the pipeline are all legitimate targets, and none could be picked. Those 27
+// operations are the schedule and day-page builders — the ones the rebuild needs
+// most.
+//
+// IT STAYS ONE CATEGORY, and the local vars join that category's own level
+// rather than arriving as more categories beside it. Every non-built-in target
+// in the census starts at a local or loop variable — `$dayCol`, `$dcOcc`,
+// `$col`, `$item`, `$covered` — so listing the vars here reaches all 76 with the
+// shallowest chain, and `hasChildren: true` gives both behaviours from machinery
+// already present: the row's CHEVRON commits `$covered` as it stands ("pick this
+// — stop here"), a body click drills it to `.occurrences` or
+// `.fields.<fid>.value`.
+//
+// (An earlier draft appended the standard categories instead, on the belief that
+// a single-category config skips the category step. It does not — `itemsForLevel`
+// always lists the categories at level 0 — so that reasoning was wrong and the
+// click count is identical either way. Corrected before shipping.)
 export const COLLECTION_PICKER_CONFIG = {
   placeholder: "Pick collection",
   categories: [{
@@ -265,9 +291,19 @@ export const COLLECTION_PICKER_CONFIG = {
     description: "What set of records this step looks at",
     icon: Box,
     color: "rgba(34,197,94,0.7)",
-    resolveItems: () => COLLECTION_ITEMS,
+    resolveItems: (ctx) => [
+      ...COLLECTION_ITEMS,
+      ...(ctx?.localVars || []).map((name) => ({
+        value: name,
+        title: name,
+        sub: "local",
+        description: "Declared earlier in this pipeline — drill in for a list on it, or take the chevron to iterate it as it is",
+        hasChildren: true,
+      })),
+    ],
   }],
 };
+
 
 // Map a collection variable name to the per-record shape the picker should
 // drill into. Used by Find: once the user picks `$allOccurrences` for

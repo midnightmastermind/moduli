@@ -42,6 +42,13 @@ describe("record picker offers the app's meta markers", () => {
     expect(sub).toEqual(["value", "unit", "span", "kind", "dates"]);
   });
 
+  it("offers occurrences — the ordered child list, and the commonest loop target", () => {
+    // 45 pipeline strings across 8 operations read `$var.occurrences` (42 of
+    // them as a loop's collection); it had no picker entry, so none of those
+    // loops could be authored.
+    expect(top()).toContain("occurrences");
+  });
+
   it("control: still offers fields and the existing meta keys", () => {
     expect(top()).toEqual(expect.arrayContaining(["fields", "meta.appliedFromTemplateId", "parentId"]));
   });
