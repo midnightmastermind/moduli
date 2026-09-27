@@ -17,6 +17,7 @@ import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
 import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord } from "./operationActions";
+import { pickActivePeriod } from "./activePeriod";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
@@ -1834,14 +1835,13 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       const targetOccId = operation.targetOccurrenceId;
       const targetOcc = targetOccId ? occurrencesById[targetOccId] : null;
       const efv = getEffectiveFilterForOccurrence(targetOcc, { grid: state?.grid, occurrencesById, parentByChildId });
-      // Accept both bare-string `YYYY-MM-DD` filter values and the
-      // object form `{value, unit, span?, kind?, dates?}` used by the
-      // date-range nav.
+      // WHICH date in the map is "the active" one is its own decision, and it
+      // was a guess: the first date-shaped value in insertion order, whatever
+      // field owned it. `grid.activeFilterValues` is never pruned, so a grid
+      // whose filter moved to a different date field kept the abandoned field's
+      // last value and every op here read THAT. See helpers/activePeriod.js.
       const isDateStr = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
-      const periodVal = Object.values(efv).find(v => {
-        if (isDateStr(v)) return true;
-        return v && typeof v === "object" && isDateStr(v.value);
-      });
+      const periodVal = pickActivePeriod(efv, state?.grid);
       const dateStr = periodVal && typeof periodVal === "object" ? periodVal.value : periodVal;
       const dayKey = dateStr ? dateStr.slice(0, 10) : null;
       const d = dateStr ? new Date(dateStr + "T00:00:00") : _nowDate;
