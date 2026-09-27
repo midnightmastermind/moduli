@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-27 (4) — `occOverlay.drop` is a TOMBSTONE)
+- `drop(id)` now also hides the BASE copy in `merged()`. The base is React state (assigned on render),
+  and a delete fires OccurrenceDeleteOp in the same tick, so the old "fall back to base" re-counted the
+  deleted row in every onDelete tracker recount. `set`/`reset` clear a tombstone; one the base no longer
+  holds is pruned. No version bump; a cached merge rebuilds only if it CONTAINS a tombstoned id.
+- `occOverlay.test.js`: the old "drop falls back to base" case is INVERTED with its reason.
+
 ## Recent Changes (2026-09-27 — `comparators.js` is THE catalog; `activePeriod.js` NEW; `isAncestorScopable`)
 - **`comparators.js` — one comparator catalog, was THREE.** This file's 12 (grid named filters, table
   column filters, feed conditions), `blocks/ConditionGroup.jsx`'s 20 (pipeline IF rules, find

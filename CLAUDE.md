@@ -15,6 +15,41 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-27 (4) — COFFEE DRAGGED IN FROM ROUTINES; and deleting a row never lowered a tracker
+
+The user's queued ask from account3: *"we want to test dragging in from routines for stuff like
+coffee"*. Account3 had dragged `Routines › Physical › Nutrition › Drink` (copy mode) once, before the
+Coffee op existed — it aimed at 7:00am and **landed in 9:00am** (probe aim), and that copy is the `12`
+in `Daily Coffee = 8 + 12`. So the tracker reacting to a dragged-in drink had never been watched.
+
+**WATCHED, by clicking, with the drop point hit-tested before release:**
+```
+drag Drink -> Schedule 12:00pm      lands in 12:00pm, Date auto-stamped Sep 27, bank Drink untouched
+Beverage = Coffee, Liquid = 4       Daily Coffee 20   <- Completed is bound and off: the gate works
+tick Completed                      Daily Coffee 24
+delete (radial)                     Daily Coffee 24   <- THE DEFECT
+```
+**THE OP FIRED ON DELETE AND WROTE THE OLD TOTAL** (`[op-effects] "Coffee" UPDATE_ITEM_FIELD=1`, value
+24). `deleteOccurrence` evicts from the local overlay and fires in the same tick as its dispatch;
+`stateRef.current` is assigned on RENDER (App.jsx:85), so the base still held the row — and
+`occOverlay.drop` removed only the OVERLAY entry, so `merged()` fell back to the base copy. **Every
+tracker's onDelete recount has counted the row it was deleting.** It hid because the next `onLoad`
+recomputes (the following load read 20). The July "delete-recount" behavioural test drives the executor
+with a map it deletes from itself, so it never passed through this layering.
+
+`drop` records a TOMBSTONE that `merged()` strips; `set` (undo restore, re-create — both verified to
+go through `setLocalOcc`) and `reset` clear it; a tombstone the base no longer holds is pruned. No
+version bump, so the unheld-echo cache guard stands. **An existing test asserted "a drop falls back to
+base" — the defect — and is inverted with its reason.** A/B (mutation asserted, 0 -> 8 `tombstones`):
+the old overlay fails exactly the 3 delete cases. Client 5,158 pass; the one full-run failure
+(`accountBalances`, 61s timeout) passes alone in both arms. **Verified on the deployed build: 20 -> 24
+-> 20** from a real radial delete, stored 20 in Mongo.
+
+Debris: none — three probe rows deleted through the app, none listed, copies share the Drink module so
+no orphan module. Integrity clean.
+
+---
+
 ### 2026-09-27 (3) — `Grid: Snap Filter To Today`, BUILT BY CLICKING; and three picker shapes that drilled to nothing
 
 Picked up account2's session (limit at 16:17 CDT, mid-edit on `DrilldownPicker.jsx`). It had fixed the

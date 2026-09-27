@@ -3653,3 +3653,14 @@ hit its limit while naming the Coffee operation).
   - How much of poms' six-trigger set to recreate on the Coffee op. → **"All six, as poms
     has them"**, including the ancestor-scoped onAdd/onDelete.
 
+## 2026-09-27 (3) — direction carried over from account3's queue
+
+- *"remember this should all be grid level, so anything from pomsgrid should not be used also for
+  this grid — it should be recreated"* — the rebuild grid references no poms field/module (checked).
+- *"yeah avoid spec driven scripts, this is a from scratch approach"* — one item at a time, by clicking.
+- *"try it by adding it but also we want to test dragging in from routines for stuff like coffee as
+  well"* — done 2026-09-27 (4): Routines › Nutrition › Drink (copy mode) dragged into Schedule, filled
+  as a Coffee, tracker watched on add, change and delete.
+- **QUEUED FOR AFTER THE UI TESTING:** *"after we do the full ui testing, mark down to make a plan to
+  see how hard it would be to introduce offline mode"* — a feasibility plan, not a build.
+
