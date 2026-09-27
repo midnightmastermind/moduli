@@ -2,20 +2,14 @@
 // Recursive condition builder supporting nested AND/OR groups.
 import React, { useMemo } from "react";
 import DrilldownPicker from "../ui/DrilldownPicker";
+import { PIPELINE_COMPARATOR_GROUPS, UNARY_COMPARATORS } from "../helpers/comparators";
 
-const COMPARATORS = [
-  "IS", "IS_NOT", "GREATER", "LESS", "GREATER_OR_EQUAL", "LESS_OR_EQUAL",
-  "CONTAINS", "NOT_CONTAINS", "SAME_TEXT", "IS_EMPTY", "IS_NOT_EMPTY",
-  "HAS_ANCESTOR",
-  "SAME_DAY", "SAME_WEEK", "SAME_MONTH", "SAME_YEAR",
-  "DATE_EQUALS", "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
-];
-
-// Comparators that take no right-hand operand — chip terminates with the comparator.
-const NO_RIGHT_COMPARATORS = new Set([
-  "IS_EMPTY", "IS_NOT_EMPTY",
-  "DATE_IS_TODAY", "DATE_BEFORE_TODAY", "DATE_AFTER_TODAY",
-]);
+// The comparator list and the "takes no right operand" set BOTH come from
+// helpers/comparators.js now. They used to be two hand-written literals here,
+// and they had drifted from `evalRule` in opposite directions: 14 comparators
+// the evaluator implements could not be picked at all (DATE_IN_PERIOD alone is
+// 390 live rules), while this file's no-right set and comparators.js's unary set
+// disagreed about the DATE_*_TODAY trio. See that file's header for the census.
 
 const selectSt = {
   fontSize: 10, fontFamily: "monospace", padding: "2px 4px", borderRadius: 4,
@@ -107,8 +101,13 @@ export default function ConditionGroup({ group, onChange, sources, fields, field
   );
 }
 
+const OFFERED_COMPARATORS = new Set(
+  PIPELINE_COMPARATOR_GROUPS.flatMap(g => g.items.map(c => c.value))
+);
+
 function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
-  const noRight = NO_RIGHT_COMPARATORS.has(rule.comparator);
+  const offered = OFFERED_COMPARATORS;
+  const noRight = UNARY_COMPARATORS.has(rule.comparator);
   const v = (rule.right ?? "").toString().trim();
   const initialMode = (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
   const [rightMode, setRightMode] = React.useState(initialMode);
@@ -122,7 +121,20 @@ function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
         onChange={(next) => onChange({ ...rule, left: next })}
       />
       <select value={rule.comparator} onChange={(e) => onChange({ ...rule, comparator: e.target.value })} style={selectSt}>
-        {COMPARATORS.map(c => <option key={c} value={c}>{c}</option>)}
+        {/* A STORED comparator this list does not carry gets its own option, so
+            an existing rule always reads truthfully. Without it a <select> whose
+            value is absent from its options renders blank or shows the first
+            entry — i.e. the row would MISREPRESENT the rule it is editing. This
+            covers the aliases (hidden on purpose) and anything a future
+            evaluator learns before this catalog does. */}
+        {rule.comparator && !offered.has(rule.comparator) && (
+          <option value={rule.comparator}>{rule.comparator}</option>
+        )}
+        {PIPELINE_COMPARATOR_GROUPS.map(g => (
+          <optgroup key={g.group} label={g.group}>
+            {g.items.map(c => <option key={c.value} value={c.value}>{c.value}</option>)}
+          </optgroup>
+        ))}
       </select>
       {!noRight && (
         <>
