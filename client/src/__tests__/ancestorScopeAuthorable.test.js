@@ -79,3 +79,23 @@ describe("the editor gates its ancestor inputs on the EVENT, not a hardcoded nam
     expect(SRC).toContain("only fire when an ancestor matches");
   });
 });
+
+describe("the trigger readout names its ancestor scope", () => {
+  const SRC = fs.readFileSync(
+    path.join(__dirname, "..", "ui", "commandCenter", "OperationsTab.jsx"), "utf8"
+  );
+
+  it("appends the scope to the summary line", () => {
+    // Without it a trigger scoped to one page reads identically to one that
+    // fires on every create on the grid — "onAdd · Instance · Any" either way —
+    // and that difference is the whole point of the scope.
+    expect(SRC).toMatch(/\{eventType\} · \{subjectLabel\} · \{targetLabel\}\{ancLabel/);
+  });
+
+  it("resolves the scope to a LABEL, not the stored occurrence id", () => {
+    expect(SRC).toContain("const ancLabel = (() => {");
+    expect(SRC).toMatch(/occurrencesById\?\.\[ancestorId\]/);
+    // Falls back to the id's tail rather than rendering nothing when unresolvable.
+    expect(SRC).toContain("ancestorId.slice(-6)");
+  });
+});

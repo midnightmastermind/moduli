@@ -654,6 +654,20 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
             const targetLabel = !targetId ? "Any"
               : subjectType === "field" ? (fieldsById?.[targetId]?.name ?? targetId.slice(-6))
               : (modulesById?.[targetId]?.label ?? targetId.slice(-6));
+            // The ANCESTOR SCOPE belongs in the readout. Without it a trigger
+            // scoped to one page reads identically to one that fires on every
+            // create on the grid ("onAdd · Instance · Any" either way) — and that
+            // difference is the whole point of the scope: an unscoped onAdd fires
+            // on the app's own plumbing (2026-09-22). Resolved to a LABEL, since
+            // the stored value is an occurrence id nobody can read.
+            const ancLabel = (() => {
+              const { ancestorId, ancestorLabel } = trigObj;
+              if (ancestorLabel) return ancestorLabel;
+              if (!ancestorId) return null;
+              const occ = occurrencesById?.[ancestorId];
+              const viaOcc = occ && (occ.label || modulesById?.[occ.moduleId]?.label);
+              return viaOcc || modulesById?.[ancestorId]?.label || ancestorId.slice(-6);
+            })();
             return (
               <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", borderRadius: 5, padding: "6px 8px" }}>
                 {/* Event type */}
@@ -720,7 +734,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 )}
                 {/* Inline English readout */}
                 <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", marginLeft: 4 }}>
-                  {eventType} · {subjectLabel} · {targetLabel}
+                  {eventType} · {subjectLabel} · {targetLabel}{ancLabel ? ` · in ${ancLabel}` : ""}
                 </span>
                 {/* Per-trigger priority (1 = highest, 10 = lowest, 5 = default) */}
                 <select
