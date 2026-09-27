@@ -70,10 +70,11 @@ vi.mock("../models/Occurrence.js", () => ({
       for (const op of ops) {
         const { filter, update } = op.updateOne;
         const id = filter.id;
-        if (update?.$push) {
+        if (update?.$push || update?.$addToSet) {
           const prev = db.occurrences.get(id);
           if (!prev) continue;
-          const each = update.$push.occurrences?.$each ?? [update.$push.occurrences];
+          const spec = (update.$push || update.$addToSet).occurrences;
+          const each = spec?.$each ?? [spec];
           const cur = [...(prev.occurrences || [])];
           const add = each.filter((c) => !cur.includes(c));
           if (add.length) db.occurrences.set(id, { ...prev, occurrences: [...cur, ...add] });

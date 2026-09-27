@@ -1727,7 +1727,12 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         const add = childIds.filter((c) => !already.has(c));    // idempotent, same as the old $ne guard
         if (!add.length) continue;
         addedByParent.set(pid, add);
-        ops.push({ updateOne: { filter: { id: pid, userId }, update: { $push: { occurrences: { $each: add } } } } });
+        // `$addToSet`, not `$push`: `already` is a READ, and the client's own
+        // list write for the same child (spliceChildIntoParent) can land before
+        // this write does — a `$push` then listed the row twice (2026-09-27,
+        // Routines › Nutrition). `$addToSet $each` skips ids the parent holds
+        // AT WRITE TIME and appends the rest in order.
+        ops.push({ updateOne: { filter: { id: pid, userId }, update: { $addToSet: { occurrences: { $each: add } } } } });
       }
       if (ops.length) {
         if (disconnected) return;

@@ -21,7 +21,11 @@ class AbortError extends Error {
   constructor() { super("The operation was aborted"); this.name = "AbortError"; }
 }
 
-const applyUpdate = (id, update) => {
+// A write that lands between the handler's read and its bulk write — the
+// client's own list write (spliceChildIntoParent) racing the create.
+let raceHook = null;
+
+const applyUpdate = (id, update, { realisticPush = false } = {}) => {
   const prev = db.occurrences.get(id);
   if (update?.$push) {
     if (!prev) return null;
@@ -29,7 +33,9 @@ const applyUpdate = (id, update) => {
     const each = spec?.$each ?? [spec];
     const pos = spec?.$position;
     const cur = [...(prev.occurrences || [])];
-    const add = each.filter((c) => !cur.includes(c));
+    // Real Mongo `$push` does NOT dedupe; the per-row path dedupes via its
+    // `$ne` filter, which this helper stands in for.
+    const add = realisticPush ? each : each.filter((c) => !cur.includes(c));
     if (!add.length) return null;
     const next = { ...prev, occurrences: typeof pos === "number"
       ? [...cur.slice(0, pos), ...add, ...cur.slice(pos)] : [...cur, ...add] };
@@ -71,12 +77,13 @@ vi.mock("../models/Occurrence.js", () => ({
       trips.bulk++; trips.total++;
       await delayed(1);
       if (opts.signal?.aborted) throw new AbortError();
+      if (ops.some((op) => op.updateOne?.update?.$push || op.updateOne?.update?.$addToSet)) raceHook?.();
       for (const op of ops) {
         const o = op.updateOne || op.replaceOne;
         if (!o) continue;
         const id = o.filter.id;
         if (op.replaceOne) db.occurrences.set(id, o.replacement);
-        else applyUpdate(id, o.update);
+        else applyUpdate(id, o.update, { realisticPush: true });
       }
       return { ok: 1, nMatched: ops.length };
     }),
@@ -121,6 +128,7 @@ describe("the create burst", () => {
   };
 
   beforeEach(() => {
+    raceHook = null;
     db.occurrences.clear();
     Object.keys(trips).forEach((k) => { trips[k] = 0; });
     handlers = new Map();
@@ -184,6 +192,25 @@ describe("the create burst", () => {
     Object.keys(trips).forEach((k) => { trips[k] = 0; });
     await burst(50);
     expect(trips.total).toBe(small);
+  });
+
+  // 2026-09-27, found building Routines › Nutrition › Drink by hand: the parent
+  // listed the new row TWICE. The handler reads the parent, sees the child
+  // missing, then pushes it — and the client's own list write for the same
+  // child (spliceChildIntoParent) landed in between. A read-then-push is not
+  // atomic; the append must skip ids the parent holds AT WRITE TIME.
+  it("does not double-list a child whose list write lands between the read and the push", async () => {
+    raceHook = () => {
+      const p = db.occurrences.get("day-col");
+      if (!p.occurrences.includes("slot-00")) db.occurrences.set("day-col", { ...p, occurrences: [...p.occurrences, "slot-00"] });
+    };
+    await burst(1);
+    expect(db.occurrences.get("day-col").occurrences).toEqual(["slot-00"]);
+  });
+
+  it("control: without the racing write the child is listed once, in order", async () => {
+    await burst(3);
+    expect(db.occurrences.get("day-col").occurrences).toEqual(["slot-00", "slot-01", "slot-02"]);
   });
 
   it("is idempotent — replaying the same burst does not double-list", async () => {

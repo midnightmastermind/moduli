@@ -2,6 +2,15 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-27 — a new row was listed TWICE by its parent: the batch append was read-then-push)
+- Found rebuilding Routines › Nutrition › Drink by hand: Nutrition's `occurrences[]` held the new row's
+  id twice (so it rendered twice). The transaction log showed ONE gesture writing the list twice —
+  `handleCreateBatch` reads the parent, sees the child missing, then `$push`es it, and the client's own
+  list write (`spliceChildIntoParent`) for the same child landed in between. The batched append
+  (2026-08-20) replaced the old atomic `$ne` guard with a read snapshot. Now `$addToSet $each`
+  (skips ids present AT WRITE TIME, appends the rest in order). `createBatching.test.js` drives the race
+  (its bulk `$push` mock no longer dedupes, which is what hid it); A/B: fails with `$push`.
+
 ## Recent Changes (2026-09-26 — a delete dropped the browser's socket: snapshots carried ObjectIds as bytes)
 - **`utils/txRecorder.snapshotDoc`** cloned with `structuredClone`, which turns every subdocument `_id`
   (ObjectId — every `fieldBindings[]` entry has one) into a plain `{ buffer: <12 bytes> }`. The
