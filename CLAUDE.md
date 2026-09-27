@@ -15,6 +15,40 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-27 (3) — `Grid: Snap Filter To Today`, BUILT BY CLICKING; and three picker shapes that drilled to nothing
+
+Picked up account2's session (limit at 16:17 CDT, mid-edit on `DrilldownPicker.jsx`). It had fixed the
+action picker (16 executor actions never offered, 15 of them with no config shape) and made
+`filterOverride` drill per field, and was one layer short of finishing the op.
+
+**THE LAST LAYER WAS A CLASS, NOT A SHAPE.** It had added a `filterValue` shape (the date nav's range
+object `{value, unit, span, kind, dates}`) and pointed each filter-map entry at it — and the new test
+read `[]`. `descendShape` HAND-LISTED which shapes it descends into, so a shape could sit in `SHAPES`,
+be named as a row's `childShape`, and drill to nothing. **Two more already did: `tableColumn` and
+`tableCellsMap`, unreachable since they were written.** It falls through to `SHAPES[shape].keys` now,
+and the test WALKS every `childShape:"…"` in the source — A/B: the hand-listed dispatch fails exactly the
+4 unreachable cases. Client **5,156 pass / 0 fail**; client-only deploy.
+
+**THE OP, FINISHED BY CLICKING, IS IDENTICAL TO POMS' ONCE IDS ARE MAPPED** (asserted by a string
+compare, not by eye): the three OR arms (`.value IS_NOT_EMPTY` · `.unit IS_EMPTY` · `.dates
+IS_NOT_EMPTY`), the loop's `UPDATE $pg.filterOverride.<Date> = $today`, and the marker stamp.
+```
+load 1          marker Last Opened Date  null -> 2026-09-27     (the else branch ran)
+toolbar Prev    grid date 2026-09-26
+load 2, same day   date STAYS 2026-09-26, marker timestamp unchanged   <- the guard held
+toolbar Next    restored 2026-09-27
+```
+**NOT WATCHED: the snap itself moving a stale date to today.** It needs a marker from an earlier day,
+i.e. tomorrow's first load. Integrity clean; unused fields 205 -> 204 (Last Opened Date is used now).
+
+**Probe notes:** a row that HAS children drills on a body click, so committing at `filterOverride.<Date>`
+takes its chevron (`pickThis` in `_ops.mjs`); `clickInThen` takes the FIRST `then:` — the OUTER if's —
+so the loop's then needs `clickInLoopThen`; the outer else's own footer is the LAST `+ Action` in it.
+
+**Rebuild ops: 6 of 88.** 82 enabled poms ops have no counterpart.
+
+---
+
 ### 2026-09-27 (2) — THE COFFEE TRACKER, BUILT BY CLICKING; and 56% of live operations used a comparator no editor could offer
 
 Picked up the other account's rebuild-via-UI session (limit at 12:21, mid-build: it had just

@@ -3,6 +3,16 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-27 (3) — every `SHAPES` entry is reachable)
+- `DrilldownPicker.descendShape` hand-listed the shapes it descended into, so `filterValue`,
+  `tableColumn` and `tableCellsMap` were declared as `childShape`s and drilled to NOTHING. It now falls
+  through to `SHAPES[shape].keys(ctx)` — a new shape needs no second edit.
+- A filter-map entry (`filterOverride.<fid>` / `_effectiveFilter.<fid>`) drills into the date nav's
+  range object `{value, unit, span, kind, dates}`; commit at the field itself with its chevron
+  (`data-testid="pick-this-<fid>"`) for the whole value.
+- `recordPickerMetaMarkers.test.js` WALKS every `childShape:"…"` in the source and asserts each
+  descends to ≥1 row (A/B: the hand-listed dispatch fails exactly the 4 unreachable cases).
+
 ## Recent Changes (2026-09-27 — the Find editor's record picker offers `meta.feedSourceId`)
 - Building poms' `Beverage` field by hand: its predicate's second rule, `meta.feedSourceId IS_EMPTY`
   ("not a feed copy"), could not be picked — `SHAPES.occurrence` lists meta keys by hand and had no
