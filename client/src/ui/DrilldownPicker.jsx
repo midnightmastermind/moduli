@@ -125,7 +125,13 @@ const SHAPES = {
       { value: "meta.table.columns",        title: "columns",             sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldVisibility)",            hasChildren: true,  childShape: "tableColumn" },
       { value: "meta.table.rowCount",       title: "rowCount",            sub: "number",  description: "Total row count rendered by the table",                                                          hasChildren: false },
       { value: "meta.table.cells",          title: "cells",               sub: "cell map", description: "Per-cell TipTap doc keyed by \"r:c\"",                                                          hasChildren: true,  childShape: "tableCellsMap" },
-      { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override",                                       hasChildren: false },
+      // DRILLS PER FIELD, like its read-only twin `_effectiveFilter` below. Both
+      // are filter maps keyed by field id, and this is the WRITABLE one —
+      // `applyUpdate` routes `$page.filterOverride.<fieldId>`, which is how a
+      // page's pinned date gets moved. Offering it as a LEAF meant
+      // `Grid: Snap Filter To Today`'s 10 such paths could not be authored
+      // (2026-09-27); the asymmetry with _effectiveFilter had no reason.
+      { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
   },

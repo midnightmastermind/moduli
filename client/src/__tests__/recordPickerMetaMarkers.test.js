@@ -18,6 +18,18 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("_boundFieldIds");
   });
 
+  it("drills filterOverride per field, like its read-only twin", () => {
+    // Both are filter maps keyed by field id; `filterOverride` is the WRITABLE
+    // one (`applyUpdate` routes `$page.filterOverride.<fieldId>` — how a page's
+    // pinned date is moved). It was offered as a LEAF, so the 10 such paths in
+    // `Grid: Snap Filter To Today` could not be authored.
+    const { items } = itemsForLevel([], { fields: [] }, [], "occurrence");
+    const fo = items.find((i) => i.value === "filterOverride");
+    const ef = items.find((i) => i.value === "_effectiveFilter");
+    expect(fo.hasChildren).toBe(true);
+    expect(fo.childShape).toBe(ef.childShape);
+  });
+
   it("control: still offers fields and the existing meta keys", () => {
     expect(top()).toEqual(expect.arrayContaining(["fields", "meta.appliedFromTemplateId", "parentId"]));
   });
