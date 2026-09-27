@@ -79,14 +79,31 @@ describe("action coverage", () => {
       const next = marks.filter(x => x.at > start).map(x => x.at).sort((a, b) => a - b)[0] ?? src.length;
       return src.slice(start, next);
     };
-    // Actions that share one case body with earlier labels (SUM/MIN/MAX/AVG).
-    const SHARED = { SUM_VAR: "AVG_VAR", MIN_VAR: "AVG_VAR", MAX_VAR: "AVG_VAR" };
+    // Actions whose label FALLS THROUGH into a later case's body, so the slice
+    // between this label and the next one is empty.
+    const SHARED = {
+      SUM_VAR: "AVG_VAR", MIN_VAR: "AVG_VAR", MAX_VAR: "AVG_VAR",
+      IMPORT_HTML: "IMPORT_MARKDOWN",
+    };
+    // A case may read cfg by DESTRUCTURING (`const { dateFieldId } = cfg;`)
+    // instead of `cfg.dateFieldId`. Counting only the dotted form made this
+    // check blind to every destructuring case — it would have passed a schema
+    // key that genuinely was not read there, which is the opposite of what it
+    // is for. Both forms count now (found 2026-09-27 adding the date actions).
+    const readsKey = (body, key) => {
+      if (body.includes(`cfg.${key}`)) return true;
+      for (const m of body.matchAll(/(?:const|let)\s*\{([^}]*)\}\s*=\s*cfg\b/g)) {
+        const names = m[1].split(",").map((x) => x.split(/[:=]/)[0].trim());
+        if (names.includes(key)) return true;
+      }
+      return false;
+    };
     const bad = [];
     for (const [action, schema] of Object.entries(ACTION_CONFIG_SCHEMA)) {
       const body = bodyFor(SHARED[action] || action);
       if (!body) { bad.push(`${action}: no executor case`); continue; }
       for (const f of schema.fields || []) {
-        if (!body.includes(`cfg.${f.key}`)) bad.push(`${action}.${f.key} is never read`);
+        if (!readsKey(body, f.key)) bad.push(`${action}.${f.key} is never read`);
       }
     }
     expect(bad).toEqual([]);

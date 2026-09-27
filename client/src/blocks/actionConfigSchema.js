@@ -317,6 +317,139 @@ export const ACTION_CONFIG_SCHEMA = {
     ],
     hint: "Pauses the operation until the person answers. Cancelling stops the rest of it.",
   },
+
+  // ── 2026-09-27: the fifteen the ACTION PICKER had never offered ───────────
+  // They are all implemented by `executeActionItem` and 7 of them run in live
+  // pipelines (`SET_FILTER` is what `Grid: Snap Filter To Today` uses to move
+  // the date). Adding them to `ui/actionTree.js` made them SELECTABLE; without
+  // an entry here `ActionConfig`'s default branch returns null, so the step
+  // rendered with nothing to configure — a leaf you can pick and cannot set.
+  // `__tests__/actionEditorCoverage.test.js` is what caught that, and it is the
+  // reason these exist. Every key below was read off the executor's own case.
+  SET_FILTER: {
+    fields: [
+      { key: "fieldId", kind: "text", label: "filter field", placeholder: "the filter's field id" },
+      { key: "value", kind: "expr", label: "=", placeholder: "$today" },
+    ],
+    hint: "Writes a value into the grid's active filter — what snaps the date to today. Writes BOTH the nav widget and the filter cascade, so the display and the filtering cannot disagree.",
+  },
+  SCROLL_TO: {
+    fields: [
+      { key: "itemId", kind: "expr", label: "row", placeholder: "$item.id" },
+      { key: "block", kind: "select", label: "align", optional: true, defaultsTo: "center",
+        options: ["start", "center", "end", "nearest"] },
+    ],
+    hint: "Scrolls an occurrence into view and flashes it. Does nothing when the row is not rendered.",
+  },
+  REMOVE_CHILD: {
+    fields: [
+      { key: "parentId", kind: "expr", label: "from parent", placeholder: "$col.id" },
+      { key: "childId", kind: "expr", label: "remove child", placeholder: "$item.id" },
+    ],
+    hint: "UNLISTS a child — the occurrence itself survives. The exact inverse of Add child; use Delete to destroy a row.",
+  },
+  PREPEND_OCCURRENCE: {
+    fields: [
+      { key: "instanceId", kind: "expr", label: "row", placeholder: "$item.id" },
+      { key: "containerId", kind: "expr", label: "into", placeholder: "$col.id" },
+    ],
+    hint: "Lists a row as its parent's FIRST child, rather than appending it.",
+  },
+  SET_TEXTMAP: {
+    fields: [
+      { key: "occurrenceId", kind: "expr", label: "on", placeholder: "$doc.id" },
+      { key: "content", kind: "expr", label: "content", placeholder: "$computedTextmap" },
+      { key: "mode", kind: "select", label: "mode", optional: true, defaultsTo: "replace",
+        options: ["replace", "append", "prepend", "insert"] },
+      { key: "nodeType", kind: "text", label: "node", optional: true, placeholder: "paragraph" },
+      { key: "position", kind: "number", label: "at", optional: true },
+    ],
+    hint: "Replaces a doc's whole textmap. `append` / `prepend` / `insert` add one node instead — `insert` uses `at`.",
+  },
+  HIDE_OCCURRENCE: {
+    fields: [
+      { key: "occurrenceIdExpr", kind: "expr", label: "hide", placeholder: "$item.id" },
+    ],
+    hint: "Hides one PLACEMENT (display: none). The row is not deleted and its other placements are untouched.",
+  },
+  SHOW_OCCURRENCE: {
+    fields: [
+      { key: "occurrenceIdExpr", kind: "expr", label: "show", placeholder: "$item.id" },
+    ],
+    hint: "Reveals a placement a Hide occurrence step hid.",
+  },
+  PICK_RANDOM_FROM_POOL: {
+    fields: [
+      { key: "poolId", kind: "expr", label: "from pool", placeholder: "the pool container's MODULE id" },
+      { key: "varName", kind: "var", label: "→ $", optional: true, defaultsTo: "$pickedLabel" },
+      { key: "fieldId", kind: "text", label: "read field", optional: true, placeholder: "blank = the label" },
+    ],
+    hint: "Draws one occurrence at random out of a pool container. `poolId` is the container's MODULE id, not an occurrence id.",
+  },
+  DATE_DIFF: {
+    fields: [
+      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+      { key: "perOccurrence", kind: "bool", label: "per row", optional: true, defaultsTo: "on" },
+    ],
+    hint: "Days from today to a date field — negative in the past. Per row by default; off writes ONE value, the nearest upcoming date.",
+  },
+  COUNT_DATE_OVERDUE: {
+    fields: [
+      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+    ],
+    hint: "Counts rows whose date field is before today.",
+  },
+  COUNT_DATE_UPCOMING: {
+    fields: [
+      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+      { key: "withinDays", kind: "number", label: "within days", optional: true, defaultsTo: "7" },
+    ],
+    hint: "Counts rows whose date field falls inside the next N days.",
+  },
+  IS_DUE_ON: {
+    fields: [
+      { key: "due", kind: "expr", label: "due", placeholder: "$item.fields.<Due>.value" },
+      { key: "day", kind: "expr", label: "on day", placeholder: "$today" },
+      { key: "completedOn", kind: "expr", label: "completed on", optional: true },
+      { key: "from", kind: "expr", label: "recurring from", optional: true },
+      { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$isDue" },
+    ],
+    hint: "Does a recurring item fall on a given day? `completed on` and `recurring from` are what let a repeat skip a day it was already done.",
+  },
+  SLOTS_COVERED: {
+    fields: [
+      { key: "start", kind: "expr", label: "start slot", placeholder: "$item.fields.<Time Slot>.value" },
+      { key: "duration", kind: "expr", label: "duration", placeholder: "$item.fields.<Duration>.value" },
+      { key: "slotLabels", kind: "expr", label: "all slots", placeholder: "$slotLabels" },
+      { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$slotsCovered" },
+    ],
+    hint: "Every slot a start slot plus a duration spans — what places one shift across several time slots. `all slots` is the ordered label list to walk.",
+  },
+  IMPORT_HTML: {
+    fields: [
+      { key: "html", kind: "expr", label: "html", placeholder: "$response.body" },
+      { key: "parentExpr", kind: "expr", label: "into", optional: true, placeholder: "blank = grid level" },
+      { key: "title", kind: "expr", label: "title", optional: true, defaultsTo: "Imported" },
+      { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$importResult" },
+      { key: "onError", kind: "select", label: "on error", optional: true, defaultsTo: "fail",
+        options: ["fail", "continue"] },
+    ],
+    hint: "Converts HTML into containers / textblocks / artifacts and places the result. Suspends until the import lands.",
+  },
+  IMPORT_MARKDOWN: {
+    fields: [
+      { key: "markdown", kind: "expr", label: "markdown", placeholder: "$llmResponse.text" },
+      { key: "parentExpr", kind: "expr", label: "into", optional: true, placeholder: "blank = grid level" },
+      { key: "title", kind: "expr", label: "title", optional: true, defaultsTo: "Imported" },
+      { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$importResult" },
+      { key: "onError", kind: "select", label: "on error", optional: true, defaultsTo: "fail",
+        options: ["fail", "continue"] },
+    ],
+    hint: "Converts markdown into containers / textblocks / artifacts and places the result. Suspends until the import lands.",
+  },
 };
 
 /** Does this action have a declared config shape? */
