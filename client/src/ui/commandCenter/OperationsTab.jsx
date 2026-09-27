@@ -42,7 +42,7 @@ const inputStyle = {
 // Event types come from the shared triggerTypes module so the editor and
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
-import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars } from "../../helpers/triggerTypes";
+import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable } from "../../helpers/triggerTypes";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -769,9 +769,16 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                     POST: {`${window.location.origin}/api/webhooks/${local.id}`}
                   </div>
                 )}
-                {/* Ancestor scoping for onFilterChange (B16) — fire only when an */}
-                {/* ancestor of the changed occurrence matches by id or label.    */}
-                {eventType === "onFilterChange" && (
+                {/* Ancestor scoping — fire only when an ancestor of the changed
+                    occurrence matches by id or label. Gated on the EVENT rather
+                    than hardcoded to onFilterChange: `matchAncestorScope` gates
+                    every trigger type whose transaction carries ancestor data,
+                    and 364 live onAdd/onDelete triggers across 43 operations use
+                    it while no input was ever rendered for them (2026-09-27).
+                    `isAncestorScopable` derives the set from those transaction
+                    types, so the editor cannot offer a control the runtime
+                    ignores — nor hide one it honours. */}
+                {isAncestorScopable(eventType) && (
                   <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginTop: 2, paddingTop: 4, borderTop: "1px dashed var(--accent-blue-border)" }}>
                     <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "monospace" }}>only fire when an ancestor matches:</span>
                     <span style={{ fontSize: 9, color: "var(--text-faint)" }}>id</span>

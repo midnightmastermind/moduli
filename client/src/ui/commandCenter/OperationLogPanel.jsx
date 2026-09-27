@@ -17,6 +17,9 @@ import {
   subscribeToOpLog,
 } from "../../helpers/operationExecutor";
 import { labelForId } from "../../helpers/labelHelpers";
+import { applyManualOpUpdates } from "../../helpers/manualOpRun";
+import { summarizeOpResults } from "../../helpers/opResultSummary";
+import { toast } from "sonner";
 
 // ─── Formatters ─────────────────────────────────────────────────────────
 
@@ -902,7 +905,7 @@ function RunRow({ run, expanded, onToggle, isLatest, maps }) {
 const labelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" };
 
 export default function OperationLogPanel({ operation }) {
-  const { state, fieldsById, occurrencesById, modulesById, operationsById } = useGridActions();
+  const { state, dispatch, fieldsById, occurrencesById, modulesById, operationsById } = useGridActions();
   const opId = operation?.id;
   const [history, setHistory] = useState(() => (opId ? getOpRunHistory(opId) : []));
   const [expandedIdx, setExpandedIdx] = useState(0);
@@ -918,6 +921,23 @@ export default function OperationLogPanel({ operation }) {
     return subscribeToOpLog(opId, (next) => setHistory([...next]));
   }, [opId]);
 
+  // "Run now" APPLIES what the pipeline produced. It did not: `runPipelineForLog`
+  // returns the effects and this handler dropped them, so the button computed a
+  // correct answer and wrote nothing — while its own tooltip promised "Run
+  // pipeline now". That left SIX operations with no working invoke path at all,
+  // `Project: Create` and `Import from Wikipedia` among them, both built as
+  // explicit user actions with no trigger by design (measured 2026-09-27).
+  //
+  // `applyManualOpUpdates` is the applier the OTHER two hand-run surfaces
+  // already use — the instance trigger widget and the `button` field — added on
+  // 2026-09-21 for the identical defect. This was the third site, missed: the
+  // "two implementations of one question, only one ever fixed" class again.
+  //
+  // THE CONFIRM IS DERIVED FROM WHAT THE RUN ACTUALLY PRODUCED, not from a guess
+  // about the pipeline's shape: an entry carrying `_effect` is a write, one
+  // without is a display value. So a tracker that only SHOWS a number applies
+  // silently, and anything that creates, moves or deletes asks first — which
+  // matters because pressing this on `Schedule: Build Day` mints day columns.
   const handleLiveRun = useCallback(() => {
     if (!operation?.pipeline) return;
     const context = {
@@ -927,9 +947,28 @@ export default function OperationLogPanel({ operation }) {
       operationsById: operationsById || {},
     };
     const trigger = { type: "manual", source: "editor-live-run", timestamp: Date.now() };
-    try { runPipelineForLog(operation, context, trigger); } catch { /* recorded in the run log */ }
+    let results = [];
+    try { results = runPipelineForLog(operation, context, trigger) || []; }
+    catch { /* recorded in the run log */ }
     setExpandedIdx(0);
-  }, [operation, state, fieldsById, occurrencesById, operationsById]);
+
+    const writes = results.filter((r) => r && r._effect && !r._suspend);
+    if (writes.length > 0) {
+      const what = summarizeOpResults(results, maps) || `${writes.length} change${writes.length === 1 ? "" : "s"}`;
+      // eslint-disable-next-line no-alert
+      const go = window.confirm(`Apply this run?\n\n${what}`);
+      if (!go) {
+        toast.message("Run not applied", { description: "The run is in the history; nothing was written." });
+        return;
+      }
+    }
+    const applied = applyManualOpUpdates(results, { dispatch });
+    if (applied.effects || applied.display) {
+      toast.success(summarizeOpResults(results, maps) || "Ran the operation");
+    } else {
+      toast.message("Nothing to apply", { description: "The pipeline produced no changes." });
+    }
+  }, [operation, state, fieldsById, occurrencesById, operationsById, maps, dispatch]);
 
   const summary = useMemo(() => {
     if (history.length === 0) return "no runs yet";

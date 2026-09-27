@@ -56,6 +56,45 @@ export const EVENT_TYPES = [
 ];
 
 const _byValue = new Map(EVENT_TYPES.map((e) => [e.value, e]));
+// ── WHICH EVENTS CAN BE ANCESTOR-SCOPED ─────────────────────────────────────
+// `matchAncestorScope` (operationExecutor) gates EVERY trigger type, but it can
+// only answer when the transaction carries `_ancestorIds` / `_ancestorLabels`.
+// These are the transaction types that get that enrichment, traced to the call
+// sites that write it: CommitHelpers (create / delete / measure / navigation),
+// dropHandlers (move) and bindSocketToStore's echo handlers.
+//
+// The EDITOR rendered its ancestor-scope inputs for `onFilterChange` ALONE, so
+// the other scopable events were enforceable and unauthorable. Measured across
+// every grid on 2026-09-27:
+//
+//     525 triggers carry an ancestor scope
+//     onFilterChange 161  <- the only ones the editor could write
+//     onAdd 182 · onDelete 182   = 364 across 43 operations, seed-written only
+//
+// It is not cosmetic: an UNSCOPED onAdd fires on the app's own plumbing — a
+// folder-page occurrence the app minted for itself got stamped by a test op on
+// 2026-09-22 — so the scope is what keeps a tracker from firing on every create
+// on the grid. Deriving the set from the transaction types means a new event
+// mapping to one of them is scopable without anyone remembering to flag it.
+const ANCESTOR_SCOPED_TRANSACTIONS = new Set([
+  "MeasureOp",          // onChange / onFieldChange / onComplete / onUncomplete
+  "OccurrenceCreateOp", // onAdd / onCreate
+  "OccurrenceDeleteOp", // onRemove / onDelete
+  "OccurrenceMoveOp",   // onMove
+  "OccurrenceListOp",   // onMove / onReorder / onDrop
+  "NavigationOp",       // onFilterChange / onNavigation
+]);
+
+/** Can a trigger on this event carry an ancestor scope that the runtime will
+ *  actually enforce? Unknown event → false, so the editor never offers a
+ *  control that writes a key nothing reads. */
+export function isAncestorScopable(eventType) {
+  const e = _byValue.get(eventType);
+  if (!e) return false;
+  const types = e.transactionTypes || (e.transactionType ? [e.transactionType] : []);
+  return types.some((t) => ANCESTOR_SCOPED_TRANSACTIONS.has(t));
+}
+
 
 // VISIBLE_EVENT_TYPES — entries that appear in the editor dropdown.
 // Aliases (onCreate/onNavigation/onDrop) stay valid at runtime but aren't
