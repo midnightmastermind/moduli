@@ -10,6 +10,36 @@ _Updated: 2026-09-27. Check this file before re-reading source._
   holds is pruned. No version bump; a cached merge rebuilds only if it CONTAINS a tombstoned id.
 - `occOverlay.test.js`: the old "drop falls back to base" case is INVERTED with its reason.
 
+## Recent Changes (2026-09-27 (2) — `activePeriod.pruneOrphanFilterValues`; and five more authorability gaps)
+- **`activePeriod.pruneOrphanFilterValues` + `filterFieldIds`** — the other half of the `$activeDate`
+  defect. `Toolbar.handleToolbarNav` spread the whole `activeFilterValues` and set only the nav fields,
+  so a key NEVER left it: re-pointing a filter at a different date field stranded the old field's
+  value forever. Scoped to ANY named filter (switching filters must keep each one's date), and it
+  **FAILS CLOSED** — a grid declaring no filters prunes nothing, since an empty reference set would
+  wipe every value. Measured first: exactly ONE orphan key exists across every grid.
+- **Five gaps found building `Schedule: Place Dated Work` by clicking**, each measured before changing
+  anything. They are all one shape — implemented, used by live pipelines, impossible to author:
+  ```
+  ui/actionTree.js           70 of the executor's 86 actions; 7 of the 16 missing run live
+  blocks/actionConfigSchema  15 of those 16 then had NO config shape (`if (!schema) return null`)
+  categoryRegistry           a loop could iterate only the 9 built-ins — 76 loops, 27 ops
+  ui/DrilldownPicker         `$var.occurrences` had no entry — 45 strings, 8 ops
+  blocks/OperationsBuilder   `collectLocalVars` missed 6 output-var keys (`to` alone is 25 actions)
+  ```
+  `SET_FILTER` started it (it is how `Snap Filter To Today` moves the date). The 76 loops are the
+  schedule and day-page builders. `collectLocalVars` is the subtlest: a schema action names its output
+  with its own key, so a SLOTS_COVERED step's result could not be chosen as the next loop's
+  collection — the only thing that step is for. A BLANK optional field contributes its DOCUMENTED
+  DEFAULT, because that is the var the executor writes.
+- **Each is DERIVED rather than hand-listed** — from the executor's switch, from the schema's
+  `kind: "var"` fields, from the transaction types that carry ancestor data — so the next addition
+  needs no second edit. That is the whole point: a hand-list is what produced every one of these.
+- **AND ONE SHIPPED INCOMPLETE.** Adding the 16 actions to the tree made them selectable with no
+  editor, and `__tests__/actionEditorCoverage.test.js` — which exists for exactly that — was RED on
+  the deployed build because I ran the action-tree suites and not that one. Its key-read detector was
+  then STRENGTHENED (it was blind to a case that DESTRUCTURES `cfg`), never loosened; A/B'd with a
+  deliberately bogus key.
+
 ## Recent Changes (2026-09-27 — `comparators.js` is THE catalog; `activePeriod.js` NEW; `isAncestorScopable`)
 - **`comparators.js` — one comparator catalog, was THREE.** This file's 12 (grid named filters, table
   column filters, feed conditions), `blocks/ConditionGroup.jsx`'s 20 (pipeline IF rules, find

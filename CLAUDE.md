@@ -15,6 +15,99 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-27 (5) — FIVE MORE AUTHORABILITY GAPS, and one op BUILT BY CLICKING THAT DOES NOT FIRE
+
+Picked up my own session after a limit reset; account3 had meanwhile finished `Grid: Snap Filter To
+Today` and the delete-recount fix (entries (3) and (4)), **including the `descendShape` class I was
+one edit away from** — my uncommitted `filterValue` shape and its test were swept into its commit by
+`deploy.sh`'s `git add -A`, the documented shared-checkout hazard, and properly superseded.
+
+**FIRST, BOTH FLAGS FROM (2) CLOSED.**
+- **The stale `Logged On` value is gone AND cannot accrue again.** `Toolbar.handleToolbarNav` spread
+  the whole `activeFilterValues` and set only the nav fields, so a key never left it. Measured across
+  every grid: **exactly one orphan key exists anywhere** — the rebuild's — so the prune risks nothing
+  elsewhere. It **FAILS CLOSED** (a grid declaring no named filter prunes nothing; an empty reference
+  set would wipe every value) and is scoped to ANY named filter, not the active one, because switching
+  filters has to keep each one's date. Repaired live through the app's own path: one toolbar date step
+  writes the pruned map, one step back leaves the date where it was.
+- **Then the rebuild continued**, and building `Schedule: Place Dated Work` by clicking found five
+  more gaps of the shape (2) is about. Each measured first:
+```
+the action picker offered 70 of the executor's 86 actions      7 of the 16 run in live pipelines
+  15 of those 16 then had NO config editor                     `if (!schema) return null`
+a loop could iterate only the 9 built-in collections           76 loops · 27 ops
+$var.occurrences had no picker entry                           45 strings · 8 ops
+a step's OUTPUT var was invisible to later steps               6 keys · `to` alone is 25 actions
+```
+- **`SET_FILTER` is the one that started it** — it is how `Snap Filter To Today` moves the date, and
+  it could not be picked. **The 76 loops are the sharper find:** they are the schedule and day-page
+  builders, the ops the rebuild needs most, and `$dayCol.occurrences` / `$covered` were unreachable.
+- **`collectLocalVars` is the subtlest.** It read `name`/`itemIdVar`/`itemVar`; a schema action names
+  its output with its own key, so a SLOTS_COVERED step's result could not be chosen as the next loop's
+  collection — the only thing that step is for. A BLANK optional field now contributes its documented
+  DEFAULT, because that is the var the executor writes; treating blank as "produces nothing" is what
+  made the gap visible. All of it DERIVED from the schema, so the next action needs no second edit.
+
+**AND I SHIPPED ONE OF THOSE FIXES INCOMPLETE, WHICH THE REPO'S OWN TEST CAUGHT AFTER I DEPLOYED.**
+Adding the 16 actions to `actionTree.js` made them selectable; 15 had no config shape, so the step
+rendered with nothing to configure. `actionEditorCoverage.test.js` exists for exactly that and was RED
+on the deployed build — **I ran the action-tree suites and not that one.** Every full run since has
+been the whole suite.
+**Its key-read detector was then STRENGTHENED, not loosened, to admit them:** it matched `cfg.<key>`
+only, so it was blind to a case that DESTRUCTURES (`const { dateFieldId } = cfg`) — which would
+equally have passed a key that genuinely was not read. A/B'd with a deliberately bogus key.
+
+**THE OPERATION IS BUILT ENTIRELY BY CLICKING AND IT PRODUCES NOTHING. Said plainly, because every
+part I can observe is correct:**
+```
+LOOP $allContainers as $slot → IF ancestor of Schedule → PUSH $slot.label     $slotLabels Array(4) ✓
+LOOP $allInstances as $appt → IF (4 rules) → SLOTS_COVERED → LOOP $covered
+                              → FIND the slot by label → IF → ADD_CHILD
+run:  0 changes · 4ms        Work stays listed only by Tasks › Today
+```
+- **The gate never passes for ANY of the 166 instances** — a NOTIFY placed in its THEN never fired,
+  which is what splits "the gate fails" from "something downstream fails".
+- **And every rule holds on the data**, checked outside the executor: `Work` binds Duration (9
+  bindings, the id matches), `Time Slot` is "7:00am", `Date` is today, `meta.feedSourceId` is empty.
+  `_boundFieldIds` IS enriched (the trail shows Array(0)/(1)/(2)/(3)/(4)/(7) across records), the
+  slot-label loop works, and `slotsCovered(7:00am, 180, [4 labels])` returns `7:00am, 9:00am` by
+  reading its source.
+- **What blocks the diagnosis is the log's own cap:** `LOOP_LOG_ITER_CAP = 50` against 166 instances,
+  so Work's iteration is among the 118 omitted and no logged snapshot shows `Array(9)`.
+  **The next step is therefore to raise that cap or drive the pipeline in Node over the live state** —
+  not another UI probe, which cannot see the iteration that matters.
+
+**PROBE FAULTS, and the first two are ones this repo had ALREADY pinned as probe faults.**
+```
+a rule row holds TWO identical "+ Pick path" placeholders, so a global "last
+  match" put every picked LEFT into the RIGHT — which `conditionRuleSides.test.jsx`
+  exists to record as a PROBE fault. Walked into it anyway.
+`__moduli_state__` carries `occurrences` as an ARRAY; there is no
+  `occurrencesById`, so every read printed a convincing `stored: null` and I
+  reported "the write did not land" until MONGO said 20.
+`clickIn` clicked the box a CLIPPED element reported and returned true for having
+  FOUND it — a Fields-tab row at y=6088 in a 1000px window. It scrolls, hit-tests
+  and explains the miss now; returning true for a missed click makes every later
+  step read as the app being broken.
+rule rows are indexed DOCUMENT-WIDE, so the rule of a nested IF is the LAST row,
+  not row 0 — row 0 is the OUTERMOST IF's, and I overwrote its same-day check.
+a compact field pill is a BUTTON titled "<Field>: Click to edit" — not a div, and
+  click-to-edit rather than hover. Four locators missed it on a row that plainly
+  showed the value.
+`Find` and `Add as child`: a category and its leaf share a title, and a leaf's
+  title is not its enum name. One drill left the step as the default INIT_VAR.
+a drillable row COMMITS via its chevron, not a body click (`$slotId`).
+```
+***And a fifth thing that nearly became a false debris report:*** my own scan found *"20 occurrences
+created today, parented but listed by nobody"*. All 20 are **board pages homed in FOLDERS**, the
+designed shape — `checkGrid`'s 0 errors was right and the heuristic was the trap 09-22 (2) warns about.
+
+**Rebuild: 7 of 88 operations · 225 fields (203 still unbound) · integrity clean, 0 real orphans.**
+Client **5,173 pass / 0 fail** (the 2 worker errors are the documented OOM family). Six client-only
+deploys, `deploy.sh` correctly reporting *"Server unchanged"* each time.
+
+---
+
 ### 2026-09-27 (4) — COFFEE DRAGGED IN FROM ROUTINES; and deleting a row never lowered a tracker
 
 The user's queued ask from account3: *"we want to test dragging in from routines for stuff like
