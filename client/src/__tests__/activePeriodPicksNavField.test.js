@@ -104,3 +104,70 @@ describe("isDateShaped", () => {
     }
   });
 });
+
+// ── pruning the map that let the stale value exist ──────────────────────────
+import fs from "node:fs";
+import path from "node:path";
+import { pruneOrphanFilterValues, filterFieldIds } from "../helpers/activePeriod";
+
+describe("pruneOrphanFilterValues", () => {
+  it("drops a value no named filter references", () => {
+    // The rebuild grid's real state: the Daily filter moved to `Date` and
+    // `Logged On`'s last value stayed behind. Measured across every grid — this
+    // was the ONLY orphan key anywhere, so the prune is a one-row repair.
+    expect(pruneOrphanFilterValues(REBUILD_EFV, REBUILD_GRID)).toEqual({ [DATE]: "2026-09-27" });
+  });
+
+  it("keeps values belonging to the grid's OTHER named filters", () => {
+    // A grid can carry several; switching between them must keep each one's
+    // value, so "the ACTIVE filter does not name it" is the wrong question.
+    const g = {
+      activeFilterId: "daily",
+      namedFilters: [
+        { id: "daily", conditions: [{ fieldId: DATE }] },
+        { id: "weekly", conditions: [{ fieldId: LOGGED_ON }] },
+      ],
+    };
+    expect(pruneOrphanFilterValues(REBUILD_EFV, g)).toEqual(REBUILD_EFV);
+  });
+
+  it("FAILS CLOSED: a grid with no named filters prunes nothing", () => {
+    // An empty reference set would otherwise wipe every value, and "no filters
+    // declared" is a normal state, not permission to delete data.
+    expect(pruneOrphanFilterValues(REBUILD_EFV, {})).toEqual(REBUILD_EFV);
+    expect(pruneOrphanFilterValues(REBUILD_EFV, { namedFilters: [] })).toEqual(REBUILD_EFV);
+    expect(pruneOrphanFilterValues(REBUILD_EFV, null)).toEqual(REBUILD_EFV);
+  });
+
+  it("returns the SAME object when nothing is orphaned, so a caller can skip a write", () => {
+    const clean = { [DATE]: "2026-09-27" };
+    expect(pruneOrphanFilterValues(clean, REBUILD_GRID)).toBe(clean);
+  });
+
+  it("counts a filter's primaryDateFieldId as referenced", () => {
+    const g = { activeFilterId: "f", namedFilters: [{ id: "f", primaryDateFieldId: LOGGED_ON, conditions: [] }] };
+    expect(pruneOrphanFilterValues(REBUILD_EFV, g)).toEqual({ [LOGGED_ON]: "2026-09-21" });
+  });
+
+  it("filterFieldIds spans every filter, not just the active one", () => {
+    const g = {
+      activeFilterId: "daily",
+      namedFilters: [{ id: "daily", conditions: [{ fieldId: "a" }] }, { id: "weekly", conditions: [{ fieldId: "b" }] }],
+    };
+    expect([...filterFieldIds(g)].sort()).toEqual(["a", "b"]);
+    expect([...filterFieldIds({})]).toEqual([]);
+  });
+});
+
+describe("the toolbar's nav write prunes", () => {
+  const SRC = fs.readFileSync(path.join(__dirname, "..", "Toolbar.jsx"), "utf8");
+  it("does not spread the raw map", () => {
+    // `{ ...(grid?.activeFilterValues || {}) }` is what preserved the stale key.
+    expect(SRC).toContain("pruneOrphanFilterValues(grid?.activeFilterValues || {}, grid)");
+    expect(SRC).not.toMatch(/\}, \{ \.\.\.\(grid\?\.activeFilterValues \|\| \{\}\) \}\);/);
+  });
+  it("control: it still writes the nav fields it is given", () => {
+    expect(SRC).toContain("acc[c.fieldId] = next;");
+    expect(SRC).toContain("activeFilterValues: updatedValues");
+  });
+});

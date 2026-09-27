@@ -27,6 +27,7 @@ import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
 import { operationsBridge } from "./state/bindSocketToStore";
 import { planFollowingPages } from "./helpers/filterFollow";
+import { pruneOrphanFilterValues } from "./helpers/activePeriod";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
@@ -104,10 +105,17 @@ export default function Toolbar({
   // field so multi-field nav conditions stay in sync.
   const handleToolbarNav = useCallback((next) => {
     if (!navConditions.length || !gridId) return;
+    // Spread-then-set PRESERVED a key forever: re-pointing a filter at a
+    // different date field left the abandoned field's last value in the map, and
+    // that stale value then won `$activeDate` for every op on the grid
+    // (2026-09-27, the rebuild grid read Sep 21 while the toolbar showed Sep 27).
+    // Pruning here is what stops it accruing; it keeps values belonging to the
+    // grid's OTHER named filters, and prunes nothing at all on a grid that
+    // declares none.
     const updatedValues = navConditions.reduce((acc, c) => {
       acc[c.fieldId] = next;
       return acc;
-    }, { ...(grid?.activeFilterValues || {}) });
+    }, { ...pruneOrphanFilterValues(grid?.activeFilterValues || {}, grid) });
     // Pages that pinned their own value for this filter follow the toolbar —
     // written BEFORE the grid, whose NavigationOp fires a task later and reads
     // each page's effective filter (helpers/filterFollow.js).

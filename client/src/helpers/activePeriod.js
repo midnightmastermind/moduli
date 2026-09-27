@@ -70,3 +70,44 @@ export function pickActivePeriod(efv, grid) {
   }
   return Object.values(efv).find(isDateShaped);
 }
+
+/** Every field id ANY named filter on this grid references — not just the active
+ *  one. A grid can carry several named filters, and switching between them has to
+ *  keep each one's value, so "the active filter does not name it" is the wrong
+ *  question for pruning. */
+export function filterFieldIds(grid) {
+  const out = new Set();
+  for (const f of grid?.namedFilters || []) {
+    for (const c of f?.conditions || []) if (c?.fieldId) out.add(c.fieldId);
+    if (f?.primaryDateFieldId) out.add(f.primaryDateFieldId);
+  }
+  return out;
+}
+
+/**
+ * Drop `activeFilterValues` entries that no named filter references.
+ *
+ * WHY THIS EXISTS. Nothing pruned the map: `Toolbar.handleToolbarNav` spreads the
+ * whole thing and sets only the nav fields, so re-pointing a filter at a
+ * different date field left the abandoned field's last value behind forever. On
+ * the rebuild grid that stale value then WON `$activeDate` (see pickActivePeriod
+ * above), and every date-dependent operation computed against a date the user
+ * could not see. `pickActivePeriod` makes it harmless; this stops it accruing.
+ *
+ * FAILS CLOSED: a grid with no named filters prunes NOTHING. An empty reference
+ * set would otherwise wipe every value, and "no filters declared" is a normal
+ * state, not permission to delete data.
+ *
+ * Returns the SAME object when there is nothing to drop, so a caller can use
+ * identity to skip a write.
+ */
+export function pruneOrphanFilterValues(values, grid) {
+  if (!values) return values;
+  const keep = filterFieldIds(grid);
+  if (keep.size === 0) return values;
+  const orphans = Object.keys(values).filter((k) => !keep.has(k));
+  if (orphans.length === 0) return values;
+  const out = {};
+  for (const [k, v] of Object.entries(values)) if (keep.has(k)) out[k] = v;
+  return out;
+}
