@@ -15,6 +15,35 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-27 — REBUILD-VIA-UI: EVERY BOARDS AREA BUILT; and the options editor accepted duplicates
+
+Continuing *"keep going testing the ui by recreating poms grid"*. The Social recipe is now GENERIC:
+`_ph1…_ph4.mjs` + `_area.sh` (repo root, gitignored) take one `SPEC` env —
+`{ area, boards: { Page: [category, [rows]] } }` — and build an area end to end by clicking:
+options → folder under Boards → board pages → a container per page → rows, each tagged. Read back
+with `server/_verify.mjs` (AREA=…), which checks each row is VALUED, not just bound.
+```
+Money 13/13 · Creative 9/9 · Body 7/7 · Media 12/12 · Food 17/17 valued   (+ Home 9/9 on 09-26)
+rebuild: 51 pages · 71 containers · integrity clean     poms: 164 pages · 304 fields · 88 ops
+```
+**APP DEFECT, FIXED: the manual options editor appended ANY value**, so re-adding `movie` gave Board
+Category two `movie` options. `SelectOptionsSourceEditor.addManualOption` refuses a value already
+there (case/space-insensitive) and says so. The four duplicates were removed through the editor's ✕.
+
+**PROBE FAULTS, each cost a run — all in tree/editor lookups:**
+- Past ~30 options the editor's **Save sits below the fold**; clicking its reported box saved nothing
+  (Creative's first run tagged 0 of 9). Scroll in + hit-test.
+- A **clipped tree row** (Media, far down) — the right-click landed on the PANEL's menu.
+- **Existence read from a collapsed tree** reads as "absent" → a second Media folder was minted
+  (deleted through the tree). Step 2 now asks the app's STATE.
+- **A folder and a page share a name** (root "Food" page vs Boards/Food folder): the page row got the
+  right-click. Folder rows carry `data-drop-target-for-element`; page rows do not.
+
+**Left, by the agreed scope (structure + samples):** Library/Projects pages outside Boards, and the
+big one — **fields (14 of 304) and operations (4 of 88)**.
+
+---
+
 ### 2026-09-26 — people board, birthdays, radial menu, and why day columns kept getting unlinked
 
 - **Deleting a person froze the tab ~17s and reloaded every photo — three causes.** (1) The on-load
