@@ -52,6 +52,7 @@ export function makeOccOverlay() {
   // collectable. Base maps are REPLACED, never patched, on every change — which
   // is what makes identity a sound version for the base half.
   const cache = new WeakMap();
+  const tombstones = new Set();
 
   return {
     map,
@@ -59,6 +60,7 @@ export function makeOccOverlay() {
 
     set(id, occ) {
       if (!id) return occ;
+      tombstones.delete(id);
       map[id] = occ;
       version++;
       return occ;
@@ -68,6 +70,16 @@ export function makeOccOverlay() {
       // Guarded so a delete of something absent cannot invalidate the cache for
       // nothing — this runs on every server echo for an occurrence we never
       // held.
+      //
+      // A DROP IS A DELETE, so it also records a TOMBSTONE that hides the BASE
+      // copy. The base is React state, assigned on RENDER, and a delete fires
+      // its operations in the same tick — so at fire time the base still holds
+      // the row, and without this the merge fell back to it: every tracker's
+      // onDelete recount still counted the deleted row (2026-09-27, Daily
+      // Coffee 24 -> 24 after deleting a 4oz coffee). Recording it does not
+      // bump the version; `merged` rebuilds only when a cached merge actually
+      // CONTAINS a tombstoned id, so the unheld-echo guard above still holds.
+      if (id) tombstones.add(id);
       if (!(id in map)) return false;
       delete map[id];
       version++;
@@ -75,6 +87,7 @@ export function makeOccOverlay() {
     },
 
     reset() {
+      tombstones.clear();
       for (const key in map) delete map[key];
       version++;
     },
@@ -90,9 +103,19 @@ export function makeOccOverlay() {
      */
     merged(base) {
       if (!base) return map;
+      // Prune tombstones the base no longer holds: the re-render landed, or
+      // the id was an echo for a row this tab never had. That keeps the set the
+      // size of the in-flight deletes, and a row that comes BACK into the base
+      // without a `set` is not hidden.
+      let hiddenInCache = false;
       const hit = cache.get(base);
-      if (hit && hit.version === version) return hit.merged;
+      for (const t of tombstones) {
+        if (!(t in base)) tombstones.delete(t);
+        else if (hit && t in hit.merged) hiddenInCache = true;
+      }
+      if (hit && hit.version === version && !hiddenInCache) return hit.merged;
       const merged = Object.assign({}, base, map);
+      for (const t of tombstones) delete merged[t];
       cache.set(base, { version, merged });
       return merged;
     },

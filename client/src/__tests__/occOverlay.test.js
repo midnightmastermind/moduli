@@ -44,7 +44,11 @@ describe("makeOccOverlay — correctness first", () => {
     ov.set("o0", { id: "o0", v: 7 });
     expect(ov.merged(b).o0.v).toBe(7);
     ov.drop("o0");
-    expect(ov.merged(b).o0.v).toBe(0);  // falls back to base
+    // INVERTED 2026-09-27: this asserted the drop "falls back to base" — the
+    // defect. A drop is a delete; the base is React state not yet re-rendered,
+    // and falling back to it re-counted the deleted row in every onDelete
+    // tracker recount. See the tombstone block below.
+    expect(ov.merged(b).o0).toBeUndefined();
   });
 
   it("reset clears the overlay and invalidates", () => {
@@ -129,5 +133,52 @@ describe("makeOccOverlay — the caching that is the whole point", () => {
     }
     expect(rebuilds).toBe(2);
     expect(ov.merged(b).o5.v).toBe(-1);       // still correct after caching
+  });
+});
+
+// A DELETE MUST HIDE THE BASE COPY. `stateRef.current` is assigned on RENDER
+// (App.jsx), and CommitHelpers.deleteOccurrence fires OccurrenceDeleteOp in the
+// same tick as its dispatch — so at fire time the base still holds the row.
+// `drop` used to remove only the overlay entry, the merge fell back to the base
+// copy, and every tracker's onDelete recount still counted the deleted row
+// (measured on prod 2026-09-27: Daily Coffee 24 -> 24 after deleting a 4oz
+// coffee; the next load's onLoad put it right, which is why it hid).
+describe("makeOccOverlay — a dropped id is a tombstone", () => {
+  it("hides the base copy of a dropped row", () => {
+    const ov = makeOccOverlay();
+    const b = base(3);
+    ov.set("o1", { id: "o1", v: 1 });
+    ov.drop("o1");
+    expect(ov.merged(b).o1).toBeUndefined();
+    expect(ov.merged(b).o0).toBeTruthy(); // control: siblings untouched
+    expect(b.o1).toBeTruthy();            // and the base is not mutated
+  });
+  it("hides a base-only row dropped without ever being overlaid", () => {
+    const ov = makeOccOverlay();
+    const b = base(2);
+    ov.drop("o1");
+    expect(ov.merged(b).o1).toBeUndefined();
+  });
+  it("a later set (undo restore, re-create) brings it back", () => {
+    const ov = makeOccOverlay();
+    const b = base(2);
+    ov.drop("o1");
+    ov.set("o1", { id: "o1", v: 7 });
+    expect(ov.merged(b).o1.v).toBe(7);
+  });
+  it("reset clears tombstones", () => {
+    const ov = makeOccOverlay();
+    const b = base(2);
+    ov.drop("o1");
+    ov.reset();
+    expect(ov.merged(b).o1).toBeTruthy();
+  });
+  it("a tombstone the base has caught up with is pruned, so a later base row is not hidden", () => {
+    const ov = makeOccOverlay();
+    ov.drop("o1");
+    const after = { o0: { id: "o0" } };          // the re-render removed it
+    expect(ov.merged(after).o1).toBeUndefined();
+    const restored = { o0: { id: "o0" }, o1: { id: "o1", v: 3 } }; // came back without a set
+    expect(ov.merged(restored).o1.v).toBe(3);
   });
 });
