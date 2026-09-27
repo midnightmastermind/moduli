@@ -171,15 +171,33 @@ function ChipDisplayBody({ source, onChange }) {
   );
 }
 
+/**
+ * PURE. The option list with `draft` added — or unchanged, with `duplicate`
+ * set, when that value is already an option (case and surrounding spaces
+ * ignored). The editor used to append anything, so re-adding "movie" gave the
+ * field two "movie" options (found 2026-09-27 rebuilding poms grid by clicking).
+ */
+export function addManualOption(values, draft) {
+  const v = String(draft ?? "").trim();
+  if (!v) return { values, duplicate: null };
+  const key = (x) => String(x && typeof x === "object" ? x.value : x).trim().toLowerCase();
+  const dup = values.find((x) => key(x) === v.toLowerCase());
+  if (dup !== undefined) return { values, duplicate: String(dup && typeof dup === "object" ? dup.value : dup) };
+  return { values: [...values, v], duplicate: null };
+}
+
 function ManualBody({ source, onChange }) {
   const values = Array.isArray(source?.values) ? source.values : [];
   const [draft, setDraft] = useState("");
+  const [dupNote, setDupNote] = useState(null);
 
   function add() {
-    const v = draft.trim();
-    if (!v) return;
-    onChange({ ...source, mode: "manual", values: [...values, v] });
+    const { values: next, duplicate } = addManualOption(values, draft);
+    if (duplicate) { setDupNote(`"${duplicate}" is already an option`); return; }
+    if (next === values) return;
+    onChange({ ...source, mode: "manual", values: next });
     setDraft("");
+    setDupNote(null);
   }
   function remove(i) {
     onChange({ ...source, mode: "manual", values: values.filter((_, j) => j !== i) });
@@ -203,7 +221,7 @@ function ManualBody({ source, onChange }) {
       <div style={{ display: "flex", gap: 4 }}>
         <input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { setDraft(e.target.value); setDupNote(null); }}
           onKeyDown={(e) => { if (e.key === "Enter") add(); }}
           placeholder="Add option (Enter)"
           style={{
@@ -218,6 +236,7 @@ function ManualBody({ source, onChange }) {
           color: "var(--text-muted)", cursor: "pointer",
         }}>Add</button>
       </div>
+      {dupNote && <div style={{ fontSize: 10, color: "var(--accent-amber-text, #f59e0b)", fontFamily: "monospace", marginTop: 3 }}>{dupNote}</div>}
     </div>
   );
 }
