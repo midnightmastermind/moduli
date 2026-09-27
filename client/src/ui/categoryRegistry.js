@@ -279,10 +279,12 @@ const COLLECTION_ITEMS = [
 // — stop here"), a body click drills it to `.occurrences` or
 // `.fields.<fid>.value`.
 //
-// (An earlier draft appended the standard categories instead, on the belief that
-// a single-category config skips the category step. It does not — `itemsForLevel`
-// always lists the categories at level 0 — so that reasoning was wrong and the
-// click count is identical either way. Corrected before shipping.)
+// (A single-category config DOES skip the category step: `DrilldownPicker` seeds
+// its chain with that one category's id on open, so the entries are what you see
+// first. `itemsForLevel([])` still returns the category list, which is what a
+// unit test sees and what briefly convinced me otherwise — the component's own
+// seeding is the behaviour that matters. Appending the standard categories would
+// therefore have cost a click on the commonest action.)
 export const COLLECTION_PICKER_CONFIG = {
   placeholder: "Pick collection",
   categories: [{

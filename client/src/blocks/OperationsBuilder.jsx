@@ -250,7 +250,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 // ADD_TO_VAR/etc. and every loop iteration var (`as`). Names always start with
 // `$`. The resulting array is consumed by buildPathConfig to keep path pickers
 // from rendering half-resolved chip chains for valid local refs.
-function collectLocalVars(steps) {
+export function collectLocalVars(steps) {
   const found = new Set();
   function visit(stepArr) {
     if (!Array.isArray(stepArr)) return;
@@ -262,6 +262,22 @@ function collectLocalVars(steps) {
         // Some actions (FIND multi, RUN_OPERATION) declare both itemIdVar and itemVar
         if (step.config.itemIdVar && typeof step.config.itemIdVar === "string" && step.config.itemIdVar.startsWith("$")) found.add(step.config.itemIdVar);
         if (step.config.itemVar && typeof step.config.itemVar === "string" && step.config.itemVar.startsWith("$")) found.add(step.config.itemVar);
+        // AND every var a SCHEMA-declared action writes. Those use their own key
+        // names — `to` (25 actions), `resultVar` (4), `as`, `responseVar`,
+        // `errorVar`, `varName` — none of which the three reads above cover, so
+        // an action's output was invisible to every later step's picker. Found
+        // 2026-09-27: a SLOTS_COVERED step's result could not be picked as the
+        // next loop's collection.
+        //
+        // A BLANK field contributes its DOCUMENTED DEFAULT, because that is the
+        // var the executor will actually write (`to` blank → `$slotsCovered`).
+        // Leaving it out made an optional output field mean "this step produces
+        // nothing", which is the opposite of what optional means here.
+        for (const f of ACTION_CONFIG_SCHEMA[step.config.type]?.fields || []) {
+          if (f.kind !== "var") continue;
+          const v = step.config[f.key] || f.defaultsTo;
+          if (typeof v === "string" && v.startsWith("$")) found.add(v);
+        }
       }
       if (step.type === "loop") {
         // Loop iteration variable surfaces as a $var inside the loop body so
