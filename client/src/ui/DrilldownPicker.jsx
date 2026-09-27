@@ -141,6 +141,20 @@ const SHAPES = {
       { value: "flow",  title: "flow",  sub: "string", description: "in / out / replace",                 hasChildren: false },
     ],
   },
+  // ── One entry OF a filter map ────────────────────────────────────────────
+  // The date nav stores `{value, unit, span?, kind?, dates?}`; a plain day pin
+  // is the bare string. Both shapes reach the same predicate, so a pipeline
+  // distinguishes them by asking which sub-keys are present — `.unit IS_EMPTY`
+  // means "a bare day", `.dates IS_NOT_EMPTY` means "a multi-selection".
+  filterValue: {
+    keys: () => [
+      { value: "value", title: "value", sub: "string",   description: "The anchor day, YYYY-MM-DD. Present on a range object; a bare-string pin has no sub-keys at all.", hasChildren: false },
+      { value: "unit",  title: "unit",  sub: "string",   description: "day / week / month / year. EMPTY means a plain single day.",                                      hasChildren: false },
+      { value: "span",  title: "span",  sub: "number",   description: "How many units the range covers.",                                                                hasChildren: false },
+      { value: "kind",  title: "kind",  sub: "string",   description: "\"multi\" for a non-consecutive selection.",                                                        hasChildren: false },
+      { value: "dates", title: "dates", sub: "string[]", description: "The explicit day list of a multi-selection.",                                                     hasChildren: false },
+    ],
+  },
   filter: {
     // Per-field key drilling. The merged filter map is keyed by fieldId so
     // pipelines like `$page._effectiveFilter.<dateFieldId>` need to resolve to
@@ -152,7 +166,14 @@ const SHAPES = {
         title: f.name || "(unnamed field)",
         sub: f.type || "field",
         description: `Filter value for ${f.name || "this field"} on the merged map`,
-        hasChildren: false,
+        // A filter value is EITHER a bare "YYYY-MM-DD" string or the range
+        // object the date nav writes, so it drills one more level. Committing
+        // here (the chevron) still gives the whole value — which is what an
+        // IS_NOT_EMPTY check wants; the sub-keys are for telling a plain day
+        // pin apart from a range or a multi-selection, which is exactly what
+        // `Grid: Snap Filter To Today` guards on and could not author.
+        hasChildren: true,
+        childShape: "filterValue",
       }));
       // Convenience accessor returning the first YYYY-MM-DD value found.
       items.unshift({
@@ -320,21 +341,16 @@ function occurrenceMapItems(ctx) {
 
 function descendShape(shape, ctx) {
   if (!shape) return [];
-  if (shape === "trigger") return SHAPES.trigger.keys(ctx);
-  if (shape === "occurrence") return SHAPES.occurrence.keys(ctx);
-  if (shape === "fieldValue") return SHAPES.fieldValue.keys(ctx);
-  if (shape === "filter") return SHAPES.filter.keys(ctx);
-  if (shape === "grid") return SHAPES.grid.keys(ctx);
   if (shape === "fieldsMap") return fieldsMapItems(ctx);
   if (shape === "occurrenceMap") return occurrenceMapItems(ctx);
-  if (shape === "operation") return SHAPES.operation.keys(ctx);
-  if (shape === "triggerObject") return SHAPES.triggerObject.keys(ctx);
-  if (shape === "sourceBinding") return SHAPES.sourceBinding.keys(ctx);
   if (
     shape === "occurrenceArray" || shape === "templateArray" || shape === "fieldArray" ||
     shape === "operationArray" || shape === "triggerObjectArray" || shape === "sourceBindingArray"
   ) return arrayItemsAsKeys(shape, ctx);
-  return [];
+  // Every keyed shape in SHAPES descends through its own keys(). A hand-listed
+  // dispatch here is how `filterValue` was registered and never reachable
+  // (2026-09-27) — a new shape needs no second edit.
+  return SHAPES[shape]?.keys ? SHAPES[shape].keys(ctx) : [];
 }
 
 // Built-in vars that the executor populates on every run, keyed to their shape.

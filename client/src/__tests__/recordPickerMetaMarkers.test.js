@@ -30,7 +30,40 @@ describe("record picker offers the app's meta markers", () => {
     expect(fo.childShape).toBe(ef.childShape);
   });
 
+  it("drills a filter entry into the range object's own keys", () => {
+    // A filter value is either a bare "YYYY-MM-DD" or `{value, unit, span,
+    // kind, dates}`. Telling those apart is what `Grid: Snap Filter To Today`
+    // guards on (`.unit IS_EMPTY` = a plain day pin), and the per-field entries
+    // were leaves, so none of those three arms could be authored.
+    const ctx = { fields: [{ id: "f1", name: "Date", type: "date" }] };
+    const entry = itemsForLevel([], ctx, [], "filter").items.find((i) => i.value === "f1");
+    expect(entry.hasChildren).toBe(true);
+    const sub = itemsForLevel(["f1"], ctx, [], "filter").items.map((i) => i.value);
+    expect(sub).toEqual(["value", "unit", "span", "kind", "dates"]);
+  });
+
   it("control: still offers fields and the existing meta keys", () => {
     expect(top()).toEqual(expect.arrayContaining(["fields", "meta.appliedFromTemplateId", "parentId"]));
+  });
+});
+
+// THE CLASS, not the instance: `descendShape` was a hand-listed dispatch, so a
+// shape declared as some row's `childShape` could exist in SHAPES and still
+// drill to nothing (`filterValue`, and `tableColumn` / `tableCellsMap` since
+// they were written). Every childShape the source names must descend.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+describe("every declared childShape is reachable", () => {
+  const src = readFileSync(resolve(__dirname, "../ui/DrilldownPicker.jsx"), "utf8");
+  const shapes = [...new Set([...src.matchAll(/childShape:\s*"(\w+)"/g)].map((m) => m[1]))];
+  const ctx = {
+    fields: [{ id: "f1", name: "Date", type: "date" }],
+    occurrencesById: { o1: { id: "o1", label: "Row" } },
+  };
+  it("the scan found the shapes it is about (control)", () => {
+    expect(shapes).toEqual(expect.arrayContaining(["filter", "filterValue", "tableColumn", "tableCellsMap"]));
+  });
+  it.each(shapes)("%s descends to at least one row", (shape) => {
+    expect(itemsForLevel([], ctx, [], shape).items.length).toBeGreaterThan(0);
   });
 });
