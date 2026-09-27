@@ -11,6 +11,13 @@ describe("record picker offers the app's meta markers", () => {
   it("offers meta.copyLinkSource and meta.userTouched", () => {
     expect(top()).toEqual(expect.arrayContaining(["meta.copyLinkSource", "meta.userTouched"]));
   });
+  it("offers _boundFieldIds — 38 live operations gate on it across 113 rules", () => {
+    // The executor enriches it onto every $allItems entry, and it is how a
+    // tracker expresses "this row never bound Completed". No picker entry meant
+    // none of those 113 rules could be authored here.
+    expect(top()).toContain("_boundFieldIds");
+  });
+
   it("control: still offers fields and the existing meta keys", () => {
     expect(top()).toEqual(expect.arrayContaining(["fields", "meta.appliedFromTemplateId", "parentId"]));
   });

@@ -96,6 +96,12 @@ const SHAPES = {
       { value: "moduleId",    title: "moduleId",    sub: "string",   description: "Module this occurrence renders",                  hasChildren: false },
       { value: "parentId",    title: "parentId",    sub: "string",   description: "Parent occurrence ID",                            hasChildren: false },
       { value: "_ancestors",  title: "_ancestors",  sub: "string[]", description: "Ancestor chain (closest first)",                  hasChildren: false },
+      // The executor enriches every $allItems entry with the template's bound
+      // field ids (2026-07-11), and 38 live operations across 113 rules gate on
+      // it — `_boundFieldIds ARRAY_NOT_INCLUDES <fid>` is how a tracker says
+      // "this row never bound Completed, so scope membership alone counts it".
+      // It had no picker entry, same gap as meta.feedSourceId (2026-09-27).
+      { value: "_boundFieldIds", title: "_boundFieldIds", sub: "string[]", description: "Field ids this row's template binds — use with list includes / does not include", hasChildren: false },
       { value: "label",       title: "label",       sub: "string",   description: "Module label (resolved from template)",           hasChildren: false },
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
       { value: "fields",      title: "fields",      sub: "object",   description: "Field values map keyed by field ID",              hasChildren: true,  childShape: "fieldsMap" },
