@@ -73,6 +73,9 @@ export const ACTION_TREE = [
           { value: "MAX_VAR",    title: "↑ max",      sub: "largest value",              description: "Largest numeric value in an array." },
           { value: "AVG_VAR",    title: "x̄ average",   sub: "arithmetic mean",           description: "Mean of a numeric array (rounded to 2 decimals)." },
           { value: "STREAK_VAR", title: "🔥 streak",   sub: "consecutive days backward", description: "Count consecutive days backward from today where at least one row's date matches. `by` defaults to 'date'." },
+          { value: "AGGREGATE",           title: "Σ aggregate",      sub: "sum/count/avg over a scope", description: "Aggregate a field across a scope (any of the 15 aggregations), honouring flow direction." },
+          { value: "COUNT_DATE_OVERDUE",  title: "⏰ count overdue",  sub: "rows past their date",       description: "Count rows whose date field is before today." },
+          { value: "COUNT_DATE_UPCOMING", title: "⏳ count upcoming", sub: "rows due within N days",     description: "Count rows whose date field falls inside the next N days." },
         ],
       },
       {
@@ -127,6 +130,9 @@ export const ACTION_TREE = [
         children: [
           { value: "DATE_ADD",    title: "📅 add",    sub: "base + N units",         description: "Add N days/weeks/months/years to a base date. Optional setDay snap. Optional advanceUntil cycle. resultVar binds ISO output." },
           { value: "DATE_FORMAT", title: "📅 format", sub: "ISO → human label",       description: "Format ISO date via CLDR-like tokens. yyyy / yy / MMMM / MMM / MM / M / dd / d / EEEE / EEE. Default 'EEE MMM d' → 'Mon May 5'." },
+          { value: "DATE_DIFF",     title: "📐 difference",   sub: "days between two dates", description: "Days between two dates. Negative when the first is the earlier one." },
+          { value: "IS_DUE_ON",     title: "🔁 is due on",    sub: "recurrence check",       description: "Does a recurring item fall on a given date, per its own recurrence settings?" },
+          { value: "SLOTS_COVERED", title: "⌛ slots covered", sub: "start slot + duration",  description: "Every time slot a start slot plus a duration spans — what places one row across several slots." },
         ],
       },
     ],
@@ -172,6 +178,7 @@ export const ACTION_TREE = [
           { value: "COPY_LINK",         title: "Copy linked",       sub: "linked-group fan-out",  description: "Mint a copy sharing linkedGroupId — edits propagate." },
           { value: "ADD_CHILD",         title: "Add as child",      sub: "wire to parent.occurrences[]", description: "Append occurrence ID to a parent's children list." },
           { value: "LINK_OCCURRENCE_TO_PARENT", title: "Link to parent", sub: "set parentId",     description: "Reparent an existing occurrence." },
+          { value: "PREPEND_OCCURRENCE",       title: "Prepend occurrence", sub: "list at the FRONT", description: "List an existing occurrence as its parent's FIRST child." },
           { value: "APPLY_TEMPLATE",    title: "Apply template",    sub: "fill from saved template", description: "Stamp a template subtree into a target." },
         ],
       },
@@ -188,6 +195,10 @@ export const ACTION_TREE = [
           { value: "UPDATE_STYLE",       title: "Set style",         sub: "ownStyle.bg / color / ...", description: "Set per-module style overrides." },
           { value: "UPDATE_VIEW",        title: "Update view",       sub: "viewId.activeOccurrenceId", description: "Switch a view's active occurrence." },
           { value: "APPEND_TO_DOC",      title: "Append to doc",     sub: "paragraph to textmap",  description: "Add a paragraph to an occurrence's TipTap doc." },
+          { value: "SET_TEXTMAP",        title: "Set textmap",       sub: "replace the whole doc", description: "Replace an occurrence's textmap outright (a doc's body)." },
+          { value: "REMOVE_CHILD",       title: "Remove child",      sub: "unlist, do NOT delete", description: "Take a child out of a parent's list. The occurrence survives — the sibling of Add child." },
+          { value: "HIDE_OCCURRENCE",    title: "Hide occurrence",   sub: "display: none",         description: "Hide one placement without deleting it." },
+          { value: "SHOW_OCCURRENCE",    title: "Show occurrence",   sub: "undo a hide",           description: "Reveal a hidden placement." },
         ],
       },
       {
@@ -225,6 +236,7 @@ export const ACTION_TREE = [
       { value: "SHOW_VALUE",            title: "Display → field",   sub: "send computed value", description: "Write computed value to a display field." },
       { value: "DISPLAY_LOCAL_FIELDS",  title: "Show on node",      sub: "rows: [{label,expr}]", description: "Render rows on the op node card." },
       { value: "NOTIFY",                title: "Notification",      sub: "toast message",       description: "Show a toast on the user's grid." },
+      { value: "SCROLL_TO",             title: "Scroll to",         sub: "bring a row into view", description: "Scroll an occurrence into view and flash it." },
     ],
   },
 
@@ -240,6 +252,8 @@ export const ACTION_TREE = [
       { value: "CYCLE_FIELD_VALUE",  title: "Cycle field options", sub: "by day-of-year", description: "Rotate a select field's value." },
       { value: "ADD_TO_POOL",        title: "Add to pool",       sub: "pool container", description: "Mint a pool occurrence." },
       { value: "REMOVE_FROM_POOL",   title: "Remove from pool",  sub: "by moduleId",    description: "Delete a pool occurrence." },
+      { value: "PICK_RANDOM_FROM_POOL", title: "Pick random",       sub: "draw one from a pool", description: "Pick a random occurrence out of a pool container." },
+      { value: "SET_FILTER",            title: "Set filter",        sub: "move the grid filter", description: "Write a value into the grid's active filter — what snaps the date to today." },
       { value: "RESET_RECURRING_TASK", title: "Reset recurring task", sub: "completion + dueDate", description: "Reset boolean + advance due-date by recurrenceDays." },
       { value: "CREATE_FOLDER",      title: "Create folder",     sub: "by name",        description: "Find/create folder; sets $lastCreatedFolderId." },
     ],
@@ -255,6 +269,8 @@ export const ACTION_TREE = [
     children: [
       { value: "CALL_API",       title: "Call API",       sub: "HTTP fetch",       description: "Outbound HTTP. Suspends until response." },
       { value: "GET_USER_INPUT", title: "Ask the user",   sub: "modal prompt",     description: "Suspend the pipeline for user input." },
+      { value: "IMPORT_HTML",     title: "Import HTML",     sub: "HTML → a Moduli subtree",     description: "Convert HTML into containers / textblocks / artifacts and place the result." },
+      { value: "IMPORT_MARKDOWN", title: "Import markdown", sub: "markdown → a Moduli subtree", description: "Convert markdown into containers / textblocks / artifacts and place the result." },
     ],
   },
 ];
