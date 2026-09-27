@@ -3,6 +3,14 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-27 — the Find editor's record picker offers `meta.feedSourceId`)
+- Building poms' `Beverage` field by hand: its predicate's second rule, `meta.feedSourceId IS_EMPTY`
+  ("not a feed copy"), could not be picked — `SHAPES.occurrence` lists meta keys by hand and had no
+  `feedSourceId`. **89 poms fields and ops use that guard**, all seed-written. Added `feedSourceId`,
+  `copyLinkSource`, `userTouched` (app-written markers). `__tests__/recordPickerMetaMarkers.test.js`
+  (A/B: 2 of 3 fail without; the control passes both ways).
+- Picker note: in the record picker, clicking a row's BODY drills in; its chevron means "stop here".
+
 ## Recent Changes (2026-09-26 — radial menu audit: submenus, not cycles; no early close)
 - **Closing early, three causes:** a 5s auto-close timer (removed); the portalled arc still BUBBLED
   pointer/click events through its React parents (row, editor, container) — the portal wrapper now stops

@@ -110,6 +110,12 @@ const SHAPES = {
       { value: "meta.date",                 title: "date",                sub: "string",  description: "Day-page date stamp (YYYY-MM-DD)",                                                              hasChildren: false },
       { value: "meta.isTemplate",           title: "isTemplate",          sub: "boolean", description: "Marks this occurrence as a template",                                                            hasChildren: false },
       { value: "meta.appliedFromTemplateId", title: "appliedFromTemplateId", sub: "string", description: "Template this occurrence was applied from",                                                    hasChildren: false },
+      // Markers the APP writes. `feedSourceId` is the one poms leans on: 89 of
+      // its fields and ops guard "not a feed copy" with `meta.feedSourceId
+      // IS_EMPTY`, and none of them could be authored here (2026-09-27).
+      { value: "meta.feedSourceId",         title: "feedSourceId",        sub: "string",  description: "Set on a feed COPY — the row it was copied from. Empty on real rows",                            hasChildren: false },
+      { value: "meta.copyLinkSource",       title: "copyLinkSource",      sub: "string",  description: "Set on a copy-linked row — the row it was linked from",                                          hasChildren: false },
+      { value: "meta.userTouched",          title: "userTouched",         sub: "boolean", description: "True once a person has edited this row (not an operation)",                                     hasChildren: false },
       { value: "meta.table.columns",        title: "columns",             sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldVisibility)",            hasChildren: true,  childShape: "tableColumn" },
       { value: "meta.table.rowCount",       title: "rowCount",            sub: "number",  description: "Total row count rendered by the table",                                                          hasChildren: false },
       { value: "meta.table.cells",          title: "cells",               sub: "cell map", description: "Per-cell TipTap doc keyed by \"r:c\"",                                                          hasChildren: true,  childShape: "tableCellsMap" },
