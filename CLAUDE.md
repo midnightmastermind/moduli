@@ -348,6 +348,55 @@ Server 2,782 pass · client 5,183 pass. Deployed with a restart (server code).
 
 ---
 
+### 2026-09-28 (3) — THE BOOT BLOCK, MEASURED: not the bundle, not the log, not the catalogue
+
+Following (2)'s finding that the single worst freeze is the app's own boot (7.5-8.2s at t~2.5s,
+before the first payload frame). Profiled at 390x844 / 4x throttle, prod, poms grid.
+
+**THE CPU PROFILER CALLS IT `(program)` — 5,900ms — SO THE TRACE TIMELINE IS THE INSTRUMENT.**
+```
+EvaluateScript        2ms     <- the BUNDLE IS NOT THE COST. Rules out code-splitting.
+RunTask   4,209ms at +3,221ms <- the full_state message: JSON.parse 15MB + onFullState + reducer
+FunctionCall react 2,314ms    <- first render
+FunctionCall react 1,053ms    <- second render
+UpdateLayoutTree      1,370ms
+```
+So boot = **one 15MB message + the first render of the whole grid**. That is the 2026-08-06 staged
+-loading finding from a new direction ("rendering the content tree costs ~1265ms, ~6000ms at 4x").
+
+**A NEGATIVE RESULT WORTH MORE THAN A FIX: `onFullState` reads 1,538ms of SELF time, and it is my
+instrument.** 98% self with no JS child is the signature of a native call, and it is
+`console.log("[socket] full_state received:", payload)` — logging the whole 15MB object. Wrapping
+`console.log` at init (no app change) prices it at **1,451-1,696ms across 3 calls**. But muting it
+moves NO milestone, over four interleaved runs:
+```
+logging ON     rows +10,318ms · thread quiet after 38,570ms
+logging MUTED  rows +10,639ms · thread quiet after 38,877ms
+logging ON     rows +10,152ms · thread quiet after 38,552ms
+logging MUTED  rows +10,098ms · thread quiet after 38,559ms
+```
+**It is CDP serializing the console argument — a cost a real device with no inspector never pays.**
+Reporting it as a 1.5s win would have been a fix for the probe. *A profiler frame is part of the
+measurement apparatus until an A/B says otherwise.*
+
+**AND THE FIRST METRIC WAS WRONG IN A WAY WORTH NAMING.** "Blocked ms in a fixed window" could not
+show the difference either way (12,120 vs 12,328ms) because a 14s window is **saturated**: removing
+work does not shorten the block, it lets more of the backlog run inside it. The honest metrics are
+MILESTONES — time to rows on screen, and time until the thread goes quiet.
+
+**WHAT THIS RETIRES:** the tail-pass idea from (2) (ship artifact `fields`+`meta` behind the
+skeleton) would not touch boot at all — artifacts are already in the DEFERRED half. It shrinks the
+1.5-3.8s chunk freezes only. Boot's 15.22MB is the CORE half (8,430 occurrences + 5,917 modules;
+`fields` 2.38MB, `textmap` 1.38MB), and deferring textmaps was already tried and reverted
+(2026-04-11).
+
+**Current state, for the next pass:** rows on screen **+10.2s**, thread not quiet until **~38.5s**.
+The remaining weight is compute, not payload: op sweep 4.5s, effect application 2.1s,
+FieldRenderer/`resolveOptions` 1.9s (the documented 2026-08-07 hotspot), first render ~3.4s + 1.4s
+layout.
+
+---
+
 ### 2026-09-28 — MOBILE SCROLL: the op table named a different culprit every run, because it was measuring WHEN
 
 User: *"could you pause on this and switch over to looking at mobile scroll. its laggy as hell (tested
