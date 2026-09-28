@@ -3,6 +3,41 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-28 — `occOverlay.merged` stops copying the grid; and the load is a PAYLOAD problem)
+- **`merged(base)` rebuilt a 25,525-key object on every version bump, and the version bumps on every
+  write.** A source-mapped CPU profile of a poms-grid load at a phone viewport (4x CPU throttle) put
+  that one line at **2,442ms of SELF time — ~57 rebuilds, 1.45 million property copies**, the largest
+  app-code cost in the load. The file's own header records the PREVIOUS round of this (8.3M copies,
+  fixed by caching); what was left was the cache being defeated once per write.
+- **THE LOCAL MAP ALREADY COVERS THE BASE, so the merge IS the local map.** Not a lucky case:
+  `runLoadSweep` fills its own `occurrencesById` and calls `setLocalOcc` for the SAME rows in the
+  SAME pass, so every key of the base is a key of `map` and local wins for all of them — the same
+  reasoning `merged(null)` already applies to the no-base path, where the object handed back is live
+  too. **Coverage cannot be lost**, which is what makes it an O(base) probe ONCE per base identity
+  rather than per call: `set` only ADDS a key, and `drop` removes one while recording a TOMBSTONE
+  whose whole job is to hide the base copy as well. Only `reset()` retracts it, and it clears the
+  cache. Measured on prod after deploying: `applyOperationEffect` inclusive **4,444 -> 2,063ms**,
+  `merged` gone from the top 15.
+- One existing test **INVERTED with its reasoning kept** (a write cost one more rebuild; it now costs
+  ZERO — its sibling VALUE assertion is what says that is a real pass and not a stale identity), plus
+  5 new cases. A/B'd with the mutation asserted to land: 4 of 6 fail against the old source; the other
+  two are the control and a contract pin.
+- **AND THE OP-TIMING TABLE WAS MISLEADING ME, which is the reusable half.** `[op-timing]` reported
+  one op at 3.6-4.1s on every load — and a DIFFERENT op each run (`Place Weekday Tasks`, `Cash
+  Balance`, `Schedule: Fill Day`, `Completion Rate`). That is not an op being slow. Correlating rAF
+  gaps against websocket frames says why: the grid ships **~36MB of JSON in 6 messages, and each one
+  freezes the main thread 1-4s** (`full_state` 16.5MB -> 2.6s; `full_state_rest` 8.1MB -> **4.1s**;
+  then 3.7 / 3.9 / 3.4 / 0.6MB). The sweep is SLICED and interleaved with those arrivals, so whichever
+  op is mid-slice when a chunk lands is charged the parse. *An attribution table that names a
+  different culprit every run is measuring when, not what.*
+- **Reported, NOT fixed — the dominant cost is the payload, and both fixes are design calls.**
+  `server/socketHandlers/state.js` sends the deferred half at `CHUNK = 4000` occurrences, and chunk 1
+  also carries EVERY deferred module (why it is 8.1MB and the worst freeze). Smaller chunks shorten
+  each freeze but multiply the reducer's **O(total)-per-chunk** work (`FULL_STATE_REST` rebuilds a
+  25k-row `Set` and copies the whole occurrences array every chunk, and `App.jsx` re-derives
+  `occurrencesById` off it). Sending less needs the 19 ops that walk `$allItems` audited one by one —
+  which `utils/splitFullState.js` already names as "a separate, larger piece of work".
+
 ## Recent Changes (2026-09-27 (4) — `occOverlay.drop` is a TOMBSTONE)
 - `drop(id)` now also hides the BASE copy in `merged()`. The base is React state (assigned on render),
   and a delete fires OccurrenceDeleteOp in the same tick, so the old "fall back to base" re-counted the

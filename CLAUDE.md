@@ -288,6 +288,65 @@ unbuilt; fields stand at 205 created and unbound.
 
 ---
 
+### 2026-09-28 — MOBILE SCROLL: the op table named a different culprit every run, because it was measuring WHEN
+
+User: *"could you pause on this and switch over to looking at mobile scroll. its laggy as hell (tested
+on routines), and paint lags as well on it (bunch of empty containers for a hot second and then loads
+the records)."* Measured at 390x844 with 4x CPU throttle, against poms grid on prod.
+
+**STEADY-STATE SCROLL IS FINE, AND THAT IS WHAT NARROWED IT.** Nine interleaved arms (no-shadow,
+no-marquee, no-skip, no-radius, no-filter, no-transition, no-bg-image, plus a NULL arm) **all read
+16.6ms** — 60fps — as did a second baseline pass. Only the FIRST scroll is slow, and a cold first
+scroll creates nothing (editors 0->0, rows 176->176, heap flat). So it is not paint, not CSS, and not
+mounting: the thread is simply busy.
+
+**THE FIX THAT SHIPPED: `occOverlay.merged` was copying the whole grid, once per write.**
+```
+merged (self)                    2,442ms   ~57 rebuilds of a 25,525-key object
+applyOperationEffect (incl)      4,444ms -> 2,063ms after
+```
+The local map ALREADY covers the base on the load sweep — `runLoadSweep` fills its own
+`occurrencesById` and calls `setLocalOcc` for the SAME rows in the SAME pass — so the merge IS the
+local map and there is nothing to copy, exactly as `merged(null)` already concludes on every other
+path. **Coverage cannot be lost** (`set` only adds; `drop` removes while recording a tombstone whose
+job is to hide the base copy too), so it is probed once per base identity, not per call. Full
+reasoning + the A/B in `client/src/helpers/CLAUDE.md`.
+
+**AND THE MEASUREMENT THAT MATTERED MOST WAS THE ONE THAT SAID MY ATTRIBUTION WAS WRONG.**
+`[op-timing]` reported one op at 3.6-4.1s on every load — **a DIFFERENT op each run**:
+```
+run 1   3849ms  0fx  Schedule: Place Weekday Tasks     run 3   4129ms  0fx  Schedule: Fill Day
+run 2   3615ms  1fx  Cash Balance                      run 4   3709ms  1fx  Completion Rate
+```
+Three of the four produce ZERO effects. That is not an op being slow, and chasing the named op (I had
+already sized its loop: 2,897 instances walked for the 16 rows carrying a Weekday value) would have
+been chasing a coincidence. Correlating rAF gaps against websocket frames says what it really is:
+```
++4,095ms   16.53MB  full_state        ->  froze 2,614ms
++17,831ms   8.08MB  full_state_rest   ->  froze 4,063ms   <- "the 4s op"
++21,299ms   3.72MB  full_state_rest   ->  froze 1,786ms
++23,157ms   3.93MB  full_state_rest   ->  froze 1,900ms
++30,035ms   3.37MB  full_state_rest   ->  froze 1,534ms
+```
+**~36MB of JSON in six messages, each freezing the main thread 1-4s.** The sweep is SLICED and
+interleaved with those arrivals, so whichever op is mid-slice when a chunk lands is charged the
+parse. *An attribution table that names a different culprit every run is measuring WHEN, not WHAT.*
+End to end: **30,207ms blocked, worst gap 4,311ms, thread not quiet until ~48s** (3 runs, medians).
+
+**REPORTED, NOT FIXED — the payload is the dominant cost and both remedies are design calls.**
+`server/socketHandlers/state.js` sends the deferred half at `CHUNK = 4000`, and chunk 1 carries EVERY
+deferred module (why it is 8.1MB and the worst freeze). Smaller chunks shorten each freeze but
+MULTIPLY the reducer's **O(total)-per-chunk** work — `FULL_STATE_REST` rebuilds a 25k-row `Set` and
+copies the whole occurrences array on every chunk, and `App.jsx` re-derives `occurrencesById` off it.
+Sending less needs the 19 ops that walk `$allItems` audited one by one, which `splitFullState.js`
+already names as "a separate, larger piece of work". Either is a server change plus a restart on the
+user's live grid, so it is theirs to pick.
+
+**Probe fault, and it cost a run:** a 120s timeout read as a performance problem; the auth token had
+expired and the page was showing Login. Mint a fresh one (`_mkauth.mjs`) before believing a slow load.
+Also: interleaved arms cannot see a first-scroll-only cost — the first arm absorbs the one-time work
+and every later arm reads identical.
+
 ### 2026-09-27 — REBUILD-VIA-UI: EVERY BOARDS AREA BUILT; and the options editor accepted duplicates
 
 Continuing *"keep going testing the ui by recreating poms grid"*. The Social recipe is now GENERIC:

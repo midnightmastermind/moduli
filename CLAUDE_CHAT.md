@@ -3664,3 +3664,12 @@ hit its limit while naming the Coffee operation).
 - **QUEUED FOR AFTER THE UI TESTING:** *"after we do the full ui testing, mark down to make a plan to
   see how hard it would be to introduce offline mode"* — a feasibility plan, not a build.
 
+
+## 2026-09-28 — mobile scroll: the rebuild is PAUSED
+
+- *"could you pause on this and switch over to looking at mobile scroll. its laggy as hell (tested
+  on routines), and paint lags as well on it (bunch of empty containers for a hot second and then
+  loads the records) but the general scroll is just clunky and laggy"* — the UI-rebuild work is
+  paused mid-flight; its open items are unchanged (81 of poms' 88 operations unbuilt, 203 fields
+  unbound, and `Schedule: Place Dated Work` builds by clicking but produces 0 effects).
+- **STILL QUEUED, unchanged:** the offline-mode feasibility plan, after the UI testing.
