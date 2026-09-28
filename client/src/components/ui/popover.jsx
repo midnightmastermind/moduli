@@ -28,7 +28,13 @@ export const PopoverContent = React.forwardRef(
         // Above every panel (60-1000). The level lives in helpers/zLayers.js
         // because a menu opened FROM this surface has to out-rank it, and
         // that relationship cannot be maintained across two files by hand.
-        style={{ zIndex: Z_POPOVER, ...style }}
+        // Capped at the space AVAILABLE on the side it opened to, not the
+        // viewport height: one opening mid-screen was allowed a full screen of
+        // height and ran off the bottom (a 49-option Time Slot pill, 2026-09-28
+        // — every option after ~1:00pm unreachable). Too tall to flip, so
+        // collision avoidance alone could not save it. A caller's own
+        // maxHeight still wins (spread after).
+        style={{ zIndex: Z_POPOVER, maxHeight: "var(--radix-popover-content-available-height)", ...style }}
         {...props}
       />
     </PopoverPrimitive.Portal>
