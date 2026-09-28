@@ -187,6 +187,17 @@ export const CATEGORIES = [
       { value: "$activeDate",       title: "$activeDate",       sub: "string",     description: "Date the active filter is on",    hasChildren: false },
       { value: "$activeDateLabel",  title: "$activeDateLabel",  sub: "string",     description: "Human-readable active date",      hasChildren: false },
       { value: "$activeDayOfWeek",  title: "$activeDayOfWeek",  sub: "string",     description: "Monday/Tuesday/...",              hasChildren: false },
+      // The rest of the executor's date block (operationExecutor, `$activeDate:
+      // dayKey` …). $activePeriodDates is what the day-column builders LOOP
+      // over; builtinVarCatalog.test.js walks the executor so none can go
+      // missing again (2026-09-28: 3 of 10 were offered).
+      { value: "$filterDate",               title: "$filterDate",               sub: "string",   description: "Same day as $activeDate (legacy name)",                         hasChildren: false },
+      { value: "$activePeriod",             title: "$activePeriod",             sub: "filter",   description: "The active filter value itself — a date or {value, unit, span}", hasChildren: false },
+      { value: "$activePeriodDates",        title: "$activePeriodDates",        sub: "string[]", description: "Every day in the active period (one for a day, seven for a week…)", hasChildren: false },
+      { value: "$activePeriodCount",        title: "$activePeriodCount",        sub: "number",   description: "How many days the active period covers",                         hasChildren: false },
+      { value: "$activeMonthLabel",         title: "$activeMonthLabel",         sub: "string",   description: "The month the filter is showing",                               hasChildren: false },
+      { value: "$activeDateRelativeLabel",  title: "$activeDateRelativeLabel",  sub: "string",   description: "Today / Yesterday / Tomorrow / July 18th",                        hasChildren: false },
+      { value: "$activeDatePossessive",     title: "$activeDatePossessive",     sub: "string",   description: "Today's / Yesterday's / July 18th — to prefix a name",           hasChildren: false },
       { value: "$grid",             title: "$grid",             sub: "object",     description: "The current grid record",          hasChildren: true  },
       { value: "$trigger",          title: "$trigger",          sub: "object",     description: "The triggering event payload (occurrence-shaped + extras)", hasChildren: true },
       { value: "$parentFilter",     title: "$parentFilter",     sub: "filter",     description: "Effective filter values walked from the trigger occurrence's ancestor chain (keyed by fieldId)", hasChildren: true },
@@ -253,6 +264,13 @@ const COLLECTION_ITEMS = [
   {
     value: "$allOperations", title: "$allOperations", sub: "operationArray",
     description: "Every operation on the grid (with introspection metadata: fields_written, triggered_by_*, invokes_operations, …)",
+    hasChildren: false,
+  },
+  // LAST, not first: a list of DATE STRINGS, not records — the day-column
+  // builders loop it, and it should not lead a list of record collections.
+  {
+    value: "$activePeriodDates", title: "$activePeriodDates", sub: "string[]",
+    description: "Every day in the active period — loop it to build one thing per visible day",
     hasChildren: false,
   },
 ];
