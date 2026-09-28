@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-08. Check this file before re-reading source._
 
+## Recent Changes (2026-09-28 — a null filter mute CASCADES)
+- `filterOverride[fid] = null` on any level now removes the filter for that level AND everything
+  below it; a level below can set a value again and that cascades (nearest wins). The old
+  "local-only unless the occurrence owns the filter in `filters[]`" rule (`_ownsLocalFilter`) is gone —
+  it only ever governed one UI-made row and silently defeated it. `filterCascade.test.js` (2 inverted).
+
 ## Recent Changes (2026-09-25 — field visibility follows the parent a row is RENDERED in)
 - **User: "Follow-Up Therapy with Julie S" (an ICS share in Tasks › Appointments) — filled Date + Time
   Slot and the fields disappeared.** Filling them let `Schedule: Place Dated Work` also list the row in

@@ -15,6 +15,47 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (4) — THE SNAP WATCHED; WATER BUILT BY CLICKING; and "filter off" on a page never reached inside it
+
+**`Grid: Snap Filter To Today` DID ITS JOB ON THE FIRST LOAD OF THE DAY** — the gap (3) left open:
+```
+marker Last Opened 2026-09-27, grid date 2026-09-27  ->  first load: grid 2026-09-28, marker 2026-09-28
+second load                                          ->  marker timestamp unchanged (the guard held)
+```
+
+**THE WATER TRACKER, BUILT BY CLICKING** — a goal row `Trackers › Physical › Water` (the item picker
+pre-ticked the sibling's `Daily Coffee`; unticked, `Daily Water` ticked) and a `Water` op in seven
+saved phases. **Its pipeline and six triggers are string-identical to Coffee's once ids are mapped.**
+Watched: drag the Routines Drink into 12:00pm, Beverage = Water, 16oz -> **Daily Water 0 -> 16** on
+Completed (0 while Completed was off), **-> 0 on a radial delete** — (4)'s tombstone fix, live.
+Rebuild ops **8 of 88**.
+
+**AND THE TEST WAS BLOCKED BY A DESIGN RULE, NOT A BUG IN THE OP.** The Routines bank Drink — built
+yesterday, dated 2026-09-27 — had VANISHED today, with the Routines page's Date filter switched OFF.
+A `filterOverride[fid] = null` mute was LOCAL-ONLY unless the muting occurrence declared the filter in
+its own `filters[]` (May 16). A page is not itself filtered, so "Active: off" on a page changed nothing
+a user could see while its toggle read OFF.
+```
+across every grid   non-leaf null mutes   1   <- the rebuild's Routines, made through the UI
+                    `{}` clears      12,405 on poms alone, all seed-written; no UI gesture writes one
+```
+So poms' "show everything under here" existed only because a seed wrote it. **The user's call: the mute
+REACHES EVERYTHING INSIDE, and any level inside can turn the filter back on by setting a value, which
+cascades in turn** — nearest wins, like every other override value (FiltersSection's Active-on already
+force-writes a value when an ancestor cleared it). `_ownsLocalFilter` and the leaf/non-leaf split it
+needed are gone; the memoized resolver serves leaf and ancestor from one cache. Two tests that pinned
+the old rule are INVERTED with the reason; a control pins the re-enable-inside case; the old rule fails
+exactly the two. **The change moved exactly one row in the database.** Client 5,184 pass / 0 fail,
+client-only deploy. The Drink is back on Sep 28.
+
+**Probe notes:** `BEV` referenced inside `page.evaluate` is a ReferenceError in the browser, not the
+Node scope — pass it as the argument. A store read right after load can miss a row whose chunk has not
+arrived (`coffee: null` while Mongo held `"0"`); read it again before calling it a defect. **Known
+wrinkle, not fixed:** the ops built from a typed `0` store the total as the STRING `"0"` when nothing
+matches (a number once anything is summed) — the reader-coerces decision of 09-22 (22) covers it.
+
+---
+
 ### 2026-09-27 (5) — FIVE MORE AUTHORABILITY GAPS, and one op BUILT BY CLICKING THAT DOES NOT FIRE
 
 Picked up my own session after a limit reset; account3 had meanwhile finished `Grid: Snap Filter To

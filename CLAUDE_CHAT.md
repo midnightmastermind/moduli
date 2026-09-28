@@ -3673,3 +3673,11 @@ hit its limit while naming the Coffee operation).
   paused mid-flight; its open items are unchanged (81 of poms' 88 operations unbuilt, 203 fields
   unbound, and `Schedule: Place Dated Work` builds by clicking but produces 0 effects).
 - **STILL QUEUED, unchanged:** the offline-mode feasibility plan, after the UI testing.
+
+## 2026-09-28 — filter off on a page
+
+- Asked: turning the Date filter OFF on a page did not reach anything inside it (only a seed-written
+  `{}` did). → **"Reach everything inside"**, and mid-work: *"it should do that but can be overwritten
+  over again by changing the filters inside"* / *"cascaded down"* — a level inside can turn it back on,
+  and that re-enable cascades to everything below it.
+
