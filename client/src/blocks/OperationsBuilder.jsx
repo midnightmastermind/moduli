@@ -1037,7 +1037,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                   carries the signature the server refuses a duplicate of. */}
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps}
                 mapKey="filterOverride" label="filter override (pin this item's own filter):" withVisibility={false} />
-              <MetaMapEditor cfg={cfg} setCfg={setCfg} />
+              <KeyValueMapEditor cfg={cfg} setCfg={setCfg} />
               <div style={rowStyle}>
                 {fl("identity signature")}
                 <input
@@ -1527,6 +1527,29 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
               width={220}
             />
           </div>
+          {/* The rest of what the executor reads (operationActions APPLY_TEMPLATE
+              contract). 20 live steps; the day-column and day-page builders use
+              all of these and every one was seed-written (2026-09-28). */}
+          <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps}
+            mapKey="defaultFields" label="stamp fields on every clone (e.g. Date = $day):" withVisibility={false} />
+          <KeyValueMapEditor cfg={cfg} setCfg={setCfg} mapKey="replacements"
+            label="replace text tokens in cloned text ({token} → value):" addLabel="+ replacement" keyPlaceholder="{token}" />
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("root parent:")}
+            <ExprOrPath value={cfg.rootParent || ""} onChange={v => setCfg({ rootParent: v || undefined })} placeholder="mint a NEW root under this id" width={160} {...exprProps} />
+            {fl("root label:")}
+            <ExprOrPath value={cfg.rootLabel || ""} onChange={v => setCfg({ rootLabel: v || undefined })} placeholder="literal:Day or $expr" width={140} {...exprProps} />
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+            {fl("root id → $")} {varNameInput("rootIdVar", "rootId")}
+            {fl("root signature:")}
+            <input
+              value={cfg.rootSignature || ""}
+              onChange={e => setCfg({ rootSignature: e.target.value || undefined })}
+              placeholder="daypage:col:${$day}"
+              style={{ ...selectSt, width: 160, fontFamily: "var(--font-mono)" }}
+            />
+          </div>
         </div>
       );
     }
@@ -2009,20 +2032,21 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps, mapKey = "fields", la
   );
 }
 
-// CREATE's `meta` — a plain key → value object the executor copies onto the new
-// MODULE, resolving each value as an expression (`$slot.label` lands resolved).
-// Written as an object, never a `json:` string: `cfg.meta` is read as one.
-function MetaMapEditor({ cfg, setCfg }) {
-  const meta = cfg.meta && typeof cfg.meta === "object" ? cfg.meta : {};
-  const entries = Object.entries(meta);
-  const write = (next) => setCfg({ meta: next.length ? Object.fromEntries(next) : undefined });
+// A plain key → value object step key: CREATE's `meta` (copied onto the new
+// module, each value resolved as an expression) and APPLY_TEMPLATE's
+// `replacements` ({token} → value over cloned text). Written as an object,
+// never a `json:` string: both are read as one.
+function KeyValueMapEditor({ cfg, setCfg, mapKey = "meta", label = "meta (on the new module):", addLabel = "+ meta", keyPlaceholder = "key" }) {
+  const map = cfg[mapKey] && typeof cfg[mapKey] === "object" ? cfg[mapKey] : {};
+  const entries = Object.entries(map);
+  const write = (next) => setCfg({ [mapKey]: next.length ? Object.fromEntries(next) : undefined });
   const inputSt = { background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)", fontSize: 10, padding: "2px 4px", fontFamily: "var(--font-mono)" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
-      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>meta (on the new module):</div>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{label}</div>
       {entries.map(([k, v], i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input value={k} placeholder="key" style={{ ...inputSt, width: 140 }}
+          <input value={k} placeholder={keyPlaceholder} style={{ ...inputSt, width: 140 }}
             onChange={e => write(entries.map(([k2, v2], j) => (j === i ? [e.target.value, v2] : [k2, v2])))} />
           <span style={{ fontSize: 10, color: "var(--text-faint)" }}>=</span>
           <input value={v == null ? "" : String(v)} placeholder="value or $var" style={{ ...inputSt, width: 140 }}
@@ -2032,7 +2056,7 @@ function MetaMapEditor({ cfg, setCfg }) {
         </div>
       ))}
       <button style={{ alignSelf: "flex-start", border: "none", background: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 10, padding: 0 }}
-        onClick={() => write([...entries, ["", ""]])}>+ meta</button>
+        onClick={() => write([...entries, ["", ""]])}>{addLabel}</button>
     </div>
   );
 }

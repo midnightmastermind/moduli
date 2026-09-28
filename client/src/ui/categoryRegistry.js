@@ -398,6 +398,19 @@ export const TEMPLATE_PICKER_CONFIG = {
       },
     },
     {
+      // A template picked BY VARIABLE — a loop's item (`$tplInstId` over a
+      // template slot's rows) is how the day-column builders apply each
+      // routine row; saved templates and Sources could not name one (2026-09-28).
+      id: "localVars",
+      label: "Local Variables",
+      description: "A variable holding a template occurrence (e.g. a loop's item)",
+      icon: Database,
+      color: "rgba(34,197,94,0.7)",
+      resolveItems: (ctx) => (ctx?.localVars || []).map((name) => ({
+        value: name, title: name, sub: "var", description: "Local variable", hasChildren: false,
+      })),
+    },
+    {
       id: "sources",
       label: "Sources",
       description: "Variables bound from a Source row that resolves to a template",
