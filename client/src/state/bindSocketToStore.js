@@ -1609,7 +1609,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           id: effect.itemId,
           filterOverride: nextOverride,
           occurrencesById: occOverlay,
-          modulesById: state.modulesById,
+          // Store state keeps `modules` as an ARRAY; `state.modulesById` is
+          // undefined there, and the helper RETURNS before building the cascade
+          // when it has no module map — every op-driven page-filter move wrote
+          // its value and fired no navigation (2026-09-28).
+          modulesById: state.modulesById || byIdCached(state.modules),
           navFieldId: effect.fieldId,
           date: effect.value,
         });
