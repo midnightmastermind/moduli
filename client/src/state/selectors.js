@@ -237,35 +237,27 @@ export function getOtherOccurrences(occurrencesById, modulesById, moduleId, excl
  *   {}                      = clear all (show everything)
  *   { fieldId: value }      = merge/override specific fields
  *
- * Null-mute scoping rule (per-leaf):
- *   A `filterOverride[fieldId] = null` cascades to descendants ONLY when that
- *   ancestor also declares the same fieldId in its local `filters[]` (so the
- *   mute is acting on the ancestor's OWN filter — meaning "I declared this
- *   filter, and I'm turning it off for me + everyone below").
- *   When the ancestor doesn't own the filter (it's inherited from grid or a
- *   higher ancestor), the null only applies to that ancestor's own visibility
- *   — descendants continue inheriting the filter from above as if the
- *   intermediate mute didn't exist.
- *   The leaf (the occurrence we're computing for) always applies its own
- *   nulls — that's the user "muting this filter on this occurrence".
+ * A null mute CASCADES (2026-09-28, the user's call): turning a filter off on
+ * a page or container turns it off for everything under it, and any level
+ * below can turn it back on by setting a value, which cascades in turn —
+ * nearest level wins, like every other override value. It used to be
+ * local-only unless the muting occurrence declared the filter in `filters[]`;
+ * measured across every grid, the only non-leaf mute that rule ever governed
+ * was a UI-made one it silently defeated (the rebuild's Routines page hid
+ * yesterday's bank the next day). Poms' equivalent is a seed-written `{}`.
  */
-function _ownsLocalFilter(occ, fieldId) {
-  if (!occ || !Array.isArray(occ.filters)) return false;
-  return occ.filters.some(f => f?.fieldId === fieldId);
-}
 
 // One override application — shared by the iterative walker below and the
 // memoized resolver. Returns the PARENT object untouched when the occurrence
 // has no override (callers treat results as read-only).
-function _applyFilterOverride(parentEffective, occ, isLeaf) {
+function _applyFilterOverride(parentEffective, occ) {
   const override = occ.filterOverride;
   if (override == null) return parentEffective;
   if (Object.keys(override).length === 0) return {};
   const out = { ...parentEffective };
   for (const [k, v] of Object.entries(override)) {
     if (v === null) {
-      if (isLeaf || _ownsLocalFilter(occ, k)) delete out[k];
-      // else: ancestor muting an inherited filter — local-only.
+      delete out[k];
     } else {
       out[k] = v;
     }
@@ -274,17 +266,16 @@ function _applyFilterOverride(parentEffective, occ, isLeaf) {
 }
 
 /**
- * Batch variant: returns an `eff(occ)` resolver that memoizes each ancestor's
- * "context" filter (the occurrence treated as a NON-leaf) so resolving the
- * effective filter for N occurrences costs O(N) instead of O(N × depth).
- * Same semantics as getEffectiveFilterForOccurrence — the leaf application
- * (own nulls always mute) happens fresh per call on top of the memoized
- * parent context. Used by the operation executor's per-item enrichment.
+ * Batch variant: returns an `eff(occ)` resolver that memoizes each
+ * occurrence's effective filter so resolving N occurrences costs O(N) instead
+ * of O(N × depth). Same semantics as getEffectiveFilterForOccurrence — a level
+ * applies identically whether it is the leaf or an ancestor, so one memo
+ * serves both. Used by the operation executor's per-item enrichment.
  */
 export function makeEffectiveFilterResolver({ grid, occurrencesById, parentByChildId } = {}) {
   const pbc = parentByChildId || buildParentMap(occurrencesById || {});
   const base = grid?.activeFilterValues || {};
-  const ctxCache = new Map(); // occId → effective filter treating occ as non-leaf
+  const ctxCache = new Map(); // occId → effective filter
   const ctxEff = (occ, guard) => {
     if (!occ) return base;
     const hit = ctxCache.get(occ.id);
@@ -293,16 +284,11 @@ export function makeEffectiveFilterResolver({ grid, occurrencesById, parentByChi
     guard.add(occ.id);
     const pid = pbc[occ.id] ?? occ.parentId;
     const parent = pid ? (occurrencesById?.[pid] || null) : null;
-    const eff = _applyFilterOverride(ctxEff(parent, guard), occ, false);
+    const eff = _applyFilterOverride(ctxEff(parent, guard), occ);
     ctxCache.set(occ.id, eff);
     return eff;
   };
-  return (occ) => {
-    if (!occ) return { ...base };
-    const pid = pbc[occ.id] ?? occ.parentId;
-    const parent = pid ? (occurrencesById?.[pid] || null) : null;
-    return _applyFilterOverride(ctxEff(parent, new Set([occ.id])), occ, true);
-  };
+  return (occ) => (occ ? ctxEff(occ, new Set()) : { ...base });
 }
 
 export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, parentByChildId } = {}) {
@@ -329,19 +315,12 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
   // Walk root → leaf so leaf wins. chain[0] is the leaf (occ itself).
   for (let i = chain.length - 1; i >= 0; i--) {
     const cur = chain[i];
-    const isLeaf = i === 0;
     const override = cur.filterOverride;
     if (override == null) continue;
     if (Object.keys(override).length === 0) { effective = {}; continue; }
     for (const [k, v] of Object.entries(override)) {
       if (v === null) {
-        // Null = mute. Cascades only when the muting occurrence owns the
-        // local filter for that fieldId, OR when it's the leaf's own mute.
-        if (isLeaf || _ownsLocalFilter(cur, k)) {
-          delete effective[k];
-        }
-        // else: ancestor muting an inherited filter — local-only, descendants
-        // ignore it.
+        delete effective[k];
       } else {
         effective[k] = v;
       }

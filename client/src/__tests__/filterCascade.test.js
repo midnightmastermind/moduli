@@ -95,12 +95,15 @@ describe("getEffectiveFilterForOccurrence", () => {
     expect(() => getEffectiveFilterForOccurrence(state.occurrencesById.a, state)).not.toThrow();
   });
 
-  // ── Null-mute scoping (ancestor's mute is local-only unless they own it) ──
-  it("ancestor null override on an INHERITED filter mutes only that ancestor — descendants still inherit from grid", () => {
-    // Grid declares the Date filter. Panel doesn't carry a local `filters[]`
-    // entry for Date — so Panel's `filterOverride: { scheduledDate: null }`
-    // is muting an inherited filter. The mute should apply to Panel's own
-    // visibility but NOT cascade to the container below.
+  // ── A null mute reaches everything below it (2026-09-28, the user's call) ──
+  // INVERTED. This used to pin "an ancestor's mute of an INHERITED filter is
+  // local-only" (May 16). Measured across every grid: the only non-leaf null
+  // mute in the database was one made through the UI (the rebuild's Routines
+  // page), and it did nothing a user could see — a page is not itself
+  // filtered, so muting it "for itself" hid yesterday's routines bank anyway.
+  // Every "show everything under here" on poms is a seed-written `{}` no UI
+  // gesture can write. Turning a filter off on a page now turns it off inside.
+  it("ancestor null override on an INHERITED filter cascades to descendants", () => {
     const state = makeState([
       { id: "panel",     parentId: null,     filterOverride: { scheduledDate: null }, filters: [] },
       { id: "container", parentId: "panel",  filterOverride: null,                    filters: [] },
@@ -108,9 +111,9 @@ describe("getEffectiveFilterForOccurrence", () => {
     // Panel's own effective filter has Date muted.
     expect(getEffectiveFilterForOccurrence(state.occurrencesById.panel, state))
       .toEqual({});
-    // Container's effective filter ignores Panel's null — Date still applies.
+    // ...and so does everything below it.
     expect(getEffectiveFilterForOccurrence(state.occurrencesById.container, state))
-      .toEqual({ scheduledDate: "2026-04-18" });
+      .toEqual({});
   });
 
   it("ancestor null override on a LOCAL filter (declared in filters[]) cascades to descendants", () => {
@@ -142,11 +145,10 @@ describe("getEffectiveFilterForOccurrence", () => {
       .toEqual({});
   });
 
-  it("null mute skips generations: grandparent owns the filter, parent's inherited-mute doesn't cascade", () => {
-    // Grandparent (page) declares Date locally + sets a value.
-    // Panel (parent) mutes Date but doesn't own a local Date filter.
-    // Container (leaf) should inherit Date from grandparent — Panel's null
-    // is skipped because Panel doesn't own the filter.
+  it("the NEAREST level wins: a parent's mute overrides a grandparent's value", () => {
+    // INVERTED with the rule above: it used to assert the parent's mute was
+    // skipped because the parent did not own the filter. Nearest-wins is the
+    // rule every other override value already follows.
     const state = makeState([
       {
         id: "page",
@@ -158,7 +160,17 @@ describe("getEffectiveFilterForOccurrence", () => {
       { id: "container", parentId: "panel", filterOverride: null,                    filters: [] },
     ]);
     expect(getEffectiveFilterForOccurrence(state.occurrencesById.container, state))
-      .toEqual({ scheduledDate: "2026-04-20" });
+      .toEqual({});
+  });
+
+  it("control: a descendant can turn the filter back on under a muted ancestor", () => {
+    const state = makeState([
+      { id: "page",      parentId: null,   filterOverride: { scheduledDate: null },         filters: [] },
+      { id: "container", parentId: "page", filterOverride: { scheduledDate: "2026-04-22" }, filters: [] },
+      { id: "row",       parentId: "container", filterOverride: null, filters: [] },
+    ]);
+    expect(getEffectiveFilterForOccurrence(state.occurrencesById.row, state))
+      .toEqual({ scheduledDate: "2026-04-22" });
   });
 });
 
