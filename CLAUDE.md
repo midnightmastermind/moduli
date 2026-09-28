@@ -15,6 +15,74 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (7) — BUILD SCHEDULE, BUILT BY CLICKING: eleven editor gaps, a template that dated itself, and a day column that moves its page
+
+The user's asks, in order: build `Schedule: Build Schedule` on the rebuild grid (49 slots like poms; move
+the old slots' rows into day columns), and *"if i change the filter on today's schedule container or
+daypage container, the op would change it there as well"* → **"that day's column, same spot"**, with
+*"it shouldnt be any page level filter change anyway. just the page schedule and daypage are on"*.
+
+**GROUNDWORK BY CLICKING:** Time Slot's 49 options in poms' order (plus Todo), a `Schedule Format`
+field (`slot · day-col · flat`), `Templates › Schedule Template › Schedule: Layout` and its 49 slots, each
+bound and valued. The slot pass found a real defect on the way: **a popover was capped at the VIEWPORT,
+not the space it opened into** — a 49-option pill opening mid-screen ran to y≈1300, every option after
+~1:00pm unreachable (`--radix-popover-content-available-height` now). Also a probe fault worth knowing:
+the Layout list is WINDOWED — a child outside the render window has an EMPTY header, so address rows by
+`data-occ-id` from state, never by header text (a blank-looking `Todo` read as "unnamed").
+
+**THE PIPELINE (~70 steps) IS STRING-EQUIVALENT TO POMS'** (19 diffs, all representation — "7" vs 7,
+`literal:flat` vs `flat`, a `json:` object vs a real one — plus poms' tail `RUN_OPERATION "Completed
+Tasks"`, not rebuilt yet). Built with `_opb.mjs`, which addresses every block through new editor hooks
+(`data-steps-of="<stepId>:then|else|body"`, `data-step-id`). **Eleven things could not be authored in the
+UI and were fixed, each measured across every grid first, each A/B'd, all client-only:**
+```
+CREATE          meta 12 · identitySignature 3 · filterOverride 1         (editor inputs)
+APPLY_TEMPLATE  defaultFields 6 · replacements 3 · rootParent 6 · rootLabel 2 · rootIdVar 2 ·
+                rootSignature 1 — and a template picked BY VARIABLE ($tplInstId)
+FIND            143 of 174 steps look in $allContainers/$allInstances/$allPages: a picker's chosen
+                value had NO click handler and FIND turns "" back into $allOccurrences
+MOVE            16 of 20 steps use a computed target; the toggle could never enter expression mode
+$trigger        10 props live ops read, never offered (sourceOccurrenceId 12, occurrenceId 23 …);
+                NOT `fields` — its cell shape depends on the emitter (see below)
+built-ins       $activePeriodDates / $activePeriodCount / 5 more date vars (3 of 10 offered)
+record picker   role / kind (16 rules), meta.layoutCascadeOverride (3 UPDATEs)
+json: literals  39 of 40 object values carry $var leaves; json: resolved none — now $-leaves only
+                (0 of 89 live json: payloads held a $-string; server mirror PENDING, see below)
+checkboxes      COPY_LINK "include children" showed OFF for 16 of 19 steps that copy children
+```
+**AND ONE DEPLOY WENT OUT WITH A RED TEST** (`loopCollectionPicker` pinned 9 collections) — my
+command did not gate the deploy on the suite; fixed one commit later, gated since.
+
+**A TEMPLATE THAT DATED ITSELF — the finding that mattered most.** Every create is born carrying its
+parent's filter values (2026-08-05), so building the template under a date-filtered page stamped all 49
+slots `Date = 2026-09-28`; day columns copy-link them, so **stepping to Sep 29 minted a column that
+rendered 0 slots.** Poms never hit it only because its seed cleared its template page's filters.
+`computePageFilterFields` (the one function typed creates AND drops share) now never stamps inside the
+Templates folder (`templateHelpers.isInsideTemplate`); the 49 stored values were cleared through the app's
+own events with a backup (`tpl-slots-backup.json`). **Sep 29: 0 → 49 slots.**
+
+**YOUR DAY-CONTAINER BEHAVIOUR, and the cycle breaker that shaped it.** The op's `filterNav` trigger is
+scoped to the Schedule page (ancestorId). A prelude: if the change came from a day column whose own date
+now differs from its Date field, move the PAGE to the new date and put the column's date back. **Re-firing
+the op from that page write is impossible by design** — `operationExecutor` skips an op that is applying
+its own effects, carried across the deferral (measured: the page's NavigationOp never ran it). So the
+redirect builds the new day IN THE SAME RUN: it sets `$activePeriodDates = json:["$newDate"]`,
+`$activePeriodCount = 1`, and the gate also passes on `$redirected`. **Watched on prod:** stepping the
+Oct 1 column's own date put **Oct 2's column in the same spot** (`CREATE_ITEM=50`), the empty Oct 1
+column pruned as out-of-period; a paired toolbar step then restored today.
+
+**Coordination:** account2 picked up this op while I was at a usage limit, added the two filter triggers,
+set the priority ladder, and fixed ADD_CHILD's multi-match (entry (6)). My later trigger pass duplicated
+its rows; removed, and its filterNav row is the one now scoped.
+
+**STILL OPEN:** port the day-container behaviour + page scoping to POMS (Build Schedule and Day Page:
+Build); move the old 4 slots' dated rows into day columns (user's call); ONE server deploy for the
+`json:` mirror in `serverExecutor.js` and the stale `unsigned-template-node` rule (it predates the
+2026-08-07 auto-signature fallback and flags the 49 template slots as an error); 3 live onChange ops read
+`$trigger.fields.<id>.value`, undefined for a UI edit (raw value) — reported, not changed.
+
+---
+
 ### 2026-09-28 (6) — `Schedule: Build Schedule` IS TRIGGERED AND PRIORITISED; and an array reached the server as an occurrence id
 
 Picked up account3's session (limit at 16:11 CDT). Its 72-step pipeline was complete — including the
