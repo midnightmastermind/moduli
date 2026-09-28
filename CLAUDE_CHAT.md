@@ -3681,3 +3681,14 @@ hit its limit while naming the Coffee operation).
   over again by changing the filters inside"* / *"cascaded down"* — a level inside can turn it back on,
   and that re-enable cascades to everything below it.
 
+## 2026-09-28 (2) — next in the rebuild
+
+- Go ahead with `Schedule: Build Schedule` next, *"but keep the rest of the trackers in mind, ik
+  workouts and the nutrition one has a little more complicated trackers. so does money"* — the
+  Workouts, Nutrition and Money trackers are NOT the Coffee/Water shape; treat them as their own work.
+- Mid-build (13:12): *"make sure to go back and change this part on poms grid. if i change the filter on
+  the actual schedule container or daypage container for a day, it should update the current
+  container. so if im on today and i change the filter on todays container, the op would change it
+  there as well"* — today `Schedule: Build Schedule` ignores a filter change whose source is a day
+  column (it gates on source = toolbar or the Schedule page). To do on poms AND in the rebuild's build.
+

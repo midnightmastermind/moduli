@@ -1026,6 +1026,24 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
               </div>
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
+              {/* The three keys below are READ by the executor's CREATE and were
+                  authorable only by seeds (2026-09-28: 12 meta, 3 signature and
+                  1 filterOverride step across every grid). A day column needs
+                  all three: it allows child containers, pins its own date, and
+                  carries the signature the server refuses a duplicate of. */}
+              <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps}
+                mapKey="filterOverride" label="filter override (pin this item's own filter):" withVisibility={false} />
+              <MetaMapEditor cfg={cfg} setCfg={setCfg} />
+              <div style={rowStyle}>
+                {fl("identity signature")}
+                <input
+                  value={cfg.identitySignature || ""}
+                  onChange={e => setCfg({ identitySignature: e.target.value || undefined })}
+                  placeholder="schedule:col:${$day}"
+                  style={{ ...selectSt, width: 180, fontFamily: "var(--font-mono)" }}
+                />
+                <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(unique per parent — a second create is refused)</span>
+              </div>
               <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 4, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ fontSize: 9, color: "var(--text-muted)", fontStyle: "italic" }}>
                   Save the new item so later steps can use it (optional):
@@ -1934,12 +1952,13 @@ function AttachFieldsPicker({ cfg, setCfg, fields }) {
 // "attach fields" and "assign values" in one — picking a field adds the row
 // and the user fills in the value inline. The eye toggle controls per-binding
 // hidden state via cfg.fieldHidden.
-function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
-  const entries = Object.entries(cfg.fields || {});
+function FieldsMapEditor({ cfg, setCfg, fields, exprProps, mapKey = "fields", label = "attach fields & assign values:", withVisibility = true }) {
+  const map = cfg[mapKey] || {};
+  const entries = Object.entries(map);
   const setEntry = (oldFid, newFid, expr) => {
     const next = {};
     let replaced = false;
-    for (const [fid, val] of Object.entries(cfg.fields || {})) {
+    for (const [fid, val] of Object.entries(map)) {
       if (fid === oldFid) {
         if (newFid) next[newFid] = expr;
         replaced = true;
@@ -1948,7 +1967,7 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
       }
     }
     if (!replaced && newFid) next[newFid] = expr;
-    setCfg({ fields: Object.keys(next).length ? next : undefined });
+    setCfg({ [mapKey]: Object.keys(next).length ? next : undefined });
   };
   const boundIds = new Set(entries.map(([fid]) => fid).filter(Boolean));
   const attachPickerConfig = buildAttachFieldPickerConfig({ fields, excludeIds: boundIds });
@@ -1956,11 +1975,11 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
     if (!picked) return;
     const fid = picked.split(".").pop();
     if (!fid || boundIds.has(fid)) return;
-    setCfg({ fields: { ...(cfg.fields || {}), [fid]: "" } });
+    setCfg({ [mapKey]: { ...map, [fid]: "" } });
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
-      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>attach fields &amp; assign values:</div>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{label}</div>
       <DrilldownPicker
         value=""
         onChange={handlePickField}
@@ -1978,10 +1997,38 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps }) {
             width={180}
             {...exprProps}
           />
-          {fid && <FieldVisibilityToggle cfg={cfg} setCfg={setCfg} fieldId={fid} />}
+          {fid && withVisibility && <FieldVisibilityToggle cfg={cfg} setCfg={setCfg} fieldId={fid} />}
           <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }} onClick={() => setEntry(fid, "", "")} title="remove">✕</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// CREATE's `meta` — a plain key → value object the executor copies onto the new
+// MODULE, resolving each value as an expression (`$slot.label` lands resolved).
+// Written as an object, never a `json:` string: `cfg.meta` is read as one.
+function MetaMapEditor({ cfg, setCfg }) {
+  const meta = cfg.meta && typeof cfg.meta === "object" ? cfg.meta : {};
+  const entries = Object.entries(meta);
+  const write = (next) => setCfg({ meta: next.length ? Object.fromEntries(next) : undefined });
+  const inputSt = { background: "var(--input-bg)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)", fontSize: 10, padding: "2px 4px", fontFamily: "var(--font-mono)" };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 8 }}>
+      <div style={{ fontSize: 10, color: "var(--text-muted)" }}>meta (on the new module):</div>
+      {entries.map(([k, v], i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input value={k} placeholder="key" style={{ ...inputSt, width: 140 }}
+            onChange={e => write(entries.map(([k2, v2], j) => (j === i ? [e.target.value, v2] : [k2, v2])))} />
+          <span style={{ fontSize: 10, color: "var(--text-faint)" }}>=</span>
+          <input value={v == null ? "" : String(v)} placeholder="value or $var" style={{ ...inputSt, width: 140 }}
+            onChange={e => write(entries.map(([k2, v2], j) => (j === i ? [k2, e.target.value] : [k2, v2])))} />
+          <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+            onClick={() => write(entries.filter((_, j) => j !== i))} title="remove">✕</button>
+        </div>
+      ))}
+      <button style={{ alignSelf: "flex-start", border: "none", background: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 10, padding: 0 }}
+        onClick={() => write([...entries, ["", ""]])}>+ meta</button>
     </div>
   );
 }
