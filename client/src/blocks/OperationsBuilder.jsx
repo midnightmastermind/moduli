@@ -491,7 +491,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
   }, [step.id, depth, steps, onReorder]);
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} data-step-id={step.id} style={{ position: "relative" }}>
       {closestEdge === "top" && <div className="drop-indicator drop-indicator-top" />}
 
       {React.cloneElement(children, { dragHandleRef: handleRef })}
@@ -501,7 +501,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
   );
 }
 // ---- Steps List (recursive for nested if/else) ----
-function StepsList({ steps, onChange, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0, foldersById = {}, gridId = null }) {
+function StepsList({ steps, onChange, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0, foldersById = {}, gridId = null, owner = "root" }) {
   const addAction = () => onChange([...steps, { id: uid(), type: "action", config: { type: "INIT_VAR" } }]);
   const addIf = () => onChange([...steps, {
     id: uid(), type: "if",
@@ -520,7 +520,11 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
   const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources, foldersById, gridId };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
+    // `data-steps-of` names WHICH list this is ("root", "<stepId>:body|then|else")
+    // so a nested block — and its own + Action / + If / + Loop footer — can be
+    // addressed directly. Without it every probe addressed "the first then" or
+    // "the last + Action", and an IF once landed outside the loop it was for.
+    <div data-steps-of={owner} style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
       {steps.map((step) => {
         const stepProps = {
           step,
@@ -726,7 +730,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = []
       </div>
       {/* Body */}
       <div style={{ paddingLeft: 10, borderLeft: "2px solid rgba(167,139,250,0.2)", marginTop: 4 }}>
-        <StepsList steps={step.body || []} onChange={body => onUpdate({ body })} {...shared} depth={1} />
+        <StepsList steps={step.body || []} onChange={body => onUpdate({ body })} {...shared} depth={1} owner={`${step.id}:body`} />
       </div>
     </div>
   );
@@ -799,7 +803,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
       {/* THEN */}
       <div style={{ paddingLeft: 10, borderLeft: "2px solid rgba(99,202,183,0.2)" }}>
         <span style={{ ...labelSt, display: "block", marginBottom: 3 }}>then:</span>
-        <StepsList steps={step.then || []} onChange={then => onUpdate({ then })} {...shared} depth={1} />
+        <StepsList steps={step.then || []} onChange={then => onUpdate({ then })} {...shared} depth={1} owner={`${step.id}:then`} />
       </div>
 
       {/* ELSE */}
@@ -813,7 +817,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
             <span style={labelSt}>else:</span>
             <button style={{ ...addBtnStyle, color: "rgba(255,100,100,0.4)" }} onClick={() => { setShowElse(false); onUpdate({ else: [] }); }}>remove else</button>
           </div>
-          <StepsList steps={step.else || []} onChange={elseSteps => onUpdate({ else: elseSteps })} {...shared} depth={1} />
+          <StepsList steps={step.else || []} onChange={elseSteps => onUpdate({ else: elseSteps })} {...shared} depth={1} owner={`${step.id}:else`} />
         </div>
       )}
     </div>
