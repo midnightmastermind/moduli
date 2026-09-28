@@ -15,6 +15,43 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (5) — `Schedule: Place Dated Work` FIRES; its gate had always passed
+
+Picked up the op (5) of 09-27 left open: *"built entirely by clicking and it produces nothing … the
+gate never passes for ANY of the 166 instances."* **The gate was never the problem — it passes.**
+
+**MEASURED IN NODE OVER A LIVE DUMP, as that entry recommended** (the real `executePipeline`, the
+grid's own rows): each of the four gate rules evaluated alone on the enriched `Work` item —
+`_boundFieldIds ARRAY_INCLUDES Duration` PASS · `Time Slot IS_NOT_EMPTY` PASS · `meta.feedSourceId
+IS_EMPTY` PASS · `Date SAME_DAY $today` FAIL, correctly: Work is dated Sep 27. Re-dated in memory, the
+real pipeline ENTERS the THEN for Work. The "never passes" read was almost certainly a Work row not
+dated the day it ran, which the 50-iteration log cap hid.
+
+**WHAT PRODUCED NOTHING WAS DOWNSTREAM, TWO AUTHORING SLIPS:**
+```
+SLOTS_COVERED  slotLabels "$slotId"            <- unset at that point, so $covered was empty
+ADD_CHILD      childId    "literal:GATE PASSED" <- a diagnostic left in place
+```
+Both corrected in memory first (the pipeline then emits two list writes, 7:00am and 9:00am), then
+**repaired through the editor by clicking** — `$slotLabels` is an array var, so a body click DRILLS it
+and the field saved EMPTY on the first try; it commits through its chevron (`pickThis`). The stale
+`expr` key on the ADD_CHILD is left; the executor reads `childId`.
+
+**WATCHED ON PROD:** today's shift added as a row in Tasks › Today (the picker pre-ticked the sibling's
+9 fields; Date stamped 2026-09-28 from the filter), Time Slot 7:00am, Duration 180 from its chips ->
+reload -> **7:00am and 9:00am list Work**, once each, persisted, idempotent on a second load. Then the
+triggers poms carries (`onFilterChange` grid + filterNav, `onChange` Time Slot / Duration / Due /
+Completed On) added by clicking, and **Duration 180 -> 330 put Work into 12:00pm live, no reload.**
+Left at 330: the op only ADDS placements (as poms' does), so shrinking it would strand 12:00pm.
+Yesterday's Sep 27 `Work` row is kept — it is history, not debris. Integrity 0 errors. **No code
+changed** — the fixes are data, made in the UI.
+
+**Probe notes:** a Date chip hidden by the grid's field visibility cannot be re-dated in place — a new
+row in a dated container IS the date gesture. A scratch vitest over a JSON dump is the way to see an
+iteration past the log cap; vitest's setup swallows `console.log`, so write the result to a file.
+
+---
+
 ### 2026-09-28 (4) — THE SNAP WATCHED; WATER BUILT BY CLICKING; and "filter off" on a page never reached inside it
 
 **`Grid: Snap Filter To Today` DID ITS JOB ON THE FIRST LOAD OF THE DAY** — the gap (3) left open:
