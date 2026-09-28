@@ -192,6 +192,13 @@ function _pasteInto({
 }) {
   let pasted = 0;
   const toContainer = buildToContainerShim(destinationOccurrence, destinationModule);
+  // Lists this paste has ALREADY rewritten, by occurrence id. `occurrencesById`
+  // is one snapshot from before the loop, so a second row moved out of the same
+  // parent used to be written against the parent's ORIGINAL list — re-listing
+  // the row moved just before it (2026-09-28: every row but the last in each
+  // group stayed listed by its old slot). Read through this, write back to it.
+  const working = {};
+  const current = (occ) => (occ && working[occ.id]) || occ;
 
   for (const occId of ids) {
     const src = occurrencesById[occId];
@@ -282,12 +289,16 @@ function _pasteInto({
       if (!fromOcc) continue;
       if (fromOcc.id === destinationOccurrence.id) continue;
 
+      const from = current(fromOcc), to = current(destinationOccurrence);
       LayoutHelpers.moveInstanceBetweenContainers({
         dispatch, socket,
-        fromContainerOccurrence: fromOcc,
-        toContainerOccurrence: destinationOccurrence,
+        fromContainerOccurrence: from,
+        toContainerOccurrence: to,
         occurrenceId: occId,
       });
+      // Mirror exactly what the helper wrote (remove from source; append to target).
+      working[from.id] = { ...from, occurrences: (from.occurrences || []).filter((x) => x !== occId) };
+      working[to.id] = { ...to, occurrences: [...(to.occurrences || []).filter((x) => x !== occId), occId] };
       // Keep src.parentId aligned with the new home so downstream ancestor
       // walks (operationExecutor, filter cascade) see the move immediately.
       if (src.parentId !== destinationOccurrence.id) {
