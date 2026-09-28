@@ -201,11 +201,22 @@ export function resolveExpr(expr, $vars) {
     return raw;
   }
 
-  // json:[...] / json:{...} — literal JSON value. Used by ExprOrPath array mode
-  // to let users hand-write a list of items. Items inside the parsed JSON are
-  // returned as-is (not recursively resolved against $vars).
+  // json:[...] / json:{...} — literal JSON value, what ExprOrPath's structured
+  // and array modes write. `$var` LEAVES resolve (an unresolvable one stays as
+  // written); every other leaf stays literal, so a hand-written list keeps "7"
+  // a string. Before 2026-09-28 nothing resolved, so an object with variable
+  // members — 39 of 40 live object values, all seed-written — could not be
+  // authored in the UI; 0 of 89 live json: payloads held a `$` string.
   if (expr.startsWith("json:")) {
-    try { return JSON.parse(expr.slice(5)); } catch { return null; }
+    let parsed;
+    try { parsed = JSON.parse(expr.slice(5)); } catch { return null; }
+    const varLeaves = (v) => {
+      if (typeof v === "string") { if (!v.startsWith("$")) return v; const r = resolveExpr(v, $vars); return r === undefined || r === null ? v : r; }
+      if (Array.isArray(v)) return v.map(varLeaves);
+      if (v && typeof v === "object") { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = varLeaves(x); return o; }
+      return v;
+    };
+    return varLeaves(parsed);
   }
 
   // occ:$trigger.occurrenceId.fieldId.value
