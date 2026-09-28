@@ -49,6 +49,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("occurrences");
   });
 
+  it("offers role and kind — the executor resolves both from the template", () => {
+    // 16 live rules in 2 ops gate on `.role IS instance`; the day-column builder
+    // could not author its own "is this a row?" test (2026-09-28).
+    expect(top()).toEqual(expect.arrayContaining(["role", "kind"]));
+  });
+
   it("control: still offers fields and the existing meta keys", () => {
     expect(top()).toEqual(expect.arrayContaining(["fields", "meta.appliedFromTemplateId", "parentId"]));
   });

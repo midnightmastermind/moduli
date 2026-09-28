@@ -103,6 +103,11 @@ const SHAPES = {
       // It had no picker entry, same gap as meta.feedSourceId (2026-09-27).
       { value: "_boundFieldIds", title: "_boundFieldIds", sub: "string[]", description: "Field ids this row's template binds — use with list includes / does not include", hasChildren: false },
       { value: "label",       title: "label",       sub: "string",   description: "Module label (resolved from template)",           hasChildren: false },
+      // Enriched from the template by the executor (operationExecutor enrichOne:
+      // `role: occ.role ?? tpl?.role`), like label. 16 live rules in 2 ops gate
+      // on `.role IS instance` — Schedule: Build Schedule among them (2026-09-28).
+      { value: "role",        title: "role",        sub: "string",   description: "page / container / instance … (resolved from template)", hasChildren: false },
+      { value: "kind",        title: "kind",        sub: "string",   description: "board / doc / table … (resolved from template)",         hasChildren: false },
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
       // THE ORDERED CHILD LIST. `occurrences[]` is how every renderer finds a
       // parent's children and it is the commonest loop target after the built-in
