@@ -3692,3 +3692,16 @@ hit its limit while naming the Coffee operation).
   there as well"* — today `Schedule: Build Schedule` ignores a filter change whose source is a day
   column (it gates on source = toolbar or the Schedule page). To do on poms AND in the rebuild's build.
 
+
+## 2026-09-28 (3) — queued mid-session, in order
+
+1. **The Windows share / clip link does not reach the grid.** > "we need to look at why my Clip link
+   to moduli isnt working (i cant find it on the grid and no window popped up when i clicked share),
+   i think its a mozilla extension" · > "this is on my windows desktop btw" · > "i thought links get
+   set to bookmarks". So: Firefox on Windows, the extension's Share/clip produced no window and
+   nothing landed on the grid; the expectation is that a clipped LINK becomes a bookmark row.
+2. **Every field picker becomes the searchable one.** > "we need to replace the field selection for
+   local filters, with our component that allows search for field" · > "i wanted to add a filter on
+   the bookmarks page and it was incredibly hard to find the field. we also need that search selector
+   for the sort fields" · > "any place that selects a field should be using that one" — so this is
+   not two surfaces: it is every field `<select>` in the app.

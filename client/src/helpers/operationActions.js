@@ -404,6 +404,32 @@ export function resolveExpr(expr, $vars) {
  * created carrying its children inline (`instance.occurrences`), so there is no
  * list to grow.
  */
+/**
+ * The ONE occurrence id a write step may target.
+ *
+ * `FIND` binds an ARRAY when its predicate matches several records — its
+ * documented contract ("returns the bare item when there's exactly one match,
+ * the full array when there are multiple") — so any step that writes to a
+ * single occurrence can be handed one. `SET_FIELD_VALUE` has refused that
+ * since it was written; ADD_CHILD and REMOVE_CHILD did not, and an array
+ * reached the socket as `update_occurrence { id: [ ... ] }`, which Mongoose
+ * rejects with `Cast to string failed ... (type Array) at path "id"`. Measured
+ * on prod 2026-09-28: 14 such writes from one date step, every one of them
+ * silent in the app and visible only in the server's error log, while the
+ * effect log reported the step as applied.
+ *
+ * Refusing is what SET_FIELD_VALUE already chose, and it is the honest answer:
+ * which of the matches the author meant is not knowable here. Naming the action
+ * and the count in the message is what turns a server-side CastError into
+ * something the person building the operation can read.
+ */
+export function singleOccurrenceId(value, action, expr) {
+  if (Array.isArray(value)) {
+    throw new Error(`${action}: ${expr} matched ${value.length} records — bind one`);
+  }
+  return value && typeof value === "object" ? value.id : value;
+}
+
 export function listChildInOverlays(parentId, childId, occurrencesById, $vars) {
   if (!parentId || !childId) return null;
   const fromMap = occurrencesById && occurrencesById[parentId];
@@ -2685,10 +2711,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     case "SET_FIELD_VALUE": {
       if (!cfg.fieldId) break;
       const target = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
-      if (Array.isArray(target)) {
-        throw new Error(`SET_FIELD_VALUE: ${cfg.occurrenceIdExpr} matched ${target.length} records — bind one`);
-      }
-      const setItemId = target && typeof target === "object" ? target.id : target;
+      const setItemId = singleOccurrenceId(target, "SET_FIELD_VALUE", cfg.occurrenceIdExpr);
       if (!setItemId) break;
       const setValue = cfg.valueExpr !== undefined
         ? resolveExpr(cfg.valueExpr, $vars)
@@ -2757,8 +2780,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // pattern). Idempotent: skips when already present. Reuses the existing
     // UPDATE_OCCURRENCE effect; optimistically patches the in-pipeline overlay.
     case "ADD_CHILD": {
-      const parentId = resolveExpr(cfg.parentId, $vars);
-      const childId = resolveExpr(cfg.childId, $vars);
+      const parentId = singleOccurrenceId(resolveExpr(cfg.parentId, $vars), "ADD_CHILD", cfg.parentId);
+      const childId = singleOccurrenceId(resolveExpr(cfg.childId, $vars), "ADD_CHILD", cfg.childId);
       if (!parentId || !childId) break;
       const parentOcc =
         (context.occurrencesById && context.occurrencesById[parentId])
@@ -2891,8 +2914,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // REMOVE_OCCURRENCE to tidy a list would delete the user's task out of the
     // Schedule as well. Idempotent: a no-op when the child isn't listed.
     case "REMOVE_CHILD": {
-      const parentId = resolveExpr(cfg.parentId, $vars);
-      const childId = resolveExpr(cfg.childId, $vars);
+      const parentId = singleOccurrenceId(resolveExpr(cfg.parentId, $vars), "REMOVE_CHILD", cfg.parentId);
+      const childId = singleOccurrenceId(resolveExpr(cfg.childId, $vars), "REMOVE_CHILD", cfg.childId);
       if (!parentId || !childId) break;
       const parentOcc =
         (context.occurrencesById && context.occurrencesById[parentId])
