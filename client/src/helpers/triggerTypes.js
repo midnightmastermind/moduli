@@ -96,6 +96,35 @@ export function isAncestorScopable(eventType) {
 }
 
 
+// ============================================================
+// Trigger priority — the order matched operations run in.
+// `runMatchingOperations` sorts ascending on `triggerObject.priority ?? 5`,
+// so a LOWER number runs first and nothing about the number is special —
+// it is a plain sort key.
+//
+// The editor's select offered P1..P10, and **0 is load-bearing on live data**:
+// `Grid: Snap Filter To Today` (priority 0) moves each page's own date on the
+// first load of a new day, and `Schedule: Build Schedule` (priority 1) reads
+// that date moments later in the SAME sweep — the executor's own
+// `_LIVEOCCS_MUTATING` comment records a day's schedule lost to that ordering.
+// Measured across every grid on 2026-09-28: 4 triggers store priority 0
+// (Snap Filter To Today and Schedule: Stamp Completed On, on two grids each)
+// and not one of them could be written — or displayed — by the editor, since a
+// `<select>` whose value is absent from its options renders blank.
+// ============================================================
+export const TRIGGER_PRIORITIES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const DEFAULT_TRIGGER_PRIORITY = 5;
+
+/** The priorities to offer for a trigger currently storing `stored`.
+ *  A stored value outside the catalog gets its own entry rather than
+ *  rendering as blank — the same rule the comparator catalog follows, for the
+ *  same reason: a select cannot show a value it does not offer. */
+export function priorityOptions(stored) {
+  const n = Number(stored);
+  if (!Number.isFinite(n) || TRIGGER_PRIORITIES.includes(n)) return TRIGGER_PRIORITIES;
+  return [...TRIGGER_PRIORITIES, n].sort((a, b) => a - b);
+}
+
 // VISIBLE_EVENT_TYPES — entries that appear in the editor dropdown.
 // Aliases (onCreate/onNavigation/onDrop) stay valid at runtime but aren't
 // surfaced to avoid confusing the user with redundant choices.

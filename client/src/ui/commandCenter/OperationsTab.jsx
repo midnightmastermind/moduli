@@ -42,7 +42,7 @@ const inputStyle = {
 // Event types come from the shared triggerTypes module so the editor and
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
-import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable } from "../../helpers/triggerTypes";
+import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -484,9 +484,9 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
     return types
       .filter(t => t && t !== "manual")
       .map(eventType => {
-        if (eventType === "onLoad") return { eventType, subjectType: "grid", targetId: "", priority: 5 };
-        if (eventType === "onFilterChange") return { eventType, subjectType: "filterNav", targetId: "", priority: 5 };
-        return { eventType, subjectType: "field", targetId: "", priority: 5 };
+        if (eventType === "onLoad") return { eventType, subjectType: "grid", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY };
+        if (eventType === "onFilterChange") return { eventType, subjectType: "filterNav", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY };
+        return { eventType, subjectType: "field", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY };
       });
   }, [local.triggerObjects, local.triggerTypes, local.triggerType]);
 
@@ -511,8 +511,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
 
   const addTriggerObject = (eventType = "onChange") => {
     const defaults = eventType === "onLoad" || eventType === "onFilterChange"
-      ? { eventType, subjectType: eventType === "onLoad" ? "grid" : "filterNav", targetId: "", priority: 5 }
-      : { eventType, subjectType: "field", targetId: "", priority: 5 };
+      ? { eventType, subjectType: eventType === "onLoad" ? "grid" : "filterNav", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY }
+      : { eventType, subjectType: "field", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY };
     commitTriggerObjects([...triggerObjects, defaults]);
   };
 
@@ -736,14 +736,18 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", marginLeft: 4 }}>
                   {eventType} · {subjectLabel} · {targetLabel}{ancLabel ? ` · in ${ancLabel}` : ""}
                 </span>
-                {/* Per-trigger priority (1 = highest, 10 = lowest, 5 = default) */}
+                {/* Per-trigger priority — lower runs first, 5 is the default.
+                    P0 is offered because live operations use it: Snap Filter To
+                    Today moves the date at 0 so Build Schedule reads it at 1.
+                    The options come from priorityOptions, so a stored value the
+                    catalog lacks still renders as itself. */}
                 <select
-                  value={trigObj.priority ?? 5}
+                  value={trigObj.priority ?? DEFAULT_TRIGGER_PRIORITY}
                   title="Priority for this trigger — lower runs first"
                   onChange={e => updateTriggerObject(idx, { priority: Number(e.target.value) })}
                   style={{ ...inputStyle, width: "auto", minWidth: 44, fontSize: 10, marginLeft: "auto" }}
                 >
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>P{n}</option>)}
+                  {priorityOptions(trigObj.priority).map(n => <option key={n} value={n}>P{n}</option>)}
                 </select>
                 {/* Remove trigger */}
                 <button
@@ -1030,7 +1034,7 @@ export function OperationsTab() {
   }, []);
 
   const handleCreate = (folderId = null) => {
-    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, folderId };
+    const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, folderId };
     CommitHelpers.createOperation({ dispatch, socket, operation: newOp });
     setSelectedOpId(newOp.id);
   };
