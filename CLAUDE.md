@@ -61,22 +61,36 @@ rendered 0 slots.** Poms never hit it only because its seed cleared its template
 Templates folder (`templateHelpers.isInsideTemplate`); the 49 stored values were cleared through the app's
 own events with a backup (`tpl-slots-backup.json`). **Sep 29: 0 → 49 slots.**
 
-**YOUR DAY-CONTAINER BEHAVIOUR, and the cycle breaker that shaped it.** The op's `filterNav` trigger is
-scoped to the Schedule page (ancestorId). A prelude: if the change came from a day column whose own date
-now differs from its Date field, move the PAGE to the new date and put the column's date back. **Re-firing
-the op from that page write is impossible by design** — `operationExecutor` skips an op that is applying
-its own effects, carried across the deferral (measured: the page's NavigationOp never ran it). So the
-redirect builds the new day IN THE SAME RUN: it sets `$activePeriodDates = json:["$newDate"]`,
-`$activePeriodCount = 1`, and the gate also passes on `$redirected`. **Watched on prod:** stepping the
-Oct 1 column's own date put **Oct 2's column in the same spot** (`CREATE_ITEM=50`), the empty Oct 1
-column pruned as out-of-period; a paired toolbar step then restored today.
+**YOUR DAY-CONTAINER BEHAVIOUR — built as a SEPARATE op, after two designs that could not work.**
+1. *In-run redirect inside Build Schedule:* worked on the rebuild, but poms' version needs steps ABOVE its
+   gate, the editor only appends, and step drag-reorder could not be driven headless (pragmatic's native
+   HTML5 drag never started — **UNVERIFIED whether reordering works for a real user**).
+2. *Let the page write re-run the builder:* the page's navigation never fired, for TWO reasons. The
+   cycle breaker (`operationExecutor.js:1110`) rightly stops an op re-triggering ITSELF — **and a real
+   defect: the UPDATE_ITEM_FILTER_OVERRIDE effect passed `modulesById: state.modulesById`, undefined in
+   store state (modules is an array), so `updateOccurrenceFilterOverride` returned before building the
+   cascade. EVERY op-driven page-filter move persisted and ran nothing.** Fixed with
+   `byIdCached(state.modules)`; `opFilterMoveCascades.test.js` drives the real effect (HEAD fails). Only
+   `Grid: Snap Filter To Today` writes page overrides, so its pages now also cascade (idempotent).
+3. **Shipped:** a small priority-0 op per page — `Schedule: Day Column Moves Page` /
+   `Day Page: Day Column Moves Page` — scoped to its page (filterNav `ancestorId`): if a day column's own
+   date differs from its Date field, move the PAGE there and put the column back. The page's navigation
+   then runs the builder normally (the write came from a different op). Build Schedule stays IDENTICAL to
+   poms'; the in-run prelude was removed from the rebuild. **Watched on the rebuild:** stepping the Sep 30
+   column → `NavigationOp occ=<page>` → Build Schedule `CREATE_ITEM=50` → Oct 1's column in the same spot.
+   **On poms:** both ops built by clicking (one session, save-only-on-success), both builders' filterNav
+   triggers scoped to their page, and both ops REPLAYED in Node over a poms snapshot with the column date
+   changed in memory: page → 09-29, column → back to 09-28, and nothing when the page itself is the
+   source. **Not stepped live on poms** — that moves the user's real dates; the replay + the rebuild run
+   cover the same code.
+   Noted, not changed: the op-effect path turns a null value into `{}` when it removes the last key, which
+   the cascade reads as "clear every filter here" (filterConfig guards this; the effect does not).
 
 **Coordination:** account2 picked up this op while I was at a usage limit, added the two filter triggers,
 set the priority ladder, and fixed ADD_CHILD's multi-match (entry (6)). My later trigger pass duplicated
 its rows; removed, and its filterNav row is the one now scoped.
 
-**STILL OPEN:** port the day-container behaviour + page scoping to POMS (Build Schedule and Day Page:
-Build); move the old 4 slots' dated rows into day columns (user's call); ONE server deploy for the
+**STILL OPEN:** move the old 4 slots' dated rows into day columns (user's call); ONE server deploy for the
 `json:` mirror in `serverExecutor.js` and the stale `unsigned-template-node` rule (it predates the
 2026-08-07 auto-signature fallback and flags the 49 template slots as an error); 3 live onChange ops read
 `$trigger.fields.<id>.value`, undefined for a UI edit (raw value) — reported, not changed.
