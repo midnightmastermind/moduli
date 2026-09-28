@@ -287,7 +287,9 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "sourceId", kind: "expr", label: "copy", placeholder: "$row.id" },
       { key: "parent", kind: "expr", label: "into", optional: true, placeholder: "$dest.id" },
       { key: "label", kind: "expr", label: "label", optional: true, defaultsTo: "the source's" },
-      { key: "recursive", kind: "bool", label: "include children" },
+      // ON unless explicitly false (`cfg.recursive !== false`) — the checkbox
+      // must say so, or an unset step reads "off" while copying the children.
+      { key: "recursive", kind: "bool", label: "include children", defaultValue: true },
       { key: "itemIdVar", kind: "var", label: "new id → $", optional: true },
     ],
     hint: "The copy SHARES its fields with the source: ticking one ticks all of them.",
@@ -390,7 +392,7 @@ export const ACTION_CONFIG_SCHEMA = {
     fields: [
       { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
       { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
-      { key: "perOccurrence", kind: "bool", label: "per row", optional: true, defaultsTo: "on" },
+      { key: "perOccurrence", kind: "bool", label: "per row", optional: true, defaultsTo: "on", defaultValue: true },
     ],
     hint: "Days from today to a date field — negative in the past. Per row by default; off writes ONE value, the nearest upcoming date.",
   },

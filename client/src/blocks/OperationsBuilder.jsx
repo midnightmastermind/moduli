@@ -1769,7 +1769,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
 // does the wrong thing. A plain input with a placeholder that says so is the
 // honest control.
 function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps }) {
-  const { key, kind, label, placeholder, optional, defaultsTo, options } = field;
+  const { key, kind, label, placeholder, optional, defaultsTo, options, defaultValue } = field;
   const ph = placeholder || (optional && defaultsTo ? `(default: ${defaultsTo})` : "");
 
   const control = (() => {
@@ -1820,8 +1820,11 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps }) {
           <label style={{ ...labelSt, display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
             <input
               type="checkbox"
-              checked={cfg[key] === true}
-              onChange={e => setCfg({ [key]: e.target.checked || undefined })}
+              // Unset shows the EXECUTOR's default (schema `defaultValue`), and a
+              // toggle stores only a value that differs from it — so unticking a
+              // default-on box writes the explicit `false` the executor checks.
+              checked={cfg[key] ?? (defaultValue === true)}
+              onChange={e => setCfg({ [key]: e.target.checked === (defaultValue === true) ? undefined : e.target.checked })}
             />
             {label}
           </label>
