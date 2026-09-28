@@ -14,6 +14,7 @@
 // the record had at that moment, and a follow-up update races the create's
 // server queue besides.
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { isInsideTemplate } from "./templateHelpers";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
@@ -71,6 +72,16 @@ export function computePageFilterFields({ state, occurrencesById, parentContaine
   // hide it from the next-day filter view. Default behavior
   // (auto-stamp) preserved for Schedule slots, day-page tasks, etc.
   if (parentContainerOcc?.meta?.skipFilterStamp === true) return existingFields;
+  // A TEMPLATE is timeless: its dates come from APPLY_TEMPLATE's defaultFields
+  // when it is applied. Stamping the filter's date into it (2026-09-28: all 49
+  // slots of a UI-built Schedule template got Date = the build day) made every
+  // day column copy that date, so any other day rendered EMPTY. Here, not in a
+  // caller, so typed creates AND drops agree.
+  {
+    const foldersById = Object.fromEntries((state?.folders || []).map((f) => [f.id, f]));
+    const gridId = state?.gridId || state?.grid?._id || state?.grid?.id;
+    if (isInsideTemplate(parentContainerOcc, { foldersById, occurrencesById: occurrencesById || {} }, gridId)) return existingFields;
+  }
   const grid = state?.grid;
   const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
   const navFieldIds = (activeNamedFilter?.conditions || [])
