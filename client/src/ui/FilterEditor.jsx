@@ -8,6 +8,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
+import FieldSelect from "./FieldSelect.jsx";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
@@ -98,16 +99,17 @@ export default function FilterEditor({ occurrence, dispatch, socket, onClose, fo
           >
             {/* Row 1: field + active + showNav + delete */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <select
-                value={f.fieldId}
-                onChange={e => update(idx, { fieldId: e.target.value })}
-                style={{ flex: 1, fontSize: 11, background: "var(--input-bg)", border: "1px solid var(--border-default)", color: "var(--text-muted)", borderRadius: 4, padding: "2px 4px" }}
-              >
-                <option value="">— field —</option>
-                {allFields.map(field => (
-                  <option key={field.id} value={field.id}>{field.label || field.name}</option>
-                ))}
-              </select>
+              {/* SEARCHABLE, because a grid carries hundreds of fields and a
+                  native <select> makes you hunt one by eye (user 2026-09-28,
+                  adding a filter on the Bookmarks page). */}
+              <FieldSelect
+                fields={allFields}
+                value={f.fieldId || null}
+                onChange={(id) => update(idx, { fieldId: id || "" })}
+                noneLabel="— field —"
+                placeholder="— field —"
+                style={{ flex: 1, fontSize: 11, borderColor: "var(--border-default)", borderRadius: 4 }}
+              />
 
               <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--text-muted)", cursor: "pointer" }}>
                 <input type="checkbox" checked={!!f.active} onChange={e => update(idx, { active: e.target.checked })} />

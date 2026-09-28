@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { providerKeysFromSamples } from "../../helpers/providerFieldMap.js";
 import DrilldownPicker from "../DrilldownPicker";
+import FieldSelect from "../FieldSelect.jsx";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
 import { useGridActions } from "../../GridActionsContext";
@@ -569,20 +570,22 @@ function SearchProviderBody({ source, onChange }) {
                     {key}
                   </span>
                   <span style={{ fontSize: 10, color: "var(--text-muted)" }}>→</span>
-                  <select
-                    value={fieldMap[key] || ""}
-                    onChange={e => {
-                      const next = { ...fieldMap };
-                      // Mapping to nothing REMOVES the entry rather than storing
-                      // an empty string, so the stored config says what it means.
-                      if (e.target.value) next[key] = e.target.value; else delete next[key];
-                      patch({ fieldMap: next });
-                    }}
-                    style={{ flex: 1, fontSize: 10, fontFamily: "monospace", background: "var(--input-bg)", color: "var(--text-primary)", border: "1px solid var(--input-border)", borderRadius: 4, padding: "1px 4px" }}
-                  >
-                    <option value="">— don't import —</option>
-                    {ourFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <FieldSelect
+                      fields={ourFields}
+                      value={fieldMap[key] || null}
+                      onChange={(id) => {
+                        const next = { ...fieldMap };
+                        // Mapping to nothing REMOVES the entry rather than storing
+                        // an empty string, so the stored config says what it means.
+                        if (id) next[key] = id; else delete next[key];
+                        patch({ fieldMap: next });
+                      }}
+                      noneLabel="— don't import —"
+                      placeholder="— don't import —"
+                      style={{ fontSize: 10, fontFamily: "monospace", borderRadius: 4, padding: "1px 4px" }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

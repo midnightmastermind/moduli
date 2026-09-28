@@ -3705,3 +3705,8 @@ hit its limit while naming the Coffee operation).
    the bookmarks page and it was incredibly hard to find the field. we also need that search selector
    for the sort fields" · > "any place that selects a field should be using that one" — so this is
    not two surfaces: it is every field `<select>` in the app.
+- (13:13) *"it shouldnt be any page level filter change anyway. just the page schedule and daypage are
+  on"* — the builders' `filterNav` trigger is SCOPED to its own page (ancestorId), so no other page's
+  filter change runs them. Asked how a change ON a day column should behave → **"that day's column,
+  same spot"**: the op moves the page to the new date and puts the column's own date back.
+

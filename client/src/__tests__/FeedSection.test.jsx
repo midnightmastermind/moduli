@@ -19,6 +19,26 @@ vi.mock("../GridActionsContext", () => ({
   useGridActions: () => gridActions.current,
 }));
 
+// The field picker is a Radix popover (ui/FieldSelect → DestinationPicker), and
+// this repo has already recorded that driving one in jsdom is unreliable — a
+// deleted prefill test paid for that. These cases are about what FEEDSECTION
+// writes back, not about the picker's own UI (which `fieldSelectEverywhere`
+// and `DestinationPicker` cover), so it stands in as a plain <select> carrying
+// the same contract: the field list in, a field id (or null) out.
+vi.mock("../ui/FieldSelect.jsx", () => ({
+  default: ({ fields, value, onChange, noneLabel, extraOptions = [] }) => (
+    <select
+      data-testid="field-select"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value || null)}
+    >
+      {noneLabel != null && <option value="">{noneLabel}</option>}
+      {extraOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      {fields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+    </select>
+  ),
+}));
+
 import FeedSection from "../ui/FeedSection";
 
 const OCC = "occ-completed";
@@ -94,8 +114,8 @@ describe("FeedSection — the operator", () => {
 describe("FeedSection — groups", () => {
   it("renders a nested group's own controls, not just the top level", () => {
     mount(NESTED);
-    // Two field selects: the top-level leaf, and the one inside the group.
-    const fieldSelects = screen.getAllByRole("combobox").filter(
+    // Two field pickers: the top-level leaf, and the one inside the group.
+    const fieldSelects = screen.getAllByTestId("field-select").filter(
       (s) => Array.from(s.options).some((o) => o.textContent === "field…"),
     );
     expect(fieldSelects).toHaveLength(2);
@@ -113,7 +133,7 @@ describe("FeedSection — groups", () => {
 
   it("edits a condition INSIDE a group without disturbing the top level", () => {
     mount(NESTED);
-    const inner = screen.getAllByRole("combobox").filter(
+    const inner = screen.getAllByTestId("field-select").filter(
       (s) => Array.from(s.options).some((o) => o.textContent === "field…"),
     )[1];
     fireEvent.change(inner, { target: { value: F_DONE } });

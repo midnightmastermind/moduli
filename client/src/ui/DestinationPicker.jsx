@@ -35,6 +35,10 @@ export default function DestinationPicker({
   disabled = false,
   style = null,
   searchPlaceholder = "Search destinations…",
+  // Named by the caller: the same popover answers "where does this go?" and
+  // "which field?" (see FieldSelect), and a screen reader must hear which.
+  ariaLabel = "Choose destination",
+  emptyText = "Nowhere to put it yet",
 }) {
   const [open, setOpen] = useState(false);
 
@@ -67,7 +71,7 @@ export default function DestinationPicker({
         <button
           type="button"
           disabled={disabled}
-          aria-label="Choose destination"
+          aria-label={ariaLabel}
           title={chosen?.label || placeholder}
           style={{
             display: "flex", alignItems: "center", gap: 4, minWidth: 0, width: "100%",
@@ -92,7 +96,7 @@ export default function DestinationPicker({
           renderOption={renderOption}
           searchPlaceholder={searchPlaceholder}
           autoFocus
-          emptyText="Nowhere to put it yet"
+          emptyText={emptyText}
         />
       </PopoverContent>
     </Popover>

@@ -11,6 +11,7 @@
 // were made, not deferred.
 import React, { useMemo } from "react";
 import { Plus, X, ArrowRight } from "lucide-react";
+import FieldSelect from "../FieldSelect.jsx";
 import { COMBINERS } from "../../helpers/prefillFromPick";
 
 const rowStyle = { display: "flex", alignItems: "center", gap: 4, marginBottom: 4 };
@@ -75,25 +76,29 @@ export default function PrefillEditor({ prefill, fields, onChange }) {
 
           {map.map((row, i) => (
             <div key={i} style={rowStyle}>
-              <select
-                style={selStyle}
-                value={row.from || ""}
-                onChange={(e) => setRow(i, { ...row, from: e.target.value })}
-                title="Read this field on the thing you picked"
-              >
-                <option value="">read…</option>
-                {sorted.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FieldSelect
+                  fields={sorted}
+                  value={row.from || null}
+                  onChange={(id) => setRow(i, { ...row, from: id || "" })}
+                  noneLabel="read…"
+                  placeholder="read…"
+                  ariaLabel="Read this field on the thing you picked"
+                  style={selStyle}
+                />
+              </div>
               <ArrowRight size={11} style={{ flexShrink: 0, opacity: 0.5 }} />
-              <select
-                style={selStyle}
-                value={row.to || ""}
-                onChange={(e) => setRow(i, { ...row, to: e.target.value || undefined })}
-                title="Write it to this field on what you are editing (defaults to the same field)"
-              >
-                <option value="">same field ({nameOf(row.from)})</option>
-                {sorted.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FieldSelect
+                  fields={sorted}
+                  value={row.to || null}
+                  onChange={(id) => setRow(i, { ...row, to: id || undefined })}
+                  noneLabel={`same field (${nameOf(row.from)})`}
+                  placeholder={`same field (${nameOf(row.from)})`}
+                  ariaLabel="Write it to this field on what you are editing"
+                  style={selStyle}
+                />
+              </div>
               <select
                 style={{ ...selStyle, flex: "0 0 110px" }}
                 value={row.combine || "replace"}

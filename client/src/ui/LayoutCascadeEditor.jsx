@@ -30,6 +30,7 @@
 //   fieldsList:    Array<{ id, name }> — used by the chip-fields multi-pick
 
 import React, { useCallback } from "react";
+import FieldSelect from "./FieldSelect.jsx";
 
 const VIEW_MODES = ["preview", "representation", "actual"];
 const VIEW_MODE_LABELS = { preview: "Preview", representation: "Representation", actual: "Actual" };
@@ -212,15 +213,13 @@ export default function LayoutCascadeEditor({
             min={0}
             max={2000}
           />
-          <RuleSelect
+          <RuleFieldSelect
             label="Order by"
             value={cur.sortChildrenByField ?? null}
             onChange={(v) => setKey("sortChildrenByField", v)}
-            options={[
-              { value: null, label: "Manual order" },
-              { value: "label", label: "Label" },
-              ...fieldsList.map(f => ({ value: f.id, label: f.name })),
-            ]}
+            fieldsList={fieldsList}
+            noneLabel="Manual order"
+            extraOptions={[{ value: "label", label: "Label" }]}
           />
           <RuleRadio
             label="Drag-in view"
@@ -349,6 +348,27 @@ function RuleSelect({ label, value, onChange, options }) {
           <option key={o.value ?? "__none"} value={o.value ?? ""}>{o.label}</option>
         ))}
       </select>
+    </div>
+  );
+}
+
+// A field chosen from a SEARCHABLE list — a grid carries hundreds, and the
+// native select made "Order by" a hunt (user 2026-09-28). Same row shape as
+// RuleSelect so the label column stays aligned.
+function RuleFieldSelect({ label, value, onChange, fieldsList, noneLabel, extraOptions }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <FieldSelect
+          fields={fieldsList}
+          value={value}
+          onChange={onChange}
+          noneLabel={noneLabel}
+          extraOptions={extraOptions}
+          style={{ padding: "1px 4px", borderRadius: 3, border: "1px solid var(--border-subtle)", fontSize: 9, fontFamily: "var(--font-mono)" }}
+        />
+      </div>
     </div>
   );
 }

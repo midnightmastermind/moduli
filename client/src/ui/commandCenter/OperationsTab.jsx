@@ -7,6 +7,7 @@ import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2, Play } from "lucide-react";
 
 import { useGridActions } from "../../GridActionsContext";
+import FieldSelect from "../FieldSelect.jsx";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { PipelineEditor } from "../../blocks";
@@ -710,15 +711,17 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                 )}
                 {/* Field filter for onChange + field */}
                 {subjectType === "field" && (
-                  <select
-                    value={targetId}
-                    title="Specific field"
-                    onChange={e => updateTriggerObject(idx, { targetId: e.target.value })}
-                    style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
-                  >
-                    <option value="">Any field</option>
-                    {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
+                  <div style={{ width: 150, minWidth: 110 }}>
+                    <FieldSelect
+                      fields={fields}
+                      value={targetId || null}
+                      onChange={(id) => updateTriggerObject(idx, { targetId: id || "" })}
+                      noneLabel="Any field"
+                      placeholder="Any field"
+                      ariaLabel="Specific field"
+                      style={{ fontSize: 10 }}
+                    />
+                  </div>
                 )}
                 {/* Specific entity picker (module) */}
                 {subjectType === "module" && entitiesForSubject.length > 0 && (

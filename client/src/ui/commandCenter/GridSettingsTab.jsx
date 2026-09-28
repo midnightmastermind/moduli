@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, ChevronDown, ChevronRight, Navigation } from "lucide-react";
+import FieldSelect from "../FieldSelect.jsx";
 import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
@@ -635,15 +636,16 @@ function FilterRow({ filter, isActive, allFields, onActivate, onUpdate, onDelete
           {conditions.map((cond, idx) => (
             <div key={idx} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
               {/* Field */}
-              <select
-                value={cond.fieldId || ""}
-                onChange={e => updateCondition(idx, { fieldId: e.target.value })}
-                className={selectCls}
-                style={{ flex: 1, minWidth: 0 }}
-              >
-                <option value="">field…</option>
-                {allFields.map(f => <option key={f.id} value={f.id}>{f.label || f.name}</option>)}
-              </select>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FieldSelect
+                  fields={allFields}
+                  value={cond.fieldId || null}
+                  onChange={(id) => updateCondition(idx, { fieldId: id || "" })}
+                  noneLabel="field…"
+                  placeholder="field…"
+                  style={{ fontSize: 11 }}
+                />
+              </div>
               {/* Comparator */}
               <select
                 value={String(cond.comparator || "SAME_DAY").toUpperCase()}

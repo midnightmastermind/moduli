@@ -8,6 +8,7 @@
 // now" count so the query is verifiable while authoring.
 import React, { useCallback, useMemo } from "react";
 import { Rss, Plus, X } from "lucide-react";
+import FieldSelect from "./FieldSelect.jsx";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../helpers/comparators";
@@ -114,14 +115,16 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
         </div>
       ) : (
         <div key={entry.id || i} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <select
-            value={entry.fieldId || ""}
-            onChange={(e) => replaceAt(i, { ...entry, fieldId: e.target.value })}
-            style={{ ...inputStyle, flex: 2 }}
-          >
-            <option value="">field…</option>
-            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          <div style={{ flex: 2, minWidth: 0 }}>
+            <FieldSelect
+              fields={fields}
+              value={entry.fieldId || null}
+              onChange={(id) => replaceAt(i, { ...entry, fieldId: id || "" })}
+              noneLabel="field…"
+              placeholder="field…"
+              style={inputStyle}
+            />
+          </div>
           <select
             value={entry.comparator || "IS"}
             onChange={(e) => replaceAt(i, { ...entry, comparator: e.target.value })}
@@ -310,16 +313,18 @@ export default function FeedSection({ occurrence }) {
             />
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            <select
-              value={feed.sort?.fieldId || ""}
-              onChange={(e) => patch({ sort: e.target.value ? { fieldId: e.target.value, dir: feed.sort?.dir || "asc" } : null })}
-              title="Sort pulled items by label or a field"
-              style={{ ...inputStyle, flex: 3 }}
-            >
-              <option value="">no sort</option>
-              <option value="label">sort: Label</option>
-              {fields.map(f => <option key={f.id} value={f.id}>sort: {f.name}</option>)}
-            </select>
+            <div style={{ flex: 3, minWidth: 0 }}>
+              <FieldSelect
+                fields={fields}
+                value={feed.sort?.fieldId || null}
+                onChange={(id) => patch({ sort: id ? { fieldId: id, dir: feed.sort?.dir || "asc" } : null })}
+                noneLabel="no sort"
+                placeholder="no sort"
+                extraOptions={[{ value: "label", label: "Label" }]}
+                searchPlaceholder="Search fields to sort by…"
+                style={inputStyle}
+              />
+            </div>
             {feed.sort?.fieldId && (
               <button
                 onClick={() => patch({ sort: { ...feed.sort, dir: feed.sort.dir === "desc" ? "asc" : "desc" } })}
