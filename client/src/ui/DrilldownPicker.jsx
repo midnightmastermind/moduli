@@ -802,7 +802,12 @@ export default function DrilldownPicker({
             + {placeholder}
           </button>
         ) : (
-          <span data-testid="picker-closed-chips" style={chipChainSt} title={value}>
+          // Clicking the chosen value reopens the menu. It had no handler, so
+          // the only way back in was × -> placeholder -> open — and a caller
+          // that turns "" back into a default (FIND's "Look in") never shows
+          // the placeholder, so a FIND's collection could not be changed at all
+          // (143 of 174 live FIND steps use one no UI could set, 2026-09-28).
+          <span data-testid="picker-closed-chips" style={{ ...chipChainSt, cursor: "pointer" }} title={value} onClick={openMenu}>
             {chipSegments.map((seg, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span style={sepSt}>›</span>}
