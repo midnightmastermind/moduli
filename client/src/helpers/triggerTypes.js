@@ -121,20 +121,36 @@ export function isEventCompatible(eventType, transactionType, transaction) {
 // Moved here from ui/commandCenter/OperationsTab.jsx so the editor's trigger
 // row and the path picker read one list. The picker used to describe $trigger
 // as an occurrence and offered none of these (2026-09-22).
+// What each FIRE SITE puts on its transaction — read off the emitters, not
+// guessed from the editor (2026-09-28: live ops read 10 props this list never
+// offered). NavigationOp: CommitHelpers.updateOccurrenceFilterOverride's
+// fan-out; Occurrence*Op / MeasureOp: CommitHelpers + bindSocketToStore;
+// Pomo*Op: PomodoroTimer. triggerPropsFromSeed.test.js pins it to the seed.
+// NOT `fields`, although the transactions carry it: its cells are the RAW value
+// from a UI edit and `{value, flow}` from a socket echo, so the obvious
+// `$trigger.fields.<id>.value` is undefined for exactly the edits a user makes.
+// `$trigger.value` / `.fieldId` are the reliable reads (triggerPathPicker.test).
+const POMO_EVENTS = new Set(["onPomoStart", "onPomoTick", "onPomoComplete", "onPomoStop"]);
 export function getTriggerVars(eventType, subjectType) {
   const base = [];
+  if (POMO_EVENTS.has(eventType)) {
+    base.push("$trigger.minutes");
+    if (eventType === "onPomoStart") base.push("$trigger.pomoNumber", "$trigger.phase", "$trigger.slotLabel", "$trigger.targetContainerId");
+  }
   if (subjectType === "module" || subjectType === "item") {
-    base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label");
+    base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label", "$trigger.occurrenceId");
+    if (["onAdd", "onCreate", "onDelete", "onRemove"].includes(eventType)) base.push("$trigger.containerId");
+    if (eventType === "onAdd" || eventType === "onCreate") base.push("$trigger.containerLabel");
     if (eventType === "onChange")  base.push("$trigger.changedField", "$trigger.value", "$trigger.previousValue");
     if (eventType === "onAdd" || eventType === "onRemove") base.push("$trigger.parentId");
     if (eventType === "onMove")    base.push("$trigger.fromParentId", "$trigger.toParentId");
     if (eventType === "onComplete") base.push("$trigger.fieldId", "$trigger.value");
   } else if (subjectType === "field") {
-    base.push("$trigger.fieldId", "$trigger.itemId", "$trigger.templateId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
+    base.push("$trigger.fieldId", "$trigger.itemId", "$trigger.templateId", "$trigger.value", "$trigger.previousValue", "$trigger.flow", "$trigger.occurrenceId");
   } else if (subjectType === "grid") {
     base.push("$trigger.gridId");
   } else if (subjectType === "filterNav") {
-    base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue");
+    base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue", "$trigger.sourceOccurrenceId", "$trigger.occurrenceId", "$trigger.fieldId");
   } else if (subjectType === "transaction") {
     base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.templateId");
   }
