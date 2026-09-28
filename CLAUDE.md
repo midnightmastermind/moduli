@@ -15,6 +15,90 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (6) — `Schedule: Build Schedule` IS TRIGGERED AND PRIORITISED; and an array reached the server as an occurrence id
+
+Picked up account3's session (limit at 16:11 CDT). Its 72-step pipeline was complete — including the
+`redirect` branch for the user's 13:12 ask — and **it had no triggers at all**. Added the two
+`onFilterChange` triggers by clicking, which is what makes the op fire on anything but a load:
+```
+onFilterChange · grid       the TOOLBAR only (matchSubjectFilter refuses a sourced transaction)
+onFilterChange · filterNav  a page's or a day column's own override — the redirect's entry point
+```
+
+**THE PRIORITY LADDER COULD NOT BE AUTHORED, AND IT IS THE ORDER THE WHOLE LOAD DEPENDS ON.** The
+trigger editor offered P1..P10 while `Grid: Snap Filter To Today` runs at **0** — and the executor's
+own `_LIVEOCCS_MUTATING` comment records what that ordering is worth: *"today's column was not
+created until the NEXT load"* when Build Schedule read the date before Snap moved it. Measured
+across every grid: **4 triggers store 0**, and a `<select>` cannot even DISPLAY a value it does not
+offer, so those four read blank. `TRIGGER_PRIORITIES` is 0..10 now, plus `priorityOptions(stored)`
+for anything outside the band. Set by clicking, mirroring poms:
+```
+Snap Filter To Today 0 · Build Schedule 1 · Place Dated Work 2 · Coffee/Water/Water Today/Tasks Done 3
+```
+
+**THEN THE DATE STEP WAS WATCHED, AND IT WROTE 102 MALFORMED WRITES NOTHING SURFACED.** Stepping the
+toolbar built tomorrow's column and rebuilt today's on the way back — while the console filled with
+`server_error: Failed to update occurrence`. Only prod's log said why:
+```
+update_occurrence error: CastError: Cast to string failed for value "[
+  '34ea189f…' (the loose 12:00pm),  '3c4cb4cf…' (the day column's 12:00pm)
+]" (type Array) at path "id"
+```
+`FIND` binds an ARRAY when its predicate matches several records — its documented contract — and the
+rebuild's `Place Dated Work` finds its slot **by label under the Schedule page**, which was
+unambiguous until Build Schedule created a column carrying a second container named "12:00pm".
+`ADD_CHILD` then emitted `update_occurrence { id: [ … ] }`. **`SET_FIELD_VALUE` has refused exactly
+this since it was written** (*"matched N records — bind one"*); ADD_CHILD and REMOVE_CHILD never
+adopted it — the two-implementations-of-one-question class, again. One `singleOccurrenceId` now, and
+the refusal NAMES the step, the expression and the count in the op's own run log instead of dying in
+a server log nobody reads. The op itself was narrowed by clicking (slot format + same-day as the
+appointment), which is the discriminator poms uses.
+
+**AND THE SAME CLASS WAS LIVE ON POMS, TODAY, WHILE THE USER WAS IN THE APP.** Tracing the array
+above turned up their own Schedule column for today, created 16:53 CDT:
+```
+e53c453b  sig schedule:col:2026-09-28  module *** MISSING ***  listedBy 1  kids 49
+```
+Listed on the page, rendering nothing, and refusing every rebuild as a duplicate — the 2026-09-19
+(10) failure repeating. The module is absent from Mongo AND from the warm cache (checked, because a
+cache-only module would make deleting it the wrong move). Its 49 slots and 43 grandchildren carry
+**0 ticks, 0 text, 0 shared listings**, so the column was deleted through the app's own
+`delete_occurrence` behind a guard that re-checks all of that (93 rows backed up first), and the next
+load rebuilt it: `ea49ef89`, module present, 49 slots, listed. **What LOSES the module is still not
+explained** — the create/disconnect asymmetry is the standing suspect and this is the second sighting
+in ten days.
+
+**THE USER'S OWN CLIP QUESTION, ANSWERED FROM THE SHARE LOG RATHER THAN GUESSED:**
+```
+21:51-21:54Z  type=link  source=extension  "A Guide to Recognizing Your Saints (2006) IMDb"
+  grid TEST GRID 2   rule "Share: anything else"   created 67207c1f  kind=bookmark  -> Files folder
+```
+So the clip WORKED and links DO become bookmarks; the extension's options box still holds test grid
+2 from the 09-24 testing, and Firefox's `storage.sync` carried it to the Windows machine. No window
+is supposed to pop up — the extension has no popup, only a system notification. **Reported, not
+fixed:** that options page asks for a raw grid id, which is exactly how it sat on the wrong grid for
+four days.
+
+**EVERY FIELD PICKER IS THE SEARCHABLE ONE** (user: *"i wanted to add a filter on the bookmarks page
+and it was incredibly hard to find the field … any place that selects a field should be using that
+one"*). `ui/FieldSelect.jsx` WRAPS `DestinationPicker`, which wraps `OptionSearchList` — the same
+list every occurrence dropdown opens, and the same complaint that picker was built for one surface
+earlier. Eight native `<select>`s swapped: local filters, the layout cascade's "Order by", a feed's
+condition field AND its sort, the grid's named-filter conditions, a trigger's target field, both
+prefill rows, and the import field map. **The test is a WALKER**, because the failure mode is the
+NEXT one someone adds — and its first regex was too narrow: it passed against an un-swapped
+`FilterEditor` whose `.map` is parenthesised across lines. A/B'd after tightening: reverting three
+surfaces fails 2 of 4.
+**Watched on prod by clicking:** Add filter -> the picker reads `— field —`, opens **227 fields with
+their types**, typing `comp` narrows to 6, picking sets the trigger to `Company`. Cancel left 0
+filters behind.
+
+Client **5,245 pass**; the one full-run failure is the documented `accountBalances` timeout (passes
+alone, checked). Three client-only deploys, `deploy.sh` reporting *"Server unchanged"* each time.
+Rebuild ops **8 of 88**; the grid ends with one healthy day column and no debris.
+
+---
+
 ### 2026-09-28 (5) — `Schedule: Place Dated Work` FIRES; its gate had always passed
 
 Picked up the op (5) of 09-27 left open: *"built entirely by clicking and it produces nothing … the

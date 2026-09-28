@@ -3,6 +3,34 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-28 — `FieldSelect.jsx` NEW: every field picker is the searchable one)
+- **`FieldSelect.jsx` (NEW)** — user: *"i wanted to add a filter on the bookmarks page and it was
+  incredibly hard to find the field … we also need that search selector for the sort fields …
+  **any place that selects a field should be using that one**"*. It WRAPS `DestinationPicker`
+  (which wraps `OptionSearchList`) rather than being a second popover — the same answer that picker
+  already gave *"we need to use our components that allows search"* one surface earlier. What it
+  adds is what a field list needs: the type as a hint, extra non-field rows (Label / Manual order /
+  Any field), and **a row for a stored id the grid no longer carries**, so the trigger never goes
+  blank against real data.
+- **`DestinationPicker` gained `ariaLabel` + `emptyText`** so one popover can answer both "where
+  does this go?" and "which field?".
+- **Swapped, eight native `<select>`s:** `FilterEditor` (local filters), `LayoutCascadeEditor`
+  ("Order by" — the sort field), `FeedSection` (condition field + sort), `commandCenter/`
+  `GridSettingsTab` (named-filter conditions), `OperationsTab` (a trigger's target field),
+  `PrefillEditor` (both rows), `SelectOptionsSourceEditor` (the import field map). A MULTI-select
+  field list (`SelectOptionsSourceEditor`'s chipDisplay picker, `FieldPickerPanel`) is left alone —
+  different control, and `FieldPickerPanel` already searches.
+- **`__tests__/fieldSelectEverywhere.test.js` is a WALKER**, because the failure mode is the NEXT
+  native select someone adds. **Its first regex was too narrow and passed against an un-swapped
+  `FilterEditor`** — prettier parenthesises the `.map` body across lines. A/B'd after tightening:
+  reverting three surfaces fails 2 of 4; a planted select (both the one-line and wrapped shapes) is
+  caught by the detector control.
+- **`FeedSection.test.jsx` mocks `FieldSelect` as a plain `<select>`** — those cases are about what
+  FeedSection WRITES, and this repo has already recorded that driving a Radix popover in jsdom is
+  unreliable (a prefill test was deleted for it).
+- Watched on prod: Add filter -> `— field —` -> 227 fields with types -> `comp` narrows to 6 ->
+  picking reads `Company`.
+
 ## Recent Changes (2026-09-27 (3) — every `SHAPES` entry is reachable)
 - `DrilldownPicker.descendShape` hand-listed the shapes it descended into, so `filterValue`,
   `tableColumn` and `tableCellsMap` were declared as `childShape`s and drilled to NOTHING. It now falls

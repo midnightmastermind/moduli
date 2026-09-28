@@ -3,6 +3,27 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-28 — ADD_CHILD/REMOVE_CHILD refuse a multi-match; trigger priority 0 is authorable)
+- **`operationActions.singleOccurrenceId` (NEW, exported)** — one definition of "the single
+  occurrence id a write step may target". `FIND` binds an ARRAY when its predicate matches several
+  records (its documented contract), and `ADD_CHILD` passed that straight into an effect:
+  `update_occurrence { id: [ … ] }`, which Mongoose rejects with `Cast to string failed … (type
+  Array) at path "id"`. **Measured on prod 2026-09-28: 102 such writes, every one silent in the app
+  — the effect log counted the step as applied.** `SET_FIELD_VALUE` has refused this since it was
+  written; ADD_CHILD and REMOVE_CHILD now use the same rule, and the message names the action, the
+  expression and the count, so it lands in the op's own run log. Refusing (not fanning out) is what
+  SET_FIELD_VALUE already chose: which match the author meant is not knowable here.
+  `__tests__/childListSingleId.test.js` (11) — A/B: 9 fail on HEAD, the 2 single-parent happy paths
+  are contract pins.
+- **`triggerTypes.TRIGGER_PRIORITIES` / `priorityOptions` (NEW)** — the editor's select offered
+  P1..P10 while `runMatchingOperations` sorts on a plain `priority ?? 5` and **4 live triggers store
+  0**, including `Grid: Snap Filter To Today`, whose whole job is running before `Schedule: Build
+  Schedule` (the executor's `_LIVEOCCS_MUTATING` comment records a day's schedule lost to that
+  ordering). A select cannot display a value it does not offer, so those read blank too. 0..10 now,
+  plus any stored value outside the band. `__tests__/triggerPriorityAuthorable.test.js` (10) — A/B:
+  9 fail on HEAD, the control is "there is still a priority control at all".
+
+
 ## Recent Changes (2026-09-28 — `occOverlay.merged` stops copying the grid; and the load is a PAYLOAD problem)
 - **`merged(base)` rebuilt a 25,525-key object on every version bump, and the version bumps on every
   write.** A source-mapped CPU profile of a poms-grid load at a phone viewport (4x CPU throttle) put
