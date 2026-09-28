@@ -1278,7 +1278,11 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       );
 
     case "MOVE_OCCURRENCE": {
-      const useExprTarget = !!cfg.toContainerIdExpr;
+      // Expression mode is "the key is PRESENT", not "the value is truthy": the
+      // toggle sets "" so the box appears to type into. Keyed on truthiness, the
+      // toggle could never enter it (16 of 20 live MOVE steps use a computed
+      // target, all seed-written — 2026-09-28).
+      const useExprTarget = cfg.toContainerIdExpr !== undefined;
       const multiple = !!cfg.multiple;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -1304,7 +1308,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
             {fl("to container:")}
             <button
               style={{ ...moveBtnSt, fontSize: 9, border: "1px solid var(--input-border)", borderRadius: 3, padding: "1px 5px" }}
-              onClick={() => setCfg(useExprTarget ? { toContainerIdExpr: undefined } : { toContainerId: undefined })}
+              onClick={() => setCfg(useExprTarget ? { toContainerIdExpr: undefined } : { toContainerIdExpr: "", toContainerId: undefined })}
               title="Toggle static/dynamic container"
             >
               {useExprTarget ? "expr" : "static"}
