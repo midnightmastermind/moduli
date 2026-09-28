@@ -288,6 +288,66 @@ unbuilt; fields stand at 205 created and unbound.
 
 ---
 
+### 2026-09-28 (2) — THE WIRE STOPS REPEATING TWO CONSTANTS 25,525 TIMES; and the load is NOT bytes-bound
+
+User's question, and it was the right instinct: *"for initial load. can we send like a lighter version
+of those modules? like to ref for the operations and whats on the screen"*. Measured per KEY before
+answering, which is what decided the shape:
+```
+DEFERRED artifact occurrences  17,160 rows  17.95MB
+  meta              3.64MB 20%      fields            3.54MB 20%
+  userId + gridId   1.24MB  7%   <- the SAME two strings, 17,160 times
+  timestamp         0.67MB  4%   <- 0 client readers
+  _id               0.57MB  3%   <- duplicates `id` (non-empty 17,160/17,160)
+```
+`server/utils/wireProjection.js` strips the dead keys and lifts the constants onto the envelope; the
+client restores them at the socket boundary, so all 34 reader sites are untouched. **Verified on prod:
+25,590 occurrences and 10,823 modules, 0 missing gridId, 0 missing userId, 0 rows still carrying
+`timestamp`.** Payload **36.2MB -> 32.63MB (-10%)**.
+
+**AND IT DID NOT MOVE THE WALL CLOCK, which is the finding.** Three runs before and after, same probe:
+blocked time unchanged inside noise. Per chunk the effect is real but proportional and small —
+`8.08MB/4,063ms -> 7.28MB/3,787ms`, `3.72/1,786 -> 3.27/1,482`, `3.93/1,900 -> 3.49/1,942`. So halving
+a freeze needs halving the bytes, not trimming a tenth. **The load is not bytes-bound.** The remaining
+7.2MB is artifact `fields`+`meta`, and those are NOT droppable: `Trackers: Media Owned` iterates
+`$allItems` and reads `fields.<id>` + `meta.feedSourceId` — 61 of 84 enabled ops iterate a collection
+that includes artifacts, and that one is the counter-example proving they are not inert.
+
+**THE SINGLE WORST FREEZE IS NOT A CHUNK AT ALL, and it had never been isolated:**
+```
+at  2,632ms  froze 7,501ms   <- the app's OWN BOOT, before the first frame arrives at 4,162ms
+at 17,135ms  froze 3,787ms   <- chunk 2
+```
+The 15MB `full_state` now lands DURING boot and merges into the same uninterrupted block. Different
+problem from the catalogue, and the bigger one.
+
+**RETRACTED BEFORE IT WAS BUILT: "dispatch the deferred half once, not per chunk" ALREADY SHIPPED**
+(`bcd57ee4`) — the chunks are held and dispatched together with a fail-open fallback. Reading the code
+is what stopped me re-implementing it; it also reframes each chunk's freeze as arrive+parse, which is
+what made the byte measurement worth making even though it came back negative.
+
+**A REGRESSION I INTRODUCED, AND THEN DISPROVED MY OWN FIX FOR.** The first `rehydrateWireRows` spread
+a fresh object per row — 25,590 clones on the main thread inside the socket handler. Making it assign
+IN PLACE changed **nothing measurable**, so the clone was not the cause and this says so rather than
+claiming the fix. The in-place version is kept because it is strictly cheaper, not because it helped.
+
+**THE GUARD EARNED ITS KEEP TWICE, and both were my own greps being too narrow.** The omit list is a
+fact about the CLIENT, so it can only be a named list; `wireProjection.test.js` WALKS the client for a
+reader of every omitted key.
+- **`updatedAt` nearly shipped as dead weight.** A grep for `occurrence.updatedAt` read ZERO. The real
+  readers address it differently and one is load-bearing: `localPrev?.updatedAt` — the **stale-write
+  conflict guard** — plus `occ?.updatedAt || mod?.updatedAt` and `occ?.updatedAt || occ?.createdAt`.
+- It then caught `ctxGrid?._id` / `gridNow?._id` that a `head -12` had truncated away, and
+  `normalizeId`, whose `_id` read is a fallback behind `id`.
+Its CONTROL asserts the detector still finds `updatedAt`/`createdAt`, or "zero readers" is equally
+satisfied by a detector matching nothing. A/B'd with a planted `occ._id + occ.timestamp`: both fail.
+
+*The reusable rule: a grep shaped like the name you expected is a claim about your expectation.*
+
+Server 2,782 pass · client 5,183 pass. Deployed with a restart (server code).
+
+---
+
 ### 2026-09-28 — MOBILE SCROLL: the op table named a different culprit every run, because it was measuring WHEN
 
 User: *"could you pause on this and switch over to looking at mobile scroll. its laggy as hell (tested
