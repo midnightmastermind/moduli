@@ -133,6 +133,9 @@ const SHAPES = {
       { value: "meta.feedSourceId",         title: "feedSourceId",        sub: "string",  description: "Set on a feed COPY — the row it was copied from. Empty on real rows",                            hasChildren: false },
       { value: "meta.copyLinkSource",       title: "copyLinkSource",      sub: "string",  description: "Set on a copy-linked row — the row it was linked from",                                          hasChildren: false },
       { value: "meta.userTouched",          title: "userTouched",         sub: "boolean", description: "True once a person has edited this row (not an operation)",                                     hasChildren: false },
+      // 3 live UPDATEs write it (Schedule: Build Schedule on every grid) and it could
+      // not be picked as a path (2026-09-28); applyUpdate routes any meta.<key>.
+      { value: "meta.layoutCascadeOverride", title: "layoutCascadeOverride", sub: "object", description: "How a page lays out its children ({mode, columns, …}) — the day-column builder writes it", hasChildren: false },
       { value: "meta.table.columns",        title: "columns",             sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldVisibility)",            hasChildren: true,  childShape: "tableColumn" },
       { value: "meta.table.rowCount",       title: "rowCount",            sub: "number",  description: "Total row count rendered by the table",                                                          hasChildren: false },
       { value: "meta.table.cells",          title: "cells",               sub: "cell map", description: "Per-cell TipTap doc keyed by \"r:c\"",                                                          hasChildren: true,  childShape: "tableCellsMap" },

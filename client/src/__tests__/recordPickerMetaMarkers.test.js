@@ -49,6 +49,10 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("occurrences");
   });
 
+  it("offers meta.layoutCascadeOverride — the day-column builder writes it", () => {
+    expect(top()).toContain("meta.layoutCascadeOverride");
+  });
+
   it("offers role and kind — the executor resolves both from the template", () => {
     // 16 live rules in 2 ops gate on `.role IS instance`; the day-column builder
     // could not author its own "is this a row?" test (2026-09-28).
