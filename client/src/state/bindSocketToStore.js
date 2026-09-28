@@ -35,6 +35,7 @@ import { beginAction, endAction, setActionCloseHook, captureAction, retainAction
 import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
+import { rehydrateWireRows } from "../../../server/utils/wireProjection.js";
 import { requestForceSync, commitForceSync, markOperationWrite } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad, loadDiagLine } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
@@ -222,6 +223,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // FULL STATE HYDRATE
   // ======================================================
   function onFullState(payload = {}) {
+    // PUT THE HOISTED CONSTANTS BACK FIRST. `gridId`/`userId` are identical on
+    // every row, so they travel once on the envelope (server/utils/
+    // wireProjection.js) — 1.24MB on the catalogue alone. Restoring them here,
+    // before anything else reads the payload, is what lets all 34 reader sites
+    // stay exactly as they were.
+    payload = {
+      ...payload,
+      occurrences: rehydrateWireRows(payload.occurrences, payload.occurrencesHoisted),
+      modules: rehydrateWireRows(payload.modules, payload.modulesHoisted),
+    };
     const tFS0 = performance.now();
     startLoadDiag();
     const markFS = (label) => console.log(`[full_state-client] +${Math.round(performance.now() - tFS0)}ms ${label}`);
@@ -416,6 +427,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function onFullStateRest(rest = {}) {
+    // Same restore as onFullState, and for the same reason — every chunk of the
+    // catalogue arrives stripped of its two constant columns.
+    rest = {
+      ...rest,
+      occurrences: rehydrateWireRows(rest.occurrences, rest.occurrencesHoisted),
+      modules: rehydrateWireRows(rest.modules, rest.modulesHoisted),
+    };
     // ── ATTRIBUTE THE CATALOGUE, which is now the largest item on a load ─────
     //
     // `ops:start=9,667ms` and a 2.9s task at 3.2s say the deferred half owns
