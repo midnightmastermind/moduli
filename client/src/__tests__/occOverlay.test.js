@@ -111,8 +111,14 @@ describe("makeOccOverlay — the caching that is the whole point", () => {
 
   it("holds up under the real load-sweep shape: 21,207 rows, 195 effects", () => {
     // The regression this exists to prevent, at the size it actually happens.
-    // Only the effects that WRITE may cost a rebuild; on a settled grid most
-    // trackers recompute the value already stored and write nothing.
+    //
+    // INVERTED 2026-09-28, REASONING KEPT. This asserted that a write costs
+    // exactly ONE more rebuild ("not 195"). It now costs ZERO, because on the
+    // load sweep the local map COVERS the base — `runLoadSweep` fills its own
+    // `occurrencesById` and calls `setLocalOcc` for the same rows in the same
+    // pass — so the merge is the local map and there is nothing to copy. The
+    // old expectation was the measured defect: a poms-grid load spent 2,442ms
+    // of self time here, ~57 rebuilds of a 25,525-key object.
     const N = 21207, EFFECTS = 195;
     const ov = makeOccOverlay();
     const b = base(N);
@@ -123,16 +129,77 @@ describe("makeOccOverlay — the caching that is the whole point", () => {
       const m = ov.merged(b);
       if (m !== last) { rebuilds++; last = m; }
     }
-    expect(rebuilds).toBe(1);                 // 195 reads, ONE merge
+    expect(rebuilds).toBe(1);                 // 195 reads, ONE answer
 
-    // And a write in the middle costs exactly one more, not 195.
+    // A write in the middle costs NOTHING — it lands in the map that IS the
+    // answer. The value assertion is what says this is a real pass and not an
+    // identity that went stale.
     ov.set("o5", { id: "o5", v: -1 });
     for (let i = 0; i < EFFECTS; i++) {
       const m = ov.merged(b);
       if (m !== last) { rebuilds++; last = m; }
     }
-    expect(rebuilds).toBe(2);
+    expect(rebuilds).toBe(1);
     expect(ov.merged(b).o5.v).toBe(-1);       // still correct after caching
+  });
+});
+
+// THE LOCAL MAP COVERING THE BASE IS THE LOAD SWEEP'S OWN SHAPE, not a lucky
+// case — and once it covers, it cannot stop covering: `set` only adds a key,
+// and `drop` removes one while recording a tombstone whose whole job is to
+// hide the base copy too. Only `reset()` retracts the verdict.
+describe("makeOccOverlay — the local map already covers the base", () => {
+  const seeded = (n) => {
+    const ov = makeOccOverlay();
+    const b = base(n);
+    for (const k in b) ov.set(k, b[k]);
+    return { ov, b };
+  };
+
+  it("hands back the live local map instead of copying the base", () => {
+    const { ov, b } = seeded(5);
+    expect(ov.merged(b)).toBe(ov.map);
+  });
+
+  it("a later write is visible with no rebuild at all", () => {
+    const { ov, b } = seeded(5);
+    const first = ov.merged(b);
+    ov.set("o2", { id: "o2", v: 42 });
+    expect(ov.merged(b)).toBe(first);
+    expect(ov.merged(b).o2.v).toBe(42);
+  });
+
+  it("a DROP still hides the row, even though the base still holds it", () => {
+    // The case that decides whether returning the live map is sound: the base
+    // is the load payload and still carries the deleted row.
+    const { ov, b } = seeded(5);
+    ov.merged(b);
+    ov.drop("o3");
+    expect(b.o3).toBeTruthy();                // base untouched
+    expect(ov.merged(b).o3).toBeUndefined();  // and the merge does not show it
+  });
+
+  it("reset() retracts the verdict — an emptied map covers nothing", () => {
+    const { ov, b } = seeded(4);
+    expect(ov.merged(b)).toBe(ov.map);
+    ov.reset();
+    ov.set("o0", { id: "o0", v: 7 });
+    const m = ov.merged(b);
+    expect(m).not.toBe(ov.map);               // back to a real merge
+    expect(m.o0.v).toBe(7);                   // local still wins
+    expect(m.o3.v).toBe(3);                   // and the base rows are back
+  });
+
+  it("control: a base the map does NOT cover is still merged properly", () => {
+    // Every path except the load sweep. Without this, \"returns the live map\"
+    // is equally satisfied by an overlay that has simply stopped merging.
+    const ov = makeOccOverlay();
+    const b = base(5);
+    ov.set("o1", { id: "o1", v: 999 });
+    const m = ov.merged(b);
+    expect(m).not.toBe(ov.map);
+    expect(m.o1.v).toBe(999);                 // local wins
+    expect(m.o4.v).toBe(4);                   // base row survives
   });
 });
 

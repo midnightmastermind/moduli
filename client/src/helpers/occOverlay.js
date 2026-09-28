@@ -51,7 +51,7 @@ export function makeOccOverlay() {
   // so one slot would thrash between them; and a superseded base stays
   // collectable. Base maps are REPLACED, never patched, on every change — which
   // is what makes identity a sound version for the base half.
-  const cache = new WeakMap();
+  let cache = new WeakMap();
   const tombstones = new Set();
 
   return {
@@ -90,6 +90,9 @@ export function makeOccOverlay() {
       tombstones.clear();
       for (const key in map) delete map[key];
       version++;
+      // Emptying the map is the ONE thing that can retract a coverage verdict,
+      // so the verdicts go with it. A WeakMap cannot be cleared in place.
+      cache = new WeakMap();
     },
 
     /**
@@ -111,9 +114,31 @@ export function makeOccOverlay() {
       const hit = cache.get(base);
       for (const t of tombstones) {
         if (!(t in base)) tombstones.delete(t);
-        else if (hit && t in hit.merged) hiddenInCache = true;
+        else if (hit && hit.merged && t in hit.merged) hiddenInCache = true;
       }
+      // THE LOCAL MAP ALREADY COVERS THE BASE — so the merge IS the local map,
+      // and copying is pure waste. That is not a lucky case, it is how the load
+      // sweep is built: `runLoadSweep` fills its own `occurrencesById` and calls
+      // `setLocalOcc` for the SAME rows in the SAME pass, so every key of the
+      // base is a key of `map` and local wins for all of them. Same reasoning
+      // `merged(null)` already applies to the no-base path, and the object
+      // handed back is live there too.
+      //
+      // WHY THIS IS CHECKED ONCE PER BASE AND NOT PER CALL: coverage cannot be
+      // lost. `set` only ever ADDS a key, and `drop` removes one while
+      // recording a TOMBSTONE whose whole job is to hide the base copy as well
+      // — so a row missing from `map` after a drop is a row the merge must not
+      // carry either. Only `reset()` can break it, and it clears the cache.
+      //
+      // Without this the version counter defeated the cache once per write: a
+      // source-mapped profile of a poms-grid load put this one line at 2,442ms
+      // of SELF time — ~57 rebuilds of a 25,525-key object, 1.45 MILLION
+      // property copies, 32% of the whole 7.7s op sweep.
+      if (hit?.covers) return map;
       if (hit && hit.version === version && !hiddenInCache) return hit.merged;
+      let covers = true;
+      for (const k in base) { if (!(k in map)) { covers = false; break; } }
+      if (covers) { cache.set(base, { covers: true }); return map; }
       const merged = Object.assign({}, base, map);
       for (const t of tombstones) delete merged[t];
       cache.set(base, { version, merged });
