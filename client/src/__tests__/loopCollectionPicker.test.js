@@ -54,6 +54,8 @@ describe("the loop / find collection picker", () => {
   });
 
   it("offers nothing extra when the pipeline has declared no vars", () => {
-    expect(level1({ ...ctx, localVars: [] })).toHaveLength(9);
+    // 10 built-in collections: the nine grid-wide ones plus $activePeriodDates
+    // (2026-09-28 — the day-column builders loop it; builtinVarCatalog.test.js).
+    expect(level1({ ...ctx, localVars: [] })).toHaveLength(10);
   });
 });
