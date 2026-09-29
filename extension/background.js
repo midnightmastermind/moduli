@@ -1,14 +1,15 @@
 // extension/background.js
 //
 // The service worker: register the menu, and turn a click into one POST to
-// /api/v1/share.
+// /api/v1/share — or, for a "choose…" item, into a staged clip and the
+// placement window opened on it.
 //
 // It is DELIBERATELY THIN. Every decision it could get wrong lives in
 // `clip.js` and `settings.js`, which are pure and tested, because an MV3
 // worker cannot be exercised in this repo's test environment. What is left
 // here is registration, storage, fetch and a notification — the parts a person
 // verifies by installing it.
-import { CLIP_MENUS, buildClipRecord } from "./clip.js";
+import { CLIP_MENUS, buildClipRecord, isChooseMenu } from "./clip.js";
 import { validateSettings, fieldIdsFrom, clipOutcomeMessage, SETTINGS_KEYS } from "./settings.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -93,6 +94,41 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   // `null` means the click carried no URL at all — nothing to be idempotent on.
   if (!record) { notify("Nothing to clip here — no address on that item."); return; }
 
+  const shareBody = {
+    // Omitted when the options field is blank, so the server resolves it
+    // from the user's own share setting rather than from this device's.
+    ...(overrideGridId ? { gridId: overrideGridId } : null),
+    source: "extension",
+    url: record.moduleFileRef, shape: record.meta?.clipShape, title: tab?.title || null,
+    text: info.selectionText || null,
+    // So a shared calendar is read in YOUR zone; the server remembers it
+    // for senders that cannot say (curl, Windows "open with").
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    clip: record,
+  };
+
+  // "choose…": STAGE the clip and open the placement window on it. Nothing is
+  // written until Clip is pressed there; closing the window lets the stage
+  // expire. The key in the URL authorizes that one clip and nothing else.
+  if (isChooseMenu(info.menuItemId)) {
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/share/stage`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(shareBody),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.stageId) { notify(`Clip failed: ${body.message || body.error || `HTTP ${res.status}`}`); return; }
+      await api.windows.create({
+        type: "popup", width: 520, height: 700,
+        url: `${baseUrl}/share-place?stage=${encodeURIComponent(body.stageId)}&k=${encodeURIComponent(body.key)}`,
+      });
+    } catch (e) {
+      notify(`Clip failed: ${e?.message || "could not reach Moduli"}`);
+    }
+    return;
+  }
+
   // Through the SHARE RULES (D15), not straight to /ingest — so a clip and a
   // phone share of the same link obey the same rules. The record still rides
   // along as `clip`: the grid's catch-all writes it exactly as /ingest did, so
@@ -101,18 +137,7 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
     const res = await fetch(`${baseUrl}/api/v1/share`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        // Omitted when the options field is blank, so the server resolves it
-        // from the user's own share setting rather than from this device's.
-        ...(overrideGridId ? { gridId: overrideGridId } : null),
-        source: "extension",
-        url: record.moduleFileRef, shape: record.meta?.clipShape, title: tab?.title || null,
-        text: info.selectionText || null,
-        // So a shared calendar is read in YOUR zone; the server remembers it
-        // for senders that cannot say (curl, Windows "open with").
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-        clip: record,
-      }),
+      body: JSON.stringify(shareBody),
     });
     const body = await res.json().catch(() => ({}));
     notify(clipOutcomeMessage(res.ok ? body : { ok: false, error: body.message || body.error || `HTTP ${res.status}` }));

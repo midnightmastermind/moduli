@@ -32,6 +32,15 @@ describe("clipFromStage", () => {
     expect(c.imageUrl).toBe("");
   });
 
+  it("a LINK clip is titled by the link, not by the page it was on", () => {
+    const c = clipFromStage({ shape: "link", url: "https://x/a", title: "Some blog — Home", clip: { label: "The linked article" } });
+    expect(c.title).toBe("The linked article");
+  });
+
+  it("a PAGE clip keeps the tab's title", () => {
+    expect(clipFromStage({ shape: "page", url: "https://x/", title: "Page title", clip: { label: "x/" } }).title).toBe("Page title");
+  });
+
   it("an IMAGE clip's url is the image source", () => {
     expect(clipFromStage({ shape: "image", url: "https://i/x.png" }).imageUrl).toBe("https://i/x.png");
   });

@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
   clipShapeFor, clipUrlFor, clipLabelFor, clipModuleShape, buildClipRecord, CLIP_MENUS,
+  isChooseMenu, baseMenuId,
   clipInFrame, clipSourceUrl,
 } from "../../extension/clip.js";
 
@@ -145,7 +146,8 @@ describe("buildClipRecord", () => {
 
 describe("CLIP_MENUS", () => {
   it("declares exactly the four contexts the spec names", () => {
-    expect(CLIP_MENUS.map(m => m.contexts[0]).sort()).toEqual(["image", "link", "page", "selection"]);
+    const plain = CLIP_MENUS.filter((m) => !isChooseMenu(m.id));
+    expect(plain.map(m => m.contexts[0]).sort()).toEqual(["image", "link", "page", "selection"]);
   });
   it("every menu id maps back to a shape", () => {
     for (const m of CLIP_MENUS) expect(clipShapeFor({ menuItemId: m.id })).toBe(m.contexts[0]);
@@ -217,5 +219,36 @@ describe("clipping from inside a frame", () => {
     const tab = { url: "https://here/", title: "Here" };
     expect(clipUrlFor("page", { pageUrl: "https://here/" }, tab)).toBe("https://here/");
     expect(clipLabelFor("page", { pageUrl: "https://here/" }, tab)).toBe("Here");
+  });
+});
+
+describe("the choose… menus (2026-09-28 placement window)", () => {
+  it("offers a second item for every context that can be clipped", () => {
+    const plain = CLIP_MENUS.filter((m) => !isChooseMenu(m.id));
+    const choose = CLIP_MENUS.filter((m) => isChooseMenu(m.id));
+    expect(choose).toHaveLength(plain.length);
+    for (const p of plain) expect(choose.some((c) => c.id === `${p.id}-choose`)).toBe(true);
+  });
+
+  it("the choose… items sit in the same contexts as their instant twin, and say so", () => {
+    for (const c of CLIP_MENUS.filter((m) => isChooseMenu(m.id))) {
+      const twin = CLIP_MENUS.find((m) => m.id === baseMenuId(c.id));
+      expect(c.contexts).toEqual(twin.contexts);
+      expect(c.title).toMatch(/choose/);
+    }
+  });
+
+  it("buildClipRecord reads the base id, so a choose… click builds the SAME record", () => {
+    // The record must not depend on WHICH of the two items was used — or the
+    // externalId would differ, and re-clipping via the window would duplicate.
+    const info = { linkUrl: "https://x/y" };
+    const plain = buildClipRecord({ info: { ...info, menuItemId: "clip-link" }, tab: { title: "T" }, fieldIds: {} });
+    const viaChoose = buildClipRecord({ info: { ...info, menuItemId: "clip-link-choose" }, tab: { title: "T" }, fieldIds: {} });
+    expect(viaChoose).toEqual(plain);
+  });
+
+  it("the instant item is not a choose item", () => {
+    expect(isChooseMenu("clip-page")).toBe(false);
+    expect(isChooseMenu("clip-page-choose")).toBe(true);
   });
 });

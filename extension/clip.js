@@ -27,12 +27,26 @@
 // textblock is an `ingest`-writes-textmap pass, not a line here.
 
 /** Menu ids, which double as the shape names. */
-export const CLIP_MENUS = [
+const BASE_MENUS = [
   { id: "clip-selection", title: "Clip selection to Moduli", contexts: ["selection"] },
   { id: "clip-link",      title: "Clip link to Moduli",      contexts: ["link"] },
   { id: "clip-image",     title: "Clip image to Moduli",     contexts: ["image"] },
   { id: "clip-page",      title: "Clip this page to Moduli", contexts: ["page"] },
 ];
+
+// A SECOND ITEM PER CONTEXT (2026-09-28 placement window). "Clip …" stays
+// instant — rules, a notification, no window — because that is the common
+// case and must stay one click. "Clip … (choose…)" stages the clip and opens
+// the window where you pick the grid and either let the rules run or place it
+// yourself.
+const CHOOSE_SUFFIX = "-choose";
+export const CLIP_MENUS = [
+  ...BASE_MENUS,
+  ...BASE_MENUS.map((m) => ({ ...m, id: `${m.id}${CHOOSE_SUFFIX}`, title: `${m.title} (choose…)` })),
+];
+export const isChooseMenu = (menuItemId) => String(menuItemId || "").endsWith(CHOOSE_SUFFIX);
+/** The instant twin's id — what the record is built from, whichever item was used. */
+export const baseMenuId = (menuItemId) => String(menuItemId || "").replace(/-choose$/, "");
 
 /**
  * Which shape a click produced.
@@ -44,7 +58,7 @@ export const CLIP_MENUS = [
  * user's actual choice win over a guess from the payload.
  */
 export function clipShapeFor(info = {}) {
-  const byMenu = String(info.menuItemId || "");
+  const byMenu = baseMenuId(info.menuItemId);
   if (byMenu.startsWith("clip-")) return byMenu.slice("clip-".length);
   if (info.srcUrl) return "image";
   if (info.linkUrl) return "link";

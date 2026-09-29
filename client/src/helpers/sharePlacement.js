@@ -32,9 +32,16 @@ export function clipFromStage(payload = {}) {
   const shape = payload.shape || null;
   const url = payload.url || "";
   const page = payload.clip?.meta?.clippedFrom || url;
+  // The TITLE is the tab's for a page clip — and only for a page clip. On a
+  // link, image or selection the tab is the page it was clicked ON, so its
+  // title names the wrong thing; the extension's record carries the label it
+  // derived for the clicked item (the link's text, the image's alt).
+  const title = shape && shape !== "page"
+    ? (payload.clip?.label || payload.label || payload.title || "")
+    : (payload.title || payload.label || payload.clip?.label || "");
   return {
     shape,
-    title: payload.title || payload.label || "",
+    title,
     url: page,
     linkUrl: shape === "link" ? url : "",
     imageUrl: shape === "image" ? url : "",
