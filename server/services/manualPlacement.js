@@ -38,7 +38,9 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
         label: lit(p.label || share?.label || ""),
         role: p.role || "instance",
         kind: p.kind || null,
-        externalId: share?.externalId || null,
+        // A literal too: an externalId is built from a URL, and a URL holding
+        // "${" would otherwise be interpolated by the executor.
+        externalId: share?.externalId ? lit(share.externalId) : null,
         ...(p.bindingsLike ? { bindingsLike: p.bindingsLike } : {}),
         ...(p.bindFields?.length ? { bindFields: p.bindFields } : {}),
         fields,

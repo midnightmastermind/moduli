@@ -60,7 +60,17 @@ describe("placeManually", () => {
 
   it("keeps the share's externalId, so re-clipping the same link updates one row", async () => {
     await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });
-    expect(runs[0].op.pipeline.steps[0].config.externalId).toBe("link:https://imdb/x");
+    expect(runs[0].op.pipeline.steps[0].config.externalId).toBe("literal:link:https://imdb/x");
+  });
+
+  it("does not interpolate an externalId whose URL carries ${", async () => {
+    await placeManually({ share: { ...SHARE, externalId: "link:https://x/?q=${$today}" }, placement: PLACEMENT, userId: "u1", gridId: "g1" });
+    expect(runs[0].op.pipeline.steps[0].config.externalId).toBe("literal:link:https://x/?q=${$today}");
+  });
+
+  it("keeps 0 and false — only empty values are dropped", async () => {
+    await placeManually({ share: SHARE, userId: "u1", gridId: "g1", placement: { ...PLACEMENT, fields: { a: 0, b: false, c: "" } } });
+    expect(runs[0].op.pipeline.steps[0].config.fields).toEqual({ a: "literal:0", b: "literal:false" });
   });
 
   it("gives $share to the executor, so a placement can still reference it", async () => {
