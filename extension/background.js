@@ -47,6 +47,22 @@ const notify = (message) => {
 // long enough to not matter, short enough that a new field is picked up.
 let fieldCache = null;
 
+/**
+ * WHICH GRID. The options field is a per-device OVERRIDE, not the setting —
+ * left blank (the default) the app decides, through the same "Shares land in"
+ * picker the Imports tab writes. `POST /share` does that resolution itself, so
+ * the POST simply omits the key; this lookup exists because the FIELDS call
+ * needs a concrete grid, and asking is better than guessing one.
+ */
+async function shareGridFor({ baseUrl, token }) {
+  const res = await fetch(`${baseUrl}/api/v1/me/share`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const body = await res.json().catch(() => ({}));
+  return body.gridId || null;
+}
+
 async function fieldIdsFor({ baseUrl, token, gridId }) {
   if (fieldCache) return fieldCache;
   const res = await fetch(`${baseUrl}/api/v1/fields?gridId=${encodeURIComponent(gridId)}`, {
@@ -62,10 +78,16 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   const stored = await api.storage.sync.get(SETTINGS_KEYS);
   const check = validateSettings(stored);
   if (!check.ok) { notify(check.message); return; }
-  const { baseUrl, token, gridId, parentId } = check.settings;
+  const { baseUrl, token, parentId } = check.settings;
+  // `gridId` from the options OVERRIDES the app; blank means "wherever the app
+  // says", which is the common case and the one that cannot go stale.
+  const overrideGridId = check.settings.gridId || null;
 
   let fieldIds = {};
-  try { fieldIds = await fieldIdsFor({ baseUrl, token, gridId }); } catch { /* clip without fields */ }
+  try {
+    const gridId = overrideGridId || (await shareGridFor({ baseUrl, token }));
+    if (gridId) fieldIds = await fieldIdsFor({ baseUrl, token, gridId });
+  } catch { /* clip without fields */ }
 
   const record = buildClipRecord({ info, tab: tab || {}, fieldIds, parentId });
   // `null` means the click carried no URL at all — nothing to be idempotent on.
@@ -80,7 +102,10 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        gridId, source: "extension",
+        // Omitted when the options field is blank, so the server resolves it
+        // from the user's own share setting rather than from this device's.
+        ...(overrideGridId ? { gridId: overrideGridId } : null),
+        source: "extension",
         url: record.moduleFileRef, shape: record.meta?.clipShape, title: tab?.title || null,
         text: info.selectionText || null,
         // So a shared calendar is read in YOUR zone; the server remembers it

@@ -3710,3 +3710,13 @@ hit its limit while naming the Coffee operation).
   filter change runs them. Asked how a change ON a day column should behave → **"that day's column,
   same spot"**: the op moves the page to the new date and puts the column's own date back.
 
+
+## 2026-09-28 (4) — the companion app's grid, and a manual-placement window on share
+
+- > "my companion app should be using the correct grid" — the extension sends an explicit `gridId`
+  from its options, which BEATS the user's configured share grid (`user.meta.share.gridId`, set by
+  the Imports tab's "Shares land in" picker and already pointing at poms). One authority, not two.
+- > "we should create a plan that on the share, see if we can open up a window to manually place
+  things. if we select auto instead, it does the share rules." — so a share offers a choice:
+  **place it myself** (a window to pick the destination) or **auto** (the existing per-type share
+  rules, e.g. poms' `Share: link` → Lookup / YouTube folder / Bookmarks).

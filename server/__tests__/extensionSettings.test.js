@@ -15,14 +15,33 @@ describe("validateSettings", () => {
   it("NAMES what is missing instead of failing silently", () => {
     // Half-configured is the common state. A worker that just returns leaves
     // the user right-clicking into a void with nothing to correct.
-    const r = validateSettings({ token: "t" });
+    const r = validateSettings({ gridId: "g" });
     expect(r.ok).toBe(false);
-    expect(r.missing).toEqual(["gridId"]);
-    expect(r.message).toMatch(/gridId/);
+    expect(r.missing).toEqual(["token"]);
+    expect(r.message).toMatch(/token/);
+  });
+
+  // INVERTED 2026-09-28, with the old reasoning kept: this used to require a
+  // gridId, and that requirement is what broke. `POST /share` resolves the grid
+  // as `body.gridId || user.meta.share.gridId || …`, so a gridId stored in the
+  // extension SILENTLY OUTRANKS the app's own "Shares land in" setting. On
+  // 2026-09-28 the user's share grid was poms while this extension still held
+  // test grid 2 from the 09-24 testing — and `storage.sync` had carried that to
+  // a second machine. Blank now means "wherever the app says"; a value is a
+  // deliberate per-device override.
+  it("does NOT require gridId — blank means the app decides", () => {
+    const r = validateSettings({ token: "t" });
+    expect(r.ok).toBe(true);
+    expect(r.settings.gridId).toBeNull();
+  });
+
+  it("keeps a gridId when one IS given — it is an override, not a default", () => {
+    expect(validateSettings({ token: "t", gridId: "g" }).settings.gridId).toBe("g");
   });
 
   it("treats whitespace as absent", () => {
     expect(validateSettings({ token: "   ", gridId: "g" }).ok).toBe(false);
+    expect(validateSettings({ token: "t", gridId: "   " }).settings.gridId).toBeNull();
   });
 
   it("does NOT require parentId — a clip with no home still lands", () => {

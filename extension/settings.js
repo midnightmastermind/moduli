@@ -17,6 +17,17 @@ export const DEFAULT_BASE_URL = "https://viafluere.com";
  * `parentId` is OPTIONAL — with none, a clip still lands (ingest just does not
  * link it into a parent) and can be filed later. Requiring it would block the
  * common case to prevent a recoverable one.
+ *
+ * `gridId` IS OPTIONAL TOO, and that is a correction rather than a relaxation.
+ * `POST /api/v1/share` resolves the grid as
+ * `body.gridId || user.meta.share.gridId || body.fallbackGridId`, so a gridId
+ * stored here BEATS the one the app itself is configured with (the Imports
+ * tab's "Shares land in" picker). Measured 2026-09-28: the user's share grid
+ * was poms while this extension still held test grid 2 from the 09-24 testing,
+ * and Firefox's `storage.sync` had carried that to a second machine — so four
+ * days of clips landed on a grid with no `Share: link` rule and fell to the
+ * catch-all. Two places to say where shares go is one too many; left blank,
+ * the app is the only authority.
  */
 export function validateSettings(raw = {}) {
   const settings = {
@@ -25,14 +36,14 @@ export function validateSettings(raw = {}) {
     gridId: String(raw.gridId || "").trim(),
     parentId: String(raw.parentId || "").trim() || null,
   };
-  const missing = ["token", "gridId"].filter((k) => !settings[k]);
+  const missing = ["token"].filter((k) => !settings[k]);
   if (missing.length) {
     return {
       ok: false, missing,
       message: `Moduli clip is not set up yet — open the extension's options and add your ${missing.join(" and ")}.`,
     };
   }
-  return { ok: true, settings };
+  return { ok: true, settings: { ...settings, gridId: settings.gridId || null } };
 }
 
 /** Map a `GET /api/v1/fields` response to the name -> id table a clip needs. */
