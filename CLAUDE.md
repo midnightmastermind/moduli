@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 (2) — SHARE PLACEMENT WINDOW: a clip can be told WHERE to go and WHAT to become
+
+Picked up the other account's share work (plan `docs/superpowers/plans/2026-09-28-share-placement-window.md`,
+ledger `.superpowers/sdd/2026-09-28-share-placement-window/progress.md`). Every extension menu item has a
+**"…choose where"** twin: it STAGES the clip (10 min, one-time 32-byte key) and opens `/share-place`, a
+520×700 popup. Phone/Windows link+text shares stage and redirect there too; files still post straight.
+```
+Auto     runs the share rules; previews the type (classifyShare) + where the rule lands
+New      pick a destination -> the row takes its siblings' SHAPE (role/kind/bindings) and the
+         values >=2 sampled rows agree on (destinationSearch autoFields); map title/url/year…
+Preset   save a mapping per grid (meta.sharePresets); an edited box is NEVER saved into it
+```
+Manual placement is ONE `CREATE` run through `runOperationServerSide` — the writer the rules use.
+
+**FOUR GAPS THE PLAN WOULD HAVE SHIPPED:** the window's reads carried no auth and the routes did not
+take the session JWT (`/grids`, `/fields` now do; presets have their own `GET/PUT /share/presets`
+writing ONLY `meta.sharePresets` — the plan's whole-`meta` PATCH would have clobbered every other key);
+Auto classified the extension's GESTURE (`shape`) as the share type; **a stage key could write any
+body** — the clip's content keys now always come from the STAGE, never the request; a pre-write
+refusal RELEASES the stage so a retry works. Also: a link clip was titled by the host tab, and auto
+values were stringified (`["movie"]` -> "movie").
+
+Server 2,859 pass · client 5,315 pass (the 2 unfinished files are the OOM pair). A/B'd: stage content
+override, shape-as-type, the auth header. `FieldSelect` is lazy in the window (chunk 18 KB, was 1.1 MB).
+
+---
+
 ### 2026-09-29 — THE APP STOPS STAMPING DATES; an op does it for the Schedule. And "+ Item" and a drag both used the wrong placement
 
 User: *"stamping something with the date and using the date filter are two diff things"* · *"the autodate
