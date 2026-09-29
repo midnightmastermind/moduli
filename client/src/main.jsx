@@ -60,13 +60,18 @@ const isPromoPath = (p) =>
 // A phone/Windows SHARE lands here (share plan 3). Its own page, rendered
 // without the grid app: it must work before the grid loads and while signed
 // out (to say "sign in, then share again" rather than show an empty grid).
-const isSharePath = ["/share-pending", "/share-target"].includes(window.location.pathname);
+// `/share-place` is the placement window (the extension's "choose…" item, and
+// where SharePending sends a phone share): its stage key authorizes it, so it
+// renders signed out too.
+const isSharePath = ["/share-pending", "/share-target", "/share-place"].includes(window.location.pathname);
 
 if (isSharePath) {
-  const SharePending = React.lazy(() => import("./ui/SharePending.jsx"));
+  const Page = window.location.pathname === "/share-place"
+    ? React.lazy(() => import("./ui/SharePlace.jsx"))
+    : React.lazy(() => import("./ui/SharePending.jsx"));
   root.render(
     <React.Suspense fallback={null}>
-      <SharePending />
+      <Page />
     </React.Suspense>
   );
 } else if (previewOcc) {

@@ -1,0 +1,66 @@
+// client/src/helpers/sharePresets.js
+//
+// A saved SHAPE — "a Movie is an artifact/movie in Movies with these fields" —
+// so adding your own stuff is quick. It is NOT a rule: nothing here carries a
+// condition and nothing fires on its own (user, 2026-09-28: "there is no rule
+// from IMDB").
+//
+// Per GRID, because a preset names that grid's fields and containers. Stored as
+// `grid.meta.sharePresets` through `PUT /api/v1/share/presets`, which writes
+// that key alone.
+import { uid } from "../uid";
+
+export function readPresets(grid) {
+  const list = grid?.meta?.sharePresets;
+  return Array.isArray(list) ? list : [];
+}
+
+const key = (name) => String(name || "").trim().toLowerCase();
+
+/** Append, or replace one of the same name — saving twice is an edit. */
+export function withPreset(presets, preset) {
+  const rest = (presets || []).filter((p) => key(p.name) !== key(preset.name));
+  return [...rest, preset];
+}
+
+// AN OVERRIDE IS NOT SAVED. Typing a value in the window fixes THIS clip; if a
+// preset kept it, saving one movie would write "2006" into every movie after
+// it. A literal survives, because choosing "a literal" is a deliberate constant.
+const withoutOverride = (m) => {
+  const { override, ...rest } = m || {};
+  return rest;
+};
+
+export function presetFromForm({ name, destination, shape, mappings, labelMapping }) {
+  const cleaned = {};
+  for (const [fieldId, m] of Object.entries(mappings || {})) cleaned[fieldId] = withoutOverride(m);
+  return {
+    id: uid(), name: String(name || "").trim(),
+    role: shape?.role || "instance",
+    kind: shape?.kind || null,
+    bindingsLike: shape?.bindingsLike || null,
+    bindFields: shape?.bindFields || [],
+    fileFrom: shape?.fileFrom || null,
+    destinationId: destination?.id || null,
+    destinationLabel: destination?.label || null,
+    mappings: cleaned,
+    labelMapping: labelMapping ? withoutOverride(labelMapping) : null,
+  };
+}
+
+export function formFromPreset(preset) {
+  const mappings = {};
+  for (const [fieldId, m] of Object.entries(preset?.mappings || {})) mappings[fieldId] = withoutOverride(m);
+  return {
+    destination: preset?.destinationId
+      ? { id: preset.destinationId, label: preset.destinationLabel || preset.name, childCount: null }
+      : null,
+    shape: {
+      role: preset?.role || "instance", kind: preset?.kind || null,
+      bindingsLike: preset?.bindingsLike || null, bindFields: preset?.bindFields || [],
+      autoFields: {}, fileFrom: preset?.fileFrom || null,
+    },
+    mappings,
+    labelMapping: preset?.labelMapping ? withoutOverride(preset.labelMapping) : null,
+  };
+}
