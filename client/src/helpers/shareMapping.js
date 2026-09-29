@@ -28,9 +28,11 @@ export const SHARE_SOURCES = [
   { value: "literal",     label: "a literal",        read: (_c, m) => str(m?.value) },
 ];
 
-// A SITE SUFFIX, as the three separators real titles use. Anchored at the end
-// and requiring the separator, so "Star Wars: A New Hope" keeps its colon.
-const SUFFIX = /\s*[|–—-]\s*[^|–—-]{1,40}$|\s+IMDb$/;
+// A SITE SUFFIX: a WHITESPACE-DELIMITED separator plus a short trailing
+// segment, or a bare trailing " IMDb". The separator must have space around
+// it — a bare hyphen belongs to the title ("X-Men", "Spider-Man"), and an
+// earlier version of this regex turned "Ant-Man and the Wasp" into "Ant".
+const SUFFIX = /\s+[|–—-]\s+[^|–—]{1,40}$|\s+IMDb$/;
 
 /** What can be done to a value. A small fixed set — anything else, edit the box. */
 export const SHARE_TRANSFORMS = [

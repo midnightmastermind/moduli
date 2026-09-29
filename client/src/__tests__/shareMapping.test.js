@@ -64,6 +64,19 @@ describe("transforms", () => {
     expect(apply("stripSuffix", "A Guide to Recognizing Your Saints")).toBe("A Guide to Recognizing Your Saints");
   });
 
+  it("leaves a hyphenated TITLE alone — a bare hyphen is not a separator", () => {
+    // An earlier regex put a bare `-` in the separator class and turned
+    // "Ant-Man and the Wasp" into "Ant". Movie titles are full of hyphens.
+    expect(apply("stripSuffix", "X-Men")).toBe("X-Men");
+    expect(apply("stripSuffix", "Spider-Man: No Way Home")).toBe("Spider-Man: No Way Home");
+    expect(apply("stripSuffix", "Ant-Man and the Wasp")).toBe("Ant-Man and the Wasp");
+  });
+
+  it("still strips a spaced separator, which is what a site suffix uses", () => {
+    expect(apply("stripSuffix", "Spider-Man: No Way Home - IMDb")).toBe("Spider-Man: No Way Home");
+    expect(apply("stripSuffix", "X-Men | Rotten Tomatoes")).toBe("X-Men");
+  });
+
   it("takes the text inside parentheses", () => {
     expect(apply("parens", "Movie Night (2006)")).toBe("2006");
     expect(apply("parens", "no parens here")).toBe("");
