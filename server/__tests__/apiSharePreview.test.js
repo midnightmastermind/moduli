@@ -33,6 +33,7 @@ vi.mock("../models/Operation.js", () => ({ default: {
       pipeline: { steps: [{ type: "action", config: { type: "CREATE", parentId: "$inbox" } }] } },
   ]) }),
 }}));
+vi.mock("../models/User.js", () => ({ default: { findById: () => ({ lean: async () => null }) } }));
 vi.mock("../models/Folder.js", () => ({ default: {
   findOne: () => ({ lean: async () => ({ id: "fold-files", name: "Files" }) }),
 }}));
@@ -84,7 +85,15 @@ describe("GET /share/stage/:id/preview", () => {
     expect((await preview("k=no&gridId=g1")).status).toBe(404);
   });
 
-  it("requires a gridId, since rules are per grid", async () => {
+  it("with no gridId, uses the grid /share would pick — so a signed-out window still names the rule", async () => {
+    STAGED = { url: "https://x.com/a", shape: "link", gridId: "g1" };
+    const r = await preview("k=k1");
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ gridId: "g1", ruleId: "r-link" });
+  });
+
+  it("with no gridId anywhere, says so rather than guessing", async () => {
+    STAGED = { url: "https://x.com/a", shape: "link" };
     expect((await preview("k=k1")).status).toBe(400);
   });
 

@@ -36,7 +36,9 @@ describe("the app's session token as a Bearer", () => {
     expect(r.status).toBe(201);
   });
   it("is REFUSED everywhere else", async () => {
-    const r = await fetch(`${base}/grids`, { headers: { authorization: `Bearer ${session()}` } });
+    // /grids and /fields accept it now (the placement window lists them, 2026-09-29);
+    // an ordinary CRUD read still does not.
+    const r = await fetch(`${base}/modules?gridId=g1`, { headers: { authorization: `Bearer ${session()}` } });
     expect(r.status).toBe(401);
     expect((await post("/occurrences", session(), { gridId: "g1", moduleId: "m" })).status).toBe(401);
   });

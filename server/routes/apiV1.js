@@ -189,7 +189,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // GRIDS
   // ====================================================================
 
-  router.get("/grids", authAndLimit({ requireScope: "read" }), async (req, res) => {
+  router.get("/grids", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const grids = await Grid.find({ userId: req.userId }).sort({ createdAt: 1 }).lean();
       res.json({
@@ -678,7 +678,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // FIELDS
   // ====================================================================
 
-  router.get("/fields", authAndLimit({ requireScope: "read" }), async (req, res) => {
+  router.get("/fields", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { gridId, q, type, limit, cursor } = req.query;
       const filter = { userId: req.userId };
@@ -1253,11 +1253,20 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // name a different rule than the one that will fire.
   router.get("/share/stage/:id/preview", async (req, res) => {
     try {
-      const { gridId } = req.query;
-      if (!gridId) return err(res, 400, "validation_error", "gridId required");
       const { readStage } = await import("../services/shareStage.js");
       const opened = await readStage(req.params.id, req.query.k, { withUser: true });
       if (!opened) return err(res, 404, "not_found", "no such stage");
+      // No grid named: the one /share itself would pick (stage's own, else the
+      // user's share grid, else the device's last grid) — so a window open in
+      // a signed-out browser, which cannot list grids, still says where Auto
+      // will file the clip.
+      let gridId = req.query.gridId || opened.payload?.gridId || null;
+      if (!gridId) {
+        const { default: User } = await import("../models/User.js");
+        const user = await User.findById(opened.userId).lean().catch(() => null);
+        gridId = user?.meta?.share?.gridId || opened.payload?.fallbackGridId || null;
+      }
+      if (!gridId) return err(res, 400, "validation_error", "gridId required — no share grid is configured");
       const owned = await Grid.exists({ _id: gridId, userId: opened.userId }).catch(() => null);
       if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
       const { default: Operation } = await import("../models/Operation.js");
@@ -1276,9 +1285,43 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         lands = o?.label || m?.label || null;
       }
       res.json({
-        type, ruleId: first?.id || null, ruleName: first?.name || null, lands,
+        type, gridId: String(gridId), ruleId: first?.id || null, ruleName: first?.name || null, lands,
         then: rules.slice(1).map((r) => r.name),
       });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // Saved placement presets (spec §5) — a SHAPE, never a rule. Per grid,
+  // because a preset names that grid's fields and containers. Written as
+  // `meta.sharePresets` ALONE: the window never holds the grid's whole meta,
+  // and a whole-meta write from a stale copy would drop defaultStyle,
+  // scheduleFieldIds and whatever the app wrote meanwhile.
+  router.get("/share/presets", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId } = req.query;
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }, { "meta.sharePresets": 1 }).lean().catch(() => null);
+      if (!grid) return err(res, 404, "not_found", `grid ${gridId} not found`);
+      const presets = grid.meta?.sharePresets;
+      res.json({ presets: Array.isArray(presets) ? presets : [] });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.put("/share/presets", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, presets } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!Array.isArray(presets)) return err(res, 400, "validation_error", "presets must be an array");
+      const next = await Grid.findOneAndUpdate(
+        { _id: gridId, userId: req.userId },
+        { $set: { "meta.sharePresets": presets } },
+        { returnDocument: "after", lean: true },
+      ).catch(() => null);
+      if (!next) return err(res, 404, "not_found", `grid ${gridId} not found`);
+      // Open tabs hold grid.meta; tell them, or their next meta write drops
+      // these. ONLY id + meta: a payload carrying activeFilterValues makes the
+      // sync-leader tab re-run every date-navigation op (onGridUpdated).
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      res.json({ presets: next.meta?.sharePresets || [] });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

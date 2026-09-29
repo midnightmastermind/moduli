@@ -9,8 +9,9 @@ import { verifyToken } from "../utils/jwts.js";
 
 // `allowSessionJwt`: ALSO accept the signed-in app's own session token (the
 // JWT in localStorage["moduli-token"]) as the Bearer. Opted into per route —
-// only `POST /share`, whose phone/Windows share page runs inside the app and
-// holds that session, not an API token. The session already grants everything
+// the share surfaces, which run as app pages holding that session rather than
+// an API token: `POST /share` (the phone/Windows share page) and the placement
+// window's reads (grids, fields, destinations, presets, the stage). The session already grants everything
 // over the socket, so this widens no one's reach; it is still a Bearer header,
 // never a cookie (share plan, Global Constraints).
 export function apiAuth({ requireScope = null, allowSessionJwt = false } = {}) {
