@@ -1294,7 +1294,28 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     });
   };
 
-  router.post("/share", authAndLimit({ requireScope: "write", allowSessionJwt: true }), acceptShareFiles, async (req, res) => {
+  // A placement window commits with the key it was opened with, not a session —
+  // it may be open in a browser that has never signed in. When a stage is
+  // named, the STAGE decides: the key must open it (a bearer token beside it
+  // does not rescue a spent or wrong key — that is what stops one clip being
+  // placed twice), and the stage's owner becomes the request's user. It then
+  // presents as an already-authenticated request, the path apiAuth keeps for
+  // /batch, so the shared auth middleware is unchanged.
+  const stageKeyAuth = async (req, res, next) => {
+    const { stageId, stageKey } = req.body || {};
+    if (!stageId) return next();
+    try {
+      const { consumeStage } = await import("../services/shareStage.js");
+      const opened = await consumeStage(stageId, stageKey, { withUser: true });
+      if (!opened) return err(res, 401, "unauthorized", "stage expired, already used, or wrong key");
+      req.userId = String(opened.userId);
+      req.apiToken = { tokenId: `stage:${stageId}`, userId: req.userId, scopes: ["write"], stage: true };
+      req.stagePayload = opened.payload || {};
+      next();
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  };
+
+  router.post("/share", stageKeyAuth, authAndLimit({ requireScope: "write", allowSessionJwt: true }), acceptShareFiles, async (req, res) => {
     // The first file IS the payload (spec §3). Any others are removed rather
     // than left in the uploads dir, and the response says they were ignored.
     const uploaded = Array.isArray(req.files) ? req.files : [];
@@ -1302,7 +1323,24 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     const dropTemp = (f) => { try { if (f?.path) fsSync.unlinkSync(f.path); } catch { /* gone */ } };
     extraFiles.forEach(dropTemp);
     try {
-      const body = req.body || {};
+      // Under a stage key the CONTENT is the staged clip's, whatever the body
+      // says; only the window's choices (grid, mode, placement) come from the
+      // body. The key authorizes placing that clip — not writing anything.
+      const STAGED = ["url", "text", "title", "label", "shape", "source", "clip"];
+      const body = req.stagePayload
+        ? { ...req.body, ...Object.fromEntries(STAGED.map((k) => [k, req.stagePayload[k] ?? null])),
+            gridId: req.body.gridId || req.stagePayload.gridId || null,
+            fallbackGridId: req.body.fallbackGridId || req.stagePayload.fallbackGridId || null,
+            timeZone: req.body.timeZone || req.stagePayload.timeZone || null }
+        : (req.body || {});
+      // A refusal BEFORE anything is written hands the stage back.
+      const refuse = async (...a) => {
+        if (req.stagePayload) {
+          const { releaseStage } = await import("../services/shareStage.js");
+          await releaseStage(req.body.stageId).catch(() => {});
+        }
+        return err(res, ...a);
+      };
       const { default: User } = await import("../models/User.js");
       const user = await User.findById(req.userId).lean().catch(() => null);
       // Which grid: the sender's explicit choice, else the user's share grid
@@ -1319,10 +1357,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (validZone(body.timeZone) && body.timeZone !== user?.meta?.share?.timeZone) {
         User.updateOne({ _id: req.userId }, { $set: { "meta.share.timeZone": body.timeZone } }).catch(() => {});
       }
-      if (!gridId) { dropTemp(firstFile); return err(res, 400, "validation_error", "no gridId, and no share grid is configured"); }
+      if (!gridId) { dropTemp(firstFile); return refuse(400, "validation_error", "no gridId, and no share grid is configured"); }
       const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
-      if (!owned) { dropTemp(firstFile); return err(res, 404, "not_found", `grid ${gridId} not found`); }
-      if (!body.url && !body.text && !firstFile) { dropTemp(firstFile); return err(res, 400, "validation_error", "url, text or a file required"); }
+      if (!owned) { dropTemp(firstFile); return refuse(404, "not_found", `grid ${gridId} not found`); }
+      if (!body.url && !body.text && !firstFile) { dropTemp(firstFile); return refuse(400, "validation_error", "url, text or a file required"); }
 
       const { shareLogEntry, recordShare } = await import("../services/shareLog.js");
       // Every outcome from here on is logged — the failures most of all (§12).
@@ -1397,10 +1435,23 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         throw e;
       }
 
-      const result = await runShareRules({
-        share, userId: req.userId, gridId, io,
-        mirror: (model, doc) => mirrorToCache(req.userId, gridId, model, doc),
-      });
+      // AUTO or MANUAL. A hand placement skips the rules and writes one row
+      // through the same writer, and is logged exactly the same way — the
+      // Imports tab's Recent shares is the trail for everything that lands here.
+      const mode = body.mode || "auto";
+      if (mode !== "auto" && mode !== "manual") {
+        await logShare(share, null, `unknown mode ${mode}`);
+        return refuse(400, "validation_error", `unknown mode: ${mode}`);
+      }
+      if (mode === "manual" && !body.placement?.parentId) {
+        await logShare(share, null, "manual share with no placement");
+        return refuse(400, "validation_error", "mode:manual requires placement.parentId");
+      }
+      const mirror = (model, doc) => mirrorToCache(req.userId, gridId, model, doc);
+      const result = mode === "manual"
+        ? await (await import("../services/manualPlacement.js")).placeManually({
+            share, placement: body.placement, userId: req.userId, gridId, io, mirror })
+        : await runShareRules({ share, userId: req.userId, gridId, io, mirror });
       await logShare(share, result, null);
       const created = result.ran.flatMap(r => r.created || []);
       const failed = result.ran.filter(r => !r.ok);

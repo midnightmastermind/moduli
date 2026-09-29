@@ -53,7 +53,23 @@ export async function consumeStage(stageId, key, { withUser = false } = {}) {
   const claimed = await ShareStage.findOneAndUpdate(
     { id: stageId, consumedAt: null },
     { $set: { consumedAt: new Date() } },
+    // The claimed doc AFTER the claim — what the tests' mock returns, stated
+    // here so a later read of a mutated field is not green-in-tests-only.
+    { new: true },
   ).lean();
   if (!claimed) return null;
   return withUser ? { payload: claimed.payload, userId: claimed.userId } : claimed.payload;
+}
+
+/**
+ * Give a claimed stage back. Only for a commit REFUSED before anything was
+ * written (a validation error), so the window can be corrected and Clip
+ * pressed again instead of the clip being lost. Never call it after a write:
+ * the claim is what stops one clip being placed twice.
+ */
+export async function releaseStage(stageId) {
+  await ShareStage.updateOne(
+    { id: stageId, consumedAt: { $ne: null }, expiresAt: { $gt: new Date() } },
+    { $set: { consumedAt: null } },
+  );
 }
