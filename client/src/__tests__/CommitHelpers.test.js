@@ -608,13 +608,17 @@ describe("typed creates are born carrying the parent's filter values", () => {
     expect(occ.fields?.[DATE_FID]?.value).toBe("2026-08-05");
   });
 
-  test("createContainerInContainer stamps it too — any occurrence can carry fields", () => {
+  // INVERTED 2026-09-28. This pinned "a container is stamped too", and a stamped
+  // container shows only on the day it was made — the user: "clear the date
+  // stamped on containers. idk why those are stamped". A container is structure;
+  // dated containers (day columns) are dated by the op that builds them.
+  test("createContainerInContainer does NOT stamp the parent's date on a container", () => {
     const { dispatch, socket } = makeMocks();
     const world = filterWorld();
     withBridge(world, () =>
       createContainerInContainer({ dispatch, socket, gridId: "g1", userId: "u1", containerOccurrence: world.dayCol, kind: "doc" }));
     const occ = emitted(socket, "create_occurrence").occurrence;
-    expect(occ.fields?.[DATE_FID]?.value).toBe("2026-08-05");
+    expect(occ.fields?.[DATE_FID]).toBeUndefined();
   });
 
   test("caller-supplied fields WIN over the stamp (the addNew flow copies identity values)", () => {

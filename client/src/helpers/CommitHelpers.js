@@ -1148,14 +1148,18 @@ export function createContainerInContainer({
   const occurrenceId = crypto?.randomUUID?.() || `co-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   const module = { id: moduleId, userId, gridId, role: "container", kind, label: label || "" };
-  const stamped = parentFilterFields(containerOccurrence);
+  // NOT stamped with the parent's filter date (user, 2026-09-28: "clear the date
+  // stamped on containers. idk why those are stamped"). A container is structure,
+  // not a dated entry: a stamped one shows only on the day it was made, since a
+  // row carrying no date passes the filter on every day. The containers that ARE
+  // dated (day columns, day-page sections) get their date from the operation that
+  // builds them, never from this stamp.
   const occurrence = {
     id: occurrenceId, userId, gridId, moduleId,
     parentId: containerOccurrence.id,
     occurrences: [],
     // doc/canvas containers render a textmap; seed an empty one so they mount clean.
     ...((kind === "doc" || kind === "canvas") ? { textmap: { type: "doc", content: [] } } : {}),
-    ...(stamped ? { fields: stamped } : {}),
   };
 
   dispatch?.(createModuleAction(module));
