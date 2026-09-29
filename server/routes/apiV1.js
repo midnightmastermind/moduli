@@ -1247,6 +1247,41 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // Which rule Auto would run, and where it files things — said BEFORE Clip is
+  // pressed. Key-authorized like the stage read. Resolved through
+  // selectShareRules, the function the real run uses, so the window cannot
+  // name a different rule than the one that will fire.
+  router.get("/share/stage/:id/preview", async (req, res) => {
+    try {
+      const { gridId } = req.query;
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const { readStage } = await import("../services/shareStage.js");
+      const opened = await readStage(req.params.id, req.query.k, { withUser: true });
+      if (!opened) return err(res, 404, "not_found", "no such stage");
+      const owned = await Grid.exists({ _id: gridId, userId: opened.userId }).catch(() => null);
+      if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
+      const { default: Operation } = await import("../models/Operation.js");
+      const { selectShareRules, shareTypeOfPayload, createTargetOf } = await import("../services/shareRules.js");
+      const type = shareTypeOfPayload(opened.payload || {});
+      const rules = selectShareRules(await Operation.find({ userId: opened.userId, gridId }).lean(), type);
+      const first = rules[0] || null;
+      let lands = null;
+      const target = first ? createTargetOf(first) : null;
+      if (target?.folderId) {
+        const f = await Folder.findOne({ id: target.folderId, userId: opened.userId }).lean();
+        lands = f?.name || null;
+      } else if (target?.parentId) {
+        const o = await Occurrence.findOne({ id: target.parentId, userId: opened.userId }).lean();
+        const m = o?.moduleId ? await Module.findOne({ id: o.moduleId, userId: opened.userId }).lean() : null;
+        lands = o?.label || m?.label || null;
+      }
+      res.json({
+        type, ruleId: first?.id || null, ruleName: first?.name || null, lands,
+        then: rules.slice(1).map((r) => r.name),
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // The searchable destination list behind the placement window.
   router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {

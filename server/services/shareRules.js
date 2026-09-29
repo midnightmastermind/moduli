@@ -18,6 +18,7 @@
 //   SET_VAR name "$share" = { ...handled:true } → scope.$share.handled
 import Operation from "../models/Operation.js";
 import { runOperationServerSide } from "./serverExecutor.js";
+import { classifyShare } from "./shareClassify.js";
 
 export const CATCH_ALL = "*";
 const DEFAULT_PRIORITY = 50;
@@ -67,4 +68,35 @@ export async function runShareRules({ share, userId, gridId, io = null, mirror =
     if (res.scope?.$share && typeof res.scope.$share === "object") state = res.scope.$share;
   }
   return { ran, halted: false };
+}
+
+// ── Which rule Auto would run (placement window, 2026-09-28 spec §4) ──────
+// The share's TYPE is decided the way prepareShare decides it — classifyShare
+// over the url/text — never from the extension's clip `shape`, which names
+// the gesture (page · selection · link · image), not the type the rules key
+// on. A calendar link is an "ics" share only after its body is fetched, which
+// a preview must not do; it reads as the link rule it would be without that.
+export function shareTypeOfPayload(payload = {}) {
+  return classifyShare({ url: payload.url || null, text: payload.text || null, title: payload.title || null }).type;
+}
+
+/** The first literal destination a rule's CREATE writes into, or null. */
+export function createTargetOf(op) {
+  const seen = new Set();
+  const walk = (node) => {
+    if (!node || typeof node !== "object" || seen.has(node)) return null;
+    seen.add(node);
+    if (node.type === "CREATE") {
+      const lit = (v) => (typeof v === "string" && v && !v.startsWith("$") ? v.replace(/^literal:/, "") : null);
+      const folderId = lit(node.parentFolderId);
+      const parentId = lit(node.parentId ?? node.parent);
+      if (folderId || parentId) return folderId ? { folderId } : { parentId };
+    }
+    for (const v of Array.isArray(node) ? node : Object.values(node)) {
+      const hit = walk(v);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  return walk(op?.pipeline?.steps || []);
 }
