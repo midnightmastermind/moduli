@@ -1,5 +1,6 @@
 // ui/commandCenter/ConnectionsTab.jsx
-// Where uploaded files are stored (StorageConnections) + a direct upload.
+// Where uploaded files are stored (StorageConnections), a direct upload, and
+// the API tokens other things authenticate with (TokensSection).
 //
 // The "External path connections" section (server folders browsed and
 // imported from) was removed 2026-09-24 at the user's ask — it listed two
@@ -11,6 +12,7 @@ import { Upload } from "lucide-react";
 import { useGridActions } from "../../GridActionsContext";
 import { sessionHeaders } from "../../helpers/authStorage";
 import { StorageConnections } from "./StorageConnections";
+import { TokensSection } from "./TokensSection";
 
 /** "Files › Images" — the folder chain a filed upload sits in (root excluded). */
 function folderPath(folderId, foldersById) {
@@ -99,6 +101,8 @@ export function ConnectionsTab() {
           ))}
         </div>
       )}
+
+      <TokensSection />
     </div>
   );
 }

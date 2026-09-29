@@ -39,6 +39,20 @@ afterAll(() => server?.close());
 const H = { "content-type": "application/json", authorization: "Bearer session-jwt" };
 
 describe("share presets", () => {
+  // The SUGGESTIONS (2026-09-29) are computed on this same request from a
+  // destination search over every module on the grid. Nothing here mocks that
+  // path, so it never resolves — which is exactly the case worth pinning: the
+  // saved presets are what was asked for and the window BLOCKS on this
+  // response, so a slow suggestion must not hold it. Answering without them
+  // is the correct outcome, not a degraded one.
+  it("answers with the saved presets even when the suggestions never resolve", async () => {
+    const r = await fetch(`${base}/share/presets?gridId=g1`, { headers: H });
+    expect(r.status).toBe(200);
+    const b = await r.json();
+    expect(b.presets).toEqual([{ id: "p1", name: "Movie" }]);
+    expect(b.suggested).toEqual([]);
+  });
+
   it("reads a grid's presets with the SESSION token (the window has no API token)", async () => {
     const r = await fetch(`${base}/share/presets?gridId=g1`, { headers: H });
     expect(r.status).toBe(200);

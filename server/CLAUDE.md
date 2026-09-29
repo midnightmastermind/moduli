@@ -2,6 +2,31 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 (4) — minting a token from the app; the clip's photos; the grid's own presets)
+- **`POST /tokens`** — session Bearer ONLY (`req.apiToken.session`, which `apiAuth` sets for a session
+  JWT). 2026-09-24's "minting stays a server-side script: a token that can mint tokens makes a leak
+  permanent" is untouched — it forbids minting WITH A TOKEN, and a signed-in session already grants
+  everything over the socket. A valid write-scoped API token is refused with 403. The raw secret is
+  returned here and nowhere else. `GET /tokens` + `DELETE /tokens/:tokenId` now take the session too, so
+  the Connections tab can list and revoke. `__tests__/apiTokensMint.test.js` (7); A/B: the route (6 of 7),
+  the session guard (exactly 1).
+- **`utils/pageImages.imagesFromHtml` (NEW)** — every picture a page offers, best-first, for the
+  placement window's cover picker. `pageCover` answers "which ONE picture IS this page" (the right
+  answer for a bookmark tile and for the SUGGESTION); this returns the alternatives, because a movie's
+  og:image is often a site banner while the poster sits in the article. Declared pictures first, then
+  `<img>` through **`bestImageSrc`** (srcset-aware — a lazy page's `src` is a placeholder). Refuses
+  `data:` URIs, anything DECLARED under 64px, and icons. `__tests__/pageImages.test.js` (11).
+- **`GET /share/stage/:id/cover` returns `candidates`** from the SAME fetch, by wrapping the
+  `fetchPageHtml` it hands `fetchLinkPreview`. An image clip is its own only candidate, with no fetch.
+- **`services/sharePresetSuggest.js` (NEW)** — the presets the grid implies, one per typed, populated
+  board, returned as `suggested` on `GET /share/presets`. Derived: the destination's own shape plus a
+  mapping per bound field chosen from the field's NAME and TYPE (ordered so Year/Date/URL never reach the
+  Title rule, and an auto value the rows agree on always wins). Computed per request, stored nowhere.
+  `__tests__/sharePresetSuggest.test.js` (14), including a board the file has never heard of.
+- **The suggestions are RACED against 2.5s.** They ride on the presets read, which the window blocks on,
+  and they cost a destination search over every module on the grid. A throw was already survivable; a
+  slow query was not — the existing presets test hung at 5s, and that case is now pinned by name.
+
 ## Recent Changes (2026-09-29 (3) — a staged clip can be asked for its picture)
 - **`GET /share/stage/:id/cover`** (apiV1) — key-authorized like the stage read, because the placement
   window may be open in a browser with no Moduli session. An image clip IS its picture and is returned

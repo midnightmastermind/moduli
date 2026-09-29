@@ -1260,13 +1260,39 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const payload = await readStage(req.params.id, req.query.k);
       if (!payload) return err(res, 404, "not_found", "no such stage");
       const url = payload.url || "";
-      if (payload.shape === "image" && /^https?:\/\//i.test(url)) return res.json({ cover: url, via: "image" });
-      if (!/^https?:\/\//i.test(url)) return res.json({ cover: null, via: null });
+      // An image clip IS its picture, and it is the only candidate there.
+      if (payload.shape === "image" && /^https?:\/\//i.test(url)) {
+        return res.json({ cover: url, via: "image", candidates: [{ url, via: "image" }] });
+      }
+      if (!/^https?:\/\//i.test(url)) return res.json({ cover: null, via: null, candidates: [] });
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
       const { fetchLinkPreview } = await import("../utils/linkPreview.js");
-      const preview = await fetchLinkPreview(url, { fetchPageHtml });
+      // ONE fetch for both answers. `fetchPageHtml` is wrapped so the html it
+      // returns can be read a second time for the candidate list — asking the
+      // page twice for the same bytes is a second outbound request on a path
+      // the window waits on.
+      let html = null, finalUrl = url;
+      const captureHtml = async (u) => {
+        const r = await fetchPageHtml(u);
+        html = r?.html ?? null;
+        finalUrl = r?.url || u;
+        return r;
+      };
+      const preview = await fetchLinkPreview(url, { fetchPageHtml: captureHtml });
       const og = preview?.ok && preview.coverVia === "og" ? preview.cover : null;
-      res.json({ cover: og || null, via: og ? "og" : null });
+      // EVERY picture the page offers, for the picker to choose from (user,
+      // 2026-09-29: "or photos we get from the share"). The og:image is still
+      // the SUGGESTION — it is the one that means "this is the picture of this
+      // page" — but a poster often sits in the article while og:image is a
+      // site banner, so the rest are offered rather than discarded.
+      let candidates = [];
+      if (html) {
+        try {
+          const { imagesFromHtml } = await import("../utils/pageImages.js");
+          candidates = imagesFromHtml(html, finalUrl);
+        } catch (e) { console.warn("[share/stage/cover] image scan failed:", e.message); }
+      }
+      res.json({ cover: og || null, via: og ? "og" : null, candidates });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -1319,6 +1345,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // `meta.sharePresets` ALONE: the window never holds the grid's whole meta,
   // and a whole-meta write from a stale copy would drop defaultStyle,
   // scheduleFieldIds and whatever the app wrote meanwhile.
+  // How long the preset read will wait on the suggestions before answering
+  // without them. Short: the window is on screen, waiting.
+  const SUGGEST_TIMEOUT_MS = 2500;
+
   router.get("/share/presets", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { gridId } = req.query;
@@ -1326,7 +1356,30 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const grid = await Grid.findOne({ _id: gridId, userId: req.userId }, { "meta.sharePresets": 1 }).lean().catch(() => null);
       if (!grid) return err(res, 404, "not_found", `grid ${gridId} not found`);
       const presets = grid.meta?.sharePresets;
-      res.json({ presets: Array.isArray(presets) ? presets : [] });
+      // SUGGESTED presets — one per board the grid already files things into
+      // (user, 2026-09-29: "give the share window a bunch of presets based on
+      // my system … like movies, appointments, bookmarks, etc. based on where
+      // they go"). Derived per request and stored nowhere, so they follow the
+      // grid; saving one is what makes it the user's.
+      //
+      // BOUNDED, AND THAT IS NOT DEFENSIVE. The saved presets are what was
+      // asked for and the window BLOCKS on this response; the suggestions are
+      // a bonus that costs a destination search over every module on the grid.
+      // A throw was already survivable — a SLOW query was not, and would have
+      // held the window open with nothing on screen.
+      const suggested = await Promise.race([
+        (async () => {
+          const { searchDestinations } = await import("../services/destinationSearch.js");
+          const { suggestPresets } = await import("../services/sharePresetSuggest.js");
+          const [dests, fields] = await Promise.all([
+            searchDestinations({ userId: req.userId, gridId, q: "", limit: 60 }),
+            Field.find({ userId: req.userId, gridId }, { id: 1, name: 1, type: 1 }).lean(),
+          ]);
+          return suggestPresets(dests, fields);
+        })().catch((e) => { console.warn("[share/presets] suggestions failed:", e.message); return []; }),
+        new Promise((resolve) => setTimeout(() => resolve([]), SUGGEST_TIMEOUT_MS)),
+      ]);
+      res.json({ presets: Array.isArray(presets) ? presets : [], suggested });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
   router.put("/share/presets", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
@@ -1650,7 +1703,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // hand in Mongo. Listing never returns a secret — only the stored hash
   // exists, and it is not sent either. Minting stays a server-side script: a
   // token able to mint tokens could make a leak permanent.
-  router.get("/tokens", authAndLimit({ requireScope: "read" }), async (req, res) => {
+  router.get("/tokens", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const docs = await ApiToken.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
       res.json({ tokens: docs.map(t => ({
@@ -1660,7 +1713,40 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       })) });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
-  router.delete("/tokens/:tokenId", authAndLimit({ requireScope: "write" }), async (req, res) => {
+  // MINT — and it takes the SESSION, never an API token.
+  //
+  // 2026-09-24 recorded "minting stays a server-side script: a token that can
+  // mint tokens makes a leak permanent", and that reasoning is untouched: a
+  // leaked bearer must not be able to issue itself a successor, or revoking it
+  // buys nothing. What that rules out is minting WITH A TOKEN — not minting
+  // from the app, where the caller has already proved they are the user and
+  // could read every row over the socket anyway. `apiAuth` marks a session
+  // Bearer `session: true`, which is the whole discriminator.
+  //
+  // Until now the only way to get a token was `scripts/createApiToken.js` on
+  // the server, which is why the extension's own setup hint pointed at a
+  // Connections screen that had no tokens on it.
+  router.post("/tokens", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (!req.apiToken?.session) {
+        return err(res, 403, "forbidden", "Tokens can only be created while signed in to the app, not with an API token.");
+      }
+      const { name, scopes } = req.body || {};
+      const wanted = Array.isArray(scopes) ? scopes : ["read", "write"];
+      const clean = wanted.filter((s) => s === "read" || s === "write");
+      if (!clean.length) return err(res, 400, "validation_error", "scopes must include read and/or write");
+      const label = String(name || "").trim().slice(0, 80) || `token ${new Date().toISOString().slice(0, 10)}`;
+      const { rawToken, tokenDoc } = await ApiToken.mint({ userId: req.userId, name: label, scopes: clean });
+      // The raw token is returned HERE AND NOWHERE ELSE — only its bcrypt hash
+      // is stored, so the list endpoint can never show it again.
+      res.status(201).json({
+        token: rawToken,
+        tokenId: tokenDoc.tokenId, name: tokenDoc.name, scopes: tokenDoc.scopes,
+        createdAt: tokenDoc.createdAt,
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.delete("/tokens/:tokenId", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
     try {
       const r = await ApiToken.updateOne({ tokenId: req.params.tokenId, userId: req.userId }, { $set: { revoked: true } });
       if (!r.matchedCount) return err(res, 404, "not_found", "Token not found");

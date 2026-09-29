@@ -16,7 +16,7 @@
 // ============================================================
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, Upload, Link2, X, Loader2, ImageOff } from "lucide-react";
+import { Search, Upload, Link2, X, Loader2, ImageOff, Image as ImageIcon } from "lucide-react";
 import LoadingImage from "./LoadingImage.jsx";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -49,6 +49,8 @@ export function ImagePickerHost() {
       onPick={(url) => { req?.onPick?.(url); }}
       initialQuery={req?.query || ""}
       title={req?.title || "Set image"}
+      suggestions={req?.suggestions || []}
+      suggestedLabel={req?.suggestedLabel || SUGGESTED_TAB.label}
     />
   );
 }
@@ -59,14 +61,26 @@ const TABS = [
   { id: "url", label: "URL", Icon: Link2 },
 ];
 
+// The pictures the CALLER already has — the share window passes the ones found
+// on the clipped page (user, 2026-09-29: "or photos we get from the share").
+// Only offered when there are some, and then it OPENS on them: a picture from
+// the thing you are filing beats a web search for its name, and searching is
+// one click away either way.
+const SUGGESTED_TAB = { id: "suggested", label: "From the page", Icon: ImageIcon };
+
 export default function ImagePickerMenu({
   open,
   onClose,
   onPick,           // (url: string) => void — caller commits + closes as needed
   initialQuery = "",
   title = "Set image",
+  // [{ url, thumbnail?, title?, alt? }] — rendered as a first tab when non-empty.
+  suggestions = [],
+  suggestedLabel = SUGGESTED_TAB.label,
 }) {
-  const [tab, setTab] = useState("search");
+  const hasSuggestions = Array.isArray(suggestions) && suggestions.length > 0;
+  const tabs = hasSuggestions ? [{ ...SUGGESTED_TAB, label: suggestedLabel }, ...TABS] : TABS;
+  const [tab, setTab] = useState(hasSuggestions ? "suggested" : "search");
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState(null); // null = not searched yet
   const [busy, setBusy] = useState(false);
@@ -79,7 +93,7 @@ export default function ImagePickerMenu({
   // (Calibre behavior: opening the dialog immediately looks up covers).
   useEffect(() => {
     if (!open) return;
-    setTab("search");
+    setTab(hasSuggestions ? "suggested" : "search");
     setQuery(initialQuery);
     setResults(null);
     setError(null);
@@ -166,7 +180,7 @@ export default function ImagePickerMenu({
 
         {/* tabs */}
         <div style={{ display: "flex", gap: 4, padding: "8px 14px 0" }}>
-          {TABS.map(({ id, label, Icon }) => (
+          {tabs.map(({ id, label, Icon }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -186,6 +200,32 @@ export default function ImagePickerMenu({
 
         {/* body */}
         <div style={{ padding: 14, overflowY: "auto", minHeight: 180 }}>
+          {tab === "suggested" && (
+            <div data-testid="picker-suggestions" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+              {suggestions.map((s, i) => (
+                <button
+                  key={s.url || i}
+                  title={s.title || s.alt || s.url}
+                  onClick={() => { onPick?.(s.url); onClose?.(); }}
+                  style={{
+                    padding: 0, cursor: "pointer", borderRadius: 6, overflow: "hidden",
+                    border: "1px solid hsl(var(--border, 0 0% 25%))",
+                    background: "var(--input-bg, rgba(255,255,255,0.04))",
+                    aspectRatio: "2 / 3", display: "block",
+                  }}
+                >
+                  <LoadingImage
+                    src={s.thumbnail || s.url}
+                    alt={s.alt || s.title || ""}
+                    spinnerSize="sm"
+                    frameStyle={{ position: "relative", display: "block", width: "100%", height: "100%" }}
+                    imgStyle={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+
           {tab === "search" && (
             <>
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

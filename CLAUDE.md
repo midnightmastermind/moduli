@@ -15,6 +15,69 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 (4) — TOKENS IN THE APP; the share window offers the page's OWN photos and the grid's OWN boards
+
+Four asks in one message: *"lets do the tokens thing"* · *"finish up this share (with images), and cover
+picker stuff"* · *"give it that image search thing we have as well to choose from (or photos we get from
+the share)"* · *"give the share window a bunch of presets based on my system … like movies, appointments,
+bookmarks, etc. based on where they go"*.
+
+**TOKENS ARE MINTED FROM THE APP, AND THE 09-24 CONSTRAINT IS INTACT.** That entry deliberately left
+minting out of the API: *"a token that can mint tokens makes a leak permanent"* — a leaked bearer issuing
+itself a successor makes revoking it worthless. What that forbids is minting WITH A TOKEN, not minting
+from a signed-in session, which grants nothing the session did not already have over the socket.
+`POST /tokens` takes `allowSessionJwt` and then **refuses anything but a session** (`apiAuth` marks one
+`session: true` — the whole discriminator). So the extension's own setup hint, *"Command Center →
+Connections"*, is true for the first time instead of pointing at a screen with no tokens on it.
+`TokensSection` lists / creates / revokes; the secret is shown ONCE because only its bcrypt hash is
+stored, and the copy button falls back to selecting the text (`navigator.clipboard` is refusable, and
+this is the one value that cannot be fetched again). **The load-bearing test is not "does it mint" but
+"does it refuse a valid write-scoped API token"** — A/B: removing that one guard fails exactly it.
+
+**THE COVER PICKER OPENS ON THE SHARE'S OWN PHOTOS.** The picker already had Search / Upload / URL; it
+gained an optional `suggestions` tab that is offered ONLY when the caller has some and is then the tab it
+OPENS on — a picture from the thing you are filing beats a web search for its name, and Search is one
+click away either way. `GET /share/stage/:id/cover` now returns `candidates` beside the suggestion:
+`utils/pageImages.imagesFromHtml` reads the page's declared pictures first, then every `<img>` **through
+`bestImageSrc`, not `src`** (2026-09-15: badgerherald.com's `src` is an alias that 404s while the srcset
+holds the real uploads — one definition of "which URL does this img mean", shared with the importers).
+Refused: `data:` URIs (tracking pixels, inline spinners), anything the page DECLARES under 64px, and
+icons — a favicon stretched into a poster slot is worse than the title text it replaces.
+**ONE outbound fetch for both answers**, by wrapping the `fetchPageHtml` handed to `fetchLinkPreview`;
+that test was vacuous until the mock was made to call its injected fetcher like the real one does.
+
+**THE PRESETS ARE DERIVED FROM THE GRID, NOT A LIST OF NAMES.** `sharePresetSuggest` knows nothing about
+movies: a suggestion is a destination's OWN shape (role, kind, bindings, and the values its rows agree on
+— the same `autoFields` the window computes when you pick it by hand) plus a mapping per bound field
+chosen from that field's name and type. So poms gets Movies / Bookmarks / People, and a grid with a
+Recipes board gets Recipes, with no migration and nothing to keep in step. Ordered biggest-board-first,
+capped at 12, computed per request and **stored nowhere** — rename a board and its preset renames; saving
+one is what makes it the user's. A test builds a board this file has never heard of and asserts the same
+rules apply; that is what fails if anyone hardcodes a name.
+```
+Year   number + /\byear\b/   -> title, extract year   (empty on no match, never the film's name)
+Date   date   + added/saved  -> today
+URL    url|link|website…     -> linkUrl   (falls back to the page URL, so it is right for both clips)
+Notes  notes|description…    -> selected text
+Title  title|name|label      -> title, strip site suffix      <- LAST, so the four above never reach it
+an auto value the rows agree on always beats a guess from a field's name
+```
+
+**AND THE SUGGESTIONS ARE BOUNDED, WHICH THE SUITE IS WHAT FOUND.** They ride on `GET /share/presets`,
+which the window BLOCKS on, and they cost a destination search over every module on the grid. A `try`
+already survived a throw; a SLOW query would have held the window open with nothing on screen — the
+existing presets test hung at 5s. Raced against 2.5s, and that case is now pinned by name: the saved
+presets are what was asked for, the suggestions are a bonus.
+
+Server **2,912 pass** (293 files); client **5,346 pass / 504 of 506**, the 2 errors the documented
+`trackerValues` OOM pair; build clean. Five A/Bs, each mutation asserted to land: the mint route (6 of 7),
+the session-only guard (exactly 1), the srcset read (1), the tiny-image refusal (1), the auto-value
+precedence (1), the board filter (1), and opening on suggestions (3 of 6, with the no-suggestions control
+passing both ways). **NOT watched in a browser** — nobody has minted a token, opened the cover picker on a
+real share or picked a suggested preset.
+
+---
+
 ### 2026-09-29 (3) — A ROW'S PICTURE COULD BE SET FROM NOWHERE; four surfaces now share one picker
 
 User: *"how would i grab image and place that. im trying to add A Guide to Recognizing Your Saints and i

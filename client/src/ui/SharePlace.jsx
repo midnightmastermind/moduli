@@ -73,6 +73,11 @@ export default function SharePlace() {
   // New / Preset form
   const [fields, setFields] = useState([]);
   const [presets, setPresets] = useState([]);
+  // Presets the GRID implies — one per board it already files things into.
+  // Computed server-side per request and stored nowhere, so they follow the
+  // grid; picking one fills the form exactly as a saved preset does, and
+  // "Save as preset…" is what makes a chosen one permanent.
+  const [suggested, setSuggested] = useState([]);
   const [presetId, setPresetId] = useState("");
   const [q, setQ] = useState("");
   const [dests, setDests] = useState([]);
@@ -88,6 +93,9 @@ export default function SharePlace() {
   const [cover, setCover] = useState("");
   const [coverTouched, setCoverTouched] = useState(false);
   const [pickingCover, setPickingCover] = useState(false);
+  // Every picture the clipped page offers, so the picker opens on the share's
+  // own photos rather than a web search for its title.
+  const [coverChoices, setCoverChoices] = useState([]);
 
   const clip = useMemo(() => (payload ? clipFromStage(payload) : null), [payload]);
   const shape = useMemo(
@@ -131,10 +139,14 @@ export default function SharePlace() {
   useEffect(() => {
     setDestination(null); setSiblingShape(null); setKindOverride(""); setMappings({});
     setLabelMapping(DEFAULT_LABEL); setPresetId(""); setQ(""); setDests([]);
-    if (!token || !gridId) { setFields([]); setPresets([]); return; }
+    if (!token || !gridId) { setFields([]); setPresets([]); setSuggested([]); return; }
     let live = true;
     getJson(`/fields?gridId=${enc(gridId)}&limit=500`).then((b) => { if (live) setFields(b?.fields || []); });
-    getJson(`/share/presets?gridId=${enc(gridId)}`).then((b) => { if (live) setPresets(b?.presets || []); });
+    getJson(`/share/presets?gridId=${enc(gridId)}`).then((b) => {
+      if (!live) return;
+      setPresets(b?.presets || []);
+      setSuggested(b?.suggested || []);
+    });
     return () => { live = false; };
   }, [gridId, token, getJson]);
 
@@ -170,7 +182,7 @@ export default function SharePlace() {
 
   const pickPreset = (id) => {
     setPresetId(id);
-    const p = presets.find((x) => x.id === id);
+    const p = presets.find((x) => x.id === id) || suggested.find((x) => x.id === id);
     if (!p) return;
     const f = formFromPreset(p);
     setDestination(f.destination);
@@ -181,7 +193,8 @@ export default function SharePlace() {
   };
 
   const savePreset = async () => {
-    const name = window.prompt("Save this placement as a preset named:", presets.find((p) => p.id === presetId)?.name || "");
+    const chosen = presets.find((p) => p.id === presetId) || suggested.find((p) => p.id === presetId);
+    const name = window.prompt("Save this placement as a preset named:", chosen?.name || destination?.label || "");
     if (!name || !name.trim()) return;
     const next = withPreset(readPresets({ meta: { sharePresets: presets } }),
       presetFromForm({ name, destination, shape, mappings, labelMapping }));
@@ -202,14 +215,18 @@ export default function SharePlace() {
 
   // Suggest the page's own og:image once, the first time a cover would apply.
   useEffect(() => {
-    if (!wantsCover || coverTouched || cover || !stageId) return;
+    if (!wantsCover || coverTouched || (cover && coverChoices.length) || !stageId) return;
     let live = true;
     fetch(`/api/v1/share/stage/${enc(stageId)}/cover?k=${enc(stageKey)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((b) => { if (live && b?.cover) setCover(b.cover); })
+      .then((b) => {
+        if (!live || !b) return;
+        if (b.cover) setCover(b.cover);
+        if (Array.isArray(b.candidates)) setCoverChoices(b.candidates);
+      })
       .catch(() => {});
     return () => { live = false; };
-  }, [wantsCover, coverTouched, cover, stageId, stageKey]);
+  }, [wantsCover, coverTouched, cover, coverChoices.length, stageId, stageKey]);
 
   const canClip = !busy && !!payload && (manual ? !!destination && !!token && !!gridId : true);
 
@@ -298,10 +315,24 @@ export default function SharePlace() {
           {mode === "preset" && (
             <div style={{ marginBottom: 8 }}>
               <label htmlFor="share-preset" style={lblSt}>Preset</label>
-              {presets.length ? (
+              {presets.length || suggested.length ? (
                 <select id="share-preset" value={presetId} onChange={(e) => pickPreset(e.target.value)} style={inputSt}>
                   <option value="">— pick a preset —</option>
-                  {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {presets.length > 0 && (
+                    <optgroup label="Saved">
+                      {presets.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </optgroup>
+                  )}
+                  {/* The grid's own boards. Grouped and labelled, because one of
+                      these is a guess from the shape of a board and a saved one
+                      is a decision the user made. */}
+                  {suggested.length > 0 && (
+                    <optgroup label="From your boards">
+                      {suggested.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}{p.kind ? ` — ${p.kind}` : ""}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               ) : (
                 <div style={{ fontSize: 11, color: "var(--text-muted, #aaa)" }}>No presets on this grid yet — place one with New, then “Save as preset…”.</div>
@@ -365,6 +396,7 @@ export default function SharePlace() {
                     open
                     title={`Cover — ${clip.title || "untitled"}`}
                     initialQuery={coverSearchQuery({ label: clip.title, kind: shape.kind })}
+                    suggestions={coverChoices}
                     onClose={() => setPickingCover(false)}
                     onPick={(url) => { setCover(url); setCoverTouched(true); }}
                   />

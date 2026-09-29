@@ -3,6 +3,24 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 (4) — the picker takes the caller's own photos; tokens live in Connections)
+- **`ImagePickerMenu` gained `suggestions`** — `[{url, thumbnail?, title?, alt?}]`. When non-empty it adds
+  a first tab and OPENS on it: a picture from the thing you are filing beats a web search for its name,
+  and Search is one click away. Empty or absent → byte-identical to before (no tab, opens on Search),
+  which is the control test — every other call site (row menus, media fields, the artifact viewer) must
+  not gain an empty first tab. `ImagePickerHost` passes `suggestions` / `suggestedLabel` through, so
+  `openImagePicker({ suggestions })` works imperatively too.
+- **`SharePlace`** — the Cover row's picker gets the clipped page's own photos (`candidates` from
+  `/share/stage/:id/cover`), and the Preset dropdown lists **Saved** and **From your boards** as separate
+  `<optgroup>`s: one is a decision the user made, the other a guess from a board's shape. Picking either
+  fills the same form; "Save as preset…" is what makes a suggested one permanent.
+- **`commandCenter/TokensSection.jsx` (NEW)**, mounted in `ConnectionsTab` — list / create / revoke API
+  tokens. The secret is shown ONCE (only its hash is stored, so there is no "show it again" to build) and
+  the copy button falls back to SELECTING the text: `navigator.clipboard` is unavailable over plain http
+  and can be refused, and this is the one value that cannot be fetched again. Minting is session-only,
+  enforced by the server — see server/CLAUDE.md.
+- Tests: `__tests__/imagePickerSuggestions.test.jsx` (6, A/B'd — removing "opens on suggestions" fails 3).
+
 ## Recent Changes (2026-09-29 (2) — the header "Sort children" is the searchable FieldSelect)
 - `SortSection.jsx` rendered one `<button>` per field — a scroll through every field on the grid — so the
   09-28 sweep (which looked for native `<select>`s) missed it. It uses `FieldSelect` now ("Label" as an
