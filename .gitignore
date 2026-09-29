@@ -30,3 +30,9 @@ backups/
 
 # throwaway probe suites (deploy.sh runs `git add -A`)
 client/src/__tests__/_*.test.js
+
+# the dep symlinks this worktree uses (a trailing-slash rule misses a symlink)
+/node_modules
+/client/node_modules
+/server/node_modules
+/server/.env
