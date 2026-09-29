@@ -15,6 +15,43 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (9) — A CONTAINER IS NOT STAMPED WITH ITS PAGE'S DATE; and the rebuild's slot lookup read a stale date
+
+User, on (8)'s tile finding: *"stamping something with the date and using the date filter are two diff
+things"* · *"the autodate stamp should just be on things dragged or added to the schedule, idk why
+trackers are stamped"* · *"clear the date stamped on containers"*.
+
+**WHERE THE STAMP LIVES:** `helpers/filterFieldStamp.computePageFilterFields`, called by every create and
+drop path (`CommitHelpers.parentFilterFields` + four sites in `dropHandlers`). It copies the active named
+filter's nav value onto the new row. Its only opt-out, `meta.skipFilterStamp`, is written by NOTHING —
+no UI, seed or migration. poms already does the Schedule's dating as data: `Schedule: Stamp Date & Time
+Slot` (onCreate, scoped to the Schedule panel).
+
+**SHIPPED:** `createContainerInContainer` no longer stamps. The test that pinned *"a container is stamped
+too"* is INVERTED with its reason; HEAD fails it (A/B). Dated containers — day columns and day-page
+sections — are dated by the ops that build them and are untouched.
+
+**CENSUS FIRST:** poms: 573 builder-dated day-page sections + 66 day columns (kept, ops FIND them by Date)
+and 61 unsigned. Rebuild: 3 day columns (kept) + **50 stamped**: Routines › Nutrition and the Sep 28
+column's 49 slot copies — the latter left over from (7)'s template bug (COPY_LINK copied the template's
+stale date), not new stamping. **Cleared through the app's events** (backup
+`containers-date-backup.json`): 0 stamped containers left.
+
+**AND THE REBUILD'S `Place Dated Work` NEEDED THOSE STALE DATES** — its slot FIND read the SLOT's own Date,
+so it could only ever match the Sep 28 slots. Rebuilt by clicking in poms' shape (the editor only
+appends, so the old inner loop was removed and re-added in order): FIND the day column by Schedule
+Format `day-col` + Date SAME_DAY the shift, then per covered label the slot under that column by Time
+Slot. **Watched live:** Work 330 → 360 min added **12:30pm**; the Sep 28 column renders 49 slots.
+
+**OPEN (the user's call):** row stamping itself. The rebuild's Completed Tasks and Water TILES are rows,
+not containers, and still carry Date; the plan on the table is to stop app-level stamping entirely and
+build `Stamp Date & Time Slot` on the rebuild so only Schedule adds get a date — after checking which poms
+rows depend on the automatic stamp. Probe note: an expired auth token shows as a 90s `waitForFunction`
+timeout in `_build.mjs open()` — re-mint with `_mkauth.mjs`. Client 5,251 pass; the 2 worker errors are
+the OOM pair, identical on the pre-change code.
+
+---
+
 ### 2026-09-28 (8) — `Completed Tasks`, BUILT BY CLICKING; and a tracker tile made in the UI hides itself on every other day
 
 Rebuild-via-UI, next op after Build Schedule (its poms tail runs it). **No code changed.**

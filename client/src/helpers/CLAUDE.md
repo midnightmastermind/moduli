@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-28 (9) — `createContainerInContainer` no longer stamps the page's date)
+- A container made by "add a container" was born carrying the parent's filter value (via
+  `parentFilterFields`), so it showed only on the day it was made. Removed for containers; rows still
+  stamp for now. User direction: the filter and stamping are separate, auto-date belongs to Schedule adds
+  (an op), not the app. `computePageFilterFields` and its unused `meta.skipFilterStamp` opt-out remain.
+
 ## Recent Changes (2026-09-28 — ADD_CHILD/REMOVE_CHILD refuse a multi-match; trigger priority 0 is authorable)
 - **`operationActions.singleOccurrenceId` (NEW, exported)** — one definition of "the single
   occurrence id a write step may target". `FIND` binds an ARRAY when its predicate matches several
