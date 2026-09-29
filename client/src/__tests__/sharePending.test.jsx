@@ -1,7 +1,9 @@
 // The pending page's decisions (ui/SharePending.jsx `fileShare`): which of the
 // four entry points this is, what it posts, and that it never reports success
 // it did not have (spec §12).
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, waitFor } from "@testing-library/react";
 import { fileShare } from "../ui/SharePending";
 import { SHARE_CACHE, stashUrl } from "../helpers/shareHandoff";
 
@@ -14,20 +16,42 @@ function fakeCaches() {
 const loc = (path) => { const u = new URL(`https://viafluere.com${path}`); return { pathname: u.pathname, search: u.search }; };
 const landed = { label: "x", ran: [{ ruleName: "Share: anything else", ok: true, created: [{ occurrenceId: "o", status: "created" }] }] };
 const okFetch = () => vi.fn(async () => ({ status: 201, json: async () => landed }));
+const stageFetch = () => vi.fn(async () => ({ status: 201, json: async () => ({ stageId: "st1", key: "key1" }) }));
 
 beforeEach(() => { globalThis.caches = fakeCaches(); });
 
 describe("fileShare", () => {
-  it("posts a stashed share with the session as Bearer, and reports it filed", async () => {
+  // INVERTED 2026-09-29 (placement window). This used to assert that a stashed
+  // share is POSTED to /api/v1/share and reported filed — the page ran the rules
+  // itself. Every sender now reaches the placement window, so a link or text is
+  // STAGED (same session Bearer) and the page redirects there; Auto in the
+  // window runs those same rules.
+  it("stages a stashed link with the session as Bearer, and redirects to the placement window", async () => {
     const fd = new FormData(); fd.append("url", "https://x.test/a"); fd.append("title", "A");
     await (await caches.open(SHARE_CACHE)).put(stashUrl("s1"), new Response(fd));
-    const fetchImpl = okFetch();
+    const fetchImpl = stageFetch();
     const r = await fileShare({ fetchImpl, token: "session-jwt", location: loc("/share-pending?id=s1") });
-    expect(r.ok).toBe(true);
+    expect(r).toEqual({ ok: true, redirect: "/share-place?stage=st1&k=key1" });
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("/api/v1/share");
+    expect(url).toBe("/api/v1/share/stage");
     expect(init.headers.Authorization).toBe("Bearer session-jwt");
-    expect(init.body.get("url")).toBe("https://x.test/a");
+    expect(JSON.parse(init.body)).toMatchObject({ url: "https://x.test/a", title: "A" });
+  });
+
+  it("the page follows the redirect", async () => {
+    const fd = new FormData(); fd.append("url", "https://x.test/b");
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s5"), new Response(fd));
+    localStorage.setItem("moduli-token", "t");
+    global.fetch = stageFetch();
+    const assign = vi.fn();
+    const orig = window.location;
+    delete window.location;
+    window.location = { ...orig, pathname: "/share-pending", search: "?id=s5", assign };
+    const { default: SharePending } = await import("../ui/SharePending");
+    render(<SharePending />);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/share-place?stage=st1&k=key1"));
+    window.location = orig;
+    localStorage.removeItem("moduli-token");
   });
 
   it("signed out: says to sign in, and posts nothing", async () => {
@@ -51,9 +75,9 @@ describe("fileShare", () => {
   });
 
   it("a webcal:// link (protocol handler) is shared as a url", async () => {
-    const fetchImpl = okFetch();
+    const fetchImpl = stageFetch();
     await fileShare({ fetchImpl, token: "t", location: loc("/share-target?url=" + encodeURIComponent("webcal://cal.test/me.ics")) });
-    expect(fetchImpl.mock.calls[0][1].body.get("url")).toBe("webcal://cal.test/me.ics");
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).url).toBe("webcal://cal.test/me.ics");
   });
 
   it("Windows 'Open with': files from launchQueue are shared", async () => {
@@ -67,13 +91,13 @@ describe("fileShare", () => {
     localStorage.setItem("moduli-gridId", "g-last");
     const fd = new FormData(); fd.append("text", "x");
     await (await caches.open(SHARE_CACHE)).put(stashUrl("s4"), new Response(fd));
-    const fetchImpl = okFetch();
+    const fetchImpl = stageFetch();
     await fileShare({ fetchImpl, token: "t", location: loc("/share-pending?id=s4") });
-    expect(fetchImpl.mock.calls[0][1].body.get("fallbackGridId")).toBe("g-last");
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).fallbackGridId).toBe("g-last");
     localStorage.removeItem("moduli-gridId");
   });
 
-  it("a failed share is reported, not dressed up as done", async () => {
+  it("a failed stage is reported, not dressed up as done", async () => {
     const fd = new FormData(); fd.append("text", "x");
     await (await caches.open(SHARE_CACHE)).put(stashUrl("s3"), new Response(fd));
     const fetchImpl = vi.fn(async () => ({ status: 409, json: async () => ({ error: "no_destination", message: "this grid has no Files folder" }) }));

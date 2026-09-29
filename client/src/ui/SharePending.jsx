@@ -6,9 +6,10 @@
 //   /share-target  (launch)     Windows "Open with" an .ics → files in launchQueue
 //   /share-target?url=webcal:…  the webcal:// protocol handler
 //
-// It takes the share, posts it to /api/v1/share with the SIGNED-IN SESSION as
-// the Bearer (the route accepts it — server middleware/apiAuth allowSessionJwt),
-// and says exactly what happened. A share must never vanish or look like it
+// A link or text is STAGED and handed to the placement window
+// (/share-place); a file is posted to /api/v1/share with the SIGNED-IN SESSION
+// as the Bearer (the route accepts it — server middleware/apiAuth
+// allowSessionJwt). Either way it says exactly what happened. A share must never vanish or look like it
 // worked when it did not (spec §12) — which is why this page exists at all
 // rather than redirecting straight into the grid.
 //
@@ -53,10 +54,36 @@ export async function fileShare({ fetchImpl = fetch, token = readToken(), ...whe
   const got = await receiveShare(where);
   if (got.error) return { ok: false, message: got.error };
   if (!token) return { ok: false, message: "Sign in to Moduli on this device, then share again.", needsSignIn: true };
-  const body = buildShareForm(got.parts, { source: shareSourceFor(navigator.userAgent), timeZone: userZone() });
   // Only used when no share grid is set (the server's order: explicit →
   // share grid → this) — the grid this device last had open.
   const lastGrid = (() => { try { return localStorage.getItem(AUTH_KEYS.gridId); } catch { return null; } })();
+  const source = shareSourceFor(navigator.userAgent);
+
+  // A LINK OR TEXT goes to the placement window (2026-09-28: every sender
+  // reaches it). It is STAGED, then the page moves to /share-place, where Auto
+  // is one press — the same rules this page used to run directly — and placing
+  // it by hand is available too. A FILE cannot be staged (a stage is JSON), so
+  // a file share still files straight through the rules, as before.
+  const hasFiles = (got.parts.files || []).length > 0;
+  if (!hasFiles) {
+    const str = (v) => (typeof v === "string" && v.trim() ? v : null);
+    const staged = {
+      title: str(got.parts.title), text: str(got.parts.text), url: str(got.parts.url),
+      source, timeZone: userZone(), ...(lastGrid ? { fallbackGridId: lastGrid } : null),
+    };
+    const res = await fetchImpl("/api/v1/share/stage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(staged),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.status === 201 && json.stageId) {
+      return { ok: true, redirect: `/share-place?stage=${encodeURIComponent(json.stageId)}&k=${encodeURIComponent(json.key)}` };
+    }
+    return describeShareResult(res.status, json);
+  }
+
+  const body = buildShareForm(got.parts, { source, timeZone: userZone() });
   if (lastGrid) body.append("fallbackGridId", lastGrid);
   const res = await fetchImpl("/api/v1/share", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
   const json = await res.json().catch(() => ({}));
@@ -71,7 +98,10 @@ export default function SharePending() {
     if (started.current) return;       // once: the stash is consumed on read
     started.current = true;
     fileShare()
-      .then((r) => setState({ status: r.ok ? "done" : "error", ...r }))
+      .then((r) => {
+        if (r.redirect) { window.location.assign(r.redirect); return; }
+        setState({ status: r.ok ? "done" : "error", ...r });
+      })
       .catch((e) => setState({ status: "error", message: String(e?.message || e) }));
   }, []);
 
