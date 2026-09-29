@@ -23,6 +23,10 @@ what it becomes — in a window, before anything is written.
 > preset of type of occurance, values, and binded fields. there is no rule from
 > IMDB"*
 > → *"there can be multiple presets, so we have auto, new, or saved preset"*
+> → asked four questions and answered all four: mappings get **a small transform
+> set AND an editable value box**; **presets ship in the same pass**; **every
+> share can use the window**, not just the extension's; and the popup reads its
+> clip with **a one-time key in the URL**.
 
 ---
 
@@ -88,15 +92,21 @@ right-click a link
   ├─ "Clip link to Moduli"            → instant: share rules, notification, no window
   └─ "Clip link to Moduli (choose…)"  → the window
                                           ↓
-         extension POSTs the clip to /share/stage   → { stageId }
+         extension POSTs the clip to /share/stage   → { stageId, key }
          extension opens a popup window 480×620 at
-           https://viafluere.com/share-place?stage=<id>
+           https://viafluere.com/share-place?stage=<id>&k=<key>
                                           ↓
          the page reads the staged clip and renders the form
                                           ↓
          you press Clip  →  POST /share  →  the row is written, the log records
-                            it, the window closes
+                            it, the stage is consumed, the window closes
 ```
+
+**Every sender can reach this window, not just the extension** (user's choice).
+A phone or Windows share lands in `SharePending` today, which posts straight to
+`/share`; it instead STAGES and redirects to the same `/share-place`, where Auto
+is one press. One placement surface for everything you share, and the phone gets
+the feature for free because it is the same page.
 
 **Two menu items rather than one window that always opens** (user's choice): the
 instant path is the common case and must stay one click.
@@ -169,19 +179,36 @@ the values the destination's shape implies (`Board Category: movie`), which are
 pre-filled and marked `(auto)`. `+ field…` is `ui/FieldSelect` over every field
 on the grid.
 
-**Every mapping row shows the value it will write**, not just the source name:
+**Every mapping row shows the value it will write, in an editable box.** Not the
+source's name — the value:
 
 ```
-Title  ←  page title      "A Guide to Recognizing Your Saints (2006) – IMDb"
-Year   ←  ⟨pick a source⟩
+Title  ← page title ▾  ↳ strip suffix ▾
+       [ A Guide to Recognizing Your Saints        ]
+Year   ← page title ▾  ↳ extract year ▾
+       [ 2006                                      ]
 ```
 
 A mapping that silently resolves to empty is the failure mode of this whole
-screen, and it is invisible without this.
+screen, and it is invisible without this. The user's own example is why the box
+is EDITABLE as well as visible: IMDb's page title is
+`"A Guide to Recognizing Your Saints (2006) IMDb"`, which is nobody's idea of a
+movie title.
 
-**Sources** offered per row: page title · page URL · link URL · selected text ·
-image source · site name · `og:description` · `og:image` · today's date · a
-literal you type.
+**Sources** per row: page title · page URL · link URL · selected text · image
+source · site name · `og:description` · `og:image` · today's date · a literal
+you type.
+
+**Transforms** — a small fixed set, not a language: trim · strip a suffix ·
+extract a year · extract a number · text inside parentheses · lowercase. Each is
+a pure `(string) => string`, listed in one table so the set is countable and
+testable. Anything they cannot express, the editable box can.
+
+**An edit is a value for THIS clip, never a change to the preset.** Typing in
+the box overrides the resolved value for this placement only; the preset keeps
+its `{ source, transform }` so the next movie still resolves its own title. A
+preset stores a literal only when the row's SOURCE is "a literal you type" —
+otherwise saving one movie would freeze its title into every movie after it.
 
 ## 5. Presets
 
@@ -213,11 +240,23 @@ starting point, never a commitment.
 Four, three of them new.
 
 **`POST /api/v1/share/stage`** — takes the same body `/share` takes, stores it
-user-scoped with a 10-minute TTL, returns `{ stageId }`. Writes nothing to the
-grid.
+user-scoped with a 10-minute TTL, returns `{ stageId, key }`. Writes nothing to
+the grid. Called by the extension (with its API token) and by `SharePending`
+(with the session).
 
-**`GET /api/v1/share/stage/:id`** — returns the staged payload to its owner.
-404 once consumed or expired.
+**`GET /api/v1/share/stage/:id?k=<key>`** — returns the staged payload. **The key
+IS the authorization**, so the popup works in a browser that is not signed in —
+no login detour between clipping a thing and placing it.
+
+**What the key can do, stated plainly, because it is a credential in a URL.** It
+is 32 random bytes; it authorizes exactly two calls against exactly one staged
+payload — read it, and commit it — and nothing else. It cannot read a grid, list
+occurrences, or write anything but that one placement. Reads do not consume it;
+the COMMIT does, and it dies at 10 minutes regardless. The URL is constructed by
+the extension and handed to `windows.create`, so it is never typed, linked or
+shared. If the popup needs the grid list, the destination search or the field
+list, those still require the session or a token — so a leaked key exposes one
+pending clip, not an account.
 
 **`GET /api/v1/destinations?gridId=&q=&limit=`** — `[{ id, label, crumb, role,
 kind, childCount }]` for containers and pages. **This is new because the
@@ -227,7 +266,8 @@ on poms. Query direction matters for speed: match `q` against MODULE labels
 (role in container/page) first, then find the occurrences pointing at them;
 crumbs walk a bounded parent chain. Capped at ~50.
 
-**`POST /api/v1/share` gains `mode: "manual"`** carrying
+**`POST /api/v1/share` gains `mode: "manual"`** (authorized by the session, a
+token, or a stage key naming that stage) carrying
 `{ parentId, role, kind, bindings[], fields{} }`. It skips `runShareRules` and
 writes one occurrence, and — this is the point — still appends to `shareLog`, so
 a hand-placed clip appears in the Imports tab's Recent shares beside every other
@@ -247,12 +287,16 @@ unwrappers); a third one here would drift the first time a field type is added.
 
 | what | how |
 |---|---|
-| stage lifecycle | create → read → consume → 404; expiry; another user gets 404 |
+| stage lifecycle | create → read → commit → 404; expiry; a WRONG key gets 404 (not "another user" — the key is the authorization, so that is the case that matters) |
 | destination search | shape AND speed against a 22k-occurrence grid; label match, crumb correctness, the cap |
 | the mapping resolver | pure function, every source × every field type, **including the empty cases** — the failure this screen exists to prevent |
 | shape-from-destination | a container of 993 `artifact/movie` rows yields that role, kind and bindings; an EMPTY container falls back to the override list |
 | `mode: "manual"` | writes exactly one row, with the mapped fields, AND appends to `shareLog`; re-running the same stage does not duplicate |
 | the two menu items | route to different paths — instant posts `/share`, "choose…" posts `/share/stage` and opens the window |
+| transforms | each is a pure `(string) => string` with its empty/no-match case pinned; "extract year" against a title with two years, with none, and with a year in the URL |
+| an edited value | overrides THIS placement and does NOT change the preset it came from — the case that would otherwise freeze one movie's title into every movie |
+| the stage key | reads do not consume it · the commit does · it is refused after expiry · it cannot commit a DIFFERENT stage · it cannot read the grid, list occurrences or write anything else |
+| a phone share | `SharePending` stages and redirects to the same window; Auto there behaves exactly as posting straight to `/share` did |
 | presets | save → appears → picking one fills the form → editing after picking does not mutate the stored preset |
 | the window itself | driven in a real browser against the IMDb clip, end to end, into Movies |
 
@@ -262,7 +306,12 @@ the spread that was full-screen in the stylesheet and rendered in a quadrant —
 three defects a real browser found and no unit test could. A window is a place
 you look at.
 
-## 9. Out of scope
+## 9. Built in one pass
+
+Presets ship with the window rather than as a phase 2 (user's choice), so the
+first movie you clip can be saved as `Movie` and the second one is two clicks.
+
+## 10. Out of scope
 
 - Conditions on presets ("always do this for imdb.com"). The user was explicit:
   a preset is a shape, not a rule. Rules already exist and have their own editor.
