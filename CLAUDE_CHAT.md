@@ -3720,3 +3720,11 @@ hit its limit while naming the Coffee operation).
   things. if we select auto instead, it does the share rules." — so a share offers a choice:
   **place it myself** (a window to pick the destination) or **auto** (the existing per-type share
   rules, e.g. poms' `Share: link` → Lookup / YouTube folder / Bookmarks).
+- Answered while designing it (spec `docs/superpowers/specs/2026-09-28-share-placement-window-design.md`):
+  the window is **a Moduli page the companion opens** (reuses the app's pickers and session), reached
+  from a SECOND context-menu item (*"Clip link to Moduli (choose…)"*) so the instant path stays one
+  click; the shape comes from **the destination's existing rows** with an override, because a movie on
+  poms is `artifact/kind:"movie"` with six bindings, not a primitive; the field table starts empty and
+  is built with the searchable field picker; and the mode row is **Auto · New · Preset** — *"there can
+  be multiple presets, so we have auto, new, or saved preset"*. A preset is a saved SHAPE, per grid,
+  with no conditions and nothing that fires on its own.
