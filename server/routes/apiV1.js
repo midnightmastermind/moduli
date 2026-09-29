@@ -1247,6 +1247,22 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // The searchable destination list behind the placement window.
+  router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, q, limit } = req.query;
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const owned = await Grid.exists({ _id: gridId, userId: req.userId }).catch(() => null);
+      if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
+      const { searchDestinations } = await import("../services/destinationSearch.js");
+      const destinations = await searchDestinations({
+        userId: req.userId, gridId, q: q || "",
+        limit: Math.min(Number(limit) || 50, 100),
+      });
+      res.json({ destinations });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // ====================================================================
   // POST /share — share → import routing (spec docs/superpowers/specs/
   // 2026-09-23-share-import-routing-design.md). INGRESS PREPARES, THE RULE
