@@ -23,8 +23,12 @@
 // else — so a signed-out browser gets Auto only. Grids, fields, destinations
 // and presets are read with the app's own session token (the same Bearer
 // SharePending sends), which those routes accept.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FieldSelect from "./FieldSelect.jsx";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+// LAZY: FieldSelect lives in the app's shared chunk (~1.1 MB), and this page
+// is often opened cold — from the extension or a phone share — just to press
+// Auto. It loads only when "+ field…" is clicked.
+const FieldSelect = lazy(() => import("./FieldSelect.jsx"));
 import { AUTH_KEYS } from "../helpers/authStorage";
 import { SHARE_SOURCES, SHARE_TRANSFORMS, resolveMapping } from "../helpers/shareMapping.js";
 import {
@@ -329,11 +333,13 @@ export default function SharePlace() {
               onRemove={() => setMappings((p) => { const n = { ...p }; delete n[fieldId]; return n; })} />
           ))}
           {adding ? (
+            <Suspense fallback={<div style={{ fontSize: 11, color: "var(--text-muted, #aaa)" }}>Loading fields…</div>}>
             <FieldSelect
               fields={fields.filter((f) => !mappedIds.has(f.id))}
               value={null} noneLabel="pick a field…" ariaLabel="Add a field"
               onChange={(id) => { if (id) setMappings((p) => ({ ...p, [id]: { source: "none" } })); setAdding(false); }}
             />
+            </Suspense>
           ) : (
             <button type="button" onClick={() => setAdding(true)} style={linkBtnSt}>+ field…</button>
           )}

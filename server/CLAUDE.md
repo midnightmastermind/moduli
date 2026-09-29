@@ -2,6 +2,32 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 — the share placement window: stage, preview, manual placement, presets)
+Plan `docs/superpowers/plans/2026-09-28-share-placement-window.md`. Tasks 1-4 by another account, the rest
+by this one; departures from the plan (and why) are in the SDD ledger in the main checkout.
+- **`models/ShareStage.js` + `services/shareStage.js`** — a clip parked for 10 min under a 32-byte key.
+  `readStage` never consumes; `consumeStage` claims ATOMICALLY (`consumedAt: null` in the filter,
+  `{ new: true }`); new `releaseStage` gives a claimed stage back after a refusal made BEFORE any write.
+- **`POST /share/stage`, `GET /share/stage/:id?k=`** (key-authorized, no session),
+  **`GET /share/stage/:id/preview?k=&gridId=`** — which rule Auto would run (`shareTypeOfPayload`
+  classifies url/text as `prepareShare` does; the extension's `shape` names the GESTURE, not the type,
+  and reading it as the type made every page clip preview as the catch-all), plus `lands` (the literal
+  CREATE destination's name) and `then` (later rules). gridId optional: stage → user's share grid →
+  device fallback, so a signed-out window still names the rule.
+- **`POST /share` + stage key:** a named stage is always consumed (a bearer beside it does not rescue a
+  spent key), its owner becomes the user via the pre-auth path `apiAuth` keeps for /batch (no change to
+  the shared middleware), and **the content keys come from the stage, not the body** — the key
+  authorizes placing THAT clip, not writing anything. `mode: "manual"` → `services/manualPlacement.js`,
+  a one-step CREATE through `runOperationServerSide` (the same writer the rules use), logged in the share
+  log as "Placed by hand". Values are `literal:` (strings) or `json:` (typed auto values); the externalId
+  and a bookmark's `fileRef` are literals too (a URL can hold `${`).
+- **`GET /destinations`** (other account) now also returns `shape.autoFields` — the values at least two
+  sampled rows agree on (`commonValues`).
+- **`GET/PUT /share/presets`** — writes `meta.sharePresets` ALONE and emits `grid_updated` with
+  `{id, meta}` only (activeFilterValues in that payload re-runs every date op in the leader tab).
+- **`GET /grids` and `GET /fields` accept the session JWT** (the window runs as an app page). An ordinary
+  CRUD read (`/modules`) still refuses it — `apiSessionAuth.test.js` moved its example there.
+
 ## Recent Changes (2026-09-27 — a new row was listed TWICE by its parent: the batch append was read-then-push)
 - Found rebuilding Routines › Nutrition › Drink by hand: Nutrition's `occurrences[]` held the new row's
   id twice (so it rendered twice). The transaction log showed ONE gesture writing the list twice —

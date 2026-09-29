@@ -165,7 +165,7 @@ describe("SharePlace — New", () => {
   it("shows the value each mapping will write, and posts the resolved values", async () => {
     await openNew(); await pickMovies();
     fireEvent.click(screen.getByText(/\+ field/));
-    fireEvent.change(screen.getByTestId("field-select"), { target: { value: "f-year" } });
+    fireEvent.change(await screen.findByTestId("field-select"), { target: { value: "f-year" } });
     fireEvent.change(screen.getByLabelText("source for Year"), { target: { value: "title" } });
     fireEvent.change(screen.getByLabelText("transform for Year"), { target: { value: "year" } });
     expect(screen.getByLabelText("value for Year").value).toBe("2006");

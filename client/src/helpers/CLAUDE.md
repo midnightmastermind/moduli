@@ -3,6 +3,22 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 — the share placement window's pure half: `sharePlacement`, `sharePresets`, `kindTiles`)
+- **`shareMapping.js`** (Task 1, other account) — source + transform tables and `resolveMapping(s)`.
+  `stripSuffix` only strips a WHITESPACE-delimited suffix ("Spider-Man" stays whole).
+- **`sharePlacement.js` (NEW, 20 tests)** — `clipFromStage(payload)` turns the staged clip into what the
+  sources read: the extension stages its GESTURE (`url` is the page, the link or the image depending on
+  `shape`; the page rides along as `clip.meta.clippedFrom`), and a non-page clip is titled by the
+  clicked item's label, not the host tab. `shapeFromDestination(dest)` reads `dest.shape` (the server's
+  first-row shape + `autoFields`); `shapeFromKind` is the override; `autoMappings` keeps each auto value's
+  STORED type as `raw` (`["movie"]` stays an array); `buildSharePayload` sends NO content (the server reads
+  the stage), resolved values not mappings, bindFields = shape ∪ mapped, `fileRef` for bookmark/image.
+- **`sharePresets.js` (NEW, 13 tests)** — `presetFromForm` drops every `override` (an edit is for one
+  clip; a preset that kept it would write one movie's year into every movie) and keeps literals;
+  `formFromPreset` returns fresh objects so editing never mutates the stored preset; `withPreset`
+  replaces by name (case/space-insensitive).
+- **`kindTiles.js` (NEW)** — `KIND_TILE` moved out of `ui/QuickAddMenu.jsx` (re-exported there).
+
 ## Recent Changes (2026-09-28 — ADD_CHILD/REMOVE_CHILD refuse a multi-match; trigger priority 0 is authorable)
 - **`operationActions.singleOccurrenceId` (NEW, exported)** — one definition of "the single
   occurrence id a write step may target". `FIND` binds an ARRAY when its predicate matches several

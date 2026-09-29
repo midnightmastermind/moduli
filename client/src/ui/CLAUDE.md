@@ -3,6 +3,31 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 — `SharePlace.jsx` NEW: the share placement window; SharePending stages)
+Spec `docs/superpowers/specs/2026-09-28-share-placement-window-design.md`, plan
+`docs/superpowers/plans/2026-09-28-share-placement-window.md` (ledger in the main checkout's
+`.superpowers/sdd/2026-09-28-share-placement-window/progress.md` — every departure from the plan is there).
+- **`SharePlace.jsx` (NEW, route `/share-place?stage=&k=`, own entry in `main.jsx`)** — reads the staged
+  clip with its key, then Auto / New / Preset. **Auto NAMES the rule it will run and where it files
+  things** (`GET /share/stage/:id/preview`, resolved through the real `selectShareRules`), re-asked on
+  every grid change. **New**: server-side destination search (crumbs + row count), the shape taken from
+  the destination's own rows with the values they agree on pre-filled "(auto)", an editable Label row,
+  one editable value box per mapped field, "make it a bookmark/textblock/image" override (labels from
+  `helpers/kindTiles`). **Preset**: pick one and it fills the same form, still editable; "Save as preset"
+  writes `meta.sharePresets` ALONE via `PUT /share/presets`. Nothing is written before Clip.
+- **Auth:** the stage key authorizes only reading + committing THIS clip. Grids/fields/destinations/presets
+  are read with the app's session token (`localStorage["moduli-token"]`, same as SharePending). Signed out,
+  Auto still works (the preview resolves the grid itself) and New/Preset say "Sign in".
+- **`FieldSelect` is LAZY here** — it lives in the app's ~1.1 MB shared chunk, and this page is usually
+  opened cold to press Auto. Measured: the SharePlace chunk is 18 KB and loads only react + index + uid.
+- **`SharePending.jsx`** — a link or text share is STAGED (`POST /share/stage`, session Bearer) and the
+  page redirects to `/share-place`; a FILE share (a JSON stage cannot carry bytes) still posts straight
+  to `/share` as before. The old "posts to /share" test is INVERTED with its reason kept.
+- **`QuickAddMenu.jsx`** — `KIND_TILE` moved to `helpers/kindTiles.js` (re-exported here) so the share
+  page can read the + menu's labels without importing the menu.
+- Tests: `sharePlace.test.jsx` (19, incl. signed-out; a successful Clip's `window.close()` is stubbed —
+  a real close in jsdom tears the document down under every later test).
+
 ## Recent Changes (2026-09-28 — `FieldSelect.jsx` NEW: every field picker is the searchable one)
 - **`FieldSelect.jsx` (NEW)** — user: *"i wanted to add a filter on the bookmarks page and it was
   incredibly hard to find the field … we also need that search selector for the sort fields …
