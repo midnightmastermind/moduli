@@ -1,21 +1,11 @@
-// helpers/filterFieldStamp.js — the ONE place that answers "what filter values
-// should an occurrence be born with, given where it is being placed?"
+// helpers/filterFieldStamp.js — normalizing a date filter value to a local day.
 //
-// Lifted out of dropHandlers 2026-08-05. It lived there because drops were the
-// only path that stamped, but a textblock created by TYPING needs exactly the
-// same answer — and dropHandlers imports CommitHelpers, so CommitHelpers could
-// not import it back without a cycle. This module is a leaf: it imports only
-// the selector it needs, so every create path can reach it.
-//
-// The rule these functions encode: an occurrence placed under a dated container
-// must be BORN carrying that date. Patching it afterwards is not equivalent —
-// the create's own OccurrenceCreateOp and per-field MeasureOps fire immediately
-// and evaluate `fields.<dateFieldId>.value SAME_DAY $goalDate` against whatever
-// the record had at that moment, and a follow-up update races the create's
-// server queue besides.
-import { getEffectiveFilterForOccurrence } from "../state/selectors";
-import { isInsideTemplate } from "./templateHelpers";
-
+// This file used to also hold `computePageFilterFields`, the app-level stamp that
+// copied the page's filter date onto every new occurrence. REMOVED 2026-09-29
+// (user: "stamping something with the date and using the date filter are two diff
+// things … the autodate stamp should just be on things dragged or added to the
+// schedule"). Dating Schedule adds/moves is the "Schedule: Stamp Date & Time
+// Slot" operation's job. What is left is the day normalizer, which is not a stamp.
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
 //   1) "2026-05-23"        — already a day-key, return as-is
@@ -51,54 +41,4 @@ export function normalizeFilterDateValue(v) {
     return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
   }
   return null;
-}
-
-// Resolves the page-filter date stamps that should land on an occurrence
-// placed under `parentContainerOcc`, returning a merged fields map (existing +
-// stamped) without writing anything. Use BEFORE creating the occurrence so the
-// new record is born with the correct date — otherwise the in-flight
-// OccurrenceCreateOp + per-field MeasureOps fire against the source's old
-// date and trackers (which check `fields.<dateFieldId>.value SAME_DAY
-// $goalDate`) silently exclude it. Returns the original `existingFields`
-// reference unchanged when there are no nav fields or no value to stamp, so
-// callers can cheaply detect a no-op via identity.
-export function computePageFilterFields({ state, occurrencesById, parentContainerOcc, existingFields = {} }) {
-  if (!parentContainerOcc) return existingFields;
-  // #60 — per-container opt-out. Containers with
-  // `meta.skipFilterStamp: true` short-circuit so drops into them
-  // don't auto-stamp the filter's date/timeslot. Useful for
-  // long-lived "all dates" containers (Library / Bills / Accounts)
-  // where stamping today's date onto a movie / bill / account would
-  // hide it from the next-day filter view. Default behavior
-  // (auto-stamp) preserved for Schedule slots, day-page tasks, etc.
-  if (parentContainerOcc?.meta?.skipFilterStamp === true) return existingFields;
-  // A TEMPLATE is timeless: its dates come from APPLY_TEMPLATE's defaultFields
-  // when it is applied. Stamping the filter's date into it (2026-09-28: all 49
-  // slots of a UI-built Schedule template got Date = the build day) made every
-  // day column copy that date, so any other day rendered EMPTY. Here, not in a
-  // caller, so typed creates AND drops agree.
-  {
-    const foldersById = Object.fromEntries((state?.folders || []).map((f) => [f.id, f]));
-    const gridId = state?.gridId || state?.grid?._id || state?.grid?.id;
-    if (isInsideTemplate(parentContainerOcc, { foldersById, occurrencesById: occurrencesById || {} }, gridId)) return existingFields;
-  }
-  const grid = state?.grid;
-  const activeNamedFilter = (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId);
-  const navFieldIds = (activeNamedFilter?.conditions || [])
-    .filter(c => c.isNav && c.fieldId)
-    .map(c => c.fieldId);
-  if (!navFieldIds.length) return existingFields;
-
-  const effective = getEffectiveFilterForOccurrence(parentContainerOcc, { grid, occurrencesById });
-  let merged = existingFields;
-  for (const fid of navFieldIds) {
-    const v = normalizeFilterDateValue(effective?.[fid]);
-    if (v == null) continue;
-    const existing = merged[fid];
-    const existingValue = existing && typeof existing === "object" ? existing.value : existing;
-    if (normalizeFilterDateValue(existingValue) === v) continue;
-    if (merged === existingFields) merged = { ...existingFields };
-    merged[fid] = { value: v, flow: existing?.flow ?? "in" };
-  }
-  return merged;
 }

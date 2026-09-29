@@ -14,22 +14,16 @@
 // `field.type === "date"` AND that the active named filter lists as
 // `isNav: true` (the filter-nav arrow walks it).
 //
-// 1. Drop into a Schedule-descended container (board page or list slot)
-//    Owner: dropHandlers.computePageFilterFields
-//    When:  copy-mode + move-mode handleInstanceDrop, handleModuleDrop (CC drag)
-//    What:  resolves the destination container's parent-chain effective
-//           filter (page override → grid filter), normalizes via
-//           normalizeFilterDateValue, folds the result into the source's
-//           fields BEFORE LayoutHelpers.copyInstanceToContainer creates the
-//           occurrence — so the optimistic OccurrenceCreateOp + per-field
-//           MeasureOp loop see the destination's date.
-//
-// 2. Move into a Schedule-descended container (occurrence already exists)
-//    Owner: dropHandlers.stampPageFilterFields
-//    When:  handleOccurrenceMove same-grid move branch
-//    What:  same merge as #1, but written via CommitHelpers.updateOccurrence
-//           AND mirrored into operationsBridge.updateLocalOcc so the
-//           subsequent fireMoveTrigger MeasureOp loop sees the new date.
+// 1+2. Drop / copy / move INTO the Schedule
+//    Owner: Operation "Schedule: Stamp Date & Time Slot" (onAdd + onMove,
+//           scoped to the Schedule). NOT this file: the app-level filter stamp
+//           (computePageFilterFields) was REMOVED 2026-09-29 — the user:
+//           "stamping something with the date and using the date filter are two
+//           diff things … the autodate stamp should just be on things dragged
+//           or added to the schedule". A copy carries its SOURCE's fields; the
+//           op then sets Date from the instance's own _effectiveFilter (its day
+//           column) and Time Slot from its parent slot. An instance anywhere
+//           else is left undated, which the filter treats as "every day".
 //
 // 3. Move out of Schedule into a non-schedule container or page
 //    Owner: Operation "Schedule: Clear Date on Move-Out" (createTestGrid.js)
@@ -62,14 +56,7 @@
 //    What:  CREATE writes fields: { [dateFieldId]: "$schedDate" } for the
 //           Due-container copy — same isDateValue guard as #5.
 //
-// 7. "Schedule: Stamp Date & Time Slot" operation
-//    Owner: Operation pipeline (onCreate, centerHub panel)
-//    Stamps: timeslot field ONLY. The date field is intentionally NOT
-//            written here — the drop side (#1/#2) already pre-stamped it
-//            from the slot's effective filter at drop time, and rewriting
-//            via $trigger._effectiveFilter would resolve to undefined on
-//            the optimistic OccurrenceCreateOp transaction and clobber the
-//            correct value. Comment in createTestGrid.js documents this.
+// 7. (merged into 1+2 above — the op now owns the Date as well as Time Slot.)
 //
 // 8. Auto-attach safety net (added 2026-05-11)
 //    Owner: bindSocketToStore.applyOperationEffect UPDATE_ITEM_FIELD
@@ -105,73 +92,6 @@ import { createImportsDocPage } from "./importsFolder";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
 import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
-// Both live in a leaf module now so the TYPED-create paths (which run through
-// CommitHelpers, and so cannot import this file) can stamp the same values.
-// Re-exported here because this was their home and callers/tests import them
-// from here.
-import { computePageFilterFields, normalizeFilterDateValue } from "./filterFieldStamp";
-export { computePageFilterFields, normalizeFilterDateValue };
-
-// Walks the DOM from the drop point outward looking for the nearest ancestor
-// occurrence that owns its own `filterOverride` (the schedule day-cols are the
-// canonical case — each day-col carries `filterOverride: { dateFieldId: "<one
-// specific day>" }` while the page above carries the multi-day filter shape).
-// Returns the day-col occurrence to use as the parent for date-stamp
-// resolution. Falls back to null when:
-//   - pointer coords aren't available (programmatic drops)
-//   - no ancestor with a filter override sits between the drop point and the
-//     destination container (the normal single-day case — caller falls back
-//     to the destination container itself)
-// This is what unblocks MD1: drag a task between day-cols of a multi-day
-// Schedule and the new placement re-stamps to the destination day's date.
-// Without it, both day-cols' slots resolve their effective filter through
-// the slot's `parentId` (= page) → the page's multi-day filter → no single
-// date to stamp → the task keeps its source-day's date.
-export function findFilterOverrideAncestor({ pointer, occurrencesById, excludeOccId }) {
-  if (!pointer || typeof document === "undefined") return null;
-  const x = pointer.x ?? pointer.clientX;
-  const y = pointer.y ?? pointer.clientY;
-  if (typeof x !== "number" || typeof y !== "number") return null;
-  let els;
-  try { els = document.elementsFromPoint(x, y) || []; } catch { return null; }
-  for (const el of els) {
-    const occId = el?.dataset?.occurrenceId || el?.getAttribute?.("data-occ-id");
-    if (!occId || occId === excludeOccId) continue;
-    const occ = occurrencesById?.[occId];
-    if (!occ) continue;
-    const override = occ.filterOverride;
-    if (!override || typeof override !== "object") continue;
-    // Must touch at least one field key (empty override `{}` = "clear cascade",
-    // not "set a specific date").
-    if (Object.keys(override).length === 0) continue;
-    return occ;
-  }
-  return null;
-}
-
-// Post-create / post-move stamp for an existing occurrence. Writes the
-// stamped fields via updateOccurrence AND mirrors them into the executor's
-// local cache so the next fireOperations pass (e.g. the per-field MeasureOp
-// loop after a move) sees the new date in $allItems. Pre-creates should call
-// `computePageFilterFields` directly and fold the result into the create
-// payload — this function is for the rare case where the occurrence already
-// exists.
-function stampPageFilterFields({ dispatch, socket, state, occurrencesById, occurrence, parentContainerOcc }) {
-  if (!occurrence?.id || !parentContainerOcc) return;
-  const merged = computePageFilterFields({
-    state, occurrencesById,
-    parentContainerOcc,
-    existingFields: occurrence.fields || {},
-  });
-  if (merged === (occurrence.fields || {})) return;
-  CommitHelpers.updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: occurrence.id, fields: merged },
-    emit: true,
-  });
-  operationsBridge.updateLocalOcc?.({ ...occurrence, fields: merged });
-}
-
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -1179,17 +1099,6 @@ export function handleOccurrenceMove(dropContext, ctx) {
         parentId: toCInnerOcc.id,
         meta: metaWithoutPos,
       });
-      // Stamp the destination's effective page filter (date, etc.) onto the
-      // moved occurrence so trackers' SAME_DAY predicates match. Canvas
-      // sources don't carry a date by default — without this stamp the note
-      // lands in the slot with `fields[dateFieldId]` unset, and the goal
-      // aggregations never count it. Mirrors the same call the container-to-
-      // container move branch makes below.
-      stampPageFilterFields({
-        dispatch, socket, state, occurrencesById,
-        occurrence: occurrencesById[occurrenceId],
-        parentContainerOcc: toCInnerOcc,
-      });
       fireMoveTrigger({
         occurrenceId,
         instanceId: movedOcc.moduleId,
@@ -1343,23 +1252,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
     const _revMap = buildReverseMap(Object.values(occurrencesById));
     const _gridOccSet = new Set(state?.grid?.occurrences || []);
     const toPanelOcc = toCOcc ? findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet) : null;
-    // Pre-stamp page-filter fields onto the source's fields so the create
-    // lands with the destination's date already set. Without this, the
-    // OccurrenceCreateOp + per-field MeasureOps fired by createOccurrence see
-    // the source's old date and trackers' SAME_DAY predicate silently rejects
-    // the new occurrence — the post-create stamp then quietly fixes the date
-    // but no operation re-fires, so trackers stay stale until you edit a
-    // field.
     const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
-    // MD1 — re-stamp under the destination day-col when one is present.
-    const copyFilterAncestorOcc = toCOcc
-      ? findFilterOverrideAncestor({ pointer, occurrencesById, excludeOccId: toCOcc.id })
-      : null;
-    const stampedFields = computePageFilterFields({
-      state, occurrencesById,
-      parentContainerOcc: copyFilterAncestorOcc || toCOcc,
-      existingFields: sourceOcc?.fields || {},
-    });
     const toPanelMod = toPanelOcc?.moduleId
       ? state?.modulesById?.[toPanelOcc.moduleId]
       : null;
@@ -1368,9 +1261,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       toContainer: toCOcc ? { ...toC, _occurrence: toCOcc } : toC,
       userId: state?.userId, toIndex, emit: true,
       iterationMode: "specific", iterationValue: currentIterationDate,
-      sourceOccurrence: sourceOcc
-        ? { ...sourceOcc, fields: stampedFields }
-        : (Object.keys(stampedFields).length ? { fields: stampedFields } : null),
+      sourceOccurrence: sourceOcc || null,
       toPanelId: toPanelOcc?.moduleId || null,
       toPanelLabel: toPanelMod?.label || "",
     });
@@ -1380,22 +1271,6 @@ export function handleOccurrenceMove(dropContext, ctx) {
     }
     toast.success(`Copied "${_occName(occurrenceId)}" → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
-    // Trackers + onChange-bound aggregations fire while createOccurrence is
-    // still inside the OccurrenceCreateOp dispatch — at that moment the new
-    // occurrence's fields haven't been stamped by Schedule: Stamp Date yet
-    // (UPDATE effects are applied to the live overlay during the same batch,
-    // but the tracker pipeline reads $allItems from the snapshot it built at
-    // dispatch time). Mirror what the MOVE branch does: after the create +
-    // stamps + autoCheck have all run, sync the new occurrence into the
-    // executor cache and fire one final MeasureOp per field so trackers see
-    // the fully-realized state. Without this, dragging a completed task from
-    // Daily Toolkit lands in Schedule but goal totals stay stale until the
-    // user edits a field.
-    // CommitHelpers.createOccurrence already fires OccurrenceCreateOp +
-    // per-field MeasureOps for the new occurrence's stamped fields; with
-    // the dateFieldId UPDATE removed from Schedule: Stamp Date the values
-    // aren't corrupted any more, so the tracker recounts correctly off the
-    // initial burst — no rAF re-fire needed.
   } else if (sameContainer) {
     if (fromCOcc) {
       // Index by OCCURRENCE id (not module id) — see note above.
@@ -1413,17 +1288,6 @@ export function handleOccurrenceMove(dropContext, ctx) {
       LayoutHelpers.moveInstanceBetweenContainers({
         dispatch, socket, fromContainerOccurrence: fromCOcc, toContainerOccurrence: toCOcc,
         occurrenceId, toIndex, emit: true,
-      });
-      // MD1 — when the drop landed under a day-col (or any ancestor with
-      // its own filterOverride), use IT as the parent for date stamping
-      // so a multi-day Schedule drag re-stamps to the destination day.
-      const filterAncestorOcc = findFilterOverrideAncestor({
-        pointer, occurrencesById, excludeOccId: toCOcc.id,
-      });
-      stampPageFilterFields({
-        dispatch, socket, state, occurrencesById,
-        occurrence: occurrencesById[occurrenceId],
-        parentContainerOcc: filterAncestorOcc || toCOcc,
       });
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
       toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
@@ -2123,26 +1987,11 @@ export function handleModuleDrop(dropContext, ctx) {
       // handleOccurrenceMove).
       const targetContainerOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
         || Object.values(occurrencesById).find(o => o.moduleId === targetContainer.id);
-      // MD1 — when dropping into a day-col's slot, use the day-col as the
-      // parent for filter resolution so the new copy stamps the destination
-      // day's date.
-      const ccFilterAncestorOcc = targetContainerOcc
-        ? findFilterOverrideAncestor({
-            pointer, occurrencesById, excludeOccId: targetContainerOcc.id,
-          })
-        : null;
-      // Pre-stamp the destination's page-filter fields so the create lands
-      // with the right date — same reasoning as handleOccurrenceMove copy mode.
-      const stampedFields = computePageFilterFields({
-        state, occurrencesById,
-        parentContainerOcc: ccFilterAncestorOcc || targetContainerOcc,
-        existingFields: {},
-      });
       const ccCopyResult = LayoutHelpers.copyInstanceToContainer({
         dispatch, socket, gridId, sourceInstanceId: payload.moduleId,
         toContainer: targetContainerOcc ? { ...targetContainer, _occurrence: targetContainerOcc } : targetContainer,
         userId: state?.userId, iterationMode: "persistent", emit: true,
-        sourceOccurrence: Object.keys(stampedFields).length ? { fields: stampedFields } : null,
+        sourceOccurrence: null,
       });
       if (ccCopyResult?.occurrence && targetContainerOcc) {
         autoAppendOnDrop({ ctx, newOccurrence: ccCopyResult.occurrence, parentOccurrenceId: targetContainerOcc.id });

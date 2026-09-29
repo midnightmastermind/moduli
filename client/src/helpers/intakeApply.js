@@ -282,7 +282,6 @@ function runArtifacts(ctx) {
     gridId, userId, dispatch, occExtra,
     // Step 3: what intake mints carries its destination's filter values, or a
     // file dropped on today's column is invisible to today's filter.
-    parentOccurrence: destinationOccurrence,
   });
   // The caller wires the new ids into their destination BETWEEN mint and
   // upload — that placement is genuinely the drop handler's business (which
@@ -324,7 +323,7 @@ function runImageAttach(ctx) {
   }
 
   const placeholders = createArtifactPlaceholders(files, {
-    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+    gridId, userId, dispatch, occExtra,
   });
   onPlaceholders?.(placeholders);
 
@@ -410,7 +409,7 @@ function runImageOcrList(ctx) {
   }
 
   const placeholders = createArtifactPlaceholders([file], {
-    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+    gridId, userId, dispatch, occExtra,
   });
   onPlaceholders?.(placeholders);
   uploadArtifactPlaceholders(placeholders, {
@@ -467,7 +466,7 @@ function runFileOcrText(ctx) {
   // the evidence, and discarding it once the text is out is the destructive
   // shortcut. The artifact goes in FIRST so the row exists while OCR runs.
   const placeholders = createArtifactPlaceholders([file], {
-    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+    gridId, userId, dispatch, occExtra,
   });
   onPlaceholders?.(placeholders);
   uploadArtifactPlaceholders(placeholders, {
@@ -993,7 +992,6 @@ function runImageCanvas(ctx) {
   // out of the Files folder the way the folder-page shape has to.
   const placeholders = createArtifactPlaceholders(files, {
     gridId, userId, dispatch,
-    parentOccurrence: { id: made.occurrenceId, gridId, userId, occurrences: [] },
   });
   // Accumulated, not per-file: each splice writes the WHOLE array, so a stale
   // snapshot per file would leave only the last one on the canvas.
@@ -1055,7 +1053,6 @@ async function runImageOutline(ctx) {
   // drop having done the ordinary thing rather than nothing at all.
   const placeholders = createArtifactPlaceholders(files, {
     gridId, userId, dispatch,
-    parentOccurrence: destinationOccurrence,
   });
   onPlaceholders?.(placeholders);
   uploadArtifactPlaceholders(placeholders, { gridId, userId, dispatch, socket, persist });
@@ -1071,7 +1068,6 @@ async function runImageOutline(ctx) {
 
   const outlinePlaceholders = createArtifactPlaceholders([traced.file], {
     gridId, userId, dispatch,
-    parentOccurrence: destinationOccurrence,
   });
   onPlaceholders?.(outlinePlaceholders);
   uploadArtifactPlaceholders(outlinePlaceholders, { gridId, userId, dispatch, socket, persist });
@@ -1161,7 +1157,7 @@ function runFilesFolderPage(ctx) {
   }
 
   const placeholders = createArtifactPlaceholders(files, {
-    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+    gridId, userId, dispatch, occExtra,
   });
   // NOTE: no `onPlaceholders`. That seam wires new ids into the DESTINATION,
   // which would scatter the files beside the page instead of inside it — the
@@ -1198,13 +1194,12 @@ function runFilesContainer(ctx) {
   if (!made?.occurrenceId) return;
 
   // A shim rather than the real occurrence (the mint helper hands back ids
-  // only). It carries the container's own id so the artifacts are stamped with
-  // ITS filter values, and an empty `occurrences` so the splice below starts
-  // from a known list.
+  // only): the container's own id, so the files are spliced INTO it, and an
+  // empty `occurrences` so the splice below starts from a known list.
   const container = { id: made.occurrenceId, gridId, userId, occurrences: [] };
 
   const placeholders = createArtifactPlaceholders(files, {
-    gridId, userId, dispatch, occExtra, parentOccurrence: container,
+    gridId, userId, dispatch, occExtra,
   });
   let i = 0;
   for (const p of placeholders) {

@@ -66,78 +66,43 @@ describe("intake: one action scope per intake (Step 2)", () => {
   });
 });
 
-describe("intake: minted artifacts carry the destination's filter fields (Step 3)", () => {
+// INVERTED 2026-09-29: Step 3 stamped the destination's filter date onto every
+// minted artifact. The app no longer stamps (the user: "stamping something with
+// the date and using the date filter are two diff things"); an artifact with no
+// date passes the filter, and dating Schedule adds is an operation's job. The
+// bridge is still wired with a dated filter, so an empty result means nothing
+// read it.
+describe("intake: minted artifacts carry only the caller's fields (Step 3, inverted)", () => {
   const FILE = { name: "a.png", type: "image/png", size: 10 };
   let prevGetFilterContext;
+  beforeEach(() => { prevGetFilterContext = operationsBridge.getFilterContext; });
+  afterEach(() => { operationsBridge.getFilterContext = prevGetFilterContext; });
 
-  beforeEach(() => {
-    prevGetFilterContext = operationsBridge.getFilterContext;
-  });
-  afterEach(() => {
-    operationsBridge.getFilterContext = prevGetFilterContext;
-  });
-
-  // The real shape `computePageFilterFields` reads: only a NAV condition on the
-  // ACTIVE named filter is stamped. Mocking just `activeFilterValues` produced a
-  // silent {} and looked like a code failure — the stamp is opt-in by design, so
-  // the test has to opt in the same way the grid does.
   function withFilter(dateFieldId, value) {
-    const parent = { id: "col-today", fields: { [dateFieldId]: { value } } };
     operationsBridge.getFilterContext = () => ({
-      state: {
-        grid: {
-          activeFilterId: "f1",
-          namedFilters: [{ id: "f1", conditions: [{ fieldId: dateFieldId, isNav: true }] }],
-          activeFilterValues: { [dateFieldId]: value },
-        },
-      },
-      occurrencesById: { [parent.id]: parent },
+      state: { grid: {
+        activeFilterId: "f1",
+        namedFilters: [{ id: "f1", conditions: [{ fieldId: dateFieldId, isNav: true }] }],
+        activeFilterValues: { [dateFieldId]: value },
+      } },
+      occurrencesById: {},
     });
-    return parent;
   }
 
-  it("stamps the parent's filter fields onto the new artifact occurrence", () => {
-    const parent = withFilter("f-date", "2026-08-07");
-    const dispatch = vi.fn();
+  it("does NOT stamp the destination's filter date", () => {
+    withFilter("f-date", "2026-08-07");
     const [p] = createArtifactPlaceholders([FILE], {
-      gridId: "g", userId: "u", dispatch,
-      occExtra: () => ({ parentId: parent.id }),
-      parentOccurrence: parent,
-    });
-    // Without this the row exists in the data and renders nowhere, which is
-    // indistinguishable from a lost upload. `flow` is part of the stored field
-    // shape (`{value, flow}`) — asserting the whole object, not just the value,
-    // is what keeps this honest about what actually gets persisted.
-    expect(p.occurrence.fields).toEqual({ "f-date": { value: "2026-08-07", flow: "in" } });
-  });
-
-  it("lets caller-supplied field values win over the filter stamp", () => {
-    const parent = withFilter("f-date", "2026-08-07");
-    const dispatch = vi.fn();
-    const [p] = createArtifactPlaceholders([FILE], {
-      gridId: "g", userId: "u", dispatch,
-      occExtra: () => ({ parentId: parent.id, fields: { "f-date": { value: "2026-01-01" } } }),
-      parentOccurrence: parent,
-    });
-    expect(p.occurrence.fields["f-date"]).toEqual({ value: "2026-01-01" });
-  });
-
-  it("is byte-identical to today when there is no parent occurrence", () => {
-    operationsBridge.getFilterContext = () => null;
-    const dispatch = vi.fn();
-    const [p] = createArtifactPlaceholders([FILE], {
-      gridId: "g", userId: "u", dispatch, occExtra: () => ({}),
+      gridId: "g", userId: "u", dispatch: vi.fn(), occExtra: () => ({ parentId: "col-today" }),
     });
     expect(p.occurrence.fields).toEqual({});
   });
 
-  it("never throws when the bridge is unwired — a create must not fail on it", () => {
-    operationsBridge.getFilterContext = () => { throw new Error("unwired"); };
-    const dispatch = vi.fn();
-    expect(() => createArtifactPlaceholders([FILE], {
-      gridId: "g", userId: "u", dispatch,
-      occExtra: () => ({ parentId: "p" }),
-      parentOccurrence: { id: "p" },
-    })).not.toThrow();
+  it("passes caller-supplied fields through (control)", () => {
+    withFilter("f-date", "2026-08-07");
+    const [p] = createArtifactPlaceholders([FILE], {
+      gridId: "g", userId: "u", dispatch: vi.fn(),
+      occExtra: () => ({ parentId: "col-today", fields: { "f-date": { value: "2026-01-01" } } }),
+    });
+    expect(p.occurrence.fields).toEqual({ "f-date": { value: "2026-01-01" } });
   });
 });
