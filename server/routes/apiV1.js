@@ -1218,6 +1218,35 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // ── Staging a share (2026-09-28 placement window, spec §3) ─────────────
+  // A clip is parked here BEFORE the placement window opens, for two reasons:
+  // a long selection plus an og:image URL does not reliably fit in a URL, and
+  // nothing may be written to the grid until the user presses Clip.
+  router.post("/share/stage", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      if (!body.url && !body.text && !body.clip) {
+        return err(res, 400, "validation_error", "url, text or clip required");
+      }
+      const { createStage, STAGE_TTL_MS } = await import("../services/shareStage.js");
+      const { stageId, key } = await createStage({ userId: req.userId, payload: body });
+      res.status(201).json({ stageId, key, expiresInMs: STAGE_TTL_MS });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // DELIBERATELY UNAUTHENTICATED. The key in `?k=` is the authorization: the
+  // placement window can be open in a browser with no Moduli session, and a
+  // login screen between clipping a thing and placing it is the friction this
+  // feature exists to remove. The key reaches exactly one staged payload.
+  router.get("/share/stage/:id", async (req, res) => {
+    try {
+      const { readStage } = await import("../services/shareStage.js");
+      const payload = await readStage(req.params.id, req.query.k);
+      if (!payload) return err(res, 404, "not_found", "no such stage");
+      res.json({ payload });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // ====================================================================
   // POST /share — share → import routing (spec docs/superpowers/specs/
   // 2026-09-23-share-import-routing-design.md). INGRESS PREPARES, THE RULE
