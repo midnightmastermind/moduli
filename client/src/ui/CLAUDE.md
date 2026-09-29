@@ -3,6 +3,12 @@
 _Updated: 2026-09-11. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 (2) — the header "Sort children" is the searchable FieldSelect)
+- `SortSection.jsx` rendered one `<button>` per field — a scroll through every field on the grid — so the
+  09-28 sweep (which looked for native `<select>`s) missed it. It uses `FieldSelect` now ("Label" as an
+  extra row). `fieldSelectEverywhere.test.js` gained a detector for hand-rolled button lists; the old
+  SortSection fails it.
+
 ## Recent Changes (2026-09-29 — `SharePlace.jsx` NEW: the share placement window; SharePending stages)
 Spec `docs/superpowers/specs/2026-09-28-share-placement-window-design.md`, plan
 `docs/superpowers/plans/2026-09-28-share-placement-window.md` (ledger in the main checkout's

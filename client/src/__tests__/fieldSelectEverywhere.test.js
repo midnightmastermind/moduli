@@ -35,6 +35,13 @@ function walk(dir, out = []) {
 const FIELD_OPTION_MAP =
   /(?:fields|allFields|ourFields|sorted|fieldsList|gridFields)\s*\.map\(\s*\(?\s*(\w+)\s*\)?\s*=>\s*\(?\s*<option[\s\S]{0,120}?\{\s*\1(?:\.label\s*\|\|\s*\1)?\.name\s*\}\s*<\/option>/;
 
+// A HAND-ROLLED list: one <button> per field. The sort section was built this
+// way, so the native-<select> detector above walked straight past it and the
+// sort stayed a scroll through every field on the grid (user, 2026-09-29: "the
+// sort still doesnt have the search for field component").
+const FIELD_BUTTON_MAP =
+  /(?:fields|allFields|ourFields|sorted|fieldsList|gridFields)\s*\.map\(\s*\(?\s*(\w+)\s*\)?\s*=>\s*\(?\s*<button[\s\S]{0,700}?\{\s*\1(?:\.label\s*\|\|\s*\1)?\.name\s*\}\s*<\/button>/;
+
 const SOURCES = walk(ROOT).filter((p) => !p.endsWith("FieldSelect.jsx"));
 
 describe("the field picker is the one picker", () => {
@@ -43,6 +50,28 @@ describe("the field picker is the one picker", () => {
       .map((p) => path.relative(ROOT, p));
     expect(offenders, `use <FieldSelect> instead of a native <select>: ${offenders.join(", ")}`)
       .toEqual([]);
+  });
+
+  it("no component hand-rolls a button list out of the field list", () => {
+    const offenders = SOURCES.filter((p) => FIELD_BUTTON_MAP.test(fs.readFileSync(p, "utf8")))
+      .map((p) => path.relative(ROOT, p));
+    expect(offenders, `use <FieldSelect> instead of a hand-rolled list: ${offenders.join(", ")}`)
+      .toEqual([]);
+  });
+
+  it("the button detector catches the shape the sort section used", () => {
+    const planted = `
+          {fields.map(f => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => pickField(f.id)}
+              style={{ display: "block", width: "100%" }}
+            >
+              {f.name}
+            </button>
+          ))}`;
+    expect(FIELD_BUTTON_MAP.test(planted)).toBe(true);
   });
 
   it("the detector actually detects — a planted native field select is caught", () => {
@@ -69,6 +98,7 @@ describe("the field picker is the one picker", () => {
     for (const rel of [
       "ui/FilterEditor.jsx",            // local filters — the Bookmarks page
       "ui/LayoutCascadeEditor.jsx",     // "Order by" — the sort field
+      "ui/SortSection.jsx",             // the header dropdown's "Sort children"
       "ui/FeedSection.jsx",             // a feed's condition field AND its sort
       "ui/commandCenter/GridSettingsTab.jsx",
       "ui/commandCenter/OperationsTab.jsx",

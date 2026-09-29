@@ -21,7 +21,15 @@ const registerMenus = () => {
     for (const m of CLIP_MENUS) api.contextMenus.create(m);
   });
 };
-api.runtime.onInstalled.addListener(registerMenus);
+api.runtime.onInstalled.addListener(async (details) => {
+  registerMenus();
+  // A fresh install has no token, so every clip would fail its settings check.
+  // Open the options page now rather than let the first right-click do nothing.
+  if (details?.reason === "install") {
+    const stored = await api.storage.sync.get(SETTINGS_KEYS);
+    if (!validateSettings(stored).ok) api.runtime.openOptionsPage?.();
+  }
+});
 api.runtime.onStartup?.addListener(registerMenus);
 
 const notify = (message) => {
@@ -78,7 +86,10 @@ async function fieldIdsFor({ baseUrl, token, gridId }) {
 api.contextMenus.onClicked.addListener(async (info, tab) => {
   const stored = await api.storage.sync.get(SETTINGS_KEYS);
   const check = validateSettings(stored);
-  if (!check.ok) { notify(check.message); return; }
+  // Not set up: a system notification is easy to miss (Windows hides them by
+  // default), and a click that shows nothing reads as broken. Open the page
+  // that fixes it.
+  if (!check.ok) { notify(check.message); api.runtime.openOptionsPage?.(); return; }
   const { baseUrl, token, parentId } = check.settings;
   // `gridId` from the options OVERRIDES the app; blank means "wherever the app
   // says", which is the common case and the one that cannot go stale.
