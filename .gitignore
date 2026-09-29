@@ -6,6 +6,9 @@ notes_codex_annotated/
 
 # Git worktrees (superpowers isolated workspaces)
 .worktrees/
+# and the harness's own worktree dir — an unignored full checkout in here is
+# one `deploy.sh` (which runs `git add -A`) away from being committed.
+.claude/worktrees/
 
 # build output (built on deploy, not tracked)
 client/dist/
@@ -24,3 +27,6 @@ backups/
 
 # throwaway probe suites (deploy.sh runs `git add -A`)
 client/src/__tests__/_*.test.js
+
+# SDD workspaces — ledgers, briefs and review diffs (deploy.sh runs `git add -A`)
+.superpowers/
