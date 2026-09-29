@@ -90,10 +90,27 @@ own events with a backup (`tpl-slots-backup.json`). **Sep 29: 0 → 49 slots.**
 set the priority ladder, and fixed ADD_CHILD's multi-match (entry (6)). My later trigger pass duplicated
 its rows; removed, and its filterNav row is the one now scoped.
 
-**STILL OPEN:** move the old 4 slots' dated rows into day columns (user's call); ONE server deploy for the
-`json:` mirror in `serverExecutor.js` and the stale `unsigned-template-node` rule (it predates the
-2026-08-07 auto-signature fallback and flags the 49 template slots as an error); 3 live onChange ops read
-`$trigger.fields.<id>.value`, undefined for a UI edit (raw value) — reported, not changed.
+**THE OLD SLOTS, MIGRATED (the user's call), and two more defects on the way.** The rebuild's Schedule
+page held 4 slots directly with dated rows. Sep 21's 11 legacy rows went into a Sep 21 column by
+"Move N selected" (bulk needs >1 selected, by design) — **and every row but the last in each group stayed
+listed by its old slot too: `_pasteInto` wrote each source list from one pre-loop snapshot**, re-listing
+the row moved just before. Fixed with a running copy of each list the loop has rewritten
+(`bulkMoveSameParent.test.js`, HEAD re-lists). One row had also missed its destination list and would have
+gone invisible — re-listed with `link_occurrence_to_parent` (its key is `parentOccurrenceId`; a probe that
+sent `parentId` "succeeded" and changed nothing). Coffee and Drink (Sep 27) needed single drags: a far
+drag's auto-scroll overshot every way I tried (one release landed Coffee on the PAGE itself; recovered),
+so they went by short hops between adjacent slots, which land exactly. **The Sep 21 column then turned
+out listed by NOBODY** — no recorded transaction ever added or removed it (the build lists a column
+through an op effect, which the log does not carry), the 09-23/09-26 class; re-listed, and the build
+re-lists its column every run. Then the 4 old slots deleted through their radial: **14 of 14 rows alive
+and listed**, the page holds only day columns (Sep 21 · 27 · 28), integrity down to the one stale rule.
+
+**STILL OPEN:** ONE server deploy for the `json:` mirror in `serverExecutor.js` (headless runs; no live
+payload has a `$` leaf yet) and the `unsigned-template-node` rule (it predates the 2026-08-07
+auto-signature fallback and flags the 49 template slots — but retiring a rule with six tests pinning the
+07-31 duplicate shape wants per-path proof the fallback covers every apply, not a late-night call); both
+need a server restart. 3 live onChange ops read `$trigger.fields.<id>.value`, undefined for a UI edit
+(raw value) — reported, not changed. Step drag-reorder in the op editor: unverified for real users.
 
 ---
 
