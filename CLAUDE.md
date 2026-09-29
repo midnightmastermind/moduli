@@ -15,6 +15,45 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-28 (8) — `Completed Tasks`, BUILT BY CLICKING; and a tracker tile made in the UI hides itself on every other day
+
+Rebuild-via-UI, next op after Build Schedule (its poms tail runs it). **No code changed.**
+
+**BUILT END TO END BY CLICKING, and the condition came out byte-for-byte poms' shape:**
+```
+Trackers › Stats (board container, via the page's quick-add) › Completed Tasks (binds Tasks Completed)
+$acc = 0 · $scopePageId = <Schedule> · $goalItem = $allItemsById.<tile> · $goalPeriod = $goalItem._effectiveFilter.<Date>
+LOOP $allInstances  IF  Completed IS true · _ancestors HAS_ANCESTOR $scopePageId · meta.feedSourceId IS_EMPTY ·
+                        _boundFieldIds ARRAY_NOT_INCLUDES <Habit> · (Date DATE_IN_PERIOD $goalPeriod OR $goalPeriod IS_EMPTY)
+  then ++ $acc          UPDATE $goalItem.fields.<Tasks Completed>.value = $acc
+triggers  onLoad · onChange Completed · onAdd/onDelete instance in Schedule · onFilterChange grid
+```
+Build Schedule now runs it beside `RUN Water`, inside the gate (a first attempt put it at the top level — removed).
+poms' Tags category rule is left out: the rebuild has no Tags.
+
+**WATCHED WORKING, from real clicks:**
+```
+Sep 28   0        (correct: the only completed rows are dated Sep 27)
+Prev     2        Coffee + Drink, Sep 27 — onFilterChange
+untick   1        the Coffee row's Completed switch — onChange
+re-tick  2
+Next     0
+```
+
+**THE FINDING — REPORTED, NOT FIXED: THE TILE IS INVISIBLE ON SEP 27.** A row created on a date-filtered
+page is stamped with the filter field (`computePageFilterFields`), so the tile carries `Date = 2026-09-28` —
+an UNBOUND value, shown nowhere and clearable from nowhere — and the Trackers page hides it on every other
+day. The rebuild's Water tile has the same stamp. poms' tiles never had it (seed-made): they carry
+`Tracker Date` + `Aggregation` instead of `Date`, so the filter passes them. For a task the stamp is the
+design (it is what files a row under its day); for a tracker tile it is wrong, and the app cannot tell the
+two apart. The user's call.
+
+**PROBE NOTES:** the trigger's field target is now the searchable `FieldSelect` (09-28), not a `<select>` —
+click `[aria-label="Specific field"]`, type, click the row. A new op arrives with an `onLoad` trigger already.
+`__moduli_state__.occurrences` can hold a non-string id — `String(o.id)` before `startsWith`.
+
+---
+
 ### 2026-09-28 (7) — BUILD SCHEDULE, BUILT BY CLICKING: eleven editor gaps, a template that dated itself, and a day column that moves its page
 
 The user's asks, in order: build `Schedule: Build Schedule` on the rebuild grid (49 slots like poms; move
