@@ -19,6 +19,13 @@ describe("adding an instance targets the clicked placement", () => {
     expect(line).toBeTruthy(); // control: the adder still exists
     expect(line).toMatch(/addInstanceToContainer\(containerOccurrence\?\.id/);
     expect(line).not.toMatch(/addInstanceToContainer\(module\.id/);
+    // AND it must come AFTER `containerOccurrence` is declared: reading a
+    // const in a render-time deps array before its declaration is a TDZ
+    // ReferenceError that takes down EVERY container (shipped 2026-09-29 for
+    // ~5 minutes; no test mounts ModuleContainer, so only this ordering pin
+    // can see it).
+    expect(src.indexOf("const containerOccurrence = ")).toBeGreaterThan(0);
+    expect(src.indexOf("const onAdd = useCallback")).toBeGreaterThan(src.indexOf("const containerOccurrence = "));
   });
 
   test("App resolves the placement by its own id and never by module id", () => {
