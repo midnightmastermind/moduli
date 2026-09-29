@@ -3,6 +3,19 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 — no app-level filter stamp; moves update parentId and fire the shared trigger)
+- `filterFieldStamp.computePageFilterFields` REMOVED with every caller (CommitHelpers typed creates,
+  LayoutHelpers.createInstanceInContainer, artifactUpload, DocContent mint, four dropHandlers sites).
+  The file keeps `normalizeFilterDateValue` only. `parentFilterFields`, `stampPageFilterFields`,
+  `findFilterOverrideAncestor`, `templateHelpers.isInsideTemplate` and `createArtifactPlaceholders`'
+  `parentOccurrence` param went with it. Dating Schedule adds/moves = the "Schedule: Stamp Date & Time
+  Slot" operation.
+- `dropHandlers.handleOccurrenceMove` container-to-container branch: persists the moved instance's
+  `parentId`, updates the overlay BEFORE ops, fires the shared `fireMoveTrigger` (was a hand-rolled
+  OccurrenceMoveOp without `_ancestorIds`); `sameContainer` compares placements, not modules.
+- `App.addInstanceToContainer(containerOccurrenceId, opts)` takes the PLACEMENT id (was module id →
+  first placement, often a template's copy-linked slot).
+
 ## Recent Changes (2026-09-28 (9) — `createContainerInContainer` no longer stamps the page's date)
 - A container made by "add a container" was born carrying the parent's filter value (via
   `parentFilterFields`), so it showed only on the day it was made. Removed for containers; rows still

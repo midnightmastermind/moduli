@@ -15,6 +15,59 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 — THE APP STOPS STAMPING DATES; an op does it for the Schedule. And "+ Item" and a drag both used the wrong placement
+
+User: *"stamping something with the date and using the date filter are two diff things"* · *"the autodate
+stamp should just be on things dragged or added to the schedule"* · *"keep going … they are instances"*.
+
+**THE STAMP IS GONE FROM THE APP.** `computePageFilterFields` copied the active filter's date onto every
+typed, dropped, copied, moved and uploaded occurrence under a dated page. Removed from all of them, plus
+`findFilterOverrideAncestor`, `stampPageFilterFields`, `parentFilterFields` and last session's
+`isInsideTemplate` exception (which existed only for it). **Safe for visibility, read from the code:**
+`isOccurrenceVisible` passes an instance with no value for the filter field ("persistent"). 3 dead test
+files deleted; the tests that pinned the stamp are INVERTED with their reason (2 fail on the stamping
+code; the container case passes both ways and is a contract pin). **My first A/B of those was VACUOUS** —
+I stashed CommitHelpers but not the trimmed `filterFieldStamp`, so the old arm's stamp was undefined and
+silently caught. Re-run with every file restored.
+
+**THE SCHEDULE'S DATING IS AN OPERATION — `Schedule: Stamp Date & Time Slot`.** poms already had it
+(onCreate, Panel C). Built on the rebuild by clicking: onAdd + onMove, instance, scoped to the Schedule,
+priority 2; Date = `$item._effectiveFilter.<Date>`, Time Slot = the parent slot's. poms' op was edited by
+clicking to read the slot from the INSTANCE'S parent (`$item.parentId`, `$destContainer.label`) instead of
+the create event — a move carries no `containerLabel`, so with a move trigger its else-branch would have
+CLEARED Time Slot — and got the onMove trigger (priority 2, in Schedule).
+
+**TESTING IT FOUND THREE PLACEMENT DEFECTS, all the module-vs-placement class:**
+```
+"+ Item"     App.addInstanceToContainer found "the" container occurrence by MODULE id; every day
+             column's slots are copy-links of the template's → 6 of 6 adds from today's 3:00pm
+             landed in the Schedule TEMPLATE's 3:00pm (nothing dates it, nothing "in Schedule"
+             fires, and the next build clones it into every day). Passes the placement id now.
+a move       moveInstanceBetweenContainers rewrote the LISTS only: instance listed by 3:30pm,
+             parentId still 3:00pm. And the branch HAND-ROLLED its OccurrenceMoveOp with no
+             _ancestorIds (every "in Schedule" move trigger failed closed) and ran ops BEFORE
+             updating the overlay. Now: persist parentId, overlay first, the shared fireMoveTrigger.
+sameContainer compared MODULE ids — a move between two days' copies of one slot reordered in place.
+```
+4 move tests (all fail on the old code); a source guard for the add path.
+**AND I SHIPPED A CRASH FOR ~3 MINUTES** (14:34–14:37 UTC): the first "+ Item" fix read
+`containerOccurrence` in `onAdd`'s deps BEFORE its `const` — a TDZ ReferenceError in every container.
+The full suite passed because no test mounts ModuleContainer. Fixed; the guard now pins declaration
+order. No real-user loads in that window (server log).
+
+**WATCHED ON THE REBUILD WITH NO APP STAMP:** add to today's 3:00pm → Date 2026-09-29, Time Slot 3:00pm;
+drag to 3:30pm → Time Slot 3:30pm, parentId 3:30pm; op ran once each. `Completed Tasks` renders on every
+day now: Sep 27 **2 → 1 (untick) → 2**, Sep 29 0. Cleared the stale dates on the Water + Completed Tasks
+tiles and the Routines bank Drink (backup `instances-date-backup.json`); kept Last Opened (op marker) and
+the two Work shifts (real dates). Test debris deleted through the app. poms renders clean.
+
+**BEHAVIOUR CHANGE TO KNOW:** anything added OUTSIDE the Schedule (e.g. the Day Page's shared Todo) is now
+undated, so it shows on every day. poms has 3 such dated instances on the Day Page. If a page other than
+the Schedule should date what's added, that's the same op scoped to it — data, not app code.
+Client 5,243 pass; the 2 worker errors are the OOM pair, identical before these changes.
+
+---
+
 ### 2026-09-28 (9) — A CONTAINER IS NOT STAMPED WITH ITS PAGE'S DATE; and the rebuild's slot lookup read a stale date
 
 User, on (8)'s tile finding: *"stamping something with the date and using the date filter are two diff
