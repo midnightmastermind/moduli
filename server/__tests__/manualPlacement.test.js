@@ -68,6 +68,12 @@ describe("placeManually", () => {
     expect(runs[0].op.pipeline.steps[0].config.externalId).toBe("literal:link:https://x/?q=${$today}");
   });
 
+  it("passes a bookmark's URL as its module fileRef", async () => {
+    await placeManually({ share: SHARE, userId: "u1", gridId: "g1",
+      placement: { parentId: "p", role: "artifact", kind: "bookmark", fileRef: "https://x/?a=${b}", fields: {} } });
+    expect(runs[0].op.pipeline.steps[0].config.moduleFileRef).toBe("literal:https://x/?a=${b}");
+  });
+
   it("keeps a non-string value's type — an auto-filled select stays an array", async () => {
     await placeManually({ share: SHARE, userId: "u1", gridId: "g1", placement: { ...PLACEMENT, fields: { c: ["movie"] } } });
     expect(runs[0].op.pipeline.steps[0].config.fields.c).toBe('json:["movie"]');

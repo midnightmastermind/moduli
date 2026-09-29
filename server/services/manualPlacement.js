@@ -44,6 +44,9 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
         // A literal too: an externalId is built from a URL, and a URL holding
         // "${" would otherwise be interpolated by the executor.
         externalId: share?.externalId ? lit(share.externalId) : null,
+        // A bookmark or image IS its URL: the executor keys the module on it,
+        // so re-clipping the same link reuses one module (/ingest's rule).
+        ...(p.fileRef ? { moduleFileRef: lit(p.fileRef) } : {}),
         ...(p.bindingsLike ? { bindingsLike: p.bindingsLike } : {}),
         ...(p.bindFields?.length ? { bindFields: p.bindFields } : {}),
         fields,
