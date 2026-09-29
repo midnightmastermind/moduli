@@ -8607,3 +8607,24 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border-bottom-right-radius: 0 !important;
   border-right-width: 0 !important;
 }
+
+/* An artifact with nothing to draw (no file, no cover): its title, and a way to
+   give it a picture — helpers/coverPick (2026-09-29). */
+.artifact-card--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+.artifact-set-cover {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.artifact-set-cover:hover { color: var(--text-primary); border-color: var(--accent-blue); }

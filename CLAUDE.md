@@ -15,6 +15,58 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 (3) — A ROW'S PICTURE COULD BE SET FROM NOWHERE; four surfaces now share one picker
+
+User: *"how would i grab image and place that. im trying to add A Guide to Recognizing Your Saints and i
+cant add a new image to it via the share or via the app ui. it just shows a blank image that i cant open
+or change (just says A Guide to Recognizing Your Saints, as the image)."*
+
+**WHY THE POSTER IS PER-PLACEMENT, and it is the whole reason nothing could set it.** A media row draws
+`occurrence.meta.cover`; the MODULE is shared by every row of a kind (993 movies, one "Movie" module —
+`ArtifactCard`'s own comment says a module-level cover would give every film the same poster). So the
+cover belongs to the placement, and **the only surface that could write one was a PAGE card's
+`window.prompt` for a URL.** An instance card had nothing: a share of an IMDb link arrived with no
+picture and rendered its own title where the picture goes.
+
+**`helpers/coverPick.js` IS THAT DECISION ONCE** — `openImagePicker` (Search / Upload / URL) seeded with
+the title plus a kind hint (`coverQuery.js`, pure and dependency-free so the share window can use it
+without dragging in CommitHelpers). Four surfaces call it: an instance card's radial (`Set cover image…`
+/ `Change cover image…` + `Clear cover`), an artifact card with **nothing to draw** (a `Set cover…`
+button where the picture belongs — the case the user hit), a page card (its bare URL prompt is gone), and
+the share placement window's new **Cover** row.
+```
+read at PICK time    the picker is open as long as you like; a snapshot taken when it opened
+                     would overwrite meta that changed meanwhile  (getOccurrence, not a value)
+clearing REMOVES     a stored null still reads as "has a cover key" to `"cover" in meta`
+```
+
+**THE SHARE WINDOW SUGGESTS THE PAGE'S OWN og:image AND NOTHING ELSE.** New key-authorized
+`GET /share/stage/:id/cover` (the stage key, like the stage read — the window may have no Moduli
+session). An image clip IS its picture, so it is returned without a fetch. A link goes through
+`fetchLinkPreview` — the same function that gives app-made bookmarks their covers — and **only its
+`coverVia === "og"` is offered**: that function falls back to a declared icon and then the site favicon,
+which is right for a bookmark tile and wrong for a poster, and a 16px favicon stretched into a poster
+slot is worse than the title text it replaces. A cover the user picks or clears is never overwritten by
+the suggestion (`coverTouched`). `manualPlacement` writes it as `meta: { cover: literal:… }` — a literal,
+like every other value there, so a URL carrying `${` is not interpolated.
+
+**THE HALF THAT WAS MISSING WAS A CALLER.** `coverPick` had its own green suite; nothing pinned that any
+surface used it — the `grid.meta.fieldVisibility` shape (09-22 (23): implemented, documented,
+unit-tested, settable from nowhere). `coverPickWiring.test.js` is a source guard over all four, with a
+control that it is reading real files and that stripping comments leaves code (or every `not.toMatch`
+passes on an empty string). Its first version asserted PreviewNode has no `window.prompt` — **it still
+renames a page with one**, so the assertion is scoped to a cover prompt.
+
+**A/B, each mutation asserted to land:** reverting the four surfaces fails 4 of 5 wiring cases; removing
+`manualPlacement`'s cover line fails 2 of 3 (the "no meta when no cover" case is a contract pin, passing
+both ways); removing the cover route fails 6 of 7 (the 404 case passes vacuously with no route — named
+as a pin, not coverage). Server **2,874 pass**; client **5,340 pass / 503 of 505 files**, the 2 errors
+the documented `trackerValues` OOM pair. **NOT watched in a browser** — nobody has opened the picker on
+a real row or shared a link with a cover; every layer is asserted and the suites are green, and that is
+the honest gap.
+
+---
+
 ### 2026-09-29 (2) — SHARE PLACEMENT WINDOW: a clip can be told WHERE to go and WHAT to become
 
 Picked up the other account's share work (plan `docs/superpowers/plans/2026-09-28-share-placement-window.md`,

@@ -34,6 +34,7 @@ import { PagePreviewBody } from "../PagePreviewApp.jsx";
 import { requestPreviewSlot } from "../helpers/previewAdmission.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 import { ArtifactThumbnail } from "./ArtifactCard.jsx";
+import { openCoverPicker, setCover } from "../helpers/coverPick";
 
 // Inline preview — mounts PagePreviewBody directly in the parent React tree.
 // Scaled to fit the card via CSS transform; pointer-events:none keeps it
@@ -227,34 +228,15 @@ export default function PreviewNode({
     : null;
 
   const [ctxMenu, setCtxMenu] = useState(null);
+  // The app's image picker (Search / Upload / URL), not a bare URL prompt — the
+  // same action an instance card's menu offers (helpers/coverPick).
   const handleSetCover = useCallback(() => {
-    if (!occurrence?.id) return;
-    const next = window.prompt(
-      "Cover image URL (or relative upload path; leave empty to clear):",
-      coverRaw || ""
-    );
-    if (next == null) return; // user cancelled
-    const trimmed = next.trim();
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: {
-        id: occurrence.id,
-        meta: { ...(occurrence.meta || {}), cover: trimmed || null },
-      },
-      emit: true,
-    });
-  }, [occurrence?.id, occurrence?.meta, coverRaw, dispatch, socket]);
+    openCoverPicker({ getOccurrence: () => occurrence, module, dispatch, socket });
+  }, [occurrence, module, dispatch, socket]);
 
   const handleClearCover = useCallback(() => {
-    if (!occurrence?.id) return;
-    const nextMeta = { ...(occurrence.meta || {}) };
-    delete nextMeta.cover;
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: occurrence.id, meta: nextMeta },
-      emit: true,
-    });
-  }, [occurrence?.id, occurrence?.meta, dispatch, socket]);
+    setCover({ getOccurrence: () => occurrence, dispatch, socket }, null);
+  }, [occurrence, dispatch, socket]);
 
   // DELETE FROM THE CARD ITSELF.
   //

@@ -68,6 +68,10 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
         ...(p.fileRef ? { moduleFileRef: lit(p.fileRef) } : {}),
         ...(p.bindingsLike ? { bindingsLike: p.bindingsLike } : {}),
         ...(p.bindFields?.length ? { bindFields: p.bindFields } : {}),
+        // The instance's picture. A media row draws `occurrence.meta.cover`
+        // (its module is shared by every row of the kind), so the cover the
+        // window chose goes on the placement. A literal, like every value here.
+        ...(typeof p.cover === "string" && p.cover.trim() ? { meta: { cover: lit(p.cover.trim()) } } : {}),
         fields,
       },
     }] },

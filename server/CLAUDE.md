@@ -2,6 +2,18 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 (3) — a staged clip can be asked for its picture)
+- **`GET /share/stage/:id/cover`** (apiV1) — key-authorized like the stage read, because the placement
+  window may be open in a browser with no Moduli session. An image clip IS its picture and is returned
+  with **no fetch**; a link goes through `fetchLinkPreview` (the same function app-made bookmarks use)
+  and **only an og:image is offered** — that function falls back to a declared icon and then the site
+  favicon, which is right for a bookmark tile and wrong for a movie poster. An unreachable page answers
+  `{cover:null}` with a 200, so the window is never blocked by a dead link.
+- **`manualPlacement`** writes a chosen cover as `meta: { cover: "literal:<url>" }` on the CREATE — a
+  literal like every other value there, so a URL holding `${` is never interpolated. No cover means **no
+  `meta` key at all**. It rides on the PLACEMENT because a media row's module is shared by every row of
+  its kind. `__tests__/apiShareCover.test.js` (7) + 3 cases in `manualPlacement.test.js`, both A/B'd.
+
 ## Recent Changes (2026-09-29 (2) — the first prod placement found two defects)
 Verified on prod: IMDb clip → Movies (poms, 993 rows) by stage key alone; replay 401. Stored row:
 - **Year was the STRING "2006"** beside 864 numeric siblings (the window's boxes are text).

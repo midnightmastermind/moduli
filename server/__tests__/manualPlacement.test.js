@@ -124,6 +124,30 @@ describe("placeManually", () => {
     expect(out.ran[0].created).toEqual([]);
   });
 
+  // ── the row's picture (2026-09-29) ────────────────────────────────────
+  // A media row draws `occurrence.meta.cover`, and its MODULE is shared by
+  // every row of the kind (993 movies, one "Movie" module), so the cover has
+  // to ride on the PLACEMENT or every film would get the same poster.
+  it("writes a chosen cover onto the placement's meta, as a literal", async () => {
+    await placeManually({ share: SHARE, userId: "u1", gridId: "g1",
+      placement: { ...PLACEMENT, cover: "  https://img/tmdb/p.jpg  " } });
+    expect(runs[0].op.pipeline.steps[0].config.meta).toEqual({ cover: "literal:https://img/tmdb/p.jpg" });
+  });
+
+  it("does not interpolate a cover URL carrying ${", async () => {
+    await placeManually({ share: SHARE, userId: "u1", gridId: "g1",
+      placement: { ...PLACEMENT, cover: "https://img/x?s=${$today}" } });
+    expect(runs[0].op.pipeline.steps[0].config.meta.cover).toBe("literal:https://img/x?s=${$today}");
+  });
+
+  it("carries NO meta when no cover was chosen — an absent picture is not an empty one", async () => {
+    for (const cover of [undefined, "", "   ", null, 7]) {
+      runs.length = 0;
+      await placeManually({ share: SHARE, userId: "u1", gridId: "g1", placement: { ...PLACEMENT, cover } });
+      expect(runs[0].op.pipeline.steps[0].config).not.toHaveProperty("meta");
+    }
+  });
+
   it("writes a number field's typed value as a NUMBER, like the rows beside it", async () => {
     fieldTypes = { "f-year": "number" };
     await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });

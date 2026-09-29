@@ -2,6 +2,19 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-29 — a row's picture can be set from the row)
+- **`ModuleInstance.jsx`** — an `role:"artifact"` row's radial gains `Set cover image…` /
+  `Change cover image…` (named for what is there) and, when it has one, `Clear cover`. Both go through
+  `helpers/coverPick`, reading the occurrence from `getOccMap()` at CLICK time.
+- **`ArtifactCard.jsx`** — an artifact with no file and no cover used to render its own title where the
+  picture goes, with no way in (user: *"it just shows a blank image that i cant open or change"*). It now
+  draws a `Set cover…` button there (`.artifact-set-cover`, `.artifact-card--empty` in index.css). The
+  button stops its own pointer/mouse/click events — the card underneath opens the viewer.
+- **`PreviewNode.jsx`** — its cover action was a bare `window.prompt` for a URL; it opens the same picker.
+  (Its PAGE RENAME is still a prompt — the wiring guard is scoped to a *cover* prompt for that reason.)
+- The poster lives on `occurrence.meta.cover` because the module is shared by every row of a kind; see
+  helpers/CLAUDE.md for the picker itself.
+
 ## Recent Changes (2026-09-24 — folder-page cards for FILES show the file and open it)
 - User (Files › Images folder page): *"i cant see what any of the images are and clicking them does nothing."*
 - **`PreviewNode.jsx`** — `canDrillDown` was `role === "page" || kind === "folder"`, so an artifact card's

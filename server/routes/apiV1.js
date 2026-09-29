@@ -1247,6 +1247,29 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // A COVER for what is being clipped, so the placement window can show and
+  // write a picture (user, 2026-09-29: a shared IMDb link arrived as a movie
+  // with no picture and no way to add one). Key-authorized like the stage read.
+  // An image clip IS its picture. A link or page gets its og:image — fetched by
+  // the same `fetchLinkPreview` that gives app-made bookmarks their covers — and
+  // ONLY an og:image: that function falls back to a site icon, which is right
+  // for a bookmark tile and wrong for a movie poster, so an icon is not offered.
+  router.get("/share/stage/:id/cover", async (req, res) => {
+    try {
+      const { readStage } = await import("../services/shareStage.js");
+      const payload = await readStage(req.params.id, req.query.k);
+      if (!payload) return err(res, 404, "not_found", "no such stage");
+      const url = payload.url || "";
+      if (payload.shape === "image" && /^https?:\/\//i.test(url)) return res.json({ cover: url, via: "image" });
+      if (!/^https?:\/\//i.test(url)) return res.json({ cover: null, via: null });
+      const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
+      const { fetchLinkPreview } = await import("../utils/linkPreview.js");
+      const preview = await fetchLinkPreview(url, { fetchPageHtml });
+      const og = preview?.ok && preview.coverVia === "og" ? preview.cover : null;
+      res.json({ cover: og || null, via: og ? "og" : null });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // Which rule Auto would run, and where it files things — said BEFORE Clip is
   // pressed. Key-authorized like the stage read. Resolved through
   // selectShareRules, the function the real run uses, so the window cannot

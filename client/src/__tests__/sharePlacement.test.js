@@ -165,6 +165,19 @@ describe("buildSharePayload", () => {
     expect(p.placement.fileRef).toBe("https://www.imdb.com/title/tt0473488/");
   });
 
+  it("carries a chosen cover, trimmed; sends none when empty", () => {
+    const shape = shapeFromDestination(MOVIES);
+    const withCover = buildSharePayload({ ...base, mode: "manual", destination: MOVIES, shape, mappings: {}, cover: " https://img/p.jpg " });
+    expect(withCover.placement.cover).toBe("https://img/p.jpg");
+    const none = buildSharePayload({ ...base, mode: "manual", destination: MOVIES, shape, mappings: {}, cover: "  " });
+    expect(none.placement).not.toHaveProperty("cover");
+  });
+
+  it("an image clip never carries a cover — its picture is its file", () => {
+    const p = buildSharePayload({ ...base, mode: "manual", destination: { id: "o1" }, shape: shapeFromKind("image"), mappings: {}, cover: "https://img/p.jpg" });
+    expect(p.placement).not.toHaveProperty("cover");
+  });
+
   it("refuses to build a manual payload with no destination", () => {
     expect(() => buildSharePayload({ ...base, mode: "manual", shape: { role: "instance" } })).toThrow(/destination/);
   });

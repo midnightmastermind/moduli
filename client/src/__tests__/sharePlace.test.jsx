@@ -9,6 +9,15 @@ import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/re
 
 // FieldSelect is a Radix popover jsdom cannot open reliably; it stands in as a
 // plain select so these cases test SharePlace, not the picker.
+// The image picker stands in as one button that picks a fixed url.
+vi.mock("../ui/ImagePickerMenu.jsx", () => ({
+  default: ({ initialQuery, onPick, onClose }) => (
+    <div data-testid="image-picker" data-query={initialQuery}>
+      <button type="button" onClick={() => { onPick("https://img/picked.jpg"); onClose(); }}>pick-it</button>
+    </div>
+  ),
+}));
+
 vi.mock("../ui/FieldSelect.jsx", () => ({
   default: ({ fields, value, onChange, noneLabel }) => (
     <select data-testid="field-select" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
@@ -44,6 +53,7 @@ beforeEach(() => {
   global.fetch = vi.fn(async (url, opts) => {
     const u = String(url);
     calls.push({ url: u, opts });
+    if (u.includes("/share/stage/s1/cover")) return json({ cover: "https://img/og.jpg", via: "og" });
     if (u.includes("/share/stage/s1/preview")) return json({ gridId: "g1", ruleId: "r1", ruleName: "Share: link", lands: "Bookmarks" });
     if (u.includes("/share/stage/s1")) return stageStatus === 200 ? json({ payload: STAGED }) : json({ error: "not_found" }, 404);
     if (u.includes("/me/share")) return json({ gridId: "g1" });
@@ -214,6 +224,45 @@ describe("SharePlace — New", () => {
     const p = JSON.parse(sharePost().opts.body).placement;
     expect(p).toMatchObject({ role: "artifact", kind: "bookmark", fileRef: STAGED.url });
     expect(p.bindingsLike).toBeUndefined();
+  });
+});
+
+describe("SharePlace — Cover", () => {
+  it("suggests the page's own picture for a media row, and posts it", async () => {
+    await openNew(); await pickMovies();
+    const row = await screen.findByTestId("cover-row");
+    await waitFor(() => expect(row.querySelector("img")?.getAttribute("src")).toBe("https://img/og.jpg"));
+    fireEvent.click(screen.getByRole("button", { name: /^clip$/i }));
+    await waitFor(() => expect(sharePost()).toBeTruthy());
+    expect(JSON.parse(sharePost().opts.body).placement.cover).toBe("https://img/og.jpg");
+  });
+
+  it("Change… opens the image search for the title + kind, and the pick is what gets posted", async () => {
+    await openNew(); await pickMovies();
+    await waitFor(() => expect(screen.getByTestId("cover-row").querySelector("img")).toBeTruthy());
+    fireEvent.click(screen.getByText("Change…"));
+    const picker = await screen.findByTestId("image-picker");
+    expect(picker.getAttribute("data-query")).toBe("A Guide to Recognizing Your Saints (2006) IMDb movie poster");
+    fireEvent.click(screen.getByText("pick-it"));
+    fireEvent.click(screen.getByRole("button", { name: /^clip$/i }));
+    await waitFor(() => expect(sharePost()).toBeTruthy());
+    expect(JSON.parse(sharePost().opts.body).placement.cover).toBe("https://img/picked.jpg");
+  });
+
+  it("Clear posts no cover, and the suggestion does not come back", async () => {
+    await openNew(); await pickMovies();
+    await waitFor(() => expect(screen.getByTestId("cover-row").querySelector("img")).toBeTruthy());
+    fireEvent.click(screen.getByText("Clear"));
+    expect(screen.getByTestId("cover-row").querySelector("img")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^clip$/i }));
+    await waitFor(() => expect(sharePost()).toBeTruthy());
+    expect(JSON.parse(sharePost().opts.body).placement.cover).toBeUndefined();
+  });
+
+  it("an image clip gets no cover row — its picture is the file", async () => {
+    await openNew(); await pickMovies();
+    fireEvent.change(screen.getByLabelText("make it a"), { target: { value: "image" } });
+    expect(screen.queryByTestId("cover-row")).toBeNull();
   });
 });
 

@@ -3,6 +3,23 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 (3) — `coverPick` / `coverQuery`: choosing a row's picture, in ONE place)
+- **`coverQuery.coverSearchQuery({label, kind})`** — title + a kind hint (`movie` → "movie poster",
+  `book` → "book cover", …). **Pure and dependency-free ON PURPOSE:** the share placement window needs it
+  and must not pull CommitHelpers into a window that has no grid store. `coverPick` re-exports it.
+- **`coverPick.openCoverPicker` / `setCover` / `coverMetaPatch`** — opens `ui/ImagePickerMenu`
+  (Search / Upload / URL) and writes the pick to `occurrence.meta.cover` through `updateOccurrence`.
+  **Why `meta.cover` on the OCCURRENCE:** a media row's module is shared by every row of its kind
+  (993 movies, one "Movie" module), so a module-level cover gives every film the same poster —
+  `ArtifactCard.coverSrc` reads occurrence first for exactly that reason.
+- **It takes `getOccurrence`, not an occurrence.** The picker stays open as long as the user likes;
+  a snapshot taken when it opened would overwrite `meta` that changed meanwhile. Read at PICK time.
+- **Clearing DELETES the key** rather than storing null — a stored null still answers `"cover" in meta`.
+- Callers: `ModuleInstance`'s radial, `ArtifactCard`'s empty state, `PreviewNode` (its bare
+  `window.prompt` for a URL is gone), and SharePlace's Cover row. `__tests__/coverPick.test.js` covers
+  the helper; **`coverPickWiring.test.js` covers that anything CALLS it** — a tested helper with no
+  caller is this repo's `grid.meta.fieldVisibility` shape (09-22 (23)).
+
 ## Recent Changes (2026-09-29 (2) — picking a share destination lists every field its rows bind)
 - `sharePlacement.autoMappings` now gives each of the destination rows' `bindFields` a row
   (`{source:"none", fromShape:true}`), then fills the ones the rows agree on (`auto:true`) as before. Before,

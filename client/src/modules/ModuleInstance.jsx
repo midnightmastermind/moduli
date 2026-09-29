@@ -27,13 +27,14 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { openCoverPicker, setCover } from "../helpers/coverPick";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import { openUrlInPanel, urlButtonPlacement } from "../helpers/openBookmark";
@@ -1618,6 +1619,23 @@ function ModuleInstance({
       // repeated 1,467 times.
       ...targetPickerItems,
       targetPickerItems.length ? { separator: true } : null,
+      // A media instance draws its picture from `occurrence.meta.cover`, and
+      // nothing on an instance card could set it — an instance that arrived
+      // without one (a shared IMDb link) showed its own title where the picture
+      // goes (user, 2026-09-29). Same picker as everywhere else, see coverPick.
+      module?.role === "artifact" && {
+        label: occurrence?.meta?.cover ? "Change cover image…" : "Set cover image…",
+        icon: ImageIcon,
+        onClick: () => openCoverPicker({
+          getOccurrence: () => getOccMap?.()?.[occurrence?.id] || occurrence,
+          module, dispatch, socket,
+        }),
+      },
+      module?.role === "artifact" && occurrence?.meta?.cover && {
+        label: "Clear cover",
+        icon: X,
+        onClick: () => setCover({ getOccurrence: () => getOccMap?.()?.[occurrence?.id] || occurrence, dispatch, socket }, null),
+      },
       {
         // "Delete", because that is what this does. It called itself "Remove
         // from container" while emitting `delete_occurrence` — the occurrence

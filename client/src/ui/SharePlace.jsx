@@ -29,11 +29,13 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 // is often opened cold — from the extension or a phone share — just to press
 // Auto. It loads only when "+ field…" is clicked.
 const FieldSelect = lazy(() => import("./FieldSelect.jsx"));
+const ImagePickerMenu = lazy(() => import("./ImagePickerMenu.jsx"));
 import { AUTH_KEYS } from "../helpers/authStorage";
 import { SHARE_SOURCES, SHARE_TRANSFORMS, resolveMapping } from "../helpers/shareMapping.js";
 import {
   CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings, isShapeRow, buildSharePayload,
 } from "../helpers/sharePlacement.js";
+import { coverSearchQuery } from "../helpers/coverQuery.js";
 import { readPresets, withPreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
 
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -81,6 +83,11 @@ export default function SharePlace() {
   const [labelMapping, setLabelMapping] = useState(DEFAULT_LABEL);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState(null);
+  // The row's picture. `coverTouched` = the user picked or cleared it, so the
+  // page's own suggestion (fetched below) never overwrites their choice.
+  const [cover, setCover] = useState("");
+  const [coverTouched, setCoverTouched] = useState(false);
+  const [pickingCover, setPickingCover] = useState(false);
 
   const clip = useMemo(() => (payload ? clipFromStage(payload) : null), [payload]);
   const shape = useMemo(
@@ -189,6 +196,21 @@ export default function SharePlace() {
   };
 
   const manual = mode !== "auto";
+  // A media row (movie, book, bookmark) draws its picture from its cover; an
+  // image clip's picture is the file itself, so it gets no cover row.
+  const wantsCover = manual && !!destination && shape.role === "artifact" && shape.fileFrom !== "imageUrl";
+
+  // Suggest the page's own og:image once, the first time a cover would apply.
+  useEffect(() => {
+    if (!wantsCover || coverTouched || cover || !stageId) return;
+    let live = true;
+    fetch(`/api/v1/share/stage/${enc(stageId)}/cover?k=${enc(stageKey)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => { if (live && b?.cover) setCover(b.cover); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [wantsCover, coverTouched, cover, stageId, stageKey]);
+
   const canClip = !busy && !!payload && (manual ? !!destination && !!token && !!gridId : true);
 
   const submit = async () => {
@@ -196,7 +218,7 @@ export default function SharePlace() {
     try {
       const body = buildSharePayload({
         gridId, mode: manual ? "manual" : "auto", stageId, stageKey,
-        destination, shape, mappings, labelMapping, clip,
+        destination, shape, mappings, labelMapping, clip, cover: wantsCover ? cover : "",
       });
       const r = await fetch("/api/v1/share", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
@@ -322,6 +344,32 @@ export default function SharePlace() {
                 <option value="">{siblingShape?.bindingsLike ? "like its rows" : "plain item"}</option>
                 {CLIP_KINDS.map((k) => <option key={k.value} value={k.value}>make it a {k.label.toLowerCase()}</option>)}
               </select>
+            </div>
+          )}
+
+          {wantsCover && (
+            <div data-testid="cover-row" style={{ marginTop: 8 }}>
+              <label style={lblSt}>Cover</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {cover
+                  ? <img src={cover} alt="" style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 3 }} />
+                  : <div style={{ width: 40, height: 56, borderRadius: 3, border: "1px dashed var(--border-default, #444)" }} />}
+                <button type="button" onClick={() => setPickingCover(true)} style={linkBtnSt}>{cover ? "Change…" : "Pick…"}</button>
+                {cover && (
+                  <button type="button" onClick={() => { setCover(""); setCoverTouched(true); }} style={linkBtnSt}>Clear</button>
+                )}
+              </div>
+              {pickingCover && (
+                <Suspense fallback={null}>
+                  <ImagePickerMenu
+                    open
+                    title={`Cover — ${clip.title || "untitled"}`}
+                    initialQuery={coverSearchQuery({ label: clip.title, kind: shape.kind })}
+                    onClose={() => setPickingCover(false)}
+                    onPick={(url) => { setCover(url); setCoverTouched(true); }}
+                  />
+                </Suspense>
+              )}
             </div>
           )}
 

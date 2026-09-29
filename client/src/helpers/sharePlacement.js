@@ -121,7 +121,7 @@ const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
  * reads the clip's content from the STAGE — the body only chooses where it
  * goes and what it becomes.
  */
-export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, clip }) {
+export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, clip, cover }) {
   const base = { mode, stageId, stageKey, ...(gridId ? { gridId } : null) };
   if (mode !== "manual") return base;
   if (!destination?.id) throw new Error("a manual placement needs a destination");
@@ -135,6 +135,9 @@ export function buildSharePayload({ gridId, mode, stageId, stageKey, destination
   // Bound but empty still binds: that is how a row reaches an op that gates on
   // `_boundFieldIds` rather than on a value.
   const bindFields = [...new Set([...(shape?.bindFields || []), ...Object.keys(mappings || {})])];
+  // The row's picture. Only for a shape that IS NOT its own image — an image
+  // clip's picture is its file, and a cover beside it would be a second one.
+  const coverUrl = typeof cover === "string" && shape?.fileFrom !== "imageUrl" ? cover.trim() : "";
   return {
     ...base,
     placement: {
@@ -145,6 +148,7 @@ export function buildSharePayload({ gridId, mode, stageId, stageKey, destination
       ...(fileRef ? { fileRef } : null),
       ...(shape?.bindingsLike ? { bindingsLike: shape.bindingsLike } : null),
       ...(bindFields.length ? { bindFields } : null),
+      ...(coverUrl ? { cover: coverUrl } : null),
       fields,
     },
   };

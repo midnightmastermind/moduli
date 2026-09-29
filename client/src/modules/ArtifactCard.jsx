@@ -11,6 +11,7 @@ import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
+import { openCoverPicker } from "../helpers/coverPick";
 import { toast } from "sonner";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { coverAppliesTo } from "../helpers/artifactCover";
@@ -499,9 +500,27 @@ export default function ArtifactCard({ module, label, occurrence }) {
   }
 
   if (!src && !coverSrc) {
+    // Nothing to draw. This used to be the title and nothing else, so an
+    // instance that arrived without a picture (a shared IMDb link) could not be
+    // given one from where the picture belongs (user, 2026-09-29: "it just shows
+    // a blank image that i cant open or change"). The button opens the same
+    // cover picker the card's right-click menu does.
+    const occForCover = () => (occurrence?.id ? getOcc?.(occurrence.id) : null) || occurrence;
+    const stop = (e) => e.stopPropagation();
     return (
       <div className="artifact-card artifact-card--empty">
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{label || "No file"}</span>
+        {occurrence?.id && (
+          <button
+            type="button"
+            className="artifact-set-cover"
+            onPointerDown={stop}
+            onMouseDown={stop}
+            onClick={(e) => { e.stopPropagation(); openCoverPicker({ getOccurrence: occForCover, module, dispatch, socket }); }}
+          >
+            Set cover…
+          </button>
+        )}
       </div>
     );
   }
