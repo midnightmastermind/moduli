@@ -69,12 +69,8 @@
 // ───────────────────────────────────────────────────────────────────────────
 
 import * as CommitHelpers from "./CommitHelpers";
-import { setOccurrenceFieldValue } from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
-import { runMatchingOperations } from "./operationExecutor";
-import { makeOpNotificationCallbacks } from "./opResultSummary";
-import { pushTxNotification } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
@@ -1168,7 +1164,11 @@ export function handleOccurrenceMove(dropContext, ctx) {
 
   const isCopyMode = sessionRef.current.mode === 'copy';
   const isCopylinkMode = sessionRef.current.mode === 'copylink';
-  const sameContainer = fromC.id === toC.id;
+  // The same PLACEMENT, not the same module: copy-linked containers share a module
+  // (Sep 28's 3:00pm and Sep 29's 3:00pm are one module), so comparing modules
+  // turned a move between two days' slots into an in-place reorder that went
+  // nowhere (2026-09-29).
+  const sameContainer = fromCOcc && toCOcc ? fromCOcc.id === toCOcc.id : fromC.id === toC.id;
 
   if (sameContainer && toC?.behaviorMode === "own" && toC?.behavior?.sortable === false) { clearSession(); return; }
 
@@ -1292,50 +1292,16 @@ export function handleOccurrenceMove(dropContext, ctx) {
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
       toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
 
-      // Fire OccurrenceMoveOp
-      const _revMap = buildReverseMap(Object.values(occurrencesById));
-      const _gridOccSet = new Set(state?.grid?.occurrences || []);
-      const fromPanelOcc = findGridPanelOcc(fromCOcc, _revMap, occurrencesById, _gridOccSet);
-      const toPanelOcc = findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet);
+      // The moved instance's OWN parentId follows it. moveInstanceBetweenContainers
+      // rewrites the two LISTS only, so the instance stayed listed by the new slot
+      // while its parentId still named the old one (measured 2026-09-29) — and
+      // everything that walks parentId (the delete cascade, ops that read
+      // `$item.parentId`) saw the old slot.
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrenceId, parentId: toCOcc.id }, emit: true });
 
-      const movedOccForTx = occurrencesById[occurrenceId];
-      const tx = {
-        type: "OccurrenceMoveOp", occurrenceId, instanceId: draggedInstanceId,
-        fromContainerId: fromC.id, toContainerId: toC.id,
-        fromPanelId: fromPanelOcc?.moduleId || null,
-        toPanelId: toPanelOcc?.moduleId || null,
-        fields: movedOccForTx?.fields || {},
-      };
-      const operations = Object.values(state?.operationsById || {});
-      const fieldsById = Object.fromEntries((state?.fields || []).map(f => [f.id, f]));
-      const allUpdates = runMatchingOperations(operations, "OccurrenceMoveOp", tx, {
-        state, fieldsById, operationsById: state?.operationsById || {}, occurrencesById: { ...occurrencesById },
-      }, makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById, modulesById: state?.modulesById || {} })));
-      if (allUpdates?.length) {
-        // Split display updates from effect updates (legacy non-effect rows feed
-        // computedValues; UPDATE_DISPLAY_VALUE effects are routed alongside).
-        const displayUpdates = allUpdates.filter(u => !u._effect);
-        const effectUpdates = allUpdates.filter(u => u._effect);
-        if (displayUpdates.length) {
-          dispatch({ type: "SET_COMPUTED_VALUES", updates: displayUpdates });
-        }
-        for (const eff of effectUpdates) {
-          if (eff._effect === "UPDATE_ITEM_FIELD" && eff.subKind !== "flow") {
-            setOccurrenceFieldValue({
-              dispatch, socket, occurrencesById,
-              occurrenceId: eff.itemId,
-              fieldId: eff.fieldId,
-              value: eff.value,
-              flow: "replace",
-            });
-          } else if (eff._effect === "UPDATE_DISPLAY_VALUE") {
-            dispatch({ type: "SET_COMPUTED_VALUES", updates: [{ fieldId: eff.fieldId, occurrenceId: eff.itemId || null, value: eff.value }] });
-          }
-        }
-      }
-
-      // Update localOccsById to reflect new container membership so the executor
-      // builds the correct _parentByChildId map when MeasureOp fires
+      // The executor's view must be the POST-move one before any op runs: the lists
+      // and the moved instance's parent. This used to run AFTER the ops, which
+      // therefore saw the instance still in its old container.
       const fromIdsAfter = (fromCOcc.occurrences || []).filter(id => id !== occurrenceId);
       const toIdsRaw = (toCOcc.occurrences || []).filter(id => id !== occurrenceId);
       const toIdsAfter = (toIndex !== null && toIndex >= 0)
@@ -1343,10 +1309,25 @@ export function handleOccurrenceMove(dropContext, ctx) {
         : [...toIdsRaw, occurrenceId];
       operationsBridge.updateLocalOcc?.({ ...fromCOcc, occurrences: fromIdsAfter });
       operationsBridge.updateLocalOcc?.({ ...toCOcc, occurrences: toIdsAfter });
+      if (occurrencesById[occurrenceId]) {
+        operationsBridge.updateLocalOcc?.({ ...occurrencesById[occurrenceId], parentId: toCOcc.id });
+      }
 
-      // ONE trigger per user action — the OccurrenceMoveOp above already
-      // carried `fields`, so field-scoped onMove triggers matched in
-      // runMatchingOperations. No piggyback MeasureOp.
+      // ONE trigger per user action, through the SHARED fireMoveTrigger — the same
+      // one the canvas branch uses. This branch used to hand-roll its own
+      // OccurrenceMoveOp with NO _ancestorIds, so every trigger scoped to an
+      // ancestor ("in Schedule") failed closed on a move, and it applied only two
+      // effect types itself.
+      const _revMap = buildReverseMap(Object.values(occurrencesById));
+      const _gridOccSet = new Set(state?.grid?.occurrences || []);
+      const fromPanelOcc = findGridPanelOcc(fromCOcc, _revMap, occurrencesById, _gridOccSet);
+      const toPanelOcc = findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet);
+      fireMoveTrigger({
+        occurrenceId, instanceId: draggedInstanceId,
+        fromContainerId: fromC.id, toContainerId: toC.id,
+        fromPanelId: fromPanelOcc?.moduleId || null,
+        toPanelId: toPanelOcc?.moduleId || null,
+      });
     }
     autoCheckBooleanFields(state, dispatch, socket, draggedInstanceId, occurrenceId);
   }
