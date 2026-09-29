@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 (2) — the first prod placement found two defects)
+Verified on prod: IMDb clip → Movies (poms, 993 rows) by stage key alone; replay 401. Stored row:
+- **Year was the STRING "2006"** beside 864 numeric siblings (the window's boxes are text).
+  `manualPlacement.coerceToFieldType` looks the written fields up and parses a numeric string for a
+  `number` field and "true"/"false" for a `boolean`; anything unparseable is written as typed.
+- **Drive "Odin" was auto-filled** — the first 3 rows agreed, 401 of 994 carry it (imports write a
+  drive's rows together). `destinationSearch.spreadSample`: up to `SAMPLE` = 25 ids evenly spaced first
+  → last; `commonValues` still needs every sampled row to agree. Owned (994/994) still qualifies.
+Both A/B'd (4 tests fail against the old behaviour). Server 2,864 pass.
+
 ## Recent Changes (2026-09-29 — the share placement window: stage, preview, manual placement, presets)
 Plan `docs/superpowers/plans/2026-09-28-share-placement-window.md`. Tasks 1-4 by another account, the rest
 by this one; departures from the plan (and why) are in the SDD ledger in the main checkout.

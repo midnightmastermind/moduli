@@ -12,6 +12,19 @@
 // Its return value is deliberately the shape `runShareRules` returns, so
 // `/share` logs a hand placement exactly as it logs a rule.
 import { runOperationServerSide } from "./serverExecutor.js";
+import Field from "../models/Field.js";
+
+// The window's mapping boxes are TEXT, so a year arrives as "2006" while the
+// rows beside it hold 2006 (poms' Movies: 864 numbers, 0 strings before this).
+// Coerced here because this is the one place that knows the field's type.
+// A value that does not parse is written as typed, never dropped.
+export function coerceToFieldType(value, type) {
+  if (typeof value !== "string") return value;
+  const t = value.trim();
+  if (type === "number" && t !== "" && Number.isFinite(Number(t))) return Number(t);
+  if (type === "boolean" && (t === "true" || t === "false")) return t === "true";
+  return value;
+}
 
 // Every mapped value is a LITERAL. The window already resolved it and showed
 // it to the user; a page title containing "$today" must be written verbatim
@@ -25,9 +38,15 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
   const p = placement || {};
   if (!p.parentId) throw new Error("manual placement requires a parentId");
 
+  const ids = Object.keys(p.fields || {});
+  const types = new Map();
+  if (ids.length) {
+    const defs = await Field.find({ userId, gridId, id: { $in: ids } }, { id: 1, type: 1 }).lean();
+    for (const f of defs) types.set(f.id, f.type);
+  }
   const fields = {};
   for (const [fieldId, value] of Object.entries(p.fields || {})) {
-    if (value !== "" && value != null) fields[fieldId] = valueExpr(value);
+    if (value !== "" && value != null) fields[fieldId] = valueExpr(coerceToFieldType(value, types.get(fieldId)));
   }
 
   const op = {

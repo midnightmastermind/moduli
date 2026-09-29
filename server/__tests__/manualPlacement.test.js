@@ -19,7 +19,14 @@ vi.mock("../services/serverExecutor.js", () => ({
   },
 }));
 
-const { placeManually } = await import("../services/manualPlacement.js");
+// Field types the writer looks up. Empty by default, so a test that does not
+// name a type sees the value exactly as it was sent.
+let fieldTypes = {};
+vi.mock("../models/Field.js", () => ({
+  default: { find: (q) => ({ lean: async () => (q.id.$in || []).filter((id) => fieldTypes[id]).map((id) => ({ id, type: fieldTypes[id] })) }) },
+}));
+
+const { placeManually, coerceToFieldType } = await import("../services/manualPlacement.js");
 
 const SHARE = { type: "link", label: "A Guide…", externalId: "link:https://imdb/x", props: { url: "https://imdb/x" } };
 const PLACEMENT = {
@@ -28,7 +35,7 @@ const PLACEMENT = {
   fields: { "f-year": "2006", "f-cat": "movie" },
 };
 
-beforeEach(() => { runs.length = 0; failNext = null; });
+beforeEach(() => { runs.length = 0; failNext = null; fieldTypes = {}; });
 
 describe("placeManually", () => {
   it("calls the shared executor rather than minting anything itself", async () => {
@@ -115,5 +122,26 @@ describe("placeManually", () => {
     expect(out.ran[0].ok).toBe(false);
     expect(out.ran[0].error).toMatchObject({ message: "boom" });
     expect(out.ran[0].created).toEqual([]);
+  });
+
+  it("writes a number field's typed value as a NUMBER, like the rows beside it", async () => {
+    fieldTypes = { "f-year": "number" };
+    await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });
+    const f = runs[0].op.pipeline.steps[0].config.fields;
+    expect(f["f-year"]).toBe("json:2006");
+    expect(f["f-cat"]).toBe("literal:movie"); // a text field is untouched
+  });
+});
+
+describe("coerceToFieldType", () => {
+  it("parses numbers and booleans, keeps anything that does not parse", () => {
+    expect(coerceToFieldType("2006", "number")).toBe(2006);
+    expect(coerceToFieldType("  3.5 ", "number")).toBe(3.5);
+    expect(coerceToFieldType("circa 2006", "number")).toBe("circa 2006");
+    expect(coerceToFieldType("", "number")).toBe("");
+    expect(coerceToFieldType("true", "boolean")).toBe(true);
+    expect(coerceToFieldType("yes", "boolean")).toBe("yes");
+    expect(coerceToFieldType("2006", "text")).toBe("2006");
+    expect(coerceToFieldType(["movie"], "select")).toEqual(["movie"]);
   });
 });

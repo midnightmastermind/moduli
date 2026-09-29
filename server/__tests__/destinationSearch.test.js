@@ -153,3 +153,32 @@ describe("commonValues", () => {
     expect(commonValues(rows, ["a", "b"])).toEqual({ a: 0, b: false });
   });
 });
+
+describe("spreadSample", () => {
+  it("spreads across the whole list, first and last included — never just the head", async () => {
+    const { spreadSample } = await import("../services/destinationSearch.js");
+    const ids = Array.from({ length: 994 }, (_, i) => `r${i}`);
+    const s = spreadSample(ids, 25);
+    expect(s).toHaveLength(25);
+    expect(s[0]).toBe("r0");
+    expect(s.at(-1)).toBe("r993");
+    expect(s).toContain("r497");
+  });
+
+  it("a board whose first rows agree by accident gets NO auto value", async () => {
+    const { spreadSample, commonValues } = await import("../services/destinationSearch.js");
+    // the shape measured on poms' Movies: drives imported in runs
+    const rows = Array.from({ length: 994 }, (_, i) => ({ id: `r${i}`, fields: {
+      drive: { value: i < 400 ? "Odin" : i < 850 ? "Baldr" : "Loki" }, owned: { value: true },
+    } }));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const sample = spreadSample(rows.map((r) => r.id)).map((id) => byId.get(id));
+    expect(commonValues(sample, ["drive", "owned"])).toEqual({ owned: true });
+  });
+
+  it("returns a short list whole", async () => {
+    const { spreadSample } = await import("../services/destinationSearch.js");
+    expect(spreadSample(["a", "b"], 25)).toEqual(["a", "b"]);
+  });
+});
+

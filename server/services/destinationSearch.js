@@ -59,8 +59,7 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
   // Up to SAMPLE children per hit, so the shape can also say which VALUES the
   // rows agree on (every movie carries Board Category: movie) — the "(auto)"
   // pre-fill of spec §4. Still one `$in` query for every hit at once.
-  const SAMPLE = 3;
-  const sampleIdsOf = (o) => (o.occurrences || []).slice(0, SAMPLE);
+  const sampleIdsOf = (o) => spreadSample(o.occurrences || [], SAMPLE);
   const firstChildIds = [...new Set(hits.flatMap(sampleIdsOf))];
   const childOccById = new Map();
   if (firstChildIds.length) {
@@ -110,6 +109,21 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
     });
   }
   return out;
+}
+
+// Rows sampled per destination to decide which values are "the board's".
+// SPREAD across the whole list, never its head: an import writes rows from
+// one source next to each other, so the first few agree by accident. Measured
+// on poms' Movies (994 rows): the first 3 all said Drive "Odin", which 401 of
+// 994 carry — and a head sample auto-filled it into every clip.
+export const SAMPLE = 25;
+
+/** Up to `n` ids evenly spaced from first to last, first always included. */
+export function spreadSample(ids, n = SAMPLE) {
+  if (ids.length <= n) return ids.slice();
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(ids[Math.round((i * (ids.length - 1)) / (n - 1))]);
+  return [...new Set(out)];
 }
 
 const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
