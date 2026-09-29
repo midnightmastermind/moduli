@@ -86,12 +86,23 @@ export function shapeFromKind(value) {
  */
 export function autoMappings(shape) {
   const out = {};
+  // Every field the destination's rows bind gets a row, in their binding
+  // order (user, 2026-09-29: "when we select an occurrence, auto add the
+  // fields based on the children"). Without these the bound fields were
+  // attached to the new row EMPTY and never shown, so there was no way to see
+  // or fill them. They start unmapped and marked `fromShape` — not `auto`,
+  // which would claim a value — and go away with the destination unless
+  // the user fills one in.
+  for (const fieldId of shape?.bindFields || []) out[fieldId] = { source: "none", fromShape: true };
   for (const [fieldId, raw] of Object.entries(shape?.autoFields || {})) {
     const value = Array.isArray(raw) ? raw.join(", ") : String(raw);
     out[fieldId] = { source: "literal", value, raw, auto: true };
   }
   return out;
 }
+
+/** A row the destination supplied and the user has not touched. */
+export const isShapeRow = (m) => !!(m?.auto || m?.fromShape);
 
 /** What one row will write: the edited box, else a typed auto value, else the resolved string. */
 export function mappingValue(clip, mapping) {

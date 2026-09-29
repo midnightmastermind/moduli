@@ -157,6 +157,22 @@ describe("SharePlace — New", () => {
     expect(screen.getByLabelText("value for Board Category").value).toBe("movie");
   });
 
+  it("lists EVERY field the destination's rows bind, not only the pre-filled one", async () => {
+    await openNew(); await pickMovies();
+    expect(screen.getByLabelText("value for Year").value).toBe("");
+    expect(screen.getByLabelText("value for Board Category").value).toBe("movie");
+    // Only the filled row claims to be auto.
+    expect(screen.getAllByText(/\(auto\)/)).toHaveLength(1);
+  });
+
+  it("a destination row you typed into stays when the destination changes; the rest go", async () => {
+    await openNew(); await pickMovies();
+    fireEvent.change(screen.getByLabelText("value for Year"), { target: { value: "1999" } });
+    fireEvent.click(screen.getByText("change"));
+    expect(screen.getByLabelText("value for Year").value).toBe("1999");
+    expect(screen.queryByLabelText("value for Board Category")).toBeNull();
+  });
+
   it("Clip is refused with no destination chosen", async () => {
     await openNew();
     expect(screen.getByRole("button", { name: /^clip$/i }).disabled).toBe(true);

@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings,
-  mappingValue, buildSharePayload,
+  mappingValue, buildSharePayload, isShapeRow,
 } from "../helpers/sharePlacement";
 
 // The IMDb clip that started this (spec §1), staged the way the extension does.
@@ -79,6 +79,31 @@ describe("CLIP_KINDS", () => {
 
   it("an override drops the siblings' bindings — it is not like them", () => {
     expect(shapeFromKind("bookmark")).toMatchObject({ role: "artifact", kind: "bookmark", bindingsLike: null, bindFields: [] });
+  });
+});
+
+describe("autoMappings", () => {
+  it("gives EVERY field the destination's rows bind a row, in their order", () => {
+    const rows = autoMappings(shapeFromDestination(MOVIES));
+    expect(Object.keys(rows)).toEqual(["f-owned", "f-year", "f-cat"]);
+  });
+
+  it("a field the rows agree on arrives filled; the rest arrive empty and are not called (auto)", () => {
+    const rows = autoMappings(shapeFromDestination(MOVIES));
+    expect(rows["f-cat"]).toMatchObject({ source: "literal", auto: true });
+    expect(rows["f-year"]).toEqual({ source: "none", fromShape: true });
+    expect(rows["f-year"].auto).toBeUndefined();
+  });
+
+  it("both kinds leave with the destination; a row the user mapped does not", () => {
+    const rows = autoMappings(shapeFromDestination(MOVIES));
+    expect(isShapeRow(rows["f-cat"])).toBe(true);
+    expect(isShapeRow(rows["f-year"])).toBe(true);
+    expect(isShapeRow({ source: "title" })).toBe(false);
+  });
+
+  it("an empty destination adds nothing", () => {
+    expect(autoMappings(shapeFromDestination({ id: "o", shape: null }))).toEqual({});
   });
 });
 

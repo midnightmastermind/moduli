@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 (2) — picking a share destination lists every field its rows bind)
+- `sharePlacement.autoMappings` now gives each of the destination rows' `bindFields` a row
+  (`{source:"none", fromShape:true}`), then fills the ones the rows agree on (`auto:true`) as before. Before,
+  the bound fields were attached to the new row EMPTY and never shown. `isShapeRow` = auto || fromShape —
+  those leave with the destination; SharePlace's `touched()` drops `fromShape` once the user edits a row, so
+  typed values stay. Only filled rows say "(auto)". Tests: sharePlacement (4 new), sharePlace (2 new), A/B'd.
+
 ## Recent Changes (2026-09-29 — the share placement window's pure half: `sharePlacement`, `sharePresets`, `kindTiles`)
 - **`shareMapping.js`** (Task 1, other account) — source + transform tables and `resolveMapping(s)`.
   `stripSuffix` only strips a WHITESPACE-delimited suffix ("Spider-Man" stays whole).

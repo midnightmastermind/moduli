@@ -32,7 +32,7 @@ const FieldSelect = lazy(() => import("./FieldSelect.jsx"));
 import { AUTH_KEYS } from "../helpers/authStorage";
 import { SHARE_SOURCES, SHARE_TRANSFORMS, resolveMapping } from "../helpers/shareMapping.js";
 import {
-  CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings, buildSharePayload,
+  CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings, isShapeRow, buildSharePayload,
 } from "../helpers/sharePlacement.js";
 import { readPresets, withPreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
 
@@ -150,14 +150,14 @@ export default function SharePlace() {
     setKindOverride("");
     // The rows the shape implies arrive pre-filled and marked (auto); rows
     // the user already mapped stay.
-    setMappings((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([, m]) => !m.auto)), ...autoMappings(s) }));
+    setMappings((prev) => ({ ...Object.fromEntries(Object.entries(prev).filter(([, m]) => !isShapeRow(m))), ...autoMappings(s) }));
   };
 
   const changeKind = (value) => {
     setKindOverride(value);
     // An override is NOT like its neighbours, so their implied values go.
     setMappings((prev) => (value
-      ? Object.fromEntries(Object.entries(prev).filter(([, m]) => !m.auto))
+      ? Object.fromEntries(Object.entries(prev).filter(([, m]) => !isShapeRow(m)))
       : { ...prev, ...autoMappings(siblingShape) }));
   };
 
@@ -291,7 +291,7 @@ export default function SharePlace() {
           {destination ? (
             <div style={{ ...inputSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{destination.label}{destination.crumb ? <span style={{ color: "var(--text-faint, #888)", fontSize: 10 }}> · {destination.crumb}</span> : null}</span>
-              <button type="button" onClick={() => { setDestination(null); setSiblingShape(null); setKindOverride(""); setMappings((p) => Object.fromEntries(Object.entries(p).filter(([, m]) => !m.auto))); }} style={linkBtnSt}>change</button>
+              <button type="button" onClick={() => { setDestination(null); setSiblingShape(null); setKindOverride(""); setMappings((p) => Object.fromEntries(Object.entries(p).filter(([, m]) => !isShapeRow(m)))); }} style={linkBtnSt}>change</button>
             </div>
           ) : (
             <>
@@ -366,6 +366,10 @@ export default function SharePlace() {
 // One mapping row: which part of the clip, what to do to it, and THE VALUE it
 // will write — editable, because a mapping that silently resolves to empty is
 // this screen's failure mode (spec §4). An edit is a value for THIS clip only.
+// An edited row is the user's now: it keeps what they typed when the
+// destination changes, instead of leaving with the destination's rows.
+const touched = ({ fromShape, ...m }) => m; // eslint-disable-line no-unused-vars
+
 function MappingRow({ name, mapping, clip, onChange, onRemove }) {
   const shown = mapping.override ?? (mapping.auto ? mapping.value : resolveMapping(clip, mapping));
   return (
@@ -380,7 +384,7 @@ function MappingRow({ name, mapping, clip, onChange, onRemove }) {
         </select>
         <select aria-label={`transform for ${name}`} value={mapping.transform || "none"} style={miniSelSt}
           disabled={mapping.source === "literal"}
-          onChange={(e) => onChange({ ...mapping, transform: e.target.value, override: undefined })}>
+          onChange={(e) => onChange({ ...touched(mapping), transform: e.target.value, override: undefined })}>
           {SHARE_TRANSFORMS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         {onRemove && <button type="button" onClick={onRemove} title="remove" aria-label={`remove ${name}`} style={linkBtnSt}>×</button>}
@@ -389,7 +393,7 @@ function MappingRow({ name, mapping, clip, onChange, onRemove }) {
         placeholder={mapping.source === "none" ? "type a value" : "(empty — nothing will be written)"}
         onChange={(e) => onChange(mapping.source === "literal"
           ? { source: "literal", value: e.target.value }
-          : { ...mapping, override: e.target.value })} />
+          : { ...touched(mapping), override: e.target.value })} />
     </div>
   );
 }
