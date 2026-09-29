@@ -5,7 +5,6 @@ import { dropEmbedsOf } from "./embedRegistry";
 import { recordActive } from "./panelHistory";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
-import { computePageFilterFields } from "./filterFieldStamp";
 import { linkedFanFields } from "./linkedFanFields";
 import { normalizeFieldBindings } from "./siblingFieldBindings.js";
 import {
@@ -1062,33 +1061,13 @@ export function spliceChildIntoParent({ dispatch, socket, parentOccurrence, occu
   return at;
 }
 
-// What the parent's effective filter says a NEW child should carry — the date,
-// in practice. Returns null when there is nothing to stamp.
-//
-// Drops have folded these values into the create since 2026-05-07; the TYPED
-// paths below never did, so a textblock or container made by typing / the +
-// menu was born with no `fields` key at all and the date filter could not see
-// it (user, 2026-08-05: "any occurrence can carry fields"). Resolved through the
-// bridge rather than a parameter because the alternative — threading `state`
-// into every call site — is exactly how the drop path and the typed path drifted
-// apart in the first place. Never throws: a create must not fail because the
-// bridge is unwired (unit tests) or the filter is unreadable.
-export function parentFilterFields(parentOccurrence) {
-  try {
-    const ctx = operationsBridge.getFilterContext?.();
-    if (!ctx?.state || !parentOccurrence) return null;
-    const merged = computePageFilterFields({
-      state: ctx.state,
-      occurrencesById: ctx.occurrencesById || {},
-      parentContainerOcc: parentOccurrence,
-      existingFields: {},
-    });
-    return merged && Object.keys(merged).length ? merged : null;
-  } catch {
-    return null;
-  }
-}
-
+// NO FILTER STAMP ON CREATE (user, 2026-09-29: "stamping something with the date
+// and using the date filter are two diff things … the autodate stamp should just
+// be on things dragged or added to the schedule"). A new occurrence is born with
+// only the fields its caller gives it. An instance with no value for a filter
+// field PASSES that filter (isOccurrenceVisible's "persistent" rule), so nothing
+// goes invisible. Dating Schedule adds and moves is DATA: the
+// "Schedule: Stamp Date & Time Slot" operation, scoped to the Schedule.
 export function createTextblockInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc", index = null,
   // A textblock that IS something more specific (today: a link chip — see
@@ -1110,7 +1089,6 @@ export function createTextblockInContainer({
     label: label || "",
     ...(meta ? { meta } : {}),
   };
-  const stamped = parentFilterFields(containerOccurrence);
   const occurrence = {
     id: occurrenceId,
     userId,
@@ -1119,10 +1097,6 @@ export function createTextblockInContainer({
     parentId: containerOccurrence.id,
     textmap: textmap || { type: "doc", content: [] },
     ...(meta ? { meta } : {}),
-    // Born with the date, not patched afterwards — a follow-up update races the
-    // create's server queue, and the create's own trigger burst would evaluate
-    // against a record that has no date yet.
-    ...(stamped ? { fields: stamped } : {}),
   };
 
   dispatch?.(createModuleAction(module));
@@ -1565,9 +1539,7 @@ function _createLeafInstanceInParent({
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,
-    // Caller-supplied values win over the parent's filter stamp — the addNew
-    // flow deliberately copies identity values off the chosen parent.
-    fields: { ...(parentFilterFields(parentOccurrence) || {}), ...initialFields },
+    fields: { ...initialFields },
   };
 
   dispatch?.(createModuleAction(module));
@@ -1643,7 +1615,7 @@ function _createLeafInstanceAtIndex({
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,
-    fields: { ...(parentFilterFields(parentOccurrence) || {}), ...initialFields },
+    fields: { ...initialFields },
   };
   // Through createOccurrence so OccurrenceCreateOp FIRES with panel/container
   // context — the raw dispatch+emit here never fired the create trigger, so

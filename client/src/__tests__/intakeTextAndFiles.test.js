@@ -22,8 +22,10 @@ vi.mock("../helpers/artifactUpload", () => ({
 
 const createTextblockInContainer = vi.fn(() => ({ moduleId: "tm", occurrenceId: "to" }));
 const createContainerInContainer = vi.fn(() => ({ moduleId: "cm", occurrenceId: "co" }));
+const spliceChildIntoParent = vi.fn();
 vi.mock("../helpers/CommitHelpers", async (orig) => ({
   ...(await orig()),
+  spliceChildIntoParent: (...a) => spliceChildIntoParent(...a),
   createTextblockInContainer: (...a) => createTextblockInContainer(...a),
   createContainerInContainer: (...a) => createContainerInContainer(...a),
 }));
@@ -93,8 +95,9 @@ describe("files-container", () => {
     expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
     // The files' parent is the NEW container — this is the whole difference
     // between this shape and files-siblings.
-    const parent = createArtifactPlaceholders.mock.calls[0][1].parentOccurrence;
-    expect(parent.id).toBe("co");
+    const parents = spliceChildIntoParent.mock.calls.map((c) => c[0].parentOccurrence.id);
+    expect(parents.length).toBeGreaterThan(0);
+    expect(parents.every((id) => id === "co")).toBe(true);
     expect(createArtifactPlaceholders.mock.calls[0][0]).toHaveLength(3);
   });
 

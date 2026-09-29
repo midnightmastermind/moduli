@@ -9,22 +9,6 @@ export function templatesFolderFor(lookups, gridId) {
     .find(f => f.gridId === gridId && f.meta?.protected && f.name === "Templates") || null;
 }
 
-/**
- * Is this occurrence INSIDE a template — at any depth under the Templates folder?
- * Walks `parentId` (a template page's parentId IS the folder id, and nested
- * rows point at their container). Location is the only marker, as above.
- */
-export function isInsideTemplate(occurrence, lookups, gridId) {
-  const folder = templatesFolderFor(lookups, gridId);
-  if (!folder || !occurrence) return false;
-  const byId = lookups?.occurrencesById || {};
-  let cur = occurrence;
-  for (let i = 0; cur && i < 40; i++) {
-    if (cur.parentId === folder.id) return true;
-    cur = cur.parentId ? byId[cur.parentId] : null;
-  }
-  return false;
-}
 
 /**
  * The GRANULAR kind — board / doc / canvas / table — so a board page is only

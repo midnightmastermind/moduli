@@ -355,7 +355,6 @@ function Container({
   // `opts` carries the QuickAddMenu field-picker payload: `{ fieldIds }`.
   // Forwarded to addInstanceToContainer (App.jsx) which pre-binds those
   // fields on the new module. Other call sites that pass no arg still work.
-  const onAdd = useCallback((opts) => addInstanceToContainer(module.id, opts), [addInstanceToContainer, module.id]);
 
   const commitLabel = useCallback(() => {
     const next = (draft?.label ?? "").trim();
@@ -396,6 +395,11 @@ function Container({
     const matches = s.occurrencesByModuleId?.[module.id];
     return matches && matches.length > 0 ? matches[0] : undefined;
   });
+  // By the PLACEMENT's id, never the module's: copy-linked containers (every day
+  // column's slots are copy-links of the template's) share one module, and a
+  // lookup by module id added the new instance to whichever placement came first —
+  // the Schedule TEMPLATE's slot (2026-09-29), which then cloned it into every day.
+  const onAdd = useCallback((opts) => addInstanceToContainer(containerOccurrence?.id, opts), [addInstanceToContainer, containerOccurrence?.id]);
 
   // Reactive trigger for child-derived memos: the array of DIRECT child
   // occurrence refs. Element-wise stable (useGridActionsSelectorShallow), so

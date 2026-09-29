@@ -228,17 +228,13 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
     const module = { id: modId, userId, gridId, role: "textblock", kind: "doc", label: "" };
-    // Born carrying the parent's filter values (the day's date). Without them
-    // the block is invisible to the date filter the moment it stops being empty
-    // — the same hole 91e4a807 closed for the + menus.
-    const stamped = CommitHelpers.parentFilterFields(occurrence);
     const newOccurrence = {
       id: occId, userId, gridId,
       moduleId: modId,
       parentId: occurrence.id,
       iteration: { mode: "persistent" },
       textmap: { type: "doc", content: [{ type: "paragraph", content: [] }] },
-      fields: stamped || {},
+      fields: {},
     };
 
     // REGISTER BEFORE the transaction. Replacing the line fires the outer

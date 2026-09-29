@@ -568,60 +568,64 @@ describe("createPageInContainer / createChildInContainer page-* tiles", () => {
 // A textblock made by TYPING used to be born with no `fields` key at all, so the
 // date filter could not see it — while the DROP path had folded the date into
 // the create since 2026-05-07. These lock the two paths together.
-describe("typed creates are born carrying the parent's filter values", () => {
+// INVERTED 2026-09-29. This block pinned "typed creates are born carrying the
+// parent's filter values". The user: "stamping something with the date and using
+// the date filter are two diff things … the autodate stamp should just be on
+// things dragged or added to the schedule". A create is now born with ONLY the
+// fields its caller gives it; an instance with no filter value passes the filter
+// (isOccurrenceVisible's persistent rule), and Schedule dating is an operation.
+// The world below still carries a dated day column AND a wired filter bridge, so
+// "no date" means nothing read it — not that there was nothing to read.
+describe("no create path stamps the page's filter date", () => {
   const DATE_FID = "date-fid";
   const emitted = (socket, event) => socket.emit.mock.calls.find(c => c[0] === event)?.[1];
 
-  // The parent day column and the grid whose active filter is a date nav.
-  function filterWorld(dayColOverride = { [DATE_FID]: "2026-08-05" }) {
-    const dayCol = {
-      id: "daycol-1",
-      occurrences: [],
-      filterOverride: dayColOverride,
-    };
+  function filterWorld() {
+    const dayCol = { id: "daycol-1", occurrences: [], filterOverride: { [DATE_FID]: "2026-08-05" } };
     return {
       state: {
         grid: {
           id: "g1",
           activeFilterId: "filter_daily",
           namedFilters: [{ id: "filter_daily", conditions: [{ fieldId: DATE_FID, isNav: true }] }],
-          activeFilterValues: {},
+          activeFilterValues: { [DATE_FID]: "2026-08-05" },
         },
       },
       occurrencesById: { [dayCol.id]: dayCol },
       dayCol,
     };
   }
-
   function withBridge(world, fn) {
     const prev = operationsBridge.getFilterContext;
     operationsBridge.getFilterContext = () => ({ state: world.state, occurrencesById: world.occurrencesById });
     try { return fn(); } finally { operationsBridge.getFilterContext = prev; }
   }
 
-  test("createTextblockInContainer stamps the day column's date", () => {
+  test("createTextblockInContainer: no date", () => {
     const { dispatch, socket } = makeMocks();
     const world = filterWorld();
     withBridge(world, () =>
       createTextblockInContainer({ dispatch, socket, gridId: "g1", userId: "u1", containerOccurrence: world.dayCol }));
-    const occ = emitted(socket, "create_occurrence").occurrence;
-    expect(occ.fields?.[DATE_FID]?.value).toBe("2026-08-05");
+    expect(emitted(socket, "create_occurrence").occurrence.fields?.[DATE_FID]).toBeUndefined();
   });
 
-  // INVERTED 2026-09-28. This pinned "a container is stamped too", and a stamped
-  // container shows only on the day it was made — the user: "clear the date
-  // stamped on containers. idk why those are stamped". A container is structure;
-  // dated containers (day columns) are dated by the op that builds them.
-  test("createContainerInContainer does NOT stamp the parent's date on a container", () => {
+  test("createContainerInContainer: no date", () => {
     const { dispatch, socket } = makeMocks();
     const world = filterWorld();
     withBridge(world, () =>
       createContainerInContainer({ dispatch, socket, gridId: "g1", userId: "u1", containerOccurrence: world.dayCol, kind: "doc" }));
-    const occ = emitted(socket, "create_occurrence").occurrence;
-    expect(occ.fields?.[DATE_FID]).toBeUndefined();
+    expect(emitted(socket, "create_occurrence").occurrence.fields?.[DATE_FID]).toBeUndefined();
   });
 
-  test("caller-supplied fields WIN over the stamp (the addNew flow copies identity values)", () => {
+  test("createLeafInstanceAtIndex: no date — only what the caller supplies", () => {
+    const { dispatch, socket } = makeMocks();
+    const world = filterWorld();
+    withBridge(world, () =>
+      createLeafInstanceAtIndex({ dispatch, socket, gridId: "g1", userId: "u1", parentOccurrence: world.dayCol, index: 0 }));
+    expect(emitted(socket, "create_occurrence").occurrence.fields?.[DATE_FID]).toBeUndefined();
+  });
+
+  test("caller-supplied fields still pass through untouched (control)", () => {
     const { dispatch, socket } = makeMocks();
     const world = filterWorld();
     withBridge(world, () =>
@@ -629,21 +633,10 @@ describe("typed creates are born carrying the parent's filter values", () => {
         dispatch, socket, gridId: "g1", userId: "u1", parentOccurrence: world.dayCol,
         index: 0, initialFields: { [DATE_FID]: { value: "2026-01-01", flow: "in" } },
       }));
-    const occ = emitted(socket, "create_occurrence").occurrence;
-    expect(occ.fields[DATE_FID].value).toBe("2026-01-01");
+    expect(emitted(socket, "create_occurrence").occurrence.fields[DATE_FID].value).toBe("2026-01-01");
   });
 
-  test("a container that opts out of stamping gets nothing", () => {
-    const { dispatch, socket } = makeMocks();
-    const world = filterWorld();
-    world.dayCol.meta = { skipFilterStamp: true };
-    withBridge(world, () =>
-      createTextblockInContainer({ dispatch, socket, gridId: "g1", userId: "u1", containerOccurrence: world.dayCol }));
-    const occ = emitted(socket, "create_occurrence").occurrence;
-    expect(occ.fields).toBeUndefined();
-  });
-
-  test("an unwired bridge still creates the occurrence — a create must never fail on this", () => {
+  test("an unwired bridge still creates the occurrence", () => {
     const { dispatch, socket } = makeMocks();
     const prev = operationsBridge.getFilterContext;
     operationsBridge.getFilterContext = null;
@@ -653,7 +646,6 @@ describe("typed creates are born carrying the parent's filter values", () => {
         containerOccurrence: { id: "c1", occurrences: [] },
       });
       expect(res.occurrenceId).toBeTruthy();
-      expect(emitted(socket, "create_occurrence").occurrence.fields).toBeUndefined();
     } finally { operationsBridge.getFilterContext = prev; }
   });
 });

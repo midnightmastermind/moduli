@@ -772,9 +772,9 @@ export default function App() {
   // re-rendered every ModuleInstance/ModuleContainer that takes it as a
   // prop/selector (~90 renders per drop, measured via __RENDER_ATTR).
   const addInstanceToContainer = useCallback(
-    (containerId, opts) => {
+    (containerOccurrenceId, opts) => {
       const s = stateRef.current;
-      if (!containerId || !s.gridId || !s.userId) return;
+      if (!containerOccurrenceId || !s.gridId || !s.userId) return;
       const fieldIds = Array.isArray(opts?.fieldIds) ? opts.fieldIds : [];
 
       const id = crypto.randomUUID();
@@ -797,11 +797,14 @@ export default function App() {
       // and it is the one the container header actually uses.
       const module = { id, role: "instance", label, fieldBindings };
 
-      const container = (s.containers || []).find((c) => c.id === containerId);
+      // The PLACEMENT the user clicked, by its own id. This used to find "the"
+      // occurrence by MODULE id — and copy-linked containers share a module, so
+      // "+ Item" on today's 3:00pm landed in the Schedule template's 3:00pm
+      // (measured 2026-09-29: 6 of 6 adds). Resolve the module FROM the placement.
+      const containerOcc = (s.occurrences || []).find((o) => o.id === containerOccurrenceId);
+      if (!containerOcc) return;
+      const container = (s.containers || []).find((c) => c.id === containerOcc.moduleId);
       if (!container) return;
-
-      // Find the container occurrence so createInstanceInContainer can update ordering
-      const containerOcc = (s.occurrences || []).find(o => o.moduleId === containerId);
 
       // Use the occurrence-based helper which creates module + occurrence + adds to container
       LayoutHelpers.createInstanceInContainer({

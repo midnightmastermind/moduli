@@ -10,9 +10,6 @@ notes_codex_annotated/
 # one `deploy.sh` (which runs `git add -A`) away from being committed.
 .claude/worktrees/
 
-# SDD workspaces — ledgers, briefs and review diffs
-.superpowers/
-
 # build output (built on deploy, not tracked)
 client/dist/
 
@@ -36,3 +33,6 @@ client/src/__tests__/_*.test.js
 /client/node_modules
 /server/node_modules
 /server/.env
+
+# SDD workspaces — ledgers, briefs and review diffs (deploy.sh runs `git add -A`)
+.superpowers/
