@@ -68,9 +68,14 @@ describe("placeManually", () => {
     expect(runs[0].op.pipeline.steps[0].config.externalId).toBe("literal:link:https://x/?q=${$today}");
   });
 
+  it("keeps a non-string value's type — an auto-filled select stays an array", async () => {
+    await placeManually({ share: SHARE, userId: "u1", gridId: "g1", placement: { ...PLACEMENT, fields: { c: ["movie"] } } });
+    expect(runs[0].op.pipeline.steps[0].config.fields.c).toBe('json:["movie"]');
+  });
+
   it("keeps 0 and false — only empty values are dropped", async () => {
     await placeManually({ share: SHARE, userId: "u1", gridId: "g1", placement: { ...PLACEMENT, fields: { a: 0, b: false, c: "" } } });
-    expect(runs[0].op.pipeline.steps[0].config.fields).toEqual({ a: "literal:0", b: "literal:false" });
+    expect(runs[0].op.pipeline.steps[0].config.fields).toEqual({ a: "json:0", b: "json:false" });
   });
 
   it("gives $share to the executor, so a placement can still reference it", async () => {

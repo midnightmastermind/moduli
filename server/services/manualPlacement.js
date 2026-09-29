@@ -17,6 +17,9 @@ import { runOperationServerSide } from "./serverExecutor.js";
 // it to the user; a page title containing "$today" must be written verbatim
 // rather than re-resolved by the executor's expression layer.
 const lit = (v) => `literal:${v == null ? "" : String(v)}`;
+// A value that is not a string (an auto-filled select's ["movie"], a number)
+// keeps its type: `json:` is parsed, never resolved, on the server.
+const valueExpr = (v) => (typeof v === "string" ? lit(v) : `json:${JSON.stringify(v)}`);
 
 export async function placeManually({ share, placement, userId, gridId, io = null, mirror = null }) {
   const p = placement || {};
@@ -24,7 +27,7 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
 
   const fields = {};
   for (const [fieldId, value] of Object.entries(p.fields || {})) {
-    if (value !== "" && value != null) fields[fieldId] = lit(value);
+    if (value !== "" && value != null) fields[fieldId] = valueExpr(value);
   }
 
   const op = {

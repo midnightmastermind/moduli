@@ -56,9 +56,12 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
   // read one). We already have each hit's first child in hand from the
   // `occs` fetch above (its `occurrences[0]`), so two more BATCHED,
   // `$in`-scoped queries answer this for every hit at once.
-  const firstChildIds = [...new Set(
-    hits.map((o) => o.occurrences?.[0]).filter(Boolean)
-  )];
+  // Up to SAMPLE children per hit, so the shape can also say which VALUES the
+  // rows agree on (every movie carries Board Category: movie) — the "(auto)"
+  // pre-fill of spec §4. Still one `$in` query for every hit at once.
+  const SAMPLE = 3;
+  const sampleIdsOf = (o) => (o.occurrences || []).slice(0, SAMPLE);
+  const firstChildIds = [...new Set(hits.flatMap(sampleIdsOf))];
   const childOccById = new Map();
   if (firstChildIds.length) {
     const childOccs = await Occurrence.find({ userId, gridId, id: { $in: firstChildIds } }).lean();
@@ -76,14 +79,16 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
     const childOcc = childOccById.get(firstChildId);
     const m = childOcc ? childModById.get(childOcc.moduleId) : null;
     if (!m) return null;
+    const bindFields = (m.fieldBindings || [])
+      .filter((b) => b?.fieldId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((b) => b.fieldId);
     return {
       moduleId: m.id,
       role: m.role || "instance",
       kind: m.kind || null,
-      bindFields: (m.fieldBindings || [])
-        .filter((b) => b?.fieldId)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((b) => b.fieldId),
+      bindFields,
+      autoFields: commonValues(sampleIdsOf(o).map((id) => childOccById.get(id)).filter(Boolean), bindFields),
     };
   };
 
@@ -103,6 +108,25 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
       role: m.role, kind: m.kind || null, childCount: (o.occurrences || []).length,
       shape: shapeOf(o),
     });
+  }
+  return out;
+}
+
+const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
+
+/**
+ * The values every sampled row agrees on, per bound field. AT LEAST TWO rows
+ * must agree: with one row, its title and year would read as "the shape", and
+ * a single movie's Year would be pre-filled into the next one.
+ */
+export function commonValues(rows, fieldIds) {
+  const out = {};
+  if (rows.length < 2) return out;
+  for (const fid of fieldIds) {
+    const vals = rows.map((r) => r.fields?.[fid]?.value);
+    if (vals.some(isEmpty)) continue;
+    const first = JSON.stringify(vals[0]);
+    if (vals.every((v) => JSON.stringify(v) === first)) out[fid] = vals[0];
   }
   return out;
 }

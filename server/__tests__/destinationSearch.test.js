@@ -32,7 +32,7 @@ vi.mock("../models/Occurrence.js", () => ({ default: {
   },
 }}));
 
-const { searchDestinations } = await import("../services/destinationSearch.js");
+const { searchDestinations, commonValues } = await import("../services/destinationSearch.js");
 
 const mod = (id, label, role = "container", kind = "board") => ({ id, label, role, kind, gridId: "g1", userId: "u1" });
 const occ = (id, moduleId, parentId = null, children = []) =>
@@ -128,5 +128,28 @@ describe("searchDestinations", () => {
   it("gives an EMPTY destination a null shape — there is nothing to copy", async () => {
     const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "books" });
     expect(out[0].shape).toBeNull();
+  });
+
+  it("carries the VALUES the rows agree on, as the (auto) pre-fill", async () => {
+    // Every movie is Board Category: movie; their years differ.
+    occurrences.push(occ("o-row2", "m-row", "o-movies"));
+    occurrences.find((o) => o.id === "o-row1").fields = { "f-rating": { value: ["movie"] }, "f-year": { value: 2006 } };
+    occurrences.find((o) => o.id === "o-row2").fields = { "f-rating": { value: ["movie"] }, "f-year": { value: 2019 } };
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "movies" });
+    expect(out[0].shape.autoFields).toEqual({ "f-rating": ["movie"] });
+  });
+});
+
+describe("commonValues", () => {
+  it("needs at least two rows — one row's title is not a shape", () => {
+    expect(commonValues([{ fields: { a: { value: "x" } } }], ["a"])).toEqual({});
+  });
+  it("skips a field any sampled row leaves empty", () => {
+    const rows = [{ fields: { a: { value: "x" } } }, { fields: { a: { value: "" } } }];
+    expect(commonValues(rows, ["a"])).toEqual({});
+  });
+  it("keeps 0 and false when every row agrees on them", () => {
+    const rows = [{ fields: { a: { value: 0 }, b: { value: false } } }, { fields: { a: { value: 0 }, b: { value: false } } }];
+    expect(commonValues(rows, ["a", "b"])).toEqual({ a: 0, b: false });
   });
 });

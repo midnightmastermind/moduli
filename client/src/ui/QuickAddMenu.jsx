@@ -11,6 +11,7 @@
 
 import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import MenuSurface from "./MenuSurface.jsx";
+import { KIND_TILE } from "../helpers/kindTiles.js";
 import { Plus, ChevronLeft, Check, Search } from "lucide-react";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { templatesByKind, templateLabelOf } from "../helpers/templateHelpers";
@@ -37,37 +38,10 @@ export function menuPosition(rect, vw, vh, { width = 260, height = 360 } = {}) {
   return { top, left };
 }
 
-// Per-kind tile copy. The icon + color come from moduleIcons (getModuleTypeBadge);
-// this only supplies the human label + one-line description.
-export const KIND_TILE = {
-  instance:  { label: "Item",      desc: "Trackable item with fields" },
-  board:     { label: "Board",     desc: "Containers as columns" },
-  doc:       { label: "Document",  desc: "Rich-text editor" },
-  canvas:    { label: "Canvas",    desc: "Free-form drawing surface" },
-  table:     { label: "Table",     desc: "Spreadsheet grid" },
-  folder:    { label: "Folder",    desc: "Card grid of child pages" },
-  textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
-  artifact:  { label: "Artifact",  desc: "File-backed content" },
-  image:     { label: "Image",     desc: "Search the web / upload / URL" },
-  // User, 2026-09-04: *"a browser page occurrence that just acts as a browser
-  // inline … without having to click on a bookmark."* It mints a BOOKMARK
-  // artifact carrying `meta.scratch`, so reader / archive / framing / embeds all
-  // come from the one implementation rather than a second surface.
-  browser:   { label: "Browser",   desc: "An address bar — browse or watch inline" },
-  // User, 2026-08-24: *"a wikipedia page button on the quick add menu so i can
-  // search for wikipedia articles to turn into pages on the fly"*. It reuses
-  // the SAME importer "convert this link to a page" uses, so a searched article
-  // and a dropped link cannot produce two different pages.
-  wikipedia: { label: "Wikipedia",  desc: "Search Wikipedia and import the article as a page" },
-  // PAGE tiles (2026-07-29, per user). Distinct from the bare kinds above,
-  // which create nested CONTAINERS: these mint a real page — filed in the
-  // manifest tree — and place a preview of it where you clicked +.
-  "page-board":  { label: "Board page",  desc: "New board page, previewed here" },
-  "page-doc":    { label: "Doc page",    desc: "New document page, previewed here" },
-  "page-table":  { label: "Table page",  desc: "New table page, previewed here" },
-  "page-canvas": { label: "Canvas page", desc: "New canvas page, previewed here" },
-  "page-folder": { label: "Folder page", desc: "New folder page, previewed here" },
-};
+// Per-kind tile copy lives in helpers/kindTiles.js — a plain module, so a page
+// outside the app shell (the share placement window) can read the same labels
+// without importing this menu and everything it pulls in.
+export { KIND_TILE } from "../helpers/kindTiles.js";
 
 // A TILE IS NAMED FOR WHAT IT CREATES, wherever the menu was opened from.
 //
