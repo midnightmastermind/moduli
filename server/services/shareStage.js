@@ -42,8 +42,18 @@ export async function readStage(stageId, key, { withUser = false } = {}) {
 
 /** The payload, once. The commit is what spends the key. */
 export async function consumeStage(stageId, key, { withUser = false } = {}) {
+  // Read first to authorize: the key check has to happen before we claim, and
+  // a wrong key must leave the stage untouched.
   const row = await ShareStage.findOne({ id: stageId }).lean();
   if (!live(row) || !keyMatches(row.key, key)) return null;
-  await ShareStage.updateOne({ id: stageId }, { $set: { consumedAt: new Date() } });
-  return withUser ? { payload: row.payload, userId: row.userId } : row.payload;
+  // ATOMIC CLAIM. find-then-update let two concurrent requests holding the
+  // same valid key both pass the liveness check above before either write
+  // landed — the same clip placed twice. `consumedAt: null` in the filter
+  // makes the database pick exactly one winner; the loser gets null back.
+  const claimed = await ShareStage.findOneAndUpdate(
+    { id: stageId, consumedAt: null },
+    { $set: { consumedAt: new Date() } },
+  ).lean();
+  if (!claimed) return null;
+  return withUser ? { payload: claimed.payload, userId: claimed.userId } : claimed.payload;
 }

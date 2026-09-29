@@ -6,14 +6,47 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 let rows = [];
+// Real Mongo round-trips have latency: two concurrent callers' reads can both
+// land before either's write does. `findOne`/`updateOne` model that with a
+// `setImmediate` gap AND return/operate independently of each other, so two
+// callers racing on find-then-update (the OLD consumeStage shape) really do
+// both see the row as live before either marks it consumed — otherwise this
+// mock would silently serialize the two calls and no race test could ever
+// fail against the bug it exists to catch.
+// `findOneAndUpdate` models the real atomic operation: the MATCH + WRITE
+// happen as one indivisible step once each call is dequeued, so whichever
+// call is processed first wins and the loser's filter (`consumedAt: null`)
+// no longer matches.
 vi.mock("../models/ShareStage.js", () => ({ default: {
   create: async (doc) => { rows.push({ ...doc }); return doc; },
-  findOne: (q) => ({ lean: async () => rows.find((r) => r.id === q.id) || null }),
+  findOne: (q) => ({
+    lean: async () => {
+      await new Promise((r) => setImmediate(r));
+      const r_ = rows.find((x) => x.id === q.id);
+      return r_ ? { ...r_ } : null;
+    },
+  }),
   updateOne: async (q, u) => {
+    await new Promise((r) => setImmediate(r));
     const r = rows.find((x) => x.id === q.id);
     if (r && u.$set) Object.assign(r, u.$set);
     return { modifiedCount: r ? 1 : 0 };
   },
+  findOneAndUpdate: (q, u) => ({
+    lean: async () => {
+      await new Promise((r) => setImmediate(r));
+      const candidate = rows.find((x) => x.id === q.id);
+      if (!candidate) return null;
+      const filterOk = q.consumedAt === undefined
+        ? true
+        : q.consumedAt === null
+          ? !candidate.consumedAt
+          : candidate.consumedAt === q.consumedAt;
+      if (!filterOk) return null;
+      if (u.$set) Object.assign(candidate, u.$set);
+      return { ...candidate };
+    },
+  }),
 }}));
 
 const { createStage, readStage, consumeStage, STAGE_TTL_MS } = await import("../services/shareStage.js");
@@ -88,5 +121,13 @@ describe("consumeStage", () => {
     const { payload, userId } = await consumeStage(stageId, key, { withUser: true });
     expect(userId).toBe("u7");
     expect(payload).toMatchObject({ url: "https://x" });
+  });
+
+  it("two consumes racing on the same stage yield exactly ONE payload", async () => {
+    // find-then-update let both callers pass the liveness check before either
+    // write landed — the same clip placed twice.
+    const { stageId, key } = await createStage({ userId: "u1", payload: { url: "https://x" } });
+    const [a, b] = await Promise.all([consumeStage(stageId, key), consumeStage(stageId, key)]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
   });
 });
