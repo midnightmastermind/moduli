@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Moduli Companion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lets Moduli open web pages inside a panel, and clip anything into your grid from the right-click menu.",
   "icons": {
     "128": "icon128.png"
+  },
+  "action": {
+    "default_title": "Clip to Moduli",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icon128.png"
+    }
   },
   "browser_specific_settings": {
     "gecko": {
@@ -16,7 +23,8 @@
     "declarativeNetRequest",
     "contextMenus",
     "storage",
-    "notifications"
+    "notifications",
+    "activeTab"
   ],
   "host_permissions": [
     "<all_urls>"

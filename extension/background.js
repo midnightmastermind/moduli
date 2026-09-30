@@ -9,7 +9,7 @@
 // worker cannot be exercised in this repo's test environment. What is left
 // here is registration, storage, fetch and a notification — the parts a person
 // verifies by installing it.
-import { CLIP_MENUS, buildClipRecord, isChooseMenu } from "./clip.js";
+import { CLIP_MENUS, buildClipRecord, isChooseMenu, popupClipInfo } from "./clip.js";
 import { validateSettings, fieldIdsFrom, clipOutcomeMessage, SETTINGS_KEYS } from "./settings.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -83,7 +83,16 @@ async function fieldIdsFor({ baseUrl, token, gridId }) {
   return fieldCache;
 }
 
-api.contextMenus.onClicked.addListener(async (info, tab) => {
+api.contextMenus.onClicked.addListener((info, tab) => handleClip(info, tab));
+
+// The toolbar popup (popup.js) sends its button's menu id and the active tab;
+// it becomes exactly the click a right-click on the page would have made.
+api.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "moduli-clip") return;
+  handleClip(popupClipInfo(msg.menuItemId, msg.tab || {}), msg.tab || {});
+});
+
+async function handleClip(info, tab) {
   const stored = await api.storage.sync.get(SETTINGS_KEYS);
   const check = validateSettings(stored);
   // Not set up: a system notification is easy to miss (Windows hides them by
@@ -155,4 +164,4 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
   } catch (e) {
     notify(`Clip failed: ${e?.message || "could not reach Moduli"}`);
   }
-});
+}

@@ -93,3 +93,22 @@ describe("the menu the code registers", () => {
     for (const f of imports) expect(fs.existsSync(path.join(DIR, f))).toBe(true);
   });
 });
+
+// THE TOOLBAR BUTTON (user, 2026-09-30: Firefox said "Moduli cannot change
+// anything on this webpage" — the manifest declared no `action`, so the icon had
+// nothing to open).
+describe("the toolbar button opens the clip popup", () => {
+  it("declares an action whose popup file exists", () => {
+    expect(m.action?.default_popup).toBe("popup.html");
+    expect(fs.existsSync(path.join(DIR, m.action.default_popup))).toBe(true);
+    const html = fs.readFileSync(path.join(DIR, "popup.html"), "utf8");
+    const src = html.match(/<script[^>]*src="([^"]+)"/)?.[1];
+    expect(src).toBeTruthy();
+    expect(fs.existsSync(path.join(DIR, src))).toBe(true);
+  });
+
+  it("asks for activeTab, so the popup can read the page it clips", () => {
+    // Firefox MV3 treats host_permissions as opt-in; activeTab is granted by the click itself.
+    expect(m.permissions).toContain("activeTab");
+  });
+});

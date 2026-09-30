@@ -252,3 +252,28 @@ describe("the choose… menus (2026-09-28 placement window)", () => {
     expect(isChooseMenu("clip-page-choose")).toBe(true);
   });
 });
+
+describe("the toolbar popup is the page's two menu items", async () => {
+  const { POPUP_ACTIONS, popupClipInfo, clippableUrl, CLIP_MENUS: MENUS, isChooseMenu: choose, buildClipRecord: build } = await import("../../extension/clip.js");
+
+  it("offers exactly the page clip and its choose-where twin, by their real menu ids", () => {
+    const ids = POPUP_ACTIONS.map((a) => a.id);
+    expect(ids).toEqual(["clip-page", "clip-page-choose"]);
+    for (const id of ids) expect(MENUS.some((mm) => mm.id === id)).toBe(true);
+    expect(ids.map(choose)).toEqual([false, true]);
+  });
+
+  it("a popup click builds the same record a right-click on the page would", () => {
+    const tab = { url: "https://example.com/a", title: "A" };
+    const fromPopup = build({ info: popupClipInfo("clip-page", tab), tab });
+    const fromMenu = build({ info: { menuItemId: "clip-page", pageUrl: tab.url }, tab });
+    expect(fromPopup).toEqual(fromMenu);
+    expect(fromPopup.moduleFileRef).toBe("https://example.com/a");
+  });
+
+  it("only a web page is clippable", () => {
+    expect(clippableUrl("https://x.y/")).toBe(true);
+    expect(clippableUrl("about:newtab")).toBe(false);
+    expect(clippableUrl(undefined)).toBe(false);
+  });
+});

@@ -173,3 +173,25 @@ export function buildClipRecord({ info = {}, tab = {}, fieldIds = {}, parentId =
     meta: { clipShape: shape, clippedFrom: info.pageUrl || tab.url || null },
   };
 }
+
+// ── THE TOOLBAR BUTTON (user, 2026-09-30: "if i try to open the moduli
+// extension on firefox, it wont let me add a link via clicking on the extension
+// in the toolbar … i expect it to open up the dropdown that we have for the
+// other shares (auto vs manual)"). The manifest declared no `action`, so the
+// icon had nothing to open and Firefox said "cannot change anything on this
+// webpage". The popup offers the page's two menu items — the SAME ids, so a
+// toolbar clip and a right-click clip are one code path.
+export const POPUP_ACTIONS = [
+  { id: "clip-page", label: "Clip this page", hint: "Straight in, through your share rules" },
+  { id: "clip-page-choose", label: "Clip this page — choose where…", hint: "Pick where it goes and what it becomes" },
+];
+
+/** A popup button as the `info` a context-menu click would have carried. */
+export function popupClipInfo(menuItemId, tab = {}) {
+  return { menuItemId, pageUrl: tab.url || null };
+}
+
+/** Only a web page can be clipped — not about:, a new tab, or an add-on page. */
+export function clippableUrl(url) {
+  return /^https?:\/\//i.test(String(url || ""));
+}
