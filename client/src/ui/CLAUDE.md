@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 (6) — `SharePlace`: the window scrolls, and a preset can be overwritten)
+- **`Shell` owns its own scrolling.** `index.css` locks the page — `html, body, #root { height:100%;
+  overflow:hidden }` — right for a grid workspace and wrong for a 520x700 popup rendered inside that
+  same `#root`: content ran to 894px and everything past the fold was UNREACHABLE, **including the
+  preset controls, which is most of why overwriting looked impossible**. `minHeight: 0` is the
+  load-bearing part: `#root` is a flex column and a flex child refuses to shrink below its content, so
+  without it no scrollbar appears however much overflow there is. `data-testid="share-shell"`.
+- **A saved preset offers `Update "<name>"` and `Delete preset`** (`replacePreset` / `deletePreset`),
+  beside the existing `Save as preset…`. Update keeps the id and the name and asks nothing — the
+  `window.prompt` was the only way to overwrite, and only if you retyped the name exactly. A SUGGESTED
+  preset gets neither: it is computed per request and has no stored row.
+- Watched on prod: scrollTop 0 -> 194 with Clip reachable at y=654; Save -> the pair appears ->
+  Updated -> Deleted -> pair gone, saved presets back to 0.
+
+
 
 ## Recent Changes (2026-09-29 (4) — the picker takes the caller's own photos; tokens live in Connections)
 - **`ImagePickerMenu` gained `suggestions`** — `[{url, thumbnail?, title?, alt?}]`. When non-empty it adds

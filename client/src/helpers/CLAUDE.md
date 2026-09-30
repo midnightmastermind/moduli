@@ -3,6 +3,31 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-29 (6) — `occurrenceLabel.js` NEW: a row is named by its PLACEMENT)
+- **`occurrenceDisplayLabel(occurrence, module, fallback)`** — the placement's own label wins; the type
+  module's is the FALLBACK (right for a container, a page, a one-off upload). Measured on poms: **13
+  shared type-modules cover 12,265 rows** — 993 movies point at ONE module labelled "Movie", 5,484 songs
+  at "Song" — so a renderer reading the module first shows the SAME name for every row of a kind.
+- **NINE sites had this rule and EIGHT were wrong**: `ArtifactCard` (x2 — it read a `label` PROP that
+  every call site fills with `mod.label`, so the occurrence was never consulted), `Field.jsx`'s
+  occurrence picker card AND its image-search query (searching *"Movie movie poster"*),
+  `confirmDeleteOccurrence` (*Delete "Movie"?* while deleting John Wick), `RepresentationView` (x2),
+  `tableCells`, `containerCrumbs`, `PageFolder`, `bindSocketToStore` (x2).
+- **`meta.originalName` stays AHEAD of it** — that is an upload's own file name, on a module with exactly
+  one placement, shown beside its dimensions and size. Deliberately not in the helper: a caller that
+  wants it prefers it itself.
+- **The WALKER is the fix, not the nine edits** (`__tests__/occurrenceLabel.test.js`): it fails when any
+  client file writes `module.label || occurrence.label`, and it found four sites a hand grep missed. It
+  cannot see ArtifactCard's shape — module-first order is never written there — so that file has its own
+  source guard, which is what discriminates that half. A/B'd both ways.
+
+## Recent Changes (2026-09-29 (6) — `sharePresets.replacePreset` / `deletePreset`)
+- `withPreset` matches on the NAME, so the only way to change a preset was to retype its name exactly
+  (user: *"allow you to overwrite presets"*). `replacePreset(presets, id, preset)` keeps the preset's own
+  id and its position — a rename is an edit rather than a second copy, and the dropdown does not reorder
+  under the cursor. A preset another tab deleted meanwhile is APPENDED rather than silently dropped: the
+  user pressed save. `deletePreset(presets, id)` removes one row. 8 tests.
+
 ## Recent Changes (2026-09-29 (3) — `coverPick` / `coverQuery`: choosing a row's picture, in ONE place)
 - **`coverQuery.coverSearchQuery({label, kind})`** — title + a kind hint (`movie` → "movie poster",
   `book` → "book cover", …). **Pure and dependency-free ON PURPOSE:** the share placement window needs it

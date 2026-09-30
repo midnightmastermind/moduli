@@ -15,6 +15,63 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 (6) — A ROW IS NAMED BY ITS PLACEMENT; the share window scrolls and a preset can be overwritten
+
+User: *"can you fix all the movies and shows and whatever to have the correct labels. currently it just
+says movie for each"* → *"in poms grid"* → *"for the label of each movie it doesnt have the movie name,
+it just says Movie"*. Then: *"fix the share window to be scrollable and allow you to overwrite presets"*.
+
+**MY FIRST SCAN SAID THE DATA WAS FINE, AND IT WAS — the DOM said otherwise.** Reading `o.label ||
+m.label` out of the store gave "John Wick" for all 994 rows, so I nearly reported nothing to fix.
+Reading what the CARD RENDERS instead:
+```
+occLabel "John Wick"   modLabel "Movie"   shows "Movie"     x80 of 80 mounted rows
+```
+**13 shared type-modules cover 12,265 rows** — 993 movies point at ONE module labelled "Movie", 5,484
+songs at "Song", plus Album · Artist · Book · Author · TV Series · Comic · Game. So a renderer reading
+the module first does not get a name wrong occasionally; **it shows the SAME name for every row of a
+kind.** *A store read is a claim about the store; only the DOM is a claim about the screen.*
+
+**`helpers/occurrenceLabel.occurrenceDisplayLabel` is that rule once. NINE sites had it, EIGHT were
+wrong:**
+```
+ArtifactCard (x2)   the card name — the report. It read a `label` PROP that every call site fills
+                    with `mod.label`, so the occurrence was never consulted at all
+Field.jsx (x2)      the occurrence PICKER card, and the image-search query — which was searching
+                    "Movie movie poster"
+confirmDelete       asked  Delete "Movie"?  when you were deleting John Wick
+RepresentationView (x2) · tableCells · containerCrumbs · PageFolder · bindSocketToStore (x2)
+```
+`meta.originalName` stays ahead of it — that is an upload's own file name, on a module with exactly one
+placement, shown beside its dimensions and size.
+
+**THE WALKER IS THE FIX, not the nine edits: it found FOUR sites my own grep had missed.** And it
+cannot see ArtifactCard's shape (module-first order is never written there), so that file has its own
+guard — which is what discriminates that half. A/B, each mutation asserted to land: reverting
+ArtifactCard fails its 2 guards, reverting the picker card fails the walker. **Watched on the deployed
+build: 80 of 80 movie rows show their titles, 0 still showing the type.**
+
+**THE SHARE WINDOW COULD NOT SCROLL, AND THAT IS MOST OF WHY OVERWRITING LOOKED IMPOSSIBLE.**
+`index.css` locks the page — `html, body, #root { height: 100%; overflow: hidden }` — correct for a grid
+workspace and wrong for a 520x700 popup rendered inside that same `#root`: content ran to 894px and
+everything past the fold was unreachable, **including the preset controls**. The Shell owns its own
+scroller now, and `minHeight: 0` is the load-bearing part — a flex child refuses to shrink below its
+content, so without it no scrollbar appears however much overflow there is.
+
+**AND `withPreset` ONLY EVER MATCHED ON THE NAME**, so changing a preset meant retyping its name
+exactly. A saved preset now offers **Update "<name>"** (same id, same name, in place, no prompt) and
+**Delete preset**. A SUGGESTED one gets neither — it is computed per request and has no stored row, so
+there is nothing to overwrite. Watched end to end on prod:
+```
+content 894px in a 700px popup · overflowY auto · scrollTop 0 -> 194 · Clip reachable at y=654
+Save -> "Saved preset" + the Update/Delete pair appears
+Update -> "Updated"  ·  Delete -> "Deleted", pair gone      saved presets back to 0
+```
+Client **5,370 pass**; two client-only deploys, `deploy.sh` reporting *"Server unchanged"* each time.
+**No debris:** Clip was never pressed, so nothing was filed and the staged clips expire unconsumed.
+
+---
+
 ### 2026-09-29 (5) — TESTED BY CLICKING: the suggested presets were EMPTY on the grid they were built for
 
 User: *"can you test that stuff with ui"* — the tokens screen, the cover picker and the share
