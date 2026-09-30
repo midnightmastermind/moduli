@@ -128,3 +128,49 @@ describe("RUN_OPERATION action", () => {
     expect(effects[0].value).toBe(7);
   });
 });
+
+// ARGUMENTS AND A SHARED WORLD (2026-09-30): the Day Page and the Schedule each
+// build a missing day for the other — "Day Page: Build Day" is called with a
+// date, and must see the Schedule column "Schedule: Build Day" just created.
+describe("RUN_OPERATION with vars", () => {
+  const ctxWith = (ops, occs = {}) => ({
+    state: { grid: {}, gridId: "g", modules: [] },
+    modulesById: {}, occurrencesById: occs, fieldsById: {},
+    operationsById: Object.fromEntries(ops.map((o) => [o.id, o])),
+  });
+
+  it("hands the callee a value resolved in the CALLER", async () => {
+    const callee = { id: "c", name: "Echo", pipeline: { sources: [], steps: [
+      { id: "s", type: "action", config: { type: "UPDATE", path: "$display.f.i", value: "$day" } },
+    ] } };
+    const caller = { id: "p", name: "Caller", pipeline: { sources: [], steps: [
+      { id: "a", type: "action", config: { type: "INIT_VAR", name: "$d", expr: "literal:2026-10-01" } },
+      { id: "b", type: "action", config: { type: "RUN_OPERATION", operationName: "Echo", vars: { "$day": "$d" } } },
+    ] } };
+    const effects = await executePipeline(caller, ctxWith([callee, caller]), undefined, undefined, makeLogger());
+    expect(effects.find((e) => e._effect === "UPDATE_DISPLAY_VALUE")?.value).toBe("2026-10-01");
+  });
+
+  it("a second callee FINDs what the first callee created in the same run", async () => {
+    const maker = { id: "m", name: "Maker", pipeline: { sources: [], steps: [
+      { id: "s", type: "action", config: { type: "CREATE", name: "Col", role: "container", parent: "literal:board",
+        fields: { fDate: "$day" }, itemIdVar: "$made" } },
+    ] } };
+    const finder = { id: "f", name: "Finder", pipeline: { sources: [], steps: [
+      { id: "s", type: "action", config: { type: "FIND", over: "$allContainers",
+        predicate: { operator: "AND", rules: [{ id: "r", left: "fields.fDate.value", comparator: "IS", right: "$day" }] }, itemIdVar: "$hit" } },
+      { id: "t", type: "action", config: { type: "UPDATE", path: "$display.found.x", value: "$hit" } },
+    ] } };
+    const caller = { id: "p", name: "Caller", pipeline: { sources: [], steps: [
+      { id: "a", type: "action", config: { type: "RUN_OPERATION", operationName: "Maker", vars: { "$day": "literal:2026-10-01" } } },
+      { id: "b", type: "action", config: { type: "RUN_OPERATION", operationName: "Finder", vars: { "$day": "literal:2026-10-01" } } },
+    ] } };
+    const ctx = ctxWith([maker, finder, caller], { board: { id: "board", moduleId: "mb", occurrences: [] } });
+    ctx.modulesById = { mb: { id: "mb", role: "page" } };
+    // A warm read model from BEFORE the create — the case that hid the column.
+    await executePipeline(finder, ctx, undefined, { $day: "x" }, makeLogger());
+    const effects = await executePipeline(caller, ctx, undefined, undefined, makeLogger());
+    const found = effects.find((e) => e._effect === "UPDATE_DISPLAY_VALUE" && e.fieldId === "found");
+    expect(found?.value).toBeTruthy();
+  });
+});

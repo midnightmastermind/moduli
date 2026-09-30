@@ -1933,6 +1933,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         context.occurrencesById[instanceId] = {
           id: instanceId,
           moduleId: templateId,
+          // The role rides on the row: its module is not in the callee's
+          // modulesById yet, and a row with no role is in no $allContainers /
+          // $allPages slice — so a RUN_OPERATION callee could not FIND it.
+          role: newRole,
           parentId,
           fields,
           textmap,
@@ -4112,9 +4116,30 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }
 
       const { executePipeline: _execPipeline, executeOperation: _execOp } = context._executors || {};
-      const childContext = { ...context, _opCallDepth: depth + 1 };
+      // ARGUMENTS (2026-09-30): `cfg.vars` maps a callee var to an expression
+      // resolved HERE, in the caller — { "$day": "$day" } is how a per-date
+      // loop hands one date to "Schedule: Build Day". They are folded in after
+      // the callee's built-ins, like the API's run-with-vars.
+      let childVars = context._extraVars;
+      if (cfg.vars && typeof cfg.vars === "object") {
+        childVars = { ...(context._extraVars || {}) };
+        for (const [k, expr] of Object.entries(cfg.vars)) {
+          childVars[k.startsWith("$") ? k : `$${k}`] = resolveExpr(expr, $vars);
+        }
+      }
+      // A CALLEE SEES WHAT THIS RUN ALREADY CREATED. Creates land in the shared
+      // `context.occurrencesById` overlay at once, but a callee builds its
+      // collections from the sweep's cached read model, which predates them — so
+      // "Day Page: Build Day" could not find the Schedule column "Schedule: Build
+      // Day" had just made for the same date. Only dropped when the read model
+      // is out of step with the overlay, so a steady-state sweep keeps the cache.
+      // (`updates` here is THIS STEP's list, not the run's — so the test is
+      // whether the shared overlay has rows the read model does not.)
+      const cached = context._allItemsCache;
+      const stale = Array.isArray(cached) && cached.length !== Object.keys(context.occurrencesById || {}).length;
+      const childContext = { ...context, _opCallDepth: depth + 1, ...(stale ? { _allItemsCache: null } : {}) };
       if (subOp.pipeline && _execPipeline) {
-        updates.push(..._execPipeline(subOp, childContext, transaction, context._extraVars));
+        updates.push(..._execPipeline(subOp, childContext, transaction, childVars));
       } else if (_execOp) {
         updates.push(..._execOp(subOp, null, transaction, childContext));
       }

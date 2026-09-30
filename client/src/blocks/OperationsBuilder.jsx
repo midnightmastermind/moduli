@@ -1432,6 +1432,20 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
             <option value="">Pick operation...</option>
             {allOps.map(o => <option key={o.id} value={o.name}>{o.name || o.id}</option>)}
           </select>
+          {/* ARGUMENTS (2026-09-30): each is a var the callee starts with, its
+              value resolved in THIS op — "Day Page: Build Day" with $day. */}
+          {Object.entries(cfg.vars || {}).map(([k, expr]) => (
+            <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              {fl(`with ${k} =`)}
+              <ExprInput value={expr || ""} onChange={v => setCfg({ vars: { ...(cfg.vars || {}), [k]: v } })} placeholder="$var or value" width={120} />
+              <button type="button" title={`Remove ${k}`} aria-label={`Remove argument ${k}`}
+                onClick={() => { const next = { ...(cfg.vars || {}) }; delete next[k]; setCfg({ vars: Object.keys(next).length ? next : undefined }); }}
+                style={{ fontSize: 11, opacity: 0.7, background: "none", border: "none", cursor: "pointer", color: "inherit" }}>×</button>
+            </span>
+          ))}
+          <button type="button" aria-label="Add argument"
+            onClick={() => { const name = window.prompt("Argument name (e.g. $day)"); if (!name) return; const k = name.startsWith("$") ? name : `$${name}`; setCfg({ vars: { ...(cfg.vars || {}), [k]: "" } }); }}
+            style={{ fontSize: 10, opacity: 0.75, background: "none", border: "1px dashed var(--border-default)", borderRadius: 4, cursor: "pointer", color: "inherit", padding: "1px 6px" }}>+ argument</button>
         </div>
       );
 

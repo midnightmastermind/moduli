@@ -1,0 +1,953 @@
+{
+ "steps": [
+  {
+   "id": "oYz5Q7TzWhlS",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPage",
+    "expr": "$allItemsById.llpF10Bda5nu"
+   }
+  },
+  {
+   "id": "qbVu1cz6vNNV",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPageId",
+    "expr": "$schedPage.id"
+   }
+  },
+  {
+   "id": "3zEy8rWQxh_h",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$dayCont",
+    "expr": "$allItemsById.9EZL5iXnYhul"
+   }
+  },
+  {
+   "id": "tA6JgTz7Jr1u",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$dayContId",
+    "expr": "$dayCont.id"
+   }
+  },
+  {
+   "id": "aPaHWfzRNTOv",
+   "type": "if",
+   "condition": {
+    "operator": "OR",
+    "rules": [
+     {
+      "id": "ehk9Oz_ZZEzu",
+      "left": "$trigger.sourceOccurrenceId",
+      "comparator": "IS_EMPTY",
+      "right": ""
+     },
+     {
+      "id": "JyYnqQiU2EO_",
+      "left": "$trigger.sourceOccurrenceId",
+      "comparator": "IS",
+      "right": "$schedPage.id"
+     }
+    ]
+   },
+   "then": [
+    {
+     "id": "_Q2JjNIWwloF",
+     "type": "if",
+     "condition": {
+      "operator": "AND",
+      "rules": [
+       {
+        "id": "tQGii7wUtzPj",
+        "left": "$schedPageId",
+        "comparator": "IS_NOT_EMPTY",
+        "right": ""
+       },
+       {
+        "id": "iRhK-y35snsj",
+        "left": "$dayContId",
+        "comparator": "IS_NOT_EMPTY",
+        "right": ""
+       }
+      ]
+     },
+     "then": [
+      {
+       "id": "P3-9MnbnHNxs",
+       "type": "loop",
+       "overExpr": "$activePeriodDates",
+       "as": "$day",
+       "body": [
+        {
+         "id": "cNEd7G25ukzm",
+         "type": "action",
+         "config": {
+          "type": "FIND",
+          "over": "$allContainers",
+          "predicate": {
+           "operator": "AND",
+           "rules": [
+            {
+             "id": "jWg3FoKIkQtT",
+             "left": "_ancestors",
+             "comparator": "HAS_ANCESTOR",
+             "right": "$schedPageId"
+            },
+            {
+             "id": "JOwh7jzQEr_-",
+             "left": "fields.vQ0ELZP_zxnx.value",
+             "comparator": "IS",
+             "right": "day-col"
+            },
+            {
+             "id": "3cBa8LK-T98T",
+             "left": "fields.Eh7oi4HKdbHB.value",
+             "comparator": "SAME_DAY",
+             "right": "$day"
+            }
+           ]
+          },
+          "itemIdVar": "$dayColId"
+         }
+        },
+        {
+         "id": "iZgOESeQ_pZ6",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "tBq1tlERxwX0",
+            "left": "$dayColId",
+            "comparator": "IS_EMPTY",
+            "right": ""
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "vCcMfuFfTaZR",
+           "type": "action",
+           "config": {
+            "type": "CREATE",
+            "name": "Schedule - ${dateLong:$day}",
+            "role": "container",
+            "kind": "board",
+            "meta": {
+             "allowChildContainers": true
+            },
+            "parent": "$schedPageId",
+            "filterOverride": {
+             "Eh7oi4HKdbHB": "$day"
+            },
+            "fields": {
+             "Eh7oi4HKdbHB": "$day",
+             "vQ0ELZP_zxnx": "literal:day-col"
+            },
+            "fieldHidden": {
+             "Eh7oi4HKdbHB": true,
+             "vQ0ELZP_zxnx": true
+            },
+            "itemIdVar": "$dayColId",
+            "identitySignature": "schedule:col:${$day}"
+           }
+          }
+         ],
+         "else": []
+        },
+        {
+         "id": "list-day-col",
+         "type": "action",
+         "config": {
+          "type": "ADD_CHILD",
+          "parentId": "$schedPageId",
+          "childId": "$dayColId"
+         }
+        },
+        {
+         "id": "V3WuwFop-ZKG",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "ectxGZnHc2Ye",
+            "left": "$activePeriodCount",
+            "comparator": "LESS_OR_EQUAL",
+            "right": 7
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "1Ou04fsgbIQs",
+           "type": "action",
+           "config": {
+            "type": "SET_VAR",
+            "name": "$dcOcc",
+            "expr": "$allItemsById.${$dayColId}"
+           }
+          },
+          {
+           "id": "jCYSPYEedjf0",
+           "type": "loop",
+           "overExpr": "$dcOcc.occurrences",
+           "as": "$dcKidId",
+           "body": [
+            {
+             "id": "czf3y25qvfxp",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$dcKid",
+              "expr": "$allItemsById.${$dcKidId}"
+             }
+            },
+            {
+             "id": "zrrT0qgefwt2",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "-ylQMLUrkiQt",
+                "left": "$dcKid.role",
+                "comparator": "IS",
+                "right": "instance"
+               },
+               {
+                "id": "cBoEQCYo40Dk",
+                "left": "$dcKid.fields.vQ0ELZP_zxnx.value",
+                "comparator": "IS",
+                "right": "flat"
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "wqSIggvedJrS",
+               "type": "action",
+               "config": {
+                "type": "DELETE",
+                "itemIdExpr": "$dcKidId"
+               }
+              }
+             ],
+             "else": []
+            }
+           ]
+          },
+          {
+           "id": "UR6K-Oc33EXa",
+           "type": "loop",
+           "overExpr": "$dayCont.occurrences",
+           "as": "$tplChildId",
+           "body": [
+            {
+             "id": "zOgcqYafa1e9",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$tplChild",
+              "expr": "$allItemsById.${$tplChildId}"
+             }
+            },
+            {
+             "id": "cLmmB33W4Z6N",
+             "type": "action",
+             "config": {
+              "type": "FIND",
+              "over": "$allContainers",
+              "predicate": {
+               "operator": "AND",
+               "rules": [
+                {
+                 "id": "1LtNeNY5WZ6B",
+                 "left": "meta.copyLinkSource",
+                 "comparator": "IS",
+                 "right": "$tplChildId"
+                },
+                {
+                 "id": "asK6ZsIWp44u",
+                 "left": "parentId",
+                 "comparator": "IS",
+                 "right": "$dayColId"
+                }
+               ]
+              },
+              "itemIdVar": "$slotCopyId"
+             }
+            },
+            {
+             "id": "MX27Oq3nFMuJ",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "1tI941C57mhj",
+                "left": "$slotCopyId",
+                "comparator": "IS_EMPTY",
+                "right": ""
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "DW8sN6LRsuGY",
+               "type": "action",
+               "config": {
+                "type": "COPY_LINK",
+                "sourceId": "$tplChildId",
+                "parent": "$dayColId",
+                "recursive": false,
+                "itemIdVar": "$slotCopyId"
+               }
+              },
+              {
+               "id": "yR0Sl-yYoLuj",
+               "type": "loop",
+               "overExpr": "$tplChild.occurrences",
+               "as": "$tplInstId",
+               "body": [
+                {
+                 "id": "-ixsbE4bXt4y",
+                 "type": "action",
+                 "config": {
+                  "type": "APPLY_TEMPLATE",
+                  "templateRef": "$tplInstId",
+                  "rootParent": "$slotCopyId",
+                  "defaultFields": {
+                   "Eh7oi4HKdbHB": "$day"
+                  }
+                 }
+                }
+               ]
+              }
+             ],
+             "else": [
+              {
+               "id": "relink-o5vb9uenfl",
+               "type": "action",
+               "config": {
+                "type": "ADD_CHILD",
+                "parentId": "$dayColId",
+                "childId": "$slotCopyId"
+               }
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "id": "VvHBkvq2jX7G",
+           "type": "action",
+           "config": {
+            "type": "FIND",
+            "over": "$allContainers",
+            "predicate": {
+             "operator": "AND",
+             "rules": [
+              {
+               "id": "bjWI2wUHR7Ng",
+               "left": "_ancestors",
+               "comparator": "HAS_ANCESTOR",
+               "right": "$dayColId"
+              },
+              {
+               "id": "cVdjsMIR9Q4x",
+               "left": "fields.nSccAtADyUGW.value",
+               "comparator": "IS",
+               "right": "Todo"
+              }
+             ]
+            },
+            "itemIdVar": "$noSlotId"
+           }
+          },
+          {
+           "id": "PI0HhFbriZEk",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "JtP5Ey7Qm6X4",
+              "left": "$noSlotId",
+              "comparator": "IS_NOT_EMPTY",
+              "right": ""
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "MGPx_vPAwZhm",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$dcOcc2",
+              "expr": "$allItemsById.${$dayColId}"
+             }
+            },
+            {
+             "id": "CzC3x0cp7LeI",
+             "type": "loop",
+             "overExpr": "$dcOcc2.occurrences",
+             "as": "$dropId",
+             "body": [
+              {
+               "id": "wraJIAxuMRL4",
+               "type": "action",
+               "config": {
+                "type": "SET_VAR",
+                "name": "$dropKid",
+                "expr": "$allItemsById.${$dropId}"
+               }
+              },
+              {
+               "id": "jNX6HFoZEIld",
+               "type": "if",
+               "condition": {
+                "operator": "AND",
+                "rules": [
+                 {
+                  "id": "iBnQxRBw6IUk",
+                  "left": "$dropKid.role",
+                  "comparator": "IS",
+                  "right": "instance"
+                 },
+                 {
+                  "id": "utJEsjjp-2ua",
+                  "left": "$dropKid.fields.vQ0ELZP_zxnx.value",
+                  "comparator": "IS_EMPTY",
+                  "right": ""
+                 }
+                ]
+               },
+               "then": [
+                {
+                 "id": "QMn-u9OJYx_j",
+                 "type": "action",
+                 "config": {
+                  "type": "MOVE_OCCURRENCE",
+                  "occurrenceIdExpr": "$dropId",
+                  "toContainerIdExpr": "$noSlotId"
+                 }
+                }
+               ],
+               "else": []
+              }
+             ]
+            }
+           ],
+           "else": []
+          }
+         ],
+         "else": [
+          {
+           "id": "NrpYaapko6DK",
+           "type": "action",
+           "config": {
+            "type": "FIND",
+            "over": "$allContainers",
+            "predicate": {
+             "operator": "AND",
+             "rules": [
+              {
+               "id": "o5TaQwtThRAX",
+               "left": "_ancestors",
+               "comparator": "HAS_ANCESTOR",
+               "right": "$dayColId"
+              },
+              {
+               "id": "6Tti53eSZCaK",
+               "left": "fields.nSccAtADyUGW.value",
+               "comparator": "IS",
+               "right": "Todo"
+              }
+             ]
+            },
+            "itemIdVar": "$noSlotId"
+           }
+          },
+          {
+           "id": "GDqPN0e3sKwD",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "r0f3Q6hrFhY9",
+              "left": "$noSlotId",
+              "comparator": "IS_NOT_EMPTY",
+              "right": ""
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "xO8j4XrZoczl",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$noSlotOcc",
+              "expr": "$allItemsById.${$noSlotId}"
+             }
+            },
+            {
+             "id": "aOsZdM5sexY7",
+             "type": "loop",
+             "overExpr": "$noSlotOcc.occurrences",
+             "as": "$ndId",
+             "body": [
+              {
+               "id": "q-1iFRO3y5Jo",
+               "type": "action",
+               "config": {
+                "type": "SET_VAR",
+                "name": "$ndKid",
+                "expr": "$allItemsById.${$ndId}"
+               }
+              },
+              {
+               "id": "BVLxHzZ9vLj5",
+               "type": "if",
+               "condition": {
+                "operator": "AND",
+                "rules": [
+                 {
+                  "id": "9iwTe2as52Ir",
+                  "left": "$ndKid.role",
+                  "comparator": "IS",
+                  "right": "instance"
+                 }
+                ]
+               },
+               "then": [
+                {
+                 "id": "bzPWVa6rZWI5",
+                 "type": "action",
+                 "config": {
+                  "type": "MOVE_OCCURRENCE",
+                  "occurrenceIdExpr": "$ndId",
+                  "toContainerIdExpr": "$dayColId"
+                 }
+                }
+               ],
+               "else": []
+              }
+             ]
+            }
+           ],
+           "else": []
+          },
+          {
+           "id": "bga8SyNJZO7i",
+           "type": "action",
+           "config": {
+            "type": "SET_VAR",
+            "name": "$dcOcc",
+            "expr": "$allItemsById.${$dayColId}"
+           }
+          },
+          {
+           "id": "CjAHdCfT1His",
+           "type": "action",
+           "config": {
+            "type": "INIT_VAR",
+            "name": "$hadFullContent",
+            "value": 0
+           }
+          },
+          {
+           "id": "ZFz3W7Eie5en",
+           "type": "loop",
+           "overExpr": "$dcOcc.occurrences",
+           "as": "$dcKidId",
+           "body": [
+            {
+             "id": "bh-cIhU1etmN",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$dcKid",
+              "expr": "$allItemsById.${$dcKidId}"
+             }
+            },
+            {
+             "id": "1BrWct4GYxiU",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "1OY_iqc5W401",
+                "left": "$dcKid.role",
+                "comparator": "IS",
+                "right": "container"
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "WPXMPQwXlqH9",
+               "type": "action",
+               "config": {
+                "type": "SET_VAR",
+                "name": "$hadFullContent",
+                "expr": "literal:1"
+               }
+              },
+              {
+               "id": "r-QeK4bEcdj_",
+               "type": "action",
+               "config": {
+                "type": "DELETE",
+                "itemIdExpr": "$dcKidId"
+               }
+              }
+             ],
+             "else": []
+            }
+           ]
+          },
+          {
+           "id": "Z4qN3qwdlgj5",
+           "type": "action",
+           "config": {
+            "type": "FIND",
+            "over": "$allInstances",
+            "predicate": {
+             "operator": "AND",
+             "rules": [
+              {
+               "id": "SH9iLCB9KEQD",
+               "left": "_ancestors",
+               "comparator": "HAS_ANCESTOR",
+               "right": "$dayColId"
+              }
+             ]
+            },
+            "itemIdVar": "$flatChildId"
+           }
+          },
+          {
+           "id": "hcOF7WtzOOT9",
+           "type": "if",
+           "condition": {
+            "operator": "OR",
+            "rules": [
+             {
+              "id": "y0GptZywNSjI",
+              "left": "$flatChildId",
+              "comparator": "IS_EMPTY",
+              "right": ""
+             },
+             {
+              "id": "I1vP9U8eNJpP",
+              "left": "$hadFullContent",
+              "comparator": "GREATER",
+              "right": 0
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "j_ZZnb8aWODF",
+             "type": "loop",
+             "overExpr": "$dayCont.occurrences",
+             "as": "$sTplChildId",
+             "body": [
+              {
+               "id": "10SzVIaQ1KHA",
+               "type": "action",
+               "config": {
+                "type": "SET_VAR",
+                "name": "$sTplChild",
+                "expr": "$allItemsById.${$sTplChildId}"
+               }
+              },
+              {
+               "id": "k0m-pM-p85Du",
+               "type": "loop",
+               "overExpr": "$sTplChild.occurrences",
+               "as": "$sTplInstId",
+               "body": [
+                {
+                 "id": "QemXjOks6UyK",
+                 "type": "action",
+                 "config": {
+                  "type": "APPLY_TEMPLATE",
+                  "templateRef": "$sTplInstId",
+                  "rootParent": "$dayColId",
+                  "defaultFields": {
+                   "Eh7oi4HKdbHB": "$day",
+                   "vQ0ELZP_zxnx": "flat"
+                  }
+                 }
+                }
+               ]
+              }
+             ]
+            }
+           ],
+           "else": []
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "2H7uWIUMxCx4",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$pageMode",
+        "expr": "literal:stack"
+       }
+      },
+      {
+       "id": "U7if8WhSS0Vs",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$pageColumns",
+        "value": 1
+       }
+      },
+      {
+       "id": "IBe_JNIDKW0S",
+       "type": "if",
+       "condition": {
+        "operator": "AND",
+        "rules": [
+         {
+          "id": "nQmtw_BBVQVh",
+          "left": "$activePeriodCount",
+          "comparator": "GREATER",
+          "right": 1
+         },
+         {
+          "id": "2qks9EU83s5c",
+          "left": "$activePeriodCount",
+          "comparator": "LESS_OR_EQUAL",
+          "right": 7
+         }
+        ]
+       },
+       "then": [
+        {
+         "id": "Z2m89nRsDTMq",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$pageMode",
+          "expr": "literal:flex-row"
+         }
+        }
+       ],
+       "else": []
+      },
+      {
+       "id": "Fh2Mm8clvIRA",
+       "type": "if",
+       "condition": {
+        "operator": "AND",
+        "rules": [
+         {
+          "id": "5j2rVla6h0dD",
+          "left": "$activePeriodCount",
+          "comparator": "GREATER",
+          "right": 7
+         }
+        ]
+       },
+       "then": [
+        {
+         "id": "jLLPCNKTtpXp",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$pageMode",
+          "expr": "literal:grid"
+         }
+        },
+        {
+         "id": "a99UvNmlHFqF",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$pageColumns",
+          "value": 7
+         }
+        }
+       ],
+       "else": []
+      },
+      {
+       "id": "y1bpnMBK1hyW",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$schedPageOcc",
+        "expr": "$allItemsById.llpF10Bda5nu"
+       }
+      },
+      {
+       "id": "qFo68161sYui",
+       "type": "action",
+       "config": {
+        "type": "UPDATE",
+        "path": "$schedPageOcc.meta.layoutCascadeOverride",
+        "value": {
+         "mode": "$pageMode",
+         "columns": "$pageColumns",
+         "hideChildIds": "json:[]",
+         "sortChildrenByField": "Eh7oi4HKdbHB"
+        }
+       }
+      },
+      {
+       "id": "flCYgh0n4fDD",
+       "type": "loop",
+       "overExpr": "$allContainers",
+       "as": "$cont",
+       "body": [
+        {
+         "id": "VJXJiBMMuUI6",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "J8bVm_GX0ite",
+            "left": "$cont._ancestors",
+            "comparator": "HAS_ANCESTOR",
+            "right": "$schedPageId"
+           },
+           {
+            "id": "geeFE7cgMX-Z",
+            "left": "$cont.fields.vQ0ELZP_zxnx.value",
+            "comparator": "IS",
+            "right": "day-col"
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "rPqLa4Ob8D3N",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "pTVxrS_TUEkm",
+              "left": "$activePeriodDates",
+              "comparator": "ARRAY_INCLUDES",
+              "right": "$cont.fields.Eh7oi4HKdbHB.value"
+             }
+            ]
+           },
+           "then": [],
+           "else": [
+            {
+             "id": "keg0dir1nq",
+             "type": "action",
+             "config": {
+              "type": "FIND",
+              "over": "$allOccurrences",
+              "predicate": {
+               "operator": "AND",
+               "rules": [
+                {
+                 "id": "kltx5fgypl",
+                 "left": "_ancestors",
+                 "comparator": "HAS_ANCESTOR",
+                 "right": "$cont.id"
+                },
+                {
+                 "id": "klwyegva5o",
+                 "operator": "OR",
+                 "rules": [
+                  {
+                   "id": "kid0ylskt3",
+                   "left": "fields.tZWiPDQUDP74.value",
+                   "comparator": "IS",
+                   "right": true
+                  },
+                  {
+                   "id": "ko3cnyzlm7",
+                   "left": "meta.userTouched",
+                   "comparator": "IS",
+                   "right": true
+                  }
+                 ]
+                }
+               ]
+              },
+              "itemIdVar": "$dcKeep"
+             }
+            },
+            {
+             "id": "kbtv1gqj11",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "kvimb8e1tm",
+                "left": "$dcKeep",
+                "comparator": "IS_EMPTY",
+                "right": ""
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "k6tlnpfhgj",
+               "type": "action",
+               "config": {
+                "type": "DELETE",
+                "itemIdExpr": "$cont.id"
+               }
+              }
+             ],
+             "else": []
+            }
+           ]
+          }
+         ],
+         "else": []
+        }
+       ]
+      },
+      {
+       "id": "8nZ3Fdb46Pju",
+       "type": "action",
+       "config": {
+        "type": "RUN_OPERATION",
+        "operationName": "Water"
+       }
+      },
+      {
+       "id": "fyKMKxdUMUpU",
+       "type": "action",
+       "config": {
+        "type": "RUN_OPERATION",
+        "operationName": "Completed Tasks"
+       }
+      }
+     ],
+     "else": []
+    }
+   ],
+   "else": []
+  }
+ ]
+}
