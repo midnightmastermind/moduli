@@ -116,3 +116,35 @@ describe("update_occurrence that would insert a duplicate-signed row", () => {
     expect(db.occurrences.has("plain")).toBe(true);
   });
 });
+
+// A CACHE MISS IS HYDRATED FROM MONGO (2026-09-30): tomorrow's day column
+// reached every client as { id, meta, occurrences, textmap, updatedAt } — the
+// handler merged a partial write onto an EMPTY prev because the cache did not
+// hold the row, and cached that. After a reload the Day Page showed only today.
+describe("update_occurrence on a row the cache lost", () => {
+  let handlers, uc;
+  const fire = (payload) => Promise.all((handlers.get("update_occurrence") || []).map(fn => fn(payload)));
+  beforeEach(() => {
+    db.occurrences.clear(); handlers = new Map();
+    uc = cache();
+    uc.occurrencesById.daypage = { id: "daypage", userId: "u1", gridId: G, occurrences: [] };
+    db.occurrences.set("colT", column("colT", { fields: { fDate: { value: "2026-10-01" } } }));   // Mongo has it; the cache does not
+    const socket = {
+      id: "s1", userId: "u1", data: { activeGridId: G },
+      on: (e, fn) => handlers.set(e, [...(handlers.get(e) || []), fn]),
+      emit: vi.fn(), to: () => ({ emit: vi.fn() }),
+    };
+    registerOccurrenceHandlers(socket, {
+      io: makeIo(), userRoom: (u) => `user:${u}`, loadUserIntoCache: vi.fn(),
+      userCacheReady: () => true, ensureUserCache: () => uc,
+    });
+  });
+
+  it("the cache ends up with the WHOLE row, not just the fields that were written", async () => {
+    await fire({ occurrence: { id: "colT", meta: { appliedFromTemplateId: "tpl" }, occurrences: [] } });
+    const cached = uc.occurrencesById.colT;
+    expect(cached).toMatchObject({ moduleId: "m-colT", parentId: "daypage", identitySignature: "daypage:col:2026-09-30" });
+    expect(cached.fields.fDate.value).toBe("2026-10-01");
+    expect(cached.meta.appliedFromTemplateId).toBe("tpl");   // and the write itself landed
+  });
+});

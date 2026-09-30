@@ -1,0 +1,582 @@
+{
+ "steps": [
+  {
+   "id": "0UVN7HTs7kZf",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPage",
+    "expr": "$allItemsById.llpF10Bda5nu"
+   }
+  },
+  {
+   "id": "FzVd4jREviCC",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPageId",
+    "expr": "$schedPage.id"
+   }
+  },
+  {
+   "id": "Yzi3rWk34yfC",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$board",
+    "expr": "$allItemsById.8gpoqzx32h7"
+   }
+  },
+  {
+   "id": "r4WA1TpiPC2W",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$tpl",
+    "expr": "$allItemsById.ktMxTVErceWq"
+   }
+  },
+  {
+   "id": "29jANu1KP6sV",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$tplId",
+    "expr": "$tpl.id"
+   }
+  },
+  {
+   "id": "RQSGEDr1rdlV",
+   "type": "if",
+   "condition": {
+    "operator": "OR",
+    "rules": [
+     {
+      "id": "zoCbMBU6gjFs",
+      "left": "$trigger.sourceOccurrenceId",
+      "comparator": "IS_EMPTY",
+      "right": ""
+     },
+     {
+      "id": "JRz_WgPS-VpL",
+      "left": "$trigger.sourceOccurrenceId",
+      "comparator": "IS",
+      "right": "$board.id"
+     }
+    ]
+   },
+   "then": [
+    {
+     "id": "zE36a-HUbIL4",
+     "type": "if",
+     "condition": {
+      "operator": "AND",
+      "rules": [
+       {
+        "id": "rFLLtQhFbSEc",
+        "left": "$tplId",
+        "comparator": "IS_NOT_EMPTY",
+        "right": ""
+       }
+      ]
+     },
+     "then": [
+      {
+       "id": "ddRprjyI353N",
+       "type": "loop",
+       "overExpr": "$activePeriodDates",
+       "as": "$day",
+       "body": [
+        {
+         "id": "1_njBlBIxoLB",
+         "type": "action",
+         "config": {
+          "type": "FIND",
+          "over": "$allOccurrences",
+          "predicate": {
+           "operator": "AND",
+           "rules": [
+            {
+             "id": "1fNwNH7_ZhYu",
+             "left": "parentId",
+             "comparator": "IS",
+             "right": "8gpoqzx32h7"
+            },
+            {
+             "id": "tk806Tri7cRO",
+             "left": "fields.Eh7oi4HKdbHB.value",
+             "comparator": "SAME_DAY",
+             "right": "$day"
+            }
+           ]
+          },
+          "itemIdVar": "$colId",
+          "itemVar": "$col"
+         }
+        },
+        {
+         "id": "2Jr9aRTLBc1-",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "TGDflkb_wvK7",
+            "left": "$colId",
+            "comparator": "IS_EMPTY",
+            "right": ""
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "8jX1p1I9jyay",
+           "type": "action",
+           "config": {
+            "type": "APPLY_TEMPLATE",
+            "templateRef": "$tplId",
+            "rootParent": "8gpoqzx32h7",
+            "rootLabel": "${dateLong:$day}",
+            "replacements": {
+             "{Date}": "$day"
+            },
+            "rootIdVar": "$colId",
+            "defaultFields": {
+             "Eh7oi4HKdbHB": "$day"
+            },
+            "rootSignature": "daypage:col:${$day}"
+           }
+          },
+          {
+           "id": "68KWH0pWt9dy",
+           "type": "action",
+           "config": {
+            "type": "FIND",
+            "over": "$allOccurrences",
+            "predicate": {
+             "operator": "AND",
+             "rules": [
+              {
+               "id": "_CIxJmG-u8pg",
+               "left": "id",
+               "comparator": "IS",
+               "right": "$colId"
+              }
+             ]
+            },
+            "itemIdVar": "$colId2",
+            "itemVar": "$col"
+           }
+          }
+         ],
+         "else": [
+          {
+           "id": "wH80Gg-jNFnk",
+           "type": "action",
+           "config": {
+            "type": "APPLY_TEMPLATE",
+            "templateRef": "$tplId",
+            "targetOccurrenceVar": "$colId",
+            "mode": "merge",
+            "unwrapRoot": true,
+            "replacements": {
+             "{Date}": "$day"
+            },
+            "defaultFields": {
+             "Eh7oi4HKdbHB": "$day"
+            }
+           }
+          }
+         ]
+        },
+        {
+         "id": "0rWmXas8rJb8",
+         "type": "action",
+         "config": {
+          "type": "ADD_CHILD",
+          "parentId": "8gpoqzx32h7",
+          "childId": "$colId"
+         }
+        },
+        {
+         "id": "halYDuDf1LzS",
+         "type": "action",
+         "config": {
+          "type": "UPDATE",
+          "path": "$col.meta.appliedFromTemplateId",
+          "value": "$tplId"
+         }
+        },
+        {
+         "id": "wmlwvz0h",
+         "type": "action",
+         "config": {
+          "type": "ADD_CHILD",
+          "parentId": "$colId",
+          "childId": "19ed6e9e-bb12-4ced-9e5b-f3ba030cab19"
+         }
+        },
+        {
+         "id": "331cchv2kl8",
+         "type": "action",
+         "config": {
+          "type": "FIND",
+          "over": "$allOccurrences",
+          "predicate": {
+           "operator": "AND",
+           "rules": [
+            {
+             "id": "z11ux8xw1qf",
+             "left": "_ancestors",
+             "comparator": "HAS_ANCESTOR",
+             "right": "$colId"
+            },
+            {
+             "id": "c8jvpq2yyg",
+             "left": "identitySignature",
+             "comparator": "IS",
+             "right": "daypage:Daily Question/question"
+            }
+           ]
+          },
+          "itemIdVar": "$dqId",
+          "itemVar": "$dq"
+         }
+        },
+        {
+         "id": "34yo9k14gv",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "rv22i4gnd4",
+            "left": "$dqId",
+            "comparator": "IS_NOT_EMPTY",
+            "right": ""
+           },
+           {
+            "id": "apm8230g",
+            "left": "$dq.id",
+            "comparator": "IS_NOT_EMPTY",
+            "right": ""
+           },
+           {
+            "id": "clc6rk9y5",
+            "left": "$dq.fields.Kq-dG1dQ2-89.value",
+            "comparator": "IS_EMPTY",
+            "right": ""
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "irzoc31gjug",
+           "type": "action",
+           "config": {
+            "type": "PICK_RANDOM_FROM_POOL",
+            "poolId": "CWC9WqHPO3EO",
+            "varName": "$dailyQuestion"
+           }
+          },
+          {
+           "id": "c4tbetx29y7",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "i9hrxw8g4x9",
+              "left": "$dailyQuestion",
+              "comparator": "IS_NOT_EMPTY",
+              "right": ""
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "2b4rvfw4lrg",
+             "type": "action",
+             "config": {
+              "type": "UPDATE",
+              "path": "$dq.fields.Kq-dG1dQ2-89.value",
+              "value": "$dailyQuestion"
+             }
+            }
+           ],
+           "else": []
+          }
+         ],
+         "else": []
+        },
+        {
+         "id": "RsSDJE-B9WOA",
+         "type": "action",
+         "config": {
+          "type": "FIND",
+          "over": "$allContainers",
+          "predicate": {
+           "operator": "AND",
+           "rules": [
+            {
+             "id": "YsOyIJEpJZ8j",
+             "left": "_ancestors",
+             "comparator": "HAS_ANCESTOR",
+             "right": "$schedPageId"
+            },
+            {
+             "id": "bhuTOtqFT8DF",
+             "left": "fields.vQ0ELZP_zxnx.value",
+             "comparator": "IS",
+             "right": "day-col"
+            },
+            {
+             "id": "rXIvi1Pww5qG",
+             "left": "fields.Eh7oi4HKdbHB.value",
+             "comparator": "SAME_DAY",
+             "right": "$day"
+            }
+           ]
+          },
+          "itemIdVar": "$dayColId"
+         }
+        },
+        {
+         "id": "549hldQpq9Mz",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "H6uZdGO8IHcb",
+            "left": "$dayColId",
+            "comparator": "IS_NOT_EMPTY",
+            "right": ""
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "ikOwNCW5qG1z",
+           "type": "action",
+           "config": {
+            "type": "FIND",
+            "over": "$allContainers",
+            "predicate": {
+             "operator": "AND",
+             "rules": [
+              {
+               "id": "934kAsjpG3g2",
+               "left": "parentId",
+               "comparator": "IS",
+               "right": "$dayColId"
+              },
+              {
+               "id": "dXDoypOcGe7h",
+               "left": "fields.nSccAtADyUGW.value",
+               "comparator": "IS",
+               "right": "Todo"
+              }
+             ]
+            },
+            "itemIdVar": "$todoId"
+           }
+          },
+          {
+           "id": "cqdY9UZkX0w9",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "hN5D9mX3GgNG",
+              "left": "$todoId",
+              "comparator": "IS_NOT_EMPTY",
+              "right": ""
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "DH-jt8LtPKVR",
+             "type": "action",
+             "config": {
+              "type": "ADD_CHILD",
+              "parentId": "$colId",
+              "childId": "$todoId"
+             }
+            }
+           ],
+           "else": []
+          }
+         ],
+         "else": []
+        },
+        {
+         "id": "VVZ7Hs_ZRMzL",
+         "type": "action",
+         "config": {
+          "type": "INIT_VAR",
+          "name": "$body",
+          "expr": "json:[]"
+         }
+        },
+        {
+         "id": "vsK3y-izi6Y4",
+         "type": "loop",
+         "overExpr": "$col.occurrences",
+         "as": "$kidId",
+         "body": [
+          {
+           "id": "zS_gjDfSYSOJ",
+           "type": "action",
+           "config": {
+            "type": "INIT_VAR",
+            "name": "$kid",
+            "expr": "$allItemsById.${$kidId}"
+           }
+          },
+          {
+           "id": "vcZblKZldO-i",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "qzq83k_jTC2E",
+              "left": "$kid.role",
+              "comparator": "IS",
+              "right": "textblock"
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "YYdpDMqLeKX6",
+             "type": "action",
+             "config": {
+              "type": "PUSH_TO_ARRAY",
+              "name": "$body",
+              "value": {
+               "type": "instanceTextblock",
+               "attrs": {
+                "instanceId": "$kid.moduleId",
+                "occurrenceId": "$kidId"
+               }
+              }
+             }
+            }
+           ],
+           "else": []
+          }
+         ]
+        },
+        {
+         "id": "WLn0PTHk9b2N",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "r4YDdeyRMb6Y",
+            "left": "$todoId",
+            "comparator": "IS_NOT_EMPTY",
+            "right": ""
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "9cPqoiqIRyHF",
+           "type": "action",
+           "config": {
+            "type": "PUSH_TO_ARRAY",
+            "name": "$body",
+            "value": {
+             "type": "moduleEmbed",
+             "attrs": {
+              "occurrenceId": "$todoId"
+             }
+            }
+           }
+          }
+         ],
+         "else": []
+        },
+        {
+         "id": "tDJz8xQ7fXyB",
+         "type": "loop",
+         "overExpr": "$col.occurrences",
+         "as": "$kidId2",
+         "body": [
+          {
+           "id": "BG8NWrGPYkPA",
+           "type": "action",
+           "config": {
+            "type": "INIT_VAR",
+            "name": "$kid2",
+            "expr": "$allItemsById.${$kidId2}"
+           }
+          },
+          {
+           "id": "_i295n4hX11N",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "TvwwRVjPbfvU",
+              "left": "$kid2.role",
+              "comparator": "IS_NOT",
+              "right": "textblock"
+             },
+             {
+              "id": "GUXmMkCdGKPn",
+              "left": "$kidId2",
+              "comparator": "IS_NOT",
+              "right": "$todoId"
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "zXouuktx4Bgp",
+             "type": "action",
+             "config": {
+              "type": "PUSH_TO_ARRAY",
+              "name": "$body",
+              "value": {
+               "type": "moduleEmbed",
+               "attrs": {
+                "occurrenceId": "$kidId2"
+               }
+              }
+             }
+            }
+           ],
+           "else": []
+          }
+         ]
+        },
+        {
+         "id": "_tmxQv-SZxS-",
+         "type": "action",
+         "config": {
+          "type": "UPDATE",
+          "path": "$col.textmap",
+          "value": {
+           "type": "doc",
+           "content": "$body"
+          }
+         }
+        }
+       ]
+      }
+     ],
+     "else": []
+    }
+   ],
+   "else": []
+  }
+ ]
+}

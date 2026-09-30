@@ -141,13 +141,26 @@ export function registerOccurrenceHandlers(socket, {
       // Neither the cache nor Mongo holds this id: the upsert below would CREATE it.
       let isInsert = false;
       if (!uc.occurrencesById[id]) {
-        const stored = await Occurrence.findOne({ id, userId }, { gridId: 1 }).lean().catch(() => null);
+        const stored = await Occurrence.findOne({ id, userId }).lean().catch(() => null);
         isInsert = !stored;
         if (stored?.gridId && stored.gridId !== socket.data.activeGridId) {
           foreignGridId = stored.gridId;
           uc = userCacheReady(userId, foreignGridId)
             ? ensureUserCache(userId, foreignGridId)
             : { occurrencesById: {}, modulesById: {} };   // cold: write Mongo only
+        }
+        // ── A CACHE MISS IS HYDRATED FROM MONGO BEFORE THE MERGE ────────────
+        // Found 2026-09-30: tomorrow's day column reached every client as
+        // `{ id, meta, occurrences, textmap, updatedAt }` — no moduleId, no
+        // parent, no date — so after a reload the Day Page showed only today.
+        // Mongo held the complete row. This handler merged the write onto
+        // `prev = {}` because the cache did not hold the row, and cached THAT;
+        // Mongo stayed whole only because its update is a `$set`. Starting the
+        // merge from the stored row (shaped exactly as loadUserIntoCache shapes
+        // it) keeps the cache a copy of the database, whatever emptied it.
+        if (stored && !uc.occurrencesById[id]) {
+          const bare = withoutMongoId(stored);
+          uc.occurrencesById[id] = stored.textmap ? { ...bare, id, textmap: decompressTextmap(stored.textmap) } : { ...bare, id };
         }
       }
 
