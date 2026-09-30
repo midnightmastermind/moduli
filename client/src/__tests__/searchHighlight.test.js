@@ -39,6 +39,25 @@ describe("highlightSegments", () => {
       .toBe("A Guide to Recognizing Your [Saints] ([2006]) - IMDb");
   });
 
+  // MEASURED ON PROD: "A Guide" occurs inside "Mang|a Guide| to Physics". True,
+  // and it reads as a mistake — so a MULTI-WORD phrase must start on a word
+  // boundary, and that row falls through to per-term ("Guide").
+  it("will not match a multi-word phrase across a word boundary", () => {
+    expect(render("Manga Guide to Physics, The", "A Guide"))
+      .toBe("Manga [Guide] to Physics, The");
+  });
+
+  // Scoped to multi-word, because a single word is how partial typing works.
+  it("still matches a single word mid-word, so typing as you go marks", () => {
+    expect(render("A Guide", "uide")).toBe("A G[uide]");
+    expect(render("Recognizing", "cogniz")).toBe("Re[cogniz]ing");
+  });
+
+  it("marks every boundary occurrence of a multi-word phrase", () => {
+    expect(render("saints 2006 and saints 2006", "saints 2006"))
+      .toBe("[saints 2006] and [saints 2006]");
+  });
+
   // MEASURED ON PROD: "A Guide" against "An FBI agents guide to Mental Toughness"
   // has no phrase, and marking every term lit ["A","a","guide","a"] — static,
   // saying less about the match than "guide" alone.

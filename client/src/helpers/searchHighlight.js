@@ -52,8 +52,18 @@ export function highlightSegments(text, query) {
   if (!src || !phrase) return [{ text: src, hit: false }];
 
   const hay = src.toLowerCase();
-  const ranges = [];
+  let ranges = [];
   occurrences(hay, phrase, ranges);
+  // A MULTI-WORD PHRASE MUST START ON A WORD BOUNDARY. "A Guide" occurs inside
+  // "Mang|a Guide| to Physics" — true, and it reads as a mistake. With no
+  // boundary match the phrase is treated as absent and each term marks itself
+  // instead, which on that row is simply "Guide".
+  //
+  // Scoped to MULTI-WORD only, because a single word is how partial typing
+  // works: "uide" has no boundary match on "A Guide" and must still mark.
+  if (ranges.length && phrase.includes(" ")) {
+    ranges = ranges.filter(([a]) => a === 0 || !/[\p{L}\p{N}]/u.test(src[a - 1]));
+  }
   if (!ranges.length) {
     // No phrase — mark each term where it appears, so a multi-word query still
     // explains itself when its words are apart ("saints 2006").
