@@ -15,6 +15,7 @@ import ContextMenu from "../../ui/ContextMenu";
 import { cardZoneForPoint, planFolderPageDrop, sortOrderAtEnd } from "../../helpers/treeOrder.js";
 import { createPageInFolder } from "../../helpers/createPageInFolder.js";
 import { confirmDeleteOccurrence } from "../../helpers/confirmDeleteOccurrence.js";
+import { occurrenceDisplayLabel } from "../../helpers/occurrenceLabel.js";
 
 // The page kinds a right-click can make, in the order the add menu lists them.
 const NEW_PAGE_KINDS = [
@@ -542,7 +543,7 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onCardDrop, extr
   if (viewLayout === "list") {
     const role = mod?.role || "instance";
     const kind = mod?.kind || null;
-    const label = mod?.label || occ?.label || "Untitled";
+    const label = occurrenceDisplayLabel(occ, mod, "Untitled");
     const size = mod?.meta?.uploadSize;
     const fmtSize = (n) => {
       if (!n) return "—";

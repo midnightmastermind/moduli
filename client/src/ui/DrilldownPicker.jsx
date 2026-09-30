@@ -32,6 +32,7 @@ import { ChevronRight } from "lucide-react";
 import { CATEGORIES } from "./categoryRegistry";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 import { TRIGGER_PROP_KEYS } from "../helpers/triggerTypes";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 
 // Copy for the props `$trigger` can carry. A key with no entry still lists —
 // the union is the source of truth for WHICH keys exist; this only describes
@@ -341,7 +342,7 @@ function occurrenceMapItems(ctx) {
   const modById = ctx?.modulesById || {};
   return Object.values(byId).map(occ => {
     const mod = occ.moduleId ? modById[occ.moduleId] : null;
-    const label = mod?.label || occ.label || occ.id;
+    const label = occurrenceDisplayLabel(occ, mod) || occ.id;
     return {
       value: occ.id,
       title: label,

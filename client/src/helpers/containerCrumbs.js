@@ -5,6 +5,8 @@
 // question, and two walks over the occurrence tree is exactly how the two
 // pickers would quietly stop listing the same places.
 
+import { occurrenceDisplayLabel } from "./occurrenceLabel.js";
+
 /**
  * Every container occurrence, labelled with its `Page › Container` chain.
  *
@@ -35,7 +37,7 @@ export function buildContainerCrumbOptions(occurrencesById, modulesById, { folde
   }
   const labelFor = (occ) => {
     const mod = modulesById?.[occ.moduleId];
-    return mod?.label || occ.label || occ.id.slice(0, 6);
+    return occurrenceDisplayLabel(occ, mod) || occ.id.slice(0, 6);
   };
   const out = [];
   for (const occ of Object.values(occMap)) {

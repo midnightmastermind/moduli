@@ -43,6 +43,7 @@ import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers"
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
 import { persistAuth, clearAuth } from "../helpers/authStorage.js";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -2095,7 +2096,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         } catch (_) { /* analysis is best-effort */ }
         console.warn(
           `[operations] fire depth cap hit (${_FIRE_DEPTH_LIMIT}) — skipping ${transactionType}. ` +
-          `field="${field?.name || fieldId || "?"}" occ="${module?.label || occ?.label || occurrenceId || "?"}" value=${JSON.stringify(transaction?.value)}` +
+          `field="${field?.name || fieldId || "?"}" occ="${occurrenceDisplayLabel(occ, module) || occurrenceId || "?"}" value=${JSON.stringify(transaction?.value)}` +
           (suspects.length ? ` — candidate looping ops: ${suspects.join(", ")}` : ""),
           { transactionType, transaction, fieldId, occurrenceId, field, occ, module, suspects }
         );
@@ -2857,7 +2858,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const occ = occById(cur);
         if (!occ) break;
         const mod = modulesById()[occ.moduleId];
-        const label = mod?.label || occ.label;
+        const label = occurrenceDisplayLabel(occ, mod);
         if (label) labels.unshift(label);
         // Stop after we've passed the page level so we don't surface the
         // panel/grid scaffolding.

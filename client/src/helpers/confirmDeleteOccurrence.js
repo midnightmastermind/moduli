@@ -8,10 +8,11 @@
 // the id out of every parent that lists it (so a pinned page leaves its panels
 // too) and sweeps a module left with no placement.
 import * as CommitHelpers from "./CommitHelpers.js";
+import { occurrenceDisplayLabel } from "./occurrenceLabel.js";
 
 export function deleteConfirmMessage({ occurrence, module }) {
   const kids = occurrence?.occurrences?.length || 0;
-  const what = module?.label || occurrence?.label || "this item";
+  const what = occurrenceDisplayLabel(occurrence, module, "this item");
   return kids
     ? `Delete "${what}" and its ${kids} item${kids === 1 ? "" : "s"}?`
     : `Delete "${what}"?`;

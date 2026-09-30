@@ -7,6 +7,7 @@
 // it too, and a search helper shouldn't depend on table code); re-exported here
 // so existing `import { plainText } from "./tableCells"` call sites keep working.
 import { plainText } from "./textmapText";
+import { occurrenceDisplayLabel } from "./occurrenceLabel.js";
 
 export { plainText };
 
@@ -54,7 +55,7 @@ export function getCellSortValue(doc, column, ctx) {
       return v == null ? "" : v;
     }
     const mod = occ && ctx?.modulesById?.[occ.moduleId];
-    return mod?.label || occ?.label || "";
+    return occurrenceDisplayLabel(occ, mod);
   }
   const txt = plainText(doc);
   if (txt === "") return "";

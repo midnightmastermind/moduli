@@ -80,6 +80,7 @@ export function shortDate(date, now = new Date()) {
   return date.toLocaleDateString(undefined, opts);
 }
 import { fieldLinkHref } from "../helpers/fieldLink.js";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 
 // The type size of a field on a row — its pill and its caption. ONE constant,
 // because these were scattered inline literals and an inline style is exactly
@@ -908,7 +909,7 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
   }
 
   return {
-    label: showLabel ? (mod?.label || occ.label || null) : null,
+    label: showLabel ? (occurrenceDisplayLabel(occ, mod) || null) : null,
     mediaVal, fieldVals,
   };
 }
@@ -1281,7 +1282,9 @@ function Field({
       : libVal === "tv show" ? " tv show poster"
       : libVal === "podcast" ? " podcast cover"
       : "";
-    const label = optLabel || mod?.label || occ.label || "";
+    // The SEARCH TERM for this row's picture. "Movie movie poster" finds
+    // nothing — the title is the query (helpers/occurrenceLabel).
+    const label = optLabel || occurrenceDisplayLabel(occ, mod);
     openImagePicker({
       query: `${label}${suffix}`.trim(),
       title: `Set image — ${label}`,

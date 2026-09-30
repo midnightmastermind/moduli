@@ -40,6 +40,7 @@ import { primaryMediaOf } from "../helpers/occurrenceMedia";
 // fixes the warning at zero cost (already in the main bundle).
 import ModuleInstanceComponent from "../modules/ModuleInstance.jsx";
 import LoadingImage from "./LoadingImage.jsx";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 
 const HOVER_OPEN_MS = 320;
 const HOVER_CLOSE_MS = 140;
@@ -71,7 +72,7 @@ export default function RepresentationView({
   // "[Field Name]" tokens in the label render the occurrence's live value
   // (helpers/labelTokens.js) — chips mirror the interpolated instance label.
   const label = resolveLabelTokens(
-    module?.label || occurrence?.label || "Untitled", occurrence, fieldsById);
+    occurrenceDisplayLabel(occurrence, module, "Untitled"), occurrence, fieldsById);
 
   // Resolve which fields render inline next to the label. Precedence:
   //   1) explicit `inlineFieldIds` prop
@@ -303,7 +304,7 @@ function RepresentationHoverPopup({ occurrence, module, x, y, popupFieldIds, onM
           fieldVisibilityOverride={Array.isArray(popupFieldIds) ? { mode: "show", fieldIds: popupFieldIds } : null}
         />
       ) : (
-        <div style={{ fontSize: 12, opacity: 0.7 }}>{module?.label || occurrence?.label || "Loading…"}</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>{occurrenceDisplayLabel(occurrence, module, "Loading…")}</div>
       )}
     </div>
   );

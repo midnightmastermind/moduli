@@ -12,6 +12,7 @@ import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { openCoverPicker } from "../helpers/coverPick";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 import { toast } from "sonner";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { coverAppliesTo } from "../helpers/artifactCover";
@@ -530,7 +531,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // opposite the instance drag handle (which sits top-left). Used by the
   // Viafluere logo board in the top-middle grid cell.
   if (isFullBleed) {
-    const fileName = module?.meta?.originalName || label || module?.label || "";
+    const fileName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || "";
     return (
       // Picture first, name underneath — the same shape every other artifact
       // card uses (user 2026-08-01: "…preview on top, file name stacked
@@ -612,7 +613,9 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // gets the same shape, so a video / pdf / audio / unknown file reads exactly
   // like an image does. The per-kind thumbnails deliberately no longer print the
   // label themselves — it now lives here, once, under the preview.
-  const fileName = module?.meta?.originalName || label || module?.label || null;
+  // A placement's own title beats the type module's label — every one of the 993
+  // movies points at ONE module called "Movie" (helpers/occurrenceLabel).
+  const fileName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || null;
   const fileDims = (module?.meta?.width && module?.meta?.height) ? `${module.meta.width}×${module.meta.height}` : null;
   const fileSize = formatBytes(module?.meta?.uploadSize);
   const showInfo = !!(fileName || fileDims || fileSize);
