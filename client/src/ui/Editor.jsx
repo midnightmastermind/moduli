@@ -130,11 +130,22 @@ function trackUserInput() {
   document.addEventListener("keydown", stamp, true);
 }
 
-/** True when `el` sits inside a `contenteditable="false"` region (a node view). */
+/**
+ * True when `el` sits inside a `contenteditable="false"` region (a node view).
+ *
+ * THE NEAREST contenteditable decides, not any ancestor (user, 2026-09-30: "my
+ * initial click on inner doccontainers isnt creating an empty textblock … i
+ * need Notes and Highlights in the daypage to create a textblock when i click
+ * inside of it"). A doc container embedded in the day page's doc is ITSELF an
+ * editor inside the host's non-editable node view, so "any island above"
+ * counted every click in Notes' own text as a click on chrome — the mint then
+ * read `no-recent-input` and waited for typing. The wheel's nearest region is
+ * still its node view (false); Notes' nearest is its own ProseMirror (true).
+ */
 export function isInNonEditableIsland(el) {
   const node = el && el.nodeType === 1 ? el : el?.parentElement;
-  const island = node?.closest?.('[contenteditable="false"]');
-  return !!island;
+  const nearest = node?.closest?.("[contenteditable]");
+  return nearest?.getAttribute("contenteditable") === "false";
 }
 
 // The caret sits in an EMPTY top-level line → the {start, size} of the line to

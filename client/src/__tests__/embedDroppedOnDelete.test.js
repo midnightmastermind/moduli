@@ -112,4 +112,18 @@ describe("a click inside a node view is not a gesture on the doc's text", () => 
     // THE CONTROL: a click on an ordinary line still counts.
     expect(isInNonEditableIsland(document.getElementById("line"))).toBe(false);
   });
+
+  // The day page's Notes / Highlights: a doc container embedded in the host doc
+  // is an editor INSIDE the host's non-editable node view. A click in its own
+  // text is a real gesture on a doc (user, 2026-09-30).
+  it("a click in an editor nested inside a node view DOES count", () => {
+    document.body.innerHTML = `<div contenteditable="true">
+      <div contenteditable="false" id="embed">
+        <div class="ProseMirror" contenteditable="true"><p id="notes-line"></p></div>
+        <div id="chrome">Notes</div>
+      </div></div>`;
+    expect(isInNonEditableIsland(document.getElementById("notes-line"))).toBe(false);
+    // …while the embed's own chrome (its header) is still not a text gesture.
+    expect(isInNonEditableIsland(document.getElementById("chrome"))).toBe(true);
+  });
 });
