@@ -4,7 +4,7 @@
 // flash right when it gets in the view").
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { countForRequest, TARGET_TAIL, RENDER_ALL_EVENT } from "../helpers/renderWindow";
-import { jumpToOccurrence, scrollAndFlash } from "../helpers/jumpToOccurrence";
+import { jumpToOccurrence, scrollAndFlash, scrollBehaviorFor } from "../helpers/jumpToOccurrence";
 
 afterEach(() => { vi.useRealTimers(); delete globalThis.IntersectionObserver; document.body.innerHTML = ""; });
 
@@ -101,5 +101,24 @@ describe("the blink waits for the element to be in view", () => {
     scrollAndFlash(el);
     vi.advanceTimersByTime(250 * 13);
     expect(el.classList.contains("anchor-highlight")).toBe(true);
+  });
+});
+
+describe("a far target is jumped to, a near one glided to", () => {
+  const at = (top) => {
+    const el = document.createElement("div");
+    el.getBoundingClientRect = () => ({ top, bottom: top + 40, height: 40, left: 0, right: 100, width: 100 });
+    document.body.appendChild(el);
+    return el;
+  };
+  it("more than two screens away scrolls instantly", () => {
+    window.innerHeight = 1000;
+    expect(scrollBehaviorFor(at(55000))).toBe("auto");
+    expect(scrollBehaviorFor(at(-5000))).toBe("auto");
+  });
+  // The control: a short hop keeps the smooth scroll.
+  it("within two screens it still glides", () => {
+    window.innerHeight = 1000;
+    expect(scrollBehaviorFor(at(1400))).toBe("smooth");
   });
 });

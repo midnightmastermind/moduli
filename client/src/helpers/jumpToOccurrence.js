@@ -258,6 +258,14 @@ function viewRectFor(el) {
   return { top: 0, height: window.innerHeight || document.documentElement.clientHeight || 0 };
 }
 
+/** "auto" (instant) when the element sits more than FAR_SCREENS views away. */
+const FAR_SCREENS = 2;
+export function scrollBehaviorFor(el, block = "center") {
+  const vr = viewRectFor(el);
+  const off = offTargetBy(el.getBoundingClientRect(), vr, block);
+  return vr.height > 0 && Math.abs(off) > FAR_SCREENS * vr.height ? "auto" : "smooth";
+}
+
 function scrollToTarget(el, block, behavior) {
   // A doc's own scroller: aim its centre, same as scrollIntoView would.
   const sc = el.closest(".artifact-markdown");
@@ -279,7 +287,11 @@ function scrollToTarget(el, block, behavior) {
 export function scrollAndFlash(el, opts = {}) {
   const { highlightMs = HIGHLIGHT_MS, scrollBlock = "center" } = opts;
   if (!el) return;
-  scrollToTarget(el, scrollBlock, "smooth");
+  // A FAR TARGET IS JUMPED TO, NOT GLIDED TO. Measured on prod: a search for
+  // Movies row #600 smooth-scrolled ~55,000px and spent ~0.7s of the wait on
+  // the animation alone. More than two screens away, nobody is following the
+  // motion; a short hop keeps the glide that shows where you went.
+  scrollToTarget(el, scrollBlock, scrollBehaviorFor(el, scrollBlock));
 
   let offTimer = null;
   let startedAt = null;             // when the blink actually began
