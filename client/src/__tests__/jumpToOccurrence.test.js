@@ -2,6 +2,7 @@
 // jsdom-friendly coverage for the shared jump-to-occurrence helper.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
+  HIGHLIGHT_MS,
   jumpToOccurrence,
   findOccurrenceElement,
   scrollAndFlash,
@@ -152,8 +153,14 @@ describe("jumpToOccurrence", () => {
     expect(el.scrollIntoView).toHaveBeenCalled();
   });
 
-  it("returns false when not mounted + no onActivatePage", () => {
-    expect(jumpToOccurrence("nowhere")).toBe(false);
+  it("reports a miss through onMissing once the post-expansion looks run out", () => {
+    vi.useFakeTimers();
+    const onMissing = vi.fn();
+    jumpToOccurrence("nowhere", { retryMs: 10, onMissing });
+    expect(onMissing).not.toHaveBeenCalled();     // still looking
+    vi.advanceTimersByTime(1000);
+    expect(onMissing).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it("invokes onActivatePage and retries after the grace window", () => {
@@ -263,8 +270,30 @@ describe("jumpToOccurrence retries", () => {
     vi.useRealTimers();
   });
 
-  it("without retries or an activation hook it still reports a synchronous miss", () => {
-    expect(jumpToOccurrence("nope")).toBe(false);
+  // THE FIRST SEARCH (user, 2026-09-30: "the first search is still not scrolling
+  // to the correct one, it lags for a few seconds and does nothing"). The page is
+  // already open and the row is past its list's window. Asking the windows to
+  // open only sets state — React mounts the rows on a LATER render — so a lookup
+  // in the same tick always missed: all of the expansion's cost, none of the
+  // jump. The mount here is deferred exactly like React's.
+  it("finds a row that mounts on the render AFTER the expansion (no swap, no retries)", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = `<div id="page"></div>`;
+    const onMissing = vi.fn();
+    const mountLater = () => setTimeout(() => {
+      const el = document.createElement("div");
+      el.setAttribute("data-occ-id", "movie-800");
+      el.scrollIntoView = vi.fn();
+      document.querySelector("#page").appendChild(el);
+    }, 50);
+    window.addEventListener("moduli:render-all", mountLater, { once: true });
+    expect(jumpToOccurrence("movie-800", { root: () => document.querySelector("#page"), onMissing })).toBe(true);
+    vi.advanceTimersByTime(400);
+    const el = document.querySelector('[data-occ-id="movie-800"]');
+    expect(el.scrollIntoView).toHaveBeenCalled();
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
+    expect(onMissing).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 
@@ -350,12 +379,13 @@ describe("the ring has a rule that blinks it", () => {
     return at < 0 ? null : css.slice(at, css.indexOf("}", at));
   };
 
-  it("runs the blink for the same 2s the class stays on", () => {
+  it("runs the blink for exactly as long as the class stays on", () => {
     const rule = ruleFor("anchor-highlight");
     expect(rule).toBeTruthy();
     const m = rule.match(/animation:\s*anchor-blink\s+(\d+)ms[^;]*?\s(\d+)\s*;/);
     expect(m).toBeTruthy();                       // named, timed, and counted
-    expect(Number(m[1]) * Number(m[2])).toBe(2000);   // === HIGHLIGHT_MS
+    expect(Number(m[1]) * Number(m[2])).toBe(HIGHLIGHT_MS);
+    expect(Number(m[2])).toBe(2);                 // a DOUBLE flash: on, off, on, off
   });
 
   // The control: the file really was read, and the keyframe actually goes OFF

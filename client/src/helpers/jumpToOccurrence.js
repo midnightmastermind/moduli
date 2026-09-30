@@ -27,15 +27,20 @@ import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
 //
 // Highlight CSS: `.anchor-highlight` in `index.css` (defined Apr 2 2026).
 
-// Four 500ms blink cycles — `@keyframes anchor-blink` in index.css. Keep the
-// two in step: this is when the class comes OFF, the animation is what it does
-// while it is on.
-const HIGHLIGHT_MS = 2000;
+// Two 500ms blink cycles — a double flash — `@keyframes anchor-blink` in
+// index.css. Keep the two in step: this is when the class comes OFF, the
+// animation is what it does while it is on.
+export const HIGHLIGHT_MS = 1000;
 const PAGE_SWITCH_GRACE_MS = 220;
+// Looks after a render-all on an already-open page (~3.5s at the default
+// retryMs). A poll that lands during the expansion's long task simply runs
+// after it, so this bounds the wait for a list that never mounts the row.
+const EXPAND_POLLS = 16;
 
 /**
- * Jump to an occurrence's DOM node. Returns true if found + scrolled,
- * false if it wasn't in the DOM and nothing was scheduled to look again.
+ * Jump to an occurrence's DOM node. Returns true if found + scrolled OR if a
+ * later look was scheduled (a miss is then reported via `onMissing`), false if
+ * it wasn't in the DOM and nothing was scheduled to look again.
  *
  * Options:
  *   - root: Element, or a function returning one, to search WITHIN (see the
@@ -48,7 +53,7 @@ const PAGE_SWITCH_GRACE_MS = 220;
  *     just pinned + activated needs a few frames to mount its subtree).
  *   - onMissing(): called when every attempt failed, so an async caller can
  *     still report "it's there but filtered out".
- *   - highlightMs: override the flash duration (default 1200ms).
+ *   - highlightMs: override the flash duration (default HIGHLIGHT_MS).
  *   - scrollBlock: "start" | "center" | "nearest" (default "center" so
  *     the flash lands in the middle of the viewport, easier to spot).
  *   - expandWindows: false keeps every windowed list as it is on a miss. For a
@@ -113,13 +118,29 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     return true;
   }
   // retries:0 callers ("the page is already open, a miss means filtered out")
-  // still deserve one look after the windows expand — the row may simply have
+  // still deserve a look after the windows expand — the row may simply have
   // been past the seam. Nothing is changing page here, so expanding now is safe.
+  //
+  // ── AND THAT LOOK HAS TO WAIT FOR THE RENDER (user, 2026-09-30: "the first
+  // search is still not scrolling to the correct one, it lags for a few seconds
+  // and does nothing"). This used to look again in the SAME tick as the
+  // request: the event only sets state, React renders the expanded list later,
+  // so the lookup always missed. The first search paid for rendering every row
+  // (the lag) and then reported the row missing (nothing happened); the second
+  // search found the rows the first one had mounted, which is why it "worked
+  // after that". The miss is reported through `onMissing` once the polls run
+  // out, like the page-swap path above.
   if (!expandWindows) return false;
   requestRenderAll();
-  const afterExpand = findOccurrenceElement(occurrenceId, root);
-  if (afterExpand) { scrollAndFlash(afterExpand, { highlightMs, scrollBlock }); return true; }
-  return false;
+  let left = EXPAND_POLLS;
+  const look = () => {
+    const hit = findOccurrenceElement(occurrenceId, root);
+    if (hit) { scrollAndFlash(hit, { highlightMs, scrollBlock }); return; }
+    if (--left > 0) setTimeout(look, retryMs);
+    else onMissing?.();
+  };
+  setTimeout(look, 0);
+  return true;
 }
 
 /**
