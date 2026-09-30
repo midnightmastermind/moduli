@@ -19,14 +19,42 @@ const CRUMB_DEPTH = 4;
 export async function searchDestinations({ userId, gridId, q = "", limit = 50 }) {
   const query = { userId, gridId, role: { $in: DEST_ROLES } };
   if (q) query.label = { $regex: escapeRx(q), $options: "i" };
-  const mods = await Module.find(query).sort({ label: 1 }).limit(limit * 2).lean();
+  // AN EMPTY QUERY HAS NO RELEVANCE SIGNAL, so alphabetical order is arbitrary —
+  // and on the real grid it is actively wrong. Measured on poms: `q: ""` returned
+  // `"We Say We're Exactly the Same"` and then 59 empty schedule slots all named
+  // "10:00pm", while Movies (994 rows), Bookmarks and People sat far past the
+  // limit. Nothing downstream could recover: `sharePresetSuggest` sorts
+  // biggest-first but only WITHIN what it was handed, so the suggested presets
+  // came back EMPTY on the one grid they were built for.
+  //
+  // So with no query the order is how much is already filed there — which is
+  // also the right answer for the window's own opening list ("where do I put
+  // things?"), not just for the suggestions.
+  const mods = await Module.find(query)
+    .sort({ label: 1 })
+    .limit(q ? limit * 2 : 0)   // 0 = unlimited: every destination competes on size
+    .lean();
   if (!mods.length) return [];
 
   const byId = new Map(mods.map((m) => [m.id, m]));
-  const occs = await Occurrence.find({ userId, gridId, moduleId: { $in: [...byId.keys()] } })
-    .limit(limit * 4).lean();
-
-  const hits = occs.slice(0, limit);
+  let hits;
+  if (q) {
+    const occs = await Occurrence.find({ userId, gridId, moduleId: { $in: [...byId.keys()] } })
+      .limit(limit * 4).lean();
+    hits = occs.slice(0, limit);
+  } else {
+    // Mongo cannot sort by array length in a find(), and pulling every
+    // destination occurrence into Node to sort it would reintroduce the cost
+    // this module exists to avoid. `userId`/`gridId` are plain Strings on the
+    // schema (checked — an aggregate does NOT cast, so a mismatched BSON type
+    // here would silently match nothing).
+    hits = await Occurrence.aggregate([
+      { $match: { userId, gridId, moduleId: { $in: [...byId.keys()] } } },
+      { $addFields: { __n: { $size: { $ifNull: ["$occurrences", []] } } } },
+      { $sort: { __n: -1 } },
+      { $limit: limit },
+    ]);
+  }
 
   // CRUMBS, WITHOUT LOADING THE GRID. Walk up one LEVEL at a time with an
   // `$in` over just the parents actually reached — at most CRUMB_DEPTH small

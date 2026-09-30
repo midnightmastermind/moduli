@@ -23,6 +23,34 @@ vi.mock("../models/Module.js", () => ({ default: {
   },
 }}));
 vi.mock("../models/Occurrence.js", () => ({ default: {
+  // The empty-query path ranks by array size, which a find() cannot do — so it
+  // aggregates. The mock INTERPRETS the four stages it uses (match / addFields
+  // $size / sort / limit) rather than returning the rows verbatim: a mock that
+  // ignored $limit or $sort would pass against the exact defect these tests are
+  // for (the big board sitting past the limit, unreachable).
+  aggregate: async (pipeline) => {
+    let rows = occurrences.slice();
+    for (const stage of pipeline) {
+      if (stage.$match) {
+        const ids = stage.$match.moduleId?.$in || null;
+        rows = rows.filter((o) =>
+          (!stage.$match.userId || o.userId === stage.$match.userId) &&
+          (!stage.$match.gridId || o.gridId === stage.$match.gridId) &&
+          (!ids || ids.includes(o.moduleId)));
+      } else if (stage.$addFields) {
+        const [key] = Object.keys(stage.$addFields);
+        rows = rows.map((o) => ({ ...o, [key]: (o.occurrences || []).length }));
+      } else if (stage.$sort) {
+        const [[key, dir]] = Object.entries(stage.$sort);
+        rows = rows.slice().sort((a, b) => ((a[key] ?? 0) - (b[key] ?? 0)) * dir);
+      } else if (stage.$limit != null) {
+        rows = rows.slice(0, stage.$limit);
+      } else {
+        throw new Error(`aggregate mock does not know stage ${Object.keys(stage)[0]}`);
+      }
+    }
+    return rows;
+  },
   find: (q) => {
     // Two shapes: by module (the hits) and by id (the crumb walk, one level
     // at a time). A mock that ignored the second would hide a full-grid scan.
@@ -182,3 +210,50 @@ describe("spreadSample", () => {
   });
 });
 
+// ── WITH NO QUERY, THE ORDER IS WHAT IS ALREADY FILED THERE ─────────────────
+//
+// Found by opening the placement window on poms grid: the Preset dropdown was
+// absent, because `GET /share/presets` asks for destinations with `q: ""` and
+// got `"We Say We're Exactly the Same"` plus 59 empty "10:00pm" slots. The real
+// boards — Movies (994 rows), Bookmarks, People — sat past the limit, so the
+// suggested presets came back EMPTY on the grid they were built for.
+describe("an empty query ranks by how much is filed there", () => {
+  const manyEmpties = (n) => {
+    for (let i = 0; i < n; i++) {
+      // Alphabetically BEFORE "Movies", and empty — the exact shape that
+      // crowded the real boards out.
+      modules.push(mod(`m-slot${i}`, "10:00pm"));
+      occurrences.push(occ(`o-slot${i}`, `m-slot${i}`, "o-media", []));
+    }
+  };
+
+  it("puts the board you file into first, not the alphabet", async () => {
+    manyEmpties(30);
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "", limit: 5 });
+    expect(out[0].label).toBe("Movies");
+    expect(out[0].childCount).toBe(2);
+  });
+
+  it("and it survives a limit smaller than the pile of empties", async () => {
+    manyEmpties(30);
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "", limit: 2 });
+    expect(out.map((d) => d.label)).toContain("Movies");
+  });
+
+  it("still carries the SHAPE, which is what a suggested preset is built from", async () => {
+    manyEmpties(30);
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "", limit: 3 });
+    const movies = out.find((d) => d.label === "Movies");
+    expect(movies.shape?.kind).toBe("movie");
+    expect(movies.shape?.bindFields).toEqual(["f-rating", "f-year"]);
+  });
+
+  // THE CONTROL. A typed query has a relevance signal and must keep using it —
+  // ranking a type-ahead by size would bury an exact name match under a big
+  // board that merely contains the letters.
+  it("a typed query still searches labels", async () => {
+    manyEmpties(30);
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "Books", limit: 5 });
+    expect(out.map((d) => d.label)).toEqual(["Books"]);
+  });
+});
