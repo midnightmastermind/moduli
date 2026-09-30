@@ -4,7 +4,7 @@
 // preset of type of occurance, values, and binded fields. there is no rule
 // from IMDB"). Nothing here may fire on its own.
 import { describe, it, expect } from "vitest";
-import { readPresets, withPreset, presetFromForm, formFromPreset } from "../helpers/sharePresets";
+import { readPresets, withPreset, replacePreset, deletePreset, presetFromForm, formFromPreset } from "../helpers/sharePresets";
 
 const FORM = {
   name: "Movie",
@@ -93,3 +93,51 @@ describe("withPreset", () => {
     expect(withPreset([{ id: "p1", name: "Movie" }], { id: "p2", name: "  movie " })).toHaveLength(1);
   });
 });
+
+// ── OVERWRITE THE ONE YOU ARE LOOKING AT ────────────────────────────────────
+//
+// `withPreset` matches on the NAME, so changing a preset meant retyping its name
+// exactly (user, 2026-09-29: "allow you to overwrite presets"). These keep the
+// preset's own id, so an edit stays one row rather than becoming a second copy.
+describe("replacePreset", () => {
+  const list = [{ id: "a", name: "Movies" }, { id: "b", name: "Books" }];
+
+  it("writes over that row and KEEPS its id", () => {
+    const out = replacePreset(list, "a", { id: "brand-new", name: "Films", kind: "movie" });
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual({ id: "a", name: "Films", kind: "movie" });
+  });
+
+  it("keeps the order, so the dropdown does not reshuffle under the cursor", () => {
+    expect(replacePreset(list, "b", { name: "Reading" }).map((p) => p.id)).toEqual(["a", "b"]);
+  });
+
+  it("leaves every other row untouched", () => {
+    expect(replacePreset(list, "a", { name: "Films" })[1]).toBe(list[1]);
+  });
+
+  // A preset another tab deleted meanwhile: the user pressed save, so save it.
+  it("appends when the id is gone rather than dropping the write", () => {
+    const out = replacePreset(list, "zz", { id: "new", name: "Recipes" });
+    expect(out).toHaveLength(3);
+    expect(out[2]).toEqual({ id: "new", name: "Recipes" });
+  });
+
+  it("survives a missing list", () => {
+    expect(replacePreset(null, "a", { id: "x", name: "X" })).toEqual([{ id: "x", name: "X" }]);
+  });
+});
+
+describe("deletePreset", () => {
+  it("removes exactly that row", () => {
+    expect(deletePreset([{ id: "a" }, { id: "b" }], "a")).toEqual([{ id: "b" }]);
+  });
+  it("is a no-op for an id that is not there", () => {
+    const list = [{ id: "a" }];
+    expect(deletePreset(list, "zz")).toEqual(list);
+  });
+  it("survives a missing list", () => {
+    expect(deletePreset(undefined, "a")).toEqual([]);
+  });
+});
+

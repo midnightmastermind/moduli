@@ -276,6 +276,48 @@ describe("SharePlace — Presets", () => {
     expect(screen.getByRole("button", { name: /^clip$/i }).disabled).toBe(false);
   });
 
+  // OVERWRITE THE ONE YOU ARE LOOKING AT (user, 2026-09-29: "allow you to
+  // overwrite presets"). `withPreset` only ever matched on the NAME, so editing
+  // a preset meant retyping its name exactly — and the control lived below a
+  // fold the window could not scroll.
+  it("Update writes over the selected preset, keeping its id and name", async () => {
+    await ready();
+    fireEvent.click(screen.getByLabelText("Preset"));
+    await waitFor(() => expect(screen.getByLabelText("Preset", { selector: "select" })).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Preset", { selector: "select" }), { target: { value: "p1" } });
+    await waitFor(() => expect(screen.getByText(/Update/)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("value for Label"), { target: { value: "edited" } });
+    fireEvent.click(screen.getByText(/Update/));
+    await waitFor(() => expect(calls.some((c) => c.opts?.method === "PUT")).toBe(true));
+    const body = JSON.parse(calls.find((c) => c.opts?.method === "PUT").opts.body);
+    expect(body.presets).toHaveLength(1);              // replaced, not appended
+    expect(body.presets[0].id).toBe("p1");             // same row
+    expect(body.presets[0].name).toBe("Movie");        // no prompt, no rename
+    expect(body.presets[0].labelMapping.override).toBeUndefined();  // an edit is for THIS clip
+  });
+
+  it("Delete removes the selected preset", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await ready();
+    fireEvent.click(screen.getByLabelText("Preset"));
+    await waitFor(() => expect(screen.getByLabelText("Preset", { selector: "select" })).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Preset", { selector: "select" }), { target: { value: "p1" } });
+    await waitFor(() => expect(screen.getByText(/Delete preset/)).toBeTruthy());
+    fireEvent.click(screen.getByText(/Delete preset/));
+    await waitFor(() => expect(calls.some((c) => c.opts?.method === "PUT")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.opts?.method === "PUT").opts.body).presets).toEqual([]);
+  });
+
+  // THE CONTROL. A SUGGESTED preset is computed per request and has no stored
+  // row, so there is nothing to overwrite or delete — offering either would
+  // write a copy under a name the user never chose.
+  it("offers neither Update nor Delete for a preset the grid only SUGGESTED", async () => {
+    await openNew(); await pickMovies();
+    expect(screen.getByText(/Save as preset/)).toBeTruthy();
+    expect(screen.queryByText(/^Update/)).toBeNull();
+    expect(screen.queryByText(/Delete preset/)).toBeNull();
+  });
+
   it("Save as preset writes the presets list alone, and not the edited value", async () => {
     await openNew(); await pickMovies();
     fireEvent.change(screen.getByLabelText("value for Label"), { target: { value: "one movie's title" } });
@@ -292,3 +334,37 @@ describe("SharePlace — Presets", () => {
     expect(sharePost()).toBeUndefined();
   });
 });
+
+// ── THE WINDOW SCROLLS ──────────────────────────────────────────────────────
+//
+// `index.css` locks the page (`html, body, #root { height:100%; overflow:hidden }`)
+// and this renders inside that `#root`, so without its own scroller everything
+// past the popup's height was unreachable — including the preset controls.
+// jsdom computes no layout, so this asserts the CONTRACT that produces the
+// scroll rather than a measured height.
+describe("SharePlace — the window scrolls", () => {
+  it("the shell is its own scroll container and can shrink inside a flex column", async () => {
+    await ready();
+    const shell = screen.getByTestId("share-shell");
+    expect(shell.style.overflowY).toBe("auto");
+    // Without minHeight:0 a flex child refuses to shrink below its content and
+    // no scrollbar ever appears, however much overflow it has.
+    expect(shell.style.minHeight).toBe("0px");
+    expect(shell.style.flex).toMatch(/1 1 auto/);
+  });
+
+  // The control: the fields section keeps its OWN inner scroller, so making the
+  // shell scroll did not replace a nested one with a page-length list.
+  it("leaves the destination list's own scroller alone", async () => {
+    await openNew();
+    fireEvent.change(screen.getByPlaceholderText(/search containers/i), { target: { value: "mov" } });
+    await screen.findByText("Movies");
+    // Scoped by its own max-height — the shell now matches `overflow` too, which
+    // is exactly the confusion this control exists to rule out.
+    const list = screen.getByText("Movies").closest("div[style*='max-height']");
+    expect(list).toBeTruthy();
+    expect(list.style.overflowY).toBe("auto");
+    expect(list).not.toBe(screen.getByTestId("share-shell"));
+  });
+});
+

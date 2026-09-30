@@ -23,6 +23,28 @@ export function withPreset(presets, preset) {
   return [...rest, preset];
 }
 
+// OVERWRITE THE ONE YOU ARE LOOKING AT. `withPreset` matches on the NAME, which
+// means the only way to change a preset was to retype its name exactly — and the
+// control for it sat below the fold in a window that could not scroll (user,
+// 2026-09-29: "allow you to overwrite presets"). These two keep the preset's own
+// id, so a rename is an edit rather than a second copy, and IN PLACE, so the
+// dropdown does not reorder under the cursor.
+export function replacePreset(presets, id, preset) {
+  let found = false;
+  const out = (presets || []).map((p) => {
+    if (p.id !== id) return p;
+    found = true;
+    return { ...preset, id };
+  });
+  // A preset that is no longer there (another tab deleted it) is ADDED rather
+  // than silently dropped — the user pressed save.
+  return found ? out : [...out, preset];
+}
+
+export function deletePreset(presets, id) {
+  return (presets || []).filter((p) => p.id !== id);
+}
+
 // AN OVERRIDE IS NOT SAVED. Typing a value in the window fixes THIS clip; if a
 // preset kept it, saving one movie would write "2006" into every movie after
 // it. A literal survives, because choosing "a literal" is a deliberate constant.

@@ -36,7 +36,7 @@ import {
   CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings, isShapeRow, buildSharePayload,
 } from "../helpers/sharePlacement.js";
 import { coverSearchQuery } from "../helpers/coverQuery.js";
-import { readPresets, withPreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
+import { readPresets, withPreset, replacePreset, deletePreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
 
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const param = (k) => new URLSearchParams(window.location.search).get(k) || "";
@@ -192,20 +192,49 @@ export default function SharePlace() {
     setLabelMapping(f.labelMapping || DEFAULT_LABEL);
   };
 
+  // The saved preset currently selected, if any. A SUGGESTED one is not saved —
+  // it is recomputed per request and has no row to overwrite — so "Update" and
+  // "Delete" are offered only for the real thing.
+  const savedPreset = presets.find((p) => p.id === presetId) || null;
+
+  const writePresets = async (next, msg) => {
+    const r = await api("/share/presets", {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ gridId, presets: next }),
+    }).catch(() => null);
+    if (!r?.ok) { setNotice("Could not save the preset."); return null; }
+    const saved = (await r.json().catch(() => ({}))).presets || next;
+    setPresets(saved);
+    if (msg) setNotice(msg);
+    return saved;
+  };
+
   const savePreset = async () => {
-    const chosen = presets.find((p) => p.id === presetId) || suggested.find((p) => p.id === presetId);
+    const chosen = savedPreset || suggested.find((p) => p.id === presetId);
     const name = window.prompt("Save this placement as a preset named:", chosen?.name || destination?.label || "");
     if (!name || !name.trim()) return;
     const next = withPreset(readPresets({ meta: { sharePresets: presets } }),
       presetFromForm({ name, destination, shape, mappings, labelMapping }));
-    const r = await api("/share/presets", {
-      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ gridId, presets: next }),
-    }).catch(() => null);
-    if (!r?.ok) { setNotice("Could not save the preset."); return; }
-    const saved = (await r.json().catch(() => ({}))).presets || next;
-    setPresets(saved);
+    const saved = await writePresets(next, `Saved preset “${name.trim()}”.`);
+    if (!saved) return;
     setPresetId(saved.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase())?.id || "");
-    setNotice(`Saved preset “${name.trim()}”.`);
+  };
+
+  // OVERWRITE THE ONE YOU ARE LOOKING AT. `withPreset` matches on the NAME, so
+  // the only way to change a preset was to retype its name exactly — and the
+  // control sat below a fold that could not scroll.
+  const updatePreset = async () => {
+    if (!savedPreset) return;
+    const next = replacePreset(presets, savedPreset.id,
+      presetFromForm({ name: savedPreset.name, destination, shape, mappings, labelMapping }));
+    const saved = await writePresets(next, `Updated “${savedPreset.name}”.`);
+    if (saved) setPresetId(savedPreset.id);   // replacePreset keeps the id
+  };
+
+  const removePreset = async () => {
+    if (!savedPreset) return;
+    if (!window.confirm(`Delete the preset “${savedPreset.name}”?`)) return;
+    const saved = await writePresets(deletePreset(presets, savedPreset.id), `Deleted “${savedPreset.name}”.`);
+    if (saved) setPresetId("");   // the form keeps what it is showing; only the selection goes
   };
 
   const manual = mode !== "auto";
@@ -425,8 +454,14 @@ export default function SharePlace() {
           )}
 
           {destination && (
-            <div style={{ marginTop: 8 }}>
+            <div data-testid="preset-actions" style={{ marginTop: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {savedPreset && (
+                <button type="button" onClick={updatePreset} style={linkBtnSt}>Update “{savedPreset.name}”</button>
+              )}
               <button type="button" onClick={savePreset} style={linkBtnSt}>Save as preset…</button>
+              {savedPreset && (
+                <button type="button" onClick={removePreset} style={{ ...linkBtnSt, color: "var(--danger, #f87171)" }}>Delete preset</button>
+              )}
             </div>
           )}
           {notice && <div style={{ fontSize: 11, color: "var(--text-muted, #aaa)", marginTop: 4 }}>{notice}</div>}
@@ -487,9 +522,23 @@ const linkBtnSt = { background: "transparent", border: 0, color: "var(--link, #8
 const btnSt = { padding: "5px 14px", borderRadius: 4, border: "1px solid var(--border-default, #3a3d44)", background: "var(--surface-2, #25282e)", color: "var(--text-primary, #eee)", cursor: "pointer", fontSize: 12 };
 const primarySt = { background: "var(--accent, #3b82f6)", borderColor: "var(--accent, #3b82f6)", color: "#fff" };
 
+// THE WINDOW OWNS ITS OWN SCROLLING. `index.css` locks the page —
+// `html, body, #root { height: 100%; overflow: hidden }` — which is right for a
+// grid workspace and wrong here: this renders inside that same `#root`, so a
+// form taller than the popup had everything past ~700px UNREACHABLE, including
+// "Save as preset…" (user, 2026-09-29: "fix the share window to be scrollable").
+//
+// `#root` is a flex COLUMN, so `minHeight: 0` is the load-bearing part — without
+// it a flex child refuses to shrink below its content and no scrollbar ever
+// appears, however much overflow it has.
 function Shell({ children }) {
   return (
-    <div style={{ font: "13px/1.5 system-ui, sans-serif", color: "var(--text-primary, #eee)", background: "var(--body-bg, #16181c)", minHeight: "100vh", padding: 16, boxSizing: "border-box" }}>
+    <div data-testid="share-shell" style={{
+      font: "13px/1.5 system-ui, sans-serif", color: "var(--text-primary, #eee)",
+      background: "var(--body-bg, #16181c)", padding: 16, boxSizing: "border-box",
+      flex: "1 1 auto", minHeight: 0, height: "100%",
+      overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
+    }}>
       <div style={{ maxWidth: 520, margin: "0 auto" }}>{children}</div>
     </div>
   );
