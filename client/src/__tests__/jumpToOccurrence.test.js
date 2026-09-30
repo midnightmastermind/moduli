@@ -350,7 +350,9 @@ describe("jumpToOccurrence render-all timing", () => {
     const heard = vi.fn();
     window.addEventListener(RENDER_ALL, heard);
     jumpToOccurrence("nope");
-    expect(heard).toHaveBeenCalledTimes(1);
+    // Targeted first; no list holds "nope", so every window opens — both now.
+    expect(heard).toHaveBeenCalledTimes(2);
+    expect(heard.mock.calls[1][0].detail).toBe(null);
     window.removeEventListener(RENDER_ALL, heard);
   });
 

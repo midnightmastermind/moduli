@@ -55,8 +55,11 @@ export const RENDER_ALL_EVENT = "moduli:render-all";
  *  row in one of them. Without `occId` every window opens in full (the jump's
  *  fallback when the row is not a direct child of any window). */
 export function requestRenderAll(occId = null) {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT, { detail: occId ? { occId } : null }));
+  if (typeof window === "undefined") return false;
+  const detail = occId ? { occId, claimed: false } : null;
+  window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT, { detail }));
+  // Dispatch is synchronous: a window holding the row has already said so.
+  return !!detail?.claimed;
 }
 
 // Rows rendered past a jump target, so it can sit mid-view with rows below it.
@@ -106,10 +109,17 @@ export function useRenderWindow(total, { enabled = true, resetKey = null, indexO
   indexOfRef.current = indexOf;
   useEffect(() => {
     if (!windowed) return;
-    const onAll = (e) => setCount((c) => {
-      const next = countForRequest(c, total, e?.detail, indexOfRef.current);
-      return next == null ? c : next;
-    });
+    const onAll = (e) => {
+      const d = e?.detail;
+      // Claim a targeted request NOW (synchronously, before the setState), so
+      // the jump knows a list will mount the row and never falls back to
+      // opening every window while this one is still rendering.
+      if (d?.occId && typeof indexOfRef.current === "function" && indexOfRef.current(d.occId) >= 0) d.claimed = true;
+      setCount((c) => {
+        const next = countForRequest(c, total, d, indexOfRef.current);
+        return next == null ? c : next;
+      });
+    };
     window.addEventListener(RENDER_ALL_EVENT, onAll);
     return () => window.removeEventListener(RENDER_ALL_EVENT, onAll);
   }, [windowed, total]);

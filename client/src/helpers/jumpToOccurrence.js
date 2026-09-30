@@ -36,10 +36,12 @@ const PAGE_SWITCH_GRACE_MS = 220;
 // bound, not a count: a large expansion can outlast any fixed number of polls
 // (measured: 16 x 120ms ran out before a 994-row board finished mounting).
 const EXPAND_DEADLINE_MS = 10000;
-// A targeted request grows only the list that holds the row DIRECTLY. A row
-// nested deeper (inside a child container of a windowed list) is in no list's
-// index, so after this long the jump falls back to opening every window.
-const TARGETED_GRACE_MS = 1200;
+// A targeted request grows only the list that holds the row DIRECTLY, and that
+// list CLAIMS it as the event is dispatched. A row nested deeper (inside a child
+// container of a windowed list) is in no list's index, so nobody claims it and
+// the jump opens every window at once. NOT a time grace: measured on prod, the
+// claimed list took 4.6s to mount and a 1.2s grace opened 650 more rows in other
+// boards while it did.
 
 /**
  * Jump to an occurrence's DOM node. Returns true if found + scrolled OR if a
@@ -139,22 +141,19 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
 }
 
 /**
- * Grow the window holding `occurrenceId` and look until it mounts. First a
- * TARGETED request (only the list holding the row grows, only as far as the
- * row); if that has not produced it after TARGETED_GRACE_MS, every window
- * opens in full (the row is nested below a windowed list's direct children).
+ * Grow the window holding `occurrenceId` and look until it mounts. A TARGETED
+ * request (only the list holding the row grows, only as far as the row); if no
+ * list claims it, every window opens in full (the row is nested below a
+ * windowed list's direct children).
  * Gives up at EXPAND_DEADLINE_MS through `onMissing`.
  */
 function expandAndFind(occurrenceId, { root, retryMs, onMissing, found }) {
   const t0 = Date.now();
-  let widened = false;
-  requestRenderAll(occurrenceId);
+  if (!requestRenderAll(occurrenceId)) requestRenderAll();
   const look = () => {
     const hit = findOccurrenceElement(occurrenceId, root);
     if (hit) { found(hit); return; }
-    const waited = Date.now() - t0;
-    if (!widened && waited >= TARGETED_GRACE_MS) { widened = true; requestRenderAll(); }
-    if (waited < EXPAND_DEADLINE_MS) setTimeout(look, retryMs);
+    if (Date.now() - t0 < EXPAND_DEADLINE_MS) setTimeout(look, retryMs);
     else onMissing?.();
   };
   setTimeout(look, 0);

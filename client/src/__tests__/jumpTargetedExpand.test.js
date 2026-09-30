@@ -28,15 +28,26 @@ describe("countForRequest", () => {
 });
 
 describe("the jump's expansion", () => {
-  it("asks for the target first, and widens to every window only if that did not produce it", () => {
+  it("a claimed request never widens, however long the mount takes", () => {
+    vi.useFakeTimers();
+    const heard = [];
+    const on = (e) => { heard.push(e.detail?.occId ?? null); if (e.detail) e.detail.claimed = true; };
+    window.addEventListener(RENDER_ALL_EVENT, on);
+    jumpToOccurrence("m600", { retryMs: 50, onMissing: () => {} });
+    vi.advanceTimersByTime(5000);
+    expect(heard).toEqual(["m600"]);
+    window.removeEventListener(RENDER_ALL_EVENT, on);
+  });
+
+  // The control: a row no list holds directly (nested deeper) still gets every
+  // window opened, at once rather than after a wait.
+  it("an unclaimed request opens every window immediately", () => {
     vi.useFakeTimers();
     const heard = [];
     const on = (e) => heard.push(e.detail?.occId ?? null);
     window.addEventListener(RENDER_ALL_EVENT, on);
-    jumpToOccurrence("deep", { retryMs: 50, onMissing: () => {} });
-    expect(heard).toEqual(["deep"]);
-    vi.advanceTimersByTime(1500);
-    expect(heard).toEqual(["deep", null]);
+    jumpToOccurrence("nested", { retryMs: 50, onMissing: () => {} });
+    expect(heard).toEqual(["nested", null]);
     window.removeEventListener(RENDER_ALL_EVENT, on);
   });
 
