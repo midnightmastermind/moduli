@@ -2,6 +2,22 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-30 — `OccurrenceSearch`: Enter, the marked run, and what the row shows)
+- **ENTER NO LONGER FALLS INTO THE DEBOUNCE WINDOW.** The list waits 120ms before searching, and Enter
+  inside that window read `hits.results` for a query that had not run — an empty list — so it picked
+  nothing, silently. Measured on prod: Enter at 0ms and 60ms did nothing, at 130ms it navigated. That is
+  all of *"the first time i do a search and press enter, it doesnt work, after that it works fine"* —
+  by the second try the results are on screen. A stale query now runs immediately via `runSearch` (the
+  same function the debounce calls), and picks index 0, because the highlighted row belongs to the list
+  on screen and not to the list this query produces. An empty box still does nothing.
+- **The marked run is the whole query** (`helpers/searchHighlight`), not `query.split(/\s+/)[0]` — which
+  marked a bare "A" for "A Guide" on every row.
+- **PROBE NOTE:** the search is a COLLAPSED `.occ-search-trigger` until clicked, so a probe hunting for
+  an input reports "no search on this page". And a 900ms pause before Enter does not reproduce the bug
+  at all — the gesture has to be fast.
+
+
+
 ## Recent Changes (2026-09-29 (6) — `SharePlace`: the window scrolls, and a preset can be overwritten)
 - **`Shell` owns its own scrolling.** `index.css` locks the page — `html, body, #root { height:100%;
   overflow:hidden }` — right for a grid workspace and wrong for a 520x700 popup rendered inside that

@@ -15,6 +15,45 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 (2) — ENTER FELL INTO THE SEARCH'S DEBOUNCE WINDOW
+
+User: *"so the first time i do a search and press enter, it doesnt work, after that it works fine"*.
+
+**REPRODUCED AND MEASURED BEFORE THEORISING, and the measurement named it exactly.** Pressing Enter at
+four delays after the last keystroke, on prod:
+```
+   0ms   nothing happens, the search stays open
+  60ms   nothing happens, the search stays open
+ 130ms   navigates
+ 400ms   navigates
+```
+The list waits **120ms** before it searches at all, and Enter inside that window read `hits.results`
+for a query that had not run yet — an empty list — so it picked nothing and did nothing, **silently**.
+**There is no "first time" about it:** by the second try the results are already on screen, so Enter
+lands outside the window. My own first probe used a 900ms pause and reported the feature WORKING —
+*a repro that does not reproduce is a fact about the gesture you chose.*
+
+**Pressing Enter IS the decision, so a stale query is run right now rather than dropped** — through
+`runSearch`, the same function the debounce calls, so there is no second search path to drift. **Index
+0 with it**, because the highlighted row belongs to the list on screen and that is not the list this
+query produces. An empty box still does nothing: the control, or a stray Enter would open whatever
+happened to rank first.
+
+**WATCHED ON THE DEPLOYED BUILD** — the search now closes at every delay (it stayed open at 0 and
+60ms), and the jump ring appears on the target at **0ms** just as at 900ms, which is the proof the
+pick landed rather than merely closing.
+
+**TWO OF MY OWN EXPECTATIONS WERE WRONG BEFORE THE CODE WAS.** The flush worked on its first run and
+the test still failed: *"Water Bottle" outranks "Drink Water" for "water"* — a label match at the START
+ranks first — so the assertion was wrong, not the fix. And that failing test never reached its own
+`vi.useRealTimers()`, leaving fake timers armed so the NEXT test's `waitFor` hung to its 5s timeout —
+one wrong expectation reading as two broken tests. An `afterEach` disarms them now.
+
+4 tests; A/B with the mutation asserted to land (`runSearch(term)` refs 0): 2 fail. Client **5,396
+pass**, one client-only deploy.
+
+---
+
 ### 2026-09-30 — THE SEARCH MARKED ONE WORD, AND THE JUMP RING WAITED TWO SECONDS
 
 Two cosmetic reports, both real, both in the search path. *"I type A Guide and it does pop up with the
