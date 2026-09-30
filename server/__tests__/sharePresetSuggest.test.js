@@ -99,11 +99,19 @@ describe("suggestPresets", () => {
     expect(p.mappings[F.added.id]).toEqual({ source: "today" });
   });
 
-  it("skips a destination with no typed rows, and a barely-used one", () => {
+  // INVERTED 2026-09-29, with its old reasoning kept: this asserted that a
+  // kindless board is skipped, on the reading that a suggestion should be "a
+  // real, TYPED kind". Measured on poms, that rejected People (1,181 rows, 27
+  // bound fields) and Appointments — the two the user named alongside movies —
+  // so the rule is now a kind OR bound fields. `untyped` binds four fields and
+  // is therefore suggested; the shapeless and barely-used cases are unchanged
+  // and are what this still pins.
+  it("skips a shapeless destination and a barely-used one", () => {
     const untyped = dest({ id: "d-1", shape: { ...dest().shape, kind: null } });
     const empty = dest({ id: "d-2", shape: null });
     const scratch = dest({ id: "d-3", childCount: 2 });
-    expect(suggestPresets([untyped, empty, scratch], FIELDS)).toEqual([]);
+    const out = suggestPresets([untyped, empty, scratch], FIELDS);
+    expect(out.map((p) => p.destinationId)).toEqual(["d-1"]);
   });
 
   it("offers the biggest boards first, and caps the list", () => {
@@ -188,6 +196,48 @@ describe("a layout is not a board", () => {
         bindFields: [F.notes.id], autoFields: {} },
     })], FIELDS);
     expect(out.map((p) => p.name)).toEqual(["Quotes"]);
+  });
+});
+
+// ── A KIND *OR* BOUND FIELDS ────────────────────────────────────────────────
+//
+// Measured on poms: requiring a kind rejected People (1,181 rows, 27 bound
+// fields, `kind: null`) and Appointments — the two the user named alongside
+// movies — while suggesting three imported article sections that bind NO fields
+// and so produce a preset with no mappings at all.
+describe("a kindless board that binds fields is still a board", () => {
+  const kindless = (over = {}) => ({
+    id: "d-people", label: "People", crumb: "Boards › Social", childCount: 1181,
+    shape: { moduleId: "m-person", role: "instance", kind: null,
+      bindFields: [F.title.id, F.notes.id], autoFields: {} },
+    ...over,
+  });
+
+  it("suggests it, and maps the fields its rows bind", () => {
+    const out = suggestPresets([kindless()], FIELDS);
+    expect(out.map((p) => p.name)).toEqual(["People"]);
+    expect(out[0].kind).toBe(null);
+    expect(out[0].mappings[F.title.id]).toMatchObject({ source: "title" });
+    expect(out[0].mappings[F.notes.id]).toMatchObject({ source: "selection" });
+  });
+
+  it("but a destination that binds NOTHING and has no kind is not a preset", () => {
+    // An imported article section: rows, but no fields to map — so there is
+    // nothing about it to reuse.
+    expect(suggestPresets([kindless({
+      id: "d-sec", label: "Psychology & Philosophy Insights", childCount: 17,
+      shape: { moduleId: "m-tb", role: "textblock", kind: null, bindFields: [], autoFields: {} },
+    })], FIELDS)).toEqual([]);
+  });
+
+  // The control: a KIND on its own is still enough, fields or not — that is how
+  // a typed board with one binding (poms' Authors) stays in.
+  it("a typed board with no bound fields is still suggested", () => {
+    const out = suggestPresets([kindless({
+      id: "d-img", label: "Eminem",
+      shape: { moduleId: "m-img", role: "artifact", kind: "image", bindFields: [], autoFields: {} },
+    })], FIELDS);
+    expect(out.map((p) => p.name)).toEqual(["Eminem"]);
   });
 });
 

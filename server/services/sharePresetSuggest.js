@@ -101,8 +101,16 @@ export function suggestPresets(destinations = [], fields = [], { max = MAX_SUGGE
   const out = [];
 
   const usable = (destinations || [])
-    .filter((d) => d?.shape && d.shape.kind && (d.childCount || 0) >= MIN_ROWS
-      && ROW_ROLES.has(d.shape.role || "instance"))
+    // A KIND *or* BOUND FIELDS. Requiring a kind read as "a real, typed board"
+    // and on poms it excluded the two the user named in the same breath as
+    // movies: People (1,181 rows, 27 bound fields) and Appointments are plain
+    // instances with `kind: null`, so both were rejected while three imported
+    // article sections carrying NO fields were suggested. Binding a field is
+    // what makes a preset worth having — it is the mappings you reuse — so it
+    // is the better test, and it drops those fieldless sections as well.
+    .filter((d) => d?.shape && (d.childCount || 0) >= MIN_ROWS
+      && ROW_ROLES.has(d.shape.role || "instance")
+      && (d.shape.kind || (Array.isArray(d.shape.bindFields) && d.shape.bindFields.length > 0)))
     // Biggest first: the board you have filed 994 things into is the one you
     // are most likely filing the next thing into.
     .sort((a, b) => (b.childCount || 0) - (a.childCount || 0));
