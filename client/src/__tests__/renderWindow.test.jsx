@@ -118,3 +118,44 @@ describe("a new list starts a new window", () => {
     expect(result.current.count).toBe(opened);
   });
 });
+
+// A SEARCH JUMP GROWS ONE LIST, IN ONE PANEL (user, 2026-09-30: "6 seconds is
+// way too long"). Measured on prod: the untargeted request mounted 189 -> 2,017
+// rows grid-wide, and with Movies open in two panels BOTH copies grew.
+describe("a targeted request", () => {
+  const ids = Array.from({ length: 994 }, (_, i) => `m${i}`);
+  const indexOf = (id) => ids.indexOf(id);
+  const mountSentinel = (result, parent) => {
+    const node = document.createElement("div");
+    parent.appendChild(node);
+    act(() => result.current.sentinelRef(node));
+  };
+
+  it("grows the list holding the row to just past it, and claims it", () => {
+    const { result } = renderHook(() => useRenderWindow(994, { indexOf }));
+    let claimed;
+    act(() => { claimed = requestRenderAll("m600"); });
+    expect(claimed).toBe(true);
+    expect(result.current.count).toBe(625);
+  });
+
+  it("a list that does not hold the row stays as it is and does not claim", () => {
+    const { result } = renderHook(() => useRenderWindow(994, { indexOf: () => -1 }));
+    let claimed;
+    act(() => { claimed = requestRenderAll("m600"); });
+    expect(claimed).toBe(false);
+    expect(result.current.count).toBe(WINDOW_INITIAL);
+  });
+
+  it("only the copy inside the scoped panel grows", () => {
+    const panelA = document.createElement("div"), panelB = document.createElement("div");
+    document.body.append(panelA, panelB);
+    const a = renderHook(() => useRenderWindow(994, { indexOf }));
+    const b = renderHook(() => useRenderWindow(994, { indexOf }));
+    mountSentinel(a.result, panelA);
+    mountSentinel(b.result, panelB);
+    act(() => { requestRenderAll("m600", panelA); });
+    expect(a.result.current.count).toBe(625);
+    expect(b.result.current.count).toBe(WINDOW_INITIAL);
+  });
+});

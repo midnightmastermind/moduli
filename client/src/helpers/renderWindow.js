@@ -54,9 +54,12 @@ export const RENDER_ALL_EVENT = "moduli:render-all";
  *  across the grid — every long board on screen opened in full to find one
  *  row in one of them. Without `occId` every window opens in full (the jump's
  *  fallback when the row is not a direct child of any window). */
-export function requestRenderAll(occId = null) {
+export function requestRenderAll(occId = null, root = null) {
   if (typeof window === "undefined") return false;
-  const detail = occId ? { occId, claimed: false } : null;
+  // `root` (an Element): only windows INSIDE it answer. The same board is often
+  // open in two panels, and the jump is scoped to one of them — measured, the
+  // other panel's copy grew to the target too and doubled the mount.
+  const detail = occId ? { occId, root, claimed: false } : null;
   window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT, { detail }));
   // Dispatch is synchronous: a window holding the row has already said so.
   return !!detail?.claimed;
@@ -89,6 +92,8 @@ export function useRenderWindow(total, { enabled = true, resetKey = null, indexO
   // from silently never observing. A callback ref makes the node itself the
   // dependency, so the observer attaches whenever the sentinel appears.
   const [sentinel, setSentinel] = useState(null);
+  const sentinelNodeRef = useRef(null);
+  sentinelNodeRef.current = sentinel;
 
   // A new list (navigation, a filter change) starts a new window. Without this
   // the count carries over and a freshly filtered 5-row list would claim to be
@@ -111,6 +116,9 @@ export function useRenderWindow(total, { enabled = true, resetKey = null, indexO
     if (!windowed) return;
     const onAll = (e) => {
       const d = e?.detail;
+      // A targeted request scoped to another panel is not ours. The sentinel is
+      // our node in the DOM (present whenever rows are still hidden).
+      if (d?.root && sentinelNodeRef.current && !d.root.contains(sentinelNodeRef.current)) return;
       // Claim a targeted request NOW (synchronously, before the setState), so
       // the jump knows a list will mount the row and never falls back to
       // opening every window while this one is still rendering.

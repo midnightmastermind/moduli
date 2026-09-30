@@ -149,7 +149,8 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
  */
 function expandAndFind(occurrenceId, { root, retryMs, onMissing, found }) {
   const t0 = Date.now();
-  if (!requestRenderAll(occurrenceId)) requestRenderAll();
+  const scope = root ? (typeof root === "function" ? root() : root) : null;
+  if (!requestRenderAll(occurrenceId, scope)) requestRenderAll();
   const look = () => {
     const hit = findOccurrenceElement(occurrenceId, root);
     if (hit) { found(hit); return; }
