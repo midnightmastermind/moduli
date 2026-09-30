@@ -36,3 +36,7 @@ client/src/__tests__/_*.test.js
 
 # SDD workspaces — ledgers, briefs and review diffs (deploy.sh runs `git add -A`)
 .superpowers/
+
+# Staged share files (server/services/shareStageFiles.js) — user uploads parked
+# for the placement window; never tracked.
+server/share-stage/

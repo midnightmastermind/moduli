@@ -77,7 +77,9 @@ export async function runShareRules({ share, userId, gridId, io = null, mirror =
 // on. A calendar link is an "ics" share only after its body is fetched, which
 // a preview must not do; it reads as the link rule it would be without that.
 export function shareTypeOfPayload(payload = {}) {
-  return classifyShare({ url: payload.url || null, text: payload.text || null, title: payload.title || null }).type;
+  const f = payload.file;
+  const files = f ? [{ filename: f.originalname || f.filename, mimetype: f.mimetype, size: f.size }] : [];
+  return classifyShare({ files, url: payload.url || null, text: payload.text || null, title: payload.title || null }).type;
 }
 
 /** The first literal destination a rule's CREATE writes into, or null. */

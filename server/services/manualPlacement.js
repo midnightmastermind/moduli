@@ -49,6 +49,30 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
     if (value !== "" && value != null) fields[fieldId] = valueExpr(coerceToFieldType(value, types.get(fieldId)));
   }
 
+  // A SHARED FILE is already a row — stored into Files before placement runs
+  // (prepareShare → storeSharedFile). Placing it by hand MOVES that row to the
+  // chosen parent; creating another would leave the file in two places.
+  if (share?.props?.occurrenceId) {
+    const moveOp = {
+      id: "manual-placement", name: "Placed by hand", enabled: true,
+      pipeline: { sources: [], steps: [{ id: "place", type: "action", config: {
+        type: "MOVE_OCCURRENCE", occurrenceIdExpr: lit(share.props.occurrenceId), toContainerId: lit(p.parentId),
+      } }] },
+    };
+    const res = await runOperationServerSide(moveOp, { vars: { $share: share }, userId, gridId, io, mirror });
+    return {
+      ran: [{
+        ruleId: "manual", ruleName: "Placed by hand",
+        ok: res.ok !== false,
+        error: res.error || null,
+        created: (res.effects || []).filter((e) => e._effect === "MOVE_OCCURRENCE")
+          .map((e) => ({ _effect: "MOVE_OCCURRENCE", occurrenceId: e.occurrenceId, parentId: e.to })),
+        unsupported: res.unsupported || [],
+      }],
+      halted: true,
+    };
+  }
+
   const op = {
     id: "manual-placement", name: "Placed by hand", enabled: true,
     pipeline: { sources: [], steps: [{

@@ -240,7 +240,8 @@ export default function SharePlace() {
   const manual = mode !== "auto";
   // A media row (movie, book, bookmark) draws its picture from its cover; an
   // image clip's picture is the file itself, so it gets no cover row.
-  const wantsCover = manual && !!destination && shape.role === "artifact" && shape.fileFrom !== "imageUrl";
+  // A shared FILE is its own content (a photo is the picture), so no cover row.
+  const wantsCover = manual && !!destination && shape.role === "artifact" && shape.fileFrom !== "imageUrl" && !clip?.file;
 
   // Suggest the page's own og:image once, the first time a cover would apply.
   useEffect(() => {
@@ -302,8 +303,18 @@ export default function SharePlace() {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 13, wordBreak: "break-word" }}>{clip.title || clip.url || clip.selection}</div>
           {clip.url && <div style={{ fontSize: 11, color: "var(--text-faint, #888)", wordBreak: "break-all" }}>{clip.url}</div>}
+          {clip.file && (
+            <div style={{ fontSize: 11, color: "var(--text-faint, #888)" }}>
+              {clip.file.mimetype || "file"}{clip.file.size ? ` · ${Math.max(1, Math.round(clip.file.size / 1024))} KB` : ""}
+            </div>
+          )}
         </div>
-        {clip.imageUrl && <img src={clip.imageUrl} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4 }} />}
+        {(clip.imageUrl || /^image\//.test(clip.file?.mimetype || "")) && (
+          <img
+            src={clip.imageUrl || `/api/v1/share/stage/${enc(stageId)}/file?k=${enc(stageKey)}`}
+            alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4 }}
+          />
+        )}
       </header>
 
       <label htmlFor="share-grid" style={lblSt}>Grid</label>

@@ -169,3 +169,22 @@ describe("coerceToFieldType", () => {
     expect(coerceToFieldType(["movie"], "select")).toEqual(["movie"]);
   });
 });
+
+// A SHARED FILE is already a row (stored into Files before placement runs), so
+// placing it by hand MOVES it — a CREATE would leave the file in two places.
+describe("placing a shared file by hand", () => {
+  it("moves the stored file row to the chosen parent, and creates nothing", async () => {
+    const share = { type: "image", label: "cat.png", externalId: "sha256:x", props: { occurrenceId: "file-occ", fileRef: "a.png" } };
+    await placeManually({ share, placement: { parentId: "board-1", role: "artifact" }, userId: "u", gridId: "g" });
+    const step = runs.at(-1).op.pipeline.steps[0].config;
+    expect(step.type).toBe("MOVE_OCCURRENCE");
+    expect(step.occurrenceIdExpr).toBe("literal:file-occ");
+    expect(step.toContainerId).toBe("literal:board-1");
+  });
+
+  // The control: a link still CREATEs its row.
+  it("a link is still created", async () => {
+    await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u", gridId: "g" });
+    expect(runs.at(-1).op.pipeline.steps[0].config.type).toBe("CREATE");
+  });
+});

@@ -1222,15 +1222,42 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // A clip is parked here BEFORE the placement window opens, for two reasons:
   // a long selection plus an og:image URL does not reliably fit in a URL, and
   // nothing may be written to the grid until the user presses Clip.
-  router.post("/share/stage", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+  // A FILE can be staged too (multipart, the phone's share form): it is parked
+  // outside uploads/ until Clip is pressed, so a photo reaches the placement
+  // window like a link does instead of going straight through the rules
+  // (user, 2026-09-30). `acceptShareFiles` is defined below — read at request
+  // time, after the router has been built.
+  router.post("/share/stage", authAndLimit({ requireScope: "write", allowSessionJwt: true }), (req, res, next) => acceptShareFiles(req, res, next), async (req, res) => {
+    const uploaded = Array.isArray(req.files) ? req.files : [];
+    const drop = (f) => { try { if (f?.path) fsSync.unlinkSync(f.path); } catch { /* gone */ } };
     try {
-      const body = req.body || {};
-      if (!body.url && !body.text && !body.clip) {
-        return err(res, 400, "validation_error", "url, text or clip required");
+      const body = { ...(req.body || {}) };
+      const [first, ...extra] = uploaded;
+      extra.forEach(drop);
+      if (!body.url && !body.text && !body.clip && !first) {
+        return err(res, 400, "validation_error", "url, text, clip or a file required");
       }
+      const { parkStagedFile, sweepStagedFiles } = await import("../services/shareStageFiles.js");
+      sweepStagedFiles();
+      if (first) body.file = parkStagedFile(first);
       const { createStage, STAGE_TTL_MS } = await import("../services/shareStage.js");
       const { stageId, key } = await createStage({ userId: req.userId, payload: body });
       res.status(201).json({ stageId, key, expiresInMs: STAGE_TTL_MS });
+    } catch (e) { uploaded.forEach(drop); err(res, 500, "internal_error", e.message); }
+  });
+
+  // The parked file itself, for the window's thumbnail. Key-authorized like
+  // the stage read.
+  router.get("/share/stage/:id/file", async (req, res) => {
+    try {
+      const { readStage } = await import("../services/shareStage.js");
+      const payload = await readStage(req.params.id, req.query.k);
+      const { stagedFileForShare } = await import("../services/shareStageFiles.js");
+      const f = payload ? stagedFileForShare(payload) : null;
+      if (!f) return err(res, 404, "not_found", "no such staged file");
+      res.setHeader("content-type", f.mimetype || "application/octet-stream");
+      res.setHeader("cache-control", "private, no-store");
+      fsSync.createReadStream(f.path).pipe(res);
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -1243,7 +1270,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const { readStage } = await import("../services/shareStage.js");
       const payload = await readStage(req.params.id, req.query.k);
       if (!payload) return err(res, 404, "not_found", "no such stage");
-      res.json({ payload });
+      const { publicStagePayload } = await import("../services/shareStageFiles.js");
+      res.json({ payload: publicStagePayload(payload) });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -1473,10 +1501,17 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     // The first file IS the payload (spec §3). Any others are removed rather
     // than left in the uploads dir, and the response says they were ignored.
     const uploaded = Array.isArray(req.files) ? req.files : [];
-    const [firstFile, ...extraFiles] = uploaded;
+    let [firstFile, ...extraFiles] = uploaded;
     const dropTemp = (f) => { try { if (f?.path) fsSync.unlinkSync(f.path); } catch { /* gone */ } };
     extraFiles.forEach(dropTemp);
     try {
+      // A STAGED FILE is the share's file (2026-09-30): parked when the phone
+      // shared it, handed to the same path an uploaded file takes.
+      if (req.stagePayload?.file && !firstFile) {
+        const { stagedFileForShare } = await import("../services/shareStageFiles.js");
+        firstFile = stagedFileForShare(req.stagePayload);
+        if (!firstFile) return err(res, 410, "gone", "the shared file is no longer staged — share it again");
+      }
       // Under a stage key the CONTENT is the staged clip's, whatever the body
       // says; only the window's choices (grid, mode, placement) come from the
       // body. The key authorizes placing that clip — not writing anything.

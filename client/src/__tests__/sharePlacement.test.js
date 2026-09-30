@@ -182,3 +182,19 @@ describe("buildSharePayload", () => {
     expect(() => buildSharePayload({ ...base, mode: "manual", shape: { role: "instance" } })).toThrow(/destination/);
   });
 });
+
+describe("a staged FILE in the window", () => {
+  it("is named by its file name and carries its type", async () => {
+    const { clipFromStage } = await import("../helpers/sharePlacement.js");
+    const c = clipFromStage({ file: { originalname: "cat.png", mimetype: "image/png", size: 2048 } });
+    expect(c.title).toBe("cat.png");
+    expect(c.file).toMatchObject({ mimetype: "image/png" });
+  });
+  // The control: a link clip keeps its own title and has no file.
+  it("a link is unchanged", async () => {
+    const { clipFromStage } = await import("../helpers/sharePlacement.js");
+    const c = clipFromStage({ url: "https://x.test/a", title: "A" });
+    expect(c.title).toBe("A");
+    expect(c.file).toBe(null);
+  });
+});

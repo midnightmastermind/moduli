@@ -6,9 +6,8 @@
 //   /share-target  (launch)     Windows "Open with" an .ics → files in launchQueue
 //   /share-target?url=webcal:…  the webcal:// protocol handler
 //
-// A link or text is STAGED and handed to the placement window
-// (/share-place); a file is posted to /api/v1/share with the SIGNED-IN SESSION
-// as the Bearer (the route accepts it — server middleware/apiAuth
+// Every share — link, text or file — is STAGED and handed to the placement
+// window (/share-place), with the SIGNED-IN SESSION as the Bearer (the route accepts it — server middleware/apiAuth
 // allowSessionJwt). Either way it says exactly what happened. A share must never vanish or look like it
 // worked when it did not (spec §12) — which is why this page exists at all
 // rather than redirecting straight into the grid.
@@ -59,34 +58,34 @@ export async function fileShare({ fetchImpl = fetch, token = readToken(), ...whe
   const lastGrid = (() => { try { return localStorage.getItem(AUTH_KEYS.gridId); } catch { return null; } })();
   const source = shareSourceFor(navigator.userAgent);
 
-  // A LINK OR TEXT goes to the placement window (2026-09-28: every sender
-  // reaches it). It is STAGED, then the page moves to /share-place, where Auto
-  // is one press — the same rules this page used to run directly — and placing
-  // it by hand is available too. A FILE cannot be staged (a stage is JSON), so
-  // a file share still files straight through the rules, as before.
+  // EVERY SHARE goes to the placement window — a link, text AND a file (user,
+  // 2026-09-30: "i dont want anything going through auto unless i express that
+  // in the dropdown (so images, other things, etc, not just links)"). It is
+  // STAGED, then the page moves to /share-place, where Auto is one press and
+  // placing it by hand is the other. A file is staged as multipart; the server
+  // parks its bytes with the stage until Clip.
   const hasFiles = (got.parts.files || []).length > 0;
-  if (!hasFiles) {
+  let res;
+  if (hasFiles) {
+    const body = buildShareForm(got.parts, { source, timeZone: userZone() });
+    if (lastGrid) body.append("fallbackGridId", lastGrid);
+    res = await fetchImpl("/api/v1/share/stage", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
+  } else {
     const str = (v) => (typeof v === "string" && v.trim() ? v : null);
     const staged = {
       title: str(got.parts.title), text: str(got.parts.text), url: str(got.parts.url),
       source, timeZone: userZone(), ...(lastGrid ? { fallbackGridId: lastGrid } : null),
     };
-    const res = await fetchImpl("/api/v1/share/stage", {
+    res = await fetchImpl("/api/v1/share/stage", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify(staged),
     });
-    const json = await res.json().catch(() => ({}));
-    if (res.status === 201 && json.stageId) {
-      return { ok: true, redirect: `/share-place?stage=${encodeURIComponent(json.stageId)}&k=${encodeURIComponent(json.key)}` };
-    }
-    return describeShareResult(res.status, json);
   }
-
-  const body = buildShareForm(got.parts, { source, timeZone: userZone() });
-  if (lastGrid) body.append("fallbackGridId", lastGrid);
-  const res = await fetchImpl("/api/v1/share", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body });
   const json = await res.json().catch(() => ({}));
+  if (res.status === 201 && json.stageId) {
+    return { ok: true, redirect: `/share-place?stage=${encodeURIComponent(json.stageId)}&k=${encodeURIComponent(json.key)}` };
+  }
   return describeShareResult(res.status, json);
 }
 

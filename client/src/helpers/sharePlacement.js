@@ -39,9 +39,13 @@ export function clipFromStage(payload = {}) {
   const title = shape && shape !== "page"
     ? (payload.clip?.label || payload.label || payload.title || "")
     : (payload.title || payload.label || payload.clip?.label || "");
+  // A STAGED FILE (a photo shared from the phone) — named by its file name.
+  // The server strips the path; this is name, type and size only.
+  const file = payload.file || null;
   return {
     shape,
-    title,
+    title: title || file?.originalname || "",
+    file,
     url: page,
     linkUrl: shape === "link" ? url : "",
     imageUrl: shape === "image" ? url : "",

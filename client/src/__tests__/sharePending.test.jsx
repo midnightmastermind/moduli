@@ -80,10 +80,27 @@ describe("fileShare", () => {
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body).url).toBe("webcal://cal.test/me.ics");
   });
 
+  // A FILE reaches the window too (user, 2026-09-30: "i dont want anything
+  // going through auto unless i express that in the dropdown (so images, other
+  // things, etc, not just links)"). It used to POST straight to /api/v1/share,
+  // which ran the rules — a shared photo never saw the window.
+  it("a shared PHOTO is staged (multipart) and goes to the placement window, not the rules", async () => {
+    // Delivered through launchQueue: jsdom cannot round-trip a File through the
+    // fake cache's Response, and the entry point is not what is under test.
+    const launchQueue = { setConsumer: (fn) => fn({ files: [{ getFile: async () => new File(["PNG"], "cat.png", { type: "image/png" }) }] }) };
+    const fetchImpl = stageFetch();
+    const r = await fileShare({ fetchImpl, token: "t", location: loc("/share-target"), launchQueue });
+    expect(r).toEqual({ ok: true, redirect: "/share-place?stage=st1&k=key1" });
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe("/api/v1/share/stage");
+    expect(init.body.get("files").name).toBe("cat.png");
+  });
+
   it("Windows 'Open with': files from launchQueue are shared", async () => {
     const launchQueue = { setConsumer: (fn) => fn({ files: [{ getFile: async () => new File(["BEGIN:VCALENDAR"], "m.ics", { type: "text/calendar" }) }] }) };
-    const fetchImpl = okFetch();
+    const fetchImpl = stageFetch();
     await fileShare({ fetchImpl, token: "t", location: loc("/share-target"), launchQueue });
+    expect(fetchImpl.mock.calls[0][0]).toBe("/api/v1/share/stage");
     expect(fetchImpl.mock.calls[0][1].body.get("files").name).toBe("m.ics");
   });
 
