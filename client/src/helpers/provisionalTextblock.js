@@ -34,7 +34,19 @@ const MINT_SUPPRESS_MS = 600;
 const MINT_SUPPRESS_CAP_MS = 10000;
 let suppressUntil = 0;
 let positionsUntil = 0;
-const suppressedPositions = new Set();
+// Each hold is a (scope, position) pair. The SCOPE is the editor the line lives
+// in (user, 2026-09-30: clicking the day page's Notes, then Highlights, left
+// Highlights refusing with `mint:skip suppressed` — Notes' collapsed block held
+// position 0, and Highlights' empty line is ALSO position 0 of its own editor).
+// A hold with no scope still matches every editor, as it always did.
+const suppressedPositions = new Set();   // entries: `${scopeId}|${pos}` or `*|${pos}`
+const scopeIds = new WeakMap();
+let nextScopeId = 1;
+const scopeKey = (scope) => {
+  if (scope == null || typeof scope !== "object") return "*";
+  if (!scopeIds.has(scope)) scopeIds.set(scope, String(nextScopeId++));
+  return scopeIds.get(scope);
+};
 // …but it must be suppressed AT THAT LINE ONLY. A blanket time window also ate
 // the mint at a DIFFERENT line, which is exactly the reported bug (2026-08-06,
 // user): "if i click on a diff empty line it should create it there as well.
@@ -99,8 +111,11 @@ export function forgetProvisionalTextblock(occurrenceId) {
  * @param {number|null} pos  the doc position of the line being restored. Null
  *                           suppresses everywhere (the old blanket behaviour),
  *                           kept for callers that genuinely cannot say where.
+ * @param {number|null} ms
+ * @param {object|null} scope  the editor that line lives in. A hold in one
+ *                           editor must not block the same position in another.
  */
-export function suppressTextblockMint(pos = null, ms = null) {
+export function suppressTextblockMint(pos = null, ms = null, scope = null) {
   if (pos == null) {                       // blanket window, still a clock
     suppressUntil = Date.now() + (ms ?? MINT_SUPPRESS_MS);
     suppressPos = null;
@@ -110,7 +125,7 @@ export function suppressTextblockMint(pos = null, ms = null) {
   // vacated line and the one the caret joins into. A single slot made the second
   // call silently overwrite the first, so the comment at that call site
   // ("SUPPRESS AT BOTH ENDS") described something the store could not do.
-  suppressedPositions.add(pos);
+  suppressedPositions.add(`${scopeKey(scope)}|${pos}`);
   positionsUntil = Date.now() + (ms ?? MINT_SUPPRESS_CAP_MS);
 }
 
@@ -129,7 +144,7 @@ export function releaseTextblockMintSuppression() {
   positionsUntil = 0;
 }
 
-export function isTextblockMintSuppressed(pos = null, now = Date.now()) {
+export function isTextblockMintSuppressed(pos = null, now = Date.now(), scope = null) {
   if (now < suppressUntil) return true;                 // blanket window
   if (suppressedPositions.size === 0) return false;
   if (now >= positionsUntil) {                          // fail-safe, fails OPEN
@@ -137,7 +152,9 @@ export function isTextblockMintSuppressed(pos = null, now = Date.now()) {
     return false;
   }
   if (pos == null) return true;                         // caller cannot say where
-  return suppressedPositions.has(pos);
+  // An unscoped hold covers every editor; a scoped one only its own.
+  return suppressedPositions.has(`*|${pos}`) || (scope != null && suppressedPositions.has(`${scopeKey(scope)}|${pos}`))
+    || (scope == null && [...suppressedPositions].some((k) => k.endsWith(`|${pos}`)));
 }
 
 // TEST ONLY — the registry is module state shared by every doc editor.

@@ -518,7 +518,7 @@ const Editor = forwardRef(function Editor({
       }
       // Suppression is checked with the TARGET LINE in hand: a collapse only
       // blocks a re-mint at the line it collapsed, never at a different one.
-      if (isTextblockMintSuppressed(target.start)) { mintMark("mint:skip", { why: "suppressed" }); return; }
+      if (isTextblockMintSuppressed(target.start, Date.now(), editor)) { mintMark("mint:skip", { why: "suppressed" }); return; }
       // A DIFFERENT empty line — the caret left the vacated one, so the hold on
       // it is spent too.
       releaseTextblockMintSuppression();

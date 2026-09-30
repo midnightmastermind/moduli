@@ -282,7 +282,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     // The caret may land back on the restored line; without this the mint
     // fires again on the next selection update and the block never dies. Scoped
     // to THIS line so clicking a different empty line still mints there.
-    suppressTextblockMint(pos);
+    suppressTextblockMint(pos, null, editor);
     const tr = editor.state.tr;
     tr.setMeta("skipAutoCreate", true);
     tr.replaceWith(pos, pos + size, paragraph);
@@ -345,7 +345,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // block is deleted leaves ProseMirror with no valid cursor position, and
       // the old behaviour is correct for this one case.
       if (!prevSibling) {
-        suppressTextblockMint(pos);
+        suppressTextblockMint(pos, null, editor);
         // AND SPEND THE GESTURE. Positional suppression is the right rule and it
         // MISSES intermittently — the user's tables show the same backspace
         // reading `mint:skip suppressed` on one line and `mint:go` on the next,
@@ -382,7 +382,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // AFTER this transaction — without this the block can come back exactly
       // where it was, which reads as backspace doing nothing.
       const prevPos = pos - prevSibling.nodeSize;
-      suppressTextblockMint(pos);
+      suppressTextblockMint(pos, null, editor);
       // THE DESTINATION IS DELIBERATELY *NOT* SUPPRESSED, and the gesture is
       // deliberately NOT spent. User, 2026-09-18: *"like put it on the next line
       // so it creates a textblock there … without having to press backspace

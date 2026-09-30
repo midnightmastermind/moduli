@@ -148,7 +148,7 @@ describe("backspace on an empty textblock", () => {
     const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
-    expect(suppress).toHaveBeenCalledWith(10);
+    expect(suppress).toHaveBeenCalledWith(10, null, expect.anything());
   });
 
   // INVERTED 2026-09-18, with the reason kept rather than deleted. It pinned
@@ -162,8 +162,8 @@ describe("backspace on an empty textblock", () => {
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     // 10 is the vacated line and is still held; 8 is the destination.
-    expect(suppress).toHaveBeenCalledWith(10);
-    expect(suppress).not.toHaveBeenCalledWith(8);
+    expect(suppress).toHaveBeenCalledWith(10, null, expect.anything());
+    expect(suppress.mock.calls.some((c) => c[0] === 8)).toBe(false);
   });
 
   it("does NOT use setTextSelection when the previous sibling is a textblock", () => {

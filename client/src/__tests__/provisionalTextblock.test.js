@@ -194,3 +194,30 @@ describe("mint suppression is positional and durable", () => {
     expect(isTextblockMintSuppressed(99, Date.now() + 5000)).toBe(false);
   });
 });
+
+// A HOLD BELONGS TO ITS EDITOR (user, 2026-09-30): click the day page's Notes,
+// then Highlights — Notes' empty block collapsed and held position 0, and
+// Highlights' empty line is ALSO position 0 of its own editor, so Highlights
+// refused with `mint:skip suppressed`.
+describe("mint suppression is per editor", async () => {
+  const { suppressTextblockMint, isTextblockMintSuppressed, _resetProvisionalTextblocks } = await import("../helpers/provisionalTextblock.js");
+  const notes = {}, highlights = {};
+
+  it("a collapse in one editor does not block the same position in another", () => {
+    _resetProvisionalTextblocks();
+    suppressTextblockMint(0, null, notes);
+    expect(isTextblockMintSuppressed(0, Date.now(), highlights)).toBe(false);
+  });
+  // The control: the editor that collapsed is still held.
+  it("the collapsing editor is still held at that line", () => {
+    _resetProvisionalTextblocks();
+    suppressTextblockMint(0, null, notes);
+    expect(isTextblockMintSuppressed(0, Date.now(), notes)).toBe(true);
+    expect(isTextblockMintSuppressed(5, Date.now(), notes)).toBe(false);
+  });
+  it("an unscoped hold still covers every editor, as before", () => {
+    _resetProvisionalTextblocks();
+    suppressTextblockMint(0);
+    expect(isTextblockMintSuppressed(0, Date.now(), highlights)).toBe(true);
+  });
+});
