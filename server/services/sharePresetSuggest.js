@@ -25,6 +25,21 @@
 // say anything about the shape anyway (it refuses under 2).
 const MIN_ROWS = 3;
 
+// A preset makes a ROW. So a destination only implies one when the things
+// already in it ARE rows — an instance, an artifact, a textblock.
+//
+// MEASURED ON POMS, which is what made this a rule rather than a taste: the
+// first pass offered Songs / Albums / Artists / Bookmarks / Movies / Books …
+// and then four **Schedule day columns** ("Schedule - Tuesday, September 8th,
+// 2026"), which rank high because a day column holds 49 children. Its children
+// are time SLOTS — containers — so filing a clipped movie "into Tuesday" is not
+// a thing anyone meant, and each one displaced a real board at the cap.
+//
+// The discriminator is the shape's ROLE, never its label: a destination whose
+// rows are containers or pages is a LAYOUT, and a grid that names its boards
+// something else entirely is filtered exactly the same way.
+const ROW_ROLES = new Set(["instance", "artifact", "textblock"]);
+
 // How many to offer. The window lists them under the saved ones; past a
 // screenful this is a directory rather than a shortcut.
 const MAX_SUGGESTIONS = 12;
@@ -86,7 +101,8 @@ export function suggestPresets(destinations = [], fields = [], { max = MAX_SUGGE
   const out = [];
 
   const usable = (destinations || [])
-    .filter((d) => d?.shape && d.shape.kind && (d.childCount || 0) >= MIN_ROWS)
+    .filter((d) => d?.shape && d.shape.kind && (d.childCount || 0) >= MIN_ROWS
+      && ROW_ROLES.has(d.shape.role || "instance"))
     // Biggest first: the board you have filed 994 things into is the one you
     // are most likely filing the next thing into.
     .sort((a, b) => (b.childCount || 0) - (a.childCount || 0));

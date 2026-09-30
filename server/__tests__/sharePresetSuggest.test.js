@@ -146,3 +146,48 @@ describe("mappingForField", () => {
     expect(mappingForField(null)).toBeNull();
   });
 });
+
+// ── A PRESET MAKES A ROW, SO ITS DESTINATION MUST HOLD ROWS ──────────────────
+//
+// Found on prod: the first pass suggested Songs / Albums / Artists / Bookmarks /
+// Movies / Books / Authors / TV Series — and then FOUR Schedule day columns
+// ("Schedule - Tuesday, September 8th, 2026"), which rank high because a day
+// column holds 49 children. Its children are time SLOTS, so each one displaced
+// a real board at the 12-suggestion cap.
+describe("a layout is not a board", () => {
+  const dayColumn = (over = {}) => ({
+    id: "d-day", label: "Schedule - Tuesday, September 8th, 2026", crumb: "Schedule",
+    childCount: 49,
+    shape: { moduleId: "m-slot", role: "container", kind: "board", bindFields: [], autoFields: {} },
+    ...over,
+  });
+
+  it("skips a destination whose rows are CONTAINERS", () => {
+    const out = suggestPresets([dayColumn()], FIELDS);
+    expect(out).toEqual([]);
+  });
+
+  it("so a smaller real board is no longer crowded out by it", () => {
+    // The day column is bigger, so without the rule it takes the only slot.
+    const out = suggestPresets([dayColumn(), dest({ childCount: 12 })], FIELDS, { max: 1 });
+    expect(out.map((p) => p.name)).toEqual(["Movies"]);
+  });
+
+  it("skips a destination whose rows are PAGES", () => {
+    expect(suggestPresets([dayColumn({
+      shape: { moduleId: "m-pg", role: "page", kind: "board", bindFields: [], autoFields: {} },
+    })], FIELDS)).toEqual([]);
+  });
+
+  // A textblock IS a row — a clipped selection becomes one — so the rule must
+  // not narrow to "artifact and instance" and quietly drop that case.
+  it("keeps a board whose rows are textblocks", () => {
+    const out = suggestPresets([dest({
+      id: "d-quotes", label: "Quotes",
+      shape: { moduleId: "m-q", role: "textblock", kind: "quote",
+        bindFields: [F.notes.id], autoFields: {} },
+    })], FIELDS);
+    expect(out.map((p) => p.name)).toEqual(["Quotes"]);
+  });
+});
+
