@@ -6,6 +6,8 @@ import {
   findOccurrenceElement,
   scrollAndFlash,
 } from "../helpers/jumpToOccurrence";
+import fs from "node:fs";
+import path from "node:path";
 
 beforeEach(() => {
   document.body.innerHTML = "";
@@ -57,17 +59,59 @@ describe("scrollAndFlash", () => {
   // 768px window is 384: a 40px row at top 364 is "centred".
   const at = (el, top) => { el.getBoundingClientRect = () => ({ top, bottom: top + 40, height: 40, left: 0, right: 100, width: 100 }); };
 
-  it("rings the element only once it has settled in the centre, then clears it", () => {
+  it("swaps the held ring for the fade-out once it has settled, then clears it", () => {
     vi.useFakeTimers();
     const el = mountOccurrence("a");
     at(el, 364);
     scrollAndFlash(el, { highlightMs: 50 });
-    expect(el.classList.contains("anchor-highlight")).toBe(false);   // not while it is still moving
+    // The RING is up immediately (the hold); the 1.2s fade-out is what waits.
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
+    expect(el.classList.contains("anchor-highlight")).toBe(false);
     vi.advanceTimersByTime(260);
     expect(el.classList.contains("anchor-highlight")).toBe(false);   // one still check is not "settled"
     vi.advanceTimersByTime(260);
     expect(el.classList.contains("anchor-highlight")).toBe(true);
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(false);   // swapped, never both
     vi.advanceTimersByTime(60);
+    expect(el.classList.contains("anchor-highlight")).toBe(false);
+    vi.useRealTimers();
+  });
+
+  // THE REPORT (user, 2026-09-30): "the highlight on the actual occurance is
+  // super late. it shows up like 2 seconds later". The settle wait is correct
+  // and was gating the feedback on it; the ring now leads.
+  it("rings the element in the same tick as the click", () => {
+    const el = mountOccurrence("a");
+    at(el, 364);
+    scrollAndFlash(el);
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
+  });
+
+  it("holds the ring through a re-centre instead of losing it", () => {
+    vi.useFakeTimers();
+    const el = mountOccurrence("a");
+    at(el, 364);
+    el.scrollIntoView = vi.fn(() => at(el, 364));
+    scrollAndFlash(el, { highlightMs: 5000 });
+    at(el, 1400);                                   // content above mounted
+    vi.advanceTimersByTime(600);
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);   // still ringed while it moves
+    vi.advanceTimersByTime(600);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);        // landed: fade-out takes over
+    vi.useRealTimers();
+  });
+
+  // A ring is a class on the element, so an element that leaves the document
+  // mid-settle must not carry one back if it is ever re-attached.
+  it("drops the held ring when the element leaves the document", () => {
+    vi.useFakeTimers();
+    const el = mountOccurrence("a");
+    at(el, 364);
+    scrollAndFlash(el, { highlightMs: 5000 });
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
+    el.remove();
+    vi.advanceTimersByTime(300);
+    expect(el.classList.contains("anchor-highlight-hold")).toBe(false);
     expect(el.classList.contains("anchor-highlight")).toBe(false);
     vi.useRealTimers();
   });
@@ -294,3 +338,27 @@ describe("jumpToOccurrence render-all timing", () => {
     vi.useRealTimers();
   });
 });
+
+// A CLASS WITH NO RULE PAINTS NOTHING. `.anchor-highlight-hold` is applied from
+// JS and drawn only by the stylesheet, so the two halves ship together or the
+// ring is "immediate" and invisible.
+describe("the held ring has a rule to paint it", () => {
+  const css = fs.readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
+  const ruleFor = (cls) => {
+    const at = css.indexOf(`.${cls} {`);
+    return at < 0 ? null : css.slice(at, css.indexOf("}", at));
+  };
+
+  it("draws a ring, and holds it steady rather than animating", () => {
+    const rule = ruleFor("anchor-highlight-hold");
+    expect(rule).toBeTruthy();
+    expect(rule).toMatch(/box-shadow/);
+    expect(rule).not.toMatch(/animation/);   // an animation would fade out mid-settle
+  });
+
+  // The control: the file really was read, and the fade-out half is untouched.
+  it("leaves the settled fade-out alone", () => {
+    expect(ruleFor("anchor-highlight")).toMatch(/animation:\s*anchor-flash/);
+  });
+});
+

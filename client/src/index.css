@@ -2007,6 +2007,19 @@ body[data-drag-kind="panel"] .container-shell {
   border-radius: 6px;
 }
 
+/* THE RING APPEARS AT ONCE AND HOLDS WHILE THE PAGE SETTLES.
+   `scrollAndFlash` keeps re-centring the target while lazy rows mount and
+   images load, and it used to wait for that before ringing anything — so the
+   feedback arrived up to ~2s after the click (user, 2026-09-30: "the highlight
+   on the actual occurance is super late"). This is the same ring at the
+   animation's peak, held steady with no animation of its own; once the element
+   holds still the class is swapped for `.anchor-highlight`, whose 1.2s fade-out
+   then ends it exactly as before. */
+.anchor-highlight-hold {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.9), 0 0 18px 4px rgba(56, 189, 248, 0.5);
+  border-radius: 6px;
+}
+
 /* Newly-added folder-page card flash (e.g. a fresh import landing in the
    "Imports" folder). PageFolder toggles `.preview-node-flash` for ~1.3s on
    cards whose occurrence id newly appeared. Ring + tint fades to nothing. */

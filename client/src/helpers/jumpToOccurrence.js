@@ -163,7 +163,16 @@ export function findOccurrenceElement(occurrenceId, root = null) {
 // its window. So the scroll landed where the element WAS, and the flash (a
 // faint background tint that the row's own background hides anyway) played
 // off screen. Now: scroll, then keep checking and re-center until the element
-// holds still in the middle of its scroll area, THEN ring it.
+// holds still in the middle of its scroll area.
+//
+// THE RING IS SHOWN AT ONCE AND HELD THROUGH THAT, rather than after it (user,
+// 2026-09-30: "the highlight on the actual occurance is super late. it shows up
+// like 2 seconds later"). Waiting made the settle logic correct and the feedback
+// useless: the smooth scroll gets two checks before the first correction, so the
+// earliest ring was ~1s and ~2s was typical. The ring rides ON the element, so
+// it moves with it and is still there when it lands — the failure the wait was
+// written for was the flash ENDING before the element arrived, which holding it
+// fixes directly.
 const SETTLE_CHECK_MS = 250;
 const SETTLE_MAX_CHECKS = 12;      // ~3s, then flash wherever it is
 const CENTER_TOLERANCE_PX = 48;
@@ -215,7 +224,11 @@ export function scrollAndFlash(el, opts = {}) {
   if (!el) return;
   scrollToTarget(el, scrollBlock, "smooth");
 
+  // Steady ring, immediately — held for however long the page takes to settle.
+  el.classList.add("anchor-highlight-hold");
+
   const flash = () => {
+    el.classList.remove("anchor-highlight-hold");
     el.classList.remove("anchor-highlight");
     void el.offsetWidth;            // restart the animation if it was just removed
     el.classList.add("anchor-highlight");
@@ -223,7 +236,7 @@ export function scrollAndFlash(el, opts = {}) {
   };
   let checks = 0, still = 0, lastTop = null;
   const settle = () => {
-    if (!el.isConnected) return;
+    if (!el.isConnected) { el.classList.remove("anchor-highlight-hold"); return; }
     checks++;
     const r = el.getBoundingClientRect();
     const off = offTargetBy(r, viewRectFor(el), scrollBlock);

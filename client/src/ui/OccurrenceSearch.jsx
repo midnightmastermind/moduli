@@ -16,23 +16,17 @@ import { useGridActionsSelector } from "../GridActionsContext.js";
 import { getSearchIndex, searchOccurrences } from "../helpers/occurrenceSearch";
 import { getModuleTypeIcon } from "../helpers/moduleIcons";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
+import { highlightSegments } from "../helpers/searchHighlight";
 
 const MENU_W = 340;
 const MENU_MAX_H = 380;
 const DEBOUNCE_MS = 120;
 
-// Split a string around the first match so the hit can be rendered bolded.
-function highlight(text, term) {
-  if (!term) return [text, "", ""];
-  const at = text.toLowerCase().indexOf(term);
-  if (at < 0) return [text, "", ""];
-  return [text.slice(0, at), text.slice(at, at + term.length), text.slice(at + term.length)];
-}
-
 function Row({ hit, term, active, onPick, onHover }) {
   const { entry, why } = hit;
   const Icon = getModuleTypeIcon({ role: entry.role, kind: entry.kind });
-  const [before, hitText, after] = highlight(entry.label || "Untitled", term);
+  // The WHOLE query, not its first word — `helpers/searchHighlight`.
+  const segments = highlightSegments(entry.label || "Untitled", term);
   return (
     <div
       role="option"
@@ -44,7 +38,7 @@ function Row({ hit, term, active, onPick, onHover }) {
       <Icon size={12} className="occ-search-row-icon" />
       <div className="occ-search-row-text">
         <div className="occ-search-row-label">
-          {before}{hitText && <mark>{hitText}</mark>}{after}
+          {segments.map((seg, i) => (seg.hit ? <mark key={i}>{seg.text}</mark> : <span key={i}>{seg.text}</span>))}
         </div>
         {entry.pathLabels.length > 0 ? (
           <div className="occ-search-row-path">{entry.pathLabels.join(" › ")}</div>
@@ -140,7 +134,7 @@ export default function OccurrenceSearch({
     if (e.key === "Enter") { e.preventDefault(); pick(hits.results[activeIdx]); }
   };
 
-  const firstTerm = debounced.toLowerCase().split(/\s+/).filter(Boolean)[0] || "";
+
 
   const menu = open && debounced ? createPortal(
     <div
@@ -163,7 +157,7 @@ export default function OccurrenceSearch({
             <Row
               key={hit.entry.occId}
               hit={hit}
-              term={firstTerm}
+              term={debounced}
               active={i === activeIdx}
               onHover={() => setActiveIdx(i)}
               onPick={() => pick(hit)}
