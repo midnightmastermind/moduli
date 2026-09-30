@@ -15,6 +15,82 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-29 (5) — TESTED BY CLICKING: the suggested presets were EMPTY on the grid they were built for
+
+User: *"can you test that stuff with ui"* — the tokens screen, the cover picker and the share
+placement window from (4), every one of which shipped with *"NOT watched in a browser"* against it.
+
+**THE TOKENS SCREEN WORKS, AND DRIVING IT FOUND A LEAK.** Create → the secret shows once with its
+warning (`moduli_8Ka3Pdx4oiC…`); the minted token authenticates (200, 5 grids); it **cannot mint a
+successor** (403 — the session guard, live); revoke through the UI → the row reads revoked and the
+token answers 401. **And the list rendered 2,795 rows.** Measured on prod: **3,110 live
+`assistant (auto)` write-scoped tokens, 4 ever used, none in a week**, accumulated 08-21 → 09-24 —
+`GET /assistant/bootstrap-token` mints one whenever the env token is stale and the chat drawer asks
+on EVERY mount that finds no saved token. Each acts as the user in full. With the user's go-ahead:
+the mint now RETIRES its predecessors (a raw token cannot be re-derived, so reuse is impossible and
+retiring is the only bound), the rows were cleaned to 7 with a backup, and prod's env token was
+rotated. A/B (updateMany 0): exactly *"ten asks leave exactly ONE live auto token"* fails.
+
+**THE COVER PICKER, WATCHED ON A REAL ROW** — and it is on the row's RIGHT-CLICK menu, not the radial.
+`ModuleInstance` renders ONE `RadialMenu` whose items are RadialMenu's DEFAULT set (Settings · Drag
+mode › · Hide Header · Delete); the rich list at ~1471-1650 is the context menu. Three runs went into
+the arc first. Then:
+```
+right-click a movie row   Duplicate · Open in Panel A/D/C · Change cover image… · Clear cover · Delete
+click it                  picker "Cover — John Wick", query "John Wick movie poster", 24 results
+```
+
+**THE HEADLINE: THE PLACEMENT WINDOW'S PRESET DROPDOWN WAS NOT THERE AT ALL.** It renders only when a
+saved OR suggested preset exists, and `GET /share/presets` answered `suggested: []` on **poms** — the
+grid the feature was built for. **Not the 2.5s race** (463ms). Three rules were wrong, each measured
+against live data rather than reasoned about:
+```
+q:"" ranked by LABEL      60 biggest destinations -> `"We Say We're Exactly the Same"` + 59 empty
+                          "10:00pm" slots; Movies (994 rows), Bookmarks, People sat past the cut.
+                          sharePresetSuggest sorts biggest-first but only WITHIN what it is handed.
+a "board" is any shape    the first fix then offered FOUR Schedule day columns — 49 children each,
+                          whose children are time SLOTS. Each displaced a real board at the cap.
+a board must be TYPED     and that rejected People (1,181 rows, 27 bound fields) and Appointments —
+                          the two the user named alongside movies — while suggesting three imported
+                          article sections that bind NO fields, i.e. presets with nothing to reuse.
+```
+Fixed as three derived rules, never a list of names: **an empty query ranks by how much is filed
+there** (an aggregation — Mongo cannot sort by array length in a `find()`; `userId`/`gridId` are plain
+Strings on the schema, checked, because an aggregate does not cast), **a suggestion's rows must BE
+rows** (`instance`/`artifact`/`textblock` — a destination holding containers is a layout), and **a
+kind OR bound fields** (the mappings are the thing you reuse). A typed query still searches labels —
+ranking a type-ahead by size would bury an exact match.
+
+**WATCHED END TO END ON THE DEPLOYED BUILD, which is the whole point of this pass:**
+```
+Preset ▾  "From your boards"  Songs · Albums · Artists · Bookmarks · People · Movies · Books ·
+                              Authors · TV Series · Library · Emotions · Reflection Questions
+pick "Movies — movie"      ->  Where: Movies · Shape: artifact/movie · a COVER row appears
+Pick…                      ->  "Cover — …", tabs FROM THE PAGE · Search · Upload · URL,
+                               opening on 3 tiles read off the page itself
+```
+**AND IMDb — the user's own case — RETURNS NOTHING** (`cover: null`, 0 candidates, 200 in 221ms): it
+refuses the server fetch. That is not a code defect and it explains why their shared IMDb row arrived
+with no picture at all. A Wikipedia link gets its og:image plus 3 candidates. Reported, not worked
+around. Also still true: only the **60 biggest** destinations are considered, so Appointments (3 rows)
+is not offered.
+
+**PROBE FAULTS, four, and two are ones this file already pins.** A coordinate measured in
+`page.evaluate` went STALE while posters finished loading, so the click landed on a CONTAINER's handle
+and the arc read *"Hide Header"* — Playwright's own click re-resolves the box. The window's modes are
+RADIOS (`aria-label="Auto|New|Preset"`), not buttons, so *"click the Preset button"* reported the mode
+never opened. Two containers are named "Movies" and the probe took the 1-row one, got
+`shape: instance/plain item`, and read *"no cover row"* as a defect. And `[object Object]` in my own
+console was my print, not the payload — the candidate shape `{url, alt}` is exactly what the picker
+reads.
+
+Server **2,929 pass** (294 files); three deploys, each with a restart (server code), prod HEAD matched
+and the process started after the files were written. **No debris:** Clip was never pressed, so 0
+occurrences were created on poms, the share log is untouched, the 4 stages expire unconsumed, and
+saved presets stay 0 — a suggestion is computed per request and stored nowhere.
+
+---
+
 ### 2026-09-29 (4) — TOKENS IN THE APP; the share window offers the page's OWN photos and the grid's OWN boards
 
 Four asks in one message: *"lets do the tokens thing"* · *"finish up this share (with images), and cover

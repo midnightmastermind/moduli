@@ -2,6 +2,35 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-29 (5) — the suggestions were empty on poms; and the bootstrap token is bounded)
+Found by DRIVING the UI (the (4) features all shipped "not watched in a browser").
+- **`GET /assistant/bootstrap-token` now RETIRES its predecessors.** It mints an `assistant (auto)`
+  write-scoped token whenever the env token is stale, and the drawer asks on every mount with no saved
+  token: prod held **3,110 live ones, 4 ever used, none in a week**. A raw token cannot be re-derived
+  (only its bcrypt hash is stored), so reuse is impossible — retiring the others is the only bound.
+  Scoped to this user's `assistant (auto)` rows, never the one just returned, and a token the user
+  named themselves is untouched; with a valid env token nothing is minted and the sweep never runs.
+  `__tests__/bootstrapTokenBounded.test.js` (6); A/B (updateMany 0): exactly 1 fails.
+- **`destinationSearch` — an EMPTY query ranks by how much is filed there.** It sorted MODULES by
+  label, so `q: ""` returned `"We Say We're Exactly the Same"` + 59 empty "10:00pm" slots while Movies
+  (994 rows), Bookmarks and People sat past the limit — and `GET /share/presets` answered
+  `suggested: []` on the grid the feature was built for (463ms, so not the 2.5s race). An empty query
+  has no relevance signal, and "most filed into" is also the right opening list for the placement
+  window. That path AGGREGATES (`$match`/`$size`/`$sort`/`$limit`): Mongo cannot sort by array length
+  in a `find()`, and `userId`/`gridId` are plain Strings on the schema — **checked, because an
+  aggregate does not cast**. A typed query is untouched. 4 tests; A/B: the 2 ranking cases fail.
+- **`sharePresetSuggest` — a suggestion's rows must BE rows, and need a kind OR bound fields.**
+  Measured twice on poms: requiring only a shape offered four **Schedule day columns** (49 children,
+  whose children are time SLOTS), each displacing a real board at the 12 cap; then requiring a KIND
+  rejected **People** (1,181 rows, 27 bound fields) and Appointments — the two the user named beside
+  movies — while suggesting three imported article sections binding NO fields. Both discriminators are
+  derived, never a label: `ROW_ROLES` = instance/artifact/textblock, and binding a field is what makes
+  a preset worth having. One stale test INVERTED with its reasoning. 7 tests; A/B'd both rules.
+- **Reported, not fixed:** IMDb refuses the server fetch, so `GET /share/stage/:id/cover` answers
+  `{cover: null, candidates: []}` for the user's own case (200, 221ms) — which is why their shared IMDb
+  row had no picture at all. Wikipedia returns its og:image + 3 candidates. And only the **60 biggest**
+  destinations are considered, so a 3-row board (Appointments) is never suggested.
+
 ## Recent Changes (2026-09-29 (4) — minting a token from the app; the clip's photos; the grid's own presets)
 - **`POST /tokens`** — session Bearer ONLY (`req.apiToken.session`, which `apiAuth` sets for a session
   JWT). 2026-09-24's "minting stays a server-side script: a token that can mint tokens makes a leak
