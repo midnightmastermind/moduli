@@ -2162,6 +2162,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // port-forwarded server never leaks the token (it grants full grid CRUD).
   // Set ASSISTANT_BOOTSTRAP=off to disable entirely. Returns { token: null }
   // when unset / disabled / non-local.
+  // The name every auto-minted assistant token carries. One constant, because
+  // the mint and the retire-the-others sweep must agree or the sweep is a no-op.
+  const AUTO_TOKEN_NAME = "assistant (auto)";
+
   router.get("/assistant/bootstrap-token", async (req, res) => {
     if ((process.env.ASSISTANT_BOOTSTRAP || "").toLowerCase() === "off") return res.json({ token: null });
     // Primary path: a valid logged-in APP JWT. The user is already authenticated
@@ -2199,7 +2203,26 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     // reseed. (Dev-LAN with no logged-in user can't mint — returns null.)
     if (userId) {
       try {
-        const { rawToken } = await ApiToken.mint({ userId, name: "assistant (auto)", scopes: ["read", "write"] });
+        // ONE auto token at a time.
+        //
+        // This branch runs whenever the env token is stale, and the drawer asks
+        // on every mount that finds no saved token — so it MINTED A FRESH
+        // WRITE-SCOPED CREDENTIAL EACH TIME. Measured on prod 2026-09-29 when
+        // the new tokens screen made it visible: **3,110 live `assistant (auto)`
+        // tokens, 4 of them ever used, none in the last week**, accumulated
+        // between 2026-08-21 and 2026-09-24. Each one acts as the user in full.
+        //
+        // Reuse is impossible by construction — only the bcrypt hash is stored,
+        // so a previous raw token cannot be handed back. Revoking the others is
+        // therefore what makes this idempotent in EFFECT: the newest works, and
+        // the ones nobody is holding stop being credentials. A browser holding
+        // an older one gets a 401, which the drawer already recovers from by
+        // prompting and opening its settings (2026-06-04).
+        const { rawToken, tokenDoc } = await ApiToken.mint({ userId, name: AUTO_TOKEN_NAME, scopes: ["read", "write"] });
+        await ApiToken.updateMany(
+          { userId, name: AUTO_TOKEN_NAME, revoked: false, tokenId: { $ne: tokenDoc.tokenId } },
+          { $set: { revoked: true } },
+        ).catch((e) => console.warn("[bootstrap-token] could not retire older auto tokens:", e.message));
         return res.json({ token: rawToken });
       } catch { return res.json({ token: null }); }
     }
