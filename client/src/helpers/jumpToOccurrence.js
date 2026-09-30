@@ -27,7 +27,10 @@ import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
 //
 // Highlight CSS: `.anchor-highlight` in `index.css` (defined Apr 2 2026).
 
-const HIGHLIGHT_MS = 1200;
+// Four 500ms blink cycles — `@keyframes anchor-blink` in index.css. Keep the
+// two in step: this is when the class comes OFF, the animation is what it does
+// while it is on.
+const HIGHLIGHT_MS = 2000;
 const PAGE_SWITCH_GRACE_MS = 220;
 
 /**
@@ -165,14 +168,30 @@ export function findOccurrenceElement(occurrenceId, root = null) {
 // off screen. Now: scroll, then keep checking and re-center until the element
 // holds still in the middle of its scroll area.
 //
-// THE RING IS SHOWN AT ONCE AND HELD THROUGH THAT, rather than after it (user,
-// 2026-09-30: "the highlight on the actual occurance is super late. it shows up
-// like 2 seconds later"). Waiting made the settle logic correct and the feedback
-// useless: the smooth scroll gets two checks before the first correction, so the
-// earliest ring was ~1s and ~2s was typical. The ring rides ON the element, so
-// it moves with it and is still there when it lands — the failure the wait was
-// written for was the flash ENDING before the element arrived, which holding it
-// fixes directly.
+// THE RING BLINKS AT ONCE, rather than after that (user, 2026-09-30: "the
+// highlight on the actual occurance is super late. it shows up like 2 seconds
+// later"). Waiting made the settle logic correct and the feedback useless: the
+// smooth scroll gets two checks before the first correction, so the earliest
+// ring was ~1s and ~2s was typical. The ring rides ON the element, so it moves
+// with it and is still blinking when it lands — the failure the wait was written
+// for was the flash ENDING before the element arrived, which is why a settle
+// that outlasts the blink restarts it ONCE.
+/**
+ * Ring an element and stop after `ms`. THE ONE DEFINITION of the jump blink —
+ * every surface that says "here it is" calls this, or the class and the
+ * keyframe's length drift apart and the ring cuts off mid-cycle. Returns the
+ * off-timer so a caller re-blinking the same element can hand back the one it
+ * is replacing.
+ */
+export function flashElement(el, ms = HIGHLIGHT_MS, prevTimer = null) {
+  if (!el) return null;
+  clearTimeout(prevTimer);
+  el.classList.remove("anchor-highlight");
+  void el.offsetWidth;              // restart the animation if it was just removed
+  el.classList.add("anchor-highlight");
+  return setTimeout(() => el.classList.remove("anchor-highlight"), ms);
+}
+
 const SETTLE_CHECK_MS = 250;
 const SETTLE_MAX_CHECKS = 12;      // ~3s, then flash wherever it is
 const CENTER_TOLERANCE_PX = 48;
@@ -216,27 +235,22 @@ function scrollToTarget(el, block, behavior) {
 
 /**
  * Scroll an element to the centre of its scroll area, keep it there while the
- * page settles, then ring it for ~a second. Exported so callers that already
- * have the element can skip the lookup.
+ * page settles. The ring blinks from the click, not from the settle. Exported
+ * so callers that already have the element can skip the lookup.
  */
 export function scrollAndFlash(el, opts = {}) {
   const { highlightMs = HIGHLIGHT_MS, scrollBlock = "center" } = opts;
   if (!el) return;
   scrollToTarget(el, scrollBlock, "smooth");
 
-  // Steady ring, immediately — held for however long the page takes to settle.
-  el.classList.add("anchor-highlight-hold");
+  let offTimer = null;
+  const startedAt = Date.now();
+  const flash = () => { offTimer = flashElement(el, highlightMs, offTimer); };
 
-  const flash = () => {
-    el.classList.remove("anchor-highlight-hold");
-    el.classList.remove("anchor-highlight");
-    void el.offsetWidth;            // restart the animation if it was just removed
-    el.classList.add("anchor-highlight");
-    setTimeout(() => el.classList.remove("anchor-highlight"), highlightMs);
-  };
+  flash();                          // blink immediately — the click's own feedback
   let checks = 0, still = 0, lastTop = null;
   const settle = () => {
-    if (!el.isConnected) { el.classList.remove("anchor-highlight-hold"); return; }
+    if (!el.isConnected) { clearTimeout(offTimer); el.classList.remove("anchor-highlight"); return; }
     checks++;
     const r = el.getBoundingClientRect();
     const off = offTargetBy(r, viewRectFor(el), scrollBlock);
@@ -245,8 +259,13 @@ export function scrollAndFlash(el, opts = {}) {
     // Give the smooth scroll two checks to arrive before correcting it.
     if (checks >= 2 && Math.abs(off) > CENTER_TOLERANCE_PX) { scrollToTarget(el, scrollBlock, "auto"); still = 0; lastTop = null; }
     else if (!moved && Math.abs(off) <= CENTER_TOLERANCE_PX) still++;
-    if (still >= 2 || checks >= SETTLE_MAX_CHECKS) flash();
-    else setTimeout(settle, SETTLE_CHECK_MS);
+    // Only re-blink when the first one has already run out — a settle that
+    // finishes inside the blink must not restart it and double its length.
+    if (still >= 2 || checks >= SETTLE_MAX_CHECKS) {
+      if (Date.now() - startedAt >= highlightMs) flash();
+      return;
+    }
+    setTimeout(settle, SETTLE_CHECK_MS);
   };
   setTimeout(settle, SETTLE_CHECK_MS);
 }

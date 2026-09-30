@@ -5,6 +5,7 @@
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
 import { runOcr } from "../helpers/ocr";
+import { flashElement } from "../helpers/jumpToOccurrence";
 import BookmarkView from "./BookmarkView.jsx";
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useGridActions } from "../GridActionsContext.js";
@@ -514,10 +515,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
       suppressAutoSyncRef.current = true;
       container.scrollTo({ top: container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top, behavior: "smooth" });
       setTimeout(() => { suppressAutoSyncRef.current = false; }, 600);
-      target.classList.remove("anchor-highlight");
-      void target.offsetWidth;
-      target.classList.add("anchor-highlight");
-      setTimeout(() => target.classList.remove("anchor-highlight"), 1200);
+      flashElement(target);
     }
   }, [view?.scrollAnchor]);
 

@@ -59,59 +59,69 @@ describe("scrollAndFlash", () => {
   // 768px window is 384: a 40px row at top 364 is "centred".
   const at = (el, top) => { el.getBoundingClientRect = () => ({ top, bottom: top + 40, height: 40, left: 0, right: 100, width: 100 }); };
 
-  it("swaps the held ring for the fade-out once it has settled, then clears it", () => {
+  it("blinks from the click and stops after the blink window", () => {
     vi.useFakeTimers();
     const el = mountOccurrence("a");
     at(el, 364);
-    scrollAndFlash(el, { highlightMs: 50 });
-    // The RING is up immediately (the hold); the 1.2s fade-out is what waits.
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
-    expect(el.classList.contains("anchor-highlight")).toBe(false);
-    vi.advanceTimersByTime(260);
-    expect(el.classList.contains("anchor-highlight")).toBe(false);   // one still check is not "settled"
-    vi.advanceTimersByTime(260);
-    expect(el.classList.contains("anchor-highlight")).toBe(true);
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(false);   // swapped, never both
-    vi.advanceTimersByTime(60);
-    expect(el.classList.contains("anchor-highlight")).toBe(false);
+    scrollAndFlash(el, { highlightMs: 5000 });
+    expect(el.classList.contains("anchor-highlight")).toBe(true);   // immediately
+    vi.advanceTimersByTime(4900);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);   // still blinking
+    vi.advanceTimersByTime(200);
+    expect(el.classList.contains("anchor-highlight")).toBe(false);  // and then off
     vi.useRealTimers();
   });
 
   // THE REPORT (user, 2026-09-30): "the highlight on the actual occurance is
   // super late. it shows up like 2 seconds later". The settle wait is correct
-  // and was gating the feedback on it; the ring now leads.
+  // and was gating the feedback on it; the blink now leads.
   it("rings the element in the same tick as the click", () => {
     const el = mountOccurrence("a");
     at(el, 364);
     scrollAndFlash(el);
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
   });
 
-  it("holds the ring through a re-centre instead of losing it", () => {
+  // The blink rides ON the element, so it travels with it — a settle that
+  // finishes INSIDE the blink must not restart it and double its length.
+  it("does not restart the blink when the page settles inside it", () => {
     vi.useFakeTimers();
     const el = mountOccurrence("a");
     at(el, 364);
     el.scrollIntoView = vi.fn(() => at(el, 364));
     scrollAndFlash(el, { highlightMs: 5000 });
-    at(el, 1400);                                   // content above mounted
-    vi.advanceTimersByTime(600);
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);   // still ringed while it moves
-    vi.advanceTimersByTime(600);
-    expect(el.classList.contains("anchor-highlight")).toBe(true);        // landed: fade-out takes over
+    vi.advanceTimersByTime(600);                    // settled (two still checks)
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
+    vi.advanceTimersByTime(4500);                   // 5100ms from the click
+    expect(el.classList.contains("anchor-highlight")).toBe(false);
+    vi.useRealTimers();
+  });
+
+  // ...and the other way round: the failure the old wait existed for is the
+  // blink ENDING before the element arrives. A settle that outlasts it blinks
+  // once more, where the element actually landed.
+  it("blinks again when the page is still moving after the blink ended", () => {
+    vi.useFakeTimers();
+    const el = mountOccurrence("a");
+    let top = 0; el.getBoundingClientRect = () => ({ top: (top += 300), height: 40 });
+    scrollAndFlash(el, { highlightMs: 300 });
+    vi.advanceTimersByTime(400);
+    expect(el.classList.contains("anchor-highlight")).toBe(false);  // first blink over
+    vi.advanceTimersByTime(2800);                                   // the ~3s settle cap
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
     vi.useRealTimers();
   });
 
   // A ring is a class on the element, so an element that leaves the document
   // mid-settle must not carry one back if it is ever re-attached.
-  it("drops the held ring when the element leaves the document", () => {
+  it("drops the ring when the element leaves the document", () => {
     vi.useFakeTimers();
     const el = mountOccurrence("a");
     at(el, 364);
     scrollAndFlash(el, { highlightMs: 5000 });
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(true);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
     el.remove();
     vi.advanceTimersByTime(300);
-    expect(el.classList.contains("anchor-highlight-hold")).toBe(false);
     expect(el.classList.contains("anchor-highlight")).toBe(false);
     vi.useRealTimers();
   });
@@ -125,20 +135,10 @@ describe("scrollAndFlash", () => {
     at(el, 1400);                                   // rows above mounted: pushed off screen
     vi.advanceTimersByTime(600);
     expect(el.scrollIntoView).toHaveBeenLastCalledWith({ behavior: "auto", block: "center" });
-    vi.advanceTimersByTime(600);
-    expect(el.classList.contains("anchor-highlight")).toBe(true);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);   // ringed the whole way
     vi.useRealTimers();
   });
 
-  it("still flashes after a few seconds even if it never holds still", () => {
-    vi.useFakeTimers();
-    const el = mountOccurrence("a");
-    let top = 0; el.getBoundingClientRect = () => ({ top: (top += 300), height: 40 });
-    scrollAndFlash(el, { highlightMs: 5000 });
-    vi.advanceTimersByTime(3100);
-    expect(el.classList.contains("anchor-highlight")).toBe(true);
-    vi.useRealTimers();
-  });
 
   it("no-ops for null el without throwing", () => {
     expect(() => scrollAndFlash(null)).not.toThrow();
@@ -339,26 +339,58 @@ describe("jumpToOccurrence render-all timing", () => {
   });
 });
 
-// A CLASS WITH NO RULE PAINTS NOTHING. `.anchor-highlight-hold` is applied from
-// JS and drawn only by the stylesheet, so the two halves ship together or the
-// ring is "immediate" and invisible.
-describe("the held ring has a rule to paint it", () => {
+// A CLASS WITH NO RULE PAINTS NOTHING. `.anchor-highlight` is applied from JS
+// and drawn only by the stylesheet, so the two halves ship together or the ring
+// is "immediate" and invisible. The user asked for a BLINK ("on and off for 2
+// seconds then off"), which is the keyframe, not the class.
+describe("the ring has a rule that blinks it", () => {
   const css = fs.readFileSync(path.join(process.cwd(), "src/index.css"), "utf8");
   const ruleFor = (cls) => {
     const at = css.indexOf(`.${cls} {`);
     return at < 0 ? null : css.slice(at, css.indexOf("}", at));
   };
 
-  it("draws a ring, and holds it steady rather than animating", () => {
-    const rule = ruleFor("anchor-highlight-hold");
+  it("runs the blink for the same 2s the class stays on", () => {
+    const rule = ruleFor("anchor-highlight");
     expect(rule).toBeTruthy();
-    expect(rule).toMatch(/box-shadow/);
-    expect(rule).not.toMatch(/animation/);   // an animation would fade out mid-settle
+    const m = rule.match(/animation:\s*anchor-blink\s+(\d+)ms[^;]*?\s(\d+)\s*;/);
+    expect(m).toBeTruthy();                       // named, timed, and counted
+    expect(Number(m[1]) * Number(m[2])).toBe(2000);   // === HIGHLIGHT_MS
   });
 
-  // The control: the file really was read, and the fade-out half is untouched.
-  it("leaves the settled fade-out alone", () => {
-    expect(ruleFor("anchor-highlight")).toMatch(/animation:\s*anchor-flash/);
+  // The control: the file really was read, and the keyframe actually goes OFF
+  // (a ring that only ever draws itself is a hold, not a blink).
+  it("has a keyframe that turns the ring off and on", () => {
+    const at = css.indexOf("@keyframes anchor-blink");
+    expect(at).toBeGreaterThan(-1);
+    const frames = css.slice(at, css.indexOf("\n}", at));
+    expect(frames).toMatch(/box-shadow:\s*0 0 0 3px/);          // on
+    expect(frames).toMatch(/box-shadow:\s*0 0 0 0 rgba\([^)]*0\)/); // off
   });
 });
 
+// THE BLINK IS ONE DECISION, AND THREE SURFACES MAKE IT. `scrollAndFlash` is the
+// search jump; ManifestTree's anchor chips and ArtifactContent's scrollAnchor
+// ring the same way, and both hand-rolled the same four lines with their own
+// hardcoded 1200ms — which was HIGHLIGHT_MS until the blink made it 2000, at
+// which point they would strip the class mid-cycle and the ring would snap off.
+describe("every jump surface blinks through the one helper", () => {
+  const read = (rel) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+  const sites = ["src/modules/ManifestTree.jsx", "src/modules/ArtifactContent.jsx"];
+
+  it("calls flashElement rather than adding the class by hand", () => {
+    for (const rel of sites) {
+      const src = read(rel);
+      expect(src, rel).toMatch(/flashElement\(/);
+      expect(src, rel).toMatch(/from "\.\.\/helpers\/jumpToOccurrence"/);
+      expect(src, rel).not.toMatch(/classList\.add\("anchor-highlight"\)/);
+    }
+  });
+
+  // The control: the detector reads real files, and it can still SEE the class
+  // where it legitimately lives (or "no hand-rolled add" passes on an empty read).
+  it("still finds the class in the helper and the stylesheet", () => {
+    expect(read("src/helpers/jumpToOccurrence.js")).toMatch(/classList\.add\("anchor-highlight"\)/);
+    expect(read("src/index.css")).toMatch(/\.anchor-highlight \{/);
+  });
+});

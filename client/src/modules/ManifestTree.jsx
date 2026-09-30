@@ -14,7 +14,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 // Kind → lucide icon for pages — delegates to the shared
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
-import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { jumpToOccurrence, flashElement } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { isProtectedFolder } from "../helpers/protectedFolders";
 import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansion";
@@ -1258,10 +1258,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           } else {
             el.scrollIntoView({ behavior: "smooth", block: "start" });
           }
-          el.classList.remove("anchor-highlight");
-          void el.offsetWidth;
-          el.classList.add("anchor-highlight");
-          setTimeout(() => el.classList.remove("anchor-highlight"), 1200);
+          flashElement(el);
         }
         CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, scrollAnchor: anchorOccId }, emit: false });
       } else {

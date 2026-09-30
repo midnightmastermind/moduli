@@ -14,14 +14,22 @@ _Updated: 2026-09-27. Check this file before re-reading source._
   ("Mang|a Guide| to Physics" is true and reads as a mistake), scoped to multi-word because a single
   word is how partial typing works. No regex — a query is typed text, so "(2006)" searches literally.
   Every segment concatenates back to the input; ranges are capped and merged. 19 tests.
-- **`jumpToOccurrence.scrollAndFlash` rings IMMEDIATELY and HOLDS.** It keeps re-centring while lazy
+- **`jumpToOccurrence.scrollAndFlash` BLINKS IMMEDIATELY, for 2s.** It keeps re-centring while lazy
   rows mount, and it was gating the ring on that: the smooth scroll gets two 250ms checks before the
   first correction, so the earliest ring was ~1s and ~2s typical (user: *"super late … like 2 seconds
-  later"*). A steady `.anchor-highlight-hold` goes on in the same tick and is swapped for the existing
-  1.2s fade-out once the element lands — the ring rides ON the element, so it moves with it, and the
-  failure the wait was written for (the flash ENDING before the element arrived) is what holding fixes.
-  Dropped if the element leaves the document. **A class with no rule paints nothing**, so a test asserts
-  `index.css` defines it, with the fade-out half as the control.
+  later"*). The ring goes on in the same tick and rides ON the element, so it moves with it — the
+  failure the wait was written for (the flash ENDING before the element arrived) is why **a settle that
+  outlasts the blink restarts it ONCE**, and a settle that finishes inside it deliberately does not
+  (that would silently double the blink's length). Dropped if the element leaves the document.
+  User's shape: *"flash for 2 seconds, instead of linger. so like on and off for 2 seconds then off"* —
+  four 500ms `@keyframes anchor-blink` cycles, and `HIGHLIGHT_MS = 2000` is when the class comes off.
+  **The two halves must stay in step**, so a test multiplies the CSS duration by its iteration count and
+  asserts 2000 — a class stripped mid-cycle snaps the ring off rather than ending it.
+- **`flashElement(el, ms, prevTimer)` (NEW, exported) is THE one definition of that blink.**
+  `ManifestTree`'s anchor chips and `ArtifactContent`'s `scrollAnchor` each hand-rolled the same four
+  lines with their own hardcoded `1200` — correct while that WAS `HIGHLIGHT_MS`, and wrong the moment
+  the blink made it 2000. A walker over both files fails when either re-adds the class by hand, with a
+  control that it can still see the class where it legitimately lives.
 
 ## Recent Changes (2026-09-29 (6) — `occurrenceLabel.js` NEW: a row is named by its PLACEMENT)
 - **`occurrenceDisplayLabel(occurrence, module, fallback)`** — the placement's own label wins; the type

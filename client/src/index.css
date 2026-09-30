@@ -1996,27 +1996,18 @@ body[data-drag-kind="panel"] .container-shell {
 /* A RING, not a background tint: a row / card paints its own background over
    its wrapper's, so a tint was invisible on most targets. The ring sits outside
    the element (box-shadow), above whatever it contains, on every surface. */
-@keyframes anchor-flash {
-  0%   { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
-  15%  { box-shadow: 0 0 0 3px rgba(56,189,248,0.95), 0 0 18px 4px rgba(56,189,248,0.55); }
-  70%  { box-shadow: 0 0 0 3px rgba(56,189,248,0.85), 0 0 14px 3px rgba(56,189,248,0.4); }
-  100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
+/* THE JUMP RING BLINKS FOR TWO SECONDS, THEN STOPS (user, 2026-09-30: "have the
+   blue highlight flash for 2 seconds, instead of linger. so like on and off for
+   2 seconds then off"). Four 500ms cycles: a quarter-second on, a quarter off.
+   It replaces a 1.2s fade-out plus a steady hold — a ring that faded slowly was
+   hard to spot on a busy page, and a held one read as a selection rather than
+   as "here it is". */
+@keyframes anchor-blink {
+  0%, 49.9%  { box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.95), 0 0 18px 4px rgba(56, 189, 248, 0.55); }
+  50%, 100%  { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
 }
 .anchor-highlight {
-  animation: anchor-flash 1.2s ease-out;
-  border-radius: 6px;
-}
-
-/* THE RING APPEARS AT ONCE AND HOLDS WHILE THE PAGE SETTLES.
-   `scrollAndFlash` keeps re-centring the target while lazy rows mount and
-   images load, and it used to wait for that before ringing anything — so the
-   feedback arrived up to ~2s after the click (user, 2026-09-30: "the highlight
-   on the actual occurance is super late"). This is the same ring at the
-   animation's peak, held steady with no animation of its own; once the element
-   holds still the class is swapped for `.anchor-highlight`, whose 1.2s fade-out
-   then ends it exactly as before. */
-.anchor-highlight-hold {
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.9), 0 0 18px 4px rgba(56, 189, 248, 0.5);
+  animation: anchor-blink 500ms ease-in-out 4;
   border-radius: 6px;
 }
 

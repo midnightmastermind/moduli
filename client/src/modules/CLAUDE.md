@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-30 — the jump ring blinks, from one helper)
+- **`ManifestTree` (anchor chips) and `ArtifactContent` (`view.scrollAnchor`)** each hand-rolled the
+  jump ring: remove the class, force a reflow, add it back, strip it after a hardcoded **1200ms**. That
+  matched `HIGHLIGHT_MS` until the user asked for a blink (*"on and off for 2 seconds then off"*) and it
+  became 2000 — at which point both would have stripped the class **mid-cycle**, snapping the ring off
+  instead of ending it. Both call the shared `helpers/jumpToOccurrence.flashElement(el)` now, so the
+  class's lifetime and the keyframe's length cannot drift. A walker in
+  `__tests__/jumpToOccurrence.test.js` fails when either file re-adds `anchor-highlight` by hand.
+
 ## Recent Changes (2026-09-29 — a row's picture can be set from the row)
 - **`ModuleInstance.jsx`** — an `role:"artifact"` row's radial gains `Set cover image…` /
   `Change cover image…` (named for what is there) and, when it has one, `Clear cover`. Both go through
