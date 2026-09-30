@@ -3728,3 +3728,22 @@ hit its limit while naming the Coffee operation).
   is built with the searchable field picker; and the mode row is **Auto · New · Preset** — *"there can
   be multiple presets, so we have auto, new, or saved preset"*. A preset is a saved SHAPE, per grid,
   with no conditions and nothing that fires on its own.
+
+## 2026-09-30 — the search jump, the notifications dropdown, the extension's toolbar button
+
+- > "make it only a second flash of the highlight … it gives it a border, doesnt, and then gives it a
+  border again and then turns off" — a 1s DOUBLE flash (two 500ms cycles).
+- > "the first search is still not scrolling to the correct one, it lags for a few seconds and does
+  nothing" · > "6 seconds is way too long" · > "theres a two second pause and then it flashes. it
+  should flash right when it gets in the view".
+- > "organize each notification better in the dropdown … we should have rows inside each
+  notification" · > "if its a operation, include what the trigger was (onLoad, onDrag of this
+  element, etc)".
+- > "look at the repainting thats happening of all these lists and see if its even worth it
+  performace wise. im sick of scrolling and everything disappearing for a second and then being
+  painted".
+- > "the share on mobile (through the app), isnt allowing me to do a manual add, its just automatic
+  by default. do i need to reinstall the app?"
+- > "if i try to open the moduli extension on firefox, it wont let me add a link via clicking on the
+  extension in the toolbar … i expect it to open up the dropdown that we have for the other shares
+  (auto vs manual)".

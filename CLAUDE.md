@@ -15,6 +15,66 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 (3) — THE FIRST SEARCH NEVER LANDED; one jump grew 2,017 rows; op notifications get rows and a trigger
+
+User: *"the first search is still not scrolling to the correct one, it lags for a few seconds and does
+nothing"* · *"6 seconds is way too long"* · *"theres a two second pause and then it flashes"* · a 1s
+double flash · rows + the trigger in the notifications dropdown · the Firefox toolbar button.
+
+**THE FIRST SEARCH MISSED BY CONSTRUCTION.** A row past a long list's 80-row window: `jumpToOccurrence`
+dispatched render-all and looked again IN THE SAME TICK — the event only sets state, React mounts later,
+so the look always missed. Measured on prod, Movies row #600: board 80 -> 994 rows (the lag), target
+mounted at y=50,968, never scrolled to, no ring. The SECOND search worked because the first had mounted
+the rows. Now it looks until the row mounts (a 10s DEADLINE, not a poll count — 16 x 120ms ran out
+before a big mount finished).
+
+**AND ONE JUMP OPENED EVERY LONG LIST ON SCREEN, which was most of the 6s.** Four passes, each measured:
+```
+                                 grid-wide rows   row in view
+untargeted render-all                 2,017          ~6s / never
+targeted, 1.2s TIME grace             1,279          5.6s   <- the mount outlasted the grace
+claimed synchronously                 1,279          ~4.8s  <- Movies is open in TWO panels
++ scoped to the jump's panel            734          3.0s
++ instant scroll when >2 screens        734          2.4-2.7s, ring 25-85ms after it lands
+```
+`requestRenderAll(occId, root)`: only a window whose list HOLDS the row, inside the jump's panel,
+grows — to the row + 24 (`countForRequest`, pure). It CLAIMS the request during dispatch (sync), and the
+jump opens every window only when nobody claimed it (a row nested below a window's direct children).
+**A time grace was the wrong test: a busy main thread makes every wait look like a miss.**
+
+**THE RING WAITS FOR THE ROW TO BE IN VIEW** (IntersectionObserver). Started at the click, a long smooth
+scroll played the whole blink off screen and the user saw only the settle's re-blink ~2s later.
+
+**WHAT IS LEFT is mounting the ~545 rows ABOVE the target (~2.3s headless).** Cutting that needs rows
+above to render as seeded placeholders — a renderer change, not done.
+
+**OP NOTIFICATIONS: ROWS AND A TRIGGER.** `opResultRows` is the one structured view of a run (the pill
+text is those rows joined, so the two cannot disagree); `describeOpTrigger` names the event the executor
+matched (`computeTriggerMatch` now returns `eventType`) plus what it was about — `On Change · Completed on
+"Drink"`, `On Move · "Drink" → 3:30pm`, `On Load`. The dropdown card: title, `⚡ trigger`, one row per
+change (item left, `field → value` right), up to 40 rows. **Watched on prod.** `menuTheming` caught my
+literal border colours — tokens now.
+
+**SCROLL REPAINT — MEASURED, NOT CHANGED.** `content-visibility: auto` on/off, interleaved, Chromium AND
+Firefox, three panels: **0 frames with an unpainted cv row in view in either arm**, frame times equal
+within noise (Chromium's right Movies panel: 18-19 slow frames ON vs 7-10 OFF). So cv is neither the
+blanking nor a measurable win. The blanking is the compositor scrolling ahead of a busy main thread
+(checkerboarding); the long list mounting its next 80 rows mid-scroll is the prime suspect. Not proven.
+
+**THE EXTENSION HAD NO TOOLBAR BUTTON.** The manifest declared no `action`, so Firefox said "cannot
+change anything on this webpage". A popup now offers the page's two menu items by their REAL ids —
+one code path (`handleClip`) with the right-click menu. `activeTab` added (Firefox MV3 host permissions
+are opt-in). v0.2.0; reload the temporary add-on to get it.
+
+**PHONE SHARE "ALWAYS AUTOMATIC" — IT WAS AN IMAGE.** The share log's last android entry (17:45Z) is
+`1561269119.jpg`. Files skip the placement window by design (a stage holds JSON only); links from the
+phone DO get it. No reinstall needed. Making a file stageable is the open item.
+
+Client 5,416 pass (2 errors = the OOM pair). A/Bs, each mutation asserted to land: same-tick look (2),
+ignoring the target (3), blinking at the click (1), dropping the panel scope (1). Six client deploys.
+
+---
+
 ### 2026-09-30 (2) — ENTER FELL INTO THE SEARCH'S DEBOUNCE WINDOW
 
 User: *"so the first time i do a search and press enter, it doesnt work, after that it works fine"*.
