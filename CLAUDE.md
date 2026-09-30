@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 (4) — NOTES/HIGHLIGHTS WOULD NOT MINT; every share opens the window; a day column came in through the side door
+
+**NOTES AND HIGHLIGHTS: TWO BUGS, THE SECOND FOUND BY WATCHING THE FIRST FIX.** Reproduced on prod: the
+click read `mint:skip why:no-recent-input`. `isInNonEditableIsland` refused a pointerdown under ANY
+`contenteditable=false` ancestor (for the Emotions Wheel) — and an embedded doc container is an editor
+INSIDE the host's non-editable node view. The NEAREST contenteditable decides now. Then, on the real
+day page: click Notes (mints), click Highlights → `mint:skip suppressed`. Notes' collapse held position
+0, and Highlights' empty line is also position 0 of ITS editor. Holds are (editor, position) pairs now.
+**Probe fault worth knowing: `?previewOcc=` renders with `socket={null}`, so a mint there returns at
+once — it can prove the guard passed (`mint:go`), never that a block appears.** And my own probe left the
+user's Tasks panel on the Day Page TEMPLATE (search's first "Day Page" hit) — restored through search.
+
+**EVERY SHARE OPENS THE PLACEMENT WINDOW, FILES INCLUDED** (*"i dont want anything going through auto
+unless i express that in the dropdown"*). The phone's last share was a PHOTO, and files skipped the window
+because a stage held JSON. `POST /share/stage` takes multipart; the file is parked in `server/share-stage/`
+(NOT the static `uploads/`), served only by stage key, swept past the stage TTL. On Clip it takes the same
+path an uploaded file takes; placing it by hand MOVES the stored Files row (`MOVE_OCCURRENCE`, written for
+exactly this) rather than creating a second. Not exercised from a real phone yet.
+
+**A SECOND DAY COLUMN FOR TODAY — create_batch REFUSED IT, `update_occurrence` WROTE IT.** Prod log:
+two `update_occurrence ed222a56` (the build's textmap / template stamp) BEFORE `create_batch REFUSED
+(stored sibling) [ed222a56]` — and that handler UPSERTS. An update that would INSERT a unique-signed row
+now gets the same refusal. **The other 7 dates that looked duplicated are one day page PER GRID**
+(parents `8gpoqzx3` / `Vaau-lsC`) — today was the only real one. Repaired via `delete_occurrence`
+(backup `server/backups/orphans/2026-09-30-dup-daypage-col.json`); **the delete cascade does NOT reach
+sections embedded only in a column's textmap** — 7 were left and deleted one by one. Their modules await
+the sweeper. Still open: sections created before a refused root arrives land under a parent that never
+exists (the 09-19 orphan class).
+
+**THE FIREFOX TOOLBAR BUTTON:** Firefox kept the icon dimmed after a reload. Temporary add-ons are not
+recorded in the profile; the only other copy found is the stale `.claude/worktrees/share-place/extension`
+(v0.1.0). Load `\\wsl.localhost\Ubuntu-24.04\home\joshpoms\moduli\extension\manifest.json`.
+
+Server 2,947 · client 5,423. A/Bs: any-ancestor island (1), unscoped hold (1), old SharePending (1),
+disabled insert guard (1).
+
+---
+
 ### 2026-09-30 (3) — THE FIRST SEARCH NEVER LANDED; one jump grew 2,017 rows; op notifications get rows and a trigger
 
 User: *"the first search is still not scrolling to the correct one, it lags for a few seconds and does
