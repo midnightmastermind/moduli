@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 (6) — THE SCHEDULE AND THE DAY PAGE BUILD EACH OTHER'S MISSING DAY
+
+User: *"tomorrows daypage doesnt even show a todo container"* → (option 1 of 3) *"and vice versa, schedule
+should create a daypage as well"*. A day page's Todo IS that day's Schedule column's Todo slot, and a
+Schedule column only existed once the Schedule had shown that date.
+
+**`0372`: each builder's per-date body moves UNCHANGED into its own trigger-less op** — `Schedule: Build Day`
+and `Day Page: Build Day` (the builder's INIT_VARs + the body behind `$day IS_NOT_EMPTY`) — and each
+builder's loop runs its own day and, when the other side's column is missing, the other side's. The
+"is there a column" FINDs are each body's OWN first FIND, copied. No recursion: Build Day ops never call.
+
+**It needed two executor changes, each found by a failing test rather than by reading:**
+- `RUN_OPERATION` takes `vars` (arguments resolved in the caller); the editor shows/edits them.
+- A callee could not see what an earlier callee CREATED in the same run. Creates land in the shared
+  overlay at once, but a callee builds collections from the sweep's cached read model — so it is dropped
+  when the overlay holds rows the model does not (`updates` in an action is THAT STEP's list, so an
+  "any structural effect so far" check was always false). And CREATE's overlay row carried no `role`,
+  with its module not yet in `modulesById`, so it sat in no `$allContainers` slice.
+
+**VERIFIED BY REPLAY, NOT LIVE** — the real executor over a fresh Mongo snapshot, writing nothing: the day
+page's own NavigationOp (Oct 1, a date with no Schedule column) creates `schedule:col:2026-10-01`, and
+Oct 1's day page embeds THAT column's Todo slot first; the Schedule moved to Oct 2 creates
+`schedule:col:2026-10-02` AND `daypage:col:2026-10-02` with its sections. Probe note: a filterNav trigger
+scoped to a page needs `_ancestorIds` to include the page, or nothing matches.
+
+---
+
 ### 2026-09-30 (5) — TOMORROW'S DAY COLUMN: TODAY'S TODO, THEN GONE AFTER A RELOAD
 
 User: *"Birthday - Laura Mostowik shows up on both. it should just show up for day of the birthday"* →
