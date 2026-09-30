@@ -3124,3 +3124,13 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 - **`flowAware: true` per map row, default OFF** — so the shipped nutrition prefill behaves
   byte-identically and nothing had to be re-migrated. `out` NEGATES, the same convention every
   aggregation here already uses. 2 tests, the opt-in one A/B'd (defeating the flag fails it).
+
+## 2026-09-30 — jumpToOccurrence / renderWindow / opResultSummary
+- `requestRenderAll(occId, root)` is TARGETED: only a window whose list holds the row, inside `root`,
+  grows (to row + `TARGET_TAIL`), and it sets `detail.claimed` during dispatch. Untargeted = open every
+  window (the jump's fallback when nobody claims). `countForRequest` is the pure rule.
+- `jumpToOccurrence` → `expandAndFind`: targeted request, fallback only if unclaimed, look until a 10s
+  deadline. `scrollAndFlash` blinks when the element ENTERS VIEW (IntersectionObserver) and scrolls
+  instantly when the target is > 2 screens away (`scrollBehaviorFor`). `HIGHLIGHT_MS` = 1000 (2 cycles).
+- `opResultRows` / `opRowText` / `describeOpTrigger`: an op run as rows + what triggered it; the pill's
+  text is the rows joined. `computeTriggerMatch` returns `eventType`.
