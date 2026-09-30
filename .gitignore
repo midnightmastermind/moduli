@@ -40,3 +40,7 @@ client/src/__tests__/_*.test.js
 # Staged share files (server/services/shareStageFiles.js) — user uploads parked
 # for the placement window; never tracked.
 server/share-stage/
+
+# Built/signed extension packages, and the AMO signing keys (never tracked).
+extension/dist/
+extension/.sign.env

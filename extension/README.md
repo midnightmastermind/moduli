@@ -70,6 +70,20 @@ pick this folder.
 → pick `manifest.json` in this folder. (Firefox unloads temporary add-ons on
 restart; signing is needed for a permanent install.)
 
+**Firefox, permanently** — `scripts/extension-package.sh` builds an `.xpi` in
+`extension/dist/`:
+
+- *Developer Edition / Nightly, unsigned:* `about:config` →
+  `xpinstall.signatures.required` = `false`, then `about:addons` → gear →
+  *Install Add-on From File…* → `moduli-companion-<ver>-unsigned.xpi`. Regular
+  Firefox ignores that pref.
+- *Regular Firefox, signed:* put AMO API keys
+  (https://addons.mozilla.org/developers/addon/api/key/) in `extension/.sign.env`
+  as `WEB_EXT_API_KEY=…` / `WEB_EXT_API_SECRET=…`, bump `version` in
+  `manifest.json`, then `scripts/extension-package.sh sign`. It is signed
+  UNLISTED — private, never on the store — and the signed `.xpi` installs by
+  dragging it into Firefox. Mozilla will not sign one version twice.
+
 One `manifest.json` serves both browsers: `background` names the file as a
 `service_worker` for Chrome and in `scripts` for Firefox, and each ignores the
 other key. (There used to be a separate `manifest.firefox.json` — but Firefox
