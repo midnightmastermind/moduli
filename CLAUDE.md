@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 (5) — TOMORROW'S DAY COLUMN: TODAY'S TODO, THEN GONE AFTER A RELOAD
+
+User: *"Birthday - Laura Mostowik shows up on both. it should just show up for day of the birthday"* →
+*"on reload, the filter is set to both days but only today shows up"*.
+
+**THE BIRTHDAY WAS A STALE LOOP VAR.** `Day Page: Build` loops over the dates on screen and FINDs a date's
+Todo only inside `if ($dayColId)` — but embeds `$todoId` OUTSIDE it. Oct 1 has no Schedule column, so the
+Todo FIND never ran and `$todoId` still held TODAY's. (FIND does clear its var on no match — it just never
+ran.) `0371` resets `$todoId` per date; tested against the live pipeline as a fixture, with a control
+that the embed really sits outside the `if`.
+
+**THE RELOAD WAS THE WARM CACHE HOLDING A PARTIAL ROW.** A bare socket's `full_state` sent tomorrow's column
+as `{ id, meta, occurrences, textmap, updatedAt }` — no moduleId, parent or date — while Mongo held the
+whole row. `update_occurrence` on a row the cache did not hold merged onto `prev = {}` and cached that
+(Mongo survived because its update is a `$set`). A cache miss is now HYDRATED from the stored row before
+the merge. *Why* the cache lacked the row is not established (a create_batch rollback is the suspect);
+the hydrate makes it irrelevant. Restart + readback: the row now arrives whole.
+
+---
+
 ### 2026-09-30 (4) — NOTES/HIGHLIGHTS WOULD NOT MINT; every share opens the window; a day column came in through the side door
 
 **NOTES AND HIGHLIGHTS: TWO BUGS, THE SECOND FOUND BY WATCHING THE FIRST FIX.** Reproduced on prod: the
