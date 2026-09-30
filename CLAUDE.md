@@ -15,6 +15,61 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-30 — THE SEARCH MARKED ONE WORD, AND THE JUMP RING WAITED TWO SECONDS
+
+Two cosmetic reports, both real, both in the search path. *"I type A Guide and it does pop up with the
+right results but the 'A' is only highlighted"* and *"after selecting the result, it scrolls to the
+correct spot, but the highlight on the actual occurance is super late … like 2 seconds later"*.
+
+**THE LIST WAS MARKING THE FIRST WORD OF THE QUERY, LITERALLY.** `OccurrenceSearch` derived
+`firstTerm = query.split(/\s+/).filter(Boolean)[0]` and marked that alone — so "A Guide" lit a bare
+"A" on every row. `helpers/searchHighlight.highlightSegments` is the rule now, and it took **three
+passes, each one driven by looking at prod rather than at the tests:**
+```
+1  mark the whole query           "A Guide"  ->  [A Guide] …                 the report, fixed
+2  …and per-term when apart       "An FBI agents [guide]" was ["A","a","guide","a"]  -- static
+3  …phrase needs a word boundary  "Mang[a Guide] to Physics"  ->  "Manga [Guide]"
+```
+- **The PHRASE wins when it is there** — "A Guide" is ONE run, which is also what stops a one-letter
+  word lighting up every matching letter.
+- **A one-letter term marks nothing in the per-term fallback**, unless the whole query is that short:
+  marking every "a" said LESS about why the row matched than marking "guide" alone, and marking
+  nothing reads as a row that matched for no reason.
+- **A multi-word phrase must start on a word boundary**, scoped to multi-word because a single word is
+  how partial typing works ("uide" must still mark on "A Guide" as you type).
+- **A query is typed text, never a pattern** — no regex, so "(2006)" searches literally.
+
+**AND THE RING WAS GATED ON THE PAGE SETTLING.** `scrollAndFlash` keeps re-centring while lazy rows
+mount and images load — correct, and it was holding the feedback hostage to it: the smooth scroll gets
+two 250ms checks before the first correction, so the earliest ring was ~1s and ~2s was typical. **The
+ring is up in the same tick now and HELD** (a steady `.anchor-highlight-hold`) until the element lands,
+then swapped for the existing 1.2s fade-out. The ring rides ON the element, so it moves with it — the
+failure the wait was written for was the flash ENDING before the element arrived, which holding fixes
+directly.
+
+**WATCHED ON THE DEPLOYED BUILD, by typing:**
+```
+"A Guide"    A Guide to Recognizing Your Saints   [A Guide]      <- the user's own row
+             A Bug Hunter's Diary: A Guided Tour  [A Guide]
+             An FBI agents guide to …             [guide]        (no phrase; the "a" is noise)
+             Manga Guide to Physics               [Guide]        (phrase crosses a word)
+picked a row   ring first seen at 17ms            (was ~2000ms)
+```
+
+**PROBE FAULTS, three, and two are ones this file already pins.** The search is a COLLAPSED trigger
+until clicked, so a probe looking for an input reported *"no search on this page"*. An expired token
+showed up as a 90s `waitForFunction` timeout. And my test-file import inserter landed **inside a
+multi-line `import {`** — the 2026-09-18 near-duplicate-anchor trap, paid again; the file then parsed
+as nothing and vitest reported *"no tests"* rather than a failure.
+
+**A test expectation of mine was wrong before the code was** — `"x y"` against `"x y z"` IS a phrase, so
+it marks as one run; corrected the test, not the rule. 19 tests. A/B, each mutation asserted to land:
+restoring the first-word term fails the wiring guard; removing the immediate ring fails 4; deleting the
+CSS rule fails the paint guard (a class with no rule is invisible, not immediate); the one-letter and
+word-boundary rules fail exactly their own cases. Client **5,392 pass**; four client-only deploys.
+
+---
+
 ### 2026-09-29 (6) — A ROW IS NAMED BY ITS PLACEMENT; the share window scrolls and a preset can be overwritten
 
 User: *"can you fix all the movies and shows and whatever to have the correct labels. currently it just

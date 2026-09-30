@@ -3,6 +3,26 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-09-30 — `searchHighlight.js` NEW; and the jump ring stops waiting)
+- **`highlightSegments(text, query)`** — which part of a result matched. The list derived
+  `firstTerm = query.split(/\s+/)[0]` and marked that alone, so "A Guide" lit a bare **"A"** on every
+  row (user, 2026-09-30). Three rules, each one added after LOOKING at prod:
+  **the PHRASE wins when it is there** (one run, which also stops a one-letter word lighting up every
+  matching letter); **a one-letter term marks nothing in the per-term fallback** unless the whole query
+  is that short (measured: "A Guide" vs "An FBI agents guide…" marked `["A","a","guide","a"]` — static,
+  and it said less than marking "guide" alone); **a multi-word phrase must start on a word boundary**
+  ("Mang|a Guide| to Physics" is true and reads as a mistake), scoped to multi-word because a single
+  word is how partial typing works. No regex — a query is typed text, so "(2006)" searches literally.
+  Every segment concatenates back to the input; ranges are capped and merged. 19 tests.
+- **`jumpToOccurrence.scrollAndFlash` rings IMMEDIATELY and HOLDS.** It keeps re-centring while lazy
+  rows mount, and it was gating the ring on that: the smooth scroll gets two 250ms checks before the
+  first correction, so the earliest ring was ~1s and ~2s typical (user: *"super late … like 2 seconds
+  later"*). A steady `.anchor-highlight-hold` goes on in the same tick and is swapped for the existing
+  1.2s fade-out once the element lands — the ring rides ON the element, so it moves with it, and the
+  failure the wait was written for (the flash ENDING before the element arrived) is what holding fixes.
+  Dropped if the element leaves the document. **A class with no rule paints nothing**, so a test asserts
+  `index.css` defines it, with the fade-out half as the control.
+
 ## Recent Changes (2026-09-29 (6) — `occurrenceLabel.js` NEW: a row is named by its PLACEMENT)
 - **`occurrenceDisplayLabel(occurrence, module, fallback)`** — the placement's own label wins; the type
   module's is the FALLBACK (right for a container, a page, a one-off upload). Measured on poms: **13
