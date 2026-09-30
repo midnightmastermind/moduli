@@ -79,18 +79,21 @@ export default function OccurrenceSearch({
   }, [query]);
 
   // Nothing is indexed until the user actually types.
-  const hits = useMemo(() => {
-    if (!debounced) return { results: [], total: 0 };
+  const runSearch = useCallback((q) => {
+    const term = String(q || "").trim();
+    if (!term) return { results: [], total: 0 };
     const index = getSearchIndex({
       occurrencesById: getOccMap(),
       modulesById: getModMap(),
       fieldsById,
       gridId,
     });
-    return searchOccurrences(index, debounced, { scopeRootId });
+    return searchOccurrences(index, term, { scopeRootId });
     // getOccMap/getModMap are stable getters — read at compute time, not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debounced, fieldsById, gridId, scopeRootId]);
+  }, [fieldsById, gridId, scopeRootId]);
+
+  const hits = useMemo(() => runSearch(debounced), [runSearch, debounced]);
 
   useEffect(() => { setActiveIdx(0); }, [debounced]);
 
@@ -131,7 +134,26 @@ export default function OccurrenceSearch({
     if (e.key === "Escape") { e.preventDefault(); close(); return; }
     if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, hits.results.length - 1)); return; }
     if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); return; }
-    if (e.key === "Enter") { e.preventDefault(); pick(hits.results[activeIdx]); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // ENTER MUST NOT FALL INTO THE DEBOUNCE WINDOW. The list waits 120ms
+      // before it searches at all, and Enter inside that window read
+      // `hits.results` for a query that had not run yet — an empty list, so it
+      // picked nothing and did nothing, silently. Measured on prod: Enter at
+      // 0ms and 60ms after the last keystroke did nothing; at 130ms it
+      // navigated. That is the whole of "the first time i do a search and press
+      // enter, it doesnt work, after that it works fine" — by the second try
+      // the results are already on screen.
+      //
+      // Pressing Enter IS the decision, so a stale query is run right now
+      // rather than dropped. Index 0 with it: the highlighted row belongs to
+      // the list on screen, which is not the list this query produces.
+      const term = query.trim();
+      if (!term) return;
+      const fresh = term !== debounced;
+      const live = fresh ? runSearch(term) : hits;
+      pick(live.results[fresh ? 0 : activeIdx]);
+    }
   };
 
 
