@@ -1,4 +1,5 @@
 // helpers/opResultSummary.js
+import { EVENT_TYPES } from "./triggerTypes";
 //
 // Human summary of what an operation run actually CHANGED, for the toolbar
 // notification pills. "Operation X ran" tells the user nothing — the pill
@@ -23,18 +24,21 @@ function fmtValue(v) {
 // Cap on rendered segments — everything counts, but a Build op emitting 50
 // creates shouldn't produce a 50-segment pill. Overflow collapses to "+N".
 const MAX_PARTS = 12;
+// The dropdown has room for a column of rows the one-line pill does not.
+const DETAIL_MAX_ROWS = 40;
 
 /**
- * Summarize a single op run's results (the array returned by executePipeline
- * for ONE op). Every effect type is named; nothing is silently dropped.
+ * What a single op run CHANGED, as ROWS — the dropdown renders one line per
+ * row (user, 2026-09-30: "right now its like one after the other and its hard
+ * to read. we should have rows inside each notification"). `summarizeOpResults`
+ * is these rows joined, so the pill and the dropdown can never disagree.
  *
- * @param {Array} results
- * @param {Object} ctx — { fieldsById, occurrencesById, modulesById }
- * @returns {string} e.g. `Completed: Tasks Completed→2 · +Stretching · 1 moved`
- *   or "" when nothing summarizable changed (caller falls back to "ran").
+ * @returns {{ rows: Array<{kind:"field",item:string|null,field:string,value:string}
+ *   | {kind:"created"|"deleted"|"moved"|"other",label:string,count:number}>, more: number }}
  */
-export function summarizeOpResults(results, { fieldsById = {}, occurrencesById = {}, modulesById = {} } = {}) {
-  if (!Array.isArray(results) || results.length === 0) return "";
+export function opResultRows(results, { fieldsById = {}, occurrencesById = {}, modulesById = {} } = {}, max = MAX_PARTS) {
+  const rows = [];
+  if (!Array.isArray(results) || results.length === 0) return { rows, more: 0 };
 
   const occLabel = (occId) => {
     const o = occId ? occurrencesById[occId] : null;
@@ -102,32 +106,101 @@ export function summarizeOpResults(results, { fieldsById = {}, occurrencesById =
     }
   }
 
-  const parts = [];
-
   for (const { occId, fieldId, value } of fieldWrites.values()) {
-    const target = occLabel(occId);
-    const write = `${fieldName(fieldId)}→${fmtValue(value)}`;
-    parts.push(target ? `${target}: ${write}` : write);
+    rows.push({ kind: "field", item: occLabel(occId), field: fieldName(fieldId), value: fmtValue(value) });
   }
-
   // Creates/deletes/moves: name items, collapsing duplicates ("+3 Stretching").
-  const grouped = (labels, prefix) => {
+  const grouped = (labels, kind) => {
     const counts = new Map();
     for (const l of labels) counts.set(l, (counts.get(l) || 0) + 1);
-    for (const [l, n] of counts) parts.push(n > 1 ? `${prefix}${n} ${l}` : `${prefix}${l}`);
+    for (const [label, count] of counts) rows.push({ kind, label, count });
   };
-  grouped(created, "+");
-  grouped(deleted, "−");
-  grouped(moved, "→");
+  grouped(created, "created");
+  grouped(deleted, "deleted");
+  grouped(moved, "moved");
+  for (const [label, count] of other) rows.push({ kind: "other", label, count });
 
-  for (const [name, n] of other) parts.push(n > 1 ? `${name} ×${n}` : name);
+  let more = 0;
+  if (rows.length > max) { more = rows.length - max; rows.length = max; }
+  return { rows, more };
+}
 
-  if (parts.length > MAX_PARTS) {
-    const extra = parts.length - MAX_PARTS;
-    parts.length = MAX_PARTS;
-    parts.push(`+${extra} more`);
+const ROW_PREFIX = { created: "+", deleted: "−", moved: "→" };
+
+/** One row as the pill's inline text. */
+export function opRowText(row) {
+  if (row.kind === "field") {
+    const write = `${row.field}→${row.value}`;
+    return row.item ? `${row.item}: ${write}` : write;
   }
+  if (row.kind === "other") return row.count > 1 ? `${row.label} ×${row.count}` : row.label;
+  const p = ROW_PREFIX[row.kind] || "";
+  return row.count > 1 ? `${p}${row.count} ${row.label}` : `${p}${row.label}`;
+}
+
+/**
+ * Summarize a single op run's results (the array returned by executePipeline
+ * for ONE op). Every effect type is named; nothing is silently dropped.
+ *
+ * @param {Array} results
+ * @param {Object} ctx — { fieldsById, occurrencesById, modulesById }
+ * @returns {string} e.g. `Completed: Tasks Completed→2 · +Stretching · 1 moved`
+ *   or "" when nothing summarizable changed (caller falls back to "ran").
+ */
+export function summarizeOpResults(results, ctx = {}) {
+  const { rows, more } = opResultRows(results, ctx);
+  const parts = rows.map(opRowText);
+  if (more > 0) parts.push(`+${more} more`);
   return parts.join(" · ");
+}
+
+// Event → the words the dropdown shows. Derived from the editor's own list so
+// a new event type needs no second edit here.
+const EVENT_LABEL = new Map(EVENT_TYPES.map((e) => [e.value, e.label]));
+
+/**
+ * WHAT SET THE OPERATION OFF (user, 2026-09-30: "if its a operation, include
+ * what the trigger was (onLoad, onDrag of this element, etc)"). The event the
+ * executor matched, plus the element / field it was about when the transaction
+ * names one.
+ *
+ * @param {{ eventType?: string, transactionType?: string|null, transaction?: Object }} trig
+ * @returns {string} e.g. `On Change · Completed on "Drink"`, `On Move · "Drink" → 3:30pm`, `On Load`
+ */
+export function describeOpTrigger(trig, { fieldsById = {}, occurrencesById = {}, modulesById = {} } = {}) {
+  if (!trig) return "";
+  const { eventType, transactionType, transaction: tx } = trig;
+  const base = EVENT_LABEL.get(eventType) || (transactionType == null ? "On Load" : String(eventType || transactionType));
+  if (!tx) return base;
+  const label = (id) => {
+    if (!id) return null;
+    const o = occurrencesById[id];
+    return (o && (o.label || modulesById[o.moduleId]?.label)) || modulesById[id]?.label || null;
+  };
+  const q = (s) => (s ? `"${s}"` : null);
+  const item = q(label(tx.occurrenceId) || label(tx.instanceId));
+  switch (transactionType) {
+    case "MeasureOp": {
+      const fids = tx.fieldId ? [tx.fieldId] : Object.keys(tx.fields || {});
+      const names = fids.map((f) => fieldsById[f]?.name).filter(Boolean);
+      const what = names.length ? names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : "") : null;
+      if (what && item) return `${base} · ${what} on ${item}`;
+      return [base, what || item].filter(Boolean).join(" · ");
+    }
+    case "OccurrenceMoveOp":
+    case "OccurrenceListOp": {
+      const to = label(tx.toContainerId);
+      return [base, item && (to ? `${item} → ${to}` : item)].filter(Boolean).join(" · ");
+    }
+    case "OccurrenceCreateOp": {
+      const into = tx.containerLabel || label(tx.containerId);
+      return [base, item && (into ? `${item} in ${into}` : item)].filter(Boolean).join(" · ");
+    }
+    case "NavigationOp":
+      return tx.date ? `${base} · ${tx.date}` : base;
+    default:
+      return item ? `${base} · ${item}` : base;
+  }
 }
 
 /**
@@ -144,11 +217,16 @@ export function makeOpNotificationCallbacks(pushTxNotification, getCtx) {
       kind: "error",
       label: err?.message ? `"${name}" failed — ${err.message}` : `"${name}" failed`,
     }),
-    onSuccess: (name, results) => {
-      const summary = summarizeOpResults(results, getCtx() || {});
+    onSuccess: (name, results, trig) => {
+      const ctx = getCtx() || {};
+      const summary = summarizeOpResults(results, ctx);
+      const { rows, more } = opResultRows(results, ctx, DETAIL_MAX_ROWS);
       pushTxNotification({
         kind: "success",
         label: summary ? `"${name}" — ${summary}` : `"${name}" ran`,
+        // The dropdown's structured view of the same run: the op, what set it
+        // off, and one row per change.
+        detail: { title: name, trigger: describeOpTrigger(trig, ctx), rows, more },
       });
     },
   };

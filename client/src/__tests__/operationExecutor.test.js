@@ -952,13 +952,13 @@ describe("computeTriggerMatch — matched triggerObject threading", () => {
       triggerObjects: [toWater],
     });
     expect(computeTriggerMatch(op, "MeasureOp", { fields: { water: 1 } }))
-      .toEqual({ matched: true, triggerObject: toWater });
+      .toMatchObject({ matched: true, triggerObject: toWater });
   });
 
   test("returns triggerObject: null when no triggerObjects are set (event-only match)", () => {
     const op = makeOp({ triggerTypes: ["onChange"] });
     expect(computeTriggerMatch(op, "MeasureOp", { fields: { any: 1 } }))
-      .toEqual({ matched: true, triggerObject: null });
+      .toMatchObject({ matched: true, triggerObject: null });
   });
 
   test("picks the specific triggerObject that matched from multiple", () => {
@@ -969,7 +969,7 @@ describe("computeTriggerMatch — matched triggerObject threading", () => {
       triggerObjects: [toA, toB],
     });
     expect(computeTriggerMatch(op, "MeasureOp", { fields: { b: 1 } }))
-      .toEqual({ matched: true, triggerObject: toB });
+      .toMatchObject({ matched: true, triggerObject: toB });
   });
 
   test("returns false when no triggerObject matches", () => {

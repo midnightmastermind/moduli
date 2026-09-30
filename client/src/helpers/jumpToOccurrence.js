@@ -32,10 +32,14 @@ import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
 // animation is what it does while it is on.
 export const HIGHLIGHT_MS = 1000;
 const PAGE_SWITCH_GRACE_MS = 220;
-// Looks after a render-all on an already-open page (~3.5s at the default
-// retryMs). A poll that lands during the expansion's long task simply runs
-// after it, so this bounds the wait for a list that never mounts the row.
-const EXPAND_POLLS = 16;
+// After a window is asked to grow, keep looking until the row mounts. A TIME
+// bound, not a count: a large expansion can outlast any fixed number of polls
+// (measured: 16 x 120ms ran out before a 994-row board finished mounting).
+const EXPAND_DEADLINE_MS = 10000;
+// A targeted request grows only the list that holds the row DIRECTLY. A row
+// nested deeper (inside a child container of a windowed list) is in no list's
+// index, so after this long the jump falls back to opening every window.
+const TARGETED_GRACE_MS = 1200;
 
 /**
  * Jump to an occurrence's DOM node. Returns true if found + scrolled OR if a
@@ -104,11 +108,10 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
       const retry = findOccurrenceElement(occurrenceId, root);
       if (retry) { scrollAndFlash(retry, { highlightMs, scrollBlock }); return; }
       if (!expanded && expandWindows) {
-        // One extra look once the windows have opened, so a caller with a
-        // single retry still finds a row that was past the seam.
+        // The page is up and the row is not: grow the window that holds it
+        // and keep looking until it mounts.
         expanded = true;
-        requestRenderAll();
-        setTimeout(attempt, retryMs);
+        expandAndFind(occurrenceId, { root, retryMs, onMissing, found: (el) => scrollAndFlash(el, { highlightMs, scrollBlock }) });
         return;
       }
       if (--left > 0) setTimeout(attempt, retryMs);
@@ -131,16 +134,30 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
   // after that". The miss is reported through `onMissing` once the polls run
   // out, like the page-swap path above.
   if (!expandWindows) return false;
-  requestRenderAll();
-  let left = EXPAND_POLLS;
+  expandAndFind(occurrenceId, { root, retryMs, onMissing, found: (el) => scrollAndFlash(el, { highlightMs, scrollBlock }) });
+  return true;
+}
+
+/**
+ * Grow the window holding `occurrenceId` and look until it mounts. First a
+ * TARGETED request (only the list holding the row grows, only as far as the
+ * row); if that has not produced it after TARGETED_GRACE_MS, every window
+ * opens in full (the row is nested below a windowed list's direct children).
+ * Gives up at EXPAND_DEADLINE_MS through `onMissing`.
+ */
+function expandAndFind(occurrenceId, { root, retryMs, onMissing, found }) {
+  const t0 = Date.now();
+  let widened = false;
+  requestRenderAll(occurrenceId);
   const look = () => {
     const hit = findOccurrenceElement(occurrenceId, root);
-    if (hit) { scrollAndFlash(hit, { highlightMs, scrollBlock }); return; }
-    if (--left > 0) setTimeout(look, retryMs);
+    if (hit) { found(hit); return; }
+    const waited = Date.now() - t0;
+    if (!widened && waited >= TARGETED_GRACE_MS) { widened = true; requestRenderAll(); }
+    if (waited < EXPAND_DEADLINE_MS) setTimeout(look, retryMs);
     else onMissing?.();
   };
   setTimeout(look, 0);
-  return true;
 }
 
 /**
@@ -265,13 +282,29 @@ export function scrollAndFlash(el, opts = {}) {
   scrollToTarget(el, scrollBlock, "smooth");
 
   let offTimer = null;
-  const startedAt = Date.now();
-  const flash = () => { offTimer = flashElement(el, highlightMs, offTimer); };
+  let startedAt = null;             // when the blink actually began
+  const flash = () => { startedAt = Date.now(); offTimer = flashElement(el, highlightMs, offTimer); };
 
-  flash();                          // blink immediately — the click's own feedback
+  // BLINK WHEN IT COMES INTO VIEW (user, 2026-09-30: "theres a two second pause
+  // and then it flashes. it should flash right when it gets in the view"). A
+  // blink started at the click played out during a long smooth scroll, off
+  // screen, and the one the user saw was the settle's re-blink ~2s later. The
+  // observer fires on the frame the element enters the visible area — at once
+  // when it is already there. Without IntersectionObserver, blink now.
+  let io = null;
+  if (typeof IntersectionObserver !== "undefined") {
+    io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect(); io = null;
+      flash();
+    }, { threshold: 0.25 });
+    io.observe(el);
+  } else {
+    flash();
+  }
   let checks = 0, still = 0, lastTop = null;
   const settle = () => {
-    if (!el.isConnected) { clearTimeout(offTimer); el.classList.remove("anchor-highlight"); return; }
+    if (!el.isConnected) { io?.disconnect(); clearTimeout(offTimer); el.classList.remove("anchor-highlight"); return; }
     checks++;
     const r = el.getBoundingClientRect();
     const off = offTargetBy(r, viewRectFor(el), scrollBlock);
@@ -283,7 +316,9 @@ export function scrollAndFlash(el, opts = {}) {
     // Only re-blink when the first one has already run out — a settle that
     // finishes inside the blink must not restart it and double its length.
     if (still >= 2 || checks >= SETTLE_MAX_CHECKS) {
-      if (Date.now() - startedAt >= highlightMs) flash();
+      // Never came into view (or no observer fired): blink where it is now.
+      if (io) { io.disconnect(); io = null; flash(); return; }
+      if (startedAt == null || Date.now() - startedAt >= highlightMs) flash();
       return;
     }
     setTimeout(settle, SETTLE_CHECK_MS);

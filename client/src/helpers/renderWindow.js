@@ -31,7 +31,7 @@
 // dispatches `moduli:render-all` on its first miss and retries; every open
 // window expands, and the retry finds it. That is why the escape hatch is an
 // EVENT rather than a prop: the searcher and the container never meet.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Chosen against the measurement above, not by taste: at ~75 nodes and ~7
 // observers per row, 80 rows is ~6,000 nodes — the weight of an ordinary busy
@@ -45,11 +45,31 @@ export const WINDOW_MIN = 120;
 
 export const RENDER_ALL_EVENT = "moduli:render-all";
 
-/** Ask every open window to render everything. Used by the occurrence jump so a
- *  row outside the window is never reported as missing. */
-export function requestRenderAll() {
+/** Ask the open windows to render further. Used by the occurrence jump so a
+ *  row outside the window is never reported as missing.
+ *
+ *  WITH `occId` ONLY THE LIST HOLDING THAT ROW GROWS, and only as far as the
+ *  row (user, 2026-09-30: "6 seconds is way too long"). Measured on prod,
+ *  searching Movies row #600: an untargeted request mounted 189 -> 2,017 rows
+ *  across the grid — every long board on screen opened in full to find one
+ *  row in one of them. Without `occId` every window opens in full (the jump's
+ *  fallback when the row is not a direct child of any window). */
+export function requestRenderAll(occId = null) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT));
+  window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT, { detail: occId ? { occId } : null }));
+}
+
+// Rows rendered past a jump target, so it can sit mid-view with rows below it.
+export const TARGET_TAIL = 24;
+
+/** PURE: how many rows a window should show after a render request. `null`
+ *  means "not mine, leave the window alone". */
+export function countForRequest(current, total, detail, indexOf) {
+  const occId = detail?.occId;
+  if (!occId) return Math.max(current, total);
+  const i = typeof indexOf === "function" ? indexOf(occId) : -1;
+  if (i < 0) return null;
+  return Math.max(current, Math.min(total, i + 1 + TARGET_TAIL));
 }
 
 /**
@@ -57,7 +77,7 @@ export function requestRenderAll() {
  * Returns `count === total` (and a null ref) whenever windowing is not worth it,
  * so short containers take a byte-identical path.
  */
-export function useRenderWindow(total, { enabled = true, resetKey = null } = {}) {
+export function useRenderWindow(total, { enabled = true, resetKey = null, indexOf = null } = {}) {
   const windowed = enabled && total > WINDOW_MIN;
   const [count, setCount] = useState(windowed ? WINDOW_INITIAL : total);
   // A CALLBACK ref, not a plain one. The sentinel is rendered conditionally, so
@@ -80,12 +100,19 @@ export function useRenderWindow(total, { enabled = true, resetKey = null } = {})
   useEffect(() => { setCount(windowed ? WINDOW_INITIAL : total); }, [resetKey, windowed]);
 
   const showAll = useCallback(() => setCount((c) => (c >= total ? c : total)), [total]);
+  // Read at event time, so a caller can pass a fresh closure each render
+  // without re-subscribing.
+  const indexOfRef = useRef(indexOf);
+  indexOfRef.current = indexOf;
   useEffect(() => {
     if (!windowed) return;
-    const onAll = () => showAll();
+    const onAll = (e) => setCount((c) => {
+      const next = countForRequest(c, total, e?.detail, indexOfRef.current);
+      return next == null ? c : next;
+    });
     window.addEventListener(RENDER_ALL_EVENT, onAll);
     return () => window.removeEventListener(RENDER_ALL_EVENT, onAll);
-  }, [windowed, showAll]);
+  }, [windowed, total]);
 
   useEffect(() => {
     if (!windowed || count >= total) return;

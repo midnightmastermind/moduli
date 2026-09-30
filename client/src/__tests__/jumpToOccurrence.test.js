@@ -158,7 +158,7 @@ describe("jumpToOccurrence", () => {
     const onMissing = vi.fn();
     jumpToOccurrence("nowhere", { retryMs: 10, onMissing });
     expect(onMissing).not.toHaveBeenCalled();     // still looking
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(10500);
     expect(onMissing).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
@@ -265,7 +265,9 @@ describe("jumpToOccurrence retries", () => {
     document.body.innerHTML = `<div id="panelB" data-panel-id="B"></div>`;
     const onMissing = vi.fn();
     jumpToOccurrence("never", { root: () => document.querySelector("#panelB"), retries: 3, retryMs: 10, onMissing });
-    vi.advanceTimersByTime(100);
+    vi.advanceTimersByTime(9000);
+    expect(onMissing).not.toHaveBeenCalled();   // still inside the post-expansion deadline
+    vi.advanceTimersByTime(1500);
     expect(onMissing).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });

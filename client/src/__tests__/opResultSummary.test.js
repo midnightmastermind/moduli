@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { summarizeOpResults, makeOpNotificationCallbacks } from "../helpers/opResultSummary";
+import { summarizeOpResults, makeOpNotificationCallbacks, opResultRows, describeOpTrigger } from "../helpers/opResultSummary";
+import { computeTriggerMatch } from "../helpers/operationExecutor";
 
 const fieldsById = {
   f1: { id: "f1", name: "Tasks Completed" },
@@ -101,17 +102,17 @@ describe("makeOpNotificationCallbacks", () => {
     onSuccess("Tracker: Tasks Completed", [
       { _effect: "UPDATE_ITEM_FIELD", itemId: "goal1", fieldId: "f1", value: 2, subKind: "value" },
     ]);
-    expect(push).toHaveBeenCalledWith({
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({
       kind: "success",
       label: '"Tracker: Tasks Completed" — Completed: Tasks Completed→2',
-    });
+    }));
   });
 
   it("onSuccess falls back to ran when nothing summarizable", () => {
     const push = vi.fn();
     const { onSuccess } = makeOpNotificationCallbacks(push, () => ctx);
     onSuccess("Some Op", [{ _effect: "UPDATE_ITEM_FIELD", fieldId: "f1", subKind: "flow" }]);
-    expect(push).toHaveBeenCalledWith({ kind: "success", label: '"Some Op" ran' });
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ kind: "success", label: '"Some Op" ran' }));
   });
 
   it("onError pushes an error pill with the message", () => {
@@ -119,5 +120,64 @@ describe("makeOpNotificationCallbacks", () => {
     const { onError } = makeOpNotificationCallbacks(push, () => ctx);
     onError("Broken Op", new Error("boom"));
     expect(push).toHaveBeenCalledWith({ kind: "error", label: '"Broken Op" failed — boom' });
+  });
+});
+
+// THE DROPDOWN SHOWS ROWS, NOT A RUN-ON STRING (user, 2026-09-30: "we should
+// have rows inside each notification in the dropdown so its easier to see
+// whats been updated" / "if its a operation, include what the trigger was").
+describe("an op notification carries rows and its trigger", () => {
+  const results = [
+    { _effect: "UPDATE_ITEM_FIELD", itemId: "goal1", fieldId: "f1", value: 2, subKind: "value" },
+    { _effect: "CREATE_ITEM", instance: { label: "Stretching" } },
+    { _effect: "CREATE_ITEM", instance: { label: "Stretching" } },
+  ];
+
+  it("one row per change, item and field kept apart", () => {
+    const { rows, more } = opResultRows(results, ctx);
+    expect(rows).toEqual([
+      { kind: "field", item: "Completed", field: "Tasks Completed", value: "2" },
+      { kind: "created", label: "Stretching", count: 2 },
+    ]);
+    expect(more).toBe(0);
+  });
+
+  // The control: the pill's one-line text is exactly those rows joined, so the
+  // two views of one run cannot disagree.
+  it("the pill text is the same rows joined", () => {
+    expect(summarizeOpResults(results, ctx)).toBe("Completed: Tasks Completed→2 · +2 Stretching");
+  });
+
+  it("caps rows and counts the rest", () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({ _effect: "CREATE_ITEM", instance: { label: `x${i}` } }));
+    const { rows, more } = opResultRows(many, ctx, 3);
+    expect(rows).toHaveLength(3);
+    expect(more).toBe(2);
+  });
+
+  it("names the trigger and what it was about", () => {
+    expect(describeOpTrigger({ eventType: "onLoad", transactionType: null }, ctx)).toBe("On Load");
+    expect(describeOpTrigger({ eventType: "onChange", transactionType: "MeasureOp",
+      transaction: { occurrenceId: "occ2", fields: { f3: 1 } } }, ctx)).toBe('On Change · Water on "Stretching"');
+    expect(describeOpTrigger({ eventType: "onMove", transactionType: "OccurrenceMoveOp",
+      transaction: { occurrenceId: "occ2", toContainerId: "goal1" } }, ctx)).toBe('On Move · "Stretching" → Completed');
+    expect(describeOpTrigger({ eventType: "onFilterChange", transactionType: "NavigationOp",
+      transaction: { date: "2026-09-30" } }, ctx)).toBe("On Filter Change · 2026-09-30");
+  });
+
+  it("onSuccess pushes the detail beside the pill label", () => {
+    const push = vi.fn();
+    const { onSuccess } = makeOpNotificationCallbacks(push, () => ctx);
+    onSuccess("Tally", results, { eventType: "onLoad", transactionType: null });
+    const arg = push.mock.calls[0][0];
+    expect(arg.label).toBe('"Tally" — Completed: Tasks Completed→2 · +2 Stretching');
+    expect(arg.detail).toMatchObject({ title: "Tally", trigger: "On Load", more: 0 });
+    expect(arg.detail.rows).toHaveLength(2);
+  });
+
+  it("the executor reports WHICH event matched", () => {
+    const op = { enabled: true, triggerTypes: ["onChange", "onLoad"] };
+    expect(computeTriggerMatch(op, null, null).eventType).toBe("onLoad");
+    expect(computeTriggerMatch(op, "MeasureOp", { occurrenceId: "a", fields: {} }).eventType).toBe("onChange");
   });
 });

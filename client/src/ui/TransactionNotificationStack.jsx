@@ -345,6 +345,63 @@ const KIND_LABELS = {
   pending: "Working",
 };
 
+// AN OPERATION RUN, AS ROWS (user, 2026-09-30: "right now its like one after
+// the other and its hard to read. we should have rows inside each
+// notification … if its a operation, include what the trigger was"). The op's
+// name, what set it off, then one line per change: the item on the left, the
+// field and its new value on the right. Same rows the pill joins into text.
+const ROW_MARK = { created: "+", deleted: "−", moved: "→", other: "•" };
+function OpRunDetail({ detail, accent }) {
+  const { title, trigger, rows = [], more = 0 } = detail;
+  const muted = { opacity: 0.65 };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ fontWeight: 700 }}>{title}</div>
+      {trigger && (
+        <div style={{ fontSize: 10.5, color: accent, letterSpacing: 0.2 }} title="What set this operation off">
+          ⚡ {trigger}
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div
+          data-op-rows
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
+            columnGap: 10,
+            marginTop: 2,
+            borderTop: "1px solid var(--border-default)",
+          }}
+        >
+          {rows.map((r, i) => {
+            const cell = { padding: "3px 0", borderBottom: "1px solid var(--border-subtle, var(--border-default))", minWidth: 0 };
+            if (r.kind === "field") {
+              return (
+                <React.Fragment key={i}>
+                  <div style={{ ...cell, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.item || ""}>
+                    {r.item || <span style={muted}>—</span>}
+                  </div>
+                  <div style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>
+                    <span style={muted}>{r.field}</span>{" "}
+                    <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>→ {r.value}</span>
+                  </div>
+                </React.Fragment>
+              );
+            }
+            return (
+              <div key={i} style={{ ...cell, gridColumn: "1 / -1" }}>
+                <span style={{ ...muted, display: "inline-block", width: 14 }}>{ROW_MARK[r.kind]}</span>
+                {r.label}{r.count > 1 ? <span style={muted}> ×{r.count}</span> : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {more > 0 && <div style={{ ...muted, fontSize: 11 }}>+{more} more</div>}
+    </div>
+  );
+}
+
 // Roomy multi-line card used inside the overflow dropdown (NOT the inline
 // stack). Header row = dot + icon + kind + time + dismiss; the full message
 // wraps on its own line(s) below, so nothing is cramped onto one line.
@@ -407,7 +464,7 @@ function NotificationCard({ note }) {
           wordBreak: "break-word",
         }}
       >
-        {gesturePillText(note)}
+        {note.detail ? <OpRunDetail detail={note.detail} accent={style.color} /> : gesturePillText(note)}
       </div>
       {canUndoPill(note) && (
         <div style={{ display: "flex", justifyContent: "flex-end" }}>

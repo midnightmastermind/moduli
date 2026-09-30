@@ -526,12 +526,14 @@ export function computeTriggerMatch(operation, transactionType, transaction) {
   // Legacy back-compat: an op with NO trigger config at all (triggerTypes
   // undefined AND no truthy triggerType) still auto-fires on load.
   if (types.length === 0) {
-    return transactionType == null ? { matched: true, triggerObject: null } : false;
+    return transactionType == null ? { matched: true, triggerObject: null, eventType: "onLoad" } : false;
   }
 
   for (const t of types) {
     const result = matchesTrigger(t, operation, transactionType, transaction);
-    if (result) return result;
+    // Which EVENT matched is kept so the notification can say what set the
+    // op off (triggerObject is null when the event alone matched).
+    if (result) return { ...result, eventType: t };
   }
   return false;
 }
@@ -1181,7 +1183,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
       logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
       // Success notification — only when the op actually produced effects, so
       // idempotent no-op runs (the common case on re-fire) stay silent.
-      if (results.length > 0) onSuccess?.(op.name, results);
+      if (results.length > 0) onSuccess?.(op.name, results, { eventType: match.eventType, transactionType, transaction });
     } catch (err) {
       console.warn(`[operationExecutor] error in operation "${op.name}":`, err);
       logger.add("error", { message: String(err?.message || err), stack: err?.stack });

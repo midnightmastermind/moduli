@@ -876,7 +876,13 @@ function Container({
     () => `${containerOccurrence?.id || module?.id}|${JSON.stringify(effectiveFilters ?? null)}`,
     [containerOccurrence?.id, module?.id, effectiveFilters],
   );
-  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: windowResetKey });
+  // Where a jump target sits in THIS list, so a search grows only the window
+  // that holds it, and only that far (helpers/renderWindow countForRequest).
+  const windowIndexOf = useCallback(
+    (occId) => itemsWithOccurrences.findIndex(it => it.occurrence?.id === occId),
+    [itemsWithOccurrences],
+  );
+  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: windowResetKey, indexOf: windowIndexOf });
 
   // A panel the mobile grid has translated off screen renders NO rows. The
   // container shell, its header and its label stay — they are ~105 nodes across

@@ -47,18 +47,21 @@ function _scheduleDismiss(id, duration) {
 // Push a new pill, OR update an existing one in place when `id` matches a
 // live pill (sonner's `{ id }` progress-update pattern). `duration` (ms)
 // auto-dismisses; omit/null to keep the pill until manual dismiss.
-export function pushTxNotification({ kind = "info", label, id = null, duration = null }) {
+// `detail` (optional) is a structured view for the dropdown card — an op run's
+// `{ title, trigger, rows, more }` (helpers/opResultSummary). The inline pill
+// only ever reads `label`.
+export function pushTxNotification({ kind = "info", label, id = null, duration = null, detail = null }) {
   if (!label) return null;
 
   if (id != null && _items.some(n => n.id === id)) {
-    _items = _items.map(n => (n.id === id ? { ...n, kind, label } : n));
+    _items = _items.map(n => (n.id === id ? { ...n, kind, label, ...(detail ? { detail } : {}) } : n));
     _emit();
     _scheduleDismiss(id, duration);
     return id;
   }
 
   const newId = id != null ? id : `tx-note-${_nextId++}`;
-  _items = [{ id: newId, kind, label, createdAt: Date.now(), dismissed: false }, ..._items];
+  _items = [{ id: newId, kind, label, detail, createdAt: Date.now(), dismissed: false }, ..._items];
   if (_items.length > MAX_HISTORY) _items = _items.slice(0, MAX_HISTORY);
   _emit();
   _scheduleDismiss(newId, duration);
