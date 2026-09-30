@@ -39,6 +39,26 @@ describe("highlightSegments", () => {
       .toBe("A Guide to Recognizing Your [Saints] ([2006]) - IMDb");
   });
 
+  // MEASURED ON PROD: "A Guide" against "An FBI agents guide to Mental Toughness"
+  // has no phrase, and marking every term lit ["A","a","guide","a"] — static,
+  // saying less about the match than "guide" alone.
+  it("skips a one-letter term in the fallback, where it is only noise", () => {
+    expect(render("An FBI agents guide to Mental Toughness", "A Guide"))
+      .toBe("An FBI agents [guide] to Mental Toughness");
+    expect(render("A Brief Guide to Star Trek", "A Guide"))
+      .toBe("A Brief [Guide] to Star Trek");
+  });
+
+  // …but a query that is ONLY short words still explains itself — there is
+  // nothing else to mark, and marking nothing looks like a row that matched
+  // for no reason.
+  it("still marks when every term is one letter", () => {
+    expect(render("A Guide to Recognizing Your Saints", "a"))
+      .toBe("[A] Guide to Recognizing Your S[a]ints");
+    // Apart, so there is no phrase to prefer — both still mark.
+    expect(render("x q y", "x y")).toBe("[x] q [y]");
+  });
+
   it("marks every occurrence of a term", () => {
     expect(render("to and fro and back", "and")).toBe("to [and] fro [and] back");
   });

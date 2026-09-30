@@ -56,8 +56,16 @@ export function highlightSegments(text, query) {
   occurrences(hay, phrase, ranges);
   if (!ranges.length) {
     // No phrase — mark each term where it appears, so a multi-word query still
-    // explains itself when its words are apart.
-    for (const term of phrase.split(" ")) occurrences(hay, term, ranges);
+    // explains itself when its words are apart ("saints 2006").
+    //
+    // A ONE-LETTER TERM IS SKIPPED HERE, and that is not tidiness: measured on
+    // prod, "A Guide" against "An FBI agents guide to Mental Toughness" marked
+    // ["A","a","guide","a"] — the row lit up like static and said less about
+    // why it matched than marking "guide" alone. It still marks when the whole
+    // query is short, because then there is nothing else to show.
+    const terms = phrase.split(" ");
+    const worth = terms.filter((t) => t.length > 1);
+    for (const term of (worth.length ? worth : terms)) occurrences(hay, term, ranges);
   }
   if (!ranges.length) return [{ text: src, hit: false }];
 
