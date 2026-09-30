@@ -4,6 +4,8 @@ import { withoutPerPlacementFields } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
+import Module from "../models/Module.js";
+import { refusedDuplicateCreates, refusedByStoredSiblings } from "../utils/duplicateSignature.js";
 import Transaction from "../models/Transaction.js";
 import { nanoid } from "nanoid";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
@@ -136,8 +138,11 @@ export function registerOccurrenceHandlers(socket, {
       // grid: its cache if warm (so its next load is right), or none at all —
       // never the active grid's cache, which is how the row leaked into it.
       let foreignGridId = null;
+      // Neither the cache nor Mongo holds this id: the upsert below would CREATE it.
+      let isInsert = false;
       if (!uc.occurrencesById[id]) {
         const stored = await Occurrence.findOne({ id, userId }, { gridId: 1 }).lean().catch(() => null);
+        isInsert = !stored;
         if (stored?.gridId && stored.gridId !== socket.data.activeGridId) {
           foreignGridId = stored.gridId;
           uc = userCacheReady(userId, foreignGridId)
@@ -411,6 +416,32 @@ export function registerOccurrenceHandlers(socket, {
       // absent, so a row is not rewritten on every later edit.
       if (payload?.__actionId && !next.meta?.userTouched) {
         next.meta = { ...(next.meta || {}), userTouched: true };
+      }
+
+      // ── AN UPSERT THAT CREATES IS A CREATE ─────────────────────────────────
+      // Found 2026-09-30: today's day page got a SECOND column. The build's
+      // create_batch for it WAS refused as a duplicate signature — but its
+      // follow-up writes to that column (the layout textmap, the template
+      // stamp) arrived here FIRST, and this handler upserts, so the row was
+      // written through the one door with no duplicate check. A write that
+      // would insert a row declaring a unique signature gets the same refusal
+      // create_batch applies, and is dropped whole when refused.
+      if (isInsert && next.identitySignature && next.parentId && next.meta?.signatureUnique) {
+        const one = [{ occurrence: next }];
+        const refused = refusedDuplicateCreates(one, uc.occurrencesById, { modulesById: uc.modulesById });
+        if (!refused.size) {
+          try {
+            const stored = await refusedByStoredSiblings(one, { gridId: txGridId || socket.data.activeGridId, Occurrence, Module });
+            for (const r of stored) refused.add(r);
+          } catch (e) { console.warn("update_occurrence: stored-sibling check skipped —", e?.message); }
+        }
+        if (refused.has(id)) {
+          console.log("🟣 update_occurrence REFUSED insert (duplicate signature)", id, next.identitySignature);
+          const msg = { occurrenceId: id };
+          socket.emit("occurrence_deleted", msg);
+          socket.to(userRoom(userId)).emit("occurrence_deleted", msg);
+          return;
+        }
       }
 
       uc.occurrencesById[id] = next;
