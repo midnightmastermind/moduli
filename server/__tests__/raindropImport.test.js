@@ -139,3 +139,19 @@ describe("planRaindropImport", () => {
     expect(planRaindropImport([])).toEqual({ bookmarks: [], lookupTerms: [], dropped: { searches: 0, duplicates: 0 } });
   });
 });
+
+// Google's "unusual traffic" page carries a TOKEN in q and the real search in
+// `continue` (user, 2026-10-01: Lookup rows labelled "EgRIh_REGNjVzM0GIij…").
+describe("searchTermOf on Google's interstitial", () => {
+  const sorry = "https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dthrift%2Bstores%2Bnear%2Bme%26client%3Dfirefox&q=EgRIh_REGNjVzM0GIiiJ_agHDiArU-FO1JRQt872J17920yM56SUM0mIHjQxYJ";
+  it("reads the search out of `continue`, not the token", () => {
+    expect(searchTermOf(sorry)).toBe("thrift stores near me");
+  });
+  it("a token with nothing to resolve is no search at all", () => {
+    expect(searchTermOf("https://www.google.com/search?q=EgRIh_REGNjVzM0GIiiJ_agHDiArU-FO1JRQt872J17920yM56SUM0mIHjQxYJ")).toBe(null);
+  });
+  // The control: an ordinary search is unchanged.
+  it("an ordinary search still reads q", () => {
+    expect(searchTermOf("https://www.google.com/search?q=hand+of+mysteries")).toBe("hand of mysteries");
+  });
+});

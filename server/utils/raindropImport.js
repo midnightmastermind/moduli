@@ -80,11 +80,21 @@ export function isMeaningfulFolder(folder) {
  * dozen real bookmarks. That is the whole reason this asks for the parameter
  * rather than matching the host.
  */
-export function searchTermOf(rawUrl) {
+// Google's "unusual traffic" interstitial (/sorry/index) puts a TOKEN in `q`
+// ("EgRIh_REGNjVzM0GIij…") and the real search URL in `continue`. Taking `q`
+// as-is labelled 86 Lookup rows with tokens (user, 2026-10-01: "a bunch of
+// random characters … in each one").
+export const GOOGLE_SORRY_TOKEN = /^Eg[A-Za-z0-9_-]{30,}$/;
+
+export function searchTermOf(rawUrl, depth = 0) {
   let u;
   try { u = new URL(String(rawUrl)); } catch { return null; }
   if (!/(^|\.)google\./i.test(u.hostname)) return null;
   const q = (u.searchParams.get("q") || u.searchParams.get("query") || "").trim();
+  if (GOOGLE_SORRY_TOKEN.test(q) || /\/sorry\//.test(u.pathname)) {
+    const cont = u.searchParams.get("continue");
+    return cont && depth < 2 ? searchTermOf(cont, depth + 1) : null;
+  }
   return q || null;
 }
 
