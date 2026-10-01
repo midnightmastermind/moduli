@@ -15,6 +15,22 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-01 (5) — THE GAP UNDER A SHORT TEXT SIDE TAKES A CLICK
+
+User: *"click under a wrapped textblock (a shorter one that doesnt end up wrapping) and add more textblocks.
+right now theres just a large space there that i can do nothing with"*. While wrapped, the group's box
+reaches the float's bottom, so the band beside the picture under a short text side belongs to the GROUP,
+not to any member. `wrapRoles.textSideGap` (pure, 5 tests) says whether a press is in that band (text side
+of the float column, below the last text block, above the group's bottom); `WrapGroupNode` shows a dashed
+"Click to add text" hint on hover and, on the press, creates a textblock with `createTextblockInContainer`
+(parent = the doc that owns the editor, `hostOccurrenceIdOf`), appends it as the LAST text-side child with
+`floatCount` stored — so it becomes the host that wraps and the old host a lead — and claims the caret.
+**Watched on the rebuild grid** (fixture page `Wrap Lab`, built through the socket — kept for the docs/wraps
+UI pass): hint on hover · click → `float,lead,host` · caret in the new host · typed text survives a reload.
+Not done: an empty block left by clicking away stays (the doc mint's vanish-on-blur is instanceTextblock-only).
+
+---
+
 ### 2026-10-01 (4) — PHILOSOPHER'S STONE SHOOK, AND A STALE EDITOR PUT THE OLD TEXT BACK
 
 User: *"the page shakes when i scroll all the way to the bottom"* · *"its the nigrido section"* · *"there are
