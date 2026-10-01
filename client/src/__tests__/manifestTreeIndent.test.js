@@ -22,3 +22,23 @@ describe("manifest tree indentation", () => {
     expect(src).toMatch(/marginLeft:\s*treeIndent\(depth\)/);   // control: the rule is applied
   });
 });
+
+// DELETING A FOLDER TAKES ITS OWN PAGE WITH IT (2026-10-01): the reparent loop
+// moved the folder page up too, leaving a stray page named after the folder.
+import { isFolderPageOf } from "../modules/ManifestTree.jsx";
+describe("a folder's own page", () => {
+  const mods = { fp: { role: "page", kind: "folder" }, bp: { role: "page", kind: "board" }, art: { role: "artifact", kind: "image" } };
+  it("is recognised by its folder-kind page module", () => {
+    expect(isFolderPageOf({ moduleId: "fp" }, mods)).toBe(true);
+  });
+  // The control: real content in the folder is NOT treated as its page.
+  it("a board page or a file is not", () => {
+    expect(isFolderPageOf({ moduleId: "bp" }, mods)).toBe(false);
+    expect(isFolderPageOf({ moduleId: "art" }, mods)).toBe(false);
+  });
+  it("the delete handler deletes it instead of moving it up", () => {
+    const src = fs.readFileSync(path.join(process.cwd(), "src/modules/ManifestTree.jsx"), "utf8");
+    const body = src.slice(src.indexOf("const handleDelete = useCallback"), src.indexOf("CommitHelpers.deleteFolder("));
+    expect(body).toMatch(/isFolderPageOf\(occ, modulesById\)[\s\S]*deleteOccurrence/);
+  });
+});

@@ -40,6 +40,12 @@ import { sessionHeaders } from "../helpers/authStorage";
 export const TREE_INDENT = 10;
 export const treeIndent = (depth) => (depth > 0 ? TREE_INDENT : 0);
 
+/** A folder's own landing page: a page whose module kind is "folder". */
+export const isFolderPageOf = (occ, modulesById) => {
+  const m = modulesById?.[occ?.moduleId];
+  return m?.role === "page" && m?.kind === "folder";
+};
+
 /**
  * The pinned section's contents: a FLAT list of the panel's pinned page ids.
  *
@@ -746,8 +752,15 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     // item is hidden too; this is the second half of that pair, because the
     // handler is reachable from anywhere the item is rendered.
     if (isProtectedFolder(folder)) return;
-    // Reparent child occurrences to the folder's parent
+    // Reparent child occurrences to the folder's parent — all but the folder's
+    // OWN page, which goes with it. Moving that up too left a stray page named
+    // after the deleted folder in the parent (found 2026-10-01 by the manifest
+    // UI test: deleting "MT Folder B" left an "MT Folder B" page in Library).
     for (const occ of allChildOccs) {
+      if (isFolderPageOf(occ, modulesById)) {
+        CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occ.id, occurrence: occ });
+        continue;
+      }
       CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, parentId: folder.parentId }, emit: true });
     }
     // Reparent child folders to the folder's parent
@@ -755,7 +768,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       CommitHelpers.updateFolder({ dispatch, socket, folder: { id: cf.id, parentId: folder.parentId }, emit: true });
     }
     CommitHelpers.deleteFolder({ dispatch, socket, folderId: folder.id, emit: true });
-  }, [dispatch, socket, folder.id, folder.parentId, allChildOccs, childFolders]);
+  }, [dispatch, socket, folder.id, folder.parentId, allChildOccs, childFolders, modulesById]);
 
   // Focus input when entering rename mode
   useEffect(() => {
