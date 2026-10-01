@@ -1,6 +1,8 @@
 // socketHandlers/state.js — request_full_state
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
+import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
+import { isCompressed } from "../utils/textmapCompression.js";
 import Grid from "../models/Grid.js";
 import { joinFeedGroup } from "./feedLeader.js";
 import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
@@ -141,6 +143,20 @@ export function registerStateHandlers(socket, {
 
       const grids = await getAllGridsForUser(userId);
       const allGridOccs = getOccurrencesForGrid(gridId, uc);
+      // A cached row must never carry its textmap COMPRESSED — the client's
+      // editor cannot read the string and the doc renders blank (2026-10-01:
+      // a parent link cached the raw Mongo row). The source sites shape rows
+      // through utils/cacheOccurrence.js; this is the edge, so a site missed or
+      // added later still cannot blank a doc. The cache entry is healed too.
+      for (let i = 0; i < allGridOccs.length; i++) {
+        const o = allGridOccs[i];
+        if (o && isCompressed(o.textmap)) {
+          const healed = cacheShapeOccurrence(o);
+          allGridOccs[i] = healed;
+          if (uc.occurrencesById[o.id] === o) uc.occurrencesById[o.id] = healed;
+          console.warn(`[full_state] healed a compressed textmap in the cache: ${o.id}`);
+        }
+      }
       mark(`grids+occs collected (${allGridOccs.length} occs)`);
 
       // Modules: all modules scoped to this grid. Operations may FIND/CREATE

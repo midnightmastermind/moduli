@@ -1,4 +1,5 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
+import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import { setMaxListeners } from "node:events";
 import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
 import { refusedDuplicateCreates, refusedByStoredSiblings, adoptableHolders } from "../utils/duplicateSignature.js";
@@ -316,8 +317,7 @@ export function registerCrudHandlers(socket, {
           { returnDocument: "after" }
         );
         if (updatedParent) {
-          const parentObj = typeof updatedParent.toObject === "function"
-            ? updatedParent.toObject() : updatedParent;
+          const parentObj = cacheShapeOccurrence(updatedParent);
           const before = uc.occurrencesById[verdict.parentId] || null;
           uc.occurrencesById[verdict.parentId] = parentObj;
           recordChange({ model: "occurrence", id: parentObj.id, before, after: parentObj, payload, label: "Removed from here" });
@@ -1401,7 +1401,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         { returnDocument: "after", signal: abortController.signal }
       );
       if (!updatedParent) return; // already linked or parent missing — no-op
-      const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+      const parentObj = cacheShapeOccurrence(updatedParent);
       uc.occurrencesById[parentOccurrenceId] = parentObj;
       socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
       if (!quiet) socket.emit("occurrence_updated", { occurrence: parentObj });
@@ -1743,7 +1743,8 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         // array behind five separate dangling-ref sweeps.
         const after = await Occurrence.find({ id: { $in: [...addedByParent.keys()] }, userId })
           .setOptions({ signal: abortController.signal }).lean();
-        for (const parentObj of after) {
+        for (const parentRow of after) {
+          const parentObj = cacheShapeOccurrence(parentRow);
           const add = addedByParent.get(parentObj.id) || [];
           // The parent's occurrences[] change is its OWN undo step. Restoring a
           // deleted child without restoring the list that names it leaves the
@@ -1769,7 +1770,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         { returnDocument: "after", signal: abortController.signal }
       );
       if (!updatedParent) continue;
-      const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+      const parentObj = cacheShapeOccurrence(updatedParent);
       const parentBefore = { ...parentObj, occurrences: (parentObj.occurrences || []).filter((c) => c !== r.id) };
       recordChange({ model: "occurrence", id: parentObj.id, before: parentBefore, after: parentObj, actionId: r.actionId });
       uc.occurrencesById[parentObj.id] = parentObj;

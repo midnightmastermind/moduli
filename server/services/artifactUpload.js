@@ -14,6 +14,7 @@
 // Dependencies the upload needs from the server's closure (the uploads dir,
 // the warm-cache peek, the home-folder rule, sockets) are injected by
 // `makeArtifactUploader`, so this module has no import-time side effects.
+import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -195,7 +196,7 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
       }
       await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
 
-      const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
+      const occObj = cacheShapeOccurrence(await Occurrence.findOne({ id: occurrenceId }).lean());
       const cache = routeCache(userId, gridId);
       if (cache) cache.occurrencesById[occObj.id] = occObj;
       if (existingOcc) {
@@ -293,7 +294,7 @@ export function makeArtifactUploader({ uploadsDir, routeCache, homeFolderForUplo
     }
 
     const modObj = await Module.findOne({ id: moduleId }).lean();
-    const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
+    const occObj = cacheShapeOccurrence(await Occurrence.findOne({ id: occurrenceId }).lean());
     const cache = routeCache(userId, gridId);
     if (cache) {
       cache.modulesById[modObj.id] = modObj;
