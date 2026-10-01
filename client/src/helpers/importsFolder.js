@@ -7,7 +7,7 @@
 // and the Root tree lists pages under their folder — so landing under "Imports"
 // makes every import show up grouped instead of as a loose root page.
 import * as CommitHelpers from "./CommitHelpers";
-import { IMPORTS_FOLDER_NAME } from "./protectedFolders";
+import { IMPORTS_FOLDER_NAME, FILES_FOLDER_NAME } from "./protectedFolders";
 
 // Find (or lazily create) the "Imports" folder under the grid manifest's root
 // folder, AND ensure it has a folder-page occurrence so it surfaces as a CARD
@@ -29,16 +29,22 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
   const gridId = grid?._id || grid?.id || null;
   const manifest = grid?.manifestId ? (manifests || []).find((m) => m && m.id === grid.manifestId) : null;
   const rootFolderId = manifest?.rootFolderId || null;
-  const existing = (folders || []).find(
-    (f) => f && f.name === IMPORTS_FOLDER_NAME && f.parentId === rootFolderId &&
-           (!gridId || !f.gridId || f.gridId === gridId)
-  );
+  const onGrid = (f) => f && (!gridId || !f.gridId || f.gridId === gridId);
+  // THE PROTECTED Imports folder, WHEREVER it sits (2026-10-01: the user moved
+  // it under Files — "consolidate the imports and files folder together"). A
+  // lookup pinned to the root would miss it there and mint a second one at the
+  // root on the next import. Falls back to an unprotected one at the root,
+  // which is the pre-protection shape the self-heal below upgrades.
+  const existing = (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME && f.meta?.protected)
+    || (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME && f.parentId === rootFolderId);
+  // A new one goes inside the protected Files folder when the grid has one.
+  const filesFolder = (folders || []).find((f) => onGrid(f) && f.name === FILES_FOLDER_NAME && f.meta?.protected);
   const folderId = existing?.id || crypto.randomUUID();
   if (!existing) {
     CommitHelpers.createFolder({
       dispatch, socket,
       folder: {
-        id: folderId, name: IMPORTS_FOLDER_NAME, parentId: rootFolderId, gridId, userId,
+        id: folderId, name: IMPORTS_FOLDER_NAME, parentId: filesFolder?.id || rootFolderId, gridId, userId,
         folderType: "normal",
         // Structural, like Templates and Files: the app files things here without
         // asking, so it is not the user's to delete. `meta.protected` is the ONLY

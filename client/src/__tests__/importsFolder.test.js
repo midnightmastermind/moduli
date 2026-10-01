@@ -124,6 +124,30 @@ describe("ensureImportsFolder", () => {
     expect(CommitHelpers.updateFolder).not.toHaveBeenCalled();
   });
 
+  // 2026-10-01: Imports moved under Files. Found by its protection, not its
+  // position — a root-only lookup minted a second Imports at the root.
+  it("finds the protected Imports folder after it was moved under Files", () => {
+    const folders = [
+      { id: "files-1", name: "Files", parentId: "root-1", gridId: "grid-1", meta: { protected: true } },
+      { id: "imp-1", name: "Imports", parentId: "files-1", gridId: "grid-1", meta: { protected: true } },
+    ];
+    expect(ensureImportsFolder({ ...baseArgs, folders })).toBe("imp-1");
+    expect(CommitHelpers.createFolder).not.toHaveBeenCalled();
+  });
+
+  // CONTROL: the user's own folder called "Imports" somewhere else is not it.
+  it("does not adopt an unprotected Imports folder nested elsewhere", () => {
+    const folders = [{ id: "mine", name: "Imports", parentId: "notes-1", gridId: "grid-1" }];
+    expect(ensureImportsFolder({ ...baseArgs, folders })).not.toBe("mine");
+    expect(CommitHelpers.createFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a new Imports folder inside the protected Files folder", () => {
+    const folders = [{ id: "files-1", name: "Files", parentId: "root-1", gridId: "grid-1", meta: { protected: true } }];
+    ensureImportsFolder({ ...baseArgs, folders });
+    expect(CommitHelpers.createFolder.mock.calls[0][0].folder.parentId).toBe("files-1");
+  });
+
   it("does not reuse an Imports folder from a different grid", () => {
     const folders = [{ id: "imp-other", name: "Imports", parentId: "root-1", gridId: "grid-OTHER" }];
     const id = ensureImportsFolder({ ...baseArgs, folders });
