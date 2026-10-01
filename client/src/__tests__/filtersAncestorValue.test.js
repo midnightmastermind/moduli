@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The Filters dropdown's Ancestor Filters row printed a date range as
 // "Date = [object Object]" (Day Page, 2026-09-19) while the nav chip above it
 // read "Sep 19–21". Both now go through FilterNavWidgets.formatFilterValueLabel.

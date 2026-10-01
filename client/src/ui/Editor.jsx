@@ -1075,7 +1075,8 @@ const Editor = forwardRef(function Editor({
         try {
           const json = slice.content.toJSON();
           if (!hasImageNode(json)) return slice;
-          const gridId = ctxGridRef.current?._id || ctxGridRef.current?.id || occurrence?.gridId;
+          const ctxGridNow = ctxGridRef.current;
+          const gridId = ctxGridNow?._id || ctxGridNow?.id || occurrence?.gridId;
           const userId = ctxUserIdRef.current || occurrence?.userId;
           if (!gridId || !userId || !socketRef.current) return slice;
           const importsFolderId = Object.values(foldersRef.current || {}).find((f) => f?.name === "Imports" && f?.meta?.protected)?.id || null;

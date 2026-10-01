@@ -15,6 +15,43 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-01 (2) — THE CLIENT SUITE: 4:48 → ~2:20, and the "OOM pair" was the run log holding every test's grid
+
+User: *"before you run the failing test, please shorten the time it takes, 4 minutes is a long time"*.
+
+**THE WALL CLOCK WAS ONE FILE, AND THAT FILE WAS LEAKING.** Per-file timings (8 workers): `balanceFlow`
+273s, `trackerValues` 227s, everything else under 80s. A full poms sweep is 2.5s, yet balanceFlow
+averaged 8.8s a case — and alone, without the 4GB heap flag, it died at case 12 with *"Ineffective
+mark-compacts … heap out of memory"*. The executor's `runHistory` (20 runs per op) holds references into
+the occurrence map each run read: one grid in the app, but a fresh 21k-row world PER CASE in these
+files, so up to 20 whole worlds stayed reachable. `clearOpRunHistory()` runs after every test, reached
+through `globalThis.__moduliClearOpRunHistory` — importing the executor from `setup.js` loaded the REAL
+module before `txToastLookups`' `vi.mock`, silently un-mocking it (7 failures; caught by running the 5
+mocking files). **This is the documented `trackerValues`/`balanceFlow`/`accountBalances` "OOM family".**
+
+**THEN LESS WORK PER CASE, each proved equivalent rather than assumed:**
+```
+balanceFlow     sweeps only the ops that write the tiles it asserts — DERIVED from the
+                first full sweep, not listed. BALANCE_FLOW_AB=1 runs both per case: 31/31
+                agree. (A prefix match first caught Accounts.Tracker Date — exact keys now.)
+                alone 80s -> 24s
+trackerValues   the "before" of a fresh world is one cached sweep per file: a sweep does not
+accountBalances mutate its world (fixture serialises identically) and two sweeps agree on every
+                tile (only a random Daily Question on a NEW row differs).  90 -> 51s · 40 -> 26s
+```
+**AND `.js` TESTS RUN UNDER NODE.** Every file booted jsdom (771 CPU-s). `vite.config.js` now has two
+projects — `dom` (.jsx, jsdom) and `logic` (.js, node); the 73 `.js` files that failed under node carry
+`// @vitest-environment jsdom`. **A root `include` is MERGED into each project under `extends: true`** —
+the first try ran all 1,026 and every .jsx under node; the globs live only on the projects now.
+Environment 771 -> 224 CPU-s.
+
+**The failing test was `wireProjection`** — my own paste-to-artifact line read `ctxGridRef.current?._id`,
+which the guard's Grid-model exemption cannot see through `.current`; named `ctxGridNow`. `_replay3` was
+my gitignored scratch replay, deleted. **Result: 513 files, 5,470 pass, 0 fail, no OOM, ~2:20-2:35
+wall** (CPU ~1,280%, so it is CPU-bound now; 29 fixture files are ~90% of what is left).
+
+---
+
 ### 2026-10-01 — THE MANIFEST, REORGANIZED AND TESTED; and last night's cross-build broke six Schedule columns
 
 **`0373` REORGANIZED poms grid's manifest** at the user's ask, from a proposal they approved:

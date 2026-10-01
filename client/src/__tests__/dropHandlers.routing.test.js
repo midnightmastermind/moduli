@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/dropHandlers.routing.test.js
 // End-to-end test: build a state, fire routeDrop with a DropContext, verify
 // the right LayoutHelpers commit fires. Catches the "nothing moves" class

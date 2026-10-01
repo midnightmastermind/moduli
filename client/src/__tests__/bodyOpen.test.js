@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // WHICH instance body is open — exactly one, app-wide.
 //
 // A per-component boolean cannot enforce this: the row that ought to close is

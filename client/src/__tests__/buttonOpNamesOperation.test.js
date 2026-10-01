@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A button press names its operation (helpers/operationExecutor matchesTrigger).
 // Found rebuilding a grid through the UI, 2026-09-21: the row widget and the
 // `button` field both stamp `operationId` on their ButtonOp and nothing read

@@ -72,6 +72,19 @@ export function effectiveFilterFor(occurrenceId, { occurrencesById = {}, gridFil
   return merged;
 }
 
+// Drop every recorded run. The history is capped per op, but each run holds
+// references into the occurrence map it ran over — fine in the app (one grid),
+// and in a test suite that builds a fresh 21k-row world per case it kept up to
+// 20 whole worlds reachable per op, so the heavy fixture files ran out of heap.
+// Called by the test setup after every case; nothing in the app needs it.
+export function clearOpRunHistory() {
+  runHistory.clear();
+}
+// The test setup reaches it through this hook rather than an import: importing
+// the executor from the shared setup loads the REAL module before a test file's
+// vi.mock() is registered, which silently un-mocks it (txToastLookups).
+globalThis.__moduliClearOpRunHistory = clearOpRunHistory;
+
 export function getOpRunHistory(opId) {
   return runHistory.get(opId) || [];
 }

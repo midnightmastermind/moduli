@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Hover used to be React state. `isOver`/`closestEdge` exist to draw four 2px
 // bars at an element's edges — and one crossing re-rendered the WHOLE
 // component; for `ModuleContainer` that is 1,900 lines plus every row and field

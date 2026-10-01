@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Intake audit finding 1, the pill half: the drag preview used to ANNOUNCE a
 // decision ("Convert HTML → modules") and offer no choice. Intake asks now, so
 // that wording announced an outcome the user has not chosen yet.

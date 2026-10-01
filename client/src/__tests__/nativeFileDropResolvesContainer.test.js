@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A file dropped from the OS onto a board lands IN the container under the
 // pointer (2026-09-21, found rebuilding a grid through the UI).
 //

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/bindSocketToStore.test.js
 // ============================================================
 // Tests for bindSocketToStore — the bridge between socket events and Redux state.

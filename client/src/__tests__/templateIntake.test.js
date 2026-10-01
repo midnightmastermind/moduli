@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // client/src/__tests__/templateIntake.test.js
 //
 // Dropping a page onto the protected Templates folder must COPY. Without this,

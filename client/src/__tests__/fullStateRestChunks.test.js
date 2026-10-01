@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The CLIENT half of the progressive load: how the deferred catalogue's chunks
 // reach the store.
 //

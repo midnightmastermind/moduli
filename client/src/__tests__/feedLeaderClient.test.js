@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Only the tab the server names (`feed_leader`) runs feed sync. Two tabs each
 // materialising the same feeds swept each other's copies on every date step
 // (prod, 2026-09-19). Server half: server/__tests__/feedLeader.test.js.

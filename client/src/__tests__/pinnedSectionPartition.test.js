@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The Pinned section is a FLAT list of the panel's pinned pages.
 //
 // It used to build a tree: folder subtrees for pinned folder pages, folder

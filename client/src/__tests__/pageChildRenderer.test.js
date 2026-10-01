@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A page can host ANY module role — `getPageChildrenModules` applies no role
 // filter and ModulePage's own comment says as much. But `PageBoard` handed
 // EVERY child to `ModuleContainer`, which never inspects its own role (grep:

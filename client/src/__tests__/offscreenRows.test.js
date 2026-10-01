@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * OFF-SCREEN PANELS DO NOT MOUNT THEIR ROWS.
  *

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A picked occurrence past the dropdown's 100-option window still has an option
 // (user, 2026-09-26: birthday cards' People field showed only one of five).
 import { describe, it, expect } from "vitest";

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A CONTAINER NESTED IN A CONTAINER CAN BE DRAGGED OUT.
 //
 // USER, 2026-09-23: *"i cant drag new containers outside of containers in

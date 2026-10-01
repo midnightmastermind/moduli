@@ -81,13 +81,24 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
-    // Widened for the promo surface, which keeps its tests beside its source
-    // (`src/promo/__tests__/`). Without this the promo suites are silently
-    // never run — a guard nothing executes is worse than no guard.
-    include: ["src/**/__tests__/**/*.test.{js,jsx}"],
+    // The include globs are `src/**/__tests__/**` — widened for the promo
+    // surface, which keeps its tests beside its source (`src/promo/__tests__/`).
+    // Without that the promo suites are silently never run. They live ONLY on
+    // the projects: a root `include` is MERGED into each project under
+    // `extends: true`, which ran every file twice and every .jsx under node.
+    //
+    // TWO ENVIRONMENTS, split by extension. Booting jsdom cost ~1.5s per file
+    // and ~330 of the 400 `.js` suites never touch the DOM (measured
+    // 2026-10-01 by running every one under `node`). A `.js` test that DOES
+    // need it says so in its own first line: `// @vitest-environment jsdom`.
+    projects: [
+      { extends: true, test: { name: "dom", environment: "jsdom",
+        include: ["src/**/__tests__/**/*.test.jsx"] } },
+      { extends: true, test: { name: "logic", environment: "node",
+        include: ["src/**/__tests__/**/*.test.js"] } },
+    ],
     coverage: {
       reporter: ["text", "json", "html"],
     },

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The DOM census. It COUNTS; it does not judge — every threshold would be a
  * guess, since what a row "should" cost depends on what it renders.

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { tileKindsForRole, tileMeta, ALLOWED_KINDS_BY_ROLE } from "../ui/QuickAddMenu.jsx";
 

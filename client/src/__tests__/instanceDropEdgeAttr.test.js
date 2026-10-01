@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * THE ROW'S DROP BARS COME FROM AN ATTRIBUTE, NOT REACT STATE.
  *

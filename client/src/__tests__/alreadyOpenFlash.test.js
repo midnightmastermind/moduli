@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // "if i open a page in a panel, and its already opened in another visible
 // panel, highlight the page in the spot thats opened (still open the page in
 // the original spot)".

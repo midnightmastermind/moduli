@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Task 4 Step 6 — dragging a file OUT of Files lands a PLACEMENT.
 //
 // This is the other half of Step 5. Until this existed, nothing in the app

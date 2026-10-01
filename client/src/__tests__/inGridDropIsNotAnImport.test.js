@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/inGridDropIsNotAnImport.test.js
 //
 // EVERY in-grid drag that landed ALSO ran the external-text import path,

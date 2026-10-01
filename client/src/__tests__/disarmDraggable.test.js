@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // client/src/__tests__/disarmDraggable.test.js
 //
 // Firefox will not let the user place a caret OR select text anywhere inside an

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A date field holding something that is not a date must SAY SO, not invent one.
 //
 // User, 2026-09-06: *"Tracker date for monthly bills says Invalid Date - 0d

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/jumpToOccurrence.test.js
 // jsdom-friendly coverage for the shared jump-to-occurrence helper.
 import { describe, it, expect, beforeEach, vi } from "vitest";

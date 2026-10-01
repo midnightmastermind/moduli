@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * EVERY BUTTON AND EVERY PICKER BUZZES — and the exclusions carry the weight.
  *

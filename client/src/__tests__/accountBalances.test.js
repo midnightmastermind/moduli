@@ -129,10 +129,22 @@ function logTransfer(w, { from, to, amount = 100 }) {
   return row;
 }
 
+
+// A FRESH world sweeps to the same tile values every time: a sweep reads its
+// world without mutating it (checked 2026-10-01 — the fixture serialises
+// identically before and after, and two sweeps agree on every tile; only a
+// randomly chosen Daily Question on a newly built day page differs). So the
+// "before" of every case is one sweep, computed once per file.
+let _baseline = null;
+function baseline() {
+  if (!_baseline) _baseline = sweep(world());
+  return _baseline;
+}
+
 describe("transfers between accounts", () => {
   it("moves money out of one account and into the other", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
     const got = sweep(w);
     expect(got["Checking Balance"] - before["Checking Balance"], "the transfer did not leave Checking").toBeCloseTo(-100, 2);
@@ -141,7 +153,7 @@ describe("transfers between accounts", () => {
 
   it("leaves Net Worth alone — it is the sum of the accounts", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
     // Nothing special-cases a transfer: -100 and +100 net to zero because Net
     // Worth adds the balances up (0288). If this fails, it stopped being a sum.
@@ -238,7 +250,7 @@ describe("account balances", () => {
     // empty" is a coin flip on timing.* So the suite measures what an injected
     // row CHANGES, which is true whatever the balance happens to be today.
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     for (const n of ["Checking Balance", "Savings Balance", "Net Worth"]) {
       expect(before[n], `"${n}" was never written by the sweep`).toBeTypeOf("number");
     }
@@ -246,7 +258,7 @@ describe("account balances", () => {
 
   it("an UNTAGGED spend lands in Checking — the default the user chose", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logSpend(w);
     const after = sweep(w);
     expect(after["Checking Balance"] - before["Checking Balance"], "untagged money did not reach Checking").toBeCloseTo(-50, 2);
@@ -255,7 +267,7 @@ describe("account balances", () => {
 
   it("a TAGGED spend lands in its own account and nowhere else", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logSpend(w, { account: "Savings Account" });
     const got = sweep(w);
     // This is the arm that makes the previous test mean something: without it,

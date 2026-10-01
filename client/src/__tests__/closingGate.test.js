@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The exit animation is a LIFECYCLE contract, not a visual one — jsdom cannot
 // see a keyframe, but it can see whether the surface stays mounted long enough
 // for one to run, and whether the close is reported exactly once.

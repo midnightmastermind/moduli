@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The load timeline has to LEAVE the device.
 //
 // Every `[load]` figure in CLAUDE.md came from a desktop probe while the load

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // An OPERATION that moves a page's filter must fire that page's navigation.
 //
 // The UPDATE_ITEM_FILTER_OVERRIDE effect calls updateOccurrenceFilterOverride

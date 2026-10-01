@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, test, expect } from "vitest";
 import { Schema } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";

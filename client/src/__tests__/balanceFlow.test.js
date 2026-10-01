@@ -43,15 +43,50 @@ function world() {
            occurrencesById: by(fx.occurrences), opsById: by(fx.operations) };
 }
 
-function sweep(w) {
-  const ops = w.fx.operations.filter((o) => o.enabled !== false);
-  const updates = runMatchingOperations(ops, null, null, {
+// THE SWEEP RUNS ONLY THE OPS THAT WRITE WHAT THIS FILE READS. Every case
+// asserts on an account tile or Net Worth; the other ~60 enabled ops (the
+// schedule builders, every other tracker) cost ~2s a case and cannot change
+// those numbers. Which ops those are is DERIVED, not listed: the file's first
+// sweep runs everything and keeps every op that wrote a key this file reads — so a renamed
+// or added money op is picked up with no edit here. Equivalence with the full
+// sweep was A/B'd case by case when this was introduced (2026-10-01).
+// Exactly the keys asserted below — a prefix ("Accounts.") also caught the
+// tile's Tracker Date, which a label op writes and nothing here reads.
+const READS = (key) => key === "Net Worth.Net Worth" || ACCOUNTS.some((a) => a.shows === key);
+let moneyOpIds = null;
+
+function runSweep(w, ops) {
+  return runMatchingOperations(ops, null, null, {
     state: { grid: w.fx.grid, gridId: w.fx.grid?._id, fields: w.fx.fields, modules: w.fx.modules,
       occurrencesById: w.occurrencesById, modulesById: w.modulesById,
       fieldsById: w.fieldsById, operationsById: w.opsById, operations: ops },
     fieldsById: w.fieldsById, operationsById: w.opsById,
     occurrencesById: w.occurrencesById, modulesById: w.modulesById,
   }, { onError: () => {}, onSuccess: () => {} }) || [];
+}
+
+function sweep(w) {
+  const enabled = w.fx.operations.filter((o) => o.enabled !== false);
+  if (!moneyOpIds) {
+    moneyOpIds = new Set();
+    for (const e of runSweep(w, enabled)) {
+      const one = keyed(w, [e]);
+      if (Object.keys(one).some(READS)) moneyOpIds.add(e._sourceOpId);
+    }
+    expect(moneyOpIds.size, "no op writes an account tile — the derivation found nothing").toBeGreaterThan(0);
+  }
+  const ops = enabled.filter((o) => moneyOpIds.has(o.id));
+  const narrowed = keyed(w, runSweep(w, ops));
+  if (process.env.BALANCE_FLOW_AB) {
+    const full = keyed(w, runSweep(w, enabled));
+    for (const k of Object.keys({ ...full, ...narrowed })) if (READS(k)) {
+      expect(narrowed[k], `narrowed sweep disagrees on ${k}`).toEqual(full[k]);
+    }
+  }
+  return narrowed;
+}
+
+function keyed(w, updates) {
   const out = {};
   for (const e of updates) {
     const oid = e.itemId || e.occurrenceId || e.payload?.itemId || e.payload?.occurrenceId;

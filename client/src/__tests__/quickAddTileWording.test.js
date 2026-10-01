@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // THE SAME TILE READ TWO DIFFERENT WAYS DEPENDING ON WHERE YOU OPENED THE MENU.
 //
 // User, 2026-09-23: *"it should use quick add, not a dedicated add container

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { addManualOption } from "../ui/commandCenter/SelectOptionsSourceEditor";
 describe("addManualOption", () => {

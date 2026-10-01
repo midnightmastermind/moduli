@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A MOVE between containers: the instance's own parentId follows it, the executor
 // sees the POST-move tree, and the move trigger carries the ancestor chain.
 //

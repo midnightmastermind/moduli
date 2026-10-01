@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The drag probe measured the MIDDLE of a drag and nothing else, and reported
 // only to a console nobody on the affected device could read.
 //

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/skinDarkClass.test.js
 //
 // THE `dark` CLASS FOLLOWS WHETHER A THEME IS LIGHT, NOT WHAT IT IS CALLED.

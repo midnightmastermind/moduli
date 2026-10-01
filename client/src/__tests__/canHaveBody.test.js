@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A body is an INSTANCE affordance.
 //
 // `ModuleInstance` is the shared row SHELL, not an instance-only renderer:

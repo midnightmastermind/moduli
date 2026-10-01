@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A LEAF DROPPED ON A BOARD PAGE LANDS ON THE PAGE.
 //
 // USER, 2026-09-23: *"its the hover highlight for dropping stuff"* → *"i meant

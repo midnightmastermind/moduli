@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The scroll diagnostic MISATTRIBUTED the capture it was written for.
 //
 // 2026-08-29, four arms off the tablet. Baseline flung the whole page and was

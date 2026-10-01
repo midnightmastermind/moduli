@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // ONE STEP PER LEVEL (user, 2026-10-01): every tree node renders INSIDE its
 // parent's wrapper, so `depth * 8` on top of the parent's indent compounded —
 // 8, 24, 48, 80px — and deep Codex rows ran off the panel.

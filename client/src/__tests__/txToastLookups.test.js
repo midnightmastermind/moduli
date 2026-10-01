@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Guards the transaction-toast lookup rewrite (2026-08-25). That block used to
 // build fieldsById, modulesById, a FULL 21,000-key spread of occurrencesById and
 // a parent reverse map on EVERY transaction — before it knew whether a toast

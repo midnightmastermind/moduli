@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The search's jump: grow only the list that holds the row, keep looking until
 // it mounts, and blink when it comes into VIEW (user, 2026-09-30: "6 seconds
 // is way too long" / "theres a two second pause and then it flashes. it should

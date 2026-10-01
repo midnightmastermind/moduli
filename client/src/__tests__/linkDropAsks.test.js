@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The audit's HEADLINE finding: a dropped link became an instance whose label
 // was the raw URL — silently, with no way to ask for anything better, even
 // though the importer could already build the whole page from that URL and

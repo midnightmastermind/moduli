@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // An overdue date must READ as overdue.
 //
 // User 2026-08-08: "the due field should be colored red if the date passed."

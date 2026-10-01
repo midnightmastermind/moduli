@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Regression for the #23 mobile keyboard helper.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { installMobileInputAutoScroll } from "../hooks/useMobileKeyboard";

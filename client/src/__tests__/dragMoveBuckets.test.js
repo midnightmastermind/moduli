@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * PER-MOVE COST, BUCKETED BY WHAT THE FINGER IS OVER.
  *

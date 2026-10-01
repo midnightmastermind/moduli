@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // An op's textmap write that only adds/removes top-level embeds must be applied
 // node by node — a full replace re-mounts every node view, and on the day page
 // that threw the scroll back to the top on every mood click (2026-09-19).

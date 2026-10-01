@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // `bumpOpRun` fires once per runMatchingOperations — a whole SWEEP over every
 // operation, not one op. A 14-second scroll reported `runs:2 ms:2563` with no
 // way to tell a load-tail sweep from a scheduler tick landing mid-gesture.

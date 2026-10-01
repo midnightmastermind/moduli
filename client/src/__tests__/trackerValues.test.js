@@ -180,6 +180,18 @@ function optionId(w, label, board) {
 
 const moved = (before, after, key) => (after[key] ?? 0) - (before[key] ?? 0);
 
+
+// A FRESH world sweeps to the same tile values every time: a sweep reads its
+// world without mutating it (checked 2026-10-01 — the fixture serialises
+// identically before and after, and two sweeps agree on every tile; only a
+// randomly chosen Daily Question on a newly built day page differs). So the
+// "before" of every case is one sweep, computed once per file.
+let _baseline = null;
+function baseline() {
+  if (!_baseline) _baseline = sweep(world());
+  return _baseline;
+}
+
 describe("a logged action moves the tracker it belongs to", () => {
   // [name, action, values, expected moves, expected NON-moves]
   //
@@ -226,7 +238,7 @@ describe("a logged action moves the tracker it belongs to", () => {
   for (const c of CASES) {
     it(`counts ${c.name}`, () => {
       const w = world();
-      const before = sweep(w);
+      const before = baseline();
       logAction(w, c.action, c.values(w));
       const after = sweep(w);
 
@@ -241,7 +253,7 @@ describe("a logged action moves the tracker it belongs to", () => {
 
   it("counts a completed sleep as one 30-minute slot", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logAction(w, "Sleep");
     // Sleep binds no Duration — per the user, "the operation should just count
     // each one as 30 min", so the op counts occurrences rather than summing.
@@ -250,14 +262,14 @@ describe("a logged action moves the tracker it belongs to", () => {
 
   it("counts a workout", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logAction(w, "Exercise", { Movement: optionId(w, "Barbell Bench Press", "Movements") });
     expect(moved(before, sweep(w), "Fitness Stats.Total Workouts")).toBeCloseTo(1, 2);
   });
 
   it("puts a meal's macros on the nutrition tile", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logAction(w, "Eat", { Calories: 400, Protein: 30, Carbs: 45, Fats: 12,
       Meal: optionId(w, "Greek Yogurt Bowl", "Meals") });
     const after = sweep(w);
@@ -274,7 +286,7 @@ describe("a habit and a task are counted apart", () => {
   // directions is what stops this degrading into "everything is a habit".
   it("a completed HABIT moves the habit count and not the task count", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     logAction(w, "Read", { Pages: 10 });
     const after = sweep(w);
     expect(moved(before, after, "Completed Habits.Habits Completed"), "the habit was not counted").toBeCloseTo(1, 2);
@@ -283,7 +295,7 @@ describe("a habit and a task are counted apart", () => {
 
   it("a completed TASK moves the task count and its countdown", () => {
     const w = world();
-    const before = sweep(w);
+    const before = baseline();
     // A real task off the Tasks page — NOT a routine, which is always a habit.
     logAction(w, "Organize files", {}, taskRow(w, "Organize files"));
     const after = sweep(w);

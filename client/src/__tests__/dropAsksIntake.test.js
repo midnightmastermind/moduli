@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Task 3 Step 1 of docs/superpowers/plans/2026-08-06-intake-links-and-artifacts.md —
 // the drop now ASKS.
 //

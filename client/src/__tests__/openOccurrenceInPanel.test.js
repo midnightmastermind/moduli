@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/openOccurrenceInPanel.test.js
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

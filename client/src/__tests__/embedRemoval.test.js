@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // "Remove" on a row embedded in a doc: a row the doc OWNS is deleted; a row
 // referenced from elsewhere is only unlinked. Unlinking an owned Check In left
 // it alive with its mood lit on the Emotions Wheel (user, 2026-09-19).

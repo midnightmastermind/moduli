@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A CONTAINER DRAG SHOWS WHERE IT WILL LAND.
 //
 // USER, 2026-09-23: *"the highlights for dropping places should be in between

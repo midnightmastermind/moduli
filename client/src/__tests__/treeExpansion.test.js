@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // The manifest sidebar's folder open/closed memory.
 //
 // Folders start CLOSED (user, 2026-08-20: "make every folder closed by default

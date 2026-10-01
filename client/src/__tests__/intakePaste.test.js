@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Task 3 Step 4 — the PURE half of Ctrl+V intake.
 //
 // The veto (`shouldIgnorePaste`) carries more weight than the reader: this

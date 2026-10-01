@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Cut / copy / paste for TEXT, shared by the prose menu and the input menu.
 //
 // The load-bearing case is the CONTROLLED-INPUT write. Every text control in

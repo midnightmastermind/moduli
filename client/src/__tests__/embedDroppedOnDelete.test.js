@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A deleted occurrence's embed must leave the editor showing it — on the
 // DELETE EVENT, from every path — or the host editor re-saves the dead node
 // (user, 2026-09-19: "embed: 4edd87c8…" left behind after un-picking a mood,

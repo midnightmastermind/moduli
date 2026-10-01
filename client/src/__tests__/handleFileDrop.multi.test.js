@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/handleFileDrop.multi.test.js
 // Locks down the multi-file drop orchestration:
 //  - one placeholder module + occurrence dispatched per file

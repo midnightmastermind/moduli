@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/pomodoroSlotOption.test.js
 import { describe, it, expect } from "vitest";
 import { pickTimeOptionForNow } from "../ui/PomodoroTimer.jsx";

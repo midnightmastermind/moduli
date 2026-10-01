@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/dragHitTesting.test.js
 import { describe, it, expect } from "vitest";
 import {

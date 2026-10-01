@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Clicking an embedded container's header sent the caret to the END of the text
 // (user, 2026-09-15). jsdom has no layout, so the browser's point lookup is
 // stubbed; what is tested is that the caret lands where that lookup says.

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Reaching the scroll diagnostic ON THE DEVICE THAT NEEDS IT.
 //
 // The overlay used to require setting a global from a console — which a tablet

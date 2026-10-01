@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/operationDropToInstance.test.js
 //
 // An operation pill in Command Center → Operations advertises, in its own

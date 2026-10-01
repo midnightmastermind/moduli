@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // __tests__/cloneMintsNoInertKind.test.js
 // ============================================================
 // Drives the REAL CREATE_ITEM applier in bindSocketToStore, because that is

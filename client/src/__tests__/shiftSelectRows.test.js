@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A SHIFT+CLICK ON A ROW SELECTS THE ROW, NOT THE CONTAINER AROUND IT.
 //
 // Found rebuilding poms grid through the UI (2026-09-22): shift+click on an

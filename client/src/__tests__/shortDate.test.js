@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { shortDate } from "../ui/Field";
 const now = new Date("2026-09-26T12:00:00");

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { persistAuth, clearAuth, readToken, hasSession, AUTH_KEYS } from "../helpers/authStorage.js";
 

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A row must not re-render just because its container gained or lost a child
 // (user, 2026-09-26: deleting one person froze the 1,200-row People board).
 import { describe, it, expect } from "vitest";
