@@ -3747,3 +3747,13 @@ hit its limit while naming the Coffee operation).
 - > "if i try to open the moduli extension on firefox, it wont let me add a link via clicking on the
   extension in the toolbar … i expect it to open up the dropdown that we have for the other shares
   (auto vs manual)".
+
+## 2026-10-01 (afternoon)
+- Wrap: multiple text-side blocks, the last one wraps; anything may float, only textblocks wrap.
+- Philosopher's Stone + the Notes folder pages: doc-container sections like the Eminem article, a textblock
+  and picture wrap per step; captions from what each picture shows; replace the BlackSun sunwheel with the
+  alchemical sol niger.
+- Move the Imports folder under Files.
+- Restore the accidentally deleted tasks; add a Done section at the bottom of Tasks (drag there instead of
+  deleting — deleting removes the Completed copy too).
+- Next UI testing: focus on docs and wraps.

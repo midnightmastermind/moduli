@@ -15,6 +15,46 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-01 (3) — A WRAP'S TEXT SIDE HOLDS SEVERAL BLOCKS; the Notes pages became sections; four deleted tasks restored
+
+**MULTI-BLOCK WRAPS** (user: *"multiple textblocks on that side with the last one wrapping … only textblocks
+can do the wrapping"*). `wrapGroup.attrs.floatCount` — null keeps every existing group's meaning (every child
+but the last floats). With a count, the children between the floats and the last are LEADS: `flow-root`, so
+they sit beside the float as one box and only the host wraps under it (`docs/wrapRoles.js`, pure). The CSS
+addressed members by `:last-child`/`:not(:last-child)`, which cannot tell a lead from a float — 71 selectors
+now read a `data-wrap-role` the node view stamps in a layout effect + MutationObserver. The host's notch is
+measured from where the HOST starts (`wrapAnchor.hostNotchBand`; without leads it is the old rule exactly).
+Gestures: a textblock dropped beside the float joins the text side (only within the float's band, only on a
+wrapping group, only a textmapped block); radial "Continue wrap into next block" on the host; "Move out of
+wrap" on a lead; a lead dragged out is lifted out (`extractGroupMember`) instead of unwrapping the group.
+Server scrub keeps the count right when a delete shrinks a group. **Watched on prod:** Eminem 18/18 groups
+wrapped, 0 unstamped, every float floating — the existing groups survived the selector rewrite.
+
+**THE NOTES PAGES (`0379`)** — *"doc containers going downward like the eminem article … a textblock and image
+wrap underneath"*. Every Documents/Notes doc page: one root doc container named for the page, an H2 textblock
+→ a container named by its heading (heading leaves the text), H3 nests, title-only and heading-only textblocks
+go (15). A picture-holding textblock splits at its inner headings (External (Lab) / Internal (Psyche)). Each
+of the 28 pictures was LOOKED AT and placed by hand in `PLACEMENT` and captioned in `CAPTIONS` (no more
+section headings as captions). **`BlackSun.svg` was the Wewelsburg sunwheel, not the alchemical sun** — the
+user: *"remove it and find the alchemical sol niger one"*: replaced in place by the Splendor Solis black sun
+(Wellcome, CC BY 4.0). Unviewable and left plain at the end of their section: a 404 yin-yang and a
+Cloudflare-blocked Ambix figure. Watched: Philosopher's Stone 19 wraps, all wrapping, all captions new.
+
+**IMPORTS INSIDE FILES (`0380`)** — the client found Imports only at the ROOT (`ensureImportsFolderAndPage`),
+so moving it would have minted a second Imports on the next import. It now finds the PROTECTED one anywhere
+and creates a new one inside Files. Deployed before any import could run.
+
+**FOUR TASKS DELETED BY ACCIDENT (14:52), RESTORED.** Deleting a task deletes its MODULE, so its linked copy on
+the Completed page went too (3 modules + 8 placements across 6 lists). Every list was unchanged since, so the
+transactions' `before` snapshots were written back newest-first (what `applySnapshots` does — the undo
+handler itself refuses anything but the top of the stack and all derived writes), the 12 transactions
+marked undone, pm2 restarted; verified in the live app: all listed where they were. **`0381` adds a `Done`
+board container at the bottom of Tasks** — a drag there is a move and keeps the Completed copy, because the
+Completed container is a FEED scoped to the whole Tasks page on "Completed is ticked". Two pages are named
+Tasks; 0381 picks the one the feed scopes.
+
+---
+
 ### 2026-10-01 (2) — THE CLIENT SUITE: 4:48 → ~2:20, and the "OOM pair" was the run log holding every test's grid
 
 User: *"before you run the failing test, please shorten the time it takes, 4 minutes is a long time"*.
