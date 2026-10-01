@@ -120,7 +120,7 @@ export function tileKindsForRole(targetRole) {
   return ["board"]; // panel
 }
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0, onCreatePageFromTemplate = null }) {
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0, onCreatePageFromTemplate = null, anchorRef = null }) {
   // Per-slice selectors — the previous full useGridActions() subscription
   // re-rendered EVERY mounted QuickAddMenu (~one per container/page header) on
   // every occurrence write, and each render re-walked the templates tree over
@@ -169,13 +169,18 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const fileInputRef = useRef(null);
 
   const reposition = useCallback(() => {
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
+    // `anchorRef`: a host that mounts this menu HIDDEN and opens it imperatively
+    // names the control it should open beside. Without it the hidden button's
+    // box is 0,0 and the menu opened in the top-left corner of the screen —
+    // the manifest folder's "+" looked like it did nothing (2026-10-01).
+    const anchor = anchorRef?.current || btnRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
     // Measured height when the menu is already up; the 360 default is a
     // worst-case guess used for the first paint only.
     const height = menuRef.current?.getBoundingClientRect?.().height || undefined;
     setPos(menuPosition(rect, window.innerWidth, window.innerHeight, height ? { height } : undefined));
-  }, []);
+  }, [anchorRef]);
 
   // Re-position once the menu has REAL dimensions (2026-07-25). The default
   // 360px estimate is much taller than the actual ~240px tile menu, so

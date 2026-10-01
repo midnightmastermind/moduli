@@ -813,6 +813,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   // up the quick add menu"*). `targetRole="page"` is already the right palette
   // for a folder — board / doc / canvas / table / folder — and the menu owns
   // every shape decision, so this button can never invent an eighth one.
+  const addBtnRef = useRef(null);
   const [addTrigger, setAddTrigger] = useState(0);
 
   const createInFolder = useCallback(({ kind } = {}) => {
@@ -932,11 +933,15 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               className="folder-open-btn"
             ><Layout size={10} /></span>
             <span
+              ref={addBtnRef}
               onClick={(e) => { e.stopPropagation(); setAddTrigger(n => n + 1); }}
               title="Add to this folder"
-              style={{ fontSize: 13, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 6px" }}
+              aria-label="Add to this folder"
+              // An ICON, not a typed "+": the Stardew skin's pixel font drew the
+              // character as a small up-arrow (user, 2026-10-01).
+              style={{ display: "flex", alignItems: "center", color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 5px" }}
               className="folder-add-btn"
-            >+</span>
+            ><Plus size={11} /></span>
           </NodePill>
         )}
       </div>
@@ -948,6 +953,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         <QuickAddMenu
           targetRole="page"
           openTrigger={addTrigger}
+          anchorRef={addBtnRef}
           createLabel="Add to folder"
           onCreateNew={createInFolder}
           onSelect={createInFolder}
@@ -1172,6 +1178,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
           <QuickAddMenu
             targetRole="page"
             openTrigger={addTrigger}
+            anchorRef={rowRef}
             createLabel={`Add to ${parentFolder.name}`}
             onCreateNew={createHere}
             onSelect={createHere}
