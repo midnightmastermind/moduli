@@ -32,6 +32,8 @@ import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import { Slice } from "@tiptap/pm/model";
+import { hasImageNode, imagesToEmbeds, imageLabel } from "../helpers/pastedImages";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TaskListMarkdown } from "../docs/TaskListMarkdown";
@@ -341,6 +343,12 @@ const Editor = forwardRef(function Editor({
   // embedded doc container or a cell has no owning `occurrence` to read them off).
   const ctxGrid = useGridActionsSelector(s => s.grid);
   const ctxUserId = useGridActionsSelector(s => s.userId);
+  // Read at PASTE time (editorProps are captured once at init).
+  const ctxFolders = useGridActionsSelector(s => s.foldersById);
+  const ctxGridRef = useRef(ctxGrid); ctxGridRef.current = ctxGrid;
+  const ctxUserIdRef = useRef(ctxUserId); ctxUserIdRef.current = ctxUserId;
+  const foldersRef = useRef(ctxFolders); foldersRef.current = ctxFolders;
+
 
   // Suggestion / palette state
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -1061,6 +1069,30 @@ const Editor = forwardRef(function Editor({
     },
     editorProps: {
       instancesById,
+      // A PICTURE PASTED (or dropped as HTML) BECOMES AN ARTIFACT — see
+      // helpers/pastedImages. Runs once per paste on the pasted slice only.
+      transformPasted: (slice, view) => {
+        try {
+          const json = slice.content.toJSON();
+          if (!hasImageNode(json)) return slice;
+          const gridId = ctxGridRef.current?._id || ctxGridRef.current?.id || occurrence?.gridId;
+          const userId = ctxUserIdRef.current || occurrence?.userId;
+          if (!gridId || !userId || !socketRef.current) return slice;
+          const importsFolderId = Object.values(foldersRef.current || {}).find((f) => f?.name === "Imports" && f?.meta?.protected)?.id || null;
+          const content = imagesToEmbeds(json, (src, alt) => {
+            const moduleId = crypto.randomUUID(), occurrenceId = crypto.randomUUID();
+            const module = { id: moduleId, userId, gridId, role: "artifact", kind: "image", label: imageLabel(alt), fileRef: src, meta: { source: "doc-image" } };
+            const occ = { id: occurrenceId, userId, gridId, moduleId, parentId: importsFolderId, fields: {}, occurrences: [], meta: { embeddedIn: occurrence?.id || null } };
+            CommitHelpers.createModule({ dispatch: dispatchRef.current, socket: socketRef.current, module, emit: true });
+            CommitHelpers.createOccurrence({ dispatch: dispatchRef.current, socket: socketRef.current, occurrence: occ, emit: true });
+            return occurrenceId;
+          });
+          return Slice.fromJSON(view.state.schema, { content, openStart: slice.openStart, openEnd: slice.openEnd });
+        } catch (e) {
+          console.warn("[paste] image -> artifact skipped:", e?.message);
+          return slice;
+        }
+      },
       // spellcheck starts OFF so unfocused textblocks don't show misspelling
       // squiggles; the focus/blur handlers below flip it on only while editing.
       attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false", spellcheck: "false" },
