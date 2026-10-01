@@ -13,7 +13,7 @@
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
 import { floatCountOf, wrapRoleAt } from "./wrapRoles";
-import { hostNotchBand, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
+import { hostNotchBand, holdGuardStack, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -138,6 +138,10 @@ export default function WrapGroupNode({ node, updateAttributes }) {
   // projection it used instead disagreed with it badly enough to flip the
   // decision. See resolveNeighborHeight in docs/wrapAnchor.js.
   const wrappedNeighborRef = useRef(null);
+  // The width the rendered blank-band guard last forced a stack at — see
+  // holdGuardStack (wrapAnchor.js): without it the guard and the prediction
+  // flip the group every frame when the host holds something that cannot wrap.
+  const guardLatchRef = useRef(null);
 
   // Measure the floated neighbor stack ONLY to place the draggable resize seam. The
   // wrap itself is pure CSS now: the neighbor floats, and the host (a normal in-flow
@@ -251,7 +255,12 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       // What the guard is actually for is the case its comment describes — the
       // band renders EMPTY because long words all dropped below the float — so
       // it asks for what that case lacks: about two lines of text in the band.
-      if (filledBandH < WRAP_MIN_BESIDE_H) nextUnwrap = true;
+      if (filledBandH < WRAP_MIN_BESIDE_H) { nextUnwrap = true; guardLatchRef.current = wrapEl.clientWidth; }
+    }
+    if (!columnsMode && !nextUnwrap && holdGuardStack({ stacked: prevUnwrap, latchWidth: guardLatchRef.current, width: wrapEl.clientWidth })) {
+      nextUnwrap = true;
+    } else if (!nextUnwrap) {
+      guardLatchRef.current = null;
     }
     if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
     // Stacked layout needs no seam / notch measurement — bail early.

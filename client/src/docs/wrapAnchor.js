@@ -46,6 +46,23 @@ export function classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom, h
   return hostBottom - neighborBottom < threshold ? "bottom" : "middle";
 }
 
+// The rendered blank-band guard and the prediction can DISAGREE FOREVER.
+// 2026-10-01, Philosopher's Stone "1. Nigredo — The Breakdown Phase", measured
+// in Firefox: 43 wrap/stack flips in 4 idle seconds, the section below shoved
+// 53px each time. Its host holds a TABLE. Wrapped, the table cannot fit beside
+// the picture and drops below it, so the band beside the picture holds one short
+// line → the guard stacks. Stacked, the prediction counts the table's text as
+// prose → it wraps again. Each rule is right about what it measures; they
+// measure different layouts.
+// So a stack the GUARD forced holds until the group's width really changes
+// (that is the only thing that can change the guard's answer). `latchWidth` is
+// the width the guard fired at, or null when the stack was not the guard's.
+export const GUARD_LATCH_TOLERANCE = 24;
+export function holdGuardStack({ stacked, latchWidth, width }) {
+  if (!stacked || latchWidth == null) return false;
+  return Math.abs(width - latchWidth) < GUARD_LATCH_TOLERANCE;
+}
+
 // The host's NOTCH — the band of the host's box the float occupies, which the
 // clip cuts out so the host's background never runs behind the picture.
 // Coordinates are viewport px; y is relative to the host's top.

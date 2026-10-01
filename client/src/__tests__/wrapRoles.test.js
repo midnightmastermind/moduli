@@ -119,3 +119,39 @@ describe("wrap-group CSS addresses roles", () => {
     expect(css).toMatch(/\.wrap-group--on > \.wrap-group-content > \* > \[data-wrap-role="lead"\]\s*\{[^}]*display:\s*flow-root/);
   });
 });
+
+import { holdGuardStack, decideWrapStack } from "../docs/wrapAnchor";
+
+// THE FLIP-FLOP, replayed. Philosopher's Stone, 2026-10-01: a host holding a
+// table — the prediction says WRAP every time it is stacked, the rendered guard
+// says STACK every time it is wrapped. 43 flips in 4 idle seconds.
+describe("holdGuardStack — a guard-forced stack is not undone at the same width", () => {
+  const step = (state) => {
+    // what each layout reports for this host
+    const predictWrap = !decideWrapStack({ textArea: 200000, besideW: 360, neighborH: 400, prevStacked: state.stacked });
+    if (!state.stacked) {
+      // wrapped: the table dropped below the picture, the band is blank
+      return { stacked: true, latch: state.width };
+    }
+    const hold = holdGuardStack({ stacked: true, latchWidth: state.latch, width: state.width });
+    return predictWrap && !hold ? { stacked: false, latch: null } : { stacked: true, latch: state.latch };
+  };
+  it("without the latch the two rules alternate forever", () => {
+    let s = { stacked: false, latch: null, width: 700 }; let flips = 0;
+    for (let i = 0; i < 10; i++) { const n = step({ ...s, latch: null }); if (n.stacked !== s.stacked) flips++; s = { ...n, latch: null, width: 700 }; }
+    expect(flips).toBeGreaterThan(5);
+  });
+  it("with the latch the group settles stacked after one flip", () => {
+    let s = { stacked: false, latch: null, width: 700 }; let flips = 0;
+    for (let i = 0; i < 10; i++) { const n = step(s); if (n.stacked !== s.stacked) flips++; s = { ...n, width: 700 }; }
+    expect(flips).toBe(1);
+    expect(s.stacked).toBe(true);
+  });
+  // CONTROL: widening releases it — the latch is about THIS width only.
+  it("a real width change releases the latch", () => {
+    expect(holdGuardStack({ stacked: true, latchWidth: 700, width: 712 })).toBe(true);
+    expect(holdGuardStack({ stacked: true, latchWidth: 700, width: 760 })).toBe(false);
+    expect(holdGuardStack({ stacked: true, latchWidth: null, width: 700 })).toBe(false);
+    expect(holdGuardStack({ stacked: false, latchWidth: 700, width: 700 })).toBe(false);
+  });
+});
