@@ -15,7 +15,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 // Kind → lucide icon for pages — delegates to the shared
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
-import { jumpToOccurrence, flashElement } from "../helpers/jumpToOccurrence";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { isProtectedFolder } from "../helpers/protectedFolders";
 import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansion";
@@ -1261,31 +1261,30 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   }, [onOpenPage]);
 
   // Clicking an anchor chip → keep parent doc open, scroll to heading
+  // The panel this tree lives in — a jump from the tree lands in ITS page, not
+  // in another panel that happens to show the same container.
+  const treeRootRef = useRef(null);
+  const panelRoot = useCallback(() => treeRootRef.current?.closest("[data-panel-id]") || null, []);
+
+  // A CONTAINER CLICKED UNDER A PAGE: open that page here if it is not, then
+  // jump to the container — through jumpToOccurrence, the jump search uses.
+  // Found 2026-10-01 by the manifest UI test: the open-page branch hand-rolled
+  // an unscoped scroll, and the other branch only left `scrollAnchor` for the
+  // page to act on, which only a DOC page reads — so on a board page (Tasks →
+  // This Week) nothing moved. `scrollAnchor` is still written for doc pages.
   const handleScrollTo = useCallback((parentOccId, anchorOccId) => {
     const targetView = activePageView || view;
     const pageAlreadyOpen = targetView?.activeOccurrenceId === parentOccId;
 
     if (targetView?.id) {
-      if (pageAlreadyOpen && anchorOccId) {
-        // Page already open — scroll directly via getBoundingClientRect (works for nested containers)
-        const el = document.querySelector(`[data-occ-id="${anchorOccId}"]`);
-        if (el) {
-          const sc = el.closest(".artifact-markdown");
-          if (sc) {
-            sc.scrollTo({ top: sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top, behavior: "smooth" });
-          } else {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-          flashElement(el);
-        }
-        CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, scrollAnchor: anchorOccId }, emit: false });
-      } else {
-        CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, activeOccurrenceId: parentOccId, scrollAnchor: anchorOccId }, emit: true });
-      }
+      CommitHelpers.updateView({ dispatch, socket,
+        view: pageAlreadyOpen ? { ...targetView, scrollAnchor: anchorOccId } : { ...targetView, activeOccurrenceId: parentOccId, scrollAnchor: anchorOccId },
+        emit: !pageAlreadyOpen });
+      if (anchorOccId) jumpToOccurrence(anchorOccId, { root: panelRoot, retries: pageAlreadyOpen ? 0 : 16, retryMs: 120 });
     } else if (onOpenPage) {
       onOpenPage(parentOccId);
     }
-  }, [activePageView, view, dispatch, socket, onOpenPage]);
+  }, [activePageView, view, dispatch, socket, onOpenPage, panelRoot]);
 
   // Set a doc as the default landing page for this tree panel
   const handleSetDefault = useCallback((occId) => {
@@ -1374,6 +1373,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
 
   return (
     <div
+      ref={treeRootRef}
       data-manifest-tree=""
       style={{
         width: collapsed ? 24 : "220px",

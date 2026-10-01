@@ -415,7 +415,9 @@ describe("every jump surface blinks through the one helper", () => {
   it("calls flashElement rather than adding the class by hand", () => {
     for (const rel of sites) {
       const src = read(rel);
-      expect(src, rel).toMatch(/flashElement\(/);
+      // Either the blink itself, or the jump that blinks through it (the tree's
+      // container clicks go through jumpToOccurrence since 2026-10-01).
+      expect(src, rel).toMatch(/(flashElement|jumpToOccurrence)\(/);
       expect(src, rel).toMatch(/from "\.\.\/helpers\/jumpToOccurrence"/);
       expect(src, rel).not.toMatch(/classList\.add\("anchor-highlight"\)/);
     }
