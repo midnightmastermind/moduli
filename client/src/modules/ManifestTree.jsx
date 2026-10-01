@@ -38,6 +38,7 @@ import { sessionHeaders } from "../helpers/authStorage";
 // that grew 8, 24, 48, 80px… and deep Codex rows ran off the panel. Each level
 // adds the same TREE_INDENT to what its parent already has.
 export const TREE_INDENT = 10;
+export const TREE_WIDTH = 280;
 export const treeIndent = (depth) => (depth > 0 ? TREE_INDENT : 0);
 
 /** A folder's own landing page: a page whose module kind is "folder". */
@@ -1396,7 +1397,9 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
       ref={treeRootRef}
       data-manifest-tree=""
       style={{
-        width: collapsed ? 24 : "220px",
+        // Wider than the original 220 (user, 2026-10-01: "make the manifest
+        // sidebar a bit wider") — deep rows and long page names were cut off.
+        width: collapsed ? 24 : `${TREE_WIDTH}px`,
         height: "100%",
         borderRight: "1px solid var(--border-default)",
         background: "var(--surface-card)",
@@ -1504,7 +1507,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                     />
                   </div>
                   {localRootOpen && (
-                  <div style={{ marginLeft: 12 }}>
+                  <div style={{ marginLeft: TREE_INDENT }}>
                   {/* FLAT — no folder headers, no folder subtrees. The whole
                       manifest with its folders is directly below this section;
                       grouping here was a second, shallower copy of it. */}
