@@ -1432,6 +1432,20 @@ select:disabled { cursor: not-allowed; }
   box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.9) !important;
 }
 
+/* ── Hover outline (user, 2026-10-01: "highlight an occurance if i hover over
+   it (with a blue border outline)") ─────────────────────────────────────────
+   The INNERMOST hovered occurrence only: hovering a row inside a container also
+   hovers the container, so each rule excludes a box that holds a hovered
+   occurrence of its own. An OUTLINE, not a border — a border would move the
+   layout on every hover. Lighter than the selection ring above (1px, no tint)
+   so hovered and selected stay distinguishable, and off during a drag, when
+   the drop indicators are what matters. */
+body:not([data-drag-kind]) .instance-wrap:hover:not(:has(.instance-wrap:hover, .container-shell:hover)) > .instance-row,
+body:not([data-drag-kind]) .container-shell:hover:not(:has(.instance-wrap:hover, .container-shell:hover)) {
+  outline: 1px solid rgba(59, 130, 246, 0.9);
+  outline-offset: 1px;
+}
+
 /* ── Clipboard-staged indicator ───────────────────────────────────────────
    Applied to items that are CURRENTLY in the clipboard (post-Copy /
    Move / Copy-link from the right-click menu). Distinct treatment from
