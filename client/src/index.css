@@ -4678,7 +4678,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    top, flush with the neighbor (it otherwise pushes the text down below the
    neighbor's top). Still grabbable on hover (absolute, top-left). */
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="host"] .instance-content > div:first-child:not(.instance-body) {
-  position: absolute; top: 0; left: 0; z-index: 4;
+  /* --host-handle-left: past a LEFT-side picture that covers the host's first
+     line (WrapGroupNode measure), else 0 — the handle stays clickable. */
+  position: absolute; top: 0; left: var(--host-handle-left, 0px); z-index: 4;
 }
 
 /* Neighbor = the infobox/image occurrence: its OWN bordered box + top padding,
