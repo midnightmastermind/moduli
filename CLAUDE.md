@@ -35,7 +35,15 @@ first textblock as `[paragraph, table]` at 19:59; at 20:04 the user's tab saved 
 over it (heading + 4 picture embeds) as a user action. The server's stale-write check passed because the
 restart's `full_state` had refreshed the row's `updatedAt` in the tab while the MOUNTED editor kept its old
 doc. **Open defect, not fixed: a mounted editor does not adopt a textmap that arrives with `full_state`.**
-Any migration that rewrites a doc someone has open can be undone this way. Scan of all 223 textblocks under
+Any migration that rewrites a doc someone has open can be undone this way.
+
+**"STILL NOT RESOLVING" WAS HOTLINK PROTECTION, which my headless probe could not see** (it sent no Referer).
+Testing all 28 with a viafluere Referer: Saatchi (the vortex painting) and UPI (Newton's manuscript) answer
+**403** to a request from another site; the shop blog's yin-yang is a 404. Both blocked images now live in
+prod's `uploads/user/2026-10/` and their modules point there (`meta.mirroredFromUrl` keeps the original);
+the dead yin-yang is Wikimedia's public-domain taijitu, also local. Changed through `update_module` on a
+socket so open tabs hear it. Verified in Firefox: every picture on the page LOADED, 0 failed requests.
+*Probe rule: an image check that does not send the app's Referer cannot see hotlink blocking.* Scan of all 223 textblocks under
 the Notes pages: that was the only one. Repaired through `update_occurrence` on a socket (so open tabs hear
 it).
 
