@@ -242,7 +242,11 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       const floatCount = floatCountOf(wrapGroupNode.attrs, wrapGroupNode.childCount);
       const myRole = myIndex >= 0 ? wrapRoleAt(myIndex, wrapGroupNode.childCount, floatCount) : null;
       const after = editor.state.doc.resolve(wrapGroupPos + wrapGroupNode.nodeSize).nodeAfter;
-      const afterOcc = after?.type?.name === "moduleEmbed"
+      // A block typed on an empty line is an `instanceTextblock` node, one dropped
+      // or imported is a `moduleEmbed` — both name the occurrence, and a wrap can
+      // hold only the latter, so the former is converted as it is pulled in.
+      const NEXT_BLOCK = new Set(["moduleEmbed", "instanceTextblock"]);
+      const afterOcc = NEXT_BLOCK.has(after?.type?.name)
         ? operationsBridge.getLocalOcc?.(after.attrs?.occurrenceId) : null;
       const afterMod = afterOcc?.moduleId ? modulesById?.[afterOcc.moduleId] : null;
       if (wrapOn && myRole === "host" && isTextmappedModule(hostMod) && isTextmappedModule(afterMod)) {
@@ -255,12 +259,14 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             if (!grp || grp.type.name !== "wrapGroup") return;
             const nextPos = wrapGroupPos + grp.nodeSize;
             const next = editor.state.doc.nodeAt(nextPos);
-            if (!next || next.type.name !== "moduleEmbed") return;
+            if (!next || !NEXT_BLOCK.has(next.type.name) || !next.attrs?.occurrenceId) return;
+            const nextEmbed = next.type.name === "moduleEmbed"
+              ? next : editor.schema.nodes.moduleEmbed.create({ occurrenceId: next.attrs.occurrenceId });
             const fc = floatCountOf(grp.attrs, grp.childCount);
             const kids = [];
             grp.forEach((c) => kids.push(c));
             // The next block becomes the host; this one becomes a lead beside the float.
-            const merged = grp.type.create({ ...grp.attrs, floatCount: fc }, [...kids, next]);
+            const merged = grp.type.create({ ...grp.attrs, floatCount: fc }, [...kids, nextEmbed]);
             editor.chain().focus().command(({ tr }) => {
               tr.replaceWith(wrapGroupPos, nextPos + next.nodeSize, merged);
               return true;
