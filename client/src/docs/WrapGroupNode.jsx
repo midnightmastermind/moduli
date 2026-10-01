@@ -345,6 +345,13 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
         anchorIndex: node.attrs.anchorIndex, anchorOffset: node.attrs.anchorOffset, bottomGap: BOTTOM_GAP,
       });
       wrapEl.style.setProperty("--notch-w", `${band.h > 0 ? Math.max(0, notchW) : 0}px`);
+      // The host's drag handle sits at its box's LEFT edge. With the picture on
+      // the left and its band over the host's first line, the picture covers
+      // it — "no drag handle on the textblocks on the right side of the wrap"
+      // (user, 2026-10-01). Move it to where the text starts; a host that
+      // starts below the picture keeps it at the corner.
+      const handleCovered = side === "left" && band.h > 0 && band.y < 26;
+      wrapEl.style.setProperty("--host-handle-left", `${handleCovered ? Math.max(0, notchW) + PROSE_PAD : 0}px`);
       wrapEl.style.setProperty("--notch-y", `${band.y}px`);
       wrapEl.style.setProperty("--notch-h", `${band.h}px`);
       setMeasuredShape(band.shape);

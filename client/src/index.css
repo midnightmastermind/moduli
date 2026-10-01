@@ -4536,7 +4536,7 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    shows on hover. `.instance-wrap` is `position:relative`, so this anchors to it. */
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="host"] .instance-content > .module-drag-handle,
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="host"] .instance-content > [data-dnd-handle] {
-  position: absolute; left: 0; top: 2px; z-index: 4;
+  position: absolute; left: var(--host-handle-left, 0px); top: 2px; z-index: 4;
 }
 /* Breathing room between the host card's edge and the prose — the width:100%
    flattening above leaves the ProseMirror with no inset, so full-width lines
