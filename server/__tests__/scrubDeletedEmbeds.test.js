@@ -194,3 +194,40 @@ describe("scrubDeletedEmbeds — a wrap group the scrub shrinks below two", () =
     expect(res.textmap.content[0]).toEqual(group("a", "b"));
   });
 });
+
+
+// ── A GROUP WITH TEXT-SIDE LEADS (2026-10-01) ────────────────────────────────
+// `attrs.floatCount` says how many leading children float; the ones between the
+// floats and the last are leads that sit beside the float (client
+// docs/wrapRoles.js). Removing a member must keep that split right, or a lead
+// would start floating, or a float would land on the text side.
+describe("scrubDeletedEmbeds — a group with text-side leads", () => {
+  const group = (floatCount, ...ids) => ({
+    type: "wrapGroup",
+    attrs: { side: "right", floatCount },
+    content: ids.map((occurrenceId) => ({ type: "moduleEmbed", attrs: { occurrenceId } })),
+  });
+  const doc = (...content) => ({ type: "doc", content });
+
+  it("losing a lead keeps the float count", () => {
+    const res = scrubDeletedEmbeds(doc(group(1, "img", "lead1", "lead2", "host")), new Set(["lead1"]));
+    const g = res.textmap.content[0];
+    expect(g.content.map((c) => c.attrs.occurrenceId)).toEqual(["img", "lead2", "host"]);
+    expect(g.attrs.floatCount).toBe(1);
+  });
+
+  it("losing the last lead clears the stored count", () => {
+    const res = scrubDeletedEmbeds(doc(group(1, "img", "lead", "host")), new Set(["lead"]));
+    expect(res.textmap.content[0].attrs.floatCount).toBe(null);
+  });
+
+  it("losing the only float flattens — nothing is left to wrap around", () => {
+    const res = scrubDeletedEmbeds(doc(group(1, "img", "lead", "host")), new Set(["img"]));
+    expect(res.textmap.content.map((n) => n.attrs.occurrenceId)).toEqual(["lead", "host"]);
+  });
+
+  it("losing one of two floats lowers the count, the lead stays a lead", () => {
+    const res = scrubDeletedEmbeds(doc(group(2, "a", "b", "lead", "host")), new Set(["a"]));
+    expect(res.textmap.content[0].attrs.floatCount).toBe(1);
+  });
+});

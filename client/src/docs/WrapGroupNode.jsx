@@ -11,8 +11,9 @@
 // NEIGHBOR-FIRST ORDER IS LOAD-BEARING (see WrapGroupExtension.js): a CSS float only
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
-import { useRef, useEffect, useCallback, useState } from "react";
-import { hasMidAnchor, classifyWrapShape, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
+import { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
+import { floatCountOf, wrapRoleAt } from "./wrapRoles";
+import { hostNotchBand, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -82,10 +83,25 @@ function embedEls(contentEl) {
   return Array.from(holder.children);
 }
 
+// Stamp each child's role (float / lead / host — docs/wrapRoles.js) where the
+// CSS reads it. Position alone used to decide (`:last-child` = host), which
+// cannot say "these two text blocks sit beside the float and only the second
+// wraps". Idempotent, so it is safe from a layout effect AND a mutation
+// observer (ProseMirror can insert a child after this view rendered).
+function stampRoles(contentEl, floatCount) {
+  const els = embedEls(contentEl);
+  els.forEach((el, i) => {
+    const role = wrapRoleAt(i, els.length, floatCount);
+    if (el.dataset.wrapRole !== role) el.dataset.wrapRole = role;
+  });
+  return els;
+}
+
 export default function WrapGroupNode({ node, updateAttributes }) {
   const side = node.attrs.side === "left" ? "left" : "right";
-  // Host is the LAST child; everything before it is a floated neighbor.
-  const neighborCount = Math.max(0, node.childCount - 1);
+  // The first `floatCount` children float; the LAST is the host that wraps; any
+  // between are text-side LEADS beside the float (docs/wrapRoles.js).
+  const neighborCount = floatCountOf(node.attrs, node.childCount);
   // wrap attr RESTORED (2026-07-12, per user — "we want to be able to set it as
   // a wrap or not; we had all of this and it got removed"): wrap:true (default)
   // = the L-float morph; wrap:false = plain side-by-side COLUMNS (the
@@ -132,13 +148,18 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     if (!wrapEl) return;
     const contentEl = wrapEl.querySelector(".wrap-group-content");
     if (!contentEl) return;
-    const els = embedEls(contentEl);
+    const els = stampRoles(contentEl, neighborCount);
     // Measure regardless of wrap on/off — the seam (column resize handle) is
     // valid in BOTH the two-column (`wrap:false`) and L-float (`wrap:true`)
     // layouts; it reads the live neighbor box either way. Gating it on `wrap`
     // hid the resize handle in two-column mode (the importer emits wrap:false).
     if (els.length < 2) { setSeam(null); return; }
-    const neighbors = els.slice(0, els.length - 1);
+    const neighbors = els.slice(0, neighborCount);
+    // The text side: any leads, then the host. Measured TOGETHER for the
+    // wrap-or-stack call — a short host with a lead above it is not "a host with
+    // hardly any text beside a tall picture".
+    const textEls = els.slice(neighborCount);
+    const hasLeads = textEls.length > 1;
 
     const wrapRect = wrapEl.getBoundingClientRect();
     // Union bounding box of the neighbor column (all stacked neighbors). Measured in
@@ -189,12 +210,18 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // nothing to wrap" and stacks. That is why nothing below the first screen
     // ever wrapped, whatever the policy said. The wrap is a fact about the text's
     // geometry, not about which component happens to be rendering it.
-    const hostEl = els[els.length - 1];
-    const hostProse = hostEl.querySelector(".ProseMirror")
-      || hostEl.querySelector(".textblock-card-placeholder");
-    // One fused walk: line-box area (sliver prediction) + how far down the
-    // neighbor band [top..bottom] the rendered text reaches (blank-band guard).
-    const { area: textArea, bandBottomReach } = measureProseText(hostProse, top, bottom);
+    const proseOf = (el) => el.querySelector(".ProseMirror") || el.querySelector(".textblock-card-placeholder");
+    const hostProse = proseOf(els[els.length - 1]);
+    // One fused walk per text-side block: line-box area (sliver prediction) +
+    // how far down the neighbor band [top..bottom] the rendered text reaches
+    // (blank-band guard). Summed / maxed across the leads and the host.
+    let textArea = 0;
+    let bandBottomReach = top;
+    for (const el of textEls) {
+      const m = measureProseText(proseOf(el), top, bottom);
+      textArea += m.area;
+      if (m.bandBottomReach > bandBottomReach) bandBottomReach = m.bandBottomReach;
+    }
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
     const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
     // COLUMNS mode (attrs.wrap === false) skips the prose-fill sliver policy
@@ -292,18 +319,21 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       // Top-anchored wraps cut from the very top (no bg strip above the neighbor);
       // mid-anchored ones (line-level anchorOffset OR legacy anchorIndex — see
       // wrapAnchor.hasMidAnchor) cut the band the neighbor actually floats in.
-      const anchorAttrs = { anchorIndex: node.attrs.anchorIndex, anchorOffset: node.attrs.anchorOffset };
-      const notchY = hasMidAnchor(anchorAttrs) ? Math.max(0, Math.round(top - c.top)) : 0;
-      // Include the float's BOTTOM margin band in the notch — the gap right
-      // under the neighbor must show the PAGE background too (it used to show
-      // the host textblock's tint, which read as the image sitting inside the
+      // The band includes the float's BOTTOM margin — the gap right under the
+      // neighbor must show the PAGE background too (it used to show the host
+      // textblock's tint, which read as the image sitting inside the
       // textblock). Prose reclaims full width only below bottom+BOTTOM_GAP, so
       // the extension never clips text; the seam already spans the same band.
-      const notchH = Math.round(bottom - top) + BOTTOM_GAP;
-      wrapEl.style.setProperty("--notch-w", `${Math.max(0, notchW)}px`);
-      wrapEl.style.setProperty("--notch-y", `${Math.max(0, notchY)}px`);
-      wrapEl.style.setProperty("--notch-h", `${Math.max(0, notchH)}px`);
-      setMeasuredShape(classifyWrapShape({ ...anchorAttrs, neighborBottom: bottom, hostBottom: c.bottom }));
+      // With leads above it the host may start beside, or below, the float —
+      // hostNotchBand measures the overlap (wrapAnchor.js).
+      const band = hostNotchBand({
+        floatTop: top, floatBottom: bottom, hostTop: c.top, hostBottom: c.bottom, hasLeads,
+        anchorIndex: node.attrs.anchorIndex, anchorOffset: node.attrs.anchorOffset, bottomGap: BOTTOM_GAP,
+      });
+      wrapEl.style.setProperty("--notch-w", `${band.h > 0 ? Math.max(0, notchW) : 0}px`);
+      wrapEl.style.setProperty("--notch-y", `${band.y}px`);
+      wrapEl.style.setProperty("--notch-h", `${band.h}px`);
+      setMeasuredShape(band.shape);
     }
 
     // Seam sits ON the clip wall (CHANNEL short of the neighbor) so its
@@ -317,7 +347,21 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // (the notch-bottom line = the full-width bottom bar's TOP border) sits BELOW the
     // image with a margin above it, not flush against the image bottom.
     setSeam({ top: Math.round(top - wrapRect.top), height: Math.round(bottom - top) + BOTTOM_GAP, left: seamLeft });
-  }, [side, neighborWidth, node.attrs.anchorIndex, node.attrs.anchorOffset, node.attrs.wrap]);
+  }, [side, neighborWidth, neighborCount, node.attrs.anchorIndex, node.attrs.anchorOffset, node.attrs.wrap]);
+
+  // Roles must be on the children BEFORE paint, or a group with leads renders
+  // one frame with nothing floated. A mutation observer covers a child that
+  // ProseMirror inserts after this view committed (a drop into the group).
+  useLayoutEffect(() => {
+    const contentEl = wrapRef.current?.querySelector(".wrap-group-content");
+    if (!contentEl) return;
+    stampRoles(contentEl, neighborCount);
+    const holder = contentEl.querySelector(":scope > [data-node-view-content-react]") || contentEl;
+    const mo = new MutationObserver(() => stampRoles(contentEl, neighborCount));
+    mo.observe(holder, { childList: true });
+    if (holder !== contentEl) mo.observe(contentEl, { childList: true });
+    return () => mo.disconnect();
+  });
 
   useEffect(() => {
     const wrapEl = wrapRef.current;
@@ -330,7 +374,7 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     ro.observe(wrapEl);
     embedEls(contentEl).forEach((el) => ro.observe(el));
     // Re-measure when a neighbor image finishes loading (h=0 until load).
-    const imgs = embedEls(contentEl).slice(0, -1).flatMap((el) => Array.from(el.querySelectorAll("img")));
+    const imgs = embedEls(contentEl).slice(0, neighborCount).flatMap((el) => Array.from(el.querySelectorAll("img")));
     imgs.forEach((img) => { if (!img.complete) img.addEventListener("load", measure); });
     // Backstop: a Wikipedia infobox is a TABLE whose rows lay out after the RO's
     // last fire, so the seam (and its column-rule line) would be measured too short.

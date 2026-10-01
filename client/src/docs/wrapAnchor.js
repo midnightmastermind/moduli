@@ -46,6 +46,35 @@ export function classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom, h
   return hostBottom - neighborBottom < threshold ? "bottom" : "middle";
 }
 
+// The host's NOTCH — the band of the host's box the float occupies, which the
+// clip cuts out so the host's background never runs behind the picture.
+// Coordinates are viewport px; y is relative to the host's top.
+//
+// WITHOUT leads the host starts where the float starts, so this is exactly the
+// pre-2026-10-01 rule: cut from the host's top for a top anchor, from the float's
+// top for a mid anchor, the float's height plus the gap below it.
+// WITH leads (text-side blocks above the host) the float can start well above the
+// host, or end before it begins. The band is then the OVERLAP of the float with
+// the host: from wherever the later of the two starts, down to the float's bottom
+// plus the gap — and nothing at all when the float ended above the host.
+export function hostNotchBand({ floatTop, floatBottom, hostTop, hostBottom, hasLeads, anchorIndex, anchorOffset, bottomGap = 0 }) {
+  if (!hasLeads) {
+    const mid = hasMidAnchor({ anchorIndex, anchorOffset });
+    return {
+      y: mid ? Math.max(0, Math.round(floatTop - hostTop)) : 0,
+      h: Math.max(0, Math.round(floatBottom - floatTop) + bottomGap),
+      shape: classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom: floatBottom, hostBottom }),
+    };
+  }
+  const start = Math.max(floatTop, hostTop);
+  const h = Math.max(0, Math.round(floatBottom + bottomGap - start));
+  const y = Math.max(0, Math.round(start - hostTop));
+  // A host whose top is already beside the float is notched at its top corner;
+  // one the float starts partway down is a C, or an upside-down L at the bottom.
+  const shape = y === 0 ? "top" : (hostBottom - floatBottom < 24 ? "bottom" : "middle");
+  return { y, h, shape };
+}
+
 // ── Wrap-vs-stack decision (user policy 2026-07-11) ──────────────────────────
 // "Stack ONLY when the beside band is blank or holds just a small amount of
 // text; bigger widths must keep wrapping." Replaces the 2026-07-10

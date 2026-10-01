@@ -40,7 +40,8 @@ import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
-import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
+import { findGroupMember, unwrapGroupAt, isNeighborMember, extractGroupMember } from "../helpers/wrapGroupOps";
+import { floatCountOf, afterAddingFloat } from "../docs/wrapRoles";
 import { sideFromFrac, anchorOffsetForDrop, isTextmappedModule } from "../docs/wrapAnchor";
 import { logCaretPointerDown, logCaretInterference } from "../helpers/caretDiag";
 
@@ -1902,6 +1903,44 @@ const Editor = forwardRef(function Editor({
     lineTops.sort((a, z) => a - z);
     return anchorOffsetForDrop({ dropY: clientY, hostProseTop: proseTop, lineTops });
   }, []);
+  // Where a textblock dropped BESIDE a group's float joins its text side.
+  // Only while the pointer is within the float's band (below it, a drop means
+  // what it always meant), only on a wrapping group, and only for a block that
+  // can wrap — the text side ends in the host, and only textmapped blocks wrap.
+  // Over the top half of a text-side block it goes before it; over the bottom
+  // half of the last one it goes after it and becomes the new host.
+  const textSideDrop = useCallback(({ topPos, topNode, kids, floatCount, input, draggedOccId }) => {
+    if (topNode.attrs?.wrap === false || !draggedOccId) return null;
+    if (!isTextmappedHost(draggedOccId)) return null;
+    const floats = kids.slice(0, floatCount);
+    const textKids = kids.slice(floatCount);
+    if (!floats.length || !textKids.length) return null;
+    let floatBottom = -Infinity, floatLeft = Infinity, floatRight = -Infinity;
+    for (const f of floats) {
+      const r = f.getBoundingClientRect();
+      floatBottom = Math.max(floatBottom, r.bottom);
+      floatLeft = Math.min(floatLeft, r.left);
+      floatRight = Math.max(floatRight, r.right);
+    }
+    if (input.clientY > floatBottom) return null;
+    let insertAt = kids.length;
+    let lineY = textKids[textKids.length - 1].getBoundingClientRect().bottom;
+    for (let i = 0; i < textKids.length; i++) {
+      const r = textKids[i].getBoundingClientRect();
+      if (input.clientY < r.top + r.height / 2) { insertAt = floatCount + i; lineY = r.top; break; }
+    }
+    const side = topNode.attrs?.side === "left" ? "left" : "right";
+    const groupRect = kids[0].parentElement?.getBoundingClientRect?.();
+    // The text column: the group's box minus the float column.
+    const lineLeft = side === "right" ? groupRect?.left : floatRight;
+    const lineRight = side === "right" ? floatLeft : groupRect?.right;
+    return {
+      textSide: true, hostPos: topPos, insertAt,
+      hostOccId: topNode.lastChild?.attrs?.occurrenceId || null,
+      line: { y: lineY, left: lineLeft, right: lineRight },
+    };
+  }, [isTextmappedHost]);
+
   const detectSideHost = useCallback((input) => {
     // [WRAP-DIAG] one structured log per null so a single live drop reveals exactly
     // which guard rejects the wrap. Remove once the host-detection is solid.
@@ -1986,12 +2025,21 @@ const Editor = forwardRef(function Editor({
       // (dragging one re-morphs its side/anchor).
       if (!draggedIsMember) {
         const kids = holder ? Array.from(holder.children) : [];
-        const neighborsOnly = kids.slice(0, -1);
+        const floatCount = floatCountOf(topNode.attrs, topNode.childCount);
+        const neighborsOnly = kids.slice(0, floatCount);
         const overNeighborCol = neighborsOnly.some((el) => {
           const r = el.getBoundingClientRect();
           return r.width > 0 && input.clientX >= r.left && input.clientX <= r.right;
         });
-        if (!overNeighborCol) return bail("group already 2-col — outside side drops disabled", { draggedOccId });
+        if (!overNeighborCol) {
+          // THE TEXT SIDE (2026-10-01): beside the float, a textblock joins the
+          // group's text side instead — so a host too short to fill the
+          // picture's height can be continued by the next block, and the LAST
+          // text-side block is the one that wraps (docs/wrapRoles.js).
+          const textSide = textSideDrop({ topPos, topNode, kids, floatCount, input, draggedOccId });
+          if (textSide) return textSide;
+          return bail("group already 2-col — outside side drops disabled", { draggedOccId });
+        }
       }
       const groupTextmapped = isTextmappedHost(hostOccId);
       const hostEl = holder?.lastElementChild || groupDom;
@@ -2031,7 +2079,7 @@ const Editor = forwardRef(function Editor({
     const side = sideFromFrac(frac); // textmapped: pick a side ANYWHERE (no dead middle third)
     const anchorOffset = textmapped ? offsetFor(dom, input.clientY) : 0;
     return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !textmapped };
-  }, [editor, isTextmappedHost, blockIndexAtY, offsetFor]);
+  }, [editor, isTextmappedHost, blockIndexAtY, offsetFor, textSideDrop]);
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -2098,7 +2146,14 @@ const Editor = forwardRef(function Editor({
           if (zone && zone.el !== el) { setDragGap(null); setWrapDrop(null); return; }
         }
         const sh = detectSideHost({ clientX: x, clientY: y, target: tgt });
-        if (sh && sh.anchorOffset != null) {
+        if (sh?.textSide && sh.line) {
+          // A line across the TEXT column only, where the block will land.
+          const wr = el.getBoundingClientRect();
+          setWrapDrop(null);
+          setDragGap({ pos: `ts:${sh.hostPos}:${sh.insertAt}`, top: Math.round(sh.line.y - wr.top),
+            left: Math.round((sh.line.left ?? wr.left) - wr.left),
+            width: Math.max(0, Math.round((sh.line.right ?? wr.right) - (sh.line.left ?? wr.left))) });
+        } else if (sh && sh.anchorOffset != null) {
           const wr = el.getBoundingClientRect();
           const pm = el.querySelector(".ProseMirror");
           const proseTop = pm ? pm.getBoundingClientRect().top - wr.top : 0;
@@ -2232,12 +2287,33 @@ const Editor = forwardRef(function Editor({
         // sibling. Detection happens at the raw drop coords (pre-snap).
         // (detectSideHost + isTextmappedHost + blockIndexAtY + offsetFor are now
         // hoisted to component scope — see above the dropTargetForElements effect.)
+        // Insert `embed` as child `insertAt` of the group at `groupPos`, on its
+        // TEXT side. The float count is stored explicitly from now on: with a
+        // block after the floats that is not the last, "every child but the
+        // last floats" (the null default) would float the new lead too.
+        const insertIntoTextSide = (tr, groupPos, insertAt, embed) => {
+          const g = tr.doc.nodeAt(groupPos);
+          if (!g || g.type.name !== "wrapGroup") return false;
+          const fc = floatCountOf(g.attrs, g.childCount);
+          const at = Math.max(fc, Math.min(insertAt, g.childCount));
+          let pos = groupPos + 1;
+          for (let i = 0; i < at; i++) pos += g.child(i).nodeSize;
+          tr.insert(pos, embed);
+          tr.setNodeMarkup(groupPos, undefined, { ...g.attrs, floatCount: fc });
+          return true;
+        };
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           const WLOG = (...a) => { if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[wrapHost]", ...a); };
           if (!editor || !sideHost || !neighborOccId) return WLOG("bail: missing editor/sideHost/neighbor") ?? false;
           const groupType = editor.schema.nodes.wrapGroup;
           const embedType = editor.schema.nodes.moduleEmbed;
           if (!groupType || !embedType) return WLOG("bail: schema types missing") ?? false;
+          if (sideHost.textSide) {
+            const embed = embedType.create({ occurrenceId: neighborOccId });
+            const ran = editor.chain().focus().command(({ tr }) => insertIntoTextSide(tr, sideHost.hostPos, sideHost.insertAt, embed)).run();
+            WLOG("text-side insert ran →", ran, { groupPos: sideHost.hostPos, at: sideHost.insertAt });
+            return ran;
+          }
           // hostPos is a TOP-LEVEL position from detectSideHost. Resolve via
           // childAfter (top level only) — nodeAt() descends into a wrapGroup's
           // children at its boundary, which mis-targeted the group's first
@@ -2252,7 +2328,13 @@ const Editor = forwardRef(function Editor({
             host.forEach((c) => { if (c.attrs?.occurrenceId === neighborOccId) already = true; });
             if (already) return WLOG("bail: occurrence already a group member") ?? false;
             const neighbor = embedType.create({ occurrenceId: neighborOccId });
-            const ran = editor.chain().focus().command(({ tr }) => { tr.insert(sideHost.hostPos + 1, neighbor); return true; }).run();
+            const ran = editor.chain().focus().command(({ tr }) => {
+              tr.insert(sideHost.hostPos + 1, neighbor);
+              // A group with leads stores its float count — one more float now.
+              const fc = afterAddingFloat(host.attrs, host.childCount);
+              if (fc != null) tr.setNodeMarkup(sideHost.hostPos, undefined, { ...host.attrs, floatCount: fc });
+              return true;
+            }).run();
             WLOG("group-add neighbor ran →", ran, { groupPos: sideHost.hostPos });
             return ran;
           }
@@ -2290,6 +2372,18 @@ const Editor = forwardRef(function Editor({
           if (!groupType || !embedType) return false;
           const src = findTopEmbedPos(editor.state.doc, occurrenceId);
           if (!src) return false;
+          if (sideHost.textSide) {
+            return editor.chain().focus().command(({ tr }) => {
+              tr.delete(src.pos, src.pos + src.size);
+              // Deleting a block above the group shifted it; find it again by its host.
+              let groupPos = null;
+              tr.doc.forEach((n, offset) => {
+                if (groupPos == null && n.type.name === "wrapGroup" && n.lastChild?.attrs?.occurrenceId === sideHost.hostOccId) groupPos = offset;
+              });
+              if (groupPos == null) return false;
+              return insertIntoTextSide(tr, groupPos, sideHost.insertAt, embedType.create({ occurrenceId }));
+            }).run();
+          }
           return editor.chain().focus().command(({ tr }) => {
             tr.delete(src.pos, src.pos + src.size);
             const host = findTopEmbedPos(tr.doc, sideHost.hostOccId, ["moduleEmbed"]);
@@ -2311,7 +2405,10 @@ const Editor = forwardRef(function Editor({
               if (n.type.name === "wrapGroup" && n.lastChild?.attrs?.occurrenceId === sideHost.hostOccId) groupPos = offset;
             });
             if (groupPos == null) return false;
+            const g = tr.doc.nodeAt(groupPos);
             tr.insert(groupPos + 1, embedType.create({ occurrenceId }));
+            const fc = afterAddingFloat(g.attrs, g.childCount);
+            if (fc != null) tr.setNodeMarkup(groupPos, undefined, { ...g.attrs, floatCount: fc });
             return true;
           }).run();
         };
@@ -2351,7 +2448,13 @@ const Editor = forwardRef(function Editor({
             return;
           }
           const draggedMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
-          if (draggedMode !== "copy") {
+          const isLead = !isNeighbor && grouped.memberIndex < grouped.groupNode.childCount - 1;
+          if (draggedMode !== "copy" && isLead) {
+            DLOG("grouped → lead dragged out: lift just it out, the group keeps its wrap");
+            extractGroupMember(editor, grouped.groupPos, draggedOccId);
+            insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
+            sideHost = isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null;
+          } else if (draggedMode !== "copy") {
             DLOG("grouped → unwrap group then recompute (dragged off its host)");
             // Dropped away from its host (or dragging the host itself) → un-wrap,
             // then recompute the drop target on the now-flattened doc.
@@ -2999,7 +3102,8 @@ const Editor = forwardRef(function Editor({
       {/* Live drop indicator while dragging a block over this editor — same blue
           line as the hover/board gap so reorder targeting reads identically. */}
       {dragGap && (
-        <div className="doc-insert-gap doc-insert-gap--drag" style={{ top: dragGap.top }}>
+        <div className="doc-insert-gap doc-insert-gap--drag"
+          style={dragGap.width != null ? { top: dragGap.top, left: dragGap.left, width: dragGap.width, right: "auto" } : { top: dragGap.top }}>
           <div className="insert-gap-line" />
         </div>
       )}

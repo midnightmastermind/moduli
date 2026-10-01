@@ -89,6 +89,15 @@ export const WrapGroup = Node.create({
         parseHTML: (el) => el.getAttribute("data-wrap") !== "off",
         renderHTML: (attrs) => ({ "data-wrap": attrs.wrap ? "on" : "off" }),
       },
+      // How many LEADING children float. null → every child but the last (the
+      // shape every group had before 2026-10-01). Children between the floats
+      // and the last child are text-side LEADS: they sit beside the float, and
+      // only the last child (the host) wraps under it. See docs/wrapRoles.js.
+      floatCount: {
+        default: null,
+        parseHTML: (el) => { const v = el.getAttribute("data-float-count"); return v == null ? null : Number(v); },
+        renderHTML: (attrs) => (attrs.floatCount == null ? {} : { "data-float-count": attrs.floatCount }),
+      },
     };
   },
 

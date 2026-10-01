@@ -6,6 +6,8 @@
 // group back to plain siblings" so the radial "Unwrap" item, the drag-out-to-another-
 // line path, and the cross-container drag-out all behave the same.
 
+import { floatCountOf, afterRemoval } from "../docs/wrapRoles.js";
+
 // Find the wrapGroup (if any) that holds `occId` as ANY child. Returns
 // { groupPos, groupNode, hostOccId, memberIndex, neighborCount } or null. The HOST is
 // the LAST child; neighbors are indices 0..neighborCount-1. Top-level scan; descends
@@ -26,17 +28,19 @@ export function findGroupMember(doc, occId) {
         groupNode: node,
         hostOccId: node.lastChild?.attrs?.occurrenceId || null,
         memberIndex: idx,
-        neighborCount: Math.max(0, node.childCount - 1),
+        // FLOATS only — a text-side lead is not a neighbor (docs/wrapRoles.js).
+        neighborCount: floatCountOf(node.attrs, node.childCount),
       };
     }
   });
   return found;
 }
 
-// True when `memberIndex` (from findGroupMember) is a NEIGHBOR, not the trailing host.
+// True when `memberIndex` (from findGroupMember) is a floated NEIGHBOR — not the
+// trailing host, and not a text-side lead between them.
 export function isNeighborMember(group) {
   if (!group) return false;
-  return group.memberIndex < group.groupNode.childCount - 1;
+  return group.memberIndex < floatCountOf(group.groupNode.attrs, group.groupNode.childCount);
 }
 
 // Collapse the wrapGroup at `groupPos` back to its children inline (neighbors first,
@@ -66,11 +70,41 @@ export function detachGroupMember(editor, groupPos, occId) {
   if (!grp || grp.type.name !== "wrapGroup") return false;
 
   const kept = [];
-  grp.forEach((child) => { if (child.attrs?.occurrenceId !== occId) kept.push(child); });
+  const removed = [];
+  grp.forEach((child, _o, i) => {
+    if (child.attrs?.occurrenceId !== occId) kept.push(child); else removed.push(i);
+  });
+  // Losing a float, a lead or the host shifts the float/text split — and a
+  // group whose last float left has nothing to wrap around (docs/wrapRoles.js).
+  const plan = afterRemoval(grp.attrs, grp.childCount, removed);
 
   return editor.chain().focus().command(({ tr }) => {
-    const next = kept.length >= 2 ? [grp.type.create(grp.attrs, kept)] : kept;
+    const next = plan.flatten ? kept : [grp.type.create({ ...grp.attrs, floatCount: plan.floatCount }, kept)];
     tr.replaceWith(groupPos, groupPos + grp.nodeSize, next);
+    return true;
+  }).run();
+}
+
+// Lift ONE member out of the wrapGroup at `groupPos` to a plain sibling right
+// AFTER the group, keeping the rest of the group intact. Used when a text-side
+// lead is dragged out within the same doc: the member must stay in the doc so
+// the normal same-doc move can relocate it, but its leaving must not unwrap the
+// group the way dragging the host or a float does.
+export function extractGroupMember(editor, groupPos, occId) {
+  if (!editor || groupPos == null || !occId) return false;
+  const grp = editor.state.doc.nodeAt(groupPos);
+  if (!grp || grp.type.name !== "wrapGroup") return false;
+  const kept = [];
+  const removed = [];
+  let member = null;
+  grp.forEach((child, _o, i) => {
+    if (child.attrs?.occurrenceId === occId) { member = child; removed.push(i); } else kept.push(child);
+  });
+  if (!member) return false;
+  const plan = afterRemoval(grp.attrs, grp.childCount, removed);
+  return editor.chain().command(({ tr }) => {
+    const group = plan.flatten ? kept : [grp.type.create({ ...grp.attrs, floatCount: plan.floatCount }, kept)];
+    tr.replaceWith(groupPos, groupPos + grp.nodeSize, [...group, member]);
     return true;
   }).run();
 }

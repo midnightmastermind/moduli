@@ -75,9 +75,10 @@ export function scrubDeletedEmbeds(textmap, deletedIds) {
       const next = walk(child);
       if (next?.type === "wrapGroup"
           && Array.isArray(child.content)
-          && next.content.length < child.content.length   // THIS pass shrank it
-          && next.content.length < 2) {
-        kept.push(...next.content);                        // 1 survivor inline, 0 = gone
+          && next.content.length < child.content.length) { // THIS pass shrank it
+        const shaped = reshapeShrunkGroup(child, next);
+        if (!shaped) { kept.push(...next.content); continue; } // 1 survivor inline, 0 = gone
+        kept.push(shaped);
         continue;
       }
       kept.push(next);
@@ -104,4 +105,33 @@ export function occurrencesEmbedding(occurrencesById, deletedIds) {
     if (res) out.push({ occ, ...res });
   }
   return out;
+}
+
+
+// A wrapGroup this pass shrank: its first `attrs.floatCount` children float,
+// any after them up to the last are text-side LEADS, the last is the host
+// (client docs/wrapRoles.js — this is the server twin of `afterRemoval`).
+// Returns the group with its float count corrected, or null when it can no
+// longer be a group: fewer than two children, or no float left to wrap round.
+// A group with no stored count stays without one (every child but the last
+// floats, as it always did).
+function reshapeShrunkGroup(before, after) {
+  const n = before.content.length;
+  const left = after.content.length;
+  if (left < 2) return null;
+  const raw = before.attrs?.floatCount;
+  const fc = raw == null || !Number.isFinite(Number(raw)) ? n - 1 : Math.min(n - 1, Math.max(1, Math.round(Number(raw))));
+  let floatsLeft = 0;
+  for (let i = 0; i < fc; i++) if (keptById(before.content[i], after.content)) floatsLeft++;
+  if (floatsLeft < 1) return null;
+  if (raw == null) return after;
+  const nextFc = Math.min(floatsLeft, left - 1);
+  return { ...after, attrs: { ...(after.attrs || {}), floatCount: nextFc >= left - 1 ? null : nextFc } };
+}
+
+// walk() rebuilds every node it visits, so survivors are not the same objects;
+// a member is identified by the occurrence its embed names.
+function keptById(member, survivors) {
+  const id = member?.attrs?.occurrenceId;
+  return id != null && survivors.some((s) => s?.attrs?.occurrenceId === id);
 }

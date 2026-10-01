@@ -16,7 +16,8 @@ import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup
 import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
-import { findGroupMember, unwrapGroupAt, detachGroupMember } from "../helpers/wrapGroupOps.js";
+import { findGroupMember, unwrapGroupAt, detachGroupMember, extractGroupMember } from "../helpers/wrapGroupOps.js";
+import { floatCountOf, wrapRoleAt } from "./wrapRoles.js";
 import { isTextmappedModule } from "./wrapAnchor.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
@@ -231,6 +232,49 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       if (isTextmappedModule(hostMod)) {
         items.push({ label: "Wrap text around", icon: WrapText, active: wrapOn, group: "Wrap", groupIcon: WrapText, onClick: () => setWrap(true) });
         items.push({ label: "Side by side", icon: Columns2, active: !wrapOn, group: "Wrap", groupIcon: WrapText, onClick: () => setWrap(false) });
+      }
+      // THE TEXT SIDE (2026-10-01, docs/wrapRoles.js). This block's role in
+      // the group, and whether the block right after the group could continue
+      // the wrap — the case a short host leaves: it ends beside the picture and
+      // the next paragraph starts below it.
+      let myIndex = -1;
+      try { myIndex = editor.state.doc.resolve(getPos()).index(); } catch (_) { /* unresolvable */ }
+      const floatCount = floatCountOf(wrapGroupNode.attrs, wrapGroupNode.childCount);
+      const myRole = myIndex >= 0 ? wrapRoleAt(myIndex, wrapGroupNode.childCount, floatCount) : null;
+      const after = editor.state.doc.resolve(wrapGroupPos + wrapGroupNode.nodeSize).nodeAfter;
+      const afterOcc = after?.type?.name === "moduleEmbed"
+        ? operationsBridge.getLocalOcc?.(after.attrs?.occurrenceId) : null;
+      const afterMod = afterOcc?.moduleId ? modulesById?.[afterOcc.moduleId] : null;
+      if (wrapOn && myRole === "host" && isTextmappedModule(hostMod) && isTextmappedModule(afterMod)) {
+        items.push({
+          label: "Continue wrap into next block",
+          icon: WrapText,
+          group: "Wrap", groupIcon: WrapText,
+          onClick: () => {
+            const grp = editor.state.doc.nodeAt(wrapGroupPos);
+            if (!grp || grp.type.name !== "wrapGroup") return;
+            const nextPos = wrapGroupPos + grp.nodeSize;
+            const next = editor.state.doc.nodeAt(nextPos);
+            if (!next || next.type.name !== "moduleEmbed") return;
+            const fc = floatCountOf(grp.attrs, grp.childCount);
+            const kids = [];
+            grp.forEach((c) => kids.push(c));
+            // The next block becomes the host; this one becomes a lead beside the float.
+            const merged = grp.type.create({ ...grp.attrs, floatCount: fc }, [...kids, next]);
+            editor.chain().focus().command(({ tr }) => {
+              tr.replaceWith(wrapGroupPos, nextPos + next.nodeSize, merged);
+              return true;
+            }).run();
+          },
+        });
+      }
+      if (myRole === "lead") {
+        items.push({
+          label: "Move out of wrap",
+          icon: Ungroup,
+          group: "Wrap", groupIcon: WrapText,
+          onClick: () => extractGroupMember(editor, wrapGroupPos, occurrenceId),
+        });
       }
       items.push({
         label: "Unwrap",
