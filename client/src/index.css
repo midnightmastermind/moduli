@@ -4863,6 +4863,24 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 }
 
 /* Draggable resize seam — grid-column-resize feel; sets --wrap-nw. */
+/* The empty band beside the picture under a short text side: a press there adds
+   a textblock (WrapGroupNode onGapDown). Shown only while hovered, so it reads
+   as an affordance rather than as a box in the document. */
+.wrap-gap-hint {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  opacity: 0.8;
+}
+.wrap-group--on { cursor: default; }
 .wrap-seam {
   position: absolute;
   width: 10px;

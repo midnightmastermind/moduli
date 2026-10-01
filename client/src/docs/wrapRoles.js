@@ -68,3 +68,36 @@ export function afterAddingFloat(attrs, childCount) {
 export function afterAddingTextSide(attrs, childCount) {
   return floatCountOf(attrs, childCount);
 }
+
+/**
+ * PURE. Did a press land in the empty band BELOW a wrap's text side and BESIDE
+ * its float — the gap a short text side leaves (user 2026-10-01: *"click under
+ * a wrapped textblock … and add more textblocks. right now theres just a large
+ * space there that i can do nothing with"*)?
+ *
+ *   point       { x, y } of the press (viewport px)
+ *   floatRects  the floated children's boxes
+ *   textRects   the text-side children's boxes, in order
+ *   groupRect   the wrap group's box
+ *
+ * Returns the band { left, right, top, bottom } (viewport px) or null. The band
+ * runs from the last text block's bottom to the bottom of the group, across the
+ * group minus the float column — so a press on the picture, on any text, or
+ * past the group never counts.
+ */
+export function textSideGap({ point, floatRects, textRects, groupRect }) {
+  if (!point || !groupRect || !floatRects?.length || !textRects?.length) return null;
+  const textBottom = Math.max(...textRects.map((r) => r.bottom));
+  const floatLeft = Math.min(...floatRects.map((r) => r.left));
+  const floatRight = Math.max(...floatRects.map((r) => r.right));
+  const floatOnRight = floatLeft - groupRect.left > groupRect.right - floatRight;
+  const band = {
+    top: textBottom,
+    bottom: groupRect.bottom,
+    left: floatOnRight ? groupRect.left : floatRight,
+    right: floatOnRight ? floatLeft : groupRect.right,
+  };
+  if (band.bottom - band.top < 8 || band.right - band.left < 40) return null;
+  const { x, y } = point;
+  return x >= band.left && x <= band.right && y >= band.top && y <= band.bottom ? band : null;
+}

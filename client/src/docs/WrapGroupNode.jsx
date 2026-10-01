@@ -12,7 +12,12 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
-import { floatCountOf, wrapRoleAt } from "./wrapRoles";
+import { floatCountOf, wrapRoleAt, textSideGap } from "./wrapRoles";
+import { useGridActionsSelector } from "../GridActionsContext.js";
+import { createTextblockInContainer } from "../helpers/CommitHelpers.js";
+import { requestTextblockFocus } from "../helpers/pendingTextblockFocus.js";
+import { hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
+import { operationsBridge } from "../state/bindSocketToStore.js";
 import { hostNotchBand, holdGuardStack, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
@@ -97,7 +102,7 @@ function stampRoles(contentEl, floatCount) {
   return els;
 }
 
-export default function WrapGroupNode({ node, updateAttributes }) {
+export default function WrapGroupNode({ node, updateAttributes, editor, getPos }) {
   const side = node.attrs.side === "left" ? "left" : "right";
   // The first `floatCount` children float; the LAST is the host that wraps; any
   // between are text-side LEADS beside the float (docs/wrapRoles.js).
@@ -397,6 +402,63 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     };
   }, [neighborWidth, neighborCount, measure]);
 
+  // ── THE GAP UNDER A SHORT TEXT SIDE (2026-10-01) ─────────────────────────
+  // A text side shorter than its picture leaves an empty band beside the
+  // picture that nothing could use. A press there adds a textblock as the
+  // group's LAST text-side block: it becomes the host that wraps, the old host
+  // becomes a lead above it (docs/wrapRoles.js), and the caret goes into it.
+  const dispatch = useGridActionsSelector((st) => st.dispatch);
+  const socket = useGridActionsSelector((st) => st.socket);
+  const [gapBand, setGapBand] = useState(null); // hover hint, wrapper-relative
+  const gapAt = useCallback((e) => {
+    const wrapEl = wrapRef.current;
+    // Only a group that is actually wrapping has a gap beside its picture.
+    if (!wrapEl || neighborCount < 1 || columnsMode || autoUnwrapRef.current) return null;
+    const els = embedEls(wrapEl.querySelector(".wrap-group-content"));
+    // A press INSIDE a member is that member's business (text, a picture).
+    if (els.some((el) => el.contains(e.target))) return null;
+    const rect = (el) => el.getBoundingClientRect();
+    return textSideGap({
+      point: { x: e.clientX, y: e.clientY },
+      floatRects: els.slice(0, neighborCount).map(rect),
+      textRects: els.slice(neighborCount).map(rect),
+      groupRect: rect(wrapEl),
+    });
+  }, [neighborCount, autoUnwrap, columnsMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onGapMove = useCallback((e) => {
+    const band = gapAt(e);
+    const wr = wrapRef.current?.getBoundingClientRect();
+    setGapBand((prev) => {
+      if (!band || !wr) return prev ? null : prev;
+      const next = { top: Math.round(band.top - wr.top), height: Math.round(band.bottom - band.top), left: Math.round(band.left - wr.left), width: Math.round(band.right - band.left) };
+      return prev && prev.top === next.top && prev.height === next.height && prev.left === next.left ? prev : next;
+    });
+  }, [gapAt]);
+  const onGapDown = useCallback((e) => {
+    if (!editor || typeof getPos !== "function" || !gapAt(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const hostOccId = node.lastChild?.attrs?.occurrenceId;
+    const hostOcc = hostOccId ? operationsBridge.getLocalOcc?.(hostOccId) : null;
+    // The new block belongs to the doc this wrap lives in.
+    const parentId = hostOccurrenceIdOf(editor) || hostOcc?.parentId;
+    const parent = parentId ? operationsBridge.getLocalOcc?.(parentId) : null;
+    if (!hostOcc || !parent) return;
+    const made = createTextblockInContainer({ dispatch, socket, gridId: hostOcc.gridId || parent.gridId, userId: hostOcc.userId || parent.userId, containerOccurrence: parent });
+    if (!made) return;
+    requestTextblockFocus(made.occurrenceId);
+    const pos = getPos();
+    editor.chain().command(({ tr }) => {
+      const g = tr.doc.nodeAt(pos);
+      if (!g || g.type.name !== "wrapGroup") return false;
+      const fc = floatCountOf(g.attrs, g.childCount);
+      tr.insert(pos + g.nodeSize - 1, editor.schema.nodes.moduleEmbed.create({ occurrenceId: made.occurrenceId }));
+      tr.setNodeMarkup(pos, undefined, { ...g.attrs, floatCount: fc });
+      return true;
+    }).run();
+    setGapBand(null);
+  }, [editor, getPos, gapAt, node, dispatch, socket]);
+
   // Seam drag → set neighborWidth live (clamped). Like a grid-column splitter.
   const onSeamDown = useCallback((e) => {
     e.preventDefault();
@@ -438,10 +500,19 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       data-shape={shape}
       data-wrap={wrapped ? "on" : wrap ? "stacked" : "off"}
       contentEditable={false}
+      onMouseMove={onGapMove}
+      onMouseLeave={() => setGapBand(null)}
+      onMouseDown={onGapDown}
     >
       {/* The two real, separate occurrence embeds (neighbor + host) render here —
           each is its own draggable occurrence with its own handle/menu. */}
       <NodeViewContent className="wrap-group-content" />
+      {gapBand && (
+        <div className="wrap-gap-hint" contentEditable={false} aria-hidden="true"
+          style={{ top: gapBand.top, height: gapBand.height, left: gapBand.left, width: gapBand.width }}>
+          <span>Click to add text</span>
+        </div>
+      )}
       {/* Seam (resize + swap) renders in BOTH live layouts — the L-float AND
           columns (wrap:false) — hidden only while auto-stacked (no side-by-side
           boundary to resize/swap). */}

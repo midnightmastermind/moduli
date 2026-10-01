@@ -155,3 +155,33 @@ describe("holdGuardStack — a guard-forced stack is not undone at the same widt
     expect(holdGuardStack({ stacked: false, latchWidth: 700, width: 700 })).toBe(false);
   });
 });
+
+import { textSideGap } from "../docs/wrapRoles";
+
+describe("textSideGap — the empty band beside the picture, below a short text side", () => {
+  const group = { left: 0, right: 700, top: 0, bottom: 600 };
+  const floatRight = [{ left: 400, right: 700, top: 0, bottom: 600 }];
+  const shortText = [{ left: 0, right: 390, top: 0, bottom: 150 }];
+
+  it("a press under the short text, beside the picture, is the gap", () => {
+    expect(textSideGap({ point: { x: 200, y: 400 }, floatRects: floatRight, textRects: shortText, groupRect: group }))
+      .toEqual({ top: 150, bottom: 600, left: 0, right: 400 });
+  });
+  it("a press on the picture is not", () => {
+    expect(textSideGap({ point: { x: 550, y: 400 }, floatRects: floatRight, textRects: shortText, groupRect: group })).toBe(null);
+  });
+  it("a press on the text is not", () => {
+    expect(textSideGap({ point: { x: 200, y: 100 }, floatRects: floatRight, textRects: shortText, groupRect: group })).toBe(null);
+  });
+  it("a float on the LEFT puts the band on the right", () => {
+    const floatLeft = [{ left: 0, right: 300, top: 0, bottom: 600 }];
+    const text = [{ left: 310, right: 700, top: 0, bottom: 150 }];
+    expect(textSideGap({ point: { x: 500, y: 400 }, floatRects: floatLeft, textRects: text, groupRect: group }))
+      .toEqual({ top: 150, bottom: 600, left: 300, right: 700 });
+  });
+  // CONTROL: text that already reaches past the picture leaves no gap.
+  it("no gap when the text side is as tall as the group", () => {
+    const tall = [{ left: 0, right: 390, top: 0, bottom: 598 }];
+    expect(textSideGap({ point: { x: 200, y: 599 }, floatRects: floatRight, textRects: tall, groupRect: group })).toBe(null);
+  });
+});
