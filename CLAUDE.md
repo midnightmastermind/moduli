@@ -15,6 +15,46 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-01 — THE MANIFEST, REORGANIZED AND TESTED; and last night's cross-build broke six Schedule columns
+
+**`0373` REORGANIZED poms grid's manifest** at the user's ask, from a proposal they approved:
+Interfaces (Schedule, Schedule Table, Day Page, Trackers, Schedule Types, Tasks/{Tasks, Completed,
+Routines}) · Boards · Projects · Library (Lookup, Interests, Reading) · Documents (Notes,
+Archive/Codex — untouched) · Files (Images by area) · Imports · Templates. Deleted only emptied
+folders + their folder pages and 2 duplicate Watts pages; every target found by exact path, throws
+on a missing one. Snapshot in `backups/poms-grid/2026-10-01T14-10-33-232Z_pre-migration-0373-…`.
+
+**LAST NIGHT'S DAMAGE, found by the integrity check while verifying 0373.** At 04:19 UTC one load
+with a 14-day range ran 0372's cross-build: 14 day page columns + Schedule columns at 49 slots each.
+Six Schedule columns reached Mongo WITHOUT their modules — 556 rows of template scaffolding (0
+userTouched, 0 true values), deleted through the app with a backup
+(`server/backups/orphans/2026-10-01-broken-schedule-cols.json`). `0374` limits the cross-build to
+`$activePeriodCount <= 7`. **Why the modules were lost is NOT established**: replaying the run gives
+every column its template, safeEmit sends while connected, the server logged no create_module error,
+no transaction or delete touched them, and there is no socket rate limiter. Ruled out, not found.
+
+**THE MANIFEST, TESTED END TO END ON THE REBUILD GRID — five defects, all fixed and re-verified:**
+```
+indentation compounded       marginLeft depth*8 INSIDE the parent's wrapper → 8,24,48,80px;
+                             one 10px step per level now (prod: 589→599→609→619→629)
+cover popup off-screen       opened at the click point; clamped to the viewport (helpers/clampToViewport)
+container click (board page) only a DOC page read view.scrollAnchor; now jumpToOccurrence, panel-scoped
+folder delete                reparented its OWN folder page into the parent — a stray page named
+                             after the deleted folder; the folder page is deleted now
+```
+PASSED as built: expand/collapse, open page, open folder page, new folder, rename (dblclick and
+menu), new page (menu, hover +, header +), set/clear cover, close/reopen pinned, delete page
+(confirms), delete folder (no confirm — contents move up, so nothing is lost), DnD page→folder,
+folder→folder, page and folder reorder, both persisting across a reload.
+
+**PROBE NOTES — every DnD "failure" was the probe until the drop line was read at release.** Native
+HTML5 drag DOES work headless here (dragstart/dragover/drop logged). A row lookup that scrolls the
+tree moves the OTHER row's coordinates — use a 1600×3000 viewport so the expanded tree fits, and read
+the `2px` drop indicator before releasing. A fixed popup at z-index 1200 can be the POMODORO panel —
+find the cover editor by its own "Color" tab.
+
+---
+
 ### 2026-09-30 (6) — THE SCHEDULE AND THE DAY PAGE BUILD EACH OTHER'S MISSING DAY
 
 User: *"tomorrows daypage doesnt even show a todo container"* → (option 1 of 3) *"and vice versa, schedule
