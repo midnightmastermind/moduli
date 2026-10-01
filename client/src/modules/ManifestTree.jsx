@@ -30,6 +30,15 @@ import { createPageInFolder } from "../helpers/createPageInFolder.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 import { sessionHeaders } from "../helpers/authStorage";
 
+// ONE STEP PER LEVEL (user, 2026-10-01: "the indentation exponentially gets
+// bigger … the deeper the children are. they should all share the same
+// indentation spacing"). Every node renders INSIDE its parent's wrapper, so the
+// parent's indent is already applied — a row indented by `depth * 8` on top of
+// that grew 8, 24, 48, 80px… and deep Codex rows ran off the panel. Each level
+// adds the same TREE_INDENT to what its parent already has.
+export const TREE_INDENT = 10;
+export const treeIndent = (depth) => (depth > 0 ? TREE_INDENT : 0);
+
 /**
  * The pinned section's contents: a FLAT list of the panel's pinned page ids.
  *
@@ -225,7 +234,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   // Anchor chip — clicking scrolls parent doc to this container
   if (isAnchor) {
     return (
-      <div style={{ marginLeft: depth * 8 }}>
+      <div style={{ marginLeft: treeIndent(depth) }}>
         <div style={{ paddingRight: 2, display: "flex", alignItems: "center", gap: 2 }}>
           {hasChildren ? (
             <span onClick={toggleOpen} style={{ fontSize: 12, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
@@ -260,7 +269,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
 
   // File row — NodePill, draggable + drop target for reorder
   return (
-    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 8 }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: treeIndent(depth) }}>
       {dropEdge === "top" && <div style={{ position: "absolute", top: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       <div style={{ display: "flex", alignItems: "center" }}
@@ -747,7 +756,6 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [isRenaming]);
 
   const hasChildren = childFolders.length > 0 || artifactOccs.length > 0 || pageOccs.length > 0;
-  const indent = depth * 8;
 
   // Collect all child occurrence IDs for drag payload
   const childOccIds = useMemo(() => artifactOccs.map(o => o.id), [artifactOccs]);
@@ -836,7 +844,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [isRenaming, onOpenPage, onSelect, allChildOccs, modulesById, dispatch, socket, state, folder.id, folder.name]);
 
   return (
-    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 8, position: "relative" }}>
+    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: treeIndent(depth), position: "relative" }}>
       {folderDropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {folderDropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {/* Folder pill — depth indent applied on this outer wrapper (not
@@ -1086,7 +1094,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
     </span>
   ) : null;
   return (
-    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 8 }}>
+    <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: treeIndent(depth) }}>
       {dropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }} className="manifest-row"
@@ -1149,7 +1157,7 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
       )}
       {/* Children — visible when expanded */}
       {hasChildren && open && (
-        <div style={{ paddingLeft: reverseIndent ? 0 : (hasDocNodeProps ? 6 : 10), paddingRight: reverseIndent ? (hasDocNodeProps ? 6 : 10) : 0, paddingBottom: 2 }}>
+        <div style={{ paddingLeft: 0, paddingRight: reverseIndent ? (hasDocNodeProps ? 6 : 10) : 0, paddingBottom: 2 }}>
           {hasDocNodeProps ? (
             containerOccs.map(contOcc => (
               <DocNode key={contOcc.id} occ={contOcc} depth={1} isAnchor={true} parentOccId={pageOccId}
