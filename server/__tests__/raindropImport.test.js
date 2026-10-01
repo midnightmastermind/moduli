@@ -155,3 +155,15 @@ describe("searchTermOf on Google's interstitial", () => {
     expect(searchTermOf("https://www.google.com/search?q=hand+of+mysteries")).toBe("hand of mysteries");
   });
 });
+
+describe("a search that swallowed the rest of its URL", async () => {
+  const { stripSearchTail } = await import("../utils/raindropImport.js");
+  it("drops everything from the first &<google param>= on", () => {
+    expect(stripSearchTail("web development mind map&rlz=1C1ONGR_enUS956US956&sxsrf=AOae")).toBe("web development mind map");
+    expect(stripSearchTail("computer science studies&tbm=isch&ved=2ahUK")).toBe("computer science studies");
+  });
+  // The control: an "&" that is part of a search stays.
+  it("keeps an ampersand that is part of the search", () => {
+    expect(stripSearchTail("salt & pepper shrimp")).toBe("salt & pepper shrimp");
+  });
+});

@@ -95,7 +95,15 @@ export function searchTermOf(rawUrl, depth = 0) {
     const cont = u.searchParams.get("continue");
     return cont && depth < 2 ? searchTermOf(cont, depth + 1) : null;
   }
-  return q || null;
+  return stripSearchTail(q) || null;
+}
+
+// A `q` that swallowed the REST of the URL (its `&` arrived double-encoded):
+// "web development mind map&rlz=1C1ONGR…&sxsrf=…". Everything from the first
+// "&<google param>=" on is URL, not search.
+const SEARCH_TAIL = /&(?:rlz|sxsrf|tbm|ved|ei|oq|chips|hl|source|ictx|fir|gs_lcp|sa|biw|bih|client|sourceid|ie|uact|sclient|aqs|bshm|pccc|spell|start)=.*$/i;
+export function stripSearchTail(q) {
+  return String(q || "").replace(SEARCH_TAIL, "").trim();
 }
 
 /** The tag list a row contributes: its meaningful tags plus its folder. */
