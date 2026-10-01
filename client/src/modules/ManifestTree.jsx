@@ -3,10 +3,11 @@
 // Selecting a doc row calls updateView({ activeOccurrenceId }) so the content pane updates.
 // Selecting an anchor chip calls updateView({ activeOccurrenceId: parentOccId, scrollAnchor: heading })
 // so the parent doc stays open and scrolls to that heading.
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import { clampToViewport } from "../helpers/clampToViewport.js";
 import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon, ExternalLink, FilePlus, Pin } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -429,11 +430,20 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
   // somebody picked. Same reasoning as FLOW_TINTS (2026-08-19 (8)).
   const COLORS = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#818cf8", "#e879f9", "#94a3b8"];
 
+  // Opened at the click point, then pulled back inside the window once its real
+  // size is known — beside the tree it otherwise ran off the right edge.
+  const [placed, setPlaced] = useState(null);
+  useLayoutEffect(() => {
+    const el = popRef.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPlaced(clampToViewport({ x: position.x, y: position.y, w: r.width, h: r.height }, window.innerWidth, window.innerHeight));
+  }, [position.x, position.y, tab]);
+
   return createPortal(
     <div
       ref={popRef}
       style={{
-        position: "fixed", left: position.x, top: position.y, zIndex: 1200,
+        position: "fixed", left: placed ? placed.left : position.x, top: placed ? placed.top : position.y, zIndex: 1200,
         minWidth: 200, padding: 8,
         background: "var(--surface-overlay)",
         border: "1px solid var(--border-default)", borderRadius: 6,
