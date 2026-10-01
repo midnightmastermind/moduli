@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-01 (4) — PHILOSOPHER'S STONE SHOOK, AND A STALE EDITOR PUT THE OLD TEXT BACK
+
+User: *"the page shakes when i scroll all the way to the bottom"* · *"its the nigrido section"* · *"there are
+duplications of images in that document"*.
+
+**THE SHAKE WAS TWO RULES OVERRULING EACH OTHER, measured in Firefox:** "1. Nigredo — The Breakdown Phase"
+flipped wrap↔stack **43 times in 4 idle seconds** at 1600 and 1920 wide, shoving the section below 53px each
+time. Its host holds a TABLE: wrapped, the table cannot fit beside the picture and drops below it, so the
+rendered blank-band guard stacks; stacked, `decideWrapStack` counts the table's text as prose and wraps.
+`wrapAnchor.holdGuardStack` latches a guard-forced stack at the width it fired at (±24px). After: **0
+mutations, 0px movement** in all three bottom sections at 1366/1600/1920/2560, and one stable height/scroll
+state at the bottom. The "images not resolving" did not reproduce once it stopped: 0 failed image requests
+in either engine (my first probe's "FAIL" counted `<img>`s with no src yet — complete + naturalWidth 0 is
+also what an unmounted lazy image reads as).
+
+**THE DUPLICATES WERE A STALE EDITOR, NOT THE MIGRATION.** 0379 wrote "2. Albedo — The Clarifying Phase"'s
+first textblock as `[paragraph, table]` at 19:59; at 20:04 the user's tab saved its PRE-migration content
+over it (heading + 4 picture embeds) as a user action. The server's stale-write check passed because the
+restart's `full_state` had refreshed the row's `updatedAt` in the tab while the MOUNTED editor kept its old
+doc. **Open defect, not fixed: a mounted editor does not adopt a textmap that arrives with `full_state`.**
+Any migration that rewrites a doc someone has open can be undone this way. Scan of all 223 textblocks under
+the Notes pages: that was the only one. Repaired through `update_occurrence` on a socket (so open tabs hear
+it).
+
+---
+
 ### 2026-10-01 (3) — A WRAP'S TEXT SIDE HOLDS SEVERAL BLOCKS; the Notes pages became sections; four deleted tasks restored
 
 **MULTI-BLOCK WRAPS** (user: *"multiple textblocks on that side with the last one wrapping … only textblocks
