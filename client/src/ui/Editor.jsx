@@ -1928,15 +1928,14 @@ const Editor = forwardRef(function Editor({
     lineTops.sort((a, z) => a - z);
     return anchorOffsetForDrop({ dropY: clientY, hostProseTop: proseTop, lineTops });
   }, []);
-  // Where a textblock dropped BESIDE a group's float joins its text side.
+  // Where a block dropped BESIDE a group's float joins its text side.
   // Only while the pointer is within the float's band (below it, a drop means
-  // what it always meant), only on a wrapping group, and only for a block that
-  // can wrap — the text side ends in the host, and only textmapped blocks wrap.
+  // what it always meant) and only on a wrapping group. Any block can be a
+  // lead; only the block that ENDS the text side (the host) must be textmapped.
   // Over the top half of a text-side block it goes before it; over the bottom
   // half of the last one it goes after it and becomes the new host.
   const textSideDrop = useCallback(({ topPos, topNode, kids, floatCount, input, draggedOccId }) => {
     if (topNode.attrs?.wrap === false || !draggedOccId) return null;
-    if (!isTextmappedHost(draggedOccId)) return null;
     const floats = kids.slice(0, floatCount);
     const textKids = kids.slice(floatCount);
     if (!floats.length || !textKids.length) return null;
@@ -1954,6 +1953,12 @@ const Editor = forwardRef(function Editor({
       const r = textKids[i].getBoundingClientRect();
       if (input.clientY < r.top + r.height / 2) { insertAt = floatCount + i; lineY = r.top; break; }
     }
+    // ANY block may sit on the text side ABOVE the host (a picture, a list, a
+    // textblock — user 2026-10-02: "an image and textblock on one side, and 2
+    // images on the other"); only the LAST block wraps, so only it must be a
+    // textblock. A non-text block dropped at the end would end the group in a
+    // non-text host, so that drop is not a text-side join.
+    if (insertAt === kids.length && !isTextmappedHost(draggedOccId)) return null;
     const side = topNode.attrs?.side === "left" ? "left" : "right";
     const groupRect = kids[0].parentElement?.getBoundingClientRect?.();
     // The text column: the group's box minus the float column.
