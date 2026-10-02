@@ -36,9 +36,13 @@ a picture lead stacked the group          the blank-band guard counted only TEXT
 ```
 `window.__wrapDiag = true` logs each wrap/stack flip's inputs (`band: 0` is what named the last one).
 **Watched:** float, lead (picture), lead (textblock), host wraps at 1300/1600/1920 with 0 flips and survives a
-reload; float, float, lead, host also wraps. **Not changed, on purpose:** a picture already IN a group, dropped
-on that group's own text side, re-morphs the notch (side/anchor) rather than becoming a lead. Drag it out
-first, or drop one from elsewhere.
+reload; float, float, lead, host also wraps. **Then, at the user's ask (*"drop join the text side"*):** a group's own
+float, dropped on its text side, joins it as a lead (only with 2+ floats — the last float leaving would
+leave nothing to wrap; a drop over the float column still re-morphs). A lead dropped on the float column
+becomes a float. **And a row moved from a board into a doc kept the board as its `parentId`** — deleting
+the board would have cascaded into the doc. The doc becomes the parent when the board owned it (a file
+homed in Files keeps its home). Also watched: seam resize 300→380→300 and the swap button, both persisted;
+a host dragged into another doc leaves its group wrapping with the next textblock as host.
 **Probe faults:** a drop point near a panel's top or bottom edge auto-scrolls or lands in the NEXT panel
 (one picture landed in Routines › Physical); centre the target first. A picture in COPY mode makes a copy
 on every drag; two stray copies were removed with their embeds (`delete_occurrence`).
