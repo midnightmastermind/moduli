@@ -142,6 +142,27 @@ wall** (CPU ~1,280%, so it is CPU-bound now; 29 fixture files are ~90% of what i
 
 ---
 
+### 2026-10-01 (6) — A JUST-MINTED TEXTBLOCK HELD THE WHOLE DOC'S SAVE; one frame per textblock; the host handle clears a left picture
+
+**WRAP EDITS WERE NOT SAVED while a provisional (clicked, never typed) textblock sat in the doc.**
+`Editor.persistContent` returned early on `hasProvisionalTextblock(json)` so a doc never persisted an
+embed of an occurrence nobody created — and that held every OTHER edit too (a swap, "Continue wrap").
+It now saves the doc with each pending block written as the empty line it came from
+(`provisionalTextblock.withoutProvisionalTextblocks`, nested groups included). The block's own first
+keystroke still writes the parent with it in. **Verified on Wrap Lab:** seam swap → reload → kept.
+**Probe note:** `.wrap-seam-swap` has a zero box until the seam is HOVERED; a probe clicking its
+stale coordinates swaps nothing and reads as "the swap does not save".
+
+**ONE FRAME PER TEXTBLOCK.** A textblock row carried the row's border AND the inner `.textblock-card`'s
+own border + tint at a shrunk width — the "separate border inside" the user saw. Inside an
+`.instance-row` the card is now plain and full width. **A host whose handle is moved right of a LEFT
+picture** gets `data-host-handle="shifted"` and a 28px band above its text, so the handle no longer
+sits on the first line. Measured in Chromium AND Firefox on Philosopher's Stone: 25 textblock rows,
+0 double-framed; 5 shifted hosts, handle bottom above the first line; hover outline on the row.
+`.wrap-gap-hint` read an undefined `--muted-foreground` (the CSS token test caught it) — `--text-muted`.
+
+---
+
 ### 2026-10-01 — THE MANIFEST, REORGANIZED AND TESTED; and last night's cross-build broke six Schedule columns
 
 **`0373` REORGANIZED poms grid's manifest** at the user's ask, from a proposal they approved:
