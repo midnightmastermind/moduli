@@ -2985,8 +2985,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           if (!fv) continue;
           const dateVal = fv.value !== undefined ? fv.value : fv;
           if (!dateVal) continue;
-          const dueDate = new Date(dateVal);
-          if (isNaN(dueDate.getTime())) continue;
+          const dueDate = parseLocalDate(dateVal);   // a date-only value is a LOCAL day, not UTC midnight
+          if (!dueDate || isNaN(dueDate.getTime())) continue;
           dueDate.setHours(0, 0, 0, 0);
           const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
           updates.push({ fieldId: targetFieldId, occurrenceId: occ.id, value: diffDays });
@@ -2999,8 +2999,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           if (!fv) continue;
           const dateVal = fv.value !== undefined ? fv.value : fv;
           if (!dateVal) continue;
-          const dueDate = new Date(dateVal);
-          if (isNaN(dueDate.getTime())) continue;
+          const dueDate = parseLocalDate(dateVal);   // a date-only value is a LOCAL day, not UTC midnight
+          if (!dueDate || isNaN(dueDate.getTime())) continue;
           dueDate.setHours(0, 0, 0, 0);
           const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
           if (diffDays >= 0 && (minDiff === null || diffDays < minDiff)) minDiff = diffDays;
@@ -3160,8 +3160,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         if (!fv) continue;
         const dateVal = fv.value !== undefined ? fv.value : fv;
         if (!dateVal) continue;
-        const d = new Date(dateVal);
-        if (isNaN(d.getTime())) continue;
+        const d = parseLocalDate(dateVal);
+        if (!d || isNaN(d.getTime())) continue;
         d.setHours(0, 0, 0, 0);
         if (d < today) count++;
       }
@@ -3180,8 +3180,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         if (!fv) continue;
         const dateVal = fv.value !== undefined ? fv.value : fv;
         if (!dateVal) continue;
-        const d = new Date(dateVal);
-        if (isNaN(d.getTime())) continue;
+        const d = parseLocalDate(dateVal);
+        if (!d || isNaN(d.getTime())) continue;
         d.setHours(0, 0, 0, 0);
         const diffDays = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
         if (diffDays >= 0 && diffDays <= withinDays) count++;
