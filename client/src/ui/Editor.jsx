@@ -25,7 +25,9 @@ import { planEmbedDiff, applyEmbedDiff, sameIgnoringEmptyLines } from "../helper
 import {
   subscribeForceSync, getForceSyncToken,
   subscribeOperationWrite, getOperationWriteToken, hasOperationWrite,
+  hasEditorAdopt, clearEditorAdopt,
 } from "../helpers/editorSyncSignal";
+import { textmapDigest } from "../../../server/utils/textmapDigest.js";
 import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
@@ -463,6 +465,11 @@ const Editor = forwardRef(function Editor({
     subscribeOperationWrite, getOperationWriteToken, getOperationWriteToken);
   const locallyModifiedRef = useRef(false);
   const locallyModifiedTimerRef = useRef(null);
+  // Fingerprint of the SERVER text this editor's document is built on — set
+  // when it adopts content and when it sends a save. Every save carries it, so
+  // the server can refuse a save built on text it no longer has (a migration or
+  // another tab rewrote it while this editor was open). server/utils/textmapDigest.
+  const textBasisRef = useRef(content && typeof content === "object" ? textmapDigest(content) : "");
 
   // ── available fields for @ suggestions ──────────────────────
   const availableFields = useMemo(
@@ -620,7 +627,9 @@ const Editor = forwardRef(function Editor({
         dispatch, socket,
         occurrence: { ...occurrence, textmap: json },
         emit: true,
+        textmapBasis: textBasisRef.current || null,
       });
+      textBasisRef.current = textmapDigest(json);
       setIsSaving(false);
     };
     if (immediate) { doSave(); }
@@ -1724,7 +1733,11 @@ const Editor = forwardRef(function Editor({
       // focus and was just typed in. Without this bypass the revert reached the
       // DB and the store but never the screen, and the next keystroke saved the
       // stale text back over it. See helpers/editorSyncSignal.js.
-      const forced = forceSyncToken !== appliedForceSyncRef.current;
+      // …and so must the server's own copy after it REFUSED a save built on old
+      // text (editorSyncSignal.requestEditorAdopt) — the guards would otherwise
+      // keep showing exactly the text that was refused.
+      const adopt = hasEditorAdopt(occurrence?.id);
+      const forced = forceSyncToken !== appliedForceSyncRef.current || adopt;
       appliedForceSyncRef.current = forceSyncToken;
 
       // Skip if editor has focus (user is typing) OR mid-click (mousedown fired but focus not yet)
@@ -1749,7 +1762,10 @@ const Editor = forwardRef(function Editor({
         if (saveTimeout.current) clearTimeout(saveTimeout.current);
       }
       const current = editor.getJSON();
-      if (JSON.stringify(current) !== JSON.stringify(content)) {
+      if (JSON.stringify(current) === JSON.stringify(content)) {
+        textBasisRef.current = textmapDigest(content);
+        if (adopt) clearEditorAdopt(occurrence.id);
+      } else {
         const { from, to } = editor.state.selection;
         // [caret] diag — a content sync inside the click window is the classic
         // caret-reset suspect (setContent collapses selection to doc start).
@@ -1793,6 +1809,8 @@ const Editor = forwardRef(function Editor({
             .setContent(content, { emitUpdate: false })
             .run();
         }
+        textBasisRef.current = textmapDigest(content);
+        if (adopt) clearEditorAdopt(occurrence.id);
         // The mark is NOT spent here: it lives out its short deadline
         // (editorSyncSignal), because the op's real content can arrive a render
         // AFTER this one. Spending it on the first apply is what left the newest

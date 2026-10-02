@@ -314,7 +314,7 @@ export function updateOccurrence(args) {
   return withAction(label, () => _updateOccurrence(args));
 }
 
-function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null, occurrencesBase = null }) {
+function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null, occurrencesBase = null, textmapBasis = null }) {
   if (!occurrence?.id) return;
   // Conflict resolution (#26 cheapest-level): pass the local cache's
   // `updatedAt` so the server can reject this write when another window
@@ -354,6 +354,9 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
       payload.occurrencesBase = occurrencesBase;
     }
     if (expectedFieldUpdatedAt) payload.expectedFieldUpdatedAt = expectedFieldUpdatedAt;
+    // A text save says which server text its editor was built on, so the server
+    // can refuse it when that text has since changed (server/utils/textmapDigest).
+    if (textmapBasis && occurrence.textmap !== undefined) payload.textmapBasis = textmapBasis;
     safeEmit(socket, "update_occurrence", payload);
 
     // Optimistically advance local updatedAt so the NEXT updateOccurrence

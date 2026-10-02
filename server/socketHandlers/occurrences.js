@@ -9,6 +9,7 @@ import { refusedDuplicateCreates, refusedByStoredSiblings } from "../utils/dupli
 import Transaction from "../models/Transaction.js";
 import { nanoid } from "nanoid";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
+import { textmapDigest } from "../utils/textmapDigest.js";
 import { recordDoc } from "../utils/txRecorder.js";
 
 /**
@@ -76,6 +77,25 @@ export function mergeChildListWithBase(prev, base, next) {
     out.splice(at, 0, id);
   }
   return out;
+}
+
+/**
+ * Is a text save built on text the server no longer has?
+ *
+ * `basis` is the fingerprint of the server text the client's editor was built
+ * on (utils/textmapDigest). The save is refused when the stored text has moved
+ * on since — a migration, another tab, an op — unless the incoming text already
+ * IS the stored text. `inFlight` is the fingerprint of a text write from this
+ * row that was accepted but has not reached the cache yet: a save built on it is
+ * the same editor's next keystroke, not a conflict. Deliberately NOT waived for
+ * a single open tab — a migration is not a tab (2026-10-01).
+ */
+export function textSaveIsStale({ basis, incoming, stored, inFlight }) {
+  if (!basis) return false;                 // no claim made: the old rules apply
+  if (basis === stored) return false;
+  if (incoming && incoming === stored) return false;
+  if (inFlight && basis === inFlight) return false;
+  return true;
 }
 
 export function registerOccurrenceHandlers(socket, {
@@ -165,6 +185,26 @@ export function registerOccurrenceHandlers(socket, {
       }
 
       const prev = uc.occurrencesById[id] || {};
+
+      let acceptedTextDigest = null;
+      // ── A TEXT SAVE BUILT ON OLD TEXT IS REFUSED ──────────────────────────
+      // See textSaveIsStale. Checked before any await, so the in-flight mark
+      // below is set in the order the saves arrived.
+      if (payload.textmapBasis && occurrence.textmap !== undefined && prev.textmap !== undefined) {
+        if (!uc._textInFlight) uc._textInFlight = {};
+        const incomingDigest = textmapDigest(occurrence.textmap);
+        if (textSaveIsStale({
+          basis: payload.textmapBasis,
+          incoming: incomingDigest,
+          stored: textmapDigest(decompressTextmap(prev.textmap)),
+          inFlight: uc._textInFlight[id],
+        })) {
+          console.log("🟠 update_occurrence REFUSED stale text", id);
+          socket.emit("occurrence_stale", { occurrence: { ...prev, id }, attempted: { id }, reason: "textmap" });
+          return;
+        }
+        uc._textInFlight[id] = acceptedTextDigest = incomingDigest;
+      }
       // Snapshot the prior state for undo BEFORE anything mutates it. This one
       // handler carries field edits AND textmap edits, which is what makes doc
       // history work at all — nothing else records textmaps.
@@ -458,6 +498,8 @@ export function registerOccurrenceHandlers(socket, {
       }
 
       uc.occurrencesById[id] = next;
+      // Only OUR mark: a later save from the same editor may already hold the slot.
+      if (acceptedTextDigest && uc._textInFlight?.[id] === acceptedTextDigest) delete uc._textInFlight[id];
 
       // Compress textmap before persisting to DB. Computed BEFORE the undo
       // snapshot so the snapshot can reuse it — gzip dominates snapshot cost,

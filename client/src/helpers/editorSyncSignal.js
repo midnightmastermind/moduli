@@ -100,12 +100,42 @@ export function getOperationWriteToken() {
   return opToken;
 }
 
+// ── A SAVE THE SERVER REFUSED AS BUILT ON OLD TEXT ────────────────────────
+//
+// The editor kept text the server no longer has (a migration, another tab) and
+// tried to save it; the server refused (server/utils/textmapDigest) and sent
+// the stored row back. The editor must now SHOW that row, past every guard —
+// including the typed-recently one, because what it would protect is exactly
+// the text that was just refused. Same mark-with-a-deadline shape as above.
+const adopts = new Map();           // occurrenceId -> expires-at (ms)
+
+export function requestEditorAdopt(occurrenceId, now = Date.now()) {
+  if (!occurrenceId) return;
+  adopts.set(occurrenceId, now + OP_WRITE_TTL_MS);
+  opToken += 1;
+  for (const fn of opListeners) {
+    try { fn(); } catch { /* a bad subscriber must not block the rest */ }
+  }
+}
+
+export function hasEditorAdopt(occurrenceId, now = Date.now()) {
+  const until = occurrenceId ? adopts.get(occurrenceId) : undefined;
+  if (!until) return false;
+  if (now > until) { adopts.delete(occurrenceId); return false; }
+  return true;
+}
+
+export function clearEditorAdopt(occurrenceId) {
+  adopts.delete(occurrenceId);
+}
+
 /** Test seam. */
 export function _resetForceSync() {
   token = 0;
   pending = false;
   listeners.clear();
   opWrites.clear();
+  adopts.clear();
   opToken = 0;
   opListeners.clear();
 }

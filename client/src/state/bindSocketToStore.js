@@ -36,7 +36,7 @@ import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
 import { rehydrateWireRows } from "../../../server/utils/wireProjection.js";
-import { requestForceSync, commitForceSync, markOperationWrite } from "../helpers/editorSyncSignal";
+import { requestForceSync, commitForceSync, markOperationWrite, requestEditorAdopt } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad, loadDiagLine } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
@@ -1060,12 +1060,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // older than the stored copy — another window beat us. We sync the
   // server's current state into local + Redux + toast the user so they
   // know their edit was lost.
-  function onOccurrenceStale({ occurrence } = {}) {
+  function onOccurrenceStale({ occurrence, reason } = {}) {
     if (!occurrence?.id) return;
     setLocalOcc(occurrence.id, occurrence);
     socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence } });
+    // A refused TEXT save: the open editor still shows the old text, and its
+    // guards would keep it there — make it show what the server has.
+    if (reason === "textmap") requestEditorAdopt(occurrence.id);
     try {
-      toast?.("Refreshed — another window had a newer edit.", { duration: 3500 });
+      toast?.(reason === "textmap"
+        ? "This text changed elsewhere — showing the newer version."
+        : "Refreshed — another window had a newer edit.", { duration: 3500 });
     } catch {}
   }
   socket.on("occurrence_stale", onOccurrenceStale);
