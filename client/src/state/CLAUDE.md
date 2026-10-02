@@ -423,3 +423,8 @@ _Updated: 2026-08-08. Check this file before re-reading source._
 - bindSocketToStore: `transaction_created` → fires runMatchingOperations → dispatches SET_COMPUTED_VALUES
 - bindSocketToStore: `full_state` → also fires onLoad operations via Promise.resolve()
 - bindSocketToStore now accepts `stateRef` as 3rd param (from App.jsx)
+
+## Recent Changes (2026-10-02 — MOVE_OCCURRENCE effect)
+- **`bindSocketToStore.js` `applyOperationEffect`** — `MOVE_OCCURRENCE` and `UPDATE_ITEM_PARENT` are one case:
+  unlist from the old parent, set `parentId`, list in the new parent. It used to emit `move_occurrence`, an
+  event the server never handled. `CommitHelpers.moveOccurrence` removed. Test: `__tests__/moveOccurrenceEffect.test.js`.

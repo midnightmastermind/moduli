@@ -116,6 +116,37 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-02 (8) — `Schedule: Route by Timeslot` BY CLICKING — and an operation's MOVE had never moved anything
+
+Built on the rebuild by clicking, in the shape that can work with day columns (poms' own cannot — see below):
+```
+IF $trigger.value IS_NOT_EMPTY
+  $item = $trigger.occurrence
+  FIND $allContainers: under Schedule · Schedule Format IS day-col · Date SAME_DAY $item.Date  -> $dayColId
+  IF $dayColId:  FIND $allContainers: under $dayColId · Schedule Format IS slot · Time Slot IS $trigger.value -> $targetSlotId
+    IF $targetSlotId:  MOVE_OCCURRENCE $trigger.occurrenceId -> $targetSlotId
+trigger onChange · field Time Slot · p3
+```
+**THE RUN LOG SAID `MOVE_OCCURRENCE=1` AND THE ITEM STAYED PUT.** The client applied the effect by emitting a
+`move_occurrence` socket event — **no server handler for it has ever existed** (`git log -S` finds none), so in a
+tab every op move was a no-op. It is the only move action the editor offers and five live poms ops carry it
+(Project: Status Router, Project: Sync To Todo List, Schedule: Route by Timeslot, Schedule: Build Day; Share:
+pdf runs it server-side, where it works). The effect now shares `UPDATE_ITEM_PARENT`'s reparent (unlist from the
+old parent, set parentId, list in the new one); the dead `CommitHelpers.moveOccurrence` is gone; and the action
+refuses a destination or subject that is an ARRAY (`singleOccurrenceId`, like ADD_CHILD) instead of writing a
+parentId nothing has. `moveOccurrenceEffect.test.js` (6) drives the real effect handler and executor.
+**Watched after the deploy:** Book dentist in Oct 2's Todo, Time Slot set to 10:00am through its chip → it is
+in Oct 2's 10:00am slot (parent + listing, kept on reload); dragged back to Tasks → Date and Time Slot cleared.
+**poms' own `Route by Timeslot` is still inert, reported not changed:** its gate reads `$trigger.fields.<Time
+Slot>.value` (undefined for a UI edit) and its FIND matches the slot of that name in EVERY day column, which
+the new refusal now names in the run log rather than moving anything. `Status Router` gates on the same read.
+**Also reported:** `CREATE_OCCURRENCE` ("Create occurrence — for existing module" in the picker) emits
+`create_occurrence_in_container`, which has no server handler either; 0 live operations use it.
+**Probe notes:** `$trigger` lives under **Built-ins** in the path picker. `localVarsFromSchema.test.js` needed
+the jsdom pragma since OperationsBuilder imports FieldSelect (`window` at import). Rebuild ops: 17.
+
+---
+
 ### 2026-10-02 (7) — TWO MORE OPS BY CLICKING: `Schedule: Clear Date on Move-Out`, `Schedule: Stamp Completed On`
 
 Both pipelines are step-for-step poms' (ids mapped; a typed `true` is the string, which `IS` compares equal).
