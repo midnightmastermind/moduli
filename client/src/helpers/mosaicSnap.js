@@ -11,7 +11,7 @@
 //
 // Spec: docs/superpowers/specs/2026-09-04-mosaic-snap-design.md
 // ============================================================
-import { findLeaf, isLeaf, makeLeaf, makeSplit, removeLeaf } from "./bspTree";
+import { computeLayout, findLeaf, isLeaf, makeLeaf, makeSplit, removeLeaf } from "./bspTree";
 
 /**
  * Where does this panel sit, in half/quadrant terms?
@@ -90,7 +90,8 @@ export function snapLeaf(tree, panelOccId, direction) {
 }
 
 /** Place `leaf` in `region` with `rest` filling the complement. */
-function buildRegion(rest, leaf, { col, row }) {
+function buildRegion(rest, leaf, { col, row, span }) {
+  if (span) return buildColumnSpan(rest, leaf, col, span);
   if (row === "full") {
     return col === "right" ? makeSplit("v", [rest, leaf])
                            : makeSplit("v", [leaf, rest]);
@@ -142,6 +143,47 @@ function buildRegion(rest, leaf, { col, row }) {
 }
 
 /**
+ * A full-height COLUMN of `span` (a fraction of the width) on the left, in the
+ * middle or on the right — the thirds layouts (user 2026-10-01: "allow 3rds").
+ *
+ * The complement's columns STAY columns: when `rest` is itself a column split
+ * its children become our siblings, scaled to share what we leave, so dropping
+ * into the left third of A | B gives three equal columns rather than a third
+ * beside a nested pair. Anything else is kept whole as one column.
+ *
+ * The MIDDLE needs something on both sides; a complement that is a single
+ * column cannot flank us, so that degrades to null — the quadrant rule's twin.
+ */
+function buildColumnSpan(rest, leaf, col, span) {
+  const flat = !isLeaf(rest) && rest.dir === "v" && rest.children.length >= 2;
+  const others = flat ? rest.children : [rest];
+  const oRatio = flat ? rest.ratio : [1];
+  const total = oRatio.reduce((a, b) => a + b, 0) || others.length;
+  const scaled = oRatio.map((r) => (r / total) * (1 - span));
+  if (col === "left") return makeSplit("v", [leaf, ...others], [span, ...scaled]);
+  if (col === "right") return makeSplit("v", [...others, leaf], [...scaled, span]);
+  if (col !== "middle" || others.length < 2) return null;
+  const k = Math.floor(others.length / 2);
+  return makeSplit("v",
+    [...others.slice(0, k), leaf, ...others.slice(k)],
+    [...scaled.slice(0, k), span, ...scaled.slice(k)]);
+}
+
+/** Every pane's rectangle in a unit square, rounded — "does the screen differ?" */
+function layoutKey(tree) {
+  const { panes } = computeLayout(tree, { x: 0, y: 0, w: 1000, h: 1000 }, 0);
+  return panes.map((p) => `${p.panelOccId}:${Math.round(p.rect.x)},${Math.round(p.rect.y)},${Math.round(p.rect.w)},${Math.round(p.rect.h)}`)
+    .sort().join("|");
+}
+
+/** Where a panel's pane sits, as fractions of the grid. Null when absent. */
+export function paneFraction(tree, panelOccId) {
+  const { panes } = computeLayout(tree, { x: 0, y: 0, w: 1, h: 1 }, 0);
+  const p = panes.find((x) => x.panelOccId === panelOccId);
+  return p ? { ...p.rect } : null;
+}
+
+/**
  * Which snap does a drop at (x, y) mean? Null means "not in the perimeter" —
  * the drop belongs to whichever pane is under the pointer, which is the gesture
  * that builds nested layouts and must keep working.
@@ -185,12 +227,16 @@ export function zoneAt({ x, y, w, h, band = 48 }) {
 export function snapLeafToRegion(tree, panelOccId, region) {
   const cur = regionOf(tree, panelOccId);
   if (!cur || !region) return null;
-  const want = { col: region.col || "full", row: region.row || "full" };
-  if (cur.col === want.col && cur.row === want.row) return null;   // already there
+  const want = { col: region.col || "full", row: region.row || "full", span: region.span || null };
+  if (!want.span && cur.col === want.col && cur.row === want.row) return null;   // already there
 
   const rest = removeLeaf(tree, panelOccId);
   if (!rest) return null;                          // the tree was just this leaf
-  return buildRegion(rest, makeLeaf(panelOccId), want);
+  const next = buildRegion(rest, makeLeaf(panelOccId), want);
+  // A column span has no name `regionOf` recognises, so "already there" is
+  // asked of the screen: a rebuild that moves no pane is not a change.
+  if (next && want.span && layoutKey(next) === layoutKey(tree)) return null;
+  return next;
 }
 
 /**
@@ -218,7 +264,8 @@ export function regionForZone(zone) {
 //
 // Zones are fractions of the grid (x, y, w, h in 0..1), and each one names the
 // region it IS. A test holds the two together, so a picture cannot promise a
-// region other than the one the drop produces.
+// region other than the one the drop produces. Thirds (`C`) carry a `span`:
+// a full-height column of that fraction of the width.
 // ============================================================
 const Z = (col, row) => ({
   region: { col, row },
@@ -228,6 +275,13 @@ const Z = (col, row) => ({
   h: row === "full" ? 1 : 0.5,
 });
 
+const C = (col, span) => ({
+  region: { col, row: "full", span },
+  x: col === "left" ? 0 : col === "right" ? 1 - span : (1 - span) / 2,
+  y: 0, w: span, h: 1,
+});
+const THIRD = 1 / 3;
+
 export const SNAP_LAYOUTS = [
   { id: "halves-v",   zones: [Z("left", "full"), Z("right", "full")] },
   { id: "halves-h",   zones: [Z("full", "top"), Z("full", "bottom")] },
@@ -235,6 +289,9 @@ export const SNAP_LAYOUTS = [
   { id: "big-right",  zones: [Z("left", "top"), Z("left", "bottom"), Z("right", "full")] },
   { id: "big-top",    zones: [Z("full", "top"), Z("left", "bottom"), Z("right", "bottom")] },
   { id: "quadrants",  zones: [Z("left", "top"), Z("right", "top"), Z("left", "bottom"), Z("right", "bottom")] },
+  { id: "thirds",     zones: [C("left", THIRD), C("middle", THIRD), C("right", THIRD)] },
+  { id: "two-thirds-left",  zones: [C("left", 2 * THIRD), C("right", THIRD)] },
+  { id: "two-thirds-right", zones: [C("left", THIRD), C("right", 2 * THIRD)] },
 ];
 
 /**

@@ -20,7 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
-import { opensSnapLayouts, regionForZone, regionOf, snapLeafToRegion, SNAP_LAYOUTS, zoneAt } from "../helpers/mosaicSnap";
+import { opensSnapLayouts, paneFraction, regionForZone, snapLeafToRegion, SNAP_LAYOUTS, zoneAt } from "../helpers/mosaicSnap";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
 // desktop band was nearly impossible to hit, so touch presses landed on the
@@ -354,7 +354,7 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onRegionDrop }) 
     if (!region) return null;
     const next = snapLeafToRegion(tree, dragOccId, region);
     if (!next) return null;
-    return regionRect(regionOf(next, dragOccId), size.w, size.h);
+    return paneRect(paneFraction(next, dragOccId), size.w, size.h);
   }, [zone, layoutRegion, tree, dragOccId, size.w, size.h]);
 
   const strips = useMemo(() => ([
@@ -462,24 +462,18 @@ function SnapLayoutZone({ zone, onHoverRegion, onPick }) {
     <div
       ref={ref}
       className={`mosaic-snap-layout-zone${over ? " is-over" : ""}`}
-      data-region={`${zone.region.col}-${zone.region.row}`}
+      data-region={`${zone.region.col}-${zone.region.row}${zone.region.span ? `-${Math.round(zone.region.span * 3)}of3` : ""}`}
       style={{ left: pct(zone.x), top: pct(zone.y), width: pct(zone.w), height: pct(zone.h) }}
     />
   );
 }
 
-// Where the preview rectangle goes for a REGION (the output of `regionOf`).
-// Presentation only, and deliberately fed from the tree the drop would produce
-// so it cannot promise a region the snap will not deliver.
-function regionRect(region, w, h) {
-  if (!region) return null;
-  return {
-    position: "absolute",
-    left: region.col === "right" ? w / 2 : 0,
-    top: region.row === "bottom" ? h / 2 : 0,
-    width: region.col === "full" ? w : w / 2,
-    height: region.row === "full" ? h : h / 2,
-  };
+// Where the preview rectangle goes: the dragged panel's own pane in the tree
+// the drop would produce. Read off the LAYOUT, not off the region's name, so a
+// third (or a degraded quadrant) is drawn exactly as it will land.
+function paneRect(frac, w, h) {
+  if (!frac) return null;
+  return { position: "absolute", left: frac.x * w, top: frac.y * h, width: frac.w * w, height: frac.h * h };
 }
 
 // A single pane: positioned wrapper + the panel filling it + a Pragmatic drop

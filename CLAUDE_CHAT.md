@@ -3761,3 +3761,6 @@ hit its limit while naming the Coffee operation).
 ## 2026-10-01 20:08 CDT
 - Snap layouts (Windows 11 style) for mosaic grid reordering: NOT on hover — only as drag-and-drop to the
   top of the grid, like Windows (drag a panel to the top → a layout bar appears → drop into a zone).
+
+### 2026-10-01 22:47 — snap layouts: thirds + Firefox
+User: *"it should be in firefox and allow 3rds"* — verify the drag-to-top snap bar in Firefox, and add thirds layouts.
