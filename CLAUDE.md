@@ -93,6 +93,29 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-02 (5) — `Bills: Into Schedule` (0384): a Pay Bill in the day's Todo on each bill's day of the month
+
+User: *"make an op on poms grid quick that takes bills, checks its reoccurance day … and add a copy to my
+schedule on the given day"* · *"start with Digital Ocean on the 2nd of every month"* · *"its 24 dollars"* ·
+*"dont use due date cause its suppose to be a 1-30 thing"* · *"make it a pay bill occurance added to schedule
+with that bill selected and completed set to off"*.
+
+No new field: every seeded bill already binds `Day` (number, day of the month). The op mirrors `People:
+Birthdays` (0367): per `$activePeriodDates` day → the day column → its Todo → each instance under the Bills
+page whose `Day` IS `DATE_FORMAT(day,"d")` gets a `COPY_LINK linked:false` of the Routines "Pay Bill" item
+with Bill = the bill, Amount/Account from the bill, Date = the day, Completed = false. Dedup by (Todo, Pay
+Bill module, Bill); an UNPAID op-made card whose bill left the day is swept, a paid or hand-made one never.
+`Next Due` / `Due` are not read. Triggers: Build Schedule's + onAdd/onDelete under Bills + onChange Day/Amount.
+DigitalOcean (it bound nothing) now binds Amount, Day, Completed — Amount 24, Day 2 — set through the app's
+socket events. Test `billsIntoSchedule.test.js` drives the real executor (7 cases).
+**Watched after the restart:** Oct 2's Todo holds one Pay Bill — Bill DigitalOcean, 24, not completed, no
+linkedGroupId, listed. **To know:** the other ten seeded bills (Rent on the 1st, Electric the 5th, …) have a
+Day too and will get a Pay Bill on their days; clearing a bill's Day stops it. The older `Due: Seed` /
+`Compute Next Due` pair (Next Due based) is untouched and looks dead — every Next Due is still in August and
+its Todo FIND matches every day's Todo.
+
+---
+
 ### 2026-10-02 (4) — TYPING BESIDE A PILL TORE THE PAGE APART; "To pill" on a textblock read "Item"
 
 User: *"why does pills and textblocks have labels? fix the other thing too and continue"*.
