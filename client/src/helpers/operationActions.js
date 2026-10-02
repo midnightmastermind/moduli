@@ -2735,7 +2735,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // Other CRUD effects — dispatched + emitted by bindSocketToStore after execution
 
     case "MOVE_OCCURRENCE": {
-      const toContainerId = cfg.toContainerId || resolveExpr(cfg.toContainerIdExpr, $vars);
+      // ONE destination. A FIND that matched several records binds an array
+      // (every day column has a "9:00am" slot); moving into an array wrote a
+      // parentId no occurrence has. Refused by name, like ADD_CHILD.
+      const toContainerId = singleOccurrenceId(cfg.toContainerId || resolveExpr(cfg.toContainerIdExpr, $vars), "MOVE_OCCURRENCE", cfg.toContainerIdExpr || "toContainerId");
       if (!toContainerId) break;
       // Multiple mode (task #30) — `cfg.multiple === true` expects an
       // `cfg.ids: string[]` array (or `cfg.idsExpr` resolving to one).
@@ -2748,7 +2751,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
         break;
       }
-      const occId = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
+      const occId = singleOccurrenceId(resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars), "MOVE_OCCURRENCE", cfg.occurrenceIdExpr || "$trigger.occurrenceId");
       if (occId) {
         updates.push({ _effect: "MOVE_OCCURRENCE", occurrenceId: occId, toContainerId });
       }

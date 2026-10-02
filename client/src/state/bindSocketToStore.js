@@ -20,7 +20,6 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { autoScrollWhenReady, browserTakeoverSubscription } from "../helpers/autoScrollOnLoad";
 import {
   setOccurrenceFieldValue,
-  moveOccurrence,
   createOccurrenceInContainer,
   createInstanceInContainer,
   deleteOccurrence,
@@ -1462,36 +1461,42 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
       }
 
+      // A MOVE is a reparent. `MOVE_OCCURRENCE` — the only move action the editor
+      // offers — used to emit a `move_occurrence` socket event that NO server
+      // handler has ever listened for, so in a tab the step ran, reported
+      // `MOVE_OCCURRENCE=1` and moved nothing (found building "Schedule: Route
+      // by Timeslot" by clicking, 2026-10-02; five live poms ops use it). Both
+      // effects go through the one reparent below.
       case "MOVE_OCCURRENCE":
-        moveOccurrence({ socket, occurrenceId: effect.occurrenceId, toContainerId: effect.toContainerId });
-        break;
-
       case "UPDATE_ITEM_PARENT": {
+        const itemId = effect._effect === "MOVE_OCCURRENCE" ? effect.occurrenceId : effect.itemId;
+        const toParentId = effect._effect === "MOVE_OCCURRENCE" ? effect.toContainerId : effect.toParentId;
+        if (!itemId || !toParentId || itemId === toParentId) break;
         const occOverlay = mergedOccsOverlay(state.occurrencesById);
-        const occ = occOverlay[effect.itemId];
+        const occ = occOverlay[itemId];
         if (!occ) break;
         const fromParentId = occ.parentId;
 
-        if (fromParentId && fromParentId !== effect.toParentId) {
+        if (fromParentId && fromParentId !== toParentId) {
           const fromParent = occOverlay[fromParentId];
           if (fromParent) {
             updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
               id: fromParentId,
-              occurrences: (fromParent.occurrences || []).filter(x => x !== effect.itemId),
+              occurrences: (fromParent.occurrences || []).filter(x => x !== itemId),
             }});
           }
         }
 
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
-          id: effect.itemId,
-          parentId: effect.toParentId,
+          id: itemId,
+          parentId: toParentId,
         }});
 
-        const toParent = occOverlay[effect.toParentId];
-        if (toParent && !(toParent.occurrences || []).includes(effect.itemId)) {
+        const toParent = occOverlay[toParentId];
+        if (toParent && !(toParent.occurrences || []).includes(itemId)) {
           updateOccurrence({ dispatch: socketDispatch, socket, occurrence: {
-            id: effect.toParentId,
-            occurrences: [...(toParent.occurrences || []), effect.itemId],
+            id: toParentId,
+            occurrences: [...(toParent.occurrences || []), itemId],
           }});
         }
         break;

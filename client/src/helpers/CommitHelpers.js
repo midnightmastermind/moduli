@@ -1026,15 +1026,6 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
 }
 
 /**
- * Move an occurrence to a different container.
- * Server handles the parent re-linking; no optimistic dispatch needed.
- */
-export function moveOccurrence({ socket, occurrenceId, toContainerId }) {
-  if (!occurrenceId || !toContainerId) return;
-  safeEmit(socket, "move_occurrence", { occurrenceId, toContainerId });
-}
-
-/**
  * Create a new occurrence from an instance in a container.
  */
 export function createOccurrenceInContainer({ socket, instanceId, containerId, fields }) {

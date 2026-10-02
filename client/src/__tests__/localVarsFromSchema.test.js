@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // A step's OUTPUT variable must be pickable by every later step.
 //
 // `collectLocalVars` read only `config.name` / `itemIdVar` / `itemVar`. A
