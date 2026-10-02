@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-02 — thirds + a layout pick applies the whole layout)
+- `SNAP_LAYOUTS` gains thirds (`span` regions, `buildColumnSpan`); `paneFraction(tree, id)` is the preview
+  source. `planSnapLayout(tree, dragged, layout, zoneIndex)` → `{tree, addCount, removeIds}` with
+  `NEW_PANEL(i)` placeholders, filled by `fillNewPanels` once `App.resizePanelSet` has minted the panels.
+  `treeFromZones` builds any guillotine tiling. Tests `snapLayouts.test.js` (12).
+
 ## Recent Changes (2026-10-01 — `mosaicSnap.SNAP_LAYOUTS` + `opensSnapLayouts`)
 - Six Windows-style layout pictures for the mosaic drag-to-top bar. Every zone is an existing
   `{col,row}` region, so a pick goes through `snapLeafToRegion` (thirds are not offered — they would

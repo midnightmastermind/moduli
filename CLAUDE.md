@@ -142,6 +142,36 @@ wall** (CPU ~1,280%, so it is CPU-bound now; 29 fixture files are ~90% of what i
 
 ---
 
+### 2026-10-02 — THIRDS, A LAYOUT PICK ADDS/REMOVES PANELS, FIREFOX; and the Lookup rows become textblocks
+
+User: *"it should be in firefox and allow 3rds"* · *"make it so it will dynamically add/remove panels based on
+the layout change. so if we have 3 open panels, and we drag to a 4 grid layout, it adds an extra panel"* ·
+*"look at the lookup page and see how all those textblocks still are labels and not body"* · *"all plain
+labelled items (if they are not instances) should be migrated to textblocks"* → *"i said not instances"*.
+
+**THIRDS** — three more layouts (thirds, 2/3+1/3, 1/3+2/3). A region may carry `span` (a full-height column
+of that width); `buildColumnSpan` keeps the complement's columns as columns. The preview is now read off the
+resulting tree's own pane (`paneFraction`), so it can draw any shape exactly as it lands.
+
+**A PICK APPLIES THE WHOLE LAYOUT** (`mosaicSnap.planSnapLayout` + `treeFromZones`, a guillotine build from
+the zone picture). The dragged panel takes its zone, the others fill the rest in reading order, missing zones
+become new panels and surplus panels are removed from the grid — after a confirm naming them (their pages
+stay). `App.resizePanelSet` adds/removes in ONE pass, threading `grid.occurrences` through each step (two
+`addNewPanel` calls in a tick would have the second write drop the first). **The confirm runs after the drop
+event** (`setTimeout 0`): opened inside the drop handler it broke Firefox's drag session.
+**Watched in Firefox on test grid 2:** bar shows 9 layouts · middle third previews at x .33/w .33 · thirds on
+5 panels asks to remove Panel C and D, dismiss changes nothing, accept → 3 columns · quadrants on 3 → 4
+panels. Restored through the app (panels re-created, grid list and layout identical). The added panel's
+module is left for the orphan sweeper. *Probe note: Playwright's Firefox driver cannot run a second drag on
+the same page ("session is null") — one drag per browser.*
+
+**`0382` — the Lookup board's 244 rows** were plain instances from the Raindrop import (`raindropId` "l:…",
+0 bindings, 0 values, each module placed once); they are textblocks with the text as the body now. Census
+afterwards: apart from instances, NO other label-only rows exist on poms grid — every other leaf is an
+artifact, a textblock or a container. Server restarted for the warm cache.
+
+---
+
 ### 2026-10-01 (8) — DRAG A PANEL TO THE TOP OF A MOSAIC GRID AND PICK A LAYOUT
 
 User, from a Windows 11 screenshot: snap layouts for the mosaic grid, then *"i dont like that its a
