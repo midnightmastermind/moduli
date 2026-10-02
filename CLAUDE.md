@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (6) — A DROP ON A BLOCK'S EDGE WRAPPED IT; Firefox crashed the panel on a drop; a block moved doc to doc kept its old owner
+
+Continuing the docs/DnD pass, now in **Firefox** (the user's browser), checked in Mongo afterwards.
+```
+top/bottom-edge drop wrapped   detectSideHost picked a side for ANY point over a block, so dropping on its
+                               top edge to reorder formed a wrap instead. A band of EDGE_INSERT_PX (12px,
+                               capped at a third of the block's height) at the top and bottom is a plain
+                               insert above/below; the middle still wraps.
+panel crashed on a drop (FF)   "[tiptap error]: The editor view is not available" — my data-host-occ
+                               effect read `editor.view.dom`, and TipTap's `view` GETTER throws while the
+                               view is unmounted. `embedRegistry.editorDom(editor)` answers null instead,
+                               and hostOccurrenceIdOf uses it too.
+doc -> doc move kept its owner  only the board->doc branch re-parented. A block whose parent is the doc it
+                               left (that doc's textmap embeds it) now takes the new doc as parent, so its
+                               Delete there deletes instead of unlinking. Placed-from-elsewhere rows keep
+                               their parent.
+```
+**Watched in Firefox:** top/bottom-edge drops reorder and survive a reload, a middle drop still wraps, no
+crash. **Charlie (Wrap Lab → its nested container): parentId 74fe9426 → 939b4a7a; dragged back out →
+74fe9426.** The nested container's textmap ends identical to its pre-test transaction. Probe note: a drop
+point near the viewport top auto-scrolls during the drag, so the block can land one slot off.
+
+---
+
 ### 2026-10-02 (5) — ON A DOC PAGE, DELETE NEVER DELETED; and copies dropped into a doc belonged to nobody
 
 Continuing the docs/DnD pass (*"keep going with testing please"*). Each found by doing it on Wrap Lab and
