@@ -1048,10 +1048,15 @@ function GridInner() {
         />
       )}
 
+      {/* The full-screen copy of a panel needs the SAME wiring the grid's own
+          copy gets. Without dispatch/socket every editor inside it skipped its
+          save (Editor.persistContent returns early) — a full-screen edit looked
+          made and was never written (found 2026-10-02 dragging a wrap). */}
       <FullscreenOverlay
         fullscreenPanelId={fullscreenPanelId}
         setFullscreenPanelId={setFullscreenPanelId}
         panelsById={panelsById}
+        panelProps={{ dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef }}
         cols={cols}
         rows={rows}
       />
