@@ -2336,3 +2336,7 @@ registered them). See client/src/CLAUDE.md.
 - **`index.css`** — a doc PAGE's own trailing empty line (`.page-scroll > .doc-container …`) is never
   collapsed; collapsing it changed the scroll height under the pointer at the page bottom. Nested
   blocks keep the hover reveal. Test: `__tests__/pageTrailingLineStays.test.js`.
+- **`Editor.jsx` `isUndoRedoChord(e)`** — undo/redo chords and bare modifier keydowns do not stamp
+  the mint window either (Ctrl+Z after Unwrap minted a block on the line below the group).
+- **`index.css` `.wrap-group--off`** — columns mode is TWO columns (floats one side, leads + host the
+  other), not a flex column per member. Test: `__tests__/wrapOffTwoColumns.test.js`.

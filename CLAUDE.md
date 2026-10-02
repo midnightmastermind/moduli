@@ -15,7 +15,7 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
-### 2026-10-02 (3) — WRAP RADIALS: a handle that fled the pointer, a menu frozen at first render, a menu click that minted a textblock
+### 2026-10-02 (3) — WRAP RADIALS: a handle that fled the pointer, a menu frozen at first render, commands that minted textblocks, side-by-side in two columns
 
 Picked up the docs/wraps UI pass (main account at its limit mid-bisect, account2 at its weekly limit).
 ```
@@ -34,6 +34,21 @@ host menu offered only Unwrap       ModuleEmbedNode's items memo read the doc + 
   on the line after the group       item no longer stamps the mint's input window (`isOnCommandControl`,
                                     nearest of {editable, control} decides).
 ```
+```
+"Side by side" on float+leads+host  a flex row with a column PER MEMBER (written for two-block groups): the
+                                    leads were squeezed to ~90px, Bravo broke mid-word. Two columns now —
+                                    floats stacked on the group's side, leads + host stacked on the other
+                                    (floats + a margin on the text side, so a tall picture leaves no gaps).
+Ctrl+Z after Unwrap minted a block  undo restores the caret onto the empty line below the group and the
+                                    keystroke counted as input. Undo/redo chords AND a bare modifier's
+                                    keydown (Ctrl arrives before Z — excluding only the Z changed nothing)
+                                    no longer stamp the mint window (`isUndoRedoChord`).
+```
+**Also watched:** Side by side ↔ Wrap text around (current one marked, both persist), two columns with the
+picture on either side (seam swap), Unwrap → Ctrl+Z restores the group with its roles; typing, Enter and
+Ctrl+Z inside a lead and inside the host — 0 wrap/stack flips, kept on reload. **Not driven yet:** "Wrap
+behind previous", "To pill", the Position submenu. Alpha's paragraph keeps one extra trailing space from the probe.
+
 **Watched on prod, Chromium + Firefox:** every member's radial opens at the page bottom (scroll steady);
 Move out of wrap → Continue wrap, twice in a row with no reload (the menu follows the doc), no mint,
 persists; the stray empty line the pre-fix run left was removed through the UI (click → mint → Backspace).
