@@ -2053,6 +2053,24 @@ const Editor = forwardRef(function Editor({
       // EXCEPT directly over the NEIGHBOR COLUMN, which stacks the drop into
       // that column (columns hold multiple occurrences). Members always pass
       // (dragging one re-morphs its side/anchor).
+      // A FLOAT of a group with two or more floats, dropped on that group's
+      // text side (not over the float column), joins the text side as a lead
+      // (user 2026-10-02: "drop join the text side"). With one float it would
+      // leave nothing to wrap around, so that drop still re-morphs.
+      if (draggedIsMember) {
+        const kids = holder ? Array.from(holder.children) : [];
+        const floatCount = floatCountOf(topNode.attrs, topNode.childCount);
+        let memberIndex = -1;
+        topNode.forEach((c, _o, i) => { if (c.attrs?.occurrenceId === draggedOccId) memberIndex = i; });
+        const overFloatCol = kids.slice(0, floatCount).some((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && input.clientX >= r.left && input.clientX <= r.right;
+        });
+        if (memberIndex >= 0 && memberIndex < floatCount && floatCount >= 2 && !overFloatCol) {
+          const textSide = textSideDrop({ topPos, topNode, kids, floatCount, input, draggedOccId });
+          if (textSide) return { ...textSide, member: true, memberIndex };
+        }
+      }
       if (!draggedIsMember) {
         const kids = holder ? Array.from(holder.children) : [];
         const floatCount = floatCountOf(topNode.attrs, topNode.childCount);
@@ -2472,6 +2490,24 @@ const Editor = forwardRef(function Editor({
         DLOG("grouped-member?", grouped ? { groupPos: grouped.groupPos, hostOccId: grouped.hostOccId, isNeighbor: isNeighborMember(grouped) } : null);
         if (grouped) {
           const isNeighbor = isNeighborMember(grouped);
+          if (sideHost?.textSide && sideHost.member && sideHost.hostPos === grouped.groupPos) {
+            DLOG("grouped → float moves to its own group's text side");
+            editor.chain().focus().command(({ tr }) => {
+              const g = tr.doc.nodeAt(grouped.groupPos);
+              if (!g || g.type.name !== "wrapGroup") return false;
+              const fc = floatCountOf(g.attrs, g.childCount);
+              const kids = [];
+              g.forEach((c) => kids.push(c));
+              const [moved] = kids.splice(sideHost.memberIndex, 1);
+              // insertAt counted the moved float among the floats before it.
+              const at = Math.max(fc - 1, Math.min(sideHost.insertAt - 1, kids.length - 1));
+              kids.splice(at, 0, moved);
+              tr.replaceWith(grouped.groupPos, grouped.groupPos + g.nodeSize,
+                g.type.create({ ...g.attrs, floatCount: fc - 1 }, kids));
+              return true;
+            }).run();
+            return;
+          }
           if (isNeighbor && sideHost && sideHost.hostOccId === grouped.hostOccId) {
             DLOG("grouped → re-morph notch in place (anchorIndex/side)");
             // Re-morph in place — just move the notch to the dropped line / side.

@@ -45,3 +45,17 @@ describe("Editor drop branch", () => {
     expect(src).toMatch(/draggedMode !== "copy" && \(isLead \|\| isNeighbor\)\)[\s\S]{0,200}extractGroupMember/);
   });
 });
+
+describe("a group's own float dropped on its text side", () => {
+  const src = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+  it("detectSideHost offers the text side to a member float when the group has 2+ floats", () => {
+    expect(src).toMatch(/memberIndex < floatCount && floatCount >= 2 && !overFloatCol[\s\S]{0,200}member: true, memberIndex/);
+  });
+  it("the drop moves it into the text side with one fewer float, before the re-morph branch", () => {
+    const join = src.indexOf("float moves to its own group's text side");
+    const remorph = src.indexOf("grouped → re-morph notch in place");
+    expect(join).toBeGreaterThan(0);
+    expect(join).toBeLessThan(remorph);
+    expect(src).toMatch(/floatCount: fc - 1/);
+  });
+});
