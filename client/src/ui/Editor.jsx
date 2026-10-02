@@ -2086,7 +2086,14 @@ const Editor = forwardRef(function Editor({
       return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !groupTextmapped };
     }
 
-    if (topNode.type.name !== "moduleEmbed") return bail("top not moduleEmbed/wrapGroup", { type: topNode.type.name });
+    // A typed-in textblock (`instanceTextblock`, what clicking an empty line
+    // mints) is a host too — before 2026-10-02 a picture could not be wrapped
+    // around ANY block typed in a doc. The wrap stores it as a moduleEmbed of the
+    // same occurrence (wrapGroup holds moduleEmbeds), see `asWrapMember`.
+    // A provisional block (never typed into) has no row yet, so it cannot be one.
+    if (topNode.type.name === "instanceTextblock" && isProvisionalTextblock(topNode.attrs?.occurrenceId))
+      return bail("provisional textblock host");
+    if (topNode.type.name !== "moduleEmbed" && topNode.type.name !== "instanceTextblock") return bail("top not moduleEmbed/wrapGroup", { type: topNode.type.name });
     const hostOccId = topNode.attrs?.occurrenceId || null;
     // NON-textmapped hosts (board/list/table/artifact/instance) can't morph —
     // but they CAN hold a side-by-side COLUMN (wrapGroup wrap:false, restored
@@ -2327,6 +2334,11 @@ const Editor = forwardRef(function Editor({
           tr.setNodeMarkup(groupPos, undefined, { ...g.attrs, floatCount: fc });
           return true;
         };
+        // A wrapGroup holds moduleEmbeds; a typed-in textblock joins one as an
+        // embed of the SAME occurrence (how every wrap host has been stored).
+        const asWrapMember = (node) => node.type.name === "instanceTextblock"
+          ? editor.schema.nodes.moduleEmbed.create({ occurrenceId: node.attrs.occurrenceId })
+          : node;
         const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
           const WLOG = (...a) => { if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[wrapHost]", ...a); };
           if (!editor || !sideHost || !neighborOccId) return WLOG("bail: missing editor/sideHost/neighbor") ?? false;
@@ -2363,12 +2375,12 @@ const Editor = forwardRef(function Editor({
             WLOG("group-add neighbor ran →", ran, { groupPos: sideHost.hostPos });
             return ran;
           }
-          if (host.type.name !== "moduleEmbed") return WLOG("bail: host at pos not moduleEmbed", { hostPos: sideHost.hostPos, type: host?.type?.name }) ?? false;
+          if (host.type.name !== "moduleEmbed" && host.type.name !== "instanceTextblock") return WLOG("bail: host at pos not moduleEmbed", { hostPos: sideHost.hostPos, type: host?.type?.name }) ?? false;
           if (host.attrs?.occurrenceId === neighborOccId) return WLOG("bail: self-wrap") ?? false;
           const neighbor = embedType.create({ occurrenceId: neighborOccId });
           // Neighbor FIRST so it floats and the host's prose wraps around it (L).
           // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
-          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, host]);
+          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, asWrapMember(host)]);
           const from = sideHost.hostPos;
           const to = sideHost.hostPos + host.nodeSize;
           const ran = editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
@@ -2411,14 +2423,14 @@ const Editor = forwardRef(function Editor({
           }
           return editor.chain().focus().command(({ tr }) => {
             tr.delete(src.pos, src.pos + src.size);
-            const host = findTopEmbedPos(tr.doc, sideHost.hostOccId, ["moduleEmbed"]);
+            const host = findTopEmbedPos(tr.doc, sideHost.hostOccId, ["moduleEmbed", "instanceTextblock"]);
             if (host) {
               const hostNode = tr.doc.nodeAt(host.pos);
-              if (!hostNode || hostNode.type.name !== "moduleEmbed") return false;
+              if (!hostNode || (hostNode.type.name !== "moduleEmbed" && hostNode.type.name !== "instanceTextblock")) return false;
               const neighbor = embedType.create({ occurrenceId });
               // Neighbor FIRST so it floats and the host's prose wraps around it (L).
               // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
-              const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, hostNode]);
+              const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, asWrapMember(hostNode)]);
               tr.replaceWith(host.pos, host.pos + hostNode.nodeSize, group);
               return true;
             }

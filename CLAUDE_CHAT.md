@@ -3777,3 +3777,6 @@ Done: 0383 sets meta.textIndent=false on the Lookup container; ModuleContainer a
 
 ### 2026-10-02 08:54 — Tab indents a paragraph
 User: *"make it so i can tab though but its not required. i tried to tab a paragrah naturally and it didnt do anything"*.
+
+### 2026-10-02 09:10 — back to UI testing
+User: *"lets switch back to the ui testing (focusing on docs, wraps, occurances in docs, drag and drop, typing, etc.)"*.
