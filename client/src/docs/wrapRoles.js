@@ -101,3 +101,46 @@ export function textSideGap({ point, floatRects, textRects, groupRect }) {
   const { x, y } = point;
   return x >= band.left && x <= band.right && y >= band.top && y <= band.bottom ? band : null;
 }
+
+/**
+ * EVERYTHING AN EMBED'S WRAP MENU IS BUILT FROM, as one comparable string
+ * (2026-10-02). The radial items are memoized, and they read the document —
+ * which group this embed is in, where that group starts, its members, its
+ * wrap/floatCount attrs, the block after it — plus whether the host and that
+ * next block hold text. None of that is a React dependency, so the menu kept
+ * whatever was true when the embed first rendered: in Firefox a host mounted
+ * before its own occurrence had arrived never offered "Wrap text around /
+ * Side by side", only Unwrap. The memo is keyed on this instead.
+ *
+ *   doc     the editor's document
+ *   pos     this embed's position (getPos())
+ *   isText  (occurrenceId) => does that occurrence's module hold text
+ *
+ * "" when the position cannot be resolved. An embed outside any group depends
+ * only on the embed before it, so its key deliberately leaves the position
+ * out — a block added far above must not re-render every embed below it.
+ */
+export function wrapMenuKey(doc, pos, isText = () => false) {
+  if (!doc || typeof pos !== "number") return "";
+  let $pos;
+  try { $pos = doc.resolve(pos); } catch (_) { return ""; }
+  const parent = $pos.parent;
+  if (parent?.type?.name !== "wrapGroup") {
+    const prev = $pos.nodeBefore;
+    return `plain|${prev?.type?.name === "moduleEmbed" ? prev.attrs?.occurrenceId || "" : ""}`;
+  }
+  const groupPos = $pos.before($pos.depth);
+  const ids = [];
+  parent.forEach((c) => ids.push(c.attrs?.occurrenceId || ""));
+  let after = null;
+  try { after = doc.resolve(groupPos + parent.nodeSize).nodeAfter; } catch (_) { after = null; }
+  const afterId = after?.attrs?.occurrenceId || "";
+  const hostId = ids[ids.length - 1] || "";
+  return [
+    "group", groupPos, $pos.index(), ids.join(","),
+    parent.attrs?.wrap !== false ? "wrap" : "cols",
+    parent.attrs?.floatCount ?? "",
+    isText(hostId) ? "hostText" : "hostOther",
+    after?.type?.name || "", afterId, afterId && isText(afterId) ? "nextText" : "",
+  ].join("|");
+}

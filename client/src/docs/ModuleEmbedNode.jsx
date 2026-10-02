@@ -17,7 +17,7 @@ import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../helper
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember, extractGroupMember } from "../helpers/wrapGroupOps.js";
-import { floatCountOf, wrapRoleAt } from "./wrapRoles.js";
+import { floatCountOf, wrapRoleAt, wrapMenuKey } from "./wrapRoles.js";
 import { isTextmappedModule } from "./wrapAnchor.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
@@ -142,6 +142,37 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     window.addEventListener("mouseup", onUp);
   }, [width, updateAttributes]);
 
+  // What the wrap items below are built from (docs/wrapRoles.wrapMenuKey). They
+  // read the DOCUMENT and other occurrences' modules, none of which is a React
+  // dependency of the memo — so it is re-read after every doc change and when
+  // modules arrive, and the memo is keyed on the result. A string, so a change
+  // that does not touch this embed's menu re-renders nothing.
+  const modulesByIdRef = useRef(modulesById);
+  modulesByIdRef.current = modulesById;
+  const modRef = useRef(mod);
+  modRef.current = mod;
+  // This embed's own module comes from its subscription, not the bridge: the
+  // bridge can still be a render behind when the occurrence first arrives.
+  const moduleOfOcc = useCallback((id) => {
+    if (id && id === occurrenceId) return modRef.current;
+    const occ = id ? operationsBridge.getLocalOcc?.(id) : null;
+    return occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
+  }, [occurrenceId]);
+  const readWrapKey = useCallback(() => {
+    if (!editor || editor.isDestroyed || typeof getPos !== "function") return "";
+    let pos = null;
+    try { pos = getPos(); } catch (_) { return ""; }
+    return wrapMenuKey(editor.state.doc, pos, (id) => isTextmappedModule(moduleOfOcc(id)));
+  }, [editor, getPos, moduleOfOcc]);
+  const [wrapKey, setWrapKey] = useState(readWrapKey);
+  useEffect(() => { setWrapKey(readWrapKey()); }, [readWrapKey, modulesById, mod]);
+  useEffect(() => {
+    if (!editor) return undefined;
+    const onTr = ({ transaction }) => { if (transaction?.docChanged) setWrapKey(readWrapKey()); };
+    editor.on("transaction", onTr);
+    return () => { editor.off("transaction", onTr); };
+  }, [editor, readWrapKey]);
+
   // Injected into the module's own RadialMenu so there's only one menu.
   const embedRadialItems = useMemo(() => {
     const AlignIcon = ALIGN_ICONS[align] || AlignJustify;
@@ -215,8 +246,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       // subscribing to the whole occurrencesById map would re-render every embed
       // on every occurrence write (the per-slice selector design).
       const hostOccId = wrapGroupNode.lastChild?.attrs?.occurrenceId || null;
-      const hostOcc = hostOccId ? operationsBridge.getLocalOcc?.(hostOccId) : null;
-      const hostMod = hostOcc?.moduleId ? modulesById?.[hostOcc.moduleId] : null;
+      const hostMod = moduleOfOcc(hostOccId);
       // Wrap around vs side by side is a CHOICE between two layouts, so it is
       // offered as both, the current one marked — not a toggle that names the
       // state it is about to leave.
@@ -246,9 +276,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       // or imported is a `moduleEmbed` — both name the occurrence, and a wrap can
       // hold only the latter, so the former is converted as it is pulled in.
       const NEXT_BLOCK = new Set(["moduleEmbed", "instanceTextblock"]);
-      const afterOcc = NEXT_BLOCK.has(after?.type?.name)
-        ? operationsBridge.getLocalOcc?.(after.attrs?.occurrenceId) : null;
-      const afterMod = afterOcc?.moduleId ? modulesById?.[afterOcc.moduleId] : null;
+      const afterMod = NEXT_BLOCK.has(after?.type?.name) ? moduleOfOcc(after.attrs?.occurrenceId) : null;
       if (wrapOn && myRole === "host" && isTextmappedModule(hostMod) && isTextmappedModule(afterMod)) {
         items.push({
           label: "Continue wrap into next block",
@@ -310,7 +338,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     });
 
     return items;
-  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket]);
+  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket, wrapKey, moduleOfOcc]);
 
   if (!mod) {
     return (
