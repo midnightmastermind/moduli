@@ -15,6 +15,36 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (2) — DRAG AND DROP IN DOCS, TESTED BY DRAGGING: seven defects, all fixed
+
+User: *"lets switch back to the ui testing … drag and drop in docs"*, and on wraps: *"the last occurance on one
+side must be a text block … so i should in theory have an image and textblock on one side, and 2 images on the
+other side"*. Every item below was found by dragging on the rebuild grid's `Wrap Lab` page, and each fix was
+re-watched after deploying.
+```
+a typed textblock could not host a wrap   detectSideHost rejected `instanceTextblock`; it is stored in the
+                                          group as a moduleEmbed of the same occurrence (asWrapMember)
+only a textblock could join the text side any block may be a LEAD; only the block that ends up LAST (the
+                                          host) must be a textblock (textSideDrop)
+a picture dragged out of a wrap landed    the target was re-measured after the unwrap, before React had
+  nowhere / at the top                    rendered it; now re-found BY OCCURRENCE (refind)
+edits made in full screen never saved     FullscreenOverlay's ModulePanel had no dispatch/socket (Grid.jsx)
+two floats wrap/stack-flipped 240x in 4s  floats sat side by side; `clear` stacks them in one column
+one float dragged out unwrapped the group extractGroupMember for floats too; only the HOST leaving unwraps
+a picture lead stacked the group          the blank-band guard counted only TEXT beside the float; a lead
+                                          with no text now counts its own box (WrapGroupNode measure)
+```
+`window.__wrapDiag = true` logs each wrap/stack flip's inputs (`band: 0` is what named the last one).
+**Watched:** float, lead (picture), lead (textblock), host wraps at 1300/1600/1920 with 0 flips and survives a
+reload; float, float, lead, host also wraps. **Not changed, on purpose:** a picture already IN a group, dropped
+on that group's own text side, re-morphs the notch (side/anchor) rather than becoming a lead. Drag it out
+first, or drop one from elsewhere.
+**Probe faults:** a drop point near a panel's top or bottom edge auto-scrolls or lands in the NEXT panel
+(one picture landed in Routines › Physical); centre the target first. A picture in COPY mode makes a copy
+on every drag; two stray copies were removed with their embeds (`delete_occurrence`).
+
+---
+
 ### 2026-10-01 (5) — THE GAP UNDER A SHORT TEXT SIDE TAKES A CLICK
 
 User: *"click under a wrapped textblock (a shorter one that doesnt end up wrapping) and add more textblocks.
