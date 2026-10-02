@@ -11,7 +11,7 @@
 //
 // Spec: docs/superpowers/specs/2026-09-04-mosaic-snap-design.md
 // ============================================================
-import { computeLayout, findLeaf, isLeaf, makeLeaf, makeSplit, removeLeaf } from "./bspTree";
+import { allPanelOccIds, computeLayout, findLeaf, isLeaf, makeLeaf, makeSplit, removeLeaf } from "./bspTree";
 
 /**
  * Where does this panel sit, in half/quadrant terms?
@@ -301,4 +301,80 @@ export const SNAP_LAYOUTS = [
  */
 export function opensSnapLayouts(zone) {
   return !!zone && zone.direction === "up" && !zone.quadrant;
+}
+
+// ============================================================
+// A LAYOUT PICK APPLIES THE WHOLE LAYOUT (user 2026-10-02: "dynamically
+// add/remove panels based on the layout change. so if we have 3 open panels,
+// and we drag to a 4 grid layout, it adds an extra panel").
+//
+// The dragged panel takes the zone it was dropped on; the other panels fill
+// the remaining zones in READING ORDER (top to bottom, left to right — of the
+// panes as they are now, and of the zones in the picture). Zones left over are
+// NEW panels; panels left over are REMOVED from the grid (their pages stay in
+// the files — that is what "Remove from grid" already means).
+// ============================================================
+const EPS = 1e-6;
+const readingOrder = (a, b) => (Math.abs(a.y - b.y) > EPS ? a.y - b.y : a.x - b.x);
+
+/**
+ * Build a split tree from zones that tile the unit square. Guillotine: cut
+ * wherever a full-height (else full-width) line crosses no zone.
+ */
+export function treeFromZones(zones, leafIds) {
+  const items = zones.map((z, i) => ({ ...z, leaf: makeLeaf(leafIds[i]) }));
+  function build(list, box) {
+    if (list.length === 1) return list[0].leaf;
+    for (const [axis, len, dir] of [["x", "w", "v"], ["y", "h", "h"]]) {
+      const cuts = [...new Set(list.map((z) => +(z[axis] + z[len]).toFixed(6)))]
+        .filter((c) => c < box[axis] + box[len] - EPS)
+        .filter((c) => list.every((z) => z[axis] + z[len] <= c + EPS || z[axis] >= c - EPS))
+        .sort((a, b) => a - b);
+      if (!cuts.length) continue;
+      const edges = [box[axis], ...cuts, box[axis] + box[len]];
+      const kids = [], ratio = [];
+      for (let i = 0; i < edges.length - 1; i++) {
+        const lo = edges[i], hi = edges[i + 1];
+        const part = list.filter((z) => z[axis] >= lo - EPS && z[axis] + z[len] <= hi + EPS);
+        kids.push(build(part, { ...box, [axis]: lo, [len]: hi - lo }));
+        ratio.push(hi - lo);
+      }
+      return makeSplit(dir, kids, ratio);
+    }
+    return null;   // not a guillotine tiling — no layout here produces one
+  }
+  return build(items, { x: 0, y: 0, w: 1, h: 1 });
+}
+
+export const NEW_PANEL = (i) => `__new_panel_${i}`;
+
+/**
+ * Plan a layout pick. Returns { tree, addCount, removeIds } where `tree` names
+ * any panel still to be made as NEW_PANEL(i), or null when it changes nothing.
+ */
+export function planSnapLayout(tree, draggedOccId, layout, zoneIndex) {
+  if (!tree || !layout?.zones?.[zoneIndex] || !findLeaf(tree, draggedOccId)) return null;
+  const others = allPanelOccIds(tree)
+    .filter((id) => id !== draggedOccId)
+    .map((id) => ({ id, ...paneFraction(tree, id) }))
+    .sort(readingOrder);
+  const freeZones = layout.zones.map((z, i) => ({ ...z, i })).filter((z) => z.i !== zoneIndex).sort(readingOrder);
+  const ids = new Array(layout.zones.length);
+  ids[zoneIndex] = draggedOccId;
+  let added = 0;
+  freeZones.forEach((z, k) => { ids[z.i] = others[k]?.id ?? NEW_PANEL(added++); });
+  const removeIds = others.slice(freeZones.length).map((o) => o.id);
+  const next = treeFromZones(layout.zones, ids);
+  if (!next) return null;
+  if (!added && !removeIds.length && layoutKey(next) === layoutKey(tree)) return null;
+  return { tree: next, addCount: added, removeIds };
+}
+
+/** Swap the NEW_PANEL placeholders for real panel occurrence ids. */
+export function fillNewPanels(tree, newIds) {
+  if (isLeaf(tree)) {
+    const m = /^__new_panel_(\d+)$/.exec(tree.panelOccId || "");
+    return m ? { ...tree, panelOccId: newIds[+m[1]] } : tree;
+  }
+  return { ...tree, children: tree.children.map((c) => fillNewPanels(c, newIds)) };
 }

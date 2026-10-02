@@ -732,6 +732,41 @@ export default function App() {
     }
   }, [dispatch, state.gridId, state.grid, state.panels, state.userId, manifestsById, occurrencesById, modulesById, socket]);
 
+  // Grow / shrink the grid's panel set in ONE pass — the snap layouts bar
+  // (user 2026-10-02: "if we have 3 open panels, and we drag to a 4 grid layout,
+  // it adds an extra panel"). Every grid write carries the WHOLE occurrence
+  // list, so the list is threaded through each step: calling addNewPanel twice
+  // in a tick would have the second write drop the first panel.
+  // Returns the new panel occurrence ids, in order.
+  const resizePanelSet = useCallback(({ addCount = 0, removeIds = [] } = {}) => {
+    if (!state.gridId || !state.grid || !state.userId) return [];
+    let g = state.grid;
+    const added = [];
+    for (let i = 0; i < addCount; i++) {
+      const panel = { id: crypto.randomUUID(), role: "panel", label: `Panel ${(g.occurrences?.length || 0) + 1}`, occurrences: [], layout: {} };
+      const res = LayoutHelpers.createPanelInGrid({
+        dispatch, socket, grid: g, panel,
+        placement: { row: 0, col: 0, width: 1, height: 1 },
+        userId: state.userId, emit: true,
+      });
+      const occId = res?.occurrence?.id;
+      if (!occId) continue;
+      added.push(occId);
+      g = { ...g, occurrences: [...(g.occurrences || []), occId] };
+    }
+    for (const occId of removeIds) {
+      CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occId, grid: g, emit: true });
+      g = { ...g, occurrences: (g.occurrences || []).filter((id) => id !== occId) };
+    }
+    for (const occId of added) {
+      openPanelOnRootFolderPage({
+        panelOccId: occId, grid: g, gridId: state.gridId,
+        manifestsById, occurrencesById, modulesById, dispatch, socket, userId: state.userId,
+      });
+    }
+    return added;
+  }, [dispatch, socket, state.gridId, state.grid, state.userId, manifestsById, occurrencesById, modulesById]);
+
   const addContainerToPanel = useCallback(
     (panelId, kind = "board") => {
       if (!panelId || !state.gridId || !state.userId) return;
@@ -955,6 +990,7 @@ export default function App() {
       // cells are the primary way in, and the panel right-click menu carries
       // this for MOSAIC grids, which have no empty cells at all.
       addNewPanel,
+      resizePanelSet,
       // Field CRUD
       createField,
       updateField,
@@ -998,6 +1034,7 @@ export default function App() {
       addContainerToPanel,
       addInstanceToContainer,
       addNewPanel,
+      resizePanelSet,
       createField,
       updateField,
       deleteField,
