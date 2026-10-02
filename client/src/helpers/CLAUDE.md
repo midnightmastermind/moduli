@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-01 — `mosaicSnap.SNAP_LAYOUTS` + `opensSnapLayouts`)
+- Six Windows-style layout pictures for the mosaic drag-to-top bar. Every zone is an existing
+  `{col,row}` region, so a pick goes through `snapLeafToRegion` (thirds are not offered — they would
+  need new tree math). `opensSnapLayouts(zone)` = top edge, not a corner. Tests `snapLayouts.test.js`.
+
 ## Recent Changes (2026-09-30 — `searchHighlight.js` NEW; and the jump ring stops waiting)
 - **`highlightSegments(text, query)`** — which part of a result matched. The list derived
   `firstTerm = query.split(/\s+/)[0]` and marked that alone, so "A Guide" lit a bare **"A"** on every

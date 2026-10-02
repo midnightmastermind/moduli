@@ -142,6 +142,28 @@ wall** (CPU ~1,280%, so it is CPU-bound now; 29 fixture files are ~90% of what i
 
 ---
 
+### 2026-10-01 (8) — DRAG A PANEL TO THE TOP OF A MOSAIC GRID AND PICK A LAYOUT
+
+User, from a Windows 11 screenshot: snap layouts for the mosaic grid, then *"i dont like that its a
+hover though (unless its drag and drop to the top like the windows one)"*. So the bar exists ONLY
+during a panel drag that reaches the top-middle of the grid — never on hover.
+
+`helpers/mosaicSnap.js` gains `SNAP_LAYOUTS` (halves ×2, big-left/right/top, quadrants) and
+`opensSnapLayouts(zone)`. **Every zone in a picture is an existing region** (`{col,row}` of
+left/right/full × top/bottom/full), so a drop goes through `snapLeafToRegion` — no new tree math, and
+thirds are deliberately not offered (they would need it). `GridMosaic`'s top strip opens the bar
+instead of snapping; corners and the other edges snap directly as before. The bar is a drop target
+that closes when the drag leaves it; each zone is its own target, previews its region, and drops into
+it. Tests `__tests__/snapLayouts.test.js` (4): every picture tiles the grid exactly once, and a drop
+on each of its zones changes the tree (guarded against passing vacuously).
+
+**Watched on prod (test grid 2):** dragging a panel to the top → bar at the top centre with 6 layouts;
+hovering big-left's left zone → preview half width, full height; dropping → the panel is the left leaf.
+The grid's layout was put back afterwards through `update_grid`, read back identical.
+**Not covered:** rows×cols grids (they have no regions), and the Firefox engine was not driven.
+
+---
+
 ### 2026-10-01 (7) — A SHARED CLIP CAN BECOME A TEXTBLOCK'S BODY
 
 User: *"if i clip some text and do create choose, its not letting me put the text anywhere … if its a
