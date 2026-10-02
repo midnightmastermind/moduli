@@ -20,7 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
-import { regionForZone, regionOf, snapLeafToRegion, zoneAt } from "../helpers/mosaicSnap";
+import { opensSnapLayouts, regionForZone, regionOf, snapLeafToRegion, SNAP_LAYOUTS, zoneAt } from "../helpers/mosaicSnap";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
 // desktop band was nearly impossible to hit, so touch presses landed on the
@@ -188,8 +188,21 @@ export default function GridMosaic({
   // a region of the WHOLE grid". Inside the band, drops keep resolving against
   // the pane under the pointer — that is how you say "below Routines
   // specifically", and it is the gesture that builds nested layouts.
+  const handleRegionDrop = useCallback((draggedOccId, region) => {
+    if (!draggedOccId || !region) return;
+    const cur = treeRef.current;
+    if (!cur) return;
+    const next = snapLeafToRegion(cur, draggedOccId, region);
+    if (!next) return;
+    setTree(next);
+    persist(next);
+  }, [persist]);
+
   const handlePerimeterDrop = useCallback((draggedOccId, zone) => {
     if (!draggedOccId || !zone) return;
+    // The top edge's middle OPENS the layout bar rather than snapping — a drop
+    // there without choosing a zone in the bar does nothing (as on Windows).
+    if (opensSnapLayouts(zone)) return;
     const cur = treeRef.current;
     if (!cur) return;
     // The zone names a region ABSOLUTELY, so it is SET rather than composed out
@@ -293,6 +306,7 @@ export default function GridMosaic({
           tree={tree}
           dragOccId={dragOccId}
           onSnapDrop={handlePerimeterDrop}
+          onRegionDrop={handleRegionDrop}
         />
       )}
     </div>
@@ -305,8 +319,28 @@ export default function GridMosaic({
 // FOUR STRIPS RATHER THAN ONE FULL-SIZE OVERLAY, because a full-size overlay
 // would be the element under the pointer everywhere and would steal the
 // interior drops that split a pane. The interior has no element at all here.
-function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
+function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onRegionDrop }) {
   const [zone, setZone] = useState(null);
+  // The Windows 11 snap-layouts bar. OPENED by dragging into the top edge's
+  // middle (never by hovering — user 2026-10-01), and it stays open while the
+  // pointer is in it so a zone can be picked; it closes when the pointer leaves
+  // it, and goes with the band when the drag ends.
+  const [layoutsOpen, setLayoutsOpen] = useState(false);
+  const [layoutRegion, setLayoutRegion] = useState(null);
+  const onZone = useCallback((z) => {
+    setZone(z);
+    if (opensSnapLayouts(z)) setLayoutsOpen(true);
+  }, []);
+  // Stable, because the band re-renders on every drag move and the bar's drop
+  // targets are registered against these — a new function each render would
+  // tear them down and re-register them mid-drag.
+  const closeLayouts = useCallback(() => { setLayoutsOpen(false); setLayoutRegion(null); }, []);
+  const onRegionDropRef = useRef(onRegionDrop);
+  onRegionDropRef.current = onRegionDrop;
+  const pickLayoutRegion = useCallback((occId, region) => {
+    setLayoutsOpen(false); setLayoutRegion(null);
+    onRegionDropRef.current?.(occId, region);
+  }, []);
 
   // The region a drop RIGHT NOW would land in — READ BACK OFF THE RESULTING
   // TREE, not off the zone the pointer is in. Those differ whenever a quadrant
@@ -315,11 +349,13 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
   // zone would outline a quadrant the drop cannot produce (measured on the live
   // grid, 2026-09-04). Null when nothing would move at all.
   const preview = useMemo(() => {
-    if (!zone || !tree || !dragOccId) return null;
-    const next = snapLeafToRegion(tree, dragOccId, regionForZone(zone));
+    if (!tree || !dragOccId) return null;
+    const region = layoutRegion || (zone && !opensSnapLayouts(zone) ? regionForZone(zone) : null);
+    if (!region) return null;
+    const next = snapLeafToRegion(tree, dragOccId, region);
     if (!next) return null;
     return regionRect(regionOf(next, dragOccId), size.w, size.h);
-  }, [zone, tree, dragOccId, size.w, size.h]);
+  }, [zone, layoutRegion, tree, dragOccId, size.w, size.h]);
 
   const strips = useMemo(() => ([
     { key: "top", style: { left: 0, top: 0, width: "100%", height: SNAP_BAND } },
@@ -336,11 +372,14 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
           style={s.style}
           rootRef={rootRef}
           size={size}
-          onZone={setZone}
+          onZone={onZone}
           onSnapDrop={onSnapDrop}
         />
       ))}
       {preview && <div className="mosaic-snap-zone" style={{ ...preview, zIndex: 45 }} />}
+      {layoutsOpen && (
+        <SnapLayoutsBar onHoverRegion={setLayoutRegion} onClose={closeLayouts} onPick={pickLayoutRegion} />
+      )}
     </>
   );
 }
@@ -374,6 +413,59 @@ function SnapStrip({ style, rootRef, size, onZone, onSnapDrop }) {
   }, [rootRef, size.w, size.h, onZone, onSnapDrop]);
 
   return <div ref={ref} style={{ position: "absolute", zIndex: 50, ...style }} />;
+}
+
+// The bar itself: one small picture per layout, each zone a drop target. The
+// BAR is a drop target too, so its own drag-leave is what closes it — a zone
+// inside it keeps the bar in the drop-target stack, so moving between zones
+// does not.
+function SnapLayoutsBar({ onHoverRegion, onClose, onPick }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source?.data?.type === DragType.PANEL,
+      onDragLeave: () => onClose(),
+    });
+  }, [onClose]);
+  return (
+    <div ref={ref} className="mosaic-snap-layouts" data-testid="snap-layouts">
+      {SNAP_LAYOUTS.map((l) => (
+        <div key={l.id} className="mosaic-snap-layout" data-layout={l.id}>
+          {l.zones.map((z, i) => (
+            <SnapLayoutZone key={i} zone={z} onHoverRegion={onHoverRegion} onPick={onPick} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SnapLayoutZone({ zone, onHoverRegion, onPick }) {
+  const ref = useRef(null);
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source?.data?.type === DragType.PANEL && !!source?.data?.data?._occurrenceId,
+      onDragEnter: () => { setOver(true); onHoverRegion(zone.region); },
+      onDragLeave: () => { setOver(false); onHoverRegion(null); },
+      onDrop: ({ source }) => { setOver(false); onPick(source?.data?.data?._occurrenceId, zone.region); },
+    });
+  }, [zone, onHoverRegion, onPick]);
+  const pct = (v) => `${v * 100}%`;
+  return (
+    <div
+      ref={ref}
+      className={`mosaic-snap-layout-zone${over ? " is-over" : ""}`}
+      data-region={`${zone.region.col}-${zone.region.row}`}
+      style={{ left: pct(zone.x), top: pct(zone.y), width: pct(zone.w), height: pct(zone.h) }}
+    />
+  );
 }
 
 // Where the preview rectangle goes for a REGION (the output of `regionOf`).

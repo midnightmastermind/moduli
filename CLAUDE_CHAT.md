@@ -3757,3 +3757,7 @@ hit its limit while naming the Coffee operation).
 - Restore the accidentally deleted tasks; add a Done section at the bottom of Tasks (drag there instead of
   deleting — deleting removes the Completed copy too).
 - Next UI testing: focus on docs and wraps.
+
+## 2026-10-01 20:08 CDT
+- Snap layouts (Windows 11 style) for mosaic grid reordering: NOT on hover — only as drag-and-drop to the
+  top of the grid, like Windows (drag a panel to the top → a layout bar appears → drop into a zone).

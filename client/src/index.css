@@ -8675,6 +8675,42 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   transition: opacity 90ms ease-out;
 }
 
+/* The snap-layouts bar (Windows 11 style): drops down from the top of a mosaic
+   grid when a panel is DRAGGED into the top edge's middle. Each card is a
+   picture of a layout; each cell in it is a drop zone. */
+.mosaic-snap-layouts {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 8px 24px var(--menu-shadow-color, rgba(0, 0, 0, 0.45));
+  animation: mosaic-snap-layouts-in 120ms ease-out;
+}
+@keyframes mosaic-snap-layouts-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.mosaic-snap-layout {
+  position: relative;
+  width: 72px;
+  height: 46px;
+}
+.mosaic-snap-layout-zone {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid hsl(var(--popover));
+  border-radius: 4px;
+  background: hsl(var(--border));
+  transition: background 80ms ease-out;
+}
+.mosaic-snap-layout-zone.is-over {
+  background: var(--accent-blue, #38bdf8);
+}
+
 /* A pill with its open-link segment: square the pill's right end and drop its
    right border so the two read as ONE pill (ui/Field.jsx FieldLinkOut tint). */
 .field-pill-joined > button.field-input {

@@ -207,3 +207,41 @@ export function regionForZone(zone) {
   const row = direction === "up" ? "top" : "bottom";
   return { col: quadrant === "left" || quadrant === "right" ? quadrant : "full", row };
 }
+
+// ============================================================
+// SNAP LAYOUTS — the Windows 11 bar that drops down when a panel is dragged to
+// the TOP of the grid (user 2026-10-01: "drag and drop to the top like the
+// windows one", explicitly NOT a hover). Each layout is a picture of zones;
+// dropping on a zone SETS that region (`snapLeafToRegion`), so a layout is only
+// a way of showing the regions — it adds no tree math and cannot build a shape
+// the arrows and edges cannot.
+//
+// Zones are fractions of the grid (x, y, w, h in 0..1), and each one names the
+// region it IS. A test holds the two together, so a picture cannot promise a
+// region other than the one the drop produces.
+// ============================================================
+const Z = (col, row) => ({
+  region: { col, row },
+  x: col === "right" ? 0.5 : 0,
+  y: row === "bottom" ? 0.5 : 0,
+  w: col === "full" ? 1 : 0.5,
+  h: row === "full" ? 1 : 0.5,
+});
+
+export const SNAP_LAYOUTS = [
+  { id: "halves-v",   zones: [Z("left", "full"), Z("right", "full")] },
+  { id: "halves-h",   zones: [Z("full", "top"), Z("full", "bottom")] },
+  { id: "big-left",   zones: [Z("left", "full"), Z("right", "top"), Z("right", "bottom")] },
+  { id: "big-right",  zones: [Z("left", "top"), Z("left", "bottom"), Z("right", "full")] },
+  { id: "big-top",    zones: [Z("full", "top"), Z("left", "bottom"), Z("right", "bottom")] },
+  { id: "quadrants",  zones: [Z("left", "top"), Z("right", "top"), Z("left", "bottom"), Z("right", "bottom")] },
+];
+
+/**
+ * Does a perimeter zone open the layout bar? The TOP side's middle third —
+ * where Windows puts it. The top corners keep snapping straight to a quadrant,
+ * and the other sides keep their halves.
+ */
+export function opensSnapLayouts(zone) {
+  return !!zone && zone.direction === "up" && !zone.quadrant;
+}
