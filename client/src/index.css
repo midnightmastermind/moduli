@@ -4444,8 +4444,14 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    with the full-width bottom bar below it (an outer margin left the bottom
    bar poking 6px past the neighbor's border — "overextending past the
    borders"). */
-.wrap-group--on.wrap-group--right > .wrap-group-content > * > [data-wrap-role="float"] { float: right; margin-left: 18px; margin-right: 0; }
-.wrap-group--on.wrap-group--left > .wrap-group-content > * > [data-wrap-role="float"] { float: left;  margin-right: 18px; margin-left: 0; }
+/* `clear` on the same side makes every extra float drop BELOW the one before it,
+   so several pictures stack in ONE column. Without it two floats sat side by
+   side, left ~100px for the text, the group stacked, the stacked pass predicted
+   a single-width column and wrapped again — 240 wrap/stack flips in 4s
+   (2026-10-02, two pictures + a lead). Inside the group's own BFC, so it never
+   clears anything outside the group. */
+.wrap-group--on.wrap-group--right > .wrap-group-content > * > [data-wrap-role="float"] { float: right; clear: right; margin-left: 18px; margin-right: 0; }
+.wrap-group--on.wrap-group--left > .wrap-group-content > * > [data-wrap-role="float"] { float: left; clear: left; margin-right: 18px; margin-left: 0; }
 /* Host: a plain full-width block whose prose line-boxes wrap around the float. */
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="host"] {
   display: block !important;
