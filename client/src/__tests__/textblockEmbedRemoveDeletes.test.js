@@ -15,3 +15,15 @@ describe("textblock embed removal", () => {
     expect(embedRemoval({ parentId: "board" }, "doc1")).toBe("unlink");
   });
 });
+
+import { hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
+describe("hostOccurrenceIdOf", () => {
+  it("reads the editor's own stamp first (a doc page has no card around it)", () => {
+    const dom = { getAttribute: (k) => (k === "data-host-occ" ? "page1" : null), parentElement: null };
+    expect(hostOccurrenceIdOf({ view: { dom } })).toBe("page1");
+  });
+  it("falls back to the nearest card", () => {
+    const dom = { getAttribute: () => null, parentElement: { closest: () => ({ getAttribute: () => "card1" }) } };
+    expect(hostOccurrenceIdOf({ view: { dom } })).toBe("card1");
+  });
+});

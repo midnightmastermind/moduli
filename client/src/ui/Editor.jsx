@@ -1385,6 +1385,17 @@ const Editor = forwardRef(function Editor({
     return () => mintMark("editor:destroy", tag);
   }, [editor, occurrence?.id]);
 
+  // The occurrence whose textmap this editor renders, on its own root. A doc
+  // PAGE has no `[data-occ-id]` ancestor (no container shell), so the embed
+  // "is this row mine?" lookup found nothing there and every Delete on a doc
+  // page only unlinked (embedRegistry.hostOccurrenceIdOf, 2026-10-02).
+  useEffect(() => {
+    const dom = editor?.view?.dom;
+    if (!dom) return;
+    if (occurrence?.id) dom.setAttribute("data-host-occ", occurrence.id);
+    else dom.removeAttribute("data-host-occ");
+  }, [editor, occurrence?.id]);
+
   // Sync editable prop → TipTap after initialization (useEditor doesn't auto-sync)
   useEffect(() => {
     if (editor && editor.isEditable !== editable) {

@@ -44,6 +44,10 @@ export function embedRemoval(occurrence, hostOccurrenceId) {
 /** The occurrence whose textmap an editor renders: the nearest `[data-occ-id]` above its root. */
 export function hostOccurrenceIdOf(editor) {
   const root = editor?.view?.dom;
+  // The editor stamps its own occurrence (ui/Editor); a doc page has no card
+  // around it to read one from.
+  const own = root?.getAttribute?.("data-host-occ");
+  if (own) return own;
   const host = root?.parentElement?.closest?.("[data-occ-id]");
   return host?.getAttribute?.("data-occ-id") || null;
 }
