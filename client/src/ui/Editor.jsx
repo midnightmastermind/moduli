@@ -2491,20 +2491,36 @@ const Editor = forwardRef(function Editor({
           }
           const draggedMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
           const isLead = !isNeighbor && grouped.memberIndex < grouped.groupNode.childCount - 1;
+          // The drop target is decided BEFORE the group changes, and re-found
+          // afterwards BY OCCURRENCE — never re-measured. The unwrap/extract
+          // dispatch updates the document at once but the React node views
+          // render later, so a re-measure reads stale boxes: posAtCoords fell to
+          // the top of the doc, the move became a no-op, and a picture dragged
+          // out of one wrap could not land beside another block (2026-10-02).
+          const preSide = sideHost;
+          const preAnchor = (() => {
+            const { node, offset } = editor.state.doc.childAfter(insertPos);
+            if (!node || offset !== insertPos) return { end: true };
+            return { occ: node.attrs?.occurrenceId || null, pos: insertPos };
+          })();
+          const refind = () => {
+            if (preAnchor.end) return editor.state.doc.content.size;
+            if (!preAnchor.occ) return preAnchor.pos;          // the group itself: its start is unchanged
+            const hit = findTopEmbedPos(editor.state.doc, preAnchor.occ);
+            return hit ? hit.pos : null;
+          };
+          const keepSide = preSide && preSide.hostOccId !== grouped.hostOccId ? preSide : null;
           if (draggedMode !== "copy" && isLead) {
             DLOG("grouped → lead dragged out: lift just it out, the group keeps its wrap");
             extractGroupMember(editor, grouped.groupPos, draggedOccId);
-            insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
-            sideHost = isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null;
+            insertPos = refind() ?? resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
+            sideHost = keepSide || (isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null);
           } else if (draggedMode !== "copy") {
-            DLOG("grouped → unwrap group then recompute (dragged off its host)");
-            // Dropped away from its host (or dragging the host itself) → un-wrap,
-            // then recompute the drop target on the now-flattened doc.
+            DLOG("grouped → unwrap group then re-find the target (dragged off its host)");
             unwrapGroupAt(editor, grouped.groupPos);
-            insertPos = resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
-            sideHost = isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null;
+            insertPos = refind() ?? resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
             // Don't immediately re-wrap onto the SAME host it was just dragged off.
-            if (sideHost && sideHost.hostOccId === grouped.hostOccId) sideHost = null;
+            sideHost = keepSide;
           }
         }
 
