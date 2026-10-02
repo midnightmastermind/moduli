@@ -111,6 +111,7 @@ import {
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { stampUserInput, userInputRecently, consumeUserInput } from "../helpers/userInputWindow";
+import { looseTextBlocks, lineHasInlineNodes } from "../helpers/strictBlockSweep";
 
 import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
 // The caret-entry mint must only fire for a caret the USER placed. Every other
@@ -920,7 +921,10 @@ const Editor = forwardRef(function Editor({
               try {
                 const currentNode = editor.state.doc.nodeAt(capturedStart);
                 if (currentNode && currentNode.type.name === "paragraph" && currentNode.textContent.length > 0) {
-                  onAutoCreateTextblock(capturedStart, currentNode.textContent, currentNode.nodeSize);
+                  // A line that also holds a pill moves WHOLE: its text alone
+                  // replaced the line and dropped the pill from the doc.
+                  if (lineHasInlineNodes(currentNode)) onAutoCreateTextblock(capturedStart, null, currentNode.nodeSize, currentNode.toJSON());
+                  else onAutoCreateTextblock(capturedStart, currentNode.textContent, currentNode.nodeSize);
                 }
               } catch (_) {}
             }, 0);
@@ -1000,13 +1004,10 @@ const Editor = forwardRef(function Editor({
         if (!handled && !autoCreateTimerRef.current && occurrence?.userId && occurrence?.gridId && occurrence?.id) {
           const schema = editor.state.schema;
           if (schema.nodes.instanceTextblock) {
-            const conversions = [];
-            editor.state.doc.forEach((node, offset) => {
-              if (node.type.name === "instanceTextblock") return;
-              // Skip truly empty paragraphs (cursor placeholder TipTap maintains).
-              if (node.type.name === "paragraph" && node.textContent.length === 0 && node.childCount <= 1) return;
-              conversions.push({ offset, nodeSize: node.nodeSize, nodeJson: node.toJSON() });
-            });
+            // Only loose TEXT blocks — never an embed, a wrap group or a table
+            // (helpers/strictBlockSweep.js: the old "everything that is not a
+            // textblock" rule wrapped those too and tore a page apart).
+            const conversions = looseTextBlocks(editor.state.doc);
             if (conversions.length > 0) {
               const tr = editor.state.tr;
               tr.setMeta("skipAutoCreate", true);
