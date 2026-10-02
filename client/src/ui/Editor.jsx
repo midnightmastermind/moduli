@@ -111,7 +111,7 @@ import {
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { stampUserInput, userInputRecently, consumeUserInput } from "../helpers/userInputWindow";
-import { looseTextBlocks, lineHasInlineNodes } from "../helpers/strictBlockSweep";
+import { looseTextBlocks, lineHasInlineNodes, typingWouldReplaceBlock } from "../helpers/strictBlockSweep";
 
 import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
 // The caret-entry mint must only fire for a caret the USER placed. Every other
@@ -1345,7 +1345,10 @@ const Editor = forwardRef(function Editor({
         }
         return false;
       },
-      handleTextInput: (_view, _from, _to, text) => {
+      handleTextInput: (view, _from, _to, text) => {
+        // A block is selected, not a caret placed: swallow the character rather
+        // than let it replace the block (helpers/strictBlockSweep.js).
+        if (typingWouldReplaceBlock(view.state.selection)) return true;
         if (showSuggestion) setSuggestionQuery(p => p + text);
         if (showCommandPalette) setCommandQuery(p => p + text);
         if (showDocLink) setDocLinkQuery(p => p + text);

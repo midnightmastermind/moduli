@@ -6,7 +6,8 @@ import { describe, it, expect } from "vitest";
 import { Schema } from "prosemirror-model";
 import fs from "fs";
 import path from "path";
-import { looseTextBlocks, lineHasInlineNodes } from "../helpers/strictBlockSweep";
+import { looseTextBlocks, lineHasInlineNodes, typingWouldReplaceBlock } from "../helpers/strictBlockSweep";
+import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
 
 const schema = new Schema({
   nodes: {
@@ -72,5 +73,27 @@ describe("Editor wiring", () => {
   });
   it("a first character typed beside a pill moves the whole line into the textblock", () => {
     expect(src).toMatch(/if \(lineHasInlineNodes\(currentNode\)\) onAutoCreateTextblock\(capturedStart, null, currentNode\.nodeSize, currentNode\.toJSON\(\)\);/);
+  });
+});
+
+describe("typingWouldReplaceBlock", () => {
+  const doc = D(P(T("line")), n.wrapGroup.create(null, [E("pic"), E("yin")]), P(chip, T("x")));
+  const state = EditorState.create({ schema, doc });
+  it("a node selection on a wrap group member (what replacing a line with an atom leaves)", () => {
+    // 6 = start of the doc's second child; +1 = its first embed.
+    const sel = NodeSelection.create(doc, 7);
+    expect(sel.node.attrs.occurrenceId).toBe("pic");
+    expect(typingWouldReplaceBlock(sel)).toBe(true);
+  });
+  it("a caret in text, and a selected inline pill, type normally (the control)", () => {
+    expect(typingWouldReplaceBlock(TextSelection.create(doc, 2))).toBe(false);
+    let pillAt = null; doc.descendants((node, pos) => { if (node.type.name === "instanceTextblockInline") pillAt = pos; });
+    expect(typingWouldReplaceBlock(NodeSelection.create(doc, pillAt))).toBe(false);
+    expect(typingWouldReplaceBlock(state.selection)).toBe(false);
+    expect(typingWouldReplaceBlock(null)).toBe(false);
+  });
+  it("the editor's text input consults it first", () => {
+    const src = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+    expect(src).toMatch(/handleTextInput: \(view, _from, _to, text\) => \{[\s\S]{0,260}if \(typingWouldReplaceBlock\(view\.state\.selection\)\) return true;/);
   });
 });

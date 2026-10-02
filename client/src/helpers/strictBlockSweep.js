@@ -44,3 +44,16 @@ export function lineHasInlineNodes(node) {
   node?.forEach?.((child) => { if (!child.isText) found = true; });
   return found;
 }
+
+/**
+ * Would a typed character REPLACE a whole block? A node selection on a block
+ * (an embed, a textblock, a wrap group member) is what ProseMirror falls back
+ * to when the caret has no text position to map to — replacing a line with an
+ * atom leaves it on the NEXT block. The keystroke after that deleted the wrap
+ * group's picture and split the group around the character (2026-10-02).
+ * Nobody types to replace a block; Backspace/Delete still remove a selected one.
+ */
+export function typingWouldReplaceBlock(selection) {
+  const node = selection?.node;
+  return !!node && node.isBlock;
+}
