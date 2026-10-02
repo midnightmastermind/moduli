@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { isOnCommandControl } from "../ui/Editor.jsx";
+import { isOnCommandControl, isUndoRedoChord } from "../ui/Editor.jsx";
 
 describe("isOnCommandControl", () => {
   it("a radial menu item (a portalled button) is a command", () => {
@@ -32,5 +32,27 @@ describe("isOnCommandControl", () => {
   it("the pointer stamp consults it", () => {
     const src = readFileSync(resolve(__dirname, "../ui/Editor.jsx"), "utf-8");
     expect(src).toMatch(/!isInNonEditableIsland\(e\.target\) && !isOnCommandControl\(e\.target\)\) stampUserInput\(\)/);
+  });
+});
+
+// Ctrl+Z after an Unwrap restored the caret onto the empty line below the group
+// and the keystroke minted a textblock there (2026-10-02).
+describe("isUndoRedoChord", () => {
+  it("undo and redo chords are commands", () => {
+    expect(isUndoRedoChord({ key: "z", ctrlKey: true })).toBe(true);
+    expect(isUndoRedoChord({ key: "Z", ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(isUndoRedoChord({ key: "z", metaKey: true })).toBe(true);
+    expect(isUndoRedoChord({ key: "y", ctrlKey: true })).toBe(true);
+  });
+  it("typing and caret keys are not (the control)", () => {
+    expect(isUndoRedoChord({ key: "z" })).toBe(false);
+    expect(isUndoRedoChord({ key: "ArrowDown" })).toBe(false);
+    expect(isUndoRedoChord({ key: "Enter" })).toBe(false);
+    expect(isUndoRedoChord({ key: "End", ctrlKey: true })).toBe(false);
+    expect(isUndoRedoChord({ key: "z", ctrlKey: true, altKey: true })).toBe(false);
+  });
+  it("the keydown stamp consults it", () => {
+    const src = readFileSync(resolve(__dirname, "../ui/Editor.jsx"), "utf-8");
+    expect(src).toMatch(/const stamp = \(e\) => \{ if \(!isUndoRedoChord\(e\)\) stampUserInput\(\); \};/);
   });
 });

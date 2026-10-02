@@ -122,7 +122,10 @@ let _userInputListenersOn = false;
 function trackUserInput() {
   if (_userInputListenersOn || typeof document === "undefined") return;
   _userInputListenersOn = true;
-  const stamp = () => stampUserInput();
+  // Undo / redo put the caret wherever the restored selection was — Ctrl+Z
+  // after an Unwrap left it on the empty line below the group and minted a
+  // textblock there (2026-10-02). The chord is a command, not a caret placed.
+  const stamp = (e) => { if (!isUndoRedoChord(e)) stampUserInput(); };
   // A pointerdown inside a NON-EDITABLE island — a node view such as the
   // Emotions Wheel, an embedded block's chrome — is not a gesture on the doc's
   // text. Counting it let a click on a wheel slice mint a textblock on the empty
@@ -160,6 +163,12 @@ export function isInNonEditableIsland(el) {
  * NEAREST of {editable region, control} decides, for the reason above: an
  * editor rendered inside a clickable card is still text.
  */
+/** Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y. */
+export function isUndoRedoChord(e) {
+  if (!e || !(e.ctrlKey || e.metaKey) || e.altKey) return false;
+  const k = String(e.key || "").toLowerCase();
+  return k === "z" || k === "y";
+}
 const COMMAND_CONTROLS = 'button, [role="button"], [role="menuitem"], .context-menu-item';
 export function isOnCommandControl(el) {
   const node = el && el.nodeType === 1 ? el : el?.parentElement;
