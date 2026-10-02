@@ -47,3 +47,58 @@ describe("wiring", () => {
     expect(src).toMatch(/const displayLabel = occurrenceDisplayLabel\(/);
   });
 });
+
+// ── the way back ────────────────────────────────────────────────────────────
+import { Schema } from "prosemirror-model";
+import { EditorState } from "prosemirror-state";
+import { liftInlineToBlock } from "../docs/toPill";
+
+const schema = new Schema({
+  nodes: {
+    doc: { content: "block+" },
+    paragraph: { group: "block", content: "inline*" },
+    bulletList: { group: "block", content: "listItem+" },
+    listItem: { content: "paragraph+" },
+    text: { group: "inline" },
+    instancePill: { group: "inline", inline: true, atom: true, attrs: { occurrenceId: { default: "" } } },
+    moduleEmbed: { group: "block", atom: true, attrs: { occurrenceId: { default: "" } } },
+  },
+});
+const P = (...c) => schema.nodes.paragraph.create(null, c);
+const T = (t) => schema.text(t);
+const pill = schema.nodes.instancePill.create({ occurrenceId: "o" });
+const embed = () => schema.nodes.moduleEmbed.create({ occurrenceId: "o" });
+const shape = (d) => { const out = []; d.forEach((n) => out.push(n.type.name === "paragraph" ? `p(${n.textContent}${n.childCount && [...Array(n.childCount)].some((_, i) => n.child(i).type.name === "instancePill") ? "+pill" : ""})` : n.type.name)); return out; };
+const pillPos = (d) => { let at = null; d.descendants((n, pos) => { if (n.type.name === "instancePill") at = pos; }); return at; };
+const lift = (d) => { const tr = EditorState.create({ schema, doc: d }).tr; const ok = liftInlineToBlock(tr, pillPos(d), embed()); return { ok, doc: tr.doc, changed: tr.docChanged }; };
+
+describe("liftInlineToBlock", () => {
+  it("a pill alone on its line: the block replaces the line", () => {
+    const r = lift(schema.nodes.doc.create(null, [P(T("before")), P(pill), P(T("after"))]));
+    expect(r.ok).toBe(true);
+    expect(shape(r.doc)).toEqual(["p(before)", "moduleEmbed", "p(after)"]);
+  });
+  it("trailing whitespace beside the pill does not count as a sentence", () => {
+    const r = lift(schema.nodes.doc.create(null, [P(pill, T(" "))]));
+    expect(shape(r.doc)).toEqual(["moduleEmbed"]);
+  });
+  it("a pill inside a sentence: the sentence STAYS, the block goes after it", () => {
+    const r = lift(schema.nodes.doc.create(null, [P(T("see "), pill, T(" for details")), P(T("next"))]));
+    expect(r.ok).toBe(true);
+    expect(shape(r.doc)).toEqual(["p(see  for details)", "moduleEmbed", "p(next)"]);
+  });
+  it("refuses where a block cannot go (a list item) and changes nothing", () => {
+    const li = schema.nodes.listItem.create(null, [P(T("a "), pill)]);
+    const r = lift(schema.nodes.doc.create(null, [schema.nodes.bulletList.create(null, [li])]));
+    expect(r.ok).toBe(false);
+    expect(r.changed).toBe(false);
+  });
+  it("both pill kinds go through it", () => {
+    const a = fs.readFileSync(path.join(__dirname, "../docs/pills/InstancePillNode.jsx"), "utf8");
+    const b = fs.readFileSync(path.join(__dirname, "../docs/pills/InstanceTextblockInlineNode.jsx"), "utf8");
+    expect(a).toMatch(/liftInlineToBlock\(tr, getPos\(\), embedNode\)/);
+    expect(a).not.toMatch(/tr\.replaceWith\(paraStart, paraEnd, embedNode\)/);
+    expect(b).toMatch(/label: "To block"/);
+    expect(b).toMatch(/liftInlineToBlock\(tr, getPos\(\), embedNode\)/);
+  });
+});

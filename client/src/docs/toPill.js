@@ -38,3 +38,38 @@ export function pillNodeFor({ mod, occurrence, occurrenceId }) {
     attrs: { instanceId: mod.id, instanceLabel: occurrenceDisplayLabel(occurrence, mod, "Item"), occurrenceId },
   };
 }
+
+/**
+ * THE WAY BACK: lift the inline atom at `pos` out of its line as `blockNode`.
+ *
+ * Alone on its line (other than whitespace) the line IS the pill, so the block
+ * replaces it. Inside a sentence the block goes after the line and only the
+ * atom leaves it — the instance pill's "Convert to Embed" used to replace the
+ * WHOLE paragraph, deleting the sentence around the pill (2026-10-02).
+ *
+ * Returns false (and leaves `tr` untouched) when the position holds no atom or
+ * the line's parent cannot hold a block there (a table cell, a list item).
+ */
+export function liftInlineToBlock(tr, pos, blockNode) {
+  if (!tr || typeof pos !== "number" || !blockNode) return false;
+  let $pos;
+  try { $pos = tr.doc.resolve(pos); } catch (_) { return false; }
+  const atom = $pos.nodeAfter;
+  const line = $pos.parent;
+  if (!atom || !atom.isInline || $pos.depth < 1) return false;
+  const lineStart = $pos.before($pos.depth);
+  const lineEnd = lineStart + line.nodeSize;
+  const holder = $pos.node($pos.depth - 1);
+  const lineIndex = $pos.index($pos.depth - 1);
+  let alone = true;
+  line.forEach((child) => { if (child !== atom && !(child.isText && !child.text.trim())) alone = false; });
+  if (alone) {
+    if (!holder.canReplaceWith(lineIndex, lineIndex + 1, blockNode.type)) return false;
+    tr.replaceWith(lineStart, lineEnd, blockNode);
+    return true;
+  }
+  if (!holder.canReplaceWith(lineIndex + 1, lineIndex + 1, blockNode.type)) return false;
+  tr.insert(lineEnd, blockNode);
+  tr.delete(pos, pos + atom.nodeSize);
+  return true;
+}

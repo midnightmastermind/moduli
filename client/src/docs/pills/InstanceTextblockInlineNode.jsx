@@ -12,7 +12,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { Trash2 } from "lucide-react";
+import { Trash2, Maximize2 } from "lucide-react";
+import { liftInlineToBlock } from "../toPill.js";
 import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
@@ -176,13 +177,28 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   }, [isUrl, href, link?.occId, link?.target]);
 
   const radialItems = useMemo(() => ([
+    // The way back from "To pill": the same occurrence as a block (docs/toPill.js).
+    {
+      label: "To block",
+      icon: Maximize2,
+      color: "bg-indigo-600 hover:bg-indigo-500",
+      onClick: () => {
+        if (!editor || typeof getPos !== "function" || !occurrenceId) return;
+        editor.chain().focus().command(({ tr }) => {
+          const embedNode = tr.doc.type.schema.nodes.moduleEmbed?.create({ occurrenceId });
+          if (!embedNode || !liftInlineToBlock(tr, getPos(), embedNode)) return false;
+          tr.setMeta("skipAutoCreate", true);
+          return true;
+        }).run();
+      },
+    },
     {
       label: "Remove",
       icon: Trash2,
       color: "bg-red-600 hover:bg-red-500",
       onClick: () => { try { deleteNode?.(); } catch { /* node already gone */ } },
     },
-  ]), [deleteNode]);
+  ]), [deleteNode, editor, getPos, occurrenceId]);
 
   return (
     <NodeViewWrapper

@@ -7,6 +7,7 @@
 // ============================================================
 
 import { occurrenceDisplayLabel } from "../../helpers/occurrenceLabel.js";
+import { liftInlineToBlock } from "../toPill.js";
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -121,15 +122,11 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
   const handleConvertToEmbed = useCallback(() => {
     if (!editor || !getPos || !occurrenceId) return;
     editor.chain().focus().command(({ tr }) => {
-      const pos = getPos();
-      const $pos = tr.doc.resolve(pos);
-      const depth = $pos.depth;
-      const paraStart = $pos.before(depth);
-      const paraEnd = paraStart + $pos.node(depth).nodeSize;
       const embedNode = tr.doc.type.schema.nodes.moduleEmbed?.create({ occurrenceId });
       if (!embedNode) return false;
+      // Only the pill leaves its line; the sentence around it stays (docs/toPill.js).
+      if (!liftInlineToBlock(tr, getPos(), embedNode)) return false;
       tr.setMeta("skipAutoCreate", true);
-      tr.replaceWith(paraStart, paraEnd, embedNode);
       return true;
     }).run();
   }, [editor, getPos, occurrenceId]);
