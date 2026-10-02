@@ -2636,16 +2636,20 @@ const Editor = forwardRef(function Editor({
           // COPY — deep-clone (recurses children for a container; a leaf just
           // clones its own fields/textmap/meta), then embed the clone.
           if (dragMode === "copy") {
-            const deepCopyOcc = (occ) => {
+            // The copy is OWNED by this doc (its children by the copy): with no
+            // parent it was listed and owned by nobody, so its Delete only
+            // unlinked it and the row stayed behind (2026-10-02).
+            const deepCopyOcc = (occ, parentId) => {
               if (!occ) return null;
-              const childIds = (occ.occurrences || [])
-                .map((cid) => deepCopyOcc(occsById[cid]))
-                .filter(Boolean);
               const copyId = crypto.randomUUID();
+              const childIds = (occ.occurrences || [])
+                .map((cid) => deepCopyOcc(occsById[cid], copyId))
+                .filter(Boolean);
               CommitHelpers.createOccurrence({
                 dispatch: dispatchRef.current, socket: socketRef.current,
                 occurrence: {
                   id: copyId,
+                  parentId: parentId || null,
                   moduleId: occ.moduleId,
                   gridId: occ.gridId,
                   occurrences: childIds,
@@ -2658,7 +2662,7 @@ const Editor = forwardRef(function Editor({
               });
               return copyId;
             };
-            const copyId = deepCopyOcc(occsById[occurrenceId]);
+            const copyId = deepCopyOcc(occsById[occurrenceId], occurrence?.id);
             if (!copyId) { DLOG("BAIL copy: deepCopyOcc returned null"); return; }
             const wrapped = sideHost && wrapHostWithNeighbor(copyId, sideHost);
             DLOG("COPY done", { copyId, wrappedBeside: !!wrapped });
@@ -2678,6 +2682,7 @@ const Editor = forwardRef(function Editor({
               gridId: srcOcc.gridId, userId: srcOcc.userId,
               sourceInstanceId: srcOcc.moduleId, sourceOccurrenceId: srcOcc.id, sourceOccurrence: srcOcc,
               dragMode: srcOcc.dragMode ?? null,
+              parentId: occurrence?.id || null,   // owned by this doc, like a copy
             });
             if (!linked) { DLOG("BAIL copylink: mint returned null"); return; }
             const linkId = linked.occurrence.id;

@@ -27,3 +27,15 @@ describe("hostOccurrenceIdOf", () => {
     expect(hostOccurrenceIdOf({ view: { dom } })).toBe("card1");
   });
 });
+
+describe("copies dropped into a doc", () => {
+  const ed = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+  it("a copy is owned by the doc, its children by the copy", () => {
+    expect(ed).toMatch(/deepCopyOcc\(occsById\[occurrenceId\], occurrence\?\.id\)/);
+    expect(ed).toMatch(/deepCopyOcc\(occsById\[cid\], copyId\)/);
+    expect(ed).toMatch(/parentId: parentId \|\| null,/);
+  });
+  it("a copy-link is owned by the doc too", () => {
+    expect(ed).toMatch(/parentId: occurrence\?\.id \|\| null,\s*\/\/ owned by this doc/);
+  });
+});
