@@ -2510,8 +2510,12 @@ const Editor = forwardRef(function Editor({
             return hit ? hit.pos : null;
           };
           const keepSide = preSide && preSide.hostOccId !== grouped.hostOccId ? preSide : null;
-          if (draggedMode !== "copy" && isLead) {
-            DLOG("grouped → lead dragged out: lift just it out, the group keeps its wrap");
+          // A float or a lead leaving is lifted out alone; the rest of the group
+          // keeps its wrap (afterRemoval flattens it once no float is left). Only
+          // the HOST leaving unwraps — without it nothing wraps. Before this, a
+          // float dragged out of a two-float group unwrapped all four members.
+          if (draggedMode !== "copy" && (isLead || isNeighbor)) {
+            DLOG("grouped → member dragged out: lift just it out, the group keeps its wrap");
             extractGroupMember(editor, grouped.groupPos, draggedOccId);
             insertPos = refind() ?? resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
             sideHost = keepSide || (isBlockDrop ? detectSideHost(sideInputOf(dropInput || lastNativeEvent)) : null);
