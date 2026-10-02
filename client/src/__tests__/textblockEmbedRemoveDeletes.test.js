@@ -39,3 +39,16 @@ describe("copies dropped into a doc", () => {
     expect(ed).toMatch(/parentId: occurrence\?\.id \|\| null,\s*\/\/ owned by this doc/);
   });
 });
+
+import { editorDom } from "../helpers/embedRegistry.js";
+describe("editorDom", () => {
+  it("answers null when TipTap's view getter throws (not mounted) — it crashed a panel in Firefox", () => {
+    const editor = { isDestroyed: false, get view() { throw new Error("[tiptap error]: The editor view is not available."); } };
+    expect(editorDom(editor)).toBe(null);
+    expect(hostOccurrenceIdOf(editor)).toBe(null);
+  });
+  it("returns the root once mounted", () => {
+    const dom = { getAttribute: () => "x" };
+    expect(editorDom({ view: { dom } })).toBe(dom);
+  });
+});

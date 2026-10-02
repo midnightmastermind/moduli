@@ -42,8 +42,14 @@ export function embedRemoval(occurrence, hostOccurrenceId) {
 }
 
 /** The occurrence whose textmap an editor renders: the nearest `[data-occ-id]` above its root. */
+/** The editor's root DOM, or null while its view is not mounted (TipTap's `view` getter throws then). */
+export function editorDom(editor) {
+  if (!editor || editor.isDestroyed) return null;
+  try { return editor.view?.dom || null; } catch { return null; }
+}
+
 export function hostOccurrenceIdOf(editor) {
-  const root = editor?.view?.dom;
+  const root = editorDom(editor);
   // The editor stamps its own occurrence (ui/Editor); a doc page has no card
   // around it to read one from.
   const own = root?.getAttribute?.("data-host-occ");

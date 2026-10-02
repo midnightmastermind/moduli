@@ -39,7 +39,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../helpers/dragSystem";
-import { embedDeleteRegistry } from "../helpers/embedRegistry";
+import { embedDeleteRegistry, editorDom } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember, extractGroupMember } from "../helpers/wrapGroupOps";
 import { floatCountOf, afterAddingFloat } from "../docs/wrapRoles";
 import { sideFromFrac, anchorOffsetForDrop, isTextmappedModule } from "../docs/wrapAnchor";
@@ -1392,8 +1392,11 @@ const Editor = forwardRef(function Editor({
   // PAGE has no `[data-occ-id]` ancestor (no container shell), so the embed
   // "is this row mine?" lookup found nothing there and every Delete on a doc
   // page only unlinked (embedRegistry.hostOccurrenceIdOf, 2026-10-02).
+  // `editor.view` THROWS while the view is not mounted (TipTap's getter) — in
+  // Firefox a drop recreates the editor between renders and this crashed the
+  // whole panel. Read it through `editorDom`, which answers null instead.
   useEffect(() => {
-    const dom = editor?.view?.dom;
+    const dom = editorDom(editor);
     if (!dom) return;
     if (occurrence?.id) dom.setAttribute("data-host-occ", occurrence.id);
     else dom.removeAttribute("data-host-occ");
