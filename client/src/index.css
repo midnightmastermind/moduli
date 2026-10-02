@@ -2374,11 +2374,6 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
   height: 0;
   margin: 0;
   overflow: hidden;
-  /* Never the scroll anchor. Scrolled to the bottom, the browser anchored on
-     this line, so its 0 -> 19px reveal on hover SCROLLED the panel 11px — the
-     handle you were pointing at moved out from under the click (a wrap lead's
-     radial menu would not open, 2026-10-02). */
-  overflow-anchor: none;
   transition: height 0.12s ease-out;
 }
 /* Reveal ONLY the innermost editor under the pointer/caret. Both halves used to
@@ -2411,6 +2406,16 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
    to THAT card's own editor, so it still cannot reach a nested one. The
    wrapper-hover rule is kept for doc editors that are not inside a card (doc
    PAGES), where it is the only trigger and reachability was never a problem. */
+/* A DOC PAGE'S OWN LINE NEVER COLLAPSES (2026-10-02). It is the last thing in
+   the page's scroller, so collapsing it changed the scroll height: at the
+   bottom of a page the content dropped 19px when the pointer moved onto a
+   nested block (the page stops being the innermost hover) and Chromium
+   scrolled it back when the pointer left — a handle near the bottom moved out
+   from under the click and its radial menu would not open. An empty line at
+   the very end of a page is not the dead space between blocks the collapse is
+   for. (`overflow-anchor: none` on the line did nothing: the line was never
+   the anchor — the browser was restoring an offset the collapse had clamped.) */
+.page-scroll > .doc-container > .doc-editor > .doc-editor-wrapper > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .container-shell:hover:not(:has(.container-shell:hover)) > .container-doc > .doc-container > .doc-editor > .doc-editor-wrapper > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-wrapper:hover:not(:has(.doc-editor-wrapper:hover)) > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
