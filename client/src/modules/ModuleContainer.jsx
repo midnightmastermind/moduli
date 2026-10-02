@@ -1205,7 +1205,11 @@ function Container({
         const clipMode = selection.clipboard?.mode;
         const staged = occId && clipMode && selection.clipboard.ids.includes(occId) ? ` is-clipboard-staged clipboard-${clipMode}` : "";
         const sticky = stickyHeader ? " is-sticky-header" : "";
-        return base + sel + staged + sticky;
+        // `meta.textIndent: false` on the container drops the book-style first-line
+        // indent from the textblocks inside it (a list of one-line notes reads as
+        // a list, not as paragraphs — user 2026-10-02 on the Lookup board).
+        const flush = module?.meta?.textIndent === false ? " text-flush" : "";
+        return base + sel + staged + sticky + flush;
       })()}
       style={{
         display: "flex", flexDirection: "column", minHeight: 0, overflow: "visible",

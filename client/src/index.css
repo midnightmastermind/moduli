@@ -5122,6 +5122,13 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .textblock-card:not(.textblock-card--inline) .ProseMirror p {
   text-indent: 1.5em;
 }
+/* …unless the container says not to (`module.meta.textIndent: false`, stamped
+   as `.text-flush` by ModuleContainer). The placeholder mirrors it so the lazy
+   swap to the editor does not shift the text. */
+.container-shell.text-flush .textblock-card .ProseMirror p,
+.container-shell.text-flush .textblock-card-placeholder > div {
+  text-indent: 0;
+}
 /* …and indent lists PAST the prose text-indent above. With the default 1.5em
    list padding the bullet markers (rendered outside the li) land to the LEFT of
    the indented prose column and read as outdented; 2.5em seats the markers under

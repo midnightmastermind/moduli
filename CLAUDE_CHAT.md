@@ -3769,3 +3769,8 @@ User: *"it should be in firefox and allow 3rds"* — verify the drag-to-top snap
 User: *"make it so it will dynamically add/remove panels based on the layout change. so if we have 3 open panels, and we drag to a 4 grid layout, it adds an extra panel. and look at the lookup page and see how all those textblocks still are labels and not body. look at the latest screenshot and see the diff."*
 
 User, mid-work: *"all plain labelled items (if they are not instances) should be migrated to textblocks"* → *"i said not instances"*. Census: apart from instances, no other label-only rows exist on poms grid; only the Lookup board qualified (0382).
+
+### 2026-10-02 01:10 — Lookup textblocks: no first-line indent
+User: *"for all those lookups, can you get rid of the beginning tabbed space"*.
+
+Done: 0383 sets meta.textIndent=false on the Lookup container; ModuleContainer adds .text-flush, CSS drops the indent inside it.
