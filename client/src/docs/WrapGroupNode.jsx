@@ -18,7 +18,7 @@ import { createTextblockInContainer } from "../helpers/CommitHelpers.js";
 import { requestTextblockFocus } from "../helpers/pendingTextblockFocus.js";
 import { hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
-import { hostNotchBand, holdGuardStack, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
+import { isTextmappedModule, hostNotchBand, holdGuardStack, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -113,7 +113,17 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
   // `.wrap-group--off` flex layout — no morph, no auto-stack). Columns is the
   // only honest mode for a NON-textmapped host (image/instance/board), and a
   // per-group toggle lives in the neighbor's radial menu.
-  const columnsMode = node.attrs.wrap === false;
+  // Only a textblock can wrap. When the last block is anything else — a picture
+  // left last after the host was dragged out, a deleted host — the group is
+  // two plain columns, whatever path produced it (user 2026-10-02). Unknown
+  // (not loaded yet) counts as text, so a loading group does not flash columns.
+  const hostOccId = node.lastChild?.attrs?.occurrenceId || null;
+  const hostIsText = useGridActionsSelector((st) => {
+    const occ = hostOccId ? st.getOcc?.(hostOccId) : null;
+    const mod = occ?.moduleId ? st.getMod?.(occ.moduleId) : null;
+    return !occ || !mod ? true : isTextmappedModule(mod);
+  });
+  const columnsMode = node.attrs.wrap === false || !hostIsText;
   const wrap = neighborCount > 0 && !columnsMode;
   // Shape = where the neighbor sits vertically (× `side` for left/right). Drives which
   // inner-L border lines the seam/clip draw:
