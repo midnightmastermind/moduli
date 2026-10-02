@@ -142,6 +142,22 @@ wall** (CPU ~1,280%, so it is CPU-bound now; 29 fixture files are ~90% of what i
 
 ---
 
+### 2026-10-01 (7) — A SHARED CLIP CAN BECOME A TEXTBLOCK'S BODY
+
+User: *"if i clip some text and do create choose, its not letting me put the text anywhere … if its a
+textblock, label shouldnt be an option but Body should, and it should default there"*. In New mode a
+textblock shape now shows a **Body** mapping row (default: the selection, else the page title) and no
+Label. `buildSharePayload` sends `placement.body`; `manualPlacement.bodyToTextmap` turns it into the
+textmap (a paragraph per blank-line block, a single newline as a hard break) and a textblock borrows no
+label from the share; the server `CREATE` and `mintOccurrence` take a `textmap` (stored compressed,
+mirrored raw). Presets keep the body mapping. **Found on the way:** `mintOccurrence`'s re-share branch
+had no `{ new: true }`, so it mirrored the PRE-update row (and a compressed textmap) into the warm cache.
+**Verified on prod:** staged a selection, placed it into the rebuild grid's Ideas board → a textblock
+with label "" and both paragraphs, rendered as one frame; deleted through `delete_occurrence`. The
+window, driven headless: picking textblock swaps the rows to `Body=selection`.
+
+---
+
 ### 2026-10-01 (6) — A JUST-MINTED TEXTBLOCK HELD THE WHOLE DOC'S SAVE; one frame per textblock; the host handle clears a left picture
 
 **WRAP EDITS WERE NOT SAVED while a provisional (clicked, never typed) textblock sat in the doc.**
