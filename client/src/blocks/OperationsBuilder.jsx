@@ -20,6 +20,7 @@ import { useGridActions } from "../GridActionsContext";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
 import { ACTION_CONFIG_SCHEMA } from "./actionConfigSchema";
+import FieldSelect from "../ui/FieldSelect.jsx";
 
 /**
  * OperationsBuilder - Main visual block editor component
@@ -1767,6 +1768,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 fl={fl}
                 varNameInput={varNameInput}
                 exprProps={exprProps}
+                fields={fields}
               />
             ))}
           </div>
@@ -1786,7 +1788,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
 // ROW of an array, so a `$var` there resolves to nothing and the step silently
 // does the wrong thing. A plain input with a placeholder that says so is the
 // honest control.
-function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps }) {
+function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields = [] }) {
   const { key, kind, label, placeholder, optional, defaultsTo, options, defaultValue } = field;
   const ph = placeholder || (optional && defaultsTo ? `(default: ${defaultsTo})` : "");
 
@@ -1810,6 +1812,21 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps }) {
             onChange={e => setCfg({ [key]: e.target.value })}
             placeholder={ph}
             style={{ ...inputSt, width: 130 }}
+          />
+        );
+      // A FIELD is picked, never typed: a typed field id is a guess at a 25-char
+      // id nobody can see, and a wrong one runs silently (the step writes to a
+      // field that does not exist). Eight steps took one as text (2026-10-02).
+      case "field":
+        return (
+          <FieldSelect
+            fields={fields}
+            value={cfg[key] || null}
+            onChange={(id) => setCfg({ [key]: id || undefined })}
+            noneLabel={optional ? (defaultsTo || ph || "—") : null}
+            placeholder={ph || "field…"}
+            ariaLabel={label}
+            style={{ ...inputSt, width: 150 }}
           />
         );
       case "number":

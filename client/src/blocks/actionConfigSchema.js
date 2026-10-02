@@ -330,7 +330,7 @@ export const ACTION_CONFIG_SCHEMA = {
   // reason these exist. Every key below was read off the executor's own case.
   SET_FILTER: {
     fields: [
-      { key: "fieldId", kind: "text", label: "filter field", placeholder: "the filter's field id" },
+      { key: "fieldId", kind: "field", label: "filter field", placeholder: "the filter's field id" },
       { key: "value", kind: "expr", label: "=", placeholder: "$today" },
     ],
     hint: "Writes a value into the grid's active filter — what snaps the date to today. Writes BOTH the nav widget and the filter cascade, so the display and the filtering cannot disagree.",
@@ -384,29 +384,29 @@ export const ACTION_CONFIG_SCHEMA = {
     fields: [
       { key: "poolId", kind: "expr", label: "from pool", placeholder: "the pool container's MODULE id" },
       { key: "varName", kind: "var", label: "→ $", optional: true, defaultsTo: "$pickedLabel" },
-      { key: "fieldId", kind: "text", label: "read field", optional: true, placeholder: "blank = the label" },
+      { key: "fieldId", kind: "field", label: "read field", optional: true, placeholder: "blank = the label" },
     ],
     hint: "Draws one occurrence at random out of a pool container. `poolId` is the container's MODULE id, not an occurrence id.",
   },
   DATE_DIFF: {
     fields: [
-      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
-      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+      { key: "dateFieldId", kind: "field", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "field", label: "write to field", placeholder: "the display field" },
       { key: "perOccurrence", kind: "bool", label: "per row", optional: true, defaultsTo: "on", defaultValue: true },
     ],
     hint: "Days from today to a date field — negative in the past. Per row by default; off writes ONE value, the nearest upcoming date.",
   },
   COUNT_DATE_OVERDUE: {
     fields: [
-      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
-      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+      { key: "dateFieldId", kind: "field", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "field", label: "write to field", placeholder: "the display field" },
     ],
     hint: "Counts rows whose date field is before today.",
   },
   COUNT_DATE_UPCOMING: {
     fields: [
-      { key: "dateFieldId", kind: "text", label: "date field", placeholder: "the field holding the date" },
-      { key: "targetFieldId", kind: "text", label: "write to field", placeholder: "the display field" },
+      { key: "dateFieldId", kind: "field", label: "date field", placeholder: "the field holding the date" },
+      { key: "targetFieldId", kind: "field", label: "write to field", placeholder: "the display field" },
       { key: "withinDays", kind: "number", label: "within days", optional: true, defaultsTo: "7" },
     ],
     hint: "Counts rows whose date field falls inside the next N days.",
