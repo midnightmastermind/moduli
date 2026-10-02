@@ -28,6 +28,7 @@ import {
   hasEditorAdopt, clearEditorAdopt,
 } from "../helpers/editorSyncSignal";
 import { textmapDigest } from "../../../server/utils/textmapDigest.js";
+import { withAction, captureAction, retainAction, releaseAction, runInAction } from "../helpers/actionScope";
 import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
@@ -469,6 +470,8 @@ const Editor = forwardRef(function Editor({
   // when it adopts content and when it sends a save. Every save carries it, so
   // the server can refuse a save built on text it no longer has (a migration or
   // another tab rewrote it while this editor was open). server/utils/textmapDigest.
+  // The gesture a pending debounced save belongs to (see persistContent).
+  const pendingSaveActionRef = useRef(null);
   const textBasisRef = useRef(content && typeof content === "object" ? textmapDigest(content) : "");
 
   // ── available fields for @ suggestions ──────────────────────
@@ -621,14 +624,26 @@ const Editor = forwardRef(function Editor({
     // lost every other edit made meanwhile — see withoutProvisionalTextblocks.
     if (hasProvisionalTextblock(json)) json = withoutProvisionalTextblocks(json);
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    // A save scheduled DURING a gesture (a drop that moved a block between
+    // docs) belongs to that gesture's undo step, though it runs 500ms later —
+    // without this a cross-doc move was three undo steps and one Ctrl+Z left
+    // the block half-moved (2026-10-02). Held until the save runs; a later
+    // keystroke folds into the same save and so into the same step.
+    if (!pendingSaveActionRef.current) {
+      const cap = captureAction();
+      if (cap?.id) { retainAction(cap); pendingSaveActionRef.current = cap; }
+    }
     setIsSaving(true);
     const doSave = () => {
-      CommitHelpers.updateOccurrence({
+      const cap = pendingSaveActionRef.current;
+      pendingSaveActionRef.current = null;
+      runInAction(cap, () => CommitHelpers.updateOccurrence({
         dispatch, socket,
         occurrence: { ...occurrence, textmap: json },
         emit: true,
         textmapBasis: textBasisRef.current || null,
-      });
+      }));
+      if (cap) releaseAction(cap);
       textBasisRef.current = textmapDigest(json);
       setIsSaving(false);
     };
@@ -1760,6 +1775,7 @@ const Editor = forwardRef(function Editor({
         locallyModifiedRef.current = false;
         if (locallyModifiedTimerRef.current) clearTimeout(locallyModifiedTimerRef.current);
         if (saveTimeout.current) clearTimeout(saveTimeout.current);
+        if (pendingSaveActionRef.current) { releaseAction(pendingSaveActionRef.current); pendingSaveActionRef.current = null; }
       }
       const current = editor.getJSON();
       if (JSON.stringify(current) === JSON.stringify(content)) {
@@ -2355,7 +2371,10 @@ const Editor = forwardRef(function Editor({
         if (sd.sourceType === "command-center" && (type === "field" || type === "operation")) return false;
         return type === "instance" || type === "field" || type === "container" || type === "artifact" || type === "module";
     };
-    const handleDocDrop = ({ source, location }) => {
+    // One drop is ONE undo step: the moved row's parent and every doc's text
+    // save it causes join this action (persistContent carries it past its debounce).
+    const handleDocDrop = (args) => withAction("Dropped block", () => handleDocDropImpl(args));
+    const handleDocDropImpl = ({ source, location }) => {
         setIsDropTarget(false);
         setDragGap(null);
         setWrapDrop(null);
