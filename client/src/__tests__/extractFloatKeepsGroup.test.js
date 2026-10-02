@@ -59,3 +59,10 @@ describe("a group's own float dropped on its text side", () => {
     expect(src).toMatch(/floatCount: fc - 1/);
   });
 });
+
+describe("a row moved from a board into a doc", () => {
+  it("takes the doc as its parent when the board owned it", () => {
+    const src = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+    expect(src).toMatch(/moved\?\.parentId === parentOcc\.id\)[\s\S]{0,200}parentId: occurrence\.id/);
+  });
+});

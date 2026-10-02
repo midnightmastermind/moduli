@@ -2683,6 +2683,18 @@ const Editor = forwardRef(function Editor({
                 occurrence: { id: parentOcc.id, occurrences: (parentOcc.occurrences || []).filter((eid) => eid !== occurrenceId) },
                 emit: true,
               });
+              // The doc it moved into owns it now. Only when the list it left was
+              // its owner: a file homed in Files keeps that home (its placement
+              // is what moved). Left stale, deleting the old board would cascade
+              // into a row that now lives in this doc (2026-10-02).
+              const moved = occsById[occurrenceId];
+              if (occurrence?.id && moved?.parentId === parentOcc.id) {
+                CommitHelpers.updateOccurrence({
+                  dispatch: dispatchRef.current, socket: socketRef.current,
+                  occurrence: { id: occurrenceId, parentId: occurrence.id },
+                  emit: true,
+                });
+              }
             }
           }
           return;
