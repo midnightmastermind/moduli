@@ -838,6 +838,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (model === "occurrence") setLocalOcc(id, doc);
       socketDispatch(make(doc));
     }
+    // The restored rows are in the store now: release the force so open editors
+    // take them past their focus/typed guards. Only the full_state path ever
+    // committed it, so an undo on THIS path never reached an open editor.
+    commitForceSync();
     scheduleFeedSync();
   };
   socket.on("undo_applied", onUndoApplied);

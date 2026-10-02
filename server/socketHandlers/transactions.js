@@ -4,6 +4,19 @@ import { closeAction, flushAll } from "../utils/txRecorder.js";
 import { planUndoSync, CACHE_KEY_BY_MODEL } from "../utils/undoSync.js";
 import { decompressTextmap } from "../utils/textmapCompression.js";
 
+/**
+ * The restored documents as the CLIENT reads them. Undo snapshots keep a
+ * textmap COMPRESSED (that is the form `$set` writes back), and sent as-is the
+ * client stored a base64 string as the doc's text: every open editor refused it
+ * and an undone drop or typing stayed on screen until a reload (2026-10-02).
+ * Same shape `patchCache` gives the warm cache, so the two cannot disagree.
+ */
+export function wireRestoreDocs(docs = []) {
+  return docs.map((d) => (d.model === "occurrence" && d.doc && typeof d.doc.textmap === "string")
+    ? { ...d, doc: { ...d.doc, textmap: decompressTextmap(d.doc.textmap) } }
+    : d);
+}
+
 export function registerTransactionHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
   userRoom, getModelByType,
@@ -123,7 +136,7 @@ export function registerTransactionHandlers(socket, {
     }
     // userRoom — NOT io.to(userId). Include this socket: it has to re-read
     // state it did not write itself.
-    io.to(userRoom(userId)).emit("undo_applied", { docs: plan.docs });
+    io.to(userRoom(userId)).emit("undo_applied", { docs: wireRestoreDocs(plan.docs) });
   }
 
   /**
