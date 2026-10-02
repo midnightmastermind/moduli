@@ -3764,3 +3764,8 @@ hit its limit while naming the Coffee operation).
 
 ### 2026-10-01 22:47 — snap layouts: thirds + Firefox
 User: *"it should be in firefox and allow 3rds"* — verify the drag-to-top snap bar in Firefox, and add thirds layouts.
+
+### 2026-10-02 00:01 — layouts add/remove panels; Lookup textblocks show labels
+User: *"make it so it will dynamically add/remove panels based on the layout change. so if we have 3 open panels, and we drag to a 4 grid layout, it adds an extra panel. and look at the lookup page and see how all those textblocks still are labels and not body. look at the latest screenshot and see the diff."*
+
+User, mid-work: *"all plain labelled items (if they are not instances) should be migrated to textblocks"* → *"i said not instances"*. Census: apart from instances, no other label-only rows exist on poms grid; only the Lookup board qualified (0382).
