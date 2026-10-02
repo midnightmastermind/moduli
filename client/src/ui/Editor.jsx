@@ -1216,6 +1216,32 @@ const Editor = forwardRef(function Editor({
             return true;
           }
         }
+        // Tab INDENTS (user 2026-10-02: "make it so i can tab though but its not
+        // required. i tried to tab a paragrah naturally and it didnt do
+        // anything"). A real tab character at the caret; Shift+Tab takes one back
+        // off the start of the line. Left alone: a table cell (Tab moves between
+        // cells, below), a list item (Tab nests it — the list's own keymap) and
+        // an open picker. Direct view props run before plugin keymaps, which is
+        // why the list case has to be excluded here rather than by ordering.
+        if (!isCell && event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey
+          && !showSuggestion && !showCommandPalette && !showDocLink && !showExprSuggestion && !showEmbedPicker) {
+          const { state } = _view;
+          const { $from } = state.selection;
+          for (let d = $from.depth; d > 0; d--) {
+            if ($from.node(d).type.name === "listItem" || $from.node(d).type.name === "taskItem") return false;
+          }
+          if (!$from.parent.isTextblock) return false;
+          event.preventDefault();
+          if (event.shiftKey) {
+            const start = $from.start();
+            if (state.doc.textBetween(start, Math.min(start + 1, $from.end())) === "\t") {
+              _view.dispatch(state.tr.delete(start, start + 1));
+            }
+            return true;
+          }
+          _view.dispatch(state.tr.insertText("\t").scrollIntoView());
+          return true;
+        }
         // ── Cell-mode keymaps (only active when mode="cell") ────────────────
         // These are purely additive — the isCell guard ensures they never
         // fire on the default mode="doc" path.

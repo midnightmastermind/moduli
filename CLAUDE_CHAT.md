@@ -3774,3 +3774,6 @@ User, mid-work: *"all plain labelled items (if they are not instances) should be
 User: *"for all those lookups, can you get rid of the beginning tabbed space"*.
 
 Done: 0383 sets meta.textIndent=false on the Lookup container; ModuleContainer adds .text-flush, CSS drops the indent inside it.
+
+### 2026-10-02 08:54 — Tab indents a paragraph
+User: *"make it so i can tab though but its not required. i tried to tab a paragrah naturally and it didnt do anything"*.

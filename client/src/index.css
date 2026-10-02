@@ -5122,6 +5122,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .textblock-card:not(.textblock-card--inline) .ProseMirror p {
   text-indent: 1.5em;
 }
+/* A typed Tab is a real tab character; 4 spaces wide reads as an indent. */
+.ProseMirror { tab-size: 4; }
 /* …unless the container says not to (`module.meta.textIndent: false`, stamped
    as `.text-flush` by ModuleContainer). The placeholder mirrors it so the lazy
    swap to the editor does not shift the text. */
