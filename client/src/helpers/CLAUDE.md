@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-02 (7) — stale text saves; gap-clicked blocks)
+- `editorSyncSignal.requestEditorAdopt/hasEditorAdopt/clearEditorAdopt` — after the server refuses a text
+  save built on old text, the editor shows the server copy past every guard (deadline mark, spent only on apply).
+- `CommitHelpers.updateOccurrence({ textmapBasis })` — rides on a text write's payload (server check).
+- `gapMints.js` (NEW) — blocks made by clicking a wrap's gap; removed on an empty blur until they hold text.
+
 ## Recent Changes (2026-10-02 — thirds + a layout pick applies the whole layout)
 - `SNAP_LAYOUTS` gains thirds (`span` regions, `buildColumnSpan`); `paneFraction(tree, id)` is the preview
   source. `planSnapLayout(tree, dragged, layout, zoneIndex)` → `{tree, addCount, removeIds}` with

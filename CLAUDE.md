@@ -15,6 +15,35 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (7) — AN OPEN EDITOR CAN NO LONGER SAVE OLD TEXT BACK; a gap-clicked block left empty goes
+
+User: *"handle those please"* — the open items from (6).
+
+**THE STALE EDITOR (open since 2026-10-01 (4)).** The stale-write check compares TIMESTAMPS, the restart's
+full_state had handed the tab a fresh one, and the check is skipped outright while only ONE tab is open —
+so nothing could stop a mounted editor saving pre-migration text. A text save now carries a fingerprint of
+the server text its editor was built on (`server/utils/textmapDigest.js`, shared; sorted keys so key order
+never reads as a change). `update_occurrence` refuses a text save whose basis is not the stored text —
+**including with one tab open**, because a migration is not a tab (`textSaveIsStale`, checked before any
+await; an in-flight mark lets an editor's next save build on its previous one). The refused editor is told
+to SHOW the server copy past its focus/typed guards (`editorSyncSignal.requestEditorAdopt`), with a toast.
+Field and child-list writes move `updatedAt` but not the fingerprint, so they never make a text save stale.
+**Watched on prod:** focused block, typed A, a second socket rewrote the text, typed B → `REFUSED stale
+text` in the log, Mongo kept the other writer's text, the editor showed it with the toast. Control: the same
+typing with no other writer saved, 0 new refusals. **Found by watching, fixed:** the adopt was first spent
+on the render that still carried the refused text (the split-render class `editorSyncSignal` documents) —
+it is spent only when the server copy is applied now.
+
+**THE GAP-CLICKED BLOCK.** It is a real row from the start (it becomes the wrap's host), so the doc mint's
+provisional vanish never covered it. `helpers/gapMints` marks it; `TextblockCard`'s editor gets an
+empty-blur that runs the embed's own Delete; the mark ends once it holds text. **Watched:** gap click →
+click the picture → block gone from the doc AND Mongo; typed "kept" → click away → stays.
+
+**NOT done: Firefox extension signing** — `extension/.sign.env` does not exist yet (the AMO keys go there,
+never in chat). Server 3,001 · client 5,600. Wrap Lab restored from its saved JSON; test rows deleted.
+
+---
+
 ### 2026-10-02 (6) — A DROP ON A BLOCK'S EDGE WRAPPED IT; Firefox crashed the panel on a drop; a block moved doc to doc kept its old owner
 
 Continuing the docs/DnD pass, now in **Firefox** (the user's browser), checked in Mongo afterwards.

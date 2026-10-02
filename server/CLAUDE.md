@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-02 (7) — a text save built on old text is refused)
+- `utils/textmapDigest.js` (NEW, shared with the client) — sorted-key fingerprint of a textmap.
+- `socketHandlers/occurrences.js` `textSaveIsStale` + check right after `prev` resolves: a payload carrying
+  `textmapBasis` is refused (`occurrence_stale`, `reason:"textmap"`) when the stored text is no longer that
+  basis — NOT waived for a solo socket. `uc._textInFlight[id]` lets a save build on an accepted, uncached one.
+  Tests `__tests__/staleTextSave.test.js`.
+
 ## Recent Changes (2026-09-29 (5) — the suggestions were empty on poms; and the bootstrap token is bounded)
 Found by DRIVING the UI (the (4) features all shipped "not watched in a browser").
 - **`GET /assistant/bootstrap-token` now RETIRES its predecessors.** It mints an `assistant (auto)`
