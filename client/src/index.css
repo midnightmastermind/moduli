@@ -5082,15 +5082,22 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 }
 .lwrap-chip-arrow { opacity: 0.7; }
 
-/* WRAP OFF — plain side-by-side, no reflow. */
-.wrap-group--off > .wrap-group-content > * {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.wrap-group--off.wrap-group--right > .wrap-group-content > * { flex-direction: row-reverse; }
-.wrap-group--off > .wrap-group-content > * > [data-wrap-role="host"] { flex: 1 1 auto; min-width: 0; }
-.wrap-group--off > .wrap-group-content > * > [data-wrap-role="float"] { flex: 0 0 auto; width: var(--wrap-nw, 280px); }
+/* WRAP OFF — TWO plain columns, no reflow: the float(s) stacked on one side,
+   the text side (leads, then the host) stacked on the other. It was a flex row
+   with one column PER MEMBER, written when a group held two blocks; with leads
+   each one was squeezed to its min-content (Bravo at 89px broke mid-word, a
+   picture lead's caption was clipped — 2026-10-02). Floats + a margin on the
+   text side keep the two columns independent: a tall picture leaves no gaps
+   between the text blocks, which a grid's shared rows would. */
+.wrap-group--off > .wrap-group-content > * { display: flow-root; }
+.wrap-group--off > .wrap-group-content > * > [data-wrap-role="float"] { width: var(--wrap-nw, 280px); margin-bottom: 12px; }
+.wrap-group--off.wrap-group--left > .wrap-group-content > * > [data-wrap-role="float"] { float: left; clear: left; }
+.wrap-group--off.wrap-group--right > .wrap-group-content > * > [data-wrap-role="float"] { float: right; clear: right; }
+.wrap-group--off.wrap-group--left > .wrap-group-content > * > [data-wrap-role="lead"],
+.wrap-group--off.wrap-group--left > .wrap-group-content > * > [data-wrap-role="host"] { margin-left: calc(var(--wrap-nw, 280px) + 12px); }
+.wrap-group--off.wrap-group--right > .wrap-group-content > * > [data-wrap-role="lead"],
+.wrap-group--off.wrap-group--right > .wrap-group-content > * > [data-wrap-role="host"] { margin-right: calc(var(--wrap-nw, 280px) + 12px); }
+.wrap-group--off > .wrap-group-content > * > [data-wrap-role="lead"] { margin-bottom: 6px; }
 
 /* WRAP AUTO-STACKED — the beside column is too narrow to hold prose at this width
    (WrapGroupNode.measure), so drop the float and STACK the occurrences vertically.
