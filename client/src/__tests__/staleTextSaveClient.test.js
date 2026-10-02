@@ -52,6 +52,10 @@ describe("wiring", () => {
     expect(ed).toMatch(/textBasisRef\.current = textmapDigest\(json\)/);
     expect(ed).toMatch(/const forced = forceSyncToken !== appliedForceSyncRef\.current \|\| adopt;/);
     expect((ed.match(/textBasisRef\.current = textmapDigest\(content\)/g) || []).length).toBe(2);
+    // The adopt is spent only where the server copy is APPLIED — spending it when
+    // the editor merely equals `content` dropped it on the render that still
+    // carried the refused text (watched on prod, 2026-10-02).
+    expect((ed.match(/clearEditorAdopt\(occurrence\.id\)/g) || []).length).toBe(1);
   });
   test("a refused TEXT save is what requests the adopt", () => {
     const b = read("../state/bindSocketToStore.js");

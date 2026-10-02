@@ -1764,7 +1764,9 @@ const Editor = forwardRef(function Editor({
       const current = editor.getJSON();
       if (JSON.stringify(current) === JSON.stringify(content)) {
         textBasisRef.current = textmapDigest(content);
-        if (adopt) clearEditorAdopt(occurrence.id);
+        // NOT spent here: the adopt request can render before the server's copy
+        // lands, while `content` is still this editor's own refused text. It is
+        // spent only once that copy is applied below (or by its deadline).
       } else {
         const { from, to } = editor.state.selection;
         // [caret] diag — a content sync inside the click window is the classic
