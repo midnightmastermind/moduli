@@ -56,6 +56,8 @@
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 import { randomUUID } from "node:crypto";
+import { compressTextmap } from "../utils/textmapCompression.js";
+import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 
 const userRoom = (userId) => `user:${userId}`;
 
@@ -105,6 +107,7 @@ export async function mintOccurrence({
   occurrenceId: explicitOccurrenceId = null,
   index = null,
   externalId, source = "share", meta = {}, onExisting = "update", moduleMeta = null,
+  textmap = null,
   io = null, mirror = null,
 }) {
   if (!externalId) throw new Error("externalId required — without it a re-share duplicates");
@@ -138,10 +141,15 @@ export async function mintOccurrence({
     };
     const updated = asPlain(await Occurrence.findOneAndUpdate(
       { id: existing.id, userId },
-      { $set: { label: nextLabel, fields: nextFields, meta: nextMeta } },
+      { $set: { label: nextLabel, fields: nextFields, meta: nextMeta, ...(textmap ? { textmap: compressTextmap(textmap) } : {}) } },
+      // The row AFTER the write — without `new` this returned the old one, and
+      // that is what was mirrored into the warm cache.
+      { new: true },
     )) || { ...existing, label: nextLabel, fields: nextFields, meta: nextMeta };
-    mirror?.("occurrence", updated);
-    io?.to?.(userRoom(userId))?.emit?.("occurrence_updated", { occurrence: updated });
+    // The DB holds a textmap compressed; the cache and every tab hold it raw.
+    const row = textmap ? { ...updated, textmap } : cacheShapeOccurrence(updated);
+    mirror?.("occurrence", row);
+    io?.to?.(userRoom(userId))?.emit?.("occurrence_updated", { occurrence: row });
     return { occurrenceId: existing.id, moduleId: existing.moduleId, status: "updated", linked: null };
   }
 
@@ -165,9 +173,11 @@ export async function mintOccurrence({
     id: occId, userId, gridId, moduleId: mod.id,
     ...(parentId ? { parentId } : parentFolderId ? { parentId: parentFolderId } : {}),
     label: label ?? null, fields, occurrences: [],
+    ...(textmap ? { textmap: compressTextmap(textmap) } : {}),
     meta: { ...meta, source, externalId, ingestedAt: new Date().toISOString() },
   });
   const occ = asPlain(createdOcc);
+  if (textmap) occ.textmap = textmap;
   mirror?.("occurrence", occ);
   io?.to?.(userRoom(userId))?.emit?.("occurrence_created", { occurrence: occ });
 

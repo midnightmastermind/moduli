@@ -198,3 +198,22 @@ describe("a staged FILE in the window", () => {
     expect(c.file).toBe(null);
   });
 });
+
+describe("a textblock has a Body, not a Label", () => {
+  const TB = shapeFromKind("textblock");
+  const SEL = clipFromStage({ ...STAGED, shape: "selection", text: "The quoted passage", label: "x" });
+  const body = (extra) => buildSharePayload({
+    mode: "manual", stageId: "s", stageKey: "k", destination: { id: "d1" }, shape: TB,
+    mappings: {}, labelMapping: { source: "title" }, bodyMapping: { source: "selection" }, clip: SEL, ...extra,
+  }).placement;
+
+  it("sends the mapped body and no label", () => {
+    expect(body().body).toBe("The quoted passage");
+    expect(body().label).toBeUndefined();
+  });
+  it("an instance still sends its label and no body", () => {
+    const p = body({ shape: shapeFromKind("bookmark") });
+    expect(p.label).toBeTruthy();
+    expect(p.body).toBeUndefined();
+  });
+});

@@ -475,8 +475,11 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         metaVal = await resolveExprAsync(cfg.meta, $vars, opts);
       }
 
+      // A textmap (a textblock's body) — an object, or an expression naming one.
+      const textmapVal = cfg.textmap ? await resolveExprAsync(cfg.textmap, $vars, opts) : null;
       const res = await mintOccurrence({
         userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
+        ...(isObject(textmapVal) ? { textmap: textmapVal } : {}),
         moduleRole, moduleKind, moduleFileRef,
         // A `fileRef` IS a module's identity when it has one — /ingest's own
         // rule (a bookmark is keyed by its URL). Reusing the module keeps a

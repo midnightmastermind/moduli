@@ -53,7 +53,7 @@ const withoutOverride = (m) => {
   return rest;
 };
 
-export function presetFromForm({ name, destination, shape, mappings, labelMapping }) {
+export function presetFromForm({ name, destination, shape, mappings, labelMapping, bodyMapping }) {
   const cleaned = {};
   for (const [fieldId, m] of Object.entries(mappings || {})) cleaned[fieldId] = withoutOverride(m);
   return {
@@ -67,6 +67,7 @@ export function presetFromForm({ name, destination, shape, mappings, labelMappin
     destinationLabel: destination?.label || null,
     mappings: cleaned,
     labelMapping: labelMapping ? withoutOverride(labelMapping) : null,
+    bodyMapping: bodyMapping ? withoutOverride(bodyMapping) : null,
   };
 }
 
@@ -84,5 +85,6 @@ export function formFromPreset(preset) {
     },
     mappings,
     labelMapping: preset?.labelMapping ? withoutOverride(preset.labelMapping) : null,
+    bodyMapping: preset?.bodyMapping ? withoutOverride(preset.bodyMapping) : null,
   };
 }

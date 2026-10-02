@@ -45,6 +45,8 @@ const enc = encodeURIComponent;
 // The label a new row gets unless you change it: the page title with its site
 // suffix stripped ("… (2006) IMDb" → "… (2006)").
 const DEFAULT_LABEL = { source: "title", transform: "stripSuffix" };
+// A textblock's body: what you selected, else the page title.
+const defaultBody = (clip) => ({ source: clip?.selection ? "selection" : "title" });
 
 export default function SharePlace() {
   const stageId = useMemo(() => param("stage"), []);
@@ -86,6 +88,7 @@ export default function SharePlace() {
   const [kindOverride, setKindOverride] = useState("");
   const [mappings, setMappings] = useState({});
   const [labelMapping, setLabelMapping] = useState(DEFAULT_LABEL);
+  const [bodyMapping, setBodyMapping] = useState(null);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState(null);
   // The row's picture. `coverTouched` = the user picked or cleared it, so the
@@ -101,6 +104,8 @@ export default function SharePlace() {
   const shape = useMemo(
     () => (kindOverride ? shapeFromKind(kindOverride) : siblingShape) || shapeFromDestination(null),
     [kindOverride, siblingShape]);
+  const isTextblock = shape?.role === "textblock";
+  const bodyMappingNow = bodyMapping || defaultBody(clip);
 
   // ── the staged clip, then where shares go by default ────────────────────
   useEffect(() => {
@@ -138,7 +143,7 @@ export default function SharePlace() {
   // ── the grid's fields and presets; a grid change resets the form ────────
   useEffect(() => {
     setDestination(null); setSiblingShape(null); setKindOverride(""); setMappings({});
-    setLabelMapping(DEFAULT_LABEL); setPresetId(""); setQ(""); setDests([]);
+    setLabelMapping(DEFAULT_LABEL); setBodyMapping(null); setPresetId(""); setQ(""); setDests([]);
     if (!token || !gridId) { setFields([]); setPresets([]); setSuggested([]); return; }
     let live = true;
     getJson(`/fields?gridId=${enc(gridId)}&limit=500`).then((b) => { if (live) setFields(b?.fields || []); });
@@ -190,6 +195,7 @@ export default function SharePlace() {
     setKindOverride("");
     setMappings(f.mappings);
     setLabelMapping(f.labelMapping || DEFAULT_LABEL);
+    setBodyMapping(f.bodyMapping || null);
   };
 
   // The saved preset currently selected, if any. A SUGGESTED one is not saved —
@@ -213,7 +219,7 @@ export default function SharePlace() {
     const name = window.prompt("Save this placement as a preset named:", chosen?.name || destination?.label || "");
     if (!name || !name.trim()) return;
     const next = withPreset(readPresets({ meta: { sharePresets: presets } }),
-      presetFromForm({ name, destination, shape, mappings, labelMapping }));
+      presetFromForm({ name, destination, shape, mappings, labelMapping, bodyMapping: bodyMappingNow }));
     const saved = await writePresets(next, `Saved preset “${name.trim()}”.`);
     if (!saved) return;
     setPresetId(saved.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase())?.id || "");
@@ -225,7 +231,7 @@ export default function SharePlace() {
   const updatePreset = async () => {
     if (!savedPreset) return;
     const next = replacePreset(presets, savedPreset.id,
-      presetFromForm({ name: savedPreset.name, destination, shape, mappings, labelMapping }));
+      presetFromForm({ name: savedPreset.name, destination, shape, mappings, labelMapping, bodyMapping: bodyMappingNow }));
     const saved = await writePresets(next, `Updated “${savedPreset.name}”.`);
     if (saved) setPresetId(savedPreset.id);   // replacePreset keeps the id
   };
@@ -265,7 +271,7 @@ export default function SharePlace() {
     try {
       const body = buildSharePayload({
         gridId, mode: manual ? "manual" : "auto", stageId, stageKey,
-        destination, shape, mappings, labelMapping, clip, cover: wantsCover ? cover : "",
+        destination, shape, mappings, labelMapping, bodyMapping: bodyMappingNow, clip, cover: wantsCover ? cover : "",
       });
       const r = await fetch("/api/v1/share", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
@@ -446,7 +452,9 @@ export default function SharePlace() {
           )}
 
           <label style={{ ...lblSt, marginTop: 8 }}>Fields</label>
-          <MappingRow name="Label" mapping={labelMapping} clip={clip} onChange={setLabelMapping} />
+          {isTextblock
+            ? <MappingRow name="Body" mapping={bodyMappingNow} clip={clip} onChange={setBodyMapping} />
+            : <MappingRow name="Label" mapping={labelMapping} clip={clip} onChange={setLabelMapping} />}
           {Object.entries(mappings).map(([fieldId, m]) => (
             <MappingRow key={fieldId} name={fieldsById[fieldId]?.name || fieldId} mapping={m} clip={clip}
               onChange={(next) => setMappings((p) => ({ ...p, [fieldId]: next }))}

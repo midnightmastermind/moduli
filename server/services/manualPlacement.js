@@ -34,6 +34,24 @@ const lit = (v) => `literal:${v == null ? "" : String(v)}`;
 // keeps its type: `json:` is parsed, never resolved, on the server.
 const valueExpr = (v) => (typeof v === "string" ? lit(v) : `json:${JSON.stringify(v)}`);
 
+// A textblock's BODY, as the textmap a textblock renders: one paragraph per
+// blank-line-separated block, a single newline kept as a hard break. Plain
+// text only — the window sends what the user saw in the box.
+export function bodyToTextmap(body) {
+  const text = String(body || "").replace(/\r\n?/g, "\n").trim();
+  if (!text) return null;
+  const paragraphs = text.split(/\n\s*\n/).map((block) => {
+    const lines = block.split("\n");
+    const content = [];
+    lines.forEach((line, i) => {
+      if (i > 0) content.push({ type: "hardBreak" });
+      if (line) content.push({ type: "text", text: line });
+    });
+    return content.length ? { type: "paragraph", content } : { type: "paragraph" };
+  });
+  return { type: "doc", content: paragraphs };
+}
+
 export async function placeManually({ share, placement, userId, gridId, io = null, mirror = null }) {
   const p = placement || {};
   if (!p.parentId) throw new Error("manual placement requires a parentId");
@@ -81,7 +99,10 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
       config: {
         type: "CREATE",
         parentId: p.parentId,
-        label: lit(p.label || share?.label || ""),
+        // A textblock has no label (it IS its text), so the share's own label
+        // is not borrowed for one.
+        label: lit(p.role === "textblock" ? (p.label || "") : (p.label || share?.label || "")),
+        ...(bodyToTextmap(p.body) ? { textmap: `json:${JSON.stringify(bodyToTextmap(p.body))}` } : {}),
         role: p.role || "instance",
         kind: p.kind || null,
         // A literal too: an externalId is built from a URL, and a URL holding

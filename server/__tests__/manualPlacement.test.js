@@ -188,3 +188,27 @@ describe("placing a shared file by hand", () => {
     expect(runs.at(-1).op.pipeline.steps[0].config.type).toBe("CREATE");
   });
 });
+
+describe("a textblock placement", () => {
+  const TB = { parentId: "p1", role: "textblock", kind: "doc", fields: {}, body: "First line\nsecond line\n\nNext paragraph" };
+  const create = () => runs[0].op.pipeline.steps[0].config;
+
+  it("writes the body as the textmap, one paragraph per block, a newline kept as a break", async () => {
+    await placeManually({ share: SHARE, placement: TB, userId: "u1", gridId: "g1" });
+    const tm = JSON.parse(create().textmap.slice("json:".length));
+    expect(tm.content).toHaveLength(2);
+    expect(tm.content[0].content.map((n) => n.type)).toEqual(["text", "hardBreak", "text"]);
+    expect(tm.content[1].content[0].text).toBe("Next paragraph");
+  });
+
+  it("borrows no label from the share — a textblock IS its text", async () => {
+    await placeManually({ share: SHARE, placement: TB, userId: "u1", gridId: "g1" });
+    expect(create().label).toBe("literal:");
+  });
+
+  it("an instance still falls back to the share's label, and carries no textmap", async () => {
+    await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });
+    expect(create().label).toBe("literal:A Guide…");
+    expect(create().textmap).toBeUndefined();
+  });
+});

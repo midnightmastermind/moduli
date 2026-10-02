@@ -125,7 +125,7 @@ const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
  * reads the clip's content from the STAGE — the body only chooses where it
  * goes and what it becomes.
  */
-export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, clip, cover }) {
+export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, bodyMapping, clip, cover }) {
   const base = { mode, stageId, stageKey, ...(gridId ? { gridId } : null) };
   if (mode !== "manual") return base;
   if (!destination?.id) throw new Error("a manual placement needs a destination");
@@ -134,7 +134,12 @@ export function buildSharePayload({ gridId, mode, stageId, stageKey, destination
     const v = mappingValue(clip, m);
     if (!isEmpty(v)) fields[fieldId] = v;
   }
-  const label = labelMapping ? String(mappingValue(clip, labelMapping) || "") : "";
+  // A TEXTBLOCK has no label — it is its text (user 2026-10-01: "there shouldnt
+  // even be a label for textblock … Body should, and it should default there").
+  // Its mapping fills the BODY instead, which the server writes as the textmap.
+  const isTextblock = shape?.role === "textblock";
+  const label = !isTextblock && labelMapping ? String(mappingValue(clip, labelMapping) || "") : "";
+  const body = isTextblock && bodyMapping ? String(mappingValue(clip, bodyMapping) || "") : "";
   const fileRef = shape?.fileFrom ? clip?.[shape.fileFrom] || null : null;
   // Bound but empty still binds: that is how a row reaches an op that gates on
   // `_boundFieldIds` rather than on a value.
@@ -149,6 +154,7 @@ export function buildSharePayload({ gridId, mode, stageId, stageKey, destination
       role: shape?.role || "instance",
       kind: shape?.kind || null,
       ...(label ? { label } : null),
+      ...(body ? { body } : null),
       ...(fileRef ? { fileRef } : null),
       ...(shape?.bindingsLike ? { bindingsLike: shape.bindingsLike } : null),
       ...(bindFields.length ? { bindFields } : null),
