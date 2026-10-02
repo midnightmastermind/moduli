@@ -116,6 +116,25 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-02 (6) — `Days Until Due`, BUILT BY CLICKING; a date 7 days out read 6
+
+Picked up the main account's operations pass (it had made the eight field-id step settings a searchable
+picker, `c76d5ab2`, and hit its limit before using it). On the rebuild grid, by clicking: `+ Operation` →
+"Days Until Due" → `+ Action` → Variables › Dates › 📐 difference → **date field = Due, write to field = Days
+Until Due through the new pickers** (stored ids correct) → triggers onChange Due · onFilterChange filterNav ·
+onFilterChange grid (+ the default onLoad). Same step and triggers as poms' (priority 5 here, 4 there).
+Due + Days Until Due attached to Tasks › Today › Email Sam through its Settings.
+**Watching it found the defect:** Due = Oct 9 on Oct 2 showed **6**. `DATE_DIFF`, `COUNT_DATE_OVERDUE` and
+`COUNT_DATE_UPCOMING` read the field with `new Date("2026-10-09")` — UTC midnight, the previous evening in
+US timezones. They use the file's own `parseLocalDate` now (`dateDiffLocalDay.test.js`; the old code fails 3).
+**After the deploy:** load → 7; Due changed to Oct 10 through its chip → 8 live. Rebuild ops: 14.
+**Also:** the eleven example bills on poms' Bills page were deleted through the app at the user's ask
+(backup `server/backups/orphans/2026-10-02-example-bills.json`); only DigitalOcean remains.
+**Probe note:** a date chip is a `<label title="Due: …">` wrapping an `input[type=date]` — set the input's
+value (native setter + input/change); clicking the label opens a native picker a headless browser cannot drive.
+
+---
+
 ### 2026-10-02 (5) — `Bills: Into Schedule` (0384): a Pay Bill in the day's Todo on each bill's day of the month
 
 User: *"make an op on poms grid quick that takes bills, checks its reoccurance day … and add a copy to my

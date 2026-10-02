@@ -3158,3 +3158,5 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 - **`lineHasInlineNodes(node)`** — a line holding a pill auto-wraps whole (nodeJson), not from textContent.
 - **`typingWouldReplaceBlock(selection)`** — Editor.handleTextInput swallows a character typed over a
   node-selected block. Test: `__tests__/strictBlockSweep.test.js`.
+- **`operationActions.js`** (2026-10-02) — `DATE_DIFF`, `COUNT_DATE_OVERDUE`, `COUNT_DATE_UPCOMING` parse the
+  field with `parseLocalDate` (a date-only value is a local day). Test: `__tests__/dateDiffLocalDay.test.js`.
