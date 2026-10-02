@@ -165,6 +165,12 @@ panels. Restored through the app (panels re-created, grid list and layout identi
 module is left for the orphan sweeper. *Probe note: Playwright's Firefox driver cannot run a second drag on
 the same page ("session is null") — one drag per browser.*
 
+**INDENTS ARE OPTIONAL NOW.** `0383` sets `meta.textIndent:false` on the Lookup container; `ModuleContainer`
+stamps `.text-flush` and the textblocks inside lose the book-style first-line indent (new lookups too). And
+Tab in any editor inserts a real tab (`tab-size: 4`), Shift+Tab removes one from the line start — before,
+the browser moved focus OFF the textblock. Lists (nesting) and table cells (next cell) keep their Tab.
+Watched in Firefox: caret stays in the editor, the line reads `\tThough…`, Shift+Tab restores it.
+
 **`0382` — the Lookup board's 244 rows** were plain instances from the Raindrop import (`raindropId` "l:…",
 0 bindings, 0 values, each module placed once); they are textblocks with the text as the body now. Census
 afterwards: apart from instances, NO other label-only rows exist on poms grid — every other leaf is an
