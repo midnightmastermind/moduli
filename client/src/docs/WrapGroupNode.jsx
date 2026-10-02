@@ -226,11 +226,23 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
     // (blank-band guard). Summed / maxed across the leads and the host.
     let textArea = 0;
     let bandBottomReach = top;
-    for (const el of textEls) {
-      const m = measureProseText(proseOf(el), top, bottom);
+    textEls.forEach((el, i) => {
+      const prose = proseOf(el);
+      // A LEAD with no text (a picture, a board) still fills the band beside the
+      // float — its box is the fill. Read as text it measured 0, so a picture
+      // lead above the host read as a blank band and stacked the group
+      // (2026-10-02, "an image and textblock on one side"). The host is the
+      // block that wraps, so it is always measured as text.
+      if (!prose && i < textEls.length - 1) {
+        const r = el.getBoundingClientRect();
+        textArea += r.width * r.height;
+        if (r.top < bottom && r.bottom > bandBottomReach) bandBottomReach = Math.min(r.bottom, bottom);
+        return;
+      }
+      const m = measureProseText(prose, top, bottom);
       textArea += m.area;
       if (m.bandBottomReach > bandBottomReach) bandBottomReach = m.bandBottomReach;
-    }
+    });
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
     const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
     // COLUMNS mode (attrs.wrap === false) skips the prose-fill sliver policy
