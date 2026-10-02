@@ -16,6 +16,7 @@ import { floatCountOf, wrapRoleAt, textSideGap } from "./wrapRoles";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { createTextblockInContainer } from "../helpers/CommitHelpers.js";
 import { requestTextblockFocus } from "../helpers/pendingTextblockFocus.js";
+import { markGapMint } from "../helpers/gapMints.js";
 import { hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { isTextmappedModule, hostNotchBand, holdGuardStack, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
@@ -483,6 +484,7 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
     if (!hostOcc || !parent) return;
     const made = createTextblockInContainer({ dispatch, socket, gridId: hostOcc.gridId || parent.gridId, userId: hostOcc.userId || parent.userId, containerOccurrence: parent });
     if (!made) return;
+    markGapMint(made.occurrenceId);   // empty and clicked away from → removed (helpers/gapMints)
     requestTextblockFocus(made.occurrenceId);
     const pos = getPos();
     editor.chain().command(({ tr }) => {

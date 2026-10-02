@@ -16,7 +16,7 @@
 //   - { kind: "occurrence", occId }   → scrolls to + flashes that occurrence
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import Editor from "../ui/Editor.jsx";
 import { useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -24,6 +24,8 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 // same behaviour and a second copy would drift. `forceLiveNow` (same module) is
 // what lets a neighbour be made live before the caret is moved into it.
 import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
+import { forgetGapMint } from "../helpers/gapMints.js";
+import { isEmptyTextblockDoc } from "../helpers/provisionalTextblock.js";
 
 // Per-placement link (occurrence.meta) wins over the template default (module.meta).
 function resolveLink(occurrence, module) {
@@ -47,8 +49,15 @@ function textmapBlocks(textmap) {
   });
 }
 
-export default function TextblockCard({ occurrence, module }) {
+export default function TextblockCard({ occurrence, module, onEmptyBlur = null }) {
   const { dispatch, socket } = useGridActions();
+  // A gap-clicked block that has been written in is a real block now: its
+  // "empty and left → removed" ends (helpers/gapMints).
+  useEffect(() => {
+    if (occurrence?.textmap && typeof occurrence.textmap === "object" && !isEmptyTextblockDoc(occurrence.textmap)) {
+      forgetGapMint(occurrence.id);
+    }
+  }, [occurrence?.id, occurrence?.textmap]);
   const isInline = module?.kind === "inline";
   const link = resolveLink(occurrence, module);
 
@@ -160,6 +169,7 @@ export default function TextblockCard({ occurrence, module }) {
         socket={socket}
         placeholder="Type…"
         mode={isInline ? "inline" : "doc"}
+        onEmptyBlur={onEmptyBlur}
       />
     </div>
   );

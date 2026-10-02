@@ -26,6 +26,7 @@ import TextblockCard from "./TextblockCard.jsx";
 import DocContent from "./DocContent.jsx";
 import BoundBody from "./BoundBody.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
+import { isGapMint, forgetGapMint } from "../helpers/gapMints.js";
 
 export const TEXTBLOCK_CONTEXTS = ["card", "block", "inline"];
 
@@ -46,7 +47,17 @@ export default function ModuleTextblock({ context, occurrence, module, ...rest }
         {...rest}
         occurrence={occurrence}
         module={module}
-        renderBody={() => <TextblockCard occurrence={occurrence} module={module} />}
+        renderBody={() => (
+          <TextblockCard
+            occurrence={occurrence}
+            module={module}
+            // A block made by clicking a wrap's gap goes when left empty
+            // (helpers/gapMints) — through the embed's own Delete.
+            onEmptyBlur={isGapMint(occurrence.id) && rest.embedOnDelete
+              ? () => { forgetGapMint(occurrence.id); rest.embedOnDelete(); }
+              : null}
+          />
+        )}
       />
     );
   }
