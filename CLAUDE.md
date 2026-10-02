@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (5) — ON A DOC PAGE, DELETE NEVER DELETED; and copies dropped into a doc belonged to nobody
+
+Continuing the docs/DnD pass (*"keep going with testing please"*). Each found by doing it on Wrap Lab and
+reading Mongo afterwards, not the screen.
+```
+Delete on a doc page only unlinked  `hostOccurrenceIdOf` reads the nearest [data-occ-id] above the editor —
+                                    a doc PAGE has no card around it, so it found nothing and every
+                                    owned-row Delete (09-19's Check In rule) became an unlink there. The
+                                    editor now stamps `data-host-occ` on its own root and the lookup reads
+                                    that first.
+a textblock's radial only unlinked  the textblock branch of ModuleEmbedNode passed `deleteNode`; it uses the
+                                    ownership rule now (owned -> Delete, placed from elsewhere -> Remove).
+                                    Before: a minted, typed, removed block left its row behind (2 found).
+a copy / copy-link in a doc         stored with parentId null — owned and listed by nobody, so its Delete
+                                    could only unlink. Owned by the doc now (a copy's children by the copy).
+```
+**Watched:** mint on the last line → type → drag onto the text side as a lead → radial reads **Delete** →
+gone from the doc AND Mongo, group `floatCount` intact after reload. Copy-mode drag → copy's parentId is the
+doc → Delete removes it. Debris from the pre-fix runs (2 scratch rows, 1 ownerless copy) deleted through the
+app; Wrap Lab ends as it began. **Also found the other session had already fixed the radial that "fled the
+pointer"** (57c2f31f) while my `overflow-anchor` attempt was going on; my commit `333aaa9e` carries only a
+test, removed in `1a7dfd8d`.
+
+---
+
 ### 2026-10-02 (4) — TYPING BESIDE A PILL TORE THE PAGE APART; "To pill" on a textblock read "Item"
 
 User: *"why does pills and textblocks have labels? fix the other thing too and continue"*.
