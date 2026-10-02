@@ -42,7 +42,11 @@ leave nothing to wrap; a drop over the float column still re-morphs). A lead dro
 becomes a float. **And a row moved from a board into a doc kept the board as its `parentId`** — deleting
 the board would have cascaded into the doc. The doc becomes the parent when the board owned it (a file
 homed in Files keeps its home). Also watched: seam resize 300→380→300 and the swap button, both persisted;
-a host dragged into another doc leaves its group wrapping with the next textblock as host.
+a host dragged into another doc leaves its group wrapping with the next textblock as host. And when the block left
+LAST is not a textblock (a picture after the host is dragged out), the group shows two plain columns —
+derived at render from the last block's module (`WrapGroupNode` `hostIsText`), so every path that can
+leave a non-text last block is covered; an unloaded host counts as text. Watched: Bravo then Alpha dragged
+out → `off :: float, host(picture)`, kept on reload.
 **Probe faults:** a drop point near a panel's top or bottom edge auto-scrolls or lands in the NEXT panel
 (one picture landed in Routines › Physical); centre the target first. A picture in COPY mode makes a copy
 on every drag; two stray copies were removed with their embeds (`delete_occurrence`).
