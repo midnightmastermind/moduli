@@ -2374,6 +2374,11 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
   height: 0;
   margin: 0;
   overflow: hidden;
+  /* Never the scroll anchor. Scrolled to the bottom, the browser anchored on
+     this line, so its 0 -> 19px reveal on hover SCROLLED the panel 11px — the
+     handle you were pointing at moved out from under the click (a wrap lead's
+     radial menu would not open, 2026-10-02). */
+  overflow-anchor: none;
   transition: height 0.12s ease-out;
 }
 /* Reveal ONLY the innermost editor under the pointer/caret. Both halves used to
