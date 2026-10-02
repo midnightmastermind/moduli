@@ -3145,3 +3145,10 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   instantly when the target is > 2 screens away (`scrollBehaviorFor`). `HIGHLIGHT_MS` = 1000 (2 cycles).
 - `opResultRows` / `opRowText` / `describeOpTrigger`: an op run as rows + what triggered it; the pill's
   text is the rows joined. `computeTriggerMatch` returns `eventType`.
+
+## Recent Changes (2026-10-02 — strictBlockSweep.js)
+- **`looseTextBlocks(doc)`** — the page doc's strict-block sweep converts ONLY loose text blocks
+  (paragraph/heading/blockquote/codeBlock/lists with text); embeds, wrap groups, tables are left alone.
+- **`lineHasInlineNodes(node)`** — a line holding a pill auto-wraps whole (nodeJson), not from textContent.
+- **`typingWouldReplaceBlock(selection)`** — Editor.handleTextInput swallows a character typed over a
+  node-selected block. Test: `__tests__/strictBlockSweep.test.js`.

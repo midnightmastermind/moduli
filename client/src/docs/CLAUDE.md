@@ -797,3 +797,11 @@ instances). All client-side:
   doc-changing transaction and when modules arrive. `moduleOfOcc(id)` resolves a module, using the
   embed's own subscribed `mod` for its own id (the bridge can be a render behind on first arrival).
   Test: `__tests__/wrapMenuKey.test.js`.
+
+## Recent Changes (2026-10-02 — pills: To pill / To block)
+- **`toPill.js`** — `pillNodeFor({mod, occurrence, occurrenceId})`: a one-line textblock becomes an
+  `instanceTextblockInline` chip, anything else an `instancePill` named by its placement; null when it
+  cannot be a pill. `liftInlineToBlock(tr, pos, blockNode)`: the inline atom leaves its line as a block
+  (alone on the line -> replaces it; inside a sentence -> block after the line, sentence kept).
+- **`ModuleEmbedNode.jsx`** "To pill", **`pills/InstancePillNode.jsx`** "Convert to Embed" + placement
+  label, **`pills/InstanceTextblockInlineNode.jsx`** new "To block". Test: `__tests__/toPill.test.js`.

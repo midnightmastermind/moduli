@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (4) — TYPING BESIDE A PILL TORE THE PAGE APART; "To pill" on a textblock read "Item"
+
+User: *"why does pills and textblocks have labels? fix the other thing too and continue"*.
+```
+"To pill" on a textblock -> "Item"   it made an instancePill from `mod.label`; a textblock has no label,
+                                     its words are its body. It becomes the inline textblock chip now
+                                     (docs/toPill.js `pillNodeFor`) — only for a plain one-line body, since
+                                     the chip writes its body back as one text paragraph. An instance pill is
+                                     named by its PLACEMENT (occurrenceDisplayLabel), at insert and at render.
+no way back from the chip            the chip's menu was Remove only. "To block" added; it and the pill's
+                                     "Convert to Embed" go through `liftInlineToBlock` — the pill's version
+                                     replaced the WHOLE paragraph, deleting the sentence around the pill.
+typing beside the chip (my probe)    the strict-block sweep's rule was "every top-level node that is not an
+                                     instanceTextblock becomes one": it minted five textblocks, put the
+                                     page's container embed inside one and tore the wrap group in two.
+                                     `helpers/strictBlockSweep.looseTextBlocks` is an ALLOWLIST of text
+                                     blocks now. (The 2026 "textChanged" gate had patched one trigger of
+                                     this — a seam resize — and left the rule.)
+the first character dropped the pill single-char auto-create rebuilt the line from its textContent. A line
+                                     holding inline nodes moves whole (nodeJson).
+the next character deleted a picture replacing a line with an atom leaves a NODE selection on the next block
+                                     (the wrap group's float); a keystroke before focus reached the new
+                                     sub-editor replaced it and split the group. `typingWouldReplaceBlock`
+                                     swallows a character typed over a selected block.
+```
+**Watched on prod:** To pill -> chip reads "Charlie three"; type inside the chip -> saved, kept on reload;
+type beside it -> one new textblock holding chip + text, container embed and wrap group untouched; chip menu
+`To block | Remove` -> block again, kept on reload. **The Wrap Lab page was damaged twice by the probe and
+restored through the app's events** from the transaction snapshot (`_wlrestore.mjs`, backup
+`server/backups/orphans/2026-10-02-wraplab-autowrap.json`); nothing was deleted — the originals were only
+unlinked from the doc. **Open, the user's call:** a pill still STORES `instanceLabel` in the doc. It is a
+fallback when the instance is not loaded, the text for markdown export, and — the reason it cannot simply
+go — DocToolbar's "pill from selection" mints a pill with no module at all, so the attr is its only content.
+**Probe notes:** every editor's root has the same class, so `activeElement.className` cannot tell the page
+editor from a block's; the chip's handle has no box until the chip is hovered.
+
+---
+
 ### 2026-10-02 (3) — WRAP RADIALS: a handle that fled the pointer, a menu frozen at first render, commands that minted textblocks, side-by-side in two columns
 
 Picked up the docs/wraps UI pass (main account at its limit mid-bisect, account2 at its weekly limit).
