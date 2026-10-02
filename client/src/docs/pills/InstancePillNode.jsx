@@ -6,6 +6,7 @@
 // NOT for block textblocks — those use InstanceTextblockNode.jsx.
 // ============================================================
 
+import { occurrenceDisplayLabel } from "../../helpers/occurrenceLabel.js";
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -54,7 +55,9 @@ export default function InstancePillNode({ node, selected, deleteNode, updateAtt
   const showMenu = hovered || menuOpen;
 
   const instance = useMemo(() => instancesById?.[instanceId] || null, [instancesById, instanceId]);
-  const displayLabel = instance?.label || instanceLabel || "Unknown Item";
+  // The PLACEMENT's name first (helpers/occurrenceLabel): rows of a kind share one
+  // module, so the module label is the type ("Movie"), not this row's title.
+  const displayLabel = occurrenceDisplayLabel(occurrenceId ? occurrencesById?.[occurrenceId] : null, instance) || instanceLabel || "Unknown Item";
 
   // Field value badges
   const fieldValues = useMemo(() => {

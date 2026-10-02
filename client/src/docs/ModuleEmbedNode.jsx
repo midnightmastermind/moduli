@@ -18,6 +18,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember, extractGroupMember } from "../helpers/wrapGroupOps.js";
 import { floatCountOf, wrapRoleAt, wrapMenuKey } from "./wrapRoles.js";
+import { pillNodeFor } from "./toPill.js";
 import { isTextmappedModule } from "./wrapAnchor.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
@@ -173,6 +174,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     return () => { editor.off("transaction", onTr); };
   }, [editor, readWrapKey]);
 
+  // A boolean, so typing in the block does not rebuild the menu on every save.
+  const canPill = !!pillNodeFor({ mod, occurrence, occurrenceId });
   // Injected into the module's own RadialMenu so there's only one menu.
   const embedRadialItems = useMemo(() => {
     const AlignIcon = ALIGN_ICONS[align] || AlignJustify;
@@ -318,27 +321,29 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       });
     }
 
-    items.push({
+    // What this block becomes as a pill (docs/toPill.js) — null when it cannot
+    // be one (a formatted or multi-paragraph textblock), and then no item.
+    if (canPill) items.push({
       label: "To pill",
       icon: Box,
       color: "bg-indigo-600 hover:bg-indigo-500",
       // Joins a container's own Convert submenu (RadialMenu.groupItems).
       group: "Convert", groupIcon: Shuffle, groupColor: "bg-teal-700 hover:bg-teal-600",
       onClick: () => {
-        if (!editor || !getPos || !mod) return;
+        if (!editor || !getPos) return;
+        // Read at click time: the body may have been edited since the menu was built.
+        const pill = pillNodeFor({ mod, occurrence: operationsBridge.getLocalOcc?.(occurrenceId) || occurrence, occurrenceId });
+        if (!pill) return;
         const pos = getPos();
         editor.chain().focus()
           .deleteRange({ from: pos, to: pos + node.nodeSize })
-          .insertContentAt(pos, {
-            type: "instancePill",
-            attrs: { instanceId: mod.id, instanceLabel: mod.label || "Item", occurrenceId },
-          })
+          .insertContentAt(pos, pill)
           .run();
       },
     });
 
     return items;
-  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket, wrapKey, moduleOfOcc]);
+  }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket, wrapKey, moduleOfOcc, canPill]);
 
   if (!mod) {
     return (

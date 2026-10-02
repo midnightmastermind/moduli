@@ -63,7 +63,7 @@ describe("wrapMenuKey", () => {
   });
   it("the embed's items memo depends on it", () => {
     const src = fs.readFileSync(path.join(__dirname, "../docs/ModuleEmbedNode.jsx"), "utf8");
-    expect(src).toMatch(/socket, wrapKey, moduleOfOcc\]\);/);
+    expect(src).toMatch(/socket, wrapKey, moduleOfOcc, canPill\]\);/);
     expect(src).toMatch(/editor\.on\("transaction", onTr\)/);
   });
 });
