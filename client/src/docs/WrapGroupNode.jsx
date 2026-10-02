@@ -267,6 +267,11 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
     } else if (!nextUnwrap) {
       guardLatchRef.current = null;
     }
+    if (typeof window !== "undefined" && window.__wrapDiag === true && nextUnwrap !== prevUnwrap) {
+      console.log("[wrapDiag]", JSON.stringify({ prevUnwrap, nextUnwrap, textArea: Math.round(textArea), besideW: Math.round(besideW),
+        neighborH: Math.round(neighborH), measuredW: Math.round(measuredW), measuredH: Math.round(measuredH), shortNeighbor,
+        band: Math.round(bandBottomReach - top), latch: guardLatchRef.current, width: wrapEl.clientWidth, leads: textEls.length - 1 }));
+    }
     if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
     // Stacked layout needs no seam / notch measurement — bail early.
     if (nextUnwrap) { setSeam(null); return; }
