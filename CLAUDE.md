@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (8) — UNDO OF A DOC DROP: three steps, half-applied, and never on screen
+
+Continuing the docs pass (*"please continue with the ui testing"*). Move Charlie from Wrap Lab into its
+nested container, then ONE Ctrl+Z:
+```
+before   3 transactions (Charlie's parent · nested text · outer text), one action each;
+         Ctrl+Z undid the two texts in Mongo and NEITHER changed on screen; the parent stayed moved
+after    1 transaction "3 changes", undone by one press; screen restored within 1s; parent restored
+```
+- **One step:** the drop runs inside `withAction("Dropped block")`, and `persistContent` carries the action
+  open when a save was SCHEDULED past its 500ms debounce (`captureAction`/`retainAction`/`runInAction`).
+  The 09-22 (12) entry called this "keeping the action open across the debounce" and left it open.
+- **On screen:** two defects in the FAST undo path, each enough alone. The restored rows went out with
+  their textmap still COMPRESSED (snapshots keep the `$set` form), so the store took a base64 string as the
+  doc's text — `wireRestoreDocs` decompresses, as `patchCache` already did for the cache. And
+  `onUndoApplied` requested the force-sync and never committed it (only `full_state` did), so open editors'
+  guards refused the revert. Typing undo had gone through the slow path when it was verified (08-01).
+- **Watched, each one press:** cross-doc move (above), same-doc reorder via the top edge, and a drop into the
+  wrap group's float side (group back to `fc1`, exact). Wrap Lab ends as it began; Charlie's parent, which
+  the first pre-fix run left on the nested container, was put back through `update_occurrence`.
+
+---
+
 ### 2026-10-02 (7) — AN OPEN EDITOR CAN NO LONGER SAVE OLD TEXT BACK; a gap-clicked block left empty goes
 
 User: *"handle those please"* — the open items from (6).
