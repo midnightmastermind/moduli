@@ -3160,3 +3160,5 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   node-selected block. Test: `__tests__/strictBlockSweep.test.js`.
 - **`operationActions.js`** (2026-10-02) — `DATE_DIFF`, `COUNT_DATE_OVERDUE`, `COUNT_DATE_UPCOMING` parse the
   field with `parseLocalDate` (a date-only value is a local day). Test: `__tests__/dateDiffLocalDay.test.js`.
+- **`triggerTypes.js` `subjectOptions(stored)`** (2026-10-02) — the trigger editor's subject values plus a
+  stored one the list lacks (`occurrence` on six live move triggers). Test: `__tests__/triggerSubjectOptions.test.js`.

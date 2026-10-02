@@ -116,6 +116,31 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-02 (7) — TWO MORE OPS BY CLICKING: `Schedule: Clear Date on Move-Out`, `Schedule: Stamp Completed On`
+
+Both pipelines are step-for-step poms' (ids mapped; a typed `true` is the string, which `IS` compares equal).
+```
+Clear Date on Move-Out   INIT $schedPageId · FIND id IS $trigger.occurrenceId -> $movedItem ·
+                         IF $movedItem._ancestors NOT_HAS_ANCESTOR $schedPageId -> UPDATE Date = null, Time Slot = null
+                         trigger onMove · module · p2
+Stamp Completed On       INIT $occ = $trigger.occurrence · IF $occ.id IS_NOT_EMPTY ·
+                         IF Completed IS true -> UPDATE Completed On = $today  ELSE -> null
+                         trigger onChange · field Completed · p0
+```
+**Watched on the rebuild:** Book dentist dragged Tasks › Today → Schedule › Todo: `Stamp Date & Time Slot` set
+Date Oct 2; dragged back out: `Clear Date on Move-Out UPDATE_ITEM_FIELD=2`, Date null. Drink's Completed
+switch on → Completed On 2026-10-02, off → null. Rebuild ops: 16.
+**Editor gap, fixed:** poms' six move triggers store subject `occurrence`, which the trigger editor never
+offered — a `<select>` showed them as "Module". `triggerTypes.subjectOptions(stored)` adds a stored subject the
+list lacks (the `priorityOptions` rule). With no target, `occurrence` and `module` match the same moves
+(`matchSubjectFilter` returns true on an empty targetId), so the rebuild op uses `module`. Unit-tested; the
+poms row was not opened to look at it.
+**Probe notes:** a new op is born with an `onLoad` trigger — on a move-only op it must be removed (it ran on
+load and logged `$movedItem not bound`). An IF's else list does not exist until its `+ else` button is pressed.
+The FIND output inputs are placeholders `myId` (id var) and `myItem` (item var).
+
+---
+
 ### 2026-10-02 (6) — `Days Until Due`, BUILT BY CLICKING; a date 7 days out read 6
 
 Picked up the main account's operations pass (it had made the eight field-id step settings a searchable
