@@ -352,6 +352,9 @@ export default function WrapGroupNode({ node, updateAttributes, editor, getPos }
       // starts below the picture keeps it at the corner.
       const handleCovered = side === "left" && band.h > 0 && band.y < 26;
       wrapEl.style.setProperty("--host-handle-left", `${handleCovered ? Math.max(0, notchW) + PROSE_PAD : 0}px`);
+      // …and the moved handle needs a band of its own above the first line,
+      // or it sits ON the text (index.css, [data-host-handle="shifted"]).
+      if (handleCovered) wrapEl.dataset.hostHandle = "shifted"; else delete wrapEl.dataset.hostHandle;
       wrapEl.style.setProperty("--notch-y", `${band.y}px`);
       wrapEl.style.setProperty("--notch-h", `${band.h}px`);
       setMeasuredShape(band.shape);

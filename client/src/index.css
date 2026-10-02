@@ -1446,6 +1446,24 @@ body:not([data-drag-kind]) .container-shell:hover:not(:has(.instance-wrap:hover,
   outline-offset: 1px;
 }
 
+/* ── A textblock is ONE box (user, 2026-10-01: "why do these textblocks … look
+   diff … those have like a seperate border inside"). A textblock embedded as a
+   row renders the ROW's frame (border, tint, handle gutter) with the textblock
+   CARD inside it — and the card drew its own border, tint and inset ring, and
+   shrank to its content: a narrower box inside the box. The row is the frame;
+   the card inside it is plain and fills it, the way a wrap's host already is. */
+.instance-row .instance-body:has(> .textblock-card:not(.textblock-card--inline):not(.textblock-card--link)) {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.instance-row .instance-body > .textblock-card:not(.textblock-card--inline):not(.textblock-card--link),
+.instance-row .instance-body > .textblock-card:not(.textblock-card--inline):not(.textblock-card--link):hover {
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* ── Clipboard-staged indicator ───────────────────────────────────────────
    Applied to items that are CURRENTLY in the clipboard (post-Copy /
    Move / Copy-link from the right-click menu). Distinct treatment from
@@ -4547,6 +4565,12 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="host"] .ProseMirror {
   padding: 5px 9px 7px !important;
 }
+/* The host's handle moved past a left-side picture (WrapGroupNode sets
+   data-host-handle) lands at the text's start — give it a band above the first
+   line instead of letting it sit on the words. */
+.wrap-group--on[data-host-handle="shifted"] > .wrap-group-content > * > [data-wrap-role="host"] .ProseMirror {
+  padding-top: 28px !important;
+}
 /* Link chips wrap WITH the prose beside the float. An inline-block computes its
    shrink-to-fit width against the CONTAINING BLOCK (the full card width), NOT the
    reduced line-box beside the float — so a chip wider than the narrow column can't
@@ -4892,7 +4916,7 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   align-items: flex-start;
   justify-content: center;
   padding-top: 10px;
-  color: hsl(var(--muted-foreground));
+  color: var(--text-muted);
   font-size: 11px;
   opacity: 0.8;
 }

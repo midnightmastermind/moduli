@@ -183,6 +183,28 @@ export function isEmptyTextblockDoc(json) {
 // would leave the parent embedding an occurrence that will never exist, which
 // renders as a bare "—" forever (the 2026-08-01 (19) listed-but-not-embedded
 // failure, from the other direction).
+/**
+ * The doc as it may be SAVED while a provisional block sits in it: every node
+ * for a block with no server row yet becomes the empty line it was minted from.
+ *
+ * The hosting doc used to hold its WHOLE save while one existed (so it never
+ * persisted an embed of an occurrence nobody created) — and that held every
+ * other edit too. Found 2026-10-01: a wrap edit ("Continue wrap into next
+ * block", a side swap) made beside one never reached the server, and closing
+ * the tab lost it. This keeps the rule — the provisional block is never in a
+ * saved doc — without holding anything else. The block's own first keystroke
+ * still writes the parent with it in (commitProvisionalTextblock).
+ */
+export function withoutProvisionalTextblocks(json) {
+  if (pending.size === 0 || !json || typeof json !== "object") return json;
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return node;
+    if (node.type === "instanceTextblock" && pending.has(node.attrs?.occurrenceId)) return { type: "paragraph" };
+    return Array.isArray(node.content) ? { ...node, content: node.content.map(walk) } : node;
+  };
+  return walk(json);
+}
+
 export function hasProvisionalTextblock(json) {
   if (pending.size === 0) return false;
   let found = false;

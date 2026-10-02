@@ -107,7 +107,7 @@ import { mintMark } from "../helpers/mintDiag";
 import {
   isProvisionalTextblock, commitProvisionalTextblock, hasProvisionalTextblock,
   releaseTextblockMintSuppression,
-  isEmptyTextblockDoc, isTextblockMintSuppressed,
+  isEmptyTextblockDoc, isTextblockMintSuppressed, withoutProvisionalTextblocks,
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { stampUserInput, userInputRecently, consumeUserInput } from "../helpers/userInputWindow";
@@ -573,11 +573,10 @@ const Editor = forwardRef(function Editor({
     // occurrence that never gets created — a permanent "—" line. The commit
     // path writes the parent explicitly, and the discard path changes the doc
     // (node → empty line), which persists normally on the next tick.
-    if (hasProvisionalTextblock(json)) {
-      if (saveTimeout.current) clearTimeout(saveTimeout.current);
-      setIsSaving(false);
-      return;
-    }
+    // …and this editor HOSTS one: save everything else, with the provisional
+    // block left out (as the empty line it came from). Holding the whole save
+    // lost every other edit made meanwhile — see withoutProvisionalTextblocks.
+    if (hasProvisionalTextblock(json)) json = withoutProvisionalTextblocks(json);
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     setIsSaving(true);
     const doSave = () => {

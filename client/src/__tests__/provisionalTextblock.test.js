@@ -3,7 +3,7 @@ import {
   registerProvisionalTextblock, isProvisionalTextblock,
   commitProvisionalTextblock, discardProvisionalTextblock, forgetProvisionalTextblock,
   suppressTextblockMint, isTextblockMintSuppressed, releaseTextblockMintSuppression,
-  isEmptyTextblockDoc, hasProvisionalTextblock,
+  isEmptyTextblockDoc, hasProvisionalTextblock, withoutProvisionalTextblocks,
   _resetProvisionalTextblocks,
 } from "../helpers/provisionalTextblock";
 
@@ -219,5 +219,23 @@ describe("mint suppression is per editor", async () => {
     _resetProvisionalTextblocks();
     suppressTextblockMint(0);
     expect(isTextblockMintSuppressed(0, Date.now(), highlights)).toBe(true);
+  });
+});
+
+describe("withoutProvisionalTextblocks", () => {
+  test("a pending block becomes an empty line; everything else is kept, nested too", () => {
+    registerProvisionalTextblock("o1", { commit() {}, discard() {} });
+    const wrap = { type: "wrapGroup", attrs: { floatCount: 1 }, content: [block("img"), block("o1")] };
+    const out = withoutProvisionalTextblocks(doc(para("x"), block("o2"), wrap));
+    expect(out.content[0]).toEqual(para("x"));
+    expect(out.content[1]).toEqual(block("o2"));
+    expect(out.content[2].type).toBe("wrapGroup");
+    expect(out.content[2].attrs).toEqual({ floatCount: 1 });
+    expect(out.content[2].content).toEqual([block("img"), { type: "paragraph" }]);
+    expect(hasProvisionalTextblock(out)).toBe(false);
+  });
+  test("with nothing pending the doc is returned untouched", () => {
+    const d = doc(block("o1"));
+    expect(withoutProvisionalTextblocks(d)).toBe(d);
   });
 });
