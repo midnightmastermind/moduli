@@ -163,9 +163,16 @@ export function isInNonEditableIsland(el) {
  * NEAREST of {editable region, control} decides, for the reason above: an
  * editor rendered inside a clickable card is still text.
  */
-/** Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y. */
+/**
+ * Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y — and the modifier's OWN keydown,
+ * which arrives first: holding Ctrl before Z stamped the window on its own, so
+ * excluding only the Z changed nothing (measured on prod).
+ */
+const MODIFIER_KEYS = new Set(["Control", "Meta", "Shift", "Alt", "AltGraph"]);
 export function isUndoRedoChord(e) {
-  if (!e || !(e.ctrlKey || e.metaKey) || e.altKey) return false;
+  if (!e) return false;
+  if (MODIFIER_KEYS.has(e.key)) return true;
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
   const k = String(e.key || "").toLowerCase();
   return k === "z" || k === "y";
 }

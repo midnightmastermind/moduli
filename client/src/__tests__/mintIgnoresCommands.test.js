@@ -44,6 +44,11 @@ describe("isUndoRedoChord", () => {
     expect(isUndoRedoChord({ key: "z", metaKey: true })).toBe(true);
     expect(isUndoRedoChord({ key: "y", ctrlKey: true })).toBe(true);
   });
+  it("a modifier pressed on its own is not a caret either — it arrives before the Z", () => {
+    expect(isUndoRedoChord({ key: "Control", ctrlKey: true })).toBe(true);
+    expect(isUndoRedoChord({ key: "Meta", metaKey: true })).toBe(true);
+    expect(isUndoRedoChord({ key: "Shift", shiftKey: true })).toBe(true);
+  });
   it("typing and caret keys are not (the control)", () => {
     expect(isUndoRedoChord({ key: "z" })).toBe(false);
     expect(isUndoRedoChord({ key: "ArrowDown" })).toBe(false);
