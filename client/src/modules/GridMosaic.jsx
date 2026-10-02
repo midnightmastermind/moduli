@@ -356,7 +356,10 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onLayoutDrop }) 
   onLayoutDropRef.current = onLayoutDrop;
   const pickLayout = useCallback((occId, layout, zoneIndex) => {
     setLayoutsOpen(false); setLayoutPick(null);
-    onLayoutDropRef.current?.(occId, layout, zoneIndex);
+    // After the drop event has finished: applying the layout can ask to remove
+    // panels, and a confirm opened INSIDE a drop handler blocks the browser's
+    // drag session (Firefox broke the drag outright, measured headless).
+    setTimeout(() => onLayoutDropRef.current?.(occId, layout, zoneIndex), 0);
   }, []);
 
   // The region a drop RIGHT NOW would land in — READ BACK OFF THE RESULTING
