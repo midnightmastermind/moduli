@@ -43,7 +43,7 @@ const inputStyle = {
 // Event types come from the shared triggerTypes module so the editor and
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
-import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
+import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -693,7 +693,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   onChange={e => updateTriggerObject(idx, { subjectType: e.target.value, subjectRole: "", targetId: "" })}
                   style={{ ...inputStyle, width: "auto", minWidth: 90, fontSize: 10 }}
                 >
-                  {SUBJECT_TYPES.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+                  {subjectOptions(trigObj.subjectType).map(v => <option key={v} value={v}>{SUBJECT_TYPES.find(st => st.value === v)?.label ?? v}</option>)}
                 </select>
                 {/* Role filter for modules */}
                 {subjectType === "module" && (

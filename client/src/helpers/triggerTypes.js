@@ -187,6 +187,18 @@ export function getTriggerVars(eventType, subjectType) {
   return base;
 }
 
+/**
+ * The subject dropdown's values for one trigger: the offered list, plus the
+ * STORED one when the list lacks it. Six live `onMove` triggers store
+ * `occurrence` (seed-written; with no target it matches any move, exactly like
+ * `module`), and a <select> cannot show a value it does not offer — they read
+ * as "Module" (2026-10-02). Same rule as `priorityOptions`.
+ */
+export function subjectOptions(stored) {
+  if (!stored || TRIGGER_SUBJECT_TYPES.includes(stored)) return TRIGGER_SUBJECT_TYPES;
+  return [...TRIGGER_SUBJECT_TYPES, stored];
+}
+
 /** Subject types the trigger editor offers (OperationsTab's subject dropdown). */
 export const TRIGGER_SUBJECT_TYPES = ["module", "field", "grid", "filterNav", "view", "style", "template", "transaction", "folder"];
 
