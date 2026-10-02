@@ -315,6 +315,9 @@ function tryMoveEmbedNodeInDoc(editor, nodeTypeName, match, insertPos) {
 
 let _editorInstSeq = 0;
 
+// Top/bottom band of a block where a drop inserts above/below instead of wrapping beside it.
+export const EDGE_INSERT_PX = 12;
+
 const Editor = forwardRef(function Editor({
   content = null,
   onChange,
@@ -2176,6 +2179,14 @@ const Editor = forwardRef(function Editor({
     try { dom = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw"); }
     const rect = dom?.getBoundingClientRect?.();
     if (!rect || rect.width <= 0) return bail("no host rect");
+    // The TOP and BOTTOM edges of a block mean "put it above / below", not
+    // "wrap beside" — over a text block every point picked a side, so a block
+    // dropped on another's top edge wrapped the two together instead of
+    // reordering (Firefox, Wrap Lab, 2026-10-02). The band is capped at a
+    // third of the block so a short block still has a middle to wrap on.
+    const edgeBand = Math.min(EDGE_INSERT_PX, rect.height / 3);
+    if (input.clientY < rect.top + edgeBand || input.clientY > rect.bottom - edgeBand)
+      return bail("top/bottom edge → plain insert", { hostOccId, y: input.clientY, top: Math.round(rect.top), bottom: Math.round(rect.bottom) });
     const frac = (input.clientX - rect.left) / rect.width;
     if (!textmapped && frac > 0.33 && frac < 0.67) return bail("non-text host, middle third → plain insert", { hostOccId, frac: frac.toFixed(2) });
     const side = sideFromFrac(frac); // textmapped: pick a side ANYWHERE (no dead middle third)
