@@ -2739,6 +2739,19 @@ const Editor = forwardRef(function Editor({
           if (context?.sourceType === "doc-embed") {
             DLOG("DETACH via embedDeleteRegistry (pre-insert capture)", { hasEntry: !!sourceEmbedDelete });
             sourceEmbedDelete?.();
+            // Doc to doc: when the doc it left OWNED it (its parent is a doc whose
+            // text embeds it), this doc owns it now — the same rule as a row moved
+            // from a board. Otherwise its Delete here would only unlink (2026-10-02).
+            const moved = occsById[occurrenceId];
+            const oldOwner = moved?.parentId ? occsById[moved.parentId] : null;
+            if (occurrence?.id && oldOwner && oldOwner.id !== occurrence.id
+                && JSON.stringify(oldOwner.textmap || "").includes(occurrenceId)) {
+              CommitHelpers.updateOccurrence({
+                dispatch: dispatchRef.current, socket: socketRef.current,
+                occurrence: { id: occurrenceId, parentId: occurrence.id },
+                emit: true,
+              });
+            }
           } else {
             const parentOcc = Object.values(occsById).find((o) => Array.isArray(o.occurrences) && o.occurrences.includes(occurrenceId));
             if (!parentOcc) DLOG("DETACH FAILED — no parent lists this occurrence");

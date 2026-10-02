@@ -52,3 +52,10 @@ describe("editorDom", () => {
     expect(editorDom({ view: { dom } })).toBe(dom);
   });
 });
+
+describe("a block moved from one doc to another", () => {
+  it("takes the new doc as parent when the old doc owned it", () => {
+    const ed = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+    expect(ed).toMatch(/oldOwner\.id !== occurrence\.id[\s\S]{0,120}JSON\.stringify\(oldOwner\.textmap \|\| ""\)\.includes\(occurrenceId\)[\s\S]{0,200}parentId: occurrence\.id/);
+  });
+});
