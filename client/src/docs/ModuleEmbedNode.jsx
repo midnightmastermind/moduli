@@ -408,7 +408,11 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             dispatch={dispatch}
             socket={socket}
             embedRadialItems={embedRadialItems}
-            embedOnDelete={deleteNode}
+            // A textblock this doc owns (minted on its line) is deleted, like an
+            // owned row — unlinking it left the row behind, listed by nobody
+            // (2026-10-02). One placed here from elsewhere is still only unlinked.
+            embedOnDelete={removeRow}
+            embedDeleteLabel={embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
             embedSourceType="doc-embed"
           />
         ) : mod?.role === "instance" ? (
