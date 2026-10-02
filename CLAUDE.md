@@ -46,8 +46,11 @@ Ctrl+Z after Unwrap minted a block  undo restores the caret onto the empty line 
 ```
 **Also watched:** Side by side ↔ Wrap text around (current one marked, both persist), two columns with the
 picture on either side (seam swap), Unwrap → Ctrl+Z restores the group with its roles; typing, Enter and
-Ctrl+Z inside a lead and inside the host — 0 wrap/stack flips, kept on reload. **Not driven yet:** "Wrap
-behind previous", "To pill", the Position submenu. Alpha's paragraph keeps one extra trailing space from the probe.
+Ctrl+Z inside a lead and inside the host — 0 wrap/stack flips, kept on reload; Position left/center/right/
+full on a plain block (40% float / centred / full, kept on reload); "Wrap behind previous" then Unwrap, both
+kept on reload; "To pill" then Ctrl+Z. **Reported, not fixed:** "To pill" on a TEXTBLOCK makes a pill reading
+"Item" — it takes `mod.label`, and a textblock's words live in its textmap. Alpha's paragraph keeps one extra
+trailing space from the probe.
 
 **Watched on prod, Chromium + Firefox:** every member's radial opens at the page bottom (scroll steady);
 Move out of wrap → Continue wrap, twice in a row with no reload (the menu follows the doc), no mint,
