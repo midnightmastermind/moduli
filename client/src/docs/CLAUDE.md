@@ -788,3 +788,12 @@ instances). All client-side:
 - `onContextMenu` handler in DocEditor prevents browser default; shows ContextMenu with formatting + "Insert field" options
 - DocLinkSuggestion uses `[[` trigger → shows docs picker
 - Pills stored in TipTap JSON as custom node types (not HTML)
+
+## Recent Changes (2026-10-02 — the embed's wrap menu follows the document)
+- **`wrapRoles.js` `wrapMenuKey(doc, pos, isText)`** — one string of everything an embed's wrap
+  items are built from (group position, members, wrap/floatCount, whether the host and the block
+  after the group hold text). An embed outside a group keys only on the embed before it.
+- **`ModuleEmbedNode.jsx`** — `embedRadialItems` is memoized on that key; it is re-read on every
+  doc-changing transaction and when modules arrive. `moduleOfOcc(id)` resolves a module, using the
+  embed's own subscribed `mod` for its own id (the bridge can be a render behind on first arrival).
+  Test: `__tests__/wrapMenuKey.test.js`.

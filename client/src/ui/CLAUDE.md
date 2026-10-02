@@ -2328,3 +2328,11 @@ registered them). See client/src/CLAUDE.md.
   row; a number field cannot, and offering one lets an author build a hierarchy that silently
   resolves to nothing.
 - 7 tests in `__tests__/GraphSection.test.jsx`.
+
+## Recent Changes (2026-10-02 — menu presses are not doc gestures; the page's trailing line stays)
+- **`Editor.jsx` `isOnCommandControl(el)`** — a pointerdown on a button / menu item does not stamp
+  the caret-mint's input window (nearest of {contenteditable, control} decides). "Continue wrap"
+  had minted a textblock on the line after the group. Test: `__tests__/mintIgnoresCommands.test.js`.
+- **`index.css`** — a doc PAGE's own trailing empty line (`.page-scroll > .doc-container …`) is never
+  collapsed; collapsing it changed the scroll height under the pointer at the page bottom. Nested
+  blocks keep the hover reveal. Test: `__tests__/pageTrailingLineStays.test.js`.

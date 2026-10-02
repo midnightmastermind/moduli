@@ -15,6 +15,34 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-02 (3) — WRAP RADIALS: a handle that fled the pointer, a menu frozen at first render, a menu click that minted a textblock
+
+Picked up the docs/wraps UI pass (main account at its limit mid-bisect, account2 at its weekly limit).
+```
+a lead's radial would not open      At the bottom of a doc PAGE the page's trailing line collapsed whenever
+  (Chromium, bottom of the page)    the pointer entered a nested block, clamping the scroll; Chromium then
+                                    RESTORED the lost offset when the line came back, so the handle moved
+                                    11-19px as the pointer reached it. `overflow-anchor: none` on the line
+                                    (e33b4bc2) was inert — the line was never the anchor; every bisect arm
+                                    "fixed" it only by forcing a fresh anchor. The page's OWN trailing line
+                                    is never collapsed now (`.page-scroll > .doc-container …`).
+host menu offered only Unwrap       ModuleEmbedNode's items memo read the doc + other occurrences' modules
+  (Firefox)                         with none of them as deps. Keyed on `wrapRoles.wrapMenuKey` (group pos,
+                                    members, wrap/floatCount, host/next block text-ness), re-read on doc
+                                    transactions and module arrival.
+"Continue wrap" minted a textblock  the menu click counted as a click on a line. A press on a button / menu
+  on the line after the group       item no longer stamps the mint's input window (`isOnCommandControl`,
+                                    nearest of {editable, control} decides).
+```
+**Watched on prod, Chromium + Firefox:** every member's radial opens at the page bottom (scroll steady);
+Move out of wrap → Continue wrap, twice in a row with no reload (the menu follows the doc), no mint,
+persists; the stray empty line the pre-fix run left was removed through the UI (click → mint → Backspace).
+**Probe notes:** two probes on the Wrap Lab at once corrupt each other's lookups — one at a time. A probe's
+`scrollIntoView` right after load can itself create the clamped offset (content was 11px taller then).
+`pomsGridOps` timed out in its `beforeAll` in the full run and passes alone.
+
+---
+
 ### 2026-10-02 (2) — DRAG AND DROP IN DOCS, TESTED BY DRAGGING: seven defects, all fixed
 
 User: *"lets switch back to the ui testing … drag and drop in docs"*, and on wraps: *"the last occurance on one
