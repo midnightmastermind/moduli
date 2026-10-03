@@ -116,6 +116,28 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (7) — TASK COUNTDOWN + COMPLETION RATE BY CLICKING; a sliced sweep put a tile back to its pre-edit number
+
+Built on the rebuild by clicking (`_tracker2.mjs`, `_t2batch.sh`): Stats › **Task Countdown** (10 minus completed
+non-habit tasks, `-- decrement`) and Stats › **Completion Rate** (done ÷ tasks × 100 — `++`, `*= multiply`,
+`/= divide`; "tasks" = instances binding Completed, where poms divides by every dated item). Rebuild ops: 32.
+
+**THE FINDING: ticking a task left Completion Rate wrong — 50 → 0 on an untick — and a reload fixed it.** The
+op's own run computed 50; the server then received a SECOND write of the tile, with an OLDER field timestamp,
+230ms later. `window.__emitDiag = true` (new, off by default: each socket write + its stack in
+`window.__emitLog`) and the deployed source maps named it: `runMatchingOperationsSliced(...).then(_applyFireUpdates)`
+— a SLICED sweep that began before the click, computed from the old state, and applied its effects after the
+click's newer write. `helpers/staleSweep.dropStaleFieldWrites`: a sliced sweep's `UPDATE_ITEM_FIELD` is dropped
+when that field was written after the sweep began (field cell `timestamp` / local `fieldUpdatedAt`). Only the
+sliced path passes `startedAt`. **Watched after the deploy:** tick / untick / tick → 100 / 50 / 100, Tasks Left
+9 / 10 / 9, Completed On stamped and cleared. On poms a sliced sweep runs for seconds after every load, so any
+edit in that window could be undone the same way.
+**Also:** `wireProjection`'s reader walker exempts `cell.timestamp` (a field cell's stamp travels inside
+`fields`; only the row's own `timestamp` is omitted). The item picker pre-ticks siblings' fields — clicking a
+pre-ticked one UNticks it (Email dentist came out without Completed; re-attached).
+
+---
+
 ### 2026-10-03 (6) — SIX DURATION TRACKERS BY CLICKING; a retag never re-ran a tag-scoped tracker (0388)
 
 **Tags** field made on the rebuild through the Fields tab (select, "Several picks", options intellectual /

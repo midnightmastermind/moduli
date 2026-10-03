@@ -3167,3 +3167,5 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 - **`operationActions.js` `SAME_WEEK` / `SAME_MONTH` / `SAME_YEAR`** (2026-10-03) — `parseLocalDate` on both sides.
 - **`CommitHelpers.updateOccurrence`** (2026-10-03) — the `triggerField` branch merges the payload over the
   cached overlay entry instead of writing a partial payload bare (it stripped placement from the executor's view).
+- **`staleSweep.js` `dropStaleFieldWrites`** (2026-10-03) — a SLICED sweep's field write is dropped when the
+  field was written after the sweep began. **`offlineQueue.safeEmit`**: `window.__emitDiag` logs writes + stacks.
