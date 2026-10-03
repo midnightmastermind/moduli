@@ -116,6 +116,33 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (11) — POMODORO, EARNED, THE ACCOUNT BALANCES AND NET WORTH BY CLICKING; a poms tab ran the rebuild's ops
+
+**Built by clicking, each watched live on the rebuild:** Trackers › Intellectual › **Pomodoros** with
+`Pomodoros Today` / `Pomodoro Time` (scoped to Tasks, where the timer sends sessions): 1 / 25 → untick 0 / 0 →
+re-tick 1 / 25. Trackers › Financial › **Income** with `Earned` (Income, flow In, completed-or-unbound): 0 → 100
+on ticking a Paycheck. **Accounts:** a Trackers › Accounts container holding **Cash / Checking Account / Savings
+Account** tiles, `Account` + `To Account` fields (Find: under Accounts), and `Cash / Checking / Savings Balance`
+in poms' current-balance shape — the latest Replace entry on or before the day is the baseline, later Out of
+the account subtracts, later To-Account adds (the poms OR groups nest as an inner OR-IF; no Tags/Aggregation).
+A "Cash on hand" 200/Replace plus the Coffee shop's $5 → **Cash 195**; **Net Worth** (Financial) sums the three
+account tiles → 195, and an edit to $10 carried through to 190 via its onChange-Cash trigger. Rebuild ops 47.
+
+**THE DEFECT: a tab on poms grid ran the REBUILD's Cash Balance and wrote "0" into the rebuild's tile** half
+a second after the rebuild tab wrote 190 / 188. Every write — operations included — goes to the USER room, so
+the poms tab held the rebuild's ops; it matched an echoed Amount edit, ran the op over poms' rows (nothing
+matches) and saved the result. Found by elimination: the editing tab's `safeEmit` log AND a `WebSocket.send`
+hook showed only 188/190; the server log's live sockets after the restart were two poms-grid tabs.
+`operationExecutor.opRunsOnGrid` — the sweep and the scheduler skip an op whose `gridId` disagrees with the
+tab's grid (missing ids fail open). `opRunsOnOwnGrid.test.js`, A/B 4 fail. **Tabs on the old bundle still do
+it until reloaded.** The user-room broadcast itself is still the root (09-22 (5)).
+**Probe faults:** `_setvals`' flow toggle searched the chip's parent's parent, which reached the instance ABOVE
+— it flipped the Coffee shop to Replace (and zeroed Spent); now instance-scoped. The occurrence dropdown's
+option is a card ("Cash | Cash: 0"), so exact-text matching misses — `_occpick.mjs` picks by first line
+inside the popover. `_build.open({init})` installs a script before load (used for the emit/WebSocket hooks).
+
+---
+
 ### 2026-10-03 (10) — THE OPEN ITEMS: Sync To Todo List built; a Copy apply left clones unsigned; the unsigned-template rule retired
 
 User: *"what about the stuff still open"*.
