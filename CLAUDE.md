@@ -116,6 +116,37 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (4) — THE REBUILD'S BILL TILES, BY CLICKING; and where the UI-testing plan stands
+
+Trackers › **Financial** › **Monthly Bills** (Amount, Bills Paid) made through the page; **Monthly Bills** and
+**Bills: Paid This Month** built by clicking in poms' current shape (0385 / 0387), triggers included.
+**Watched, end to end:** on load the tile read 24 / 0 · DigitalOcean's Day → 3 put a Pay Bill in Oct 3's Todo ·
+ticking it: Bills Paid **24** (and Completed On stamped by `Stamp Completed On`) · unticking: 0 · Day → 2:
+the unpaid Pay Bill swept. The rebuild's whole bills loop now works the way poms' does. Rebuild ops: 21.
+**Probe notes:** `_additem.mjs` (page › container › item with fields, opens the page by search) and
+`_tileop.mjs` (tile op: INIT tile, loop, IF, `+=`, UPDATE, triggers) are reusable for the tracker tiles.
+
+**THE PLAN, measured (census, 2026-10-03):**
+```
+                poms   rebuild           scope
+pages            212       68      Boards 48/51 · Interfaces 7/10 · Projects 2/4 · Templates 3/4 · Library 2/4
+                                   (Documents/Archive 84, Notes 9, Library/Reading 21 = imported, out of scope)
+fields           300      227      most created early and still unbound
+operations        86       21      24% — 67 to go (below)
+occurrences    26614      898      bulk content deliberately out of scope
+```
+Feature surfaces already driven by clicking (each in this log): panels/mosaic/snap layouts, filters and the
+cascade, all eleven field types, field visibility, folders/manifest tree, tables, canvas, graphs, copy-link +
+linked-group undo, undo/redo, templates, alarms, pomodoro destination + timer, styles, radial menus, search,
+multi-select clipboard, share window + presets, cover picker, tokens, file upload, link import/bookmarks,
+docs (wraps, drag in docs, typing, pills, mini textblocks), the operations editor.
+**Operations left (67):** ~33 tracker tiles (the `_tileop` shape) · 8 Share rules (server-run, onShare) · 5
+Pomodoro · 4 Project · 6 Schedule/Day Page builders (Fill Day, Place Weekday Tasks, Mark Passed Slots, Build Day ×2,
+Build Tasks Completed, Day Column Moves Page) · Mood: Record Selection · People: Birthdays · Workouts/Nutrition/
+Fitness prescriptions (35-165 steps) · Import from Wikipedia · Trackers: Date-Prefix Labels / Media Owned.
+
+---
+
 ### 2026-10-03 (3) — BILLS PAID COUNTS THIS MONTH'S PAY BILLS (0387); week/month/year compared a UTC day
 
 User's answer: Bills Paid = *"Paid Pay Bills this month"*. **0387** — `Bills: Paid This Month` sums the Amount
