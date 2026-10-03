@@ -1,5 +1,6 @@
 // models/Operation.js
 import mongoose from "mongoose";
+import { normalizeSteps, hasSeedDialect } from "../utils/pipelineShape.js";
 
 const OperationSchema = new mongoose.Schema(
   {
@@ -89,6 +90,14 @@ const OperationSchema = new mongoose.Schema(
 
 OperationSchema.index({ gridId: 1, targetFieldId: 1 });
 OperationSchema.index({ gridId: 1, sortOrder: 1 });
+
+// One stored step shape (utils/pipelineShape.js). The seeds still author a few
+// pipelines in their own dialect; normalizing at save means nothing that goes
+// through the model can store a pipeline the operations editor cannot read.
+OperationSchema.pre("save", function normalizePipelineShape() {
+  const steps = this.pipeline?.steps;
+  if (steps && hasSeedDialect(steps)) this.set("pipeline.steps", normalizeSteps(steps));
+});
 
 const Operation = mongoose.model("Operation", OperationSchema);
 export default Operation;
