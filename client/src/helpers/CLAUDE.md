@@ -3164,3 +3164,4 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   stored one the list lacks (`occurrence` on six live move triggers). Test: `__tests__/triggerSubjectOptions.test.js`.
 - **`operationActions.js` `MOVE_OCCURRENCE`** (2026-10-02) — destination and subject go through
   `singleOccurrenceId`; a FIND that bound an array is refused by name instead of moving into it.
+- **`operationActions.js` `SAME_WEEK` / `SAME_MONTH` / `SAME_YEAR`** (2026-10-03) — `parseLocalDate` on both sides.

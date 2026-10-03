@@ -116,6 +116,21 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (3) — BILLS PAID COUNTS THIS MONTH'S PAY BILLS (0387); week/month/year compared a UTC day
+
+User's answer: Bills Paid = *"Paid Pay Bills this month"*. **0387** — `Bills: Paid This Month` sums the Amount
+of completed Pay Bills (by the Pay Bill module) whose Date is `SAME_MONTH $activeDate`; its triggers drop the
+bill's Day and add a Pay Bill's Completed and Date. `Bills: Mark Paid` (ticked the BILL) is deleted. After the
+restart: Monthly Bills 24, **Bills Paid 0** (was 24 — DigitalOcean's own August tick). Executor test drives the
+real pipeline (the 1st of the month counts, Sep 30 and unpaid do not, a ticked bill does not).
+**Found writing it:** `SAME_WEEK` / `SAME_MONTH` / `SAME_YEAR` parsed both sides with `new Date()` — a
+date-only `2026-10-01` is Sep 30 evening in US time, so the 1st of a month was "last month", a Monday "last
+week", Jan 1 "last year". They use `parseLocalDate` now (SAME_DAY already normalised). 3 new tests fail on
+the old code. Full client suite 541/541. The DigitalOcean bill itself still holds Completed = true from
+August; nothing reads it now.
+
+---
+
 ### 2026-10-03 (2) — BILLS ON THE REBUILD, BY CLICKING: board, Bill field, Pay Bill, `Bills: Into Schedule`
 
 - **0386 (poms)** — 0385's reference check skipped the FIELDS collection: Bill and Subscription still listed
