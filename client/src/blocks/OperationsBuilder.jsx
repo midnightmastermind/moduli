@@ -764,7 +764,7 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = 
 }
 
 // ---- If Step ----
-function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef, foldersById = {}, gridId = null }) {
   const condition = step.condition || { operator: "AND", rules: [] };
   const [showElse, setShowElse] = useState((step.else || []).length > 0);
 
@@ -773,7 +773,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
   const updateRule = (rid, patch) => updateCond({ rules: condition.rules.map(r => r.id === rid ? { ...r, ...patch } : r) });
   const removeRule = rid => updateCond({ rules: condition.rules.filter(r => r.id !== rid) });
 
-  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources, foldersById, gridId };
   const opLabel = (condition.operator === "OR" ? "ANY" : "ALL");
   return (
     <div key={step.id} style={ifStepSt}>

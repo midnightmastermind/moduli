@@ -41,3 +41,20 @@ describe("APPLY_TEMPLATE template picker", () => {
     expect(step).toMatch(/<ActionConfig[^>]*foldersById=\{foldersById\}[^>]*gridId=\{gridId\}/);
   });
 });
+
+// The first fix covered a top-level step only. The Project: Create step that
+// found it sits in an IF's `then`, and IfStep rebuilt `shared` without the two
+// values — so a nested step still got an empty picker. Every component that
+// renders a nested StepsList must pass them on.
+describe("nested step lists keep the folders", () => {
+  const src = fs.readFileSync(path.resolve(__dirname, "../blocks/OperationsBuilder.jsx"), "utf8");
+  for (const name of ["IfStep", "LoopStep"]) {
+    it(`${name} forwards foldersById and gridId to its nested steps`, () => {
+      const start = src.indexOf(`function ${name}(`);
+      const body = src.slice(start, src.indexOf("\nfunction ", start + 10));
+      expect(body.split("\n")[0]).toContain("foldersById = {}, gridId = null");
+      expect(body).toMatch(/const shared = \{[^}]*foldersById, gridId \};/);
+      expect(body).toContain("<StepsList");
+    });
+  }
+});
