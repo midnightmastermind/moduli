@@ -290,9 +290,14 @@ export const ACTION_CONFIG_SCHEMA = {
       // ON unless explicitly false (`cfg.recursive !== false`) — the checkbox
       // must say so, or an unset step reads "off" while copying the children.
       { key: "recursive", kind: "bool", label: "include children", defaultValue: true },
+      // `linked === false` is a shared-module copy with its OWN values (executor:
+      // `cfg.linked !== false`). 1 live step needs it; 7 set `fields` and 6
+      // `fieldHidden` — none of which the editor could write (2026-10-03).
+      { key: "linked", kind: "bool", label: "linked (ticks stay in sync)", defaultValue: true },
+      { key: "fields", kind: "fieldMap", label: "set on the copy:" },
       { key: "itemIdVar", kind: "var", label: "new id → $", optional: true },
     ],
-    hint: "The copy SHARES its fields with the source: ticking one ticks all of them.",
+    hint: "Linked, the copy SHARES its fields with the source: ticking one ticks all of them. Unlinked, it is a copy with its own values.",
   },
 
   // ── Outbound ─────────────────────────────────────────────────────────────

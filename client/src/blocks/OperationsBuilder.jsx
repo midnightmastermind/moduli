@@ -1850,6 +1850,10 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
             {(options || []).map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         );
+      // A { fieldId: value } map plus its per-field hide toggles — the CREATE
+      // step's editor, so a copy's fields are set the same way a create's are.
+      case "fieldMap":
+        return <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} mapKey={key} label={label} />;
       case "bool":
         return (
           <label style={{ ...labelSt, display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
