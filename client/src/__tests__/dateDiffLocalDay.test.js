@@ -42,3 +42,14 @@ describe("date-only values are local days", () => {
     }
   });
 });
+
+// SAME_WEEK / SAME_MONTH / SAME_YEAR read a date-only value as UTC midnight too:
+// Oct 1 was "September", a Monday the previous week, Jan 1 the previous year
+// (found building Bills Paid on the month, 2026-10-03).
+import { evalRule } from "../helpers/operationActions";
+describe("calendar comparators on date-only values", () => {
+  const r = (left, comparator, right) => evalRule({ left: "$a", comparator, right: "$b" }, { $a: left, $b: right });
+  it("the 1st of a month is in that month", () => { expect(r("2026-10-01", "SAME_MONTH", "2026-10-03")).toBe(true); expect(r("2026-09-30", "SAME_MONTH", "2026-10-03")).toBe(false); });
+  it("a Monday is in its own week", () => { expect(r("2026-09-28", "SAME_WEEK", "2026-10-03")).toBe(true); expect(r("2026-09-27", "SAME_WEEK", "2026-10-03")).toBe(false); });
+  it("Jan 1 is in its own year", () => { expect(r("2027-01-01", "SAME_YEAR", "2027-06-01")).toBe(true); });
+});

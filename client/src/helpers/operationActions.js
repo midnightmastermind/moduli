@@ -686,8 +686,8 @@ export function evalRule(rule, $vars) {
       // Same ISO week (Mon-Sun). Right null/"" = wildcard; left null = no match.
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
-      const da = new Date(leftVal); const db = new Date(rightVal);
-      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      const da = parseLocalDate(leftVal); const db = parseLocalDate(rightVal);   // a date-only value is a LOCAL day
+      if (!da || !db || isNaN(da.getTime()) || isNaN(db.getTime())) return false;
       const weekStart = (d) => {
         const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         const dow = x.getDay(); // 0=Sun..6=Sat
@@ -700,15 +700,15 @@ export function evalRule(rule, $vars) {
     case "SAME_MONTH": {
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
-      const da = new Date(leftVal); const db = new Date(rightVal);
-      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      const da = parseLocalDate(leftVal); const db = parseLocalDate(rightVal);   // a date-only value is a LOCAL day
+      if (!da || !db || isNaN(da.getTime()) || isNaN(db.getTime())) return false;
       return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth();
     }
     case "SAME_YEAR": {
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
-      const da = new Date(leftVal); const db = new Date(rightVal);
-      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      const da = parseLocalDate(leftVal); const db = parseLocalDate(rightVal);   // a date-only value is a LOCAL day
+      if (!da || !db || isNaN(da.getTime()) || isNaN(db.getTime())) return false;
       return da.getFullYear() === db.getFullYear();
     }
     // ── DATE_ON_OR_BEFORE_PERIOD — the cut-off twin of DATE_IN_PERIOD ──────
