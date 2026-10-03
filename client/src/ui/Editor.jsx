@@ -1386,6 +1386,19 @@ const Editor = forwardRef(function Editor({
     },
   });
 
+  // The selection [from, to) becomes a MINI TEXTBLOCK holding its text — one
+  // undo step. The right-click "Make inline textblock" and the doc toolbar's
+  // selection button both call this (CommitHelpers.createInlineTextblock).
+  const makeInlineTextblockAt = (from, to, text) => {
+    if (!editor || !dispatch || !socket || !occurrence?.userId) return;
+    const node = editor.state.schema.nodes.instanceTextblockInline;
+    if (!node || !String(text || "").trim()) return;
+    withAction("Made inline textblock", () => {
+      const attrs = CommitHelpers.createInlineTextblock({ dispatch, socket, userId: occurrence.userId, gridId: occurrence.gridId, parentId: occurrence.id, text });
+      editor.chain().focus().insertContentAt({ from, to }, node.create(attrs).toJSON()).run();
+    });
+  };
+
   // Load-path split (helpers/loadDiag.js): every doc container and textblock
   // mounts a LIVE ProseMirror instance eagerly — the "editor static-until-focus"
   // docket entry. Counting them and timing the last one is what says whether
@@ -1579,42 +1592,7 @@ const Editor = forwardRef(function Editor({
       hasSelection && dispatch && socket && occurrence?.userId && {
         label: "Make inline textblock",
         icon: Type,
-        onClick: () => {
-          const userId = occurrence.userId;
-          const gridId = occurrence.gridId;
-          const modId = crypto.randomUUID();
-          const occId = crypto.randomUUID();
-          const text = (capturedText || "").trim();
-          const initialTextmap = text
-            ? { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] }
-            : { type: "doc", content: [{ type: "paragraph" }] };
-          CommitHelpers.createModule({
-            dispatch, socket,
-            module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" },
-            emit: true,
-          });
-          CommitHelpers.createOccurrence({
-            dispatch, socket,
-            occurrence: {
-              id: occId, userId, gridId,
-              moduleId: modId,
-              parentId: occurrence?.id,
-              textmap: initialTextmap,
-              fields: {},
-            },
-            emit: true,
-          });
-          const schema = editor.state.schema;
-          if (!schema.nodes.instanceTextblockInline) return;
-          const inlineNode = schema.nodes.instanceTextblockInline.create({
-            instanceId: modId,
-            occurrenceId: occId,
-          });
-          editor.chain().focus().insertContentAt(
-            { from: capturedFrom, to: capturedTo },
-            inlineNode.toJSON()
-          ).run();
-        },
+        onClick: () => makeInlineTextblockAt(capturedFrom, capturedTo, capturedText),
       },
       hasSelection && dispatch && socket && occurrence?.userId && {
         label: "Split into inline textblocks",
@@ -1636,37 +1614,18 @@ const Editor = forwardRef(function Editor({
           const schema = editor.state.schema;
           if (!schema.nodes.instanceTextblockInline) return;
 
-          // Mint one textblock module + occurrence per token. Build the
-          // TipTap content array as we go so we can replace the entire
-          // selection in a single transaction.
-          const inlineNodes = [];
-          for (const tok of tokens) {
-            const modId = crypto.randomUUID();
-            const occId = crypto.randomUUID();
-            CommitHelpers.createModule({
-              dispatch, socket,
-              module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" },
-              emit: true,
-            });
-            CommitHelpers.createOccurrence({
-              dispatch, socket,
-              occurrence: {
-                id: occId, userId, gridId,
-                moduleId: modId,
-                parentId: occurrence?.id,
-                textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: tok }] }] },
-                fields: {},
-              },
-              emit: true,
-            });
-            inlineNodes.push(schema.nodes.instanceTextblockInline.create({ instanceId: modId, occurrenceId: occId }));
-          }
+          // One mini textblock per token (CommitHelpers.createInlineTextblock), and
+          // the whole split is ONE undo step.
+          withAction("Split into inline textblocks", () => {
+          const inlineNodes = tokens.map((tok) => schema.nodes.instanceTextblockInline.create(
+            CommitHelpers.createInlineTextblock({ dispatch, socket, userId, gridId, parentId: occurrence?.id, text: tok })));
           // Replace the selection with the chip sequence in one tx.
           const docFragment = inlineNodes.map((n) => n.toJSON());
           editor.chain().focus().insertContentAt(
             { from: capturedFrom, to: capturedTo },
             docFragment
           ).run();
+          });
         },
       },
       hasSelection && dispatch && socket && occurrence?.userId && {
@@ -3218,7 +3177,7 @@ const Editor = forwardRef(function Editor({
 
       {showToolbar && editor && (
         <div className={stickyToolbar ? "doc-toolbar-sticky" : ""}>
-          <DocToolbar editor={editor} />
+          <DocToolbar editor={editor} onMakeInlineTextblock={occurrence?.userId && dispatch && socket ? makeInlineTextblockAt : null} />
         </div>
       )}
 

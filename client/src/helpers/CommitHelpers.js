@@ -1026,6 +1026,32 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
 }
 
 /**
+ * A MINI TEXTBLOCK: a role:"textblock" kind:"inline" module + occurrence holding
+ * `text` as its body, parented to the doc it sits in. The doc then embeds it as
+ * an `instanceTextblockInline` node. One definition for the editor's "Make
+ * inline textblock" / "Split into inline textblocks" and the doc toolbar's
+ * selection button, which used to mint a bare `instancePill` with NO module —
+ * its stored label its only content (user, 2026-10-03: "we have minitextblock
+ * occurances, not just something in line"). Returns the node's attrs.
+ */
+export function createInlineTextblock({ dispatch, socket, userId, gridId, parentId, text = "" }) {
+  const modId = crypto.randomUUID();
+  const occId = crypto.randomUUID();
+  const t = String(text || "").trim();
+  createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" }, emit: true });
+  createOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: occId, userId, gridId, moduleId: modId, parentId: parentId || null,
+      textmap: { type: "doc", content: [t ? { type: "paragraph", content: [{ type: "text", text: t }] } : { type: "paragraph" }] },
+      fields: {},
+    },
+    emit: true,
+  });
+  return { instanceId: modId, occurrenceId: occId };
+}
+
+/**
  * Create a new occurrence from an instance in a container.
  */
 export function createOccurrenceInContainer({ socket, instanceId, containerId, fields }) {

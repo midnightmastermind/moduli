@@ -93,7 +93,7 @@ function tiptapToMarkdown(node, depth = 0) {
  * Props:
  * - editor: Tiptap editor instance
  */
-export default function DocToolbar({ editor }) {
+export default function DocToolbar({ editor, onMakeInlineTextblock = null }) {
   if (!editor) return null;
 
   const ToolbarButton = ({ onClick, isActive, children, title }) => (
@@ -247,28 +247,16 @@ export default function DocToolbar({ editor }) {
       <Button
         variant="ghost"
         size="sm"
+        disabled={!onMakeInlineTextblock}
         onClick={() => {
-          // Convert selected text to an instance pill
+          // The selection becomes a MINI TEXTBLOCK — a real occurrence whose body
+          // is the text. It used to mint an instancePill with no module behind
+          // it, its stored label its only content (2026-10-03).
           const { from, to, empty } = editor.state.selection;
-          if (empty) return;
-          const selectedText = editor.state.doc.textBetween(from, to);
-          if (!selectedText.trim()) return;
-
-          const pillId = crypto.randomUUID();
-          editor.chain()
-            .focus()
-            .deleteRange({ from, to })
-            .insertContent({
-              type: "instancePill",
-              attrs: {
-                instanceId: pillId,
-                instanceLabel: selectedText,
-                showIcon: false,
-              },
-            })
-            .run();
+          if (empty || !onMakeInlineTextblock) return;
+          onMakeInlineTextblock(from, to, editor.state.doc.textBetween(from, to));
         }}
-        title="Convert selection to pill"
+        title="Make the selection an inline textblock"
         className="h-7 px-2 text-xs"
       >
         <Pill className="w-3 h-3 mr-1" /> Pill
