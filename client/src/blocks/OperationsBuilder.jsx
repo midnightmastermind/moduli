@@ -738,7 +738,7 @@ function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = []
 }
 
 // ---- Action Step ----
-function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
+function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef, foldersById = {}, gridId = null }) {
   const cfg = step.config || {};
   const actionType = cfg.type || "SHOW_VALUE";
   const setCfg = patch => onUpdate({ config: { ...cfg, ...patch } });
@@ -757,7 +757,7 @@ function ActionStep({ step, onUpdate, onRemove, fields, varOptions, localVars = 
         </div>
       </div>
       <div style={{ paddingLeft: 44 }}>
-        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} localVars={localVars} modulesById={modulesById} occurrencesById={occurrencesById} fieldsById={fieldsById} operationsById={operationsById} sources={sources} />
+        <ActionConfig actionType={actionType} cfg={cfg} setCfg={setCfg} fields={fields} varOptions={varOptions} localVars={localVars} modulesById={modulesById} occurrencesById={occurrencesById} fieldsById={fieldsById} operationsById={operationsById} sources={sources} foldersById={foldersById} gridId={gridId} />
       </div>
     </div>
   );
@@ -828,7 +828,7 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
 // ---- Action Config (field config rendered below action type) ----
 // Exported for the hook-order regression test: mounting the whole editor needs
 // the grid store, and the defect lived in THIS component's hook count.
-export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
+export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], foldersById = {}, gridId = null }) {
   const allContainers = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allInstances = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
   const allOps = useMemo(() => Object.values(operationsById), [operationsById]);
@@ -850,7 +850,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
 
   const fl = text => <span style={labelSt}>{text}</span>;
   // Centralized props for the path-aware expression input.
-  const exprProps = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+  const exprProps = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
 
   // Helper: variable name input strip leading $
   const varNameInput = (key, placeholder = "varName") => (
@@ -946,7 +946,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
     case "FIND": {
       const predicate = cfg.predicate || { operator: "AND", rules: [] };
       const over = cfg.over || "$allOccurrences";
-      const collectionPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      const collectionPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
       // The predicate's left-side picker walks the per-record shape determined
       // by `cfg.over` — picked values are bare record keys (no $-prefix). The
       // executor evaluates each rule against the current record during
@@ -1123,7 +1123,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
     case "UPDATE": {
       // Object-shaped value carries fromTemplate/tokens — render as JSON for now.
       const valueIsObject = cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value);
-      const updatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      const updatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
       // Color-shaped paths: trigger an inline native color picker so the
       // user can pick a hex/rgba without typing it. Detects ownStyle.bg /
       // ownStyle.color / ownStyle.textColor / .border (last segment of path
@@ -1493,7 +1493,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       // through the same DrilldownPicker the rest of the editor uses, so
       // authors get the familiar two-pane drill instead of a bare ExprInput
       // and hand-copied IDs.
-      const templatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      const templatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
@@ -1579,7 +1579,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       // and targetOccurrenceVar accept any $var that resolves to an
       // occurrence id (so authors pair this with a FIND that bound the
       // source, plus a Source or FIND for the target).
-      const copyPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars };
+      const copyPickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
       const includeChildren = cfg.includeChildren !== false;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
