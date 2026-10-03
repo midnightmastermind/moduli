@@ -116,6 +116,32 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (12) — MOVIES WATCHED BY CLICKING; 8 poms ops the editor could not read (0390); a json: leaf stored its own text
+
+**`0390` — ONE STORED STEP SHAPE.** Moods, Phone Calls, Movies Watched, Books Read, Podcasts Listened, Courses
+Taken, Daily Question Rotator and Mood: Record Selection were seed-written in a second dialect — `{action, cfg}`
+steps, `conjunction` groups, no step ids. The executor reads both; the EDITOR reads only `config`, so opening
+any of them showed every action as a blank default (and saving would have written the blanks back).
+`server/utils/pipelineShape.normalizeSteps` rewrites them (pure, idempotent; every group was AND, so
+semantics are unchanged — `opStepsOneShape.test.js` runs all 8 through the real executor over the poms
+fixture before and after: identical effects, ≥4 non-empty). The Operation model normalizes on `pre("save")`, so
+the seeds (dozens of `new Operation().save()` sites) can no longer store it. Applied on poms + restart: 0 left.
+**Movies Watched, by clicking:** a **Media** field (occurrence, several picks — Find: under the Movies page; the
+probe gained `MULTI` for "Several picks"), Routines › **Media** › **Watch** (Media, Completed, Date), a Trackers ›
+Intellectual › **Movies** tile, and the op (loop Schedule rows of the Watch module, completed-or-unbound, inner
+loop over its Media → `[] push object` a row → Movie History, Last Movie), Movie History's table columns set in
+the Fields tab's column editor. **Watched:** Watch drag-copied into today's Todo (Stamp dated it), Media =
+Inception, tick → table row "Inception · · 2026-10-03" + Last Movie Inception; untick → empty; re-tick → back.
+**Fix:** a `json:` leaf whose root variable EXISTS but whose member is missing stored its own source text
+(`"$item.fields.<Time Slot>.value"`) — `deepResolveExpr` (an object value) already returns empty there. It is
+null now; a leaf naming no variable (`"$5"`) still stays literal (`jsonLeafMissingMember.test.js`).
+**Probe notes:** the loop collection picker lists loop vars at its TOP level (`$item`), not under "Local
+Variables" like the path picker. `_additem`'s result looks the new row up by LABEL — a tile named "Movies"
+matched the Movies PAGE; read the container's children instead. Rebuild ops 48. Books Read / Podcasts
+Listened need books and podcasts the rebuild's Media area does not have.
+
+---
+
 ### 2026-10-03 (11) — POMODORO, EARNED, THE ACCOUNT BALANCES AND NET WORTH BY CLICKING; a poms tab ran the rebuild's ops
 
 **Built by clicking, each watched live on the rebuild:** Trackers › Intellectual › **Pomodoros** with
