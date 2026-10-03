@@ -433,8 +433,13 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     }
   }
   if (triggerField) {
-    // Update local cache with the new occurrence so the executor sees the correct value
-    operationsBridge.updateLocalOcc?.(occurrence);
+    // Update local cache with the new occurrence so the executor sees the correct
+    // value — MERGED over what the cache holds, like the patch above. Three callers
+    // pass a partial `{ id, fields }` (a flow flip, a randomize pick, a link
+    // intake); writing that in bare stripped parentId / moduleId / _ancestors, so
+    // the operation it fires saw a row under nothing and skipped it — a $5 expense
+    // flipped to Out left "Spent" at 0 (2026-10-03).
+    operationsBridge.updateLocalOcc?.({ ...(operationsBridge.getLocalOcc?.(occurrence.id) || {}), ...occurrence });
     const tfAncestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
     // ONE write can change SEVERAL fields — a dropdown pick that prefills the
     // values it implies (helpers/prefillFromPick) is one socket write carrying
