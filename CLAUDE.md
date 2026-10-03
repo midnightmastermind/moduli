@@ -132,8 +132,8 @@ The slotLabel fallback of poms' Start (Schedule slot by time) is not rebuilt —
 stopped, so the next Start made a second open row and every "the open pomodoro" FIND bound two. It fires for
 any STARTED work phase now (`workStarted`). **0389 (poms):** Start's COPY_LINK → `linked:false` (linked
 session rows would share Completed/Minutes — completing one completes all); Stop's DELETE stored `path`, which
-DELETE never reads → `itemIdExpr`. poms had **0 pomodoro rows ever**. A full 25-minute run (Complete) is in
-progress at the time of writing.
+DELETE never reads → `itemIdExpr`. poms had **0 pomodoro rows ever**. A full 25-minute run: the row ticked
+0 → 25 min and Complete marked it done (`#1 · 25 min · work · Completed`); it stays as sample data.
 
 ---
 
