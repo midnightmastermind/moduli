@@ -116,6 +116,30 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (2) — BILLS ON THE REBUILD, BY CLICKING: board, Bill field, Pay Bill, `Bills: Into Schedule`
+
+- **0386 (poms)** — 0385's reference check skipped the FIELDS collection: Bill and Subscription still listed
+  Cadence in `addNew.fieldIds`, so adding a bill from their dropdown would have bound a deleted field. Pruned;
+  nothing on poms names the four retired fields now (checked across every collection).
+- **Built by clicking on the rebuild:** Boards › Money › **Bills** (board page + container, `_area.sh` recipe;
+  Board Category option `bill`), **DigitalOcean** (Amount 24, Day 2, Completed — attached through Settings and
+  set through its chips; its Board Category chip is hidden by the grid's field visibility, so it has no
+  category), a **Bill** occurrence field (Fields tab, Find: `_ancestors HAS_ANCESTOR` the Bills page — preview
+  1 match), Routines › **Admin** › **Pay Bill** (Bill, Amount, Completed, Date), and **Bills: Into Schedule**
+  — 20 steps, the same pipeline as poms' 0384 (minus Completed=false, which the rebuild's source never holds)
+  with the same seven triggers at p6.
+- **Editor gap, fixed:** the copy step could not set `linked:false`, the copy's `fields` or their
+  `fieldHidden` (live usage 1 / 7 / 6). `COPY_LINK` now declares `linked` (bool, default on) and `fields`
+  (new schema kind `fieldMap`, drawn by the CREATE step's `FieldsMapEditor`). Used to build the step above.
+- **Watched:** DigitalOcean's Day 2 → 3 through its chip put a Pay Bill in Oct 3's Todo (Bill = DigitalOcean,
+  Date Oct 3, Amount 24, unlinked, listed); back to 2 removed it (unpaid, so swept).
+- **Probe notes:** the copy step's attach picker is the button `+ Attach a field` and opens straight onto the
+  field list; the loop collection picker lists `$activePeriodDates` / `$allInstances` at the top level (not
+  under Built-ins, which is where the CONDITION picker keeps `$trigger`). A DATE_FORMAT's output box has the
+  placeholder `(default: $formatted)` — typing into "the first input" overwrote its date.
+
+---
+
 ### 2026-10-03 — POMS: three ops read a hand edit, Next Due retired (0385); text → MINI TEXTBLOCK
 
 The user's answers (asked, *"asl the questions you need"*): fix poms' Route by Timeslot + Status Router ·
