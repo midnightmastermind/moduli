@@ -3466,8 +3466,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // matched against the target's siblings, so it has always needed the
         // derived signature and keeps it. A non-merge root is a standalone
         // subtree the caller placed itself (`rootParent`) — its identity belongs
-        // to whatever applied it, which is the same reason gridIntegrity's
-        // `unsigned-template-node` rule exempts a root, and signing it would give
+        // to whatever applied it (the server's Copy/Replace apply leaves it
+        // unsigned for the same reason — cloneSubtree `signRoot:false`), and signing it would give
         // every day column built from one template the SAME signature as a
         // sibling of the board.
         // An explicit rootSignature WINS even over a signature the template

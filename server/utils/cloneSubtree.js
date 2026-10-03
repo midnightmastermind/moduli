@@ -85,6 +85,10 @@ export function remapEmbeddedRefs(textmap, occRemap, modRemap) {
  *   newParentId:      parentId for the cloned root occurrence
  *   rootLabel:        overrides the ROOT clone's module label (naming a template)
  *   stampSignatures:  stamp each clone's identitySignature so a later merge matches it
+ *   signRoot:         with stampSignatures, also sign the ROOT clone (default true). A
+ *                     Copy/Replace apply passes false: its root is a standalone copy the
+ *                     caller placed, and signing it would give every copy of one template
+ *                     the same identity — the client's APPLY_TEMPLATE leaves it unsigned too.
  *   persist:          { saveModule, saveOccurrence } — injectable for tests
  */
 export async function cloneSubtree({
@@ -97,6 +101,7 @@ export async function cloneSubtree({
   newParentId = null,
   rootLabel = null,
   stampSignatures = false,
+  signRoot = true,
   persist = mongoPersist,
 }) {
   const created = { occurrenceIds: [], moduleIds: [] };
@@ -162,7 +167,7 @@ export async function cloneSubtree({
       textmap: remapEmbeddedRefs(src.textmap, occRemap, modRemap),
       meta: { ...(src.meta || {}), ...(isRoot ? occMetaPatch : {}) },
     };
-    if (stampSignatures) newOcc.identitySignature = signatureOf(src);
+    if (stampSignatures && (signRoot || !isRoot)) newOcc.identitySignature = signatureOf(src);
     delete newOcc._id;
     delete newOcc.linkedGroupId;
     uc.occurrencesById[cloneOccId] = newOcc;

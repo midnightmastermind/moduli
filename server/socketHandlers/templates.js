@@ -116,10 +116,15 @@ export function registerTemplateHandlers(socket, {
         return;
       }
 
+      // Every node below the root is SIGNED, as the client's APPLY_TEMPLATE does in
+      // every mode: a later MERGE into this copy matches its sections by signature,
+      // and an unsigned copy matched nothing — the whole subtree cloned again (the
+      // 2026-08-07 doubling, still open on this path until 2026-10-03).
       const r = await cloneSubtree({
         rootOccurrenceId: templateOccurrenceId, userId, gridId, uc,
         occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
         newParentId: targetOccurrenceId,
+        stampSignatures: true, signRoot: false,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template apply failed");

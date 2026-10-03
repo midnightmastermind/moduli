@@ -214,149 +214,43 @@ describe("inert kind on leaf roles", () => {
   });
 });
 
-describe("unsigned nodes inside a template", () => {
-  // APPLY_TEMPLATE mode:"merge" matches by identitySignature and RECURSES into
-  // whatever it matched, so an unsigned node is re-cloned on every apply. On
-  // 2026-07-31 the Day Page template's question container was unsigned and one
-  // column had collected 23 empty copies of it — one per app load.
-  // A template is a child of the protected "Templates" FOLDER — location is the
-  // marker (migration 0035 retired meta.templateModule, which it now unsets on
-  // roots while leaving it on nested nodes, i.e. exactly backwards).
-  const tplMod = (id, label) => mod(id, { role: "container", label });
+describe("unsigned nodes inside a template — rule RETIRED 2026-10-03", () => {
+  // Every apply path derives `auto:<templateNodeId>` for an unsigned node and
+  // stamps it on the clones, so an unsigned template node no longer duplicates
+  // on a merge (cloneSubtree.test.js pins both server paths; the client's
+  // APPLY_TEMPLATE has its own suite). The rule only ever reported the intended
+  // state. What it guarded against — the same section twice — is #10's job.
   const TPL_FOLDER = [{ id: "tpl-f", name: "Templates", meta: { protected: true } }];
+  const cont = (id, label) => mod(id, { role: "container", label });
 
-  it("flags a template child that carries no identitySignature", () => {
+  it("an unsigned template section is not a finding", () => {
     const f = checkGridIntegrity({
       folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question")],
+      modules: [cont("mRoot", "Day Page"), cont("mSec", "Daily Question")],
       occurrences: [
         occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["sec"] }),
         occ("sec", "mSec"),
       ],
     });
-    const hit = f.find(x => x.code === "unsigned-template-node");
-    expect(hit.level).toBe("error");
-    expect(hit.ids).toEqual(["Daily Question in Day Page"]);
-  });
-
-  it("follows the whole subtree — an unsigned GRANDchild duplicates too", () => {
-    // The exact 2026-07-31 shape: the section was signed, its question
-    // container was not, so merge matched the section and cloned the child.
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question"), tplMod("mQ", "question")],
-      occurrences: [
-        occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["sec"] }),
-        occ("sec", "mSec", { identitySignature: "daypage:Daily Question", occurrences: ["q"] }),
-        occ("q", "mQ"),
-      ],
-    });
-    expect(f.find(x => x.code === "unsigned-template-node").ids).toEqual(["question in Day Page"]);
-  });
-
-  it("is quiet when every node below the root is signed", () => {
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question"), tplMod("mQ", "question")],
-      occurrences: [
-        occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["sec"] }),
-        occ("sec", "mSec", { identitySignature: "daypage:Daily Question", occurrences: ["q"] }),
-        occ("q", "mQ", { identitySignature: "daypage:Daily Question/question" }),
-      ],
-    });
     expect(codes(f)).not.toContain("unsigned-template-node");
   });
 
-  it("checks STRUCTURE only — an unsigned instance is meant to clone fresh", () => {
-    // The Schedule template's routine items land in a NEW day column each day,
-    // so they cannot duplicate. The bug this rule exists for was duplicated
-    // CONTAINERS (23 Daily Question wrappers in one day).
+  it("CONTROL: the damage itself — a section twice on an applied page — is still reported", () => {
     const f = checkGridIntegrity({
       folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Schedule Template"), mod("mItem", { role: "instance", label: "Drink" })],
-      occurrences: [
-        occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["item"] }),
-        occ("item", "mItem"),
-      ],
-    });
-    expect(codes(f)).not.toContain("unsigned-template-node");
-  });
-
-  it("exempts a wrapper PAGE's child — it is the effective apply root", () => {
-    // Migration 0035 wraps container-templates in a page, and both build ops
-    // apply with unwrapRoot:true, so the wrapper's child is matched by the
-    // target exactly the way a bare root is.
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [
-        mod("mWrap", { role: "page", kind: "doc", label: "Day Page" }),
-        tplMod("mInner", "Day Page"),
-      ],
-      occurrences: [
-        occ("wrap", "mWrap", { parentId: "tpl-f", occurrences: ["inner"] }),
-        occ("inner", "mInner"),
-      ],
-    });
-    expect(codes(f)).not.toContain("unsigned-template-node");
-  });
-
-  it("keys off LOCATION, not the retired templateModule marker", () => {
-    // Migration 0035 unsets templateModule on template ROOTS but leaves it on
-    // nested nodes, so the marker now points at exactly the wrong occurrences.
-    // A subtree sitting OUTSIDE the Templates folder is not a template, even
-    // when its modules still carry the old flag.
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [
-        mod("mOut", { role: "container", label: "Stale", meta: { templateModule: true } }),
-        mod("mKid", { role: "container", label: "Kid", meta: { templateModule: true } }),
-      ],
-      occurrences: [
-        occ("out", "mOut", { parentId: "somewhere-else", occurrences: ["kid"] }),
-        occ("kid", "mKid"),
-      ],
-    });
-    expect(codes(f)).not.toContain("unsigned-template-node");
-  });
-
-  it("exempts the ROOT — it is matched by the apply target, not by a signature", () => {
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Day Page")],
-      occurrences: [occ("root", "mRoot", { parentId: "tpl-f" })],
-    });
-    expect(codes(f)).not.toContain("unsigned-template-node");
-  });
-
-  it("reports a node ONCE even when reachable from several roots", () => {
-    // A node can be reached from more than one root, so a naive walk reports
-    // it once per ancestor.
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [tplMod("mRoot", "Project"), tplMod("mMid", "Kanban"), tplMod("mLeaf", "Backburner")],
-      occurrences: [
-        occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["mid"] }),
-        occ("mid", "mMid", { occurrences: ["leaf"] }),
-        occ("leaf", "mLeaf"),
-      ],
-    });
-    const hit = f.find(x => x.code === "unsigned-template-node");
-    expect(hit.ids).toEqual(["Kanban in Project", "Backburner in Project"]);
-  });
-
-  it("checks templates reached only through a clone's appliedFromTemplateId", () => {
-    const f = checkGridIntegrity({
-      folders: TPL_FOLDER,
-      modules: [mod("mRoot", { role: "container", label: "Day Page" }), mod("mSec", { role: "container", label: "Journal" })],
+      modules: [cont("mRoot", "Day Page"), cont("mSec", "Journal")],
       occurrences: [
         occ("root", "mRoot", { parentId: "tpl-f", occurrences: ["sec"] }),
         occ("sec", "mSec"),
-        occ("clone", "mRoot", { meta: { appliedFromTemplateId: "root" } }),
+        occ("page", "mRoot", { meta: { appliedFromTemplateId: "root" }, occurrences: ["j1", "j2"] }),
+        occ("j1", "mSec", { parentId: "page" }),
+        occ("j2", "mSec", { parentId: "page" }),
       ],
     });
-    expect(f.find(x => x.code === "unsigned-template-node").ids).toEqual(["Journal in Day Page"]);
+    expect(codes(f)).toContain("duplicate-template-section");
   });
 });
+
 
 describe("duplicate sections on a template-applied page", () => {
   // The damage rule: what a merge with a missed signature actually produces,

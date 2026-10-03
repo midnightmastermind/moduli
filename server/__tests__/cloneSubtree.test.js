@@ -309,3 +309,46 @@ describe("cloneSubtree — one module, many occurrences", () => {
     expect(root2.label).toBe("Day B");
   });
 });
+
+describe("a Copy apply signs everything below its root", () => {
+  // apply_template's Copy/Replace path cloned with no signatures, so a later
+  // Merge into that copy matched none of its sections and cloned them all again.
+  const uc = () => ({
+    modulesById: {
+      t: { id: "t", label: "T", meta: {} }, s: { id: "s", label: "S", meta: {} },
+      i: { id: "i", label: "I", meta: {} }, x: { id: "x", label: "X", meta: {} },
+    },
+    occurrencesById: {
+      tpl: { id: "tpl", moduleId: "t", occurrences: ["sec"], meta: {} },
+      sec: { id: "sec", moduleId: "s", occurrences: ["inner"], meta: {} },
+      inner: { id: "inner", moduleId: "i", occurrences: [], meta: {} },
+      host: { id: "host", moduleId: "x", occurrences: [], meta: {} },
+    },
+  });
+  const copy = (u, opts) => cloneSubtree({ rootOccurrenceId: "tpl", userId: "u", gridId: "g1", uc: u, newParentId: "host", persist: fakePersist(), ...opts });
+
+  it("a later merge into the copy adds nothing", async () => {
+    const u = uc();
+    const r = await copy(u, { stampSignatures: true, signRoot: false });
+    const m = await mergeSubtreeInto({ templateOccurrenceId: "tpl", targetOccurrenceId: r.rootClonedOccurrenceId, userId: "u", gridId: "g1", uc: u, persist: fakePersist() });
+    expect(m.occurrenceIds).toHaveLength(0);
+  });
+  it("leaves the copy's ROOT unsigned", async () => {
+    const u = uc();
+    const r = await copy(u, { stampSignatures: true, signRoot: false });
+    expect(u.occurrencesById[r.rootClonedOccurrenceId].identitySignature ?? null).toBe(null);
+    const sec = u.occurrencesById[u.occurrencesById[r.rootClonedOccurrenceId].occurrences[0]];
+    expect(sec.identitySignature).toBe("auto:sec");
+  });
+  it("CONTROL: an unsigned copy is cloned again by the merge (the defect)", async () => {
+    const u = uc();
+    const r = await copy(u, {});
+    const m = await mergeSubtreeInto({ templateOccurrenceId: "tpl", targetOccurrenceId: r.rootClonedOccurrenceId, userId: "u", gridId: "g1", uc: u, persist: fakePersist() });
+    expect(m.occurrenceIds.length).toBeGreaterThan(0);
+  });
+  it("apply_template's Copy/Replace path asks for it", async () => {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync(new URL("../socketHandlers/templates.js", import.meta.url), "utf8");
+    expect(src).toMatch(/newParentId: targetOccurrenceId,\s*stampSignatures: true, signRoot: false/);
+  });
+});

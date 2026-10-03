@@ -289,67 +289,22 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
   if (inert.length) add("warn", "unfireable-operation",
     `${inert.length} enabled operation(s) have no trigger and no schedule (manual-run only)`, inert);
 
-  // 9. A node inside a TEMPLATE that carries no identitySignature.
-  //    `APPLY_TEMPLATE mode:"merge"` decides "this already exists" by matching
-  //    identitySignature, and it RECURSES into whatever it matched — so an
-  //    unsigned node is cloned again on every single apply. On 2026-07-31 the
-  //    Day Page template's question container was unsigned and today's column
-  //    had silently collected 23 empty copies of it, one per app load.
-  //    The check lives on the TEMPLATE, not the clones, because that is where
-  //    the invariant is crisp: a clone's children include whatever the user
-  //    typed, which has no template counterpart and is rightly unsigned.
-  //    The ROOT is exempt — it is matched by the apply target, not by signature.
-  //    A template is identified by LOCATION — a child of the protected
-  //    "Templates" folder. It used to be identified by `module.meta.templateModule`,
-  //    but migration 0035 unsets that on template ROOTS while leaving it on the
-  //    nested nodes, so the marker now points at exactly the wrong occurrences.
-  //    Location is also the rule the app itself uses (helpers/templateHelpers.js
-  //    and utils/templatesFolder.js), so the check and the product agree.
-  const templateFolderIds = new Set(
-    folders.filter(f => f?.meta?.protected && f.name === "Templates").map(f => f.id),
-  );
-  const templateRoots = new Set();
-  for (const o of occurrences) {
-    const from = o.meta?.appliedFromTemplateId;
-    if (from) templateRoots.add(from);
-    if (o.parentId && templateFolderIds.has(o.parentId)) templateRoots.add(o.id);
-  }
-  // A node can be reachable from several roots (an applied-from id plus its own
-  // folder entry), so report per occurrence id rather than per root.
-  const unsignedById = new Map();
-  for (const rootId of templateRoots) {
-    const root = occById.get(rootId);
-    if (!root) continue;
-    const seen = new Set([rootId]);
-    // A template whose root is a PAGE is a wrapper — the thing being templated
-    // is what's inside it, and both build ops apply with unwrapRoot:true. So the
-    // wrapper's own child is the effective apply root and is matched the same
-    // way the root is: by the target, not by a signature.
-    const rootIsWrapperPage = modById.get(root.moduleId)?.role === "page";
-    const exemptChildren = rootIsWrapperPage ? new Set(root.occurrences || []) : new Set();
-    const walk = (id) => {
-      const o = occById.get(id);
-      if (!o) return;
-      // Only STRUCTURE is checked. An unsigned instance is content that is
-      // meant to clone fresh on every apply (the Schedule template's routine
-      // items land in a NEW day column each day, so they cannot duplicate).
-      // The bug this rule exists for was duplicated CONTAINERS — 23 copies of
-      // the Daily Question wrapper in one day, 2026-07-31.
-      const isStructure = modById.get(o.moduleId)?.role === "container";
-      if (isStructure && !exemptChildren.has(o.id) && !o.identitySignature && !unsignedById.has(o.id)) {
-        const label = modById.get(o.moduleId)?.label || "(unlabelled)";
-        unsignedById.set(o.id, `${label} in ${modById.get(root.moduleId)?.label || rootId}`);
-      }
-      for (const c of o.occurrences || []) if (!seen.has(c)) { seen.add(c); walk(c); }
-    };
-    for (const c of root.occurrences || []) if (!seen.has(c)) { seen.add(c); walk(c); }
-  }
-  const unsigned = [...unsignedById.values()];
-  if (unsigned.length) add("error", "unsigned-template-node",
-    `${unsigned.length} occurrence(s) inside a template carry no identitySignature — a merge apply ` +
-    `clones an unsigned node every time it runs`, unsigned);
+  // 9. RETIRED (2026-10-03) — an unsigned node inside a TEMPLATE is NOT a finding.
+  //
+  //    It was an error from 2026-07-31, when `APPLY_TEMPLATE mode:"merge"` treated
+  //    "no signature" as "clone fresh every merge" and one day column collected 23
+  //    copies of an unsigned question container. Every apply path now derives a
+  //    signature for an unsigned node from the template node's own id
+  //    (`auto:<id>` — client operationActions APPLY_TEMPLATE since 2026-08-07,
+  //    server `cloneSubtree.signatureOf`) and stamps it on every clone below the
+  //    root in every mode (the server's Copy/Replace path last, 2026-10-03). So
+  //    an unsigned template node matches itself on the next merge, and the rule
+  //    only ever reported the intended state: 55 errors on the rebuild grid for
+  //    its Schedule and Project templates, built through the UI, which offers no
+  //    way to sign a node at all. The DAMAGE it guarded against — the same
+  //    section twice — is still caught, by #10 below.
 
-  // 10. The damage rule for #9, in case structure is ever added to an already
+  // 10. The damage rule for the old #9, in case structure is ever added to an already
   //     built page by hand (a migration, an import) rather than to the
   //     template: two children of a template-applied node that are the same
   //     section twice. That is what a merge with a missed signature produces,
