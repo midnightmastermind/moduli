@@ -21,7 +21,7 @@ import { pickActivePeriod } from "./activePeriod";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
-import { operationsBridge } from "../state/bindSocketToStore";
+import { operationsBridge, byIdCached } from "../state/bindSocketToStore";
 import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
 import { bumpOpRun } from "./renderProbe";
@@ -1705,6 +1705,24 @@ export function runPipelineForLog(operation, context, transaction) {
   return results;
 }
 
+// The hand-run surfaces (Run now, a node-input run, the `button` field, an
+// instance's Run widget) built their context from state + fieldsById +
+// occurrencesById and nothing else. Every action reads `modulesById` (and
+// `foldersById`) off the context and defaults it to {} — so APPLY_TEMPLATE
+// found no module for any template node and cloned NOTHING, silently, when an
+// op was run by hand (found 2026-10-03 building `Project: Create`). The sweep
+// paths pass both. One place derives them for every caller that did not.
+export function withEntityLookups(context = {}) {
+  if (!context || typeof context !== "object") return context;
+  // IN PLACE, never a copy: the sweep hangs its `$allItems` cache on the
+  // context it shares across every op of one sweep (`_allItemsCache`), and a
+  // per-pipeline copy would drop that cache on the floor for every op.
+  const st = context.state || {};
+  if (!context.modulesById) context.modulesById = byIdCached(st.modules);
+  if (!context.foldersById) context.foldersById = st.foldersById || byIdCached(st.folders);
+  return context;
+}
+
 export function executePipeline(operation, context, transaction, extraVars, externalLogger) {
   const pipeline = operation.pipeline;
   if (!pipeline) return [];
@@ -1713,6 +1731,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   const logger = externalLogger || makeLogger();
 
   const { sources = [], steps = [] } = pipeline;
+  withEntityLookups(context);
   const { state, fieldsById = {}, occurrencesById = {}, operationsById = {} } = context;
 
   // parentId on the occurrence itself is not always set — the authoritative ordering
