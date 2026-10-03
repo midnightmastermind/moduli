@@ -116,6 +116,17 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (8) — POMODORO PASS STARTED (unfinished, usage limit)
+
+Done: Routines › Mind › **Pomodoro** source item on the rebuild (Pomodoro #, Pomodoro Minutes, Pomodoro Phase,
+Completed, Date). **Found on poms, not fixed:** the pomodoro flow has never produced a row (0 rows with a
+Pomodoro # ever); `Pomodoro: Stop`'s DELETE stores `path` but the executor reads `itemIdExpr`, so it can never
+delete; `Pomodoro: Start` makes a LINKED copy, so session rows would share Completed / minutes with the source.
+Next: set "Send pomodoros to" on the rebuild (`_pomodest.mjs` printed nothing on its first run — check the
+panel trigger's title), build Start / Update Time / Stop / Complete unlinked with `itemIdExpr`, run the timer.
+
+---
+
 ### 2026-10-03 (7) — TASK COUNTDOWN + COMPLETION RATE BY CLICKING; a sliced sweep put a tile back to its pre-edit number
 
 Built on the rebuild by clicking (`_tracker2.mjs`, `_t2batch.sh`): Stats › **Task Countdown** (10 minus completed
