@@ -116,6 +116,27 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (6) — SIX DURATION TRACKERS BY CLICKING; a retag never re-ran a tag-scoped tracker (0388)
+
+**Tags** field made on the rebuild through the Fields tab (select, "Several picks", options intellectual /
+occupational / creative / spiritual / social / physical). Six tiles + trackers by clicking (`_durbatch.sh` →
+`_additem` + `_tracker`), each summing Duration in the rebuild's tracker shape plus a literal tag rule:
+Intellectual › Reading Time (**Time Spent**), Occupational › Work Duration, Creative › Creative Duration,
+Spiritual › Practice Duration, Social › Connection Time, and Occupational › Productivity (**Time Spent This
+Week**, no tag). Rebuild ops: 30.
+**Watched:** a 30-minute Study in Oct 3's Todo → Productivity 30; tagged intellectual → Reading Time 30 —
+**but only after a reload.** None of the trackers listened to Tags; on poms **0 of the 31 operations that read
+Tags** did. Added `onChange · Tags` by clicking on the rebuild's five; then retagging intellectual → social moved
+the 30 minutes live (Reading Time 0, Connection Time 30). **0388 (poms)** adds the same trigger to the seven
+trackers that compare Tags with a LITERAL tag; the 24 that read Tags only against the tile's own category
+(`$goalCategory`, set on no poms tile) are left alone.
+**Probe notes:** a SELECT field's compact pill has no `title` — find it by its text (`Tags: —`). The item picker
+pre-ticks siblings' fields, and clicking a field that was pre-ticked UNticks it (Productivity came out with no
+fields; re-attached through Settings). Foreground commands stop at 10 minutes — long build batches run in the
+background.
+
+---
+
 ### 2026-10-03 (5) — THREE TRACKERS BY CLICKING; a flow flip never re-ran a tracker, and when it did it saw a row under nothing
 
 Built on the rebuild by clicking, in the rebuild's tracker shape (Coffee's — no display rules, no trigger-type
