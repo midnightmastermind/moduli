@@ -469,6 +469,29 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                 Flow toggle button
               </label>
             )}
+            {/* DEFAULT FLOW (2026-10-03): the flow a new value is stored with
+                (FieldRenderer: `field.meta.flow || "in"`) and the direction a
+                change reads as good. 77 seeded fields carry one — Amount is "out",
+                so a typed amount is an expense — and nothing in the app could set
+                it: a field made here always stored "in". */}
+            {(local.type === "number" || local.type === "duration") && (
+              <label
+                title="The flow a new value gets: In adds to a tracker, Out subtracts (an expense), Replace overwrites."
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)" }}
+              >
+                Default flow
+                <select
+                  aria-label="Default flow"
+                  value={local.meta?.flow || "in"}
+                  onChange={(e) => setLocal((p) => ({ ...p, meta: { ...(p.meta || {}), flow: e.target.value } }))}
+                  style={{ fontSize: 11 }}
+                >
+                  <option value="in">In (+)</option>
+                  <option value="out">Out (−)</option>
+                  <option value="replace">Replace</option>
+                </select>
+              </label>
+            )}
             {/* Multi-line prose (2026-08-23). `meta.multiline` sits on Person
                 Notes / Allergies / Interests / How We Met / Excerpt and was
                 reachable only by writing a migration. Text only — a number or a
