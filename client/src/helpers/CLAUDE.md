@@ -3165,3 +3165,5 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 - **`operationActions.js` `MOVE_OCCURRENCE`** (2026-10-02) — destination and subject go through
   `singleOccurrenceId`; a FIND that bound an array is refused by name instead of moving into it.
 - **`operationActions.js` `SAME_WEEK` / `SAME_MONTH` / `SAME_YEAR`** (2026-10-03) — `parseLocalDate` on both sides.
+- **`CommitHelpers.updateOccurrence`** (2026-10-03) — the `triggerField` branch merges the payload over the
+  cached overlay entry instead of writing a partial payload bare (it stripped placement from the executor's view).

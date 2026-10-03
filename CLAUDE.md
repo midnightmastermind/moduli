@@ -116,6 +116,34 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (5) — THREE TRACKERS BY CLICKING; a flow flip never re-ran a tracker, and when it did it saw a row under nothing
+
+Built on the rebuild by clicking, in the rebuild's tracker shape (Coffee's — no display rules, no trigger-type
+gate, no Tags): **Steps** (Physical › Steps → Daily Steps), **Completed Habits** (Stats › Habits Completed),
+**Spent** (Financial › Spent; Amount with flow `out`). Probe `_tracker.mjs` takes a SPEC (tile, target, rules,
+an OR group, `+=` field or `++`) — the remaining ~30 tiles are this shape.
+**Watched:** a Walk in Oct 3's Todo (Steps 4000, Completed, Habit) — Daily Steps 0 while unticked, **4000**
+ticked, Habits Completed **1**; a $5 Coffee shop (Amount) — Spent **5** once flipped to Out, 0 back at In.
+
+**THREE DEFECTS FOUND ON THE WAY, all fixed, the last one the real one:**
+```
+no default flow in the UI    77 seeded fields carry meta.flow (Amount: out) — the renderer stores every new
+                             value with it — and the Fields tab could not set it. "Default flow" select added.
+a flow flip fired nothing    FieldRenderer.handleFlowChange wrote the flow with no triggerField, so no
+                             tracker re-ran until a reload. It fires the field's change now.
+...and the run saw the row   updateOccurrence's trigger branch did `updateLocalOcc(occurrence)` — the BARE
+under nothing                payload. A partial `{ id, fields }` (flow flip, randomize pick, link intake)
+                             stripped parentId/moduleId from the executor's overlay, so the op it fired
+                             excluded the row: Spent ran and wrote 0. It merges over the cached entry now
+                             (`triggerFieldKeepsPlacement.test.js`, fails on the old code).
+```
+Rebuild Amount configured by clicking: flow toggle on, default flow Out. Also: the item picker pre-ticks the
+siblings' fields, so new tiles/rows came out with extras — removed through Settings › Fields (`_bindfield.mjs
+MODE=remove`, "Unbind field"). `occurrenceSearchUI` failed once under full-suite load and passes alone (twice).
+Rebuild ops: 24. The Walk and Coffee shop stay in Oct 3's Todo as sample data.
+
+---
+
 ### 2026-10-03 (4) — THE REBUILD'S BILL TILES, BY CLICKING; and where the UI-testing plan stands
 
 Trackers › **Financial** › **Monthly Bills** (Amount, Bills Paid) made through the page; **Monthly Bills** and

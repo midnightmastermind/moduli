@@ -2340,3 +2340,5 @@ registered them). See client/src/CLAUDE.md.
   the mint window either (Ctrl+Z after Unwrap minted a block on the line below the group).
 - **`index.css` `.wrap-group--off`** — columns mode is TWO columns (floats one side, leads + host the
   other), not a flex column per member. Test: `__tests__/wrapOffTwoColumns.test.js`.
+- **`FieldRenderer.handleFlowChange`** fires the field's change (triggerField); **`FieldsTab`** has a
+  "Default flow" select (meta.flow) beside "Flow toggle button" (2026-10-03).
