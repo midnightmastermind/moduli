@@ -41,6 +41,11 @@ function dedupKey(event, data) {
  */
 export function safeEmit(socket, event, data) {
   if (!socket) return;
+  // `window.__emitDiag = true` records every write with the stack that made it
+  // (window.__emitLog) — for "who sent this?" when a value is overwritten.
+  if (typeof window !== "undefined" && window.__emitDiag) {
+    (window.__emitLog ||= []).push({ t: Math.round(performance.now()), event, id: data?.occurrence?.id || data?.module?.id || data?.id || null, data, stack: new Error().stack });
+  }
 
   // Stamp the open user action so the server can group this write with the rest
   // of the cascade into one undo step (see helpers/actionScope.js). Done HERE
