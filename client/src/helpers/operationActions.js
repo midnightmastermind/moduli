@@ -211,7 +211,12 @@ export function resolveExpr(expr, $vars) {
     let parsed;
     try { parsed = JSON.parse(expr.slice(5)); } catch { return null; }
     const varLeaves = (v) => {
-      if (typeof v === "string") { if (!v.startsWith("$")) return v; const r = resolveExpr(v, $vars); return r === undefined || r === null ? v : r; }
+      // A leaf whose ROOT variable exists is a reference: a missing member is an
+      // empty value, as deepResolveExpr (an object value) already treats it. Only a
+      // leaf naming no variable at all stays as written ("$5", a literal). Kept as
+      // its own text, a Movie History row stored "$item.fields.<Time Slot>.value"
+      // for a Watch with no slot (2026-10-03).
+      if (typeof v === "string") { if (!v.startsWith("$")) return v; const r = resolveExpr(v, $vars); if (r !== undefined && r !== null) return r; const root = v.match(/^\$[A-Za-z_][A-Za-z0-9_]*/)?.[0]; return root && root in $vars ? null : v; }
       if (Array.isArray(v)) return v.map(varLeaves);
       if (v && typeof v === "object") { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = varLeaves(x); return o; }
       return v;

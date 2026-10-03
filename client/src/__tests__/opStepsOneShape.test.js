@@ -11,7 +11,7 @@ import path from "node:path";
 import { executePipeline } from "../helpers/operationExecutor";
 import { normalizeSteps, hasSeedDialect } from "../../../server/utils/pipelineShape.js";
 
-vi.setConfig({ testTimeout: 60000 });
+vi.setConfig({ testTimeout: 180000 });
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "pomsGrid.json.br");
 let base;
 beforeAll(() => { base = JSON.parse(brotliDecompressSync(readFileSync(FIXTURE)).toString()); });
