@@ -116,6 +116,41 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (9) — PROJECT KANBAN BY CLICKING; three defects, each of which had kept a project op from ever working
+
+**Rebuild, by clicking:** fields **Status** + **Kanban Column** (select, poms' 6 values) · Templates ›
+**Project: {ProjectName}** (board page › Kanban › Backburner/Docket/Working On/In Review/Test/Complete, each
+column bound + valued Kanban Column) · a **Projects** folder · ops **Project: Create** (ask name + scope →
+FIND the page → APPLY_TEMPLATE into Projects), **Project: Stamp Status From Column** (onMove + onAdd, instance,
+p2) and **Project: Status Router** (onChange Status, p5) — the last two string-identical to poms' once ids map.
+**Watched live on "Project: Rebuild Test":** Run now → both prompts → page + Kanban + 6 columns in Mongo · a
+card added in Docket → `Status: Docket` · Status → Working On → the card MOVES there · dragged to Test →
+`Status: Test`, and it stays (router sees target = current) · Status → Complete → moves to Complete.
+```
+template picker EMPTY      ActionStep/IfStep never forwarded foldersById + gridId, so "Saved templates"
+                           found no Templates folder. Top-level fix first; the step that found it sat in
+                           an IF's then — the second commit is IfStep. (templatePickerSeesFolders, A/B 2+1)
+Run now created NOTHING    hand-run contexts (Run now, node-input run, button field, instance Run widget)
+                           carried no modulesById; actions default it to {}, so APPLY_TEMPLATE found no
+                           template module. executePipeline fills modulesById/foldersById from state —
+                           IN PLACE: the sweep's $allItems cache lives on the context, a copy drops it.
+                           (handRunContextLookups, A/B 2; full client suite 5,669 pass)
+drag never re-stamped      a container move's toContainerId/fromContainerId were MODULE ids; a create's
+                           containerId is the OCCURRENCE id and the only live reader (this op, on 3 grids)
+                           FINDs `id IS $destId`. All three fire sites pass occurrence ids now. 0 onMove
+                           triggers target a container, so nothing else reads it.
+```
+**So poms' `Project: Create` (no other invoke path) and its drag-to-column stamp had never worked.**
+Data, not code: the stamp's card FIND looks in `$allOccurrences` like poms' — `$allInstances` misses a card
+created this tick (its module is not in the executor's map yet, the 09-22 (26) gap). A new op arrives with an
+`onLoad` trigger, so an ask-the-user op prompted on every load until it was removed — **probe note: that
+modal covers the command-center button**; and auth re-mint resets `gridId` to poms (`_mkauth`), so set it
+back before probing the rebuild. `onMove` offers no `occurrence` subject (poms' was seed-written) — `module ·
+instance` here; `onCreate` is a hidden alias of `onAdd`. **Not built:** `Project: Sync To Todo List` (needs the
+Project field + a Todo List page). Rebuild ops **39/86**.
+
+---
+
 ### 2026-10-03 (8) — POMODORO BY CLICKING; poms' flow had never made a row, and pause-then-reset leaked a session
 
 **Rebuild, by clicking:** Routines › Mind › **Pomodoro** (source: Pomodoro #, Minutes, Phase, Completed, Date);

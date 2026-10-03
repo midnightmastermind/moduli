@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-03 (9) — hand-run lookups; move triggers carry occurrence ids)
+- `operationExecutor.withEntityLookups(context)` — `executePipeline` fills `modulesById` / `foldersById` from
+  `state` when the caller passed none (Run now, node-input run, button field, instance Run widget). IN PLACE:
+  the sweep's `_allItemsCache` lives on the context object. Test `handRunContextLookups`.
+- `dropHandlers.fireMoveTrigger` callers pass container OCCURRENCE ids (`toCOcc.id`, `toPageOcc.id`,
+  `toCInnerOcc.id`) — same as a create's `containerId`. Test in `moveUpdatesParentAndScope`.
+
 ## Recent Changes (2026-10-02 (7) — stale text saves; gap-clicked blocks)
 - `editorSyncSignal.requestEditorAdopt/hasEditorAdopt/clearEditorAdopt` — after the server refuses a text
   save built on old text, the editor shows the server copy past every guard (deadline mark, spent only on apply).

@@ -2,6 +2,11 @@
 
 _Updated: 2026-04-30. Check this file before re-reading source._
 
+## Recent Changes (2026-10-03 (9) — action steps get foldersById/gridId)
+- `ActionStep` and `IfStep` forward `foldersById` + `gridId`; `ActionConfig` takes them and puts them in every
+  picker ctx + `exprProps`. Without them the APPLY_TEMPLATE "Saved templates" list was always empty. Test
+  `templatePickerSeesFolders`.
+
 ## Recent Changes (May 3 2026 — Find / Loop redesign: collection picker + record-key picker)
 - **`OperationsBuilder.jsx` LoopStep**: Replaced `<ExprOrPath>` for `step.overExpr` with a `<CategoryPathPicker config={COLLECTION_PICKER_CONFIG}>`. The collection picker exposes only the iterable built-ins ($allOccurrences / $allItems / $allContainers / $allPages / $allInstances / $allTemplates / $allFields) as one-click leaves. The iteration variable input (`step.as`) was removed from the editor entirely — the executor still uses it under the hood (defaults to `$item`) but it never surfaces.
 - **`OperationsBuilder.jsx` FIND ActionConfig**: Added a "Look in" row at the top of the FIND config — the same collection picker writes `cfg.over` (default `$allOccurrences`). The predicate's `<ConditionGroup>` now receives `leftConfig={buildRecordKeyPickerConfig(over)}` so the rule's left-side picker drills the chosen collection's per-record shape directly. Stored predicate `rule.left` values are bare record paths (`label`, `fields.<fid>.value`, `_ancestors`) — no `$item.` prefix.
