@@ -116,6 +116,20 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (13) — PURCHASE HISTORY, CURRENT STREAK, ENVIRONMENT CARE BY CLICKING
+
+All built on the rebuild by clicking and watched: **Purchase History** (Financial › Purchases: rows of completed-or-
+unbound Out amounts on the Schedule → `Purchases` table + `Last Purchase`; poms' Purchase Item sub-loop left
+out — no such field here) — "Coffee shop · 10 · Oct 3", then 7 live when the amount changed (Cash followed to
+193). **Current Streak** (Stats › Streak: completed dated Schedule rows → `🔥 streak` → Current Streak; Longest
+Streak written when `$streak GREATER` it OR it IS_EMPTY — poms seeds a 0 fallback; without the second rule an
+empty best never filled) → 2 / 2. **Environment Care** (Trackers › Environmental, `environmental` added to Tags
+through the options editor, `_addopts.mjs`): 0 → 1 when Email dentist was tagged. Rebuild ops 51.
+**Probe fault:** `_additem`'s tile finder took the FIRST element reading "Item" — the Purchases table's column
+header — and opened nothing; it takes the last match (the portalled menu) now.
+
+---
+
 ### 2026-10-03 (12) — MOVIES WATCHED BY CLICKING; 8 poms ops the editor could not read (0390); a json: leaf stored its own text
 
 **`0390` — ONE STORED STEP SHAPE.** Moods, Phone Calls, Movies Watched, Books Read, Podcasts Listened, Courses
