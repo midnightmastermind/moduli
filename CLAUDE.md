@@ -116,6 +116,29 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 — POMS: three ops read a hand edit, Next Due retired (0385); text → MINI TEXTBLOCK
+
+The user's answers (asked, *"asl the questions you need"*): fix poms' Route by Timeslot + Status Router ·
+delete Compute Next Due + Due: Seed · the toolbar's text→pill should make *"minitextblock occurances, not
+just something in line"* · next rebuild area: Bills.
+- **0385** — Route by Timeslot gets the rebuild's shape (the item's own day column, then the slot); Status
+  Router and its sibling Sync To Todo List (same trigger, same read) read `$trigger.value` instead of
+  `$trigger.fields.<Status>.value` (undefined for a hand edit). Compute Next Due + Due: Seed deleted; fields
+  Next Due, Cadence, Every N Days, Anchor Date deleted after the migration proved nothing else names them.
+  Monthly Bills summed `Cadence IS monthly`, which would have dropped every bill — it sums bills WITH A DAY now,
+  and both bill tiles re-run on a Day edit. **After the restart: Monthly Bills reads 24 (DigitalOcean).**
+  Not exercised live on poms: Route and the Project ops would move the user's real items (tests drive the
+  real executor; the Route shape was watched on the rebuild).
+- **Text → mini textblock** — DocToolbar's selection button minted an `instancePill` with a random instanceId
+  and NO module (its stored `instanceLabel` was its only content). It now makes an `instanceTextblockInline`
+  occurrence, through `CommitHelpers.createInlineTextblock` — the one creator the right-click "Make inline
+  textblock" and "Split into inline textblocks" now share, each ONE undo step (the hand-rolled mints had none).
+  Full client suite 538/538. Not clicked in a browser yet.
+- **Found, for the Bills pass:** "Bills Paid" reads 24 too — Paid This Month counts a bill whose own
+  Completed is true, and DigitalOcean has been Completed since August. It is not month-scoped.
+
+---
+
 ### 2026-10-02 (8) — `Schedule: Route by Timeslot` BY CLICKING — and an operation's MOVE had never moved anything
 
 Built on the rebuild by clicking, in the shape that can work with day columns (poms' own cannot — see below):
