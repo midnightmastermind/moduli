@@ -377,6 +377,10 @@ function FieldRenderer({
       dispatch, socket,
       occurrence: { id: occurrence.id, fields: { ...((occurrence.fields) || {}), [field.id]: { ...base, value: currentValue, flow: newFlow } } },
       emit: true,
+      // A flow flip changes what every tracker summing this field adds — in vs
+      // out — so it fires the field's change like a typed value does. Without
+      // it a $5 expense flipped to Out left "Spent" at 0 until a reload (2026-10-03).
+      triggerField: [{ fieldId: field.id, value: currentValue, instanceId: occurrence.moduleId }],
     });
   }, [occurrence, field?.id, inputEnabled, dispatch, socket]);
 
