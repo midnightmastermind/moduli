@@ -116,6 +116,30 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (10) — THE OPEN ITEMS: Sync To Todo List built; a Copy apply left clones unsigned; the unsigned-template rule retired
+
+User: *"what about the stuff still open"*.
+**`Project: Sync To Todo List`, by clicking** (23 steps, poms' shape; onChange Status p5). Groundwork, also by
+clicking: a **Rebuild Test** project on Boards › Creative › Projects, a **Project** occurrence field (Find:
+`_ancestors HAS_ANCESTOR` the Projects page — its Board Category chip is hidden by the grid's field visibility,
+so location is the predicate, as for Bill), Tasks › **Occupational** (fallback) and Tasks › **Rebuild Test**
+(Project = the project). **Watched:** Draft outline → Docket: the router moved it AND a linked mirror appeared
+in Tasks › Rebuild Test; → Working On: mirror deleted from Mongo, the card intact with its module.
+**Editor gap, fixed:** the record picker offered no `linkedGroupId` (7 live reads in 4 ops, all seed-written).
+**`unsigned-template-node` RETIRED.** It walked TEMPLATES only (a clone's `appliedFromTemplateId` leads back to
+the template), and every merge derives `auto:<templateNodeId>` for an unsigned node — so it reported the
+intended state (55 errors on the rebuild, whose UI has no way to sign a node). **The one real gap it pointed
+near:** `apply_template`'s Copy/Replace path cloned with NO signatures, so a later Merge into such a copy
+matched nothing and re-cloned its subtree (the 08-07 doubling, open on this path). It now stamps every node
+below the root (`cloneSubtree` `signRoot:false`, as the client does); A/B 2 fail, a control shows the unsigned
+copy re-cloning. Duplicated sections stay caught by `duplicate-template-section`. Server 3,000 pass; deployed
+with a restart. **Rebuild integrity: 0 errors.**
+**FOUND, NOT TOUCHED (poms, the user's call): 134 module-less occurrences** (was 17 on 09-22) — bare shells:
+no module, no parent, no label, listed by nothing; 09-30: 44, 10-01: 48, none since. 85 still list children,
+so a delete would cascade into whatever they list; needs a per-child check before any sweep. Rebuild ops 40/86.
+
+---
+
 ### 2026-10-03 (9) — PROJECT KANBAN BY CLICKING; three defects, each of which had kept a project op from ever working
 
 **Rebuild, by clicking:** fields **Status** + **Kanban Column** (select, poms' 6 values) · Templates ›
