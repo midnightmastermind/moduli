@@ -1076,6 +1076,21 @@ function sweepParentMap(occurrencesById, version) {
 }
 export { sweepParentMap as _sweepParentMapForTests };
 
+// ── AN OPERATION RUNS ONLY ON ITS OWN GRID ─────────────────────────────────
+// Every write — operations included — is broadcast to the USER room, so a tab
+// open on one grid holds the operations of every other grid the user edits.
+// Measured 2026-10-03: a tab on poms grid received the rebuild grid's
+// Coffee-shop edit, matched the REBUILD's "Cash Balance" (onChange Amount), ran
+// it over POMS' rows, found nothing, and wrote "0" into the rebuild's Cash tile
+// — half a second after the rebuild tab had written the right 188. An op is
+// skipped only on an explicit disagreement: an op or a state with no grid id
+// fails open, the rule the feed guard uses (2026-09-22 (5)).
+export function opRunsOnGrid(op, state) {
+  const gid = state?.grid?._id || state?.gridId || null;
+  if (!op?.gridId || !gid) return true;
+  return String(op.gridId) === String(gid);
+}
+
 function* _runMatchingOperationsGen(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
@@ -1124,6 +1139,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     // (the OccurrenceDeleteOp freeze cascade). See _opsApplyingEffects above.
     if (isOpApplyingEffects(op.id)) continue;
     if (cascadeFiredOps && cascadeFiredOps.has(op.id)) continue;
+    if (!opRunsOnGrid(op, context?.state)) continue;
     const m = computeTriggerMatch(op, transactionType, transaction);
     if (!m) continue;
     matched.push({ op, match: m });

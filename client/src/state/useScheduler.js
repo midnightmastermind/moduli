@@ -22,7 +22,7 @@
 //     console (soft warn) so the author can see what their op is doing.
 // ============================================================
 import { useEffect, useRef } from "react";
-import { executePipeline } from "../helpers/operationExecutor";
+import { executePipeline, opRunsOnGrid } from "../helpers/operationExecutor";
 import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
 import { operationsBridge } from "./bindSocketToStore";
@@ -93,6 +93,7 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
       for (const opId of Object.keys(operationsById)) {
         const op = operationsById[opId];
         if (!op || !op.enabled || !op.schedule) continue;
+        if (!opRunsOnGrid(op, state)) continue;   // another grid's alarm must not ring here
         if (inFlight.has(opId)) continue;
         const sched = op.schedule;
         if (!isDueAt(sched, now, sched.lastFiredAt)) continue;
