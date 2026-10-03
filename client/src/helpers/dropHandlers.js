@@ -831,6 +831,12 @@ export function handleOccurrenceMove(dropContext, ctx) {
     return;
   }
 
+  // fromContainerId / toContainerId are the containers' OCCURRENCE ids — what a
+  // create's `containerId` already is, what `$item.parentId` holds, and what the
+  // one live reader (`Project: Stamp Status From Column`, FIND id IS $destId)
+  // looks up. The container branch passed MODULE ids, so a card dragged between
+  // kanban columns never re-stamped its Status (found 2026-10-03).
+  //
   // ONE trigger per user action. A move fires OccurrenceMoveOp only,
   // carrying the moved occurrence's fields so field-scoped onMove
   // subscribers (subjectType:"field" → transaction.fields[targetId]) match.
@@ -1008,8 +1014,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
       fireMoveTrigger({
         occurrenceId,
         instanceId: movedOcc.moduleId,
-        fromContainerId: fromParentOcc?.moduleId || null,
-        toContainerId: toPageOcc.moduleId,
+        fromContainerId: fromParentOcc?.id || null,
+        toContainerId: toPageOcc.id,
         fromPanelId: null,
         toPanelId: null,
       });
@@ -1098,8 +1104,8 @@ export function handleOccurrenceMove(dropContext, ctx) {
       fireMoveTrigger({
         occurrenceId,
         instanceId: movedOcc.moduleId,
-        fromContainerId: fromCanvasPageOcc.moduleId,
-        toContainerId: toCInner.id,
+        fromContainerId: fromCanvasPageOcc.id,
+        toContainerId: toCInnerOcc.id,
         fromPanelId: null,
         toPanelId: null,
       });
@@ -1324,7 +1330,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
       const toPanelOcc = findGridPanelOcc(toCOcc, _revMap, occurrencesById, _gridOccSet);
       fireMoveTrigger({
         occurrenceId, instanceId: draggedInstanceId,
-        fromContainerId: fromC.id, toContainerId: toC.id,
+        fromContainerId: fromCOcc.id, toContainerId: toCOcc.id,
         fromPanelId: fromPanelOcc?.moduleId || null,
         toPanelId: toPanelOcc?.moduleId || null,
       });

@@ -82,3 +82,12 @@ describe("moving an instance between containers", () => {
     expect(updates).toContainEqual({ id: "inst", parentId: "s29-300" });
   });
 });
+
+describe("the move trigger names containers by OCCURRENCE id", () => {
+  it("toContainerId / fromContainerId are the slots' occurrence ids, not their module ids", () => {
+    handleOccurrenceMove(drop(SEP28_330), ctx());
+    const mv = fired.find((f) => f.type === "OccurrenceMoveOp");
+    expect(mv.tx.toContainerId).toBe("s28-330");
+    expect(mv.tx.fromContainerId).toBe("s28-300");
+  });
+});
