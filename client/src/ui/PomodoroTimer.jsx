@@ -199,23 +199,28 @@ export default function PomodoroTimer() {
       return next;
     });
   }, [phase.label, phase.duration, phaseIndex, remaining, targetContainerId]);
+  // A work session exists once it has STARTED — running, or paused part-way.
+  // Gating on `running` alone meant pause-then-reset left the open session row
+  // behind; the next Start made a second one and every "the open pomodoro" FIND
+  // matched two (2026-10-03).
+  const workStarted = phase.label === "Work" && (running || remaining < phase.duration);
   const reset = useCallback(() => {
-    // Abandoning a running work phase → delete the open Schedule session.
-    if (running && phase.label === "Work") {
+    // Abandoning a started work phase → delete the open Schedule session.
+    if (workStarted) {
       operationsBridge.fireOperations?.("PomoStopOp", { type: "PomoStopOp" });
     }
     setRunning(false);
     setRemaining(phase.duration);
-  }, [running, phase.label, phase.duration]);
+  }, [workStarted, phase.duration]);
   const skip = useCallback(() => {
-    if (running && phase.label === "Work") {
+    if (workStarted) {
       operationsBridge.fireOperations?.("PomoStopOp", { type: "PomoStopOp" });
     }
     setRunning(false);
     const nextIdx = (phaseIndex + 1) % PHASES.length;
     setPhaseIndex(nextIdx);
     setRemaining(PHASES[nextIdx].duration);
-  }, [phaseIndex, running, phase.label]);
+  }, [phaseIndex, workStarted]);
 
   // Close on outside click.
   //
