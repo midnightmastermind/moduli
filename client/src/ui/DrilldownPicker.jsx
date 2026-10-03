@@ -110,6 +110,11 @@ const SHAPES = {
       { value: "role",        title: "role",        sub: "string",   description: "page / container / instance … (resolved from template)", hasChildren: false },
       { value: "kind",        title: "kind",        sub: "string",   description: "board / doc / table … (resolved from template)",         hasChildren: false },
       { value: "templateId",  title: "templateId",  sub: "string",   description: "Same as moduleId — module template",              hasChildren: false },
+      // A copy-link group's shared id — the occurrence's own key, carried into every
+      // $allItems entry by enrichOne's `...occ`. 7 live reads across 4 ops (a
+      // mirror is found by `linkedGroupId IS $lgId`); none could be picked
+      // (2026-10-03, building Project: Sync To Todo List).
+      { value: "linkedGroupId", title: "linkedGroupId", sub: "string", description: "Copy-link group id — every linked copy shares it", hasChildren: false },
       // THE ORDERED CHILD LIST. `occurrences[]` is how every renderer finds a
       // parent's children and it is the commonest loop target after the built-in
       // collections — 45 pipeline strings across 8 operations read

@@ -18,6 +18,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("_boundFieldIds");
   });
 
+  it("offers linkedGroupId — 7 live reads across 4 ops find a mirror by it", () => {
+    // Project: Sync To Todo List finds a task's mirror with `linkedGroupId IS $lgId`;
+    // building it by clicking found no picker row (2026-10-03).
+    expect(top()).toContain("linkedGroupId");
+  });
+
   it("drills filterOverride per field, like its read-only twin", () => {
     // Both are filter maps keyed by field id; `filterOverride` is the WRITABLE
     // one (`applyUpdate` routes `$page.filterOverride.<fieldId>` — how a page's
