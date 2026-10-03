@@ -5,6 +5,7 @@
 // - Other windows must self-heal if their active grid is deleted.
 // =========================================
 
+import { dropStaleFieldWrites } from "../helpers/staleSweep";
 import { ActionTypes } from "./actions";
 import { dropEmbedsOf } from "../helpers/embedRegistry";
 import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
@@ -2223,10 +2224,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // which happens before the first yield resolves — reading it from the
       // continuation threw `Cannot read properties of null`.
       const wrap = _slicedSweep.wrap;
+      // When the sweep began, in the units a field write is stamped with.
+      const startedAt = Date.now();
       return { __sliced: runMatchingOperationsSliced(
         operations, transactionType, transaction, sweepCtx, sweepCbs,
         { budgetMs: SLICE_BUDGET_MS, wrap },
-      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth }))) };
+      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth, startedAt }))) };
     }
     return _applyFireUpdates(
       runMatchingOperations(operations, transactionType, transaction, sweepCtx, sweepCbs),
@@ -2234,9 +2237,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   // Everything that happens to a sweep's updates. Called by BOTH drivers.
-  function _applyFireUpdates(allUpdates, { state, transactionType, occurrencesById, tFire0, diagDepth }) {
+  function _applyFireUpdates(allUpdates, { state, transactionType, occurrencesById, tFire0, diagDepth, startedAt = null }) {
     const _tFire0 = tFire0;
     const _diagDepth = diagDepth;
+    // A SLICED sweep yields between slices and applies its effects at the end —
+    // seconds later on a big grid. A field written after it began (an edit, or a
+    // newer run of the same op) holds a NEWER answer than the sweep computed, and
+    // writing the sweep's over it put a stale number back: a Completion Rate tile
+    // went 50 -> 0 right after the user unticked a task (2026-10-03). Such
+    // writes are dropped; the newer value already reflects later state.
+    if (startedAt != null) allUpdates = dropStaleFieldWrites(allUpdates, mergedOccsOverlay(state.occurrencesById), startedAt);
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);

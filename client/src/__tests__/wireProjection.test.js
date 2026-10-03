@@ -50,6 +50,9 @@ const KEPT_ID_READS = [
   [/if\s*\(doc\._id\)\s*return\s*\{\s*\.\.\.doc,\s*id:\s*String\(doc\._id\)/g, "normalizeId fallback"],
   // A React key on a FIELD suggestion. Fields are not projected.
   [/key=\{item\._id\}/g, "React key on a Field, not a projected row"],
+  // helpers/staleSweep — a FIELD CELL's write stamp (`fields[f].timestamp`), which
+  // travels inside `fields`; only the ROW's own top-level `timestamp` is omitted.
+  [/\bcell\.timestamp\b/g, "a field cell's write stamp, inside fields"],
 ];
 
 /** Reads of `.<key>` in the client, minus comments, minus `$trigger.<name>`
