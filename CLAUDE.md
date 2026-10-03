@@ -116,14 +116,24 @@ test, removed in `1a7dfd8d`.
 
 ---
 
-### 2026-10-03 (8) — POMODORO PASS STARTED (unfinished, usage limit)
+### 2026-10-03 (8) — POMODORO BY CLICKING; poms' flow had never made a row, and pause-then-reset leaked a session
 
-Done: Routines › Mind › **Pomodoro** source item on the rebuild (Pomodoro #, Pomodoro Minutes, Pomodoro Phase,
-Completed, Date). **Found on poms, not fixed:** the pomodoro flow has never produced a row (0 rows with a
-Pomodoro # ever); `Pomodoro: Stop`'s DELETE stores `path` but the executor reads `itemIdExpr`, so it can never
-delete; `Pomodoro: Start` makes a LINKED copy, so session rows would share Completed / minutes with the source.
-Next: set "Send pomodoros to" on the rebuild (`_pomodest.mjs` printed nothing on its first run — check the
-panel trigger's title), build Start / Update Time / Stop / Complete unlinked with `itemIdExpr`, run the timer.
+**Rebuild, by clicking:** Routines › Mind › **Pomodoro** (source: Pomodoro #, Minutes, Phase, Completed, Date);
+"Send pomodoros to" = Tasks › Today (toolbar pomodoro panel); **Pomodoro: Start** (onPomoStart: unlinked copy
+of the source into `$trigger.targetContainerId` with Date/Minutes/#/Phase), **Update Time** (onPomoTick: FIND
+the open pomodoro today → Minutes), **Stop** (onPomoStop: FIND → DELETE `itemIdExpr`), **Complete**
+(onPomoComplete: Minutes + Completed). Probe `_pomoops.mjs` (+ `trigpomo` phase that turns the default onLoad
+row into the pomo event — a Stop left on onLoad would delete the open session on every load). Rebuild ops: 36.
+The slotLabel fallback of poms' Start (Schedule slot by time) is not rebuilt — the rebuild has no
+`grid.meta.scheduleFieldIds`, so the timer sends no slot label.
+**Watched:** Start → a `#1 · work · 0 min` row in Tasks › Today, unlinked; a minute later 1 min; pause → reset →
+**the row stayed** (fixed below), then after the fix pause → reset → row deleted.
+**FIXES:** `PomodoroTimer` reset/skip fired PomoStopOp only while RUNNING — a paused work session was never
+stopped, so the next Start made a second open row and every "the open pomodoro" FIND bound two. It fires for
+any STARTED work phase now (`workStarted`). **0389 (poms):** Start's COPY_LINK → `linked:false` (linked
+session rows would share Completed/Minutes — completing one completes all); Stop's DELETE stored `path`, which
+DELETE never reads → `itemIdExpr`. poms had **0 pomodoro rows ever**. A full 25-minute run (Complete) is in
+progress at the time of writing.
 
 ---
 
