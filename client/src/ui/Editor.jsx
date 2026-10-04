@@ -381,7 +381,7 @@ const Editor = forwardRef(function Editor({
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   // Grid/user id for artifact uploads dropped into a doc / table cell (an
   // embedded doc container or a cell has no owning `occurrence` to read them off).
-  const ctxGrid = useGridActionsSelector(s => s.grid);
+  const ctxGrid = useGridActionsSelector(s => s.state?.grid);
   const ctxUserId = useGridActionsSelector(s => s.userId);
   // Read at PASTE time (editorProps are captured once at init).
   const ctxFolders = useGridActionsSelector(s => s.foldersById);
