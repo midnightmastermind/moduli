@@ -26,11 +26,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { BarChart3, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
 import { buildGraphData } from "../../helpers/graphData";
-import { resolveFeedItems } from "../../state/selectors";
+import { resolveFeedItems, getEffectiveFilterForOccurrence } from "../../state/selectors";
 import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { mergeGraphWarnings, summariseGraphWarnings } from "../../helpers/graphWarnings";
-import { selectedIdsForDay, derivesSelection } from "../../helpers/graphSelection";
+import { selectedIdsForDay, derivesSelection, dayFromFilterValue } from "../../helpers/graphSelection";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { operationsBridge } from "../../state/bindSocketToStore";
@@ -44,6 +44,7 @@ const EMPTY_SELECTION = [];
 
 export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const grid = useGridActionsSelector(s => s.grid);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
 
@@ -220,8 +221,13 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
     // value read from the same field, so the two cannot disagree. Slicing here
     // and not there is how the key silently stops matching.
     const v = col?.fields?.[fid]?.value;
-    setDayKey(typeof v === "string" && v ? v : null);
-  }, [spec?.dayFieldId, resolveRenderColumn, getOccMap, occurrence?.id, nodes]);
+    if (typeof v === "string" && v) { setDayKey(v); return; }
+    // NOT IN A DATED COLUMN (a wheel on a tracker page): the day the graph is
+    // FILTERED to — the same fallback poms' Mood: Record Selection takes
+    // (`$graph._effectiveFilter.<Date>`), so the click and the lit slice agree.
+    const eff = occurrence ? getEffectiveFilterForOccurrence(occurrence, { grid, occurrencesById: getOccMap() }) : null;
+    setDayKey(dayFromFilterValue(eff?.[fid]));
+  }, [spec?.dayFieldId, resolveRenderColumn, getOccMap, occurrence, grid, nodes]);
 
   const handleSelect = useCallback((sel) => {
     if (!sel) return;

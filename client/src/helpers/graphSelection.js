@@ -73,3 +73,19 @@ export function selectedIdsForDay(occurrences, { valueFieldId, dayFieldId, day }
 export function derivesSelection(spec) {
   return !!(spec?.valueFieldId && spec?.dayFieldId);
 }
+
+/**
+ * The day a filter VALUE points at, for a graph that is not rendered in a dated
+ * column. A date filter stores either the bare day or the date nav's range object
+ * `{ value, unit, span, kind, dates }`; a multi-day pick has no single day to light.
+ *
+ * @returns {string|null}
+ */
+export function dayFromFilterValue(v) {
+  if (typeof v === "string") return v || null;
+  if (v && typeof v === "object") {
+    if (typeof v.value === "string" && v.value) return v.value;
+    if (Array.isArray(v.dates) && v.dates.length === 1 && typeof v.dates[0] === "string") return v.dates[0];
+  }
+  return null;
+}

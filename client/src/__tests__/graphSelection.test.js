@@ -95,3 +95,19 @@ describe("derivesSelection", () => {
     expect(derivesSelection(null)).toBe(false);
   });
 });
+
+import { dayFromFilterValue } from "../helpers/graphSelection";
+
+describe("dayFromFilterValue — the day a graph outside a dated column lights", () => {
+  it("reads a bare day and the date nav's range object", () => {
+    expect(dayFromFilterValue("2026-10-04")).toBe("2026-10-04");
+    expect(dayFromFilterValue({ value: "2026-10-04", unit: "day", span: 1 })).toBe("2026-10-04");
+    expect(dayFromFilterValue({ dates: ["2026-10-04"] })).toBe("2026-10-04");
+  });
+  it("has no single day for a multi-day pick or no filter", () => {
+    expect(dayFromFilterValue({ dates: ["2026-10-03", "2026-10-04"] })).toBe(null);
+    expect(dayFromFilterValue(null)).toBe(null);
+    expect(dayFromFilterValue("")).toBe(null);
+    expect(dayFromFilterValue(undefined)).toBe(null);
+  });
+});
