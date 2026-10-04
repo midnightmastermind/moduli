@@ -43,6 +43,7 @@ function world(graphMeta) {
     fieldsById: {
       [F_PARENT]: { id: F_PARENT, name: "Parent Ref", type: "occurrence" },
       [F_VALUE]: { id: F_VALUE, name: "Amount", type: "number" },
+      "f-day": { id: "f-day", name: "Date", type: "date" },
     },
   };
   return occurrence;
@@ -99,6 +100,23 @@ describe("GraphSection", () => {
     const options = [...row.querySelectorAll("option")].map((o) => o.textContent);
     expect(options).toContain("Parent Ref");
     expect(options).not.toContain("Amount");
+  });
+
+  it("writes the SELECTION fields that light picked slices (valueFieldId / dayFieldId)", () => {
+    // ContainerGraph lights a slice from these two keys; before this control they
+    // were written only by migrations, so a wheel built in the UI could never light.
+    const occ = world({ graph: { type: "sunburst", encoding: {}, highlight: ["kept"] } });
+    const { getByTitle } = render(<GraphSection occurrence={occ} />);
+    const picks = getByTitle(/lists the slices picked/).parentElement.querySelector("select");
+    const day = getByTitle(/only the picks of the day/).parentElement.querySelector("select");
+    expect([...picks.options].map((o) => o.textContent)).toEqual(["nothing lit", "Parent Ref"]);
+    expect([...day.options].map((o) => o.textContent)).toEqual(["any day", "Date"]);
+    fireEvent.change(picks, { target: { value: F_PARENT } });
+    expect(lastWrite().meta.graph).toMatchObject({ valueFieldId: F_PARENT, highlight: ["kept"] });
+    fireEvent.change(day, { target: { value: "f-day" } });
+    expect(lastWrite().meta.graph.dayFieldId).toBe("f-day");
+    fireEvent.change(day, { target: { value: "" } });
+    expect(lastWrite().meta.graph.dayFieldId).toBe(null);
   });
 
   it("hides the hierarchy controls for a chart that cannot draw one", () => {

@@ -138,6 +138,7 @@ export default function GraphSection({ occurrence }) {
     [fieldsById],
   );
   const occurrenceFields = useMemo(() => fields.filter((f) => f.type === "occurrence"), [fields]);
+  const dateFields = useMemo(() => fields.filter((f) => f.type === "date"), [fields]);
 
   // THE ROWS, RESOLVED ONCE. The readout reports on them and the field pickers
   // are built from them, and those two must be the same set — a picker offering
@@ -288,6 +289,24 @@ export default function GraphSection({ occurrence }) {
               />
             </>
           )}
+
+          {/* WHICH SLICES ARE LIT (helpers/graphSelection): a field on some OTHER row that
+              lists the picked occurrences, and the date field that says which day each pick
+              belongs to. ContainerGraph has read these since 2026-08-12; until now only
+              migrations could write them, so a wheel built in the UI could never light up. */}
+          <div style={{ ...labelStyle, marginTop: 2 }}>Selection</div>
+          <EncodingRow
+            label="Picks in" hint="An occurrence field (on another row) that lists the slices picked — those slices are lit."
+            emptyLabel="nothing lit"
+            value={spec.valueFieldId} options={occurrenceFields} rows={[]}
+            onChange={(v) => patch({ valueFieldId: v })}
+          />
+          <EncodingRow
+            label="Day field" hint="The date field on that row, so only the picks of the day being shown are lit."
+            emptyLabel="any day"
+            value={spec.dayFieldId} options={dateFields} rows={[]}
+            onChange={(v) => patch({ dayFieldId: v })}
+          />
 
           {/* Hardcoded values — the third data source, alongside a feed and dragging. */}
           <div style={{ ...labelStyle, marginTop: 2, display: "flex", justifyContent: "space-between" }}>
