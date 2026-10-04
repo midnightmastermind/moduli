@@ -116,6 +116,30 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 (4) — THE EMOTIONS WHEEL BY CLICKING: a wheel built in the UI could never light up
+
+Trackers › **Emotions Wheel**, all by clicking (`_wheel.mjs`): a board container → radial **Convert › Graph** →
+header Filters popover › **Data**: feed On, scoped "under: Emotions" (6 matches) → Settings › **Chart**. Sunburst
+like poms'. **Watched:** today's Check In (Happy + Calm) → those two slices carry the thick black ring.
+**Two defects, both why that took three deploys:**
+```
+no editor for the selection   ContainerGraph lights slices from meta.graph.valueFieldId + dayFieldId
+                              (since 2026-08-12) and only MIGRATIONS ever wrote them. Chart tab gains
+                              "Selection": Picks in (occurrence fields) + Day field (date fields),
+                              through patch() so the rest of meta.graph survives. A/B: old editor fails 1.
+the day came only from the    dayKey was read from the dated COLUMN the graph sits in (poms' wheel lives
+dated column                  in day columns). A wheel on a page lit nothing. It falls back to the graph's
+                              effective date filter — the fallback Mood: Record Selection already takes —
+                              via graphSelection.dayFromFilterValue (bare day or the nav's range object).
+s.grid does not exist         my first fallback read useGridActionsSelector(s => s.grid): the actions store
+                              carries `state`, not `grid`, so it was undefined and the fix was inert.
+                              Editor.jsx read the same dead key (a fallback behind occurrence.gridId) —
+                              both read s.state?.grid now.
+```
+Client 5,684 pass. **Next:** `Mood: Record Selection` (onGraphSelect on this wheel → a Check In).
+
+---
+
 ### 2026-10-04 (3) — AN EMOTIONS BOARD AND MOODS BY CLICKING
 
 Boards › Mind › **Emotions** (board page + container, `emotion` added to Board Category) with six sample emotions —
