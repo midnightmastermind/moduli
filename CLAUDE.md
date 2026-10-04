@@ -116,6 +116,27 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 (2) — MOM'S ACCOUNT, READING TIME, BOOKS, COURSES BY CLICKING; the probe stops fighting the picker
+
+Built on the rebuild by clicking, each watched tick → untick → re-tick on Oct 4's Todo:
+```
+Mom's Account Balance  Trackers › Accounts › Mom's Account (Cash's shape)   "Groceries for Mom" $40 Out → −40 → 0 → −40
+Total Reading Time     → Reading Time on the Reading Time tile (tag intellectual)   45 → 0 → 45 (Time Spent moves with it)
+Books Read             Routines › Mind › Read (Reading) → Trackers › Intellectual › Books   Atomic Habits row + Last Book
+Courses Taken          Routines › Mind › Study (Courses Taken) → Trackers › Intellectual › Courses   "Algorithms (Coursera) · Oct 4"
+```
+Fields by clicking: **Reading** (several picks, under the Readings page — 4 matches) and **Courses Taken** (under
+Courses — 3). Table columns set for Book History and Course History. Rebuild ops **62**, integrity 0 errors.
+**Not built:** Podcasts Listened (the rebuild has no podcasts — its Media field finds under Movies) and Moods /
+Mood: Record Selection (no Emotions board on the rebuild yet).
+**Probe fix:** `_additem` now makes the field picker hold EXACTLY the asked-for fields — a ticked row is a
+`button[title]` whose box holds a checkmark `svg`, so it reads each row and flips only the wrong ones. Before, it
+clicked every requested name, which un-ticked the ones the picker had pre-ticked from siblings and left the
+siblings' others on (this morning's run needed 18 Settings › Fields unbinds). Study and Courses, made after the
+fix, came out exact. Its result line reports the newest module of that label (it matched the older Study).
+
+---
+
 ### 2026-10-04 — SLEEP, WORKOUTS AND MEALS BY CLICKING: six trackers, no defects
 
 Built on the rebuild by clicking, each in poms' shape, each watched tick → untick → re-tick on Oct 4's Todo:
