@@ -116,6 +116,27 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 — SLEEP, WORKOUTS AND MEALS BY CLICKING: six trackers, no defects
+
+Built on the rebuild by clicking, each in poms' shape, each watched tick → untick → re-tick on Oct 4's Todo:
+```
+Sleep Time       Routines › Physical › Sleep → Trackers › Physical › Sleep        0 → 30 → 0 → 30 (+30 per completed Sleep)
+Total Workouts   Routines › Physical › Workout (Movement, Set/Weight 1-3)          0 → 1 → 0 → 1
+Workout History  → Workouts table + Last Workout                                   "Lateral Raises · 12 × 15 · Oct 4"
+Meal Nutrition   Routines › Physical › Nutrition › Eat (Meal, Calories…Fats)      350 / 12 / 60 / 7 → 0 → back
+Meal History     → Trackers › Nutrition › Meal Log, Meals table                    Oatmeal · 350 · 12 · Oct 4
+```
+Groundwork by clicking: a **Movement** field (occurrence, several picks, Find: under the Movements page — 4
+matches), Trackers › **Nutrition** container, table columns for Workouts and Meals in the Fields tab. The item
+picker pre-ticked siblings' fields on all five new instances again (Logged On, Beverage, the Physical tiles'
+fields) and un-ticked Completed/Date where a sibling bound them — every one corrected through Settings ›
+Fields. Rebuild ops **59**, integrity 0 errors. **Probe note:** `_additem` with `OPENQ` requires the target
+container to exist already; a new container needs the run without it. The scratchpad (auth.json, op id
+files) does not survive a new day — re-mint auth with `node --env-file=server/.env _mkauth.mjs` and set
+`gridId` back to the rebuild.
+
+---
+
 ### 2026-10-03 (14) — PHONE CALLS AND POMODORO HISTORY BY CLICKING
 
 Both built on the rebuild by clicking and watched. **Phone Calls** (Trackers › Social › Calls: completed Call rows on the
