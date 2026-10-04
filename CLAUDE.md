@@ -116,6 +116,33 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 (5) — MOOD: RECORD SELECTION BY CLICKING; a container trigger's target picked in the editor could never match
+
+**`Mood: Record Selection`** on the rebuild (17 steps, `moodpick` phase): `$picked = $trigger.occurrenceId`, the
+day the wheel shows (`$graph._effectiveFilter.<Date>.value`, else the bare value, else `$today` — the renderer's
+fallback from (4)), FIND an existing Check In for that emotion that day → **DELETE** it (a second click undoes);
+else FIND the day column → its Todo → **Copy linked** (unlinked) the Check In routine there with Date, Mood
+`json:["$picked"]`, Completed. Trigger `onGraphSelect · module · container · Emotions Wheel`. Simpler than poms'
+(no mood-host, no textmap embed, no current-slot placement) because the rebuild's wheel is not on a day page.
+**Watched:** click Sad → a Sad Check In in Oct 4's Todo, the slice lit, Moods "+ Sad", Last Mood Sad; click Sad
+again → the Check In deleted, Moods back to "Happy, Calm".
+```
+the target dropdown stored a MODULE   matchSubjectFilter compares a container-role target with the event's
+                                      OCCURRENCE id (a graph click's containerId, an add's containerId, a
+                                      move's fromContainerId); the editor listed modules for that role, so a
+                                      picked target never matched. Measured: 1 targeted container trigger on
+                                      any grid, poms' wheel, storing an occurrence id. The container role
+                                      now uses the searchable container picker (buildContainerCrumbOptions,
+                                      built only when such a trigger exists); other roles keep modules.
+                                      A/B: the old editor fails the wiring guard; the matcher cases pin the
+                                      executor's rule and pass both ways.
+```
+Rebuild ops **64**, integrity 0 errors. Client 5,687 pass. **Probe notes:** the trigger row's selects are named
+by `title`, not `aria-label`; a container option reads "Trackers › Emotions Wheel", so match the trailing name.
+`_tracker.mjs` has no no-save mode — every run clicks Save, including a dump.
+
+---
+
 ### 2026-10-04 (4) — THE EMOTIONS WHEEL BY CLICKING: a wheel built in the UI could never light up
 
 Trackers › **Emotions Wheel**, all by clicking (`_wheel.mjs`): a board container → radial **Convert › Graph** →
