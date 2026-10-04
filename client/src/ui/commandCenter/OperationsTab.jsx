@@ -8,6 +8,9 @@ import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2, Play } from "lucid
 
 import { useGridActions } from "../../GridActionsContext";
 import FieldSelect from "../FieldSelect.jsx";
+import DestinationPicker from "../DestinationPicker";
+import { buildContainerCrumbOptions } from "../../helpers/containerCrumbs";
+import { occurrenceDisplayLabel } from "../../helpers/occurrenceLabel";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { PipelineEditor } from "../../blocks";
@@ -465,7 +468,7 @@ export function ScheduleEditor({ schedule, onChange }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false, onWorkingCopy }) {
-  const { modulesById, occurrencesById, fieldsById, operationsById } = useGridActions();
+  const { modulesById, occurrencesById, fieldsById, operationsById, foldersById } = useGridActions();
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
   // The header's Save lives in the LIST component, one level up, and had no way
@@ -490,6 +493,11 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         return { eventType, subjectType: "field", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY };
       });
   }, [local.triggerObjects, local.triggerTypes, local.triggerType]);
+  const wantsContainerTargets = (triggerObjects || []).some((t) => t.subjectType === "module" && t.subjectRole === "container");
+  const containerTargetOptions = useMemo(
+    () => (wantsContainerTargets ? buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById }) : []),
+    [wantsContainerTargets, occurrencesById, modulesById, foldersById],
+  );
 
   const setTriggerConfig = (triggerKey, patch) =>
     setLocal(p => ({
@@ -652,8 +660,17 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
               : subjectType === "grid" ? "Grid"
               : subjectRole ? subjectRole.charAt(0).toUpperCase() + subjectRole.slice(1)
               : "Module";
+            // A CONTAINER-role target is a PLACEMENT: every container-role event the
+            // executor matches carries an occurrence id (a graph click's containerId,
+            // an add's containerId, a move's fromContainerId — matchSubjectFilter).
+            // The picker offered MODULES here, so a target picked in the editor could
+            // never match; the one live container target (poms' Mood: Record
+            // Selection) stores the wheel's occurrence id, written by a seed.
+            const placementTarget = subjectType === "module" && subjectRole === "container";
             const targetLabel = !targetId ? "Any"
               : subjectType === "field" ? (fieldsById?.[targetId]?.name ?? targetId.slice(-6))
+              : placementTarget && occurrencesById?.[targetId]
+                ? (occurrenceDisplayLabel(occurrencesById[targetId], modulesById?.[occurrencesById[targetId].moduleId]) || targetId.slice(-6))
               : (modulesById?.[targetId]?.label ?? targetId.slice(-6));
             // The ANCESTOR SCOPE belongs in the readout. Without it a trigger
             // scoped to one page reads identically to one that fires on every
@@ -724,7 +741,21 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   </div>
                 )}
                 {/* Specific entity picker (module) */}
-                {subjectType === "module" && entitiesForSubject.length > 0 && (
+                {placementTarget && (
+                  <div style={{ width: 200, minWidth: 140 }}>
+                    <DestinationPicker
+                      options={containerTargetOptions}
+                      value={targetId || null}
+                      onChange={(id) => updateTriggerObject(idx, { targetId: id || "" })}
+                      noneLabel="Any container"
+                      placeholder="Any container"
+                      ariaLabel="Specific container"
+                      searchPlaceholder="Search containers…"
+                      style={{ fontSize: 10 }}
+                    />
+                  </div>
+                )}
+                {subjectType === "module" && !placementTarget && entitiesForSubject.length > 0 && (
                   <select
                     value={targetId}
                     title="Specific module (optional)"
