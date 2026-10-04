@@ -44,7 +44,7 @@ const EMPTY_SELECTION = [];
 
 export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
-  const grid = useGridActionsSelector(s => s.grid);
+  const grid = useGridActionsSelector(s => s.state?.grid);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
 
