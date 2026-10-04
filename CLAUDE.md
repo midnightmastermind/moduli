@@ -116,6 +116,19 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-03 (14) — PHONE CALLS AND POMODORO HISTORY BY CLICKING
+
+Both built on the rebuild by clicking and watched. **Phone Calls** (Trackers › Social › Calls: completed Call rows on the
+Schedule → a `Phone Calls` table of person + date and `Total Phone Calls`) — ticking a Call with Ava Martinez put
+"Ava Martinez · Oct 3" in the table and the count 0 → 1. **Pomodoro History** (on the Pomodoros tile, scoped to Tasks
+where the timer sends sessions: completed `Pomodoro #` rows dated in the tile's period → `[] push object` of
+`{n, minutes, label, date}` + `Last Pomodoro` "#N · M min") → `[{n:1, minutes:25, label:"work", date:"2026-10-03"}]`,
+"#1 · 25 min", Pomodoros Today still 1. Columns set in the Fields tab. Rebuild ops **53/86**.
+**Probe/shell note:** a background waiter's `pgrep -f` matched its OWN command line and never saw the build finish;
+`pkill` with the same pattern then killed its own shell (exit 144). The 09-23 (6) self-exclusion rule — `[X]` in the pattern.
+
+---
+
 ### 2026-10-03 (13) — PURCHASE HISTORY, CURRENT STREAK, ENVIRONMENT CARE BY CLICKING
 
 All built on the rebuild by clicking and watched: **Purchase History** (Financial › Purchases: rows of completed-or-
