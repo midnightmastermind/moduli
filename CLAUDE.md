@@ -116,6 +116,20 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 (3) — AN EMOTIONS BOARD AND MOODS BY CLICKING
+
+Boards › Mind › **Emotions** (board page + container, `emotion` added to Board Category) with six sample emotions —
+Happy · Sad · Angry · Anxious · Calm · Grateful, each tagged — built through the `_area.sh` recipe for the page and
+`_additem` for the rows (the recipe's row step reported "no Create"; `_additem` did it). A **Mood** field (several
+picks, Find: under the Emotions page), Routines › Mind › **Check In** (Mood, Completed, Date), Trackers ›
+**Emotional** › **Mood** (Moods, Last Mood). **Moods** in poms' shape: per completed check-in in the period, the
+picked emotions' names joined (`"${$moodNames}, ${$mood.label}"`) → a row + Last Mood. **Watched:** Check In with
+Happy + Calm → "Happy, Calm · Oct 4" → untick empty → re-tick back. Rebuild ops **63**, integrity 0 errors.
+**Not built:** `Mood: Record Selection` (poms' onGraphSelect op on the mood-wheel graph — needs the wheel first) and
+Podcasts Listened (no podcasts on the rebuild). `_area.sh` takes `S` from the environment now.
+
+---
+
 ### 2026-10-04 (2) — MOM'S ACCOUNT, READING TIME, BOOKS, COURSES BY CLICKING; the probe stops fighting the picker
 
 Built on the rebuild by clicking, each watched tick → untick → re-tick on Oct 4's Todo:
