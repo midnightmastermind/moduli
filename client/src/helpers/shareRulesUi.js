@@ -48,6 +48,17 @@ export const SHARE_PROPS = {
   file:  ["$share.props.occurrenceId", "$share.props.fileRef", "$share.props.filename", "$share.props.sizeBytes"],
   [CATCH_ALL]: ["$share.props.*", "$share.clip (browser extension clips)"],
 };
+// A browser-extension clip carries a whole shaped row (resolved fields, meta,
+// the module it wants) — what `Share: link` reads when `$share.clip` is set.
+export const SHARE_CLIP_PROPS = ["$share.clip.label", "$share.clip.fields", "$share.clip.meta", "$share.clip.meta.clipShape",
+  "$share.clip.moduleRole", "$share.clip.moduleKind", "$share.clip.moduleFileRef"];
+
+/** Every `$share` path any rule can read, deduped — the operations path picker drills it. */
+export function allSharePaths() {
+  const all = [...COMMON, ...Object.values(SHARE_PROPS).flat(), ...SHARE_CLIP_PROPS, "$share.handled"];
+  return [...new Set(all.filter(p => /^\$share\.[A-Za-z.]+$/.test(p)))];
+}
+
 export const sharePropsFor = (type) => [...COMMON, ...(SHARE_PROPS[type] || [])];
 
 export const shareTriggerOf = (op) =>

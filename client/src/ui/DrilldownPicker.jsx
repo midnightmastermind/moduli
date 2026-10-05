@@ -33,6 +33,7 @@ import { CATEGORIES } from "./categoryRegistry";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 import { TRIGGER_PROP_KEYS } from "../helpers/triggerTypes";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
+import { allSharePaths } from "../helpers/shareRulesUi.js";
 
 // Copy for the props `$trigger` can carry. A key with no entry still lists —
 // the union is the source of truth for WHICH keys exist; this only describes
@@ -66,7 +67,36 @@ const TRIGGER_PROP_DESCRIPTIONS = {
 // Each entry is the set of keys exposed on that shape and what a follow-on
 // drill should produce. Keeping these explicit makes the picker fully
 // deterministic without poking at runtime data.
+// `$share` — the payload a share rule runs on (server services/shareIngress).
+// The picker had no entry for it, so a share rule's condition (`Share: link`
+// gates on $share.clip / $share.props.url, `Share: add profile` on
+// $share.person.network) could only be seed-written (2026-10-05). The tree is
+// BUILT from the Imports tab's own catalog (`allSharePaths`), so a prop the tab
+// lists is a prop the picker drills — one list, not two. Offered only where the
+// editor passes `$share` as a variable (the Imports tab).
+function buildShareShapes() {
+  const tree = {};
+  for (const p of allSharePaths()) {
+    let node = tree;
+    for (const seg of p.split(".").slice(1)) node = (node[seg] ||= {});
+  }
+  const shapes = {};
+  const walk = (node, path) => {
+    shapes[`share:${path}`] = {
+      keys: () => Object.keys(node).map((k) => {
+        const kids = Object.keys(node[k]).length > 0;
+        return { value: k, title: k, sub: kids ? "object" : "value", description: `$share${path ? "." + path : ""}.${k}`,
+          hasChildren: kids, ...(kids ? { childShape: `share:${path ? path + "." : ""}${k}` } : {}) };
+      }),
+    };
+    for (const k of Object.keys(node)) if (Object.keys(node[k]).length) walk(node[k], path ? `${path}.${k}` : k);
+  };
+  walk(tree, "");
+  return shapes;
+}
+
 const SHAPES = {
+  ...buildShareShapes(),
   // $trigger is the EVENT payload, not an occurrence. It used to be mapped to
   // the occurrence shape, so the picker offered `$trigger.fields.<id>.value`
   // (undefined at runtime for every trigger type) and hid `$trigger.occurrence`,
@@ -406,6 +436,7 @@ const BUILTIN_VAR_SHAPES = {
   $allOperations: "operationArray",
   $parentFilter: "filter",
   $trigger: "trigger",
+  $share: "share:",
   $grid: "grid",
   $this: "occurrence",  // the current instance — the row whose field is being resolved
 };

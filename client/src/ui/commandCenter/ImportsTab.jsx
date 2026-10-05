@@ -78,6 +78,9 @@ function SubTabs({ value, onChange, logCount }) {
   );
 }
 
+// The variable every share rule runs with — offered to its path pickers.
+const SHARE_VARS = ["$share"];
+
 function RuleEditor({ rule, fields, onSave, onDelete }) {
   const { modulesById, occurrencesById, fieldsById, operationsById } = useGridActions();
   const [local, setLocal] = useState(rule);
@@ -143,6 +146,7 @@ function RuleEditor({ rule, fields, onSave, onDelete }) {
         modulesById={modulesById || {}}
         occurrencesById={occurrencesById || {}}
         operationsById={operationsById || {}}
+        extraLocalVars={SHARE_VARS}
       />
     </div>
   );

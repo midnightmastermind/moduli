@@ -364,7 +364,7 @@ const ifStepSt = {
  * - modulesById: all modules
  * - operationsById: all operations (for Run Operation action)
  */
-export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, occurrencesById = {}, fieldsById, operationsById = {} }) {
+export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, occurrencesById = {}, fieldsById, operationsById = {}, extraLocalVars = null }) {
   // The template picker resolves templates by LOCATION (children of the
   // protected Templates folder), so it needs folders + the grid id. Read them
   // here rather than prop-drilling from OperationsTab through four layers.
@@ -395,7 +395,9 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
   // "$schedDate" stays as raw text instead of a chip chain). The collection
   // is order-insensitive — pipeline-time validity is the executor's job; the
   // editor just needs to know the names so chips render.
-  const localVars = useMemo(() => collectLocalVars(steps), [steps]);
+  // `extraLocalVars` — names the RUN provides that no step declares: a share
+  // rule runs with `$share` (the Imports tab passes it).
+  const localVars = useMemo(() => [...collectLocalVars(steps), ...(extraLocalVars || [])], [steps, extraLocalVars]);
 
   const sharedProps = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources, foldersById: pickerFolders, gridId: pickerGridId };
 
