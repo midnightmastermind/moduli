@@ -16,6 +16,7 @@ import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
 import LayoutCascadeEditor from "../LayoutCascadeEditor";
 import FieldVisibilitySection from "../FieldVisibilitySection";
+import ScheduleFieldsSection from "../ScheduleFieldsSection";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },
@@ -415,6 +416,20 @@ export function GridSettingsTab() {
           section in their header dropdown. */}
       <div className="mb-3">
         <FieldVisibilitySection grid={grid} gridId={gridId} />
+      </div>
+
+      <Separator className="mb-3" />
+
+      {/* ── Schedule — grid.meta.scheduleFieldIds (alarms file into today's slot;
+          the Pomodoro timer stamps its Time Slot). Only the seed wrote it before. */}
+      <div className="mb-3">
+        <ScheduleFieldsSection
+          grid={grid}
+          fields={Object.values(fieldsById || {})}
+          occurrences={state?.occurrences || []}
+          modules={state?.modules || []}
+          onMetaChange={(nextMeta) => CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true })}
+        />
       </div>
 
       <Separator className="mb-3" />
