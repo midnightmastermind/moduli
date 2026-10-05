@@ -30,6 +30,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("moduleLabel");
   });
 
+  it("offers identitySignature — the day-page builders and alarms find rows by it", () => {
+    // 5 live rules in 5 ops (Day Page: Build / Build Day / Build Tasks Completed,
+    // both alarms); building Tasks Completed by clicking found no row (2026-10-05).
+    expect(top()).toContain("identitySignature");
+  });
+
   it("offers textmap — the day-page builders write a column's whole doc through it", () => {
     // 6 live UPDATEs (Day Page: Build / Build Day / Build Tasks Completed, Mood:
     // Record Selection) write `$col.textmap`; no picker row offered it (2026-10-05).

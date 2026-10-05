@@ -145,6 +145,10 @@ const SHAPES = {
       // mirror is found by `linkedGroupId IS $lgId`); none could be picked
       // (2026-10-03, building Project: Sync To Todo List).
       { value: "linkedGroupId", title: "linkedGroupId", sub: "string", description: "Copy-link group id — every linked copy shares it", hasChildren: false },
+      // The signature a template application / builder stamps so a later run can find
+      // "the same" row (daypage:col:<day>, auto:<templateNode>). 5 live rules in 5 ops find
+      // rows by it — the day-page builders and both alarms — and no row offered it (2026-10-05).
+      { value: "identitySignature", title: "identitySignature", sub: "string", description: "Stable identity a builder stamps (e.g. daypage:col:<day>) so a later run finds the same row", hasChildren: false },
       // The TEMPLATE's own label, enriched by the executor (`moduleLabel: tpl?.label`)
       // beside `label`, which is the placement's. 17 live reads across 8 ops tell
       // a kind of card by it (People: Birthdays sweeps `moduleLabel IS Birthday`);
