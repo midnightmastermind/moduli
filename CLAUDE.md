@@ -116,6 +116,27 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-05 (4) — `Schedule: Fill Day` BY CLICKING; no defects
+
+Groundwork by clicking: Templates › Schedule Template › **Schedule: Routine** (a board container beside Schedule:
+Layout), Weekday bound and all seven days picked, two slot containers **7:00am** / **9:00pm** (Time Slot + Schedule
+Format = slot) holding **Stretch** / **Read** (`_routine.mjs`, `_wkdays.mjs`). The op in poms' shape (26 steps,
+`fillday` phase): gate on `$trigger.sourceOccurrenceId` empty or the Schedule page → per `$activePeriodDates` day →
+the day column → `${weekday:$day}` → every weekday template on the Schedule Template page whose Weekday contains it
+→ each of its slots with a Time Slot and children → that day column's slot of the same Time Slot → **Apply
+template** merge per item, root parent the day slot, Date = `$day`. Triggers onLoad / onFilterChange grid +
+filterNav at **p2** (poms p1) so Build Schedule (p1) has made the column first. The children lists are read
+through `$stKids` / `$tplKids` / `$tSlotKids` vars instead of drilling `.occurrences`.
+**Watched:** load → Oct 5's 7:00am holds `Stretch@Oct 5`, 9:00pm `Read@Oct 5`; Next → Oct 6's column built and
+filled the same; Prev → Oct 5 still exactly one of each (the merge recognised them), and Oct 6's column was swept
+by Build Schedule's own off-screen rule (no kept work), as on poms.
+**Probe notes:** a loop's collection picker reports success on a local ARRAY var and stores nothing — the row
+drills; commit with `{pickThis: "$var"}` (`fixloops` phase). `setSelectChip` once per value re-clicks the chip of
+an OPEN multi-select popover and closes it, so every other pick misses and the misses read as "not hittable" —
+tick every value inside one opening (`_wkdays.mjs`). Rebuild ops **69**, integrity 0 errors.
+
+---
+
 ### 2026-10-05 (3) — `Schedule: Place Weekday Tasks` BY CLICKING; a template named by a variable applied nothing
 
 A **Weekday** field (select, several picks, Monday-Sunday — `_selfield` gained `MULTI`), a test task Tasks › Today ›
