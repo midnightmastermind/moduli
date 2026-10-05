@@ -30,6 +30,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("moduleLabel");
   });
 
+  it("offers ownStyle and drills to bg — Mark Passed Slots paints slots through it", () => {
+    expect(top()).toContain("ownStyle");
+    const kids = itemsForLevel(["ownStyle"], { fields: [] }, [], "occurrence").items.map((i) => i.value);
+    expect(kids).toEqual(expect.arrayContaining(["bg", "textColor"]));
+  });
+
   it("drills filterOverride per field, like its read-only twin", () => {
     // Both are filter maps keyed by field id; `filterOverride` is the WRITABLE
     // one (`applyUpdate` routes `$page.filterOverride.<fieldId>` — how a page's

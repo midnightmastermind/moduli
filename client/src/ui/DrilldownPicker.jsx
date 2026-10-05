@@ -156,6 +156,11 @@ const SHAPES = {
       // page's pinned date gets moved. Offering it as a LEAF meant
       // `Grid: Snap Filter To Today`'s 10 such paths could not be authored
       // (2026-09-27); the asymmetry with _effectiveFilter had no reason.
+      // A placement's OWN style — what `Schedule: Mark Passed Slots` paints each slot with
+      // (`UPDATE $slot.ownStyle.bg`, 22 reads/writes in that op). 826 stored ownStyles on
+      // every grid carry only `bg`; the renderer also reads `textColor`. Neither could be
+      // picked (2026-10-05).
+      { value: "ownStyle", title: "ownStyle", sub: "object", description: "This placement's own style — bg / textColor, nearest-wins over the module's", hasChildren: true, childShape: "ownStyle" },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
@@ -178,6 +183,12 @@ const SHAPES = {
       { value: "span",  title: "span",  sub: "number",   description: "How many units the range covers.",                                                                hasChildren: false },
       { value: "kind",  title: "kind",  sub: "string",   description: "\"multi\" for a non-consecutive selection.",                                                        hasChildren: false },
       { value: "dates", title: "dates", sub: "string[]", description: "The explicit day list of a multi-selection.",                                                     hasChildren: false },
+    ],
+  },
+  ownStyle: {
+    keys: () => [
+      { value: "bg",        title: "bg",        sub: "color", description: "Background — any CSS colour value; empty clears it", hasChildren: false },
+      { value: "textColor", title: "textColor", sub: "color", description: "Text colour", hasChildren: false },
     ],
   },
   filter: {
