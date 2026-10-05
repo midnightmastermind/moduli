@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-05 (2) — buildParentMap keeps a child's HOME; allAncestorsOf)
+- `buildParentMap`: a child listed by several parents keeps the one its own `parentId` names (when that parent lists
+  it), not the last scanned. The other listers are kept in a WeakMap beside the map.
+- `allAncestorsOf(occId, occurrencesById, parentByChildId)` — home chain first, then every ancestor reached through
+  the other listers; works through `Object.create` layers. The executor's `_ancestors` uses it. Tests
+  `parentMapPrefersHome.test.js` (8).
+
 ## Recent Changes (2026-10-05 — docEmbedAppend.js NEW: a doc's new child is embedded, not only listed)
 - `appendDocEmbed(textmap, node)` / `docEmbedNode({moduleId, occurrenceId, role})` / `isDocParent(module)`.
   `CommitHelpers.createChildInContainer` wraps the old router (now `_createChildInContainer`): a DOC parent gets the

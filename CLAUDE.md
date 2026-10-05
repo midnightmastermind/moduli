@@ -15,6 +15,39 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (8) — TASKS COMPLETED BY CLICKING; a shared Todo hid its rows from every "under Schedule" rule; an untick lost its stamp half the time
+
+User: *"keep going please"*. **`Day Page: Build Tasks Completed`, 21 steps, poms' shape** — the day column's Tasks
+Completed board (found by its clone signature `auto:<template node>`) unlists rows that are no longer completed, dated
+that day and non-habit, then lists every such row under the Schedule. poms' loop-with-predicate is written as LOOP + IF
+(the loop editor has no filter). All 8 of poms' triggers, p4. **Watched:** Listen (ticked, Oct 5) listed; untick → gone;
+re-tick → back.
+```
+a row in a shared Todo was   buildParentMap kept the LAST lister of a child. Day Page: Build lists the Schedule's
+  under the Day Page, not    Todo under the day column too, so the Todo's rows got _ancestors Todo → day column → Day
+  the Schedule               Page and every "under Schedule" rule missed them (trackers, this op, scoped triggers).
+                             poms: 8 day-page Todos in that state, by storage order. The map now keeps the child's
+                             HOME (its parentId, when that parent lists it); the executor's _ancestors is the home
+                             chain + every other lister's ancestors (dragHitTesting.allAncestorsOf), so HAS_ANCESTOR
+                             means "under X through any parent". fieldVisibilityRenderedParent's 3 no-render-parent
+                             cases pinned the old scan-order fallback and now expect the home.
+an untick left Completed On  A field edit sends the WHOLE field map and the server stamped every field in it as
+  stamped ~half the time     written. Its ack reached the tab mid-sweep (a field write's sweep is sliced), so the
+                             sweep's write to the UNTOUCHED field — Stamp Completed On's null — was judged stale by
+                             staleSweep and dropped. server/utils/fieldTimestamps: only fields whose value/flow changed
+                             move fieldUpdatedAt. Before 2 of 4 cycles wrong; after 4 of 4 right. Server restart.
+identitySignature unpickable 5 live rules in 5 ops (day-page builders, both alarms) find rows by it. A/B'd.
+```
+**Found, not fixed:** the trigger-scope chains (CommitHelpers._ancestorChain, dropHandlers, bindSocketToStore echoes)
+still walk ONE path (now the home) — a row homed in Tasks but placed in a Schedule slot does not match an "in
+Schedule" trigger. `window.__fieldDiag = true` logs every op field write and the no-op guard's verdict.
+**Probe notes:** `_cc.pickOption` now scrolls and hit-tests — a row below a menu's fold reported success and clicked
+nothing (Remove child came out as an INIT_VAR). The op editor's run log is the in-page "Run history" panel (run logs are
+no longer stored); `_oprun.mjs TICK=<occ> OPNAME=…` clicks a row's switch then reads it. A websocket hook must be an
+init script (`_wsfr.mjs`). Rebuild ops **79**, integrity 0 errors.
+
+---
+
 ### 2026-10-05 (7) — `Day Page: Build` BY CLICKING; a doc container's "+" made children nobody could see
 
 User: *"keep going please"* — next area the Day Page group. **The template, by clicking:** Templates › **Day Page

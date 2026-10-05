@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-05 — `utils/fieldTimestamps.js`: only changed fields count as written)
+- `update_occurrence` moves `fieldUpdatedAt` only for fields whose value/flow changed
+  (`bumpChangedFieldTimestamps`). A field edit sends the whole map; stamping every field made the client drop a
+  running sweep's write to an untouched field as stale (Completed On kept its date on an untick ~half the time).
+  Tests `fieldTimestamps.test.js` (5).
+
 ## Recent Changes (2026-10-02 (7) — a text save built on old text is refused)
 - `utils/textmapDigest.js` (NEW, shared with the client) — sorted-key fingerprint of a textmap.
 - `socketHandlers/occurrences.js` `textSaveIsStale` + check right after `prev` resolves: a payload carrying
