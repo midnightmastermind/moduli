@@ -1,4 +1,5 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
+import { bumpChangedFieldTimestamps } from "../utils/fieldTimestamps.js";
 import { setMaxListeners } from "node:events";
 import { withoutPerPlacementFields } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
@@ -330,11 +331,10 @@ export function registerOccurrenceHandlers(socket, {
       const next = { ...withoutMongoId(prev), ...withoutMongoId(occWithoutTextmap), id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
       // Bump fieldUpdatedAt for every field we actually accepted into
       // this write so the next collision check sees the latest stamps.
+      // Only fields whose value/flow CHANGED — a field edit sends the whole map
+      // (utils/fieldTimestamps explains what bumping the rest broke).
       if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
-        const nowMs = Date.now();
-        const nextFieldTs = { ...(prev.fieldUpdatedAt || {}) };
-        for (const fid of Object.keys(occurrence.fields)) nextFieldTs[fid] = nowMs;
-        next.fieldUpdatedAt = nextFieldTs;
+        next.fieldUpdatedAt = bumpChangedFieldTimestamps(prev.fields, prev.fieldUpdatedAt, occurrence.fields, Date.now());
       }
       if (textmap !== undefined) next.textmap = textmap; // keep raw (decompressed) textmap in cache
 
