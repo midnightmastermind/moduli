@@ -116,6 +116,41 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-05 (5) — SIX SHARE RULES BY CLICKING; a share rule's Create and its conditions could not be authored
+
+Built in Command Center › **Imports** (`_share.mjs`), each in poms' shape and each WATCHED with a real share at
+the rebuild grid through `POST /api/v1/share`:
+```
+Share: image / video   halt only (the file stays in Files/<type>)        "Stop here" checkbox
+Share: text            CREATE instance $share.label -> Library › Lookup   note landed, listed
+Share: pdf             MOVE $share.props.occurrenceId -> Files/Documents  pdf in Documents
+Share: add contact     FIND by name in People -> CREATE merge (8 fields)  Rena Okafor created; re-shared -> "merged"
+Share: add profile     IF network IS instagram -> CREATE (+handle) else    National Geographic: Website, Found Via,
+                       CREATE                                              Poster, Instagram natgeo — listed
+```
+Groundwork: Boards › Library › **Lookup** (board page + container, the area recipe's page/rename/container steps).
+A merge fills only EMPTY fields (`planFieldMerge`) — the re-shared phone did not overwrite, as on poms.
+```
+CREATE's server keys   parentFolderId 4 ops · fieldsFrom 4 · moduleFileRef 4 · source 4 · moduleRole/Kind 3 ·
+  were seed-only       attachFields 2 · bindingsLike 2 · moduleMeta 2 · mergeInto 1 — read by the server
+                       executor's CREATE, none authorable. A collapsible "more (share rules / server)" section
+                       (open when a step carries one); `bookmark` added to the kind list; a meta stored as an
+                       EXPRESSION ($share.clip.meta) is edited as one instead of showing an empty map.
+                       A/B: old editor fails all 6 new cases.
+no picker reached      every share rule's condition reads $share (link: clip / props.url, profile:
+  $share               person.network) and no picker offered it. The Imports tab passes `$share` as a
+                       variable (PipelineEditor `extraLocalVars`); its drill tree is BUILT from the tab's own
+                       catalog (`allSharePaths`), so a listed prop is a pickable prop. A/B: old picker fails the
+                       2 drill cases; a source guard pins the tab's wiring (the listing cases are pins).
+```
+Client 5,703 pass; two client-only deploys. **Probe notes:** the new section's 8 expression slots render even
+while collapsed, so `exprText(..., -1)` on a CREATE now hits `source` — a field's value is slot -9 and the
+section's keys -8..-1 (open the `<details>` first). A new rule is named from its type label; `RNAME` renames it.
+**Left:** `Share: link` (needs a YouTube folder) and `Share: calendar (.ics)` (needs Schedule Type + an
+Appointments container). Rebuild ops **75**.
+
+---
+
 ### 2026-10-05 (4) — `Schedule: Fill Day` BY CLICKING; no defects
 
 Groundwork by clicking: Templates › Schedule Template › **Schedule: Routine** (a board container beside Schedule:
