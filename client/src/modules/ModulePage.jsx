@@ -51,6 +51,7 @@ const EMPTY_ARR = [];
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { appendDocEmbed, docEmbedNode, isDocParent } from "../helpers/docEmbedAppend";
 import {
   getPageChildrenModules,
   applyLocalSort,
@@ -868,7 +869,9 @@ function Page({
                   };
                   CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                   const occId = crypto.randomUUID();
-                  const occ = { id: occId, userId: ctxUserId, gridId: ctxGridId, moduleId: id, fields: {} };
+                  // parentId = the page, like every other container created inside a
+                  // parent (createContainerInContainer) — the delete cascade follows it.
+                  const occ = { id: occId, userId: ctxUserId, gridId: ctxGridId, moduleId: id, parentId: occurrence.id, fields: {} };
                   CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
                   const updatedOccs = [...(occurrence.occurrences || []), occId];
                   const patch = { id: occurrence.id, occurrences: updatedOccs };
@@ -878,15 +881,8 @@ function Page({
                   // this repo has repaired from five directions. Listing it is
                   // still right (it is a real child); the embed is what makes
                   // the page draw it.
-                  if (pageModule?.kind === "doc") {
-                    const tm = occurrence.textmap && typeof occurrence.textmap === "object"
-                      ? occurrence.textmap
-                      : { type: "doc", content: [] };
-                    patch.textmap = {
-                      ...tm,
-                      content: [...(Array.isArray(tm.content) ? tm.content : []),
-                                { type: "moduleEmbed", attrs: { occurrenceId: occId } }],
-                    };
+                  if (isDocParent(pageModule)) {
+                    patch.textmap = appendDocEmbed(occurrence.textmap, docEmbedNode({ occurrenceId: occId }));
                   }
                   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: patch, emit: true });
                 }}

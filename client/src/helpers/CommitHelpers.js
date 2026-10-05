@@ -4,6 +4,7 @@ import { safeEmit } from "./offlineQueue";
 import { dropEmbedsOf } from "./embedRegistry";
 import { recordActive } from "./panelHistory";
 import { beginAction, endAction, withAction } from "./actionScope";
+import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend";
 import { buildParentMap } from "./dragHitTesting";
 import { linkedFanFields } from "./linkedFanFields";
 import { normalizeFieldBindings } from "./siblingFieldBindings.js";
@@ -1474,7 +1475,28 @@ function _addBookmarkOccurrence({
 // One router the container header + the InsertGap both call. Routes a QuickAddMenu
 // "create" by kind/role to the right child-create path. Artifact needs a File
 // (the menu opens an OS picker and passes it through).
-export function createChildInContainer({
+export function createChildInContainer(args) {
+  // A DOC renders its TEXTMAP and nothing else, so a child the "+" adds to a
+  // doc container must be EMBEDDED as well as listed — or it is in the data and
+  // never on screen (found building the Day Page template, 2026-10-05). One
+  // action, so one undo removes the child and its embed together.
+  if (!isDocParent(args?.containerModule)) return _createChildInContainer(args);
+  return withAction("Created item", () => {
+    const made = _createChildInContainer(args);
+    if (made?.occurrenceId && args?.containerOccurrence?.id) {
+      const parentId = args.containerOccurrence.id;
+      const live = operationsBridge.getLocalOcc?.(parentId) || null;
+      const role = args.kind === "textblock" || args.role === "textblock" ? "textblock" : null;
+      updateOccurrence({
+        dispatch: args.dispatch, socket: args.socket,
+        occurrence: { id: parentId, textmap: appendDocEmbed(live?.textmap ?? args.containerOccurrence.textmap, docEmbedNode({ ...made, role })) },
+      });
+    }
+    return made;
+  });
+}
+
+function _createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
   kind = "instance", role = null, fieldIds = [], fieldBindings = null,
   initialFields = null, index = null, file = null, url = null,
