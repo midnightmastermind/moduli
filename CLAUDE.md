@@ -116,6 +116,23 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-05 — PODCASTS LISTENED BY CLICKING
+
+The rebuild had no podcasts, so first Boards › Media › **Podcasts** (board page + container, `podcast` added to Board
+Category) with Hardcore History · Radiolab · Lex Fridman Podcast, each tagged; then a **Podcast** field (several
+picks, Find: under the Podcasts page — 3 matches), Routines › Media › **Listen** (Podcast, Completed, Date) and a
+Trackers › Intellectual › **Podcasts** tile (Podcast History, Last Podcast; columns set). **Podcasts Listened** in
+poms' shape (per completed-or-unbound Listen in the period, each picked podcast → a row + Last Podcast). poms reads
+its shared Media field; the rebuild's Media field finds only under Movies, so podcasts get their own field.
+**Watched:** a Listen copied into Oct 5's Todo, Radiolab picked → tick: row "Radiolab · Oct 5" + Last Podcast
+Radiolab → untick: empty → re-tick: back. Rebuild ops **66**, integrity 0 errors.
+**Probe fixes:** `_ph2b` (the area recipe's page step) toggled Root/Boards blindly and hit-tested in a short
+viewport, so the Media folder row read as missing — it opens a folder only when its child is not showing and runs
+at 1600×3000 now; its error named "Mind" whatever the area. The recipe's row step (`_ph4`) still reports "no
+Create" — rows go through `_additem` + `_setvals` instead (as for Emotions).
+
+---
+
 ### 2026-10-04 (6) — PEOPLE: BIRTHDAYS BY CLICKING; moduleLabel could not be picked, and a failed retry left a rule that blocked the sweep
 
 **`People: Birthdays`** on the rebuild, 31 steps in poms' shape: per `$activePeriodDates` day → the day column →
