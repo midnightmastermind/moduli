@@ -15,6 +15,35 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (6) — ALL EIGHT SHARE RULES ON THE REBUILD: link and calendar by clicking; the tree's sidebar clipped its own buttons
+
+Picked up account3's session (limit at 10:21 CDT, mid-rename). The last two of poms' eight share rules.
+```
+Share: link          IF clip is a selection -> CREATE in Library › Lookup
+  (account3)         ELSE IF url CONTAINS youtube.com OR youtu.be -> Boards/Media/YouTube (folder)
+                     ELSE -> Bookmarks; each branch: a clip CREATE (meta/fields from the clip) or a bookmark
+                     Watched: Bonsai -> Bookmarks (listed) · a YouTube url -> YouTube · a selection -> Lookup
+Share: calendar      LOOP $share.events as $e -> CREATE $e.summary in Tasks › Appointments, Date / Time Slot /
+  (.ics)             Duration from the event, Schedule Type = Appointment, People bound with no value; Stop here
+                     Watched: a real .ics (SUMMARY;LANGUAGE=en-US:…) -> "Dentist cleaning (probe)", Oct 6,
+                     2:30pm, 45 min, listed; the same file re-shared -> `updated`, still one row
+```
+Groundwork by clicking: a root **Schedule Types** board page (tree header › Add page › Board page, renamed
+from its card) with a container holding **Appointment · Doctor · Dentist**, tagged `appointment`; a
+**Schedule Type** field (occurrence, Find: `_ancestors HAS_ANCESTOR` the page — 3 matches, the rebuild's
+location convention); a Tasks › **Appointments** container; Boards/Media/**YouTube** (account3).
+**Account3's fixes on the way (deployed, `5cda05af` `3c61efab`):** the manifest tree is 280px wide since
+10-01 but its sidebar column still held ~222px, so the header's New folder / Add page buttons sat clipped
+under the next cell and could not be clicked; and a new CREATE step can take `meta` from a variable.
+Rebuild ops **77**, integrity 0 errors. **No code changed in this half.**
+**Probe notes:** a page card's Rename… is a native `window.prompt` — answer it with
+`page.once("dialog", d => d.accept(name))`; the tree's "Add page" makes a page named **Board Page**, not
+Untitled. In the loop picker `$share.events` is a LEAF (body click), not a `pickThis` chevron. A CREATE's
+field value slot is **-10** now (the more-section holds 9 slots); "bind with no value" is the FieldSelect
+`[aria-label="Bind with no value"]` inside it. The probe row stays as sample data.
+
+---
+
 ### 2026-10-02 (8) — UNDO OF A DOC DROP: three steps, half-applied, and never on screen
 
 Continuing the docs pass (*"please continue with the ui testing"*). Move Charlie from Wrap Lab into its
