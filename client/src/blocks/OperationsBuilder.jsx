@@ -1206,7 +1206,10 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("field:")} <FieldPicker value={cfg.targetFieldId} onChange={v => setCfg({ targetFieldId: v })} fields={fields} />
-          {fl("value:")} <ExprOrPath value={cfg.sourceExpr || ""} onChange={v => setCfg({ sourceExpr: v })} placeholder="$total   or   $item.value" {...exprProps} />
+          {fl("value:")} <ExprOrPath value={cfg.sourceExpr ?? (typeof cfg.value === "string" ? cfg.value : "")} onChange={v => setCfg({ sourceExpr: v, value: undefined })} placeholder="$total   or   $item.value" {...exprProps} />
+          {/* The result's NAME — what the run log and the /run API list it under
+              (default $result). Several results in one run need their own names. */}
+          {fl("as:")} {varNameInput("name", "$result")}
         </div>
       );
 
@@ -1894,6 +1897,25 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
           </span>
         );
       }
+      // An object of key -> expression, stored as a PLAIN OBJECT (CALL_API's
+      // headers / query / body — the executor deep-resolves each value). With
+      // `orExpr`, a value stored as a string (a whole-body expression) keeps its
+      // expression editor; an object never reads as "[object Object]".
+      case "kv": {
+        const raw = cfg[key];
+        if (field.orExpr && typeof raw === "string") {
+          return (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <ExprOrPath value={raw} onChange={v => setCfg({ [key]: v === "" ? undefined : v })} placeholder={ph} width={130} {...exprProps} />
+              <button style={addBtnStyle} title="Edit as key / value rows" onClick={() => setCfg({ [key]: {} })}>rows</button>
+            </span>
+          );
+        }
+        return <KeyValueEditor value={raw} onChange={next => setCfg({ [key]: next })} exprProps={exprProps} label={label} />;
+      }
+      // A select prompt's choices: [{ value, label }] (strings are read as both).
+      case "options":
+        return <OptionRowsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} label={label} />;
       case "expr":
       default:
         return (
@@ -1914,6 +1936,64 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       {fl(label)}
       {control}
+    </span>
+  );
+}
+
+// ---- Key / value map (CALL_API headers, query, body) ----
+// Stored as a plain object; an empty map is written as undefined so an unset
+// step stays unset. Rows keep their order; a key typed twice keeps the last.
+export function KeyValueEditor({ value, onChange, exprProps = {}, label = "" }) {
+  const entries = value && typeof value === "object" && !Array.isArray(value) ? Object.entries(value) : [];
+  const write = (rows) => {
+    const obj = {};
+    for (const [k, v] of rows) if (k !== "" || v !== "") obj[k] = v;
+    onChange(Object.keys(obj).length ? obj : undefined);
+  };
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 3 }} data-kv-editor={label}>
+      {entries.map(([k, v], i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <input
+            value={k}
+            aria-label={`${label} key`}
+            placeholder="key"
+            onChange={e => write(entries.map((r, j) => (j === i ? [e.target.value, r[1]] : r)))}
+            style={{ ...inputSt, width: 110, fontFamily: "monospace" }}
+          />
+          <ExprOrPath
+            value={typeof v === "string" ? v : v == null ? "" : "json:" + JSON.stringify(v)}
+            onChange={nv => write(entries.map((r, j) => (j === i ? [r[0], nv] : r)))}
+            placeholder="value or $var"
+            width={130}
+            {...exprProps}
+          />
+          <button style={removeBtnSt} aria-label={`remove ${label} row`} onClick={() => write(entries.filter((_, j) => j !== i))}>×</button>
+        </span>
+      ))}
+      <button style={addBtnStyle} onClick={() => onChange(Object.fromEntries([...entries, ["", ""]]))}>+ {label || "row"}</button>
+    </span>
+  );
+}
+
+// ---- A select prompt's choices ----
+export function OptionRowsEditor({ value, onChange, label = "options" }) {
+  const rows = Array.isArray(value) ? value.map(o => (typeof o === "string" ? { value: o, label: o } : { value: o?.value ?? "", label: o?.label ?? "" })) : [];
+  const write = (next) => onChange(next.length ? next : undefined);
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 3 }} data-options-editor={label}>
+      {rows.map((o, i) => (
+        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <input value={o.value} aria-label="option value" placeholder="value"
+            onChange={e => write(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))}
+            style={{ ...inputSt, width: 110, fontFamily: "monospace" }} />
+          <input value={o.label} aria-label="option label" placeholder="label shown"
+            onChange={e => write(rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))}
+            style={{ ...inputSt, width: 150 }} />
+          <button style={removeBtnSt} aria-label="remove option" onClick={() => write(rows.filter((_, j) => j !== i))}>×</button>
+        </span>
+      ))}
+      <button style={addBtnStyle} onClick={() => write([...rows, { value: "", label: "" }])}>+ option</button>
     </span>
   );
 }
