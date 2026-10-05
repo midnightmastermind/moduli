@@ -18,7 +18,7 @@ import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
 import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord } from "./operationActions";
 import { pickActivePeriod } from "./activePeriod";
-import { buildParentMap } from "./dragHitTesting";
+import { buildParentMap, allAncestorsOf } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
 import { operationsBridge, byIdCached } from "../state/bindSocketToStore";
@@ -1757,17 +1757,9 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   // Resolve an ancestor chain (closest ancestor first, capped at depth 12).
   // Used to enrich $allItems entries so HAS_ANCESTOR rules in $allItems-driven
   // loops have something to walk. parentId is the fallback when occurrences[] doesn't link.
-  const ancestorsFor = (occId) => {
-    const chain = [];
-    const seen = new Set();
-    let cur = parentByChildId[occId] ?? occurrencesById[occId]?.parentId;
-    while (cur && !seen.has(cur) && chain.length < 12) {
-      chain.push(cur);
-      seen.add(cur);
-      cur = parentByChildId[cur] ?? occurrencesById[cur]?.parentId;
-    }
-    return chain;
-  };
+  // Home chain first, then whatever other listers reach (allAncestorsOf) — a row
+  // in a Todo that both the Schedule and a day page list is under BOTH.
+  const ancestorsFor = (occId) => allAncestorsOf(occId, occurrencesById, parentByChildId);
 
   // Pre-enrich every occurrence into a merged "item" carrying its template's
   // label/name/role/kind/meta. The operation language never differentiates

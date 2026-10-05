@@ -21,7 +21,9 @@ import {
 const SCHEDULE_HIDE = { mode: "hide", fieldIds: ["tags", "slot", "lastSeen", "date"] };
 const TASKS_HIDE = { mode: "hide", fieldIds: ["tags"] };
 
-// Order matters: the 9:00am slot is scanned LAST, so buildParentMap picks it.
+// The 9:00am slot is scanned LAST. buildParentMap used to pick it (last lister
+// wins); since 2026-10-05 it keeps the row's HOME (`parentId` = appts) whenever the
+// home lists it, so with no rendering parent the walk goes through Tasks.
 const occs = [
   { id: "tasks", fieldVisibility: TASKS_HIDE, fieldReveal: "always", occurrences: ["appts"] },
   { id: "appts", parentId: "tasks", occurrences: ["row"] },
@@ -33,8 +35,8 @@ const occurrencesById = Object.fromEntries(occs.map(o => [o.id, o]));
 const row = occurrencesById.row;
 
 describe("field visibility follows the parent the row is rendered in", () => {
-  it("control: with no rendering parent the reverse map's lister decides (the Schedule)", () => {
-    expect(getEffectiveFieldVisibilityForOccurrence(row, { occurrencesById })).toEqual(SCHEDULE_HIDE);
+  it("control: with no rendering parent the row's HOME decides (Tasks), not scan order", () => {
+    expect(getEffectiveFieldVisibilityForOccurrence(row, { occurrencesById })).toEqual(TASKS_HIDE);
   });
 
   it("rendered in Appointments -> the Tasks page's list, Date and Time Slot show", () => {
@@ -52,13 +54,13 @@ describe("field visibility follows the parent the row is rendered in", () => {
     expect(getEffectiveFieldVisibilityForOccurrence(own, { occurrencesById, viaParentId: "slot9" })).toBeNull();
   });
 
-  it("an unknown rendering parent falls back to the normal walk", () => {
+  it("an unknown rendering parent falls back to the normal walk (the home)", () => {
     expect(getEffectiveFieldVisibilityForOccurrence(row, { occurrencesById, viaParentId: "gone" }))
-      .toEqual(SCHEDULE_HIDE);
+      .toEqual(TASKS_HIDE);
   });
 
   it("fieldReveal takes the same first hop", () => {
-    expect(getEffectiveFieldRevealForOccurrence(row, { occurrencesById })).toBe("hover");
-    expect(getEffectiveFieldRevealForOccurrence(row, { occurrencesById, viaParentId: "appts" })).toBe("always");
+    expect(getEffectiveFieldRevealForOccurrence(row, { occurrencesById })).toBe("always");
+    expect(getEffectiveFieldRevealForOccurrence(row, { occurrencesById, viaParentId: "slot9" })).toBe("hover");
   });
 });

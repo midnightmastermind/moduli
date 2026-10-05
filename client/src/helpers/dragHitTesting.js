@@ -61,11 +61,66 @@ export function resolveDragMode(modifiers = {}, payloadDefault) {
 // buildDropContext to find a hovered occurrence's parent in O(1).
 export function buildParentMap(occurrencesById) {
   const map = Object.create(null);
+  let multi = null;
   for (const occ of Object.values(occurrencesById)) {
     if (!Array.isArray(occ?.occurrences)) continue;
-    for (const childId of occ.occurrences) map[childId] = occ.id;
+    for (const childId of occ.occurrences) {
+      if (map[childId] !== undefined && map[childId] !== occ.id) (multi ||= new Set()).add(childId);
+      map[childId] = occ.id;
+    }
+  }
+  // A child listed by SEVERAL parents keeps its HOME — the parent its own
+  // `parentId` names — when that parent really lists it. Otherwise the last
+  // lister won, decided only by iteration order: once Day Page: Build listed the
+  // Schedule's Todo under a day-page column, every row in that Todo lost the
+  // Schedule from `_ancestors` and every "under Schedule" rule missed it
+  // (2026-10-05). A parentId naming a parent that does NOT list the child is
+  // stale and changes nothing.
+  if (multi) {
+    const extra = Object.create(null);
+    for (const childId of multi) {
+      const home = occurrencesById[childId]?.parentId;
+      if (home && home !== map[childId] && occurrencesById[home]?.occurrences?.includes(childId)) map[childId] = home;
+    }
+    for (const occ of Object.values(occurrencesById)) {
+      if (!Array.isArray(occ?.occurrences)) continue;
+      for (const childId of occ.occurrences) if (multi.has(childId) && map[childId] !== occ.id) (extra[childId] ||= []).push(occ.id);
+    }
+    _extraParents.set(map, extra);
   }
   return map;
+}
+
+// The OTHER listers of each multi-listed child (beside the one buildParentMap kept).
+const _extraParents = new WeakMap();
+function extraParentsOf(map) {
+  return _extraParents.get(map) || (map && _extraParents.get(Object.getPrototypeOf(map))) || null;
+}
+
+/** Every ancestor of `occId` through ANY listing parent: the home chain first
+ *  (closest-first, as `_ancestors` always was), then the ancestors reached only
+ *  through a child's other listers. This is what "has ancestor X" means — a row in
+ *  the Schedule's Todo is under the Schedule even when a day page lists that Todo
+ *  too (2026-10-05). `parentByChildId` must come from buildParentMap (or an
+ *  Object.create layer over one) for the other listers to be known. */
+export function allAncestorsOf(occId, occurrencesById, parentByChildId, cap = 24) {
+  const chain = [];
+  const seen = new Set([occId]);
+  const up = (id) => parentByChildId?.[id] ?? occurrencesById?.[id]?.parentId;
+  let cur = up(occId);
+  while (cur && !seen.has(cur) && chain.length < 12) { chain.push(cur); seen.add(cur); cur = up(cur); }
+  const extra = extraParentsOf(parentByChildId);
+  if (!extra) return chain;
+  const queue = [occId, ...chain].flatMap((id) => extra[id] || []);
+  while (queue.length && chain.length < cap) {
+    const p = queue.shift();
+    if (!p || seen.has(p)) continue;
+    chain.push(p); seen.add(p);
+    const next = up(p);
+    if (next) queue.push(next);
+    for (const x of extra[p] || []) queue.push(x);
+  }
+  return chain;
 }
 
 // ------------------------------------------------------------
