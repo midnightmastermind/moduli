@@ -15,6 +15,38 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (7) — `Day Page: Build` BY CLICKING; a doc container's "+" made children nobody could see
+
+User: *"keep going please"* — next area the Day Page group. **The template, by clicking:** Templates › **Day Page
+Template** › a doc container **Day Page** holding Journal · Notes (doc) · Tasks Completed (board) · Highlights (doc).
+**The op, 31 steps, poms' shape ids mapped:** per `$activePeriodDates` day → FIND the column under the Day Page by
+Date → none: APPLY_TEMPLATE (root parent the page, label `${dateLong:$day}`, signature `daypage:col:${$day}`, Date =
+$day) → else merge-unwrap into it → list it on the page, ADD_CHILD the shared Emotions Wheel, ADD_CHILD that day's
+Schedule Todo → rebuild the column's textmap (textblocks, the Todo, the rest). Triggers onLoad / onFilterChange grid /
+filterNav on the Day Page, p5. **Watched:** load → "Monday, October 5th, 2026" with the four sections, the wheel and
+the Schedule's Todo (Birthday - Ben Chen) first; Next → Oct 6's column; Prev → Oct 5 unchanged, no duplicates.
+```
+a doc container's "+" made     createChildInContainer LISTED the child and never EMBEDDED it, and a doc draws only
+  invisible children           its textmap: every container / textblock / page added from a doc container's header
+                               existed and was never drawn. helpers/docEmbedAppend is the rule; ModulePage's doc-page
+                               add uses it too and now gives its container a parentId. A/B: old code fails the 3 doc cases.
+textmap unpickable             6 live UPDATEs write $col.textmap (the day-page builders, Mood: Record Selection); the
+                               path picker had no row. A/B'd.
+```
+**Deliberate deviations, reported:** ONE op, not poms' Build + Build Day pair — the callee reads `$day` as a
+RUN_OPERATION argument, and the condition picker cannot offer a var the op never declares; the pair existed for the
+Day Page building a missing Schedule column, which Build Schedule (p1) already does on the same date changes. No
+Daily Question pass (no field or Reflection Questions pool on the rebuild yet; an EMBEDDED container also has no "+"
+to add the sub-section with) and no `appliedFromTemplateId` stamp. **Left on the page, the user's call:** the rebuild's
+Day Page still holds three static sample containers (Journal / Highlights / Tasks Completed with sample rows) above
+the day columns. **Probe notes:** an embedded container's name is an inline contentEditable span — and **Ctrl+A in it
+selects the whole PAGE**, so the typing lands in the FIRST editable span in the document (three renames went into one
+section); select the span's own contents with a Range. A scalar local var commits by body click, not `pickThis`. An
+empty else branch is not saved, so a resumable probe's "else added" flag goes stale. Escape inside the op editor
+closes the whole Command Center. Rebuild ops **78**, integrity 0 errors.
+
+---
+
 ### 2026-10-05 (6) — ALL EIGHT SHARE RULES ON THE REBUILD: link and calendar by clicking; the tree's sidebar clipped its own buttons
 
 Picked up account3's session (limit at 10:21 CDT, mid-rename). The last two of poms' eight share rules.

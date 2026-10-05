@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-05 — docEmbedAppend.js NEW: a doc's new child is embedded, not only listed)
+- `appendDocEmbed(textmap, node)` / `docEmbedNode({moduleId, occurrenceId, role})` / `isDocParent(module)`.
+  `CommitHelpers.createChildInContainer` wraps the old router (now `_createChildInContainer`): a DOC parent gets the
+  new child's embed appended in the same action. `ModulePage`'s doc-page add uses the same helper. Test
+  `docParentEmbedsChild.test.js` (A/B: old code fails the 3 doc cases; the board control passes both ways).
+
 ## Recent Changes (2026-10-03 (9) — hand-run lookups; move triggers carry occurrence ids)
 - `operationExecutor.withEntityLookups(context)` — `executePipeline` fills `modulesById` / `foldersById` from
   `state` when the caller passed none (Run now, node-input run, button field, instance Run widget). IN PLACE:
