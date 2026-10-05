@@ -2,6 +2,12 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-05 — `ScheduleFieldsSection.jsx` NEW: Grid settings › Schedule)
+- Writes `grid.meta.scheduleFieldIds` (`pageOccurrenceId`, `dateFieldId`, `timeslotFieldId`,
+  `scheduleFormatFieldId`) — read by `AlarmDropdown` (a fired alarm files into today's slot) and `PomodoroTimer`.
+  Only the seed wrote it before. Pure `schedulePageOptions` / `withScheduleField`; mounted in `GridSettingsTab`.
+  Test `scheduleFieldsSection.test.js` (A/B: the mount guard fails without the tab change).
+
 ## Recent Changes (2026-09-30 — `OccurrenceSearch`: Enter, the marked run, and what the row shows)
 - **ENTER NO LONGER FALLS INTO THE DEBOUNCE WINDOW.** The list waits 120ms before searching, and Enter
   inside that window read `hits.results` for a query that had not run — an empty list — so it picked

@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (9) — ALARMS FILE INTO THE SCHEDULE ON A UI-BUILT GRID; Media Owned by clicking
+
+User: *"keep going please"*.
+- **`Day Page: Day Column Moves Page`** — account3 built and watched it at 12:23 CDT after its limit reset, saw this
+  session working on the grid and stopped (its log, not this file, records it). This session rebuilt it unaware;
+  the duplicate was deleted through the app. *Check the other accounts' logs before starting a named op.*
+- **`grid.meta.scheduleFieldIds` could only be written by the seed** — so an alarm made on a UI-built grid rang and
+  never reached the Schedule (09-22 (16)). Grid settings › **Schedule** (`ui/ScheduleFieldsSection`): the page and
+  the Date / Time Slot / day-column-format fields; the Pomodoro timer reads the same key. Set by clicking on the
+  rebuild, then **Alarm: 5 PM / 6:30 AM** made through the toolbar dropdown — pipelines identical to poms'.
+  **Watched:** a probe alarm at 17:30 rang at 17:30:01 and filed "⏰ Probe" (Date Oct 5, Time Slot 5:30pm) into
+  Oct 5's 5:30pm slot, listed; probe alarm + instance deleted through the app afterwards.
+- **`Trackers: Media Owned`, 27 steps, poms' shape:** Owned bound on Inception / Dune / Severance / Hades / Saga
+  (Settings › Fields), ticked on three; a Trackers › **Media** › **Media Owned** tile with the six count fields.
+  **Watched:** load → Movies 2, Games 1, rest 0; untick Hades → Games 0; re-tick → 1. **Deviation:** poms' op has
+  NO triggers (nothing runs it there); the rebuild's has onLoad + onChange Owned.
+**Not built, and why:** `Trackers: Date-Prefix Labels` keys on tile meta flags (`meta.cumulative`, `meta.period`,
+`meta.noDatePrefix` — 7 poms rows, seed-written) that no editor can set, and on Tracker Scope / Tracker Date fields
+the rebuild's tiles never adopted. **Probe notes:** `_tick.mjs SW=<switch title> PAGEN=<page>` (a `process.env`
+read inside `page.evaluate` is a browser ReferenceError — pass it as an argument); `_bindfield.mjs PAGEN=` opens the
+board first; the record picker lists meta keys flattened (`feedSourceId`, not `meta › feedSourceId`). Rebuild ops
+**83**, integrity 0 errors.
+
+---
+
 ### 2026-10-05 (8) — TASKS COMPLETED BY CLICKING; a shared Todo hid its rows from every "under Schedule" rule; an untick lost its stamp half the time
 
 User: *"keep going please"*. **`Day Page: Build Tasks Completed`, 21 steps, poms' shape** — the day column's Tasks
