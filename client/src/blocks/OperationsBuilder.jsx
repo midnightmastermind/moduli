@@ -1040,9 +1040,9 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                   carries the signature the server refuses a duplicate of. */}
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps}
                 mapKey="filterOverride" label="filter override (pin this item's own filter):" withVisibility={false} />
-              {typeof cfg.meta === "string"
-                ? <div style={rowStyle}>{fl("meta from")}<ExprOrPath value={cfg.meta} onChange={v => setCfg({ meta: v || undefined })} placeholder="$share.clip.meta" width={180} {...exprProps} /></div>
-                : <KeyValueMapEditor cfg={cfg} setCfg={setCfg} />}
+              {/* A meta held as an EXPRESSION is edited in the section below
+                  ("meta from"); the map editor would show it as empty. */}
+              {typeof cfg.meta !== "string" && <KeyValueMapEditor cfg={cfg} setCfg={setCfg} />}
               <CreateServerOptions cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} fl={fl} rowStyle={rowStyle} />
               <div style={rowStyle}>
                 {fl("identity signature")}
@@ -2106,13 +2106,19 @@ const CREATE_SERVER_KEYS = [
 export const CREATE_SERVER_KEY_NAMES = [...CREATE_SERVER_KEYS.map(([k]) => k), "attachFields", "moduleMeta"];
 
 function CreateServerOptions({ cfg, setCfg, fields, exprProps, fl, rowStyle }) {
-  const used = CREATE_SERVER_KEY_NAMES.some(k => cfg[k] != null && cfg[k] !== "");
+  const used = typeof cfg.meta === "string" || CREATE_SERVER_KEY_NAMES.some(k => cfg[k] != null && cfg[k] !== "");
   const attach = Array.isArray(cfg.attachFields) ? cfg.attachFields : [];
   const nameOf = (id) => (fields || []).find(f => f.id === id)?.name || id;
   return (
     <details open={used} style={{ paddingLeft: 4 }}>
       <summary style={{ fontSize: 10, color: "var(--text-muted)", cursor: "pointer" }}>more (share rules / server)</summary>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 4 }}>
+        {/* `meta` as a whole map from a variable — Share: link stores the
+            extension clip's meta this way. Typing here replaces a key/value map. */}
+        <div style={rowStyle}>
+          {fl("meta from")}
+          <ExprOrPath value={typeof cfg.meta === "string" ? cfg.meta : ""} onChange={v => setCfg({ meta: v || undefined })} placeholder="$share.clip.meta" width={180} {...exprProps} />
+        </div>
         {CREATE_SERVER_KEYS.map(([key, label, ph]) => (
           <div key={key} style={rowStyle}>
             {fl(label)}

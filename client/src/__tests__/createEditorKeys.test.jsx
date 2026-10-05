@@ -80,8 +80,15 @@ describe("CREATE editor authors the server's share-rule keys", () => {
 
   it("a meta stored as an EXPRESSION is edited as one, not as an empty map", () => {
     const { container } = mount({ meta: "$share.clip.meta" });
+    expect(container.querySelector("details").open).toBe(true);
     expect(container.textContent).toContain("meta from");
-    expect(container.textContent).not.toContain("+ meta");
+    expect(container.textContent).not.toContain("+ meta\u0020");
+    expect([...container.querySelectorAll("button")].some((b) => b.textContent.trim() === "+ meta")).toBe(false);
+  });
+
+  it("a NEW step can author meta as an expression (the row is always in the section)", () => {
+    const { container } = mount({});
+    expect(container.textContent).toContain("meta from");
   });
 
   it("removing an attached field writes the rest", () => {
