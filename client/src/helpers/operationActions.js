@@ -3260,7 +3260,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     //     (Daily Routine etc.).
     // ============================================================
     case "APPLY_TEMPLATE": {
-      const templateRef = resolveExpr(cfg.templateRef, $vars);
+      // The template picker offers a LOCAL VARIABLE whole (`$task`, a loop's item) — it cannot
+      // drill to `.id` — so an occurrence object resolves to its id here, as the target does
+      // just below. Before, `$task` reached `occurrencesById[<object>]` and applied nothing.
+      const templateRefRaw = resolveExpr(cfg.templateRef, $vars);
+      const templateRef = (typeof templateRefRaw === "object" && templateRefRaw !== null)
+        ? (templateRefRaw.id || null)
+        : templateRefRaw;
       const targetRaw = resolveExpr(cfg.targetOccurrenceVar, $vars);
       const targetOccurrenceId = (typeof targetRaw === "object" && targetRaw !== null)
         ? (targetRaw.id || null)
