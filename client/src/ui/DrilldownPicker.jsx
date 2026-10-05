@@ -115,6 +115,11 @@ const SHAPES = {
       // mirror is found by `linkedGroupId IS $lgId`); none could be picked
       // (2026-10-03, building Project: Sync To Todo List).
       { value: "linkedGroupId", title: "linkedGroupId", sub: "string", description: "Copy-link group id — every linked copy shares it", hasChildren: false },
+      // The TEMPLATE's own label, enriched by the executor (`moduleLabel: tpl?.label`)
+      // beside `label`, which is the placement's. 17 live reads across 8 ops tell
+      // a kind of card by it (People: Birthdays sweeps `moduleLabel IS Birthday`);
+      // none could be picked (2026-10-04).
+      { value: "moduleLabel", title: "moduleLabel", sub: "string", description: "The template's own label — the same for every copy of a kind, where label is per placement", hasChildren: false },
       // THE ORDERED CHILD LIST. `occurrences[]` is how every renderer finds a
       // parent's children and it is the commonest loop target after the built-in
       // collections — 45 pipeline strings across 8 operations read

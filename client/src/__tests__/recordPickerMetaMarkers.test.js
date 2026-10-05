@@ -24,6 +24,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("linkedGroupId");
   });
 
+  it("offers moduleLabel — 17 live reads across 8 ops tell a kind of card by it", () => {
+    // People: Birthdays sweeps stale cards by `moduleLabel IS Birthday`; the
+    // executor enriches it from the template, and no picker row offered it.
+    expect(top()).toContain("moduleLabel");
+  });
+
   it("drills filterOverride per field, like its read-only twin", () => {
     // Both are filter maps keyed by field id; `filterOverride` is the WRITABLE
     // one (`applyUpdate` routes `$page.filterOverride.<fieldId>` — how a page's
