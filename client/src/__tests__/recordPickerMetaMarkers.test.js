@@ -30,6 +30,12 @@ describe("record picker offers the app's meta markers", () => {
     expect(top()).toContain("moduleLabel");
   });
 
+  it("offers textmap — the day-page builders write a column's whole doc through it", () => {
+    // 6 live UPDATEs (Day Page: Build / Build Day / Build Tasks Completed, Mood:
+    // Record Selection) write `$col.textmap`; no picker row offered it (2026-10-05).
+    expect(top()).toContain("textmap");
+  });
+
   it("offers ownStyle and drills to bg — Mark Passed Slots paints slots through it", () => {
     expect(top()).toContain("ownStyle");
     const kids = itemsForLevel(["ownStyle"], { fields: [] }, [], "occurrence").items.map((i) => i.value);

@@ -190,6 +190,10 @@ const SHAPES = {
       // (`UPDATE $slot.ownStyle.bg`, 22 reads/writes in that op). 826 stored ownStyles on
       // every grid carry only `bg`; the renderer also reads `textColor`. Neither could be
       // picked (2026-10-05).
+      // A doc's whole body (TipTap JSON). 6 live UPDATEs write it — the day-page
+      // builders set a column's embeds — and it could not be picked (2026-10-05);
+      // applyUpdate routes `$occ.textmap` to UPDATE_ITEM_TEXTMAP.
+      { value: "textmap", title: "textmap", sub: "doc", description: "The doc body this occurrence renders (TipTap JSON) — a doc container draws only this", hasChildren: false },
       { value: "ownStyle", title: "ownStyle", sub: "object", description: "This placement's own style — bg / textColor, nearest-wins over the module's", hasChildren: true, childShape: "ownStyle" },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
