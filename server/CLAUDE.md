@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-05 (2) — `0391`: tracker meta flags become fields ("there should be no hidden setting"))
+- `meta.cumulative` (Checking / Savings / Mom's Account / Cash / Net Worth), `meta.period: "month"` (Monthly
+  Bills) and `meta.noDatePrefix` (the Financial container) were seed-written and settable from no editor; one
+  op read them (`Trackers: Date-Prefix Labels`). They are now the fields **Tracker Period** (select: total |
+  month; empty = a daily tile) and **No Date Prefix** (boolean), bound hidden on those rows' modules and editable
+  in Settings › Fields. The op's six flag rules read the fields with the same meaning; the meta keys are
+  `$unset` and the migration throws if any survive. Pure `valuesFromMeta` / `rewriteRule` / `rewritePipeline`,
+  tested (`trackerFlagsBecomeFields.test.js`, 4). Applied to poms grid and read back: 7 rows valued + bound,
+  0 meta flags, 0 meta reads in the op.
+
 ## Recent Changes (2026-10-05 — `utils/fieldTimestamps.js`: only changed fields count as written)
 - `update_occurrence` moves `fieldUpdatedAt` only for fields whose value/flow changed
   (`bumpChangedFieldTimestamps`). A field edit sends the whole map; stamping every field made the client drop a
