@@ -116,6 +116,32 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-04 (6) — PEOPLE: BIRTHDAYS BY CLICKING; moduleLabel could not be picked, and a failed retry left a rule that blocked the sweep
+
+**`People: Birthdays`** on the rebuild, 31 steps in poms' shape: per `$activePeriodDates` day → the day column →
+its Todo → `📅 format` MM-dd / yyyy → per person under the People page whose Birthday matches → "Birthday - Name"
+(year 1900 = year-less) or "… - turns N" → FIND by label in that Todo → **Create** an instance "Birthday" there with
+People + Date, then UPDATE its placement label; finally sweep any Birthday card in that Todo whose label is no longer
+wanted. Triggers: onFilterChange grid + filterNav, onAdd/onDelete under People, onChange Birthday (p1).
+Ava Martinez and Ben Chen got Birthday bound and set through the app (Ava 1990-10-04, Ben 1900-10-05).
+**Watched:** Oct 4's Todo → "Birthday - Ava Martinez - turns 36" (People = Ava); her birthday → Oct 6 → card deleted;
+back → card again; toolbar to Oct 5 → "Birthday - Ben Chen", back to Oct 4.
+```
+moduleLabel unpickable   the executor enriches `moduleLabel` (the template's label) beside `label`; 17 live
+                         reads in 8 ops (this sweep: `moduleLabel IS Birthday`) and no picker row. Added
+                         next to linkedGroupId; A/B: the old picker fails exactly the new case. Client 5,688.
+a rule that read ""      the build's first attempt failed on that missing row AFTER "+ Rule" had added a
+                         4th rule; the resume filled 3 and left `"" IS ""` — an empty left resolves to
+                         undefined, so the AND never held and nothing was ever swept. Removed by clicking
+                         (`droprule` phase); a scan of the pipeline for empty-left rules now reads 0.
+```
+**Probe notes:** a Create step's name and parent are EXPRESSION slots #0/#1 and its role defaults to `container`;
+`📅 format` has two expression slots (date, format). `_setvals` gained a `date` kind (native setter on the chip's
+`input[type=date]`). `_bindfield` needs the instance on screen — run `_setvals` with `PAGEN` first to open the page.
+`_daystep.mjs DIR=Next|Prev` steps the toolbar date — always pair the steps. Rebuild ops **65**, integrity 0 errors.
+
+---
+
 ### 2026-10-04 (5) — MOOD: RECORD SELECTION BY CLICKING; a container trigger's target picked in the editor could never match
 
 **`Mood: Record Selection`** on the rebuild (17 steps, `moodpick` phase): `$picked = $trigger.occurrenceId`, the
