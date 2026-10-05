@@ -6,7 +6,7 @@
 //
 // The threshold is DERIVED from the dropdown's own box rather than picked, so
 // changing the box moves the rule with it — the trick this repo already uses
-// for `LABEL_MIN_ARC_PX` and the tablet sidebar's `ROOT_TREE_W * 3`.
+// for `LABEL_MIN_ARC_PX` and the tablet sidebar's `ROOT_TREE_W * ROOT_TREE_PUSH_RATIO`.
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";

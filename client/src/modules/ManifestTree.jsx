@@ -30,6 +30,7 @@ import { edgeForPoint, sortOrderForDrop, sortOrderAtEnd, wouldNestInsideItself, 
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 import { sessionHeaders } from "../helpers/authStorage";
+import { TREE_WIDTH } from "../helpers/rootTreeLayout";
 
 // ONE STEP PER LEVEL (user, 2026-10-01: "the indentation exponentially gets
 // bigger … the deeper the children are. they should all share the same
@@ -38,7 +39,7 @@ import { sessionHeaders } from "../helpers/authStorage";
 // that grew 8, 24, 48, 80px… and deep Codex rows ran off the panel. Each level
 // adds the same TREE_INDENT to what its parent already has.
 export const TREE_INDENT = 10;
-export const TREE_WIDTH = 280;
+export { TREE_WIDTH };
 export const treeIndent = (depth) => (depth > 0 ? TREE_INDENT : 0);
 
 /** A folder's own landing page: a page whose module kind is "folder". */

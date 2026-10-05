@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W, rootTreeCanPushAt } from "../helpers/rootTreeLayout";
+import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W, ROOT_TREE_PUSH_RATIO, rootTreeCanPushAt } from "../helpers/rootTreeLayout";
 import { useMinWidth } from "../hooks/useMinWidth";
 
 // The regression this file exists for: the sidebar decided overlay-vs-push from
@@ -9,7 +9,7 @@ import { useMinWidth } from "../hooks/useMinWidth";
 describe("root tree sidebar: overlay vs push", () => {
   it("the threshold is DERIVED from the sidebar width, not a picked number", () => {
     // If someone re-picks this as a literal, tablet portrait silently breaks again.
-    expect(ROOT_TREE_PUSH_MIN_W).toBe(ROOT_TREE_W * 3);
+    expect(ROOT_TREE_PUSH_MIN_W).toBe(Math.ceil(ROOT_TREE_W * ROOT_TREE_PUSH_RATIO));
   });
 
   it("pushes on the viewports that broke, overlays on the ones that must", () => {
@@ -85,5 +85,18 @@ describe("useMinWidth", () => {
     window.matchMedia = undefined;
     const { result } = renderHook(() => useMinWidth(ROOT_TREE_PUSH_MIN_W));
     expect(result.current).toBe(true);
+  });
+});
+
+describe("the sidebar column holds the whole tree", () => {
+  it("is at least as wide as the tree it carries (it clipped the header buttons at 222 vs 280)", async () => {
+    const { TREE_WIDTH } = await import("../helpers/rootTreeLayout");
+    expect(ROOT_TREE_W).toBeGreaterThanOrEqual(TREE_WIDTH + 4);
+  });
+  it("ManifestTree sizes itself from the same constant", async () => {
+    const fs = await import("node:fs"); const path = await import("node:path");
+    const src = fs.readFileSync(path.resolve(__dirname, "../modules/ManifestTree.jsx"), "utf8");
+    expect(src).toMatch(/import \{ TREE_WIDTH \} from "\.\.\/helpers\/rootTreeLayout"/);
+    expect(src).not.toMatch(/const TREE_WIDTH\s*=/);
   });
 });

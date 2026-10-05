@@ -7,7 +7,7 @@
 // `autoscrollMath` and `wrapAnchor` are their own files.
 //
 // THE THRESHOLD IS DERIVED FROM THE SIDEBAR, NOT PICKED. The page keeps at
-// least TWICE what the sidebar takes, so the minimum viewport is 3x the
+// least 1.5x what the sidebar takes, so the minimum viewport is 2.5x the
 // sidebar's width. Change ROOT_TREE_W and the rule follows instead of quietly
 // becoming wrong.
 //
@@ -20,8 +20,19 @@
 //
 // "Is this session phone-shaped" and "does a fixed 222px box fit" are two
 // different questions, and answering the second with the first is what broke it.
-export const ROOT_TREE_W = 222;
-export const ROOT_TREE_PUSH_MIN_W = ROOT_TREE_W * 3;
+// The TREE's own width lives here too, and the column is derived from it. They
+// were two numbers: the tree went 220 -> 280 (2026-10-01) and the column stayed
+// 222, so the column clipped the tree's right 58px — its header's New folder /
+// New page buttons sat past the panel edge, unclickable (found 2026-10-05).
+// The column holds the tree plus its 2px side padding and 1px left border.
+export const TREE_WIDTH = 280;
+export const ROOT_TREE_W = TREE_WIDTH + 2 * 2 + 1;
+// The page keeps at least 1.5x the column, so the minimum viewport is 2.5x it.
+// It was 3x a 222px column (666px); at the column's true width that would be
+// 855px and iPad portrait (768) — the case this file exists for — would overlay
+// again. 2.5x keeps every tablet pushing and every phone overlaying.
+export const ROOT_TREE_PUSH_RATIO = 2.5;
+export const ROOT_TREE_PUSH_MIN_W = Math.ceil(ROOT_TREE_W * ROOT_TREE_PUSH_RATIO);
 
 // True when a viewport of `width` can give the sidebar its column and still
 // leave the page at least twice that much.

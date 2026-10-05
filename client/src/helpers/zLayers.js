@@ -25,7 +25,7 @@
 // `PORTAL_MENU = POPOVER + 10` states the rule that was being violated: a menu
 // opened FROM a popover sits ABOVE it. Move the popover and the menu follows,
 // instead of quietly becoming wrong again — the same trick as
-// `LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8` and `ROOT_TREE_W * 3`.
+// `LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8` and `ROOT_TREE_W * ROOT_TREE_PUSH_RATIO`.
 //
 // ── THE NEIGHBOURS, so a new surface is placed rather than guessed ─────────
 //
