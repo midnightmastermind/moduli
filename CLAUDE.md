@@ -116,6 +116,30 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-05 (3) — `Schedule: Place Weekday Tasks` BY CLICKING; a template named by a variable applied nothing
+
+A **Weekday** field (select, several picks, Monday-Sunday — `_selfield` gained `MULTI`), a test task Tasks › Today ›
+**Take out trash** (Weekday Monday, Time Slot 9:00am, undated), and the op in poms' shape (17 steps, `weekday` phase):
+per `$activePeriodDates` day → the day column → its Todo → `${weekday:$day}` → every undated, non-feed task whose
+Weekday contains it → its slot by Time Slot (else the Todo) → **Apply template** merge, root parent `$targetId`,
+Date = `$day`. Triggers onLoad / onFilterChange grid + filterNav, p3.
+**Watched:** a copy in Oct 5's 9:00am, dated, listed, signed `auto:<task>`; Next → Tuesday got none; Prev → still
+exactly one on Monday (the merge recognised it).
+```
+templateRef as a variable   the template picker offers a local variable WHOLE ($task — it cannot drill to
+                            .id), and APPLY_TEMPLATE looked the object up in occurrencesById and applied
+                            nothing. It takes an occurrence's id now, as its target already did.
+                            A/B: the old executor fails the variable case; `$task.id` (poms' stored
+                            shape) passes both ways as the pin. Client 5,692.
+```
+**Probe notes:** the Apply step's "target" box writes `targetOccurrenceVar` (children INTO the target); poms uses
+`root parent` (the template itself as a new root) — they are expression slots after `+ Attach a field`, whose
+attached rows shift their indices. Rebuild ops **68**, integrity 0 errors. **Next: `Schedule: Fill Day`** — it
+stamps weekday TEMPLATES (49-slot layouts tagged with Weekday) from the Schedule Template page, so it needs one
+built first.
+
+---
+
 ### 2026-10-05 (2) — `Schedule: Mark Passed Slots` BY CLICKING; `ownStyle` could not be picked
 
 **47 steps in poms' shape** (`passed` phase): per Schedule day column — past day? today? → pass 1 finds the latest
