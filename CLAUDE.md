@@ -116,6 +116,29 @@ test, removed in `1a7dfd8d`.
 
 ---
 
+### 2026-10-05 (2) — `Schedule: Mark Passed Slots` BY CLICKING; `ownStyle` could not be picked
+
+**47 steps in poms' shape** (`passed` phase): per Schedule day column — past day? today? → pass 1 finds the latest
+slot already begun today → pass 2 flips a per-column stripe on every slot and paints `$slot.ownStyle.bg`: current
+green `rgba(74,222,128,0.16)` · passed red `0.10`/`0.20` by stripe · idle cleared / slate `rgba(148,163,184,0.12)`,
+each UPDATE behind an `IS_NOT` guard so an unchanged slot writes nothing. Same counts as poms (20 IFs, 3 loops, 27
+rules, 0 empty) less one action (poms resolves the page id in two steps). Scheduled **every 5 minutes**.
+**Watched:** Oct 4's column all red in alternating shades; Oct 5 at 08:11 — 5:00-7:30am red alternating, **8:00am
+green**, 8:30am on slate / clear alternating.
+```
+ownStyle unpickable   22 reads/writes in this op (`$slot.ownStyle.bg`), none authorable. The path picker
+                      gains `ownStyle` drilling to bg / textColor (the keys the renderer reads; 826 stored
+                      ownStyles carry only bg). A/B: the old picker fails exactly the new case. menuTheming
+                      caught my first description, which quoted an rgba() example.
+```
+**Deliberate deviation, reported:** poms' op carries BOTH the schedule and an `onLoad` trigger (seed-written), and
+its onLoad run scrolls to the current slot. The editor hides triggers on a scheduled op and "Convert to scheduled
+op" clears them — `useScheduler`'s header names that as the intended rule ("one trigger per scheduled op, enforced
+by editor"). Followed the rule: the rebuild's op repaints on the first tick after a load and does not scroll.
+Rebuild ops **67**, integrity 0 errors. Client 5,690 pass.
+
+---
+
 ### 2026-10-05 — PODCASTS LISTENED BY CLICKING
 
 The rebuild had no podcasts, so first Boards › Media › **Podcasts** (board page + container, `podcast` added to Board
