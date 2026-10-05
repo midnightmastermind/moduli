@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-05 (3) — the in-app Wikipedia import reaches the warm cache)
+- `server.js` `POST /api/research/wikipedia/import` (what "Import from Wikipedia" calls) wrote Mongo and broadcast but
+  never `persistImportResult`, so a reload could not see the import until a restart. It persists into
+  `getUserCache(userId, gridId)` before the broadcast now, like `/api/v1`'s twin. `wikiImportRouteCaches.test.js`.
+
 ## Recent Changes (2026-10-05 (2) — `0391`: tracker meta flags become fields ("there should be no hidden setting"))
 - `meta.cumulative` (Checking / Savings / Mom's Account / Cash / Net Worth), `meta.period: "month"` (Monthly
   Bills) and `meta.noDatePrefix` (the Financial container) were seed-written and settable from no editor; one

@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (11) — IMPORT FROM WIKIPEDIA BY CLICKING; three editor gaps, and the route's imports vanished on the next load
+
+User: *"keep going please"*. poms' op is seed-written and three of its keys had no editor (the no-hidden-setting rule):
+```
+Ask the user    title · options [{value,label}]      schema: `title` (text) + new kind `options` (OptionRowsEditor)
+Call API        headers · query · an OBJECT body      new kind `kv` (KeyValueEditor) — a plain object of key -> expr;
+                                                      `orExpr` keeps a body stored as one expression editable. Before,
+                                                      an object rendered as "[object Object]" in the expr box
+Display → field the result's `name`                   "as:" input; several results in one run need their own names
+```
+A/B: the old schema fails the 2 schema cases (the component cases are new code, pins). Client 5,733; client-only deploy.
+**Built by clicking** (`wiki` phase, 12 steps, poms' shape; created with `NOTRIG` so no onLoad prompt ever shipped): ask
+query + mode → create: name + folder → POST `/api/research/wikipedia/import` → show title / root / error; else the
+stub poms carries. Folder choices are the rebuild's (Root / Library / Projects — it has no Notes/Examples/Interfaces);
+the body sends no `userId` (the route takes the session's).
+**THE ROUTE NEVER REACHED THE WARM CACHE.** Run now → Bonsai imported (Mongo: a doc container homed in Library, 15
+sections) — and a fresh load's Library folder page showed only Lookup. `full_state` is served from the cache, and this
+route (unlike its `/api/v1` twin) only wrote Mongo + broadcast, so every import through the op was invisible after a
+reload until a restart — the "not fixed" note in 09-22 (4). It calls `persistImportResult` before the broadcast now
+(`wikiImportRouteCaches.test.js`; A/B 1 fails). **Watched after the deploy:** a second import (Wabi-sabi), then a
+fresh load → the Library folder page shows Lookup · Bonsai · Wabi-sabi, pictures included. Both stay as sample data.
+Note: a container homed in a folder is listed by the folder PAGE, not the tree (the tree lists pages only).
+Rebuild ops **85**.
+
+---
+
 ### 2026-10-05 (10) — "THERE SHOULD BE NO HIDDEN SETTING": tracker flags become fields (0391); Date-Prefix Labels by clicking
 
 User, on (9)'s report that `Trackers: Date-Prefix Labels` keys on tile meta flags no editor can set: *"there should
