@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (10) — "THERE SHOULD BE NO HIDDEN SETTING": tracker flags become fields (0391); Date-Prefix Labels by clicking
+
+User, on (9)'s report that `Trackers: Date-Prefix Labels` keys on tile meta flags no editor can set: *"there should
+be no hidden setting"*. Recorded as a standing rule in CLAUDE_CHAT.md.
+- **`0391` (poms):** `meta.cumulative` (Checking / Savings / Mom's Account / Cash / Net Worth), `meta.period:
+  "month"` (Monthly Bills) and `meta.noDatePrefix` (the Financial container) become two fields — **Tracker Period**
+  (select total | month; empty = daily) and **No Date Prefix** (boolean) — bound on those rows (hidden, like Date;
+  the eye in Settings › Fields shows them), valued, and the meta keys `$unset`. The op's six flag rules read the
+  fields with the same meaning. Read back: 7 rows valued + bound, 0 flags, 0 meta reads. **Watched on prod after
+  the restart:** Financial unprefixed, the account tiles' Tracker Scope "Total", Monthly Bills "October 2026".
+- **Scan of every meta key poms ops read:** the rest (`feedSourceId`, `appliedFromTemplateId`, `copyLinkSource`,
+  `clipShape`, `layoutCascadeOverride`) are written by the app itself or have an editor — no other hidden setting.
+- **On the rebuild, by clicking:** both fields made in the Fields tab (`_selfield` takes `TYPE` now), Tracker Period
+  bound and set on the six tiles, No Date Prefix bound to the Financial CONTAINER through Container settings › Fields
+  and ticked from its own switch under the label (`_bindfield2.mjs`, `_ctrswitch.mjs`) — a container's bound fields
+  render there, so the setting is visible. The op in poms' shape (14 steps, `dpl` phase), onLoad + onFilterChange
+  filterNav (the Trackers page) + grid, p4. **Watched:** load → "Today's Stats", Financial unprefixed, Steps' Tracker
+  Date Oct 5, accounts "Total", Monthly Bills "October 2026"; Next → "Tomorrow's Stats", Oct 6; back → Today's.
+  **One difference to know:** the rebuild's Accounts is its own container (poms nests the accounts in Financial), so
+  it reads "Today's Accounts" — tick its No Date Prefix if that is unwanted. Rebuild ops **84**, integrity 0 errors.
+
+---
+
 ### 2026-10-05 (9) — ALARMS FILE INTO THE SCHEDULE ON A UI-BUILT GRID; Media Owned by clicking
 
 User: *"keep going please"*.

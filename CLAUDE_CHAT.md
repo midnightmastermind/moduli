@@ -3780,3 +3780,8 @@ User: *"make it so i can tab though but its not required. i tried to tab a parag
 
 ### 2026-10-02 09:10 — back to UI testing
 User: *"lets switch back to the ui testing (focusing on docs, wraps, occurances in docs, drag and drop, typing, etc.)"*.
+
+### 2026-10-05 — no hidden settings
+User, after hearing Trackers: Date-Prefix Labels reads tile meta flags no editor can set: *"there should be no hidden setting"*.
+
+Standing rule: anything an operation depends on must be user-visible and settable in the UI — a field (preferred, per the no-hardcoding rule) or an editor control, never a seed-only meta key. Done: 0391 turned `meta.cumulative` / `meta.period` / `meta.noDatePrefix` into the fields Tracker Period and No Date Prefix.
