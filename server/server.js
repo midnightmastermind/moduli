@@ -874,6 +874,12 @@ app.post("/api/research/wikipedia/import", requireSession, async (req, res) => {
     });
 
     if (!dryRun) {
+      // INTO THE WARM CACHE TOO, as /api/v1's twin does. full_state is served
+      // from the cache, so without this the import reached Mongo and the open
+      // tab's broadcast but no later load — "Import from Wikipedia" landed a page
+      // nobody could find again until a restart (2026-10-05, watched on the rebuild).
+      const { persistImportResult } = await import("./utils/persistImport.js");
+      await persistImportResult({ result: importResult, userId, uc: await getUserCache(userId, gridId) });
       for (const m of importResult.modules) io.to(userRoom(userId)).emit("module_created", { module: m });
       for (const o of importResult.occurrences) io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
     }
