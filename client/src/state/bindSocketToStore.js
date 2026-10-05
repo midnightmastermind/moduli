@@ -1446,6 +1446,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             try { return JSON.stringify(_curVal) === JSON.stringify(effect.value); }
             catch (_) { return false; }
           })();
+          // Opt-in: `window.__fieldDiag = true` logs every op field write and
+          // whether the no-op guard let it through (off by default).
+          if (typeof window !== "undefined" && window.__fieldDiag) {
+            console.log("[field-diag]", effect._sourceOpId, effect.itemId, effect.fieldId, "cur=", JSON.stringify(_curVal), "new=", JSON.stringify(effect.value), _isSame ? "SKIP" : "WRITE");
+          }
           if (!_isSame) {
             setOccurrenceFieldValue({
               dispatch: socketDispatch,
