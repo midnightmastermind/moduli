@@ -1023,7 +1023,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 </select>
                 {fl("kind")}
                 <select value={cfg.kind || "board"} onChange={e => setCfg({ kind: e.target.value })} style={selectSt}>
-                  {["board", "doc", "canvas", "table", "folder", "display", "pool"].map(k => <option key={k} value={k}>{k}</option>)}
+                  {CREATE_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
                 </select>
               </div>
               <div style={rowStyle}>
@@ -1038,7 +1038,10 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                   carries the signature the server refuses a duplicate of. */}
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps}
                 mapKey="filterOverride" label="filter override (pin this item's own filter):" withVisibility={false} />
-              <KeyValueMapEditor cfg={cfg} setCfg={setCfg} />
+              {typeof cfg.meta === "string"
+                ? <div style={rowStyle}>{fl("meta from")}<ExprOrPath value={cfg.meta} onChange={v => setCfg({ meta: v || undefined })} placeholder="$share.clip.meta" width={180} {...exprProps} /></div>
+                : <KeyValueMapEditor cfg={cfg} setCfg={setCfg} />}
+              <CreateServerOptions cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} fl={fl} rowStyle={rowStyle} />
               <div style={rowStyle}>
                 {fl("identity signature")}
                 <input
@@ -2078,6 +2081,60 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps, mapKey = "fields", la
 // module, each value resolved as an expression) and APPLY_TEMPLATE's
 // `replacements` ({token} → value over cloned text). Written as an object,
 // never a `json:` string: both are read as one.
+// A CREATE's kind. `bookmark` is what a shared link becomes (an artifact whose
+// moduleFileRef is the URL) — 2 live share rules store it, and a <select>
+// whose value it does not offer shows the first option instead.
+const CREATE_KINDS = ["board", "doc", "canvas", "table", "folder", "display", "pool", "bookmark"];
+
+// Keys the SERVER executor's CREATE reads (services/serverExecutor.js) — the
+// share rules run there. Measured 2026-10-05 across every grid, all written by
+// seeds and none authorable: parentFolderId 4 ops · fieldsFrom 4 · moduleFileRef 4 ·
+// source 4 · moduleRole/moduleKind 3 · attachFields 2 · bindingsLike 2 ·
+// moduleMeta 2 · mergeInto 1. Collapsed unless a step already carries one.
+const CREATE_SERVER_KEYS = [
+  ["parentFolderId", "parent folder", "literal:<folder id>"],
+  ["moduleRole", "role from", "$share.clip.moduleRole"],
+  ["moduleKind", "kind from", "$share.clip.moduleKind"],
+  ["moduleFileRef", "file / url", "$share.props.url"],
+  ["fieldsFrom", "fields from a map", "$share.clip.fields"],
+  ["bindingsLike", "bind fields like", "literal:<module id>"],
+  ["mergeInto", "update this item instead", "$matchId"],
+  ["source", "source", "literal:clip"],
+];
+export const CREATE_SERVER_KEY_NAMES = [...CREATE_SERVER_KEYS.map(([k]) => k), "attachFields", "moduleMeta"];
+
+function CreateServerOptions({ cfg, setCfg, fields, exprProps, fl, rowStyle }) {
+  const used = CREATE_SERVER_KEY_NAMES.some(k => cfg[k] != null && cfg[k] !== "");
+  const attach = Array.isArray(cfg.attachFields) ? cfg.attachFields : [];
+  const nameOf = (id) => (fields || []).find(f => f.id === id)?.name || id;
+  return (
+    <details open={used} style={{ paddingLeft: 4 }}>
+      <summary style={{ fontSize: 10, color: "var(--text-muted)", cursor: "pointer" }}>more (share rules / server)</summary>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 4 }}>
+        {CREATE_SERVER_KEYS.map(([key, label, ph]) => (
+          <div key={key} style={rowStyle}>
+            {fl(label)}
+            <ExprOrPath value={cfg[key] || ""} onChange={v => setCfg({ [key]: v || undefined })} placeholder={ph} width={180} {...exprProps} />
+          </div>
+        ))}
+        <div style={rowStyle}>
+          {fl("bind with no value")}
+          {attach.map(id => (
+            <span key={id} style={{ fontSize: 10, display: "inline-flex", gap: 3, alignItems: "center" }}>
+              {nameOf(id)}
+              <button title="remove" style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 0 }}
+                onClick={() => { const next = attach.filter(x => x !== id); setCfg({ attachFields: next.length ? next : undefined }); }}>✕</button>
+            </span>
+          ))}
+          <FieldSelect fields={fields} value={null} placeholder="+ field" ariaLabel="Bind with no value"
+            onChange={(id) => { if (id && !attach.includes(id)) setCfg({ attachFields: [...attach, id] }); }} />
+        </div>
+        <KeyValueMapEditor cfg={cfg} setCfg={setCfg} mapKey="moduleMeta" label="module meta:" addLabel="+ module meta" />
+      </div>
+    </details>
+  );
+}
+
 function KeyValueMapEditor({ cfg, setCfg, mapKey = "meta", label = "meta (on the new module):", addLabel = "+ meta", keyPlaceholder = "key" }) {
   const map = cfg[mapKey] && typeof cfg[mapKey] === "object" ? cfg[mapKey] : {};
   const entries = Object.entries(map);

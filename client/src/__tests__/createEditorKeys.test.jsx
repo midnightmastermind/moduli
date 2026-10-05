@@ -54,3 +54,47 @@ describe("CREATE editor authors meta / identitySignature / filterOverride", () =
     expect(container.textContent).toContain("attach fields");
   });
 });
+
+// The share rules run on the SERVER executor, whose CREATE reads more keys.
+// Measured 2026-10-05 across every grid: parentFolderId 4 ops, fieldsFrom 4,
+// moduleFileRef 4, source 4, moduleRole/moduleKind 3, attachFields 2,
+// bindingsLike 2, moduleMeta 2, mergeInto 1 — all seed-written.
+describe("CREATE editor authors the server's share-rule keys", () => {
+  it("a stored key opens the section and shows its value", () => {
+    const { container } = mount({ moduleFileRef: "literal:https://example.com" });
+    const det = container.querySelector("details");
+    expect(det.open).toBe(true);
+    expect(container.textContent).toContain("file / url");
+  });
+
+  it("a step with none of them keeps the section collapsed", () => {
+    const { container } = mount({ name: "x" });
+    expect(container.querySelector("details").open).toBe(false);
+  });
+
+  it("offers the bookmark kind a shared link is stored as", () => {
+    const { container } = mount({ kind: "bookmark" });
+    const sel = [...container.querySelectorAll("select")].find((s) => [...s.options].some((o) => o.value === "doc"));
+    expect(sel.value).toBe("bookmark");
+  });
+
+  it("a meta stored as an EXPRESSION is edited as one, not as an empty map", () => {
+    const { container } = mount({ meta: "$share.clip.meta" });
+    expect(container.textContent).toContain("meta from");
+    expect(container.textContent).not.toContain("+ meta");
+  });
+
+  it("removing an attached field writes the rest", () => {
+    const { container, setCfg } = mount({ attachFields: ["fDate", "other"] });
+    expect(container.textContent).toContain("Date");
+    const x = [...container.querySelectorAll("button")].filter((b) => b.title === "remove")[0];
+    fireEvent.click(x);
+    expect(setCfg).toHaveBeenCalledWith(expect.objectContaining({ attachFields: ["other"] }));
+  });
+
+  it("module meta is a map under its own key", () => {
+    const { getByText, setCfg } = mount({});
+    fireEvent.click(getByText("+ module meta"));
+    expect(setCfg).toHaveBeenCalledWith(expect.objectContaining({ moduleMeta: { "": "" } }));
+  });
+});
