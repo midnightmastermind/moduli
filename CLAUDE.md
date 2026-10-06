@@ -15,6 +15,34 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (13) — THE DAILY QUESTION ON THE REBUILD; a merged day column dropped the section it had just cloned
+
+Picked up account2's (12) where its limit cut it off. By clicking: the seven Reflection Questions tagged
+`question`; a **Daily Question** field (select, Find `_ancestors HAS_ANCESTOR` the Daily Journal Questions page —
+7 matches, **Random pick** on); the rebuild's existing **Answer** field reused; a **Daily Question** board container
+in Templates › Day Page Template › Day Page with both fields bound; and the pass appended to `Day Page: Build`'s day
+loop — FIND the column's section by `auto:<template node>` → if its Daily Question is empty, **Pick random** from the
+Reflection Questions pool (`poolId` = the pool's MODULE id) → UPDATE the field.
+**Watched:** load → Oct 5's section reads "What is within my control today, and what is not?"; Next → Oct 6 gets its
+own; Prev → Oct 5 unchanged (filled once, never re-rolled).
+```
+a merged column lost its new   on an EXISTING column the op merges the template in, but `$col` still held the
+  section                       copy FOUND before the merge, so the textmap rebuilt from it left the new clone
+                               unembedded (Oct 6: 6 children, 5 embedded) — on screen only after a second run.
+                               The create branch already re-FINDs $col; the merge branch now does the same.
+                               Watched: the Oct 6 section deleted, one step -> re-cloned AND embedded in one run.
+```
+**My slips, repaired:** the picks of a condition's LEFT local var (`$dqId`, `$pickedLabel`) saved EMPTY — re-set
+with `{pickThis}` (an empty left never holds, the 10-04 (6) trap). My rename probe found the embed's OUTER wrapper
+by `[data-occ-id]` and `closest(".container-shell")` climbed to the HOST, so it renamed the template's Day Page
+container "Daily Question" — renamed back through the UI at once; `_renameid.mjs` and `_slotlib.childJS` now take
+`.container-shell[data-occ-id]` first, and the rename refuses when the header is not the one expected. And two
+probes run in parallel moved each other's panel (a search persists the panel's page) — one probe at a time.
+**Probe notes:** a probe that hangs to its timeout is an expired token — re-mint with `_mkauth`. Rebuild ops **85**,
+integrity 0 errors.
+
+---
+
 ### 2026-10-05 (12) — DAILY QUESTION GROUNDWORK (in progress); "Random pick" is no longer seed-only
 
 - **Fields tab: "Random pick 🎲"** on select/occurrence fields writes `meta.randomizable` (poms' Daily Question carries
