@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (14) — `Fitness: Today's Prescription` BY CLICKING; a collision with account2 on Nutrition
+
+**Fitness, poms' shape (37 steps):** Workout 1-6 bound on Today's Physical › Workouts; per Movement row in the day
+column of the tile's period (else today), "<movement> — done / not yet" into Workout N, the six cleared first. poms
+nests "in period, else today" as an OR group in the FIND; here `$per` is computed first and the FIND is flat.
+Triggers as poms: onLoad · onChange Completed · onAdd/onDelete in Schedule · onFilterChange grid + filterNav (p3).
+**Watched (Mongo):** toolbar to Oct 4 → Workout 1 "Lateral Raises — done" (the 10-04 sample); back to Oct 5 → cleared.
+**Probe fault, reusable:** a bare local var picked as a condition LEFT by a body click saves EMPTY (its row drills) —
+commit with `{pickThis}`; `_tracker` `fixleft` re-sets row 0 by step key.
+**Collision, said plainly:** account2 resumed on `Nutrition: Today's Micronutrients` while this session built the same
+op. Its run made the Vitamins & Minerals tile and the op; mine made a second tile (deleted, unreferenced) and resumed
+steps + replaced the triggers on ITS op (Completed, Ingredient, Schedule add/delete, filter changes — not poms'
+Protein/Calories/Carbs/Fats/Meal, which the op never reads). Greek Yogurt got Calcium 110 · B12 0.75 · Magnesium 11 ·
+Potassium 141, and Oct 4's Eat Ingredient = Greek Yogurt, from this session. A Node replay of the real executor over a
+rebuild dump computes the right totals for Oct 4 (Calcium 110, Potassium 141 …) into account2's tile. **Nutrition is
+account2's to finish.** Not built: `Workouts: Today's Session` — 26 near-identical branches, one per hardcoded movement
+id; worth a shape decision before cloning it.
+
+---
+
 ### 2026-10-05 (13) — THE DAILY QUESTION ON THE REBUILD; a merged day column dropped the section it had just cloned
 
 Picked up account2's (12) where its limit cut it off. By clicking: the seven Reflection Questions tagged
