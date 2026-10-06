@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-05 (12) — DAILY QUESTION GROUNDWORK (in progress); "Random pick" is no longer seed-only
+
+- **Fields tab: "Random pick 🎲"** on select/occurrence fields writes `meta.randomizable` (poms' Daily Question carries
+  it; nothing could set it). A/B: the old editor fails the new case. Client 5,735; deployed.
+- **poms checked, nothing to fix:** `Day Page: Build Day`'s question pass finds `daypage:Daily Question/question` and
+  fills it from the Reflection Questions pool; latest fill Oct 1. Empty ones are scattered days (10 from the Sep 30
+  duplicate-column incident).
+- **Rebuild, by clicking so far:** Boards › Library › **Daily Journal Questions** (board page, Board Category
+  `question` option) with a **Reflection Questions** container (`_dq1.mjs`); seven poms questions being added by a
+  background `_additem` loop (Board Category bound, not yet valued).
+- **Left:** a **Daily Question** field (select, Find `_ancestors HAS_ANCESTOR` page `c838602a…`, Random pick —
+  `_occfield2.mjs TYPE=select RANDOM=1 PAGE=… NAME="Daily Question"`), an **Answer** text field, a Daily Question
+  board container in the Day Page Template (header bound to Daily Question with link Date; Answer bound as a field —
+  one container, since an embedded container has no "+" for poms' question/answer sub-sections), and the pass in
+  `Day Page: Build` (FIND the clone by `auto:<template node>` under `$colId` → if empty PICK_RANDOM_FROM_POOL the
+  Reflection Questions MODULE → UPDATE).
+
+---
+
 ### 2026-10-05 (11) — IMPORT FROM WIKIPEDIA BY CLICKING; three editor gaps, and the route's imports vanished on the next load
 
 User: *"keep going please"*. poms' op is seed-written and three of its keys had no editor (the no-hidden-setting rule):
