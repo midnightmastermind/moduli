@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-06 — `Workouts: Today's Session` BY CLICKING; two writes to one row erased each other on the server
+
+The last live poms op (account2's (15) named it). poms' shape: one field per movement on a session tile, 1/0 for each
+movement in the day's column, and the tile's `fieldVisibility` set to show only those. On the rebuild that is four
+movements (Lateral Raises, Leg Curls, Russian Twists, Dumbbell Shoulder Press — fields of the same names already
+existed) on a new Trackers › Today's Physical › **Today's Session** tile; 35 steps, triggers as poms' plus
+onChange Movement (the op reads it; poms' never listened — the Nutrition gap again). poms' two extra branches keyed on
+template ids are not rebuilt (no such templates here).
+```
+fieldVisibility unpickable  the occurrence shape had no fieldVisibility (only a table column's); applyUpdate already
+                            routes `$occ.fieldVisibility`. A/B: the old picker fails exactly the new case.
+the server erased a newer   Oct 4 showed Lateral Raises = 1 but the tile still showed only Tracker Date. The browser
+  write                     SENT [Lateral Raises, Tracker Date]; a Mongo change stream on the tile showed it land and
+                            a write 25ms later put the old list back. update_occurrence saves the WHOLE merged row,
+                            so when one sweep writes a field and then the visibility, an older whole-row save can land
+                            last (and its post-save cache restamp can put the older row back in the warm cache).
+                            Writes are now serialized per (user, occurrence id) — utils/serialByKey; other rows still
+                            run in parallel. A/B: the old handler fails the Mongo case (a slow older save); the cache
+                            case and a different-rows control pass both ways (pins). Server 3,020; deployed + restart.
+                            Watched after: on Oct 4 Mongo holds [Lateral Raises, Tracker Date], Lateral Raises 1.
+```
+**Found and cleaned, cause not established:** 10 module-less, unlisted day-page roots (+50 section rows) and 10 orphan
+"Sunday, October 4th, 2026" modules, one per Oct 4 visit 22:13-22:39 last night — every visit after the first rebuilt the
+Oct 4 column although it existed in Mongo (signed, listed, dated), so the tabs were evidently not shown it. Backed up
+(`server/backups/orphans/2026-10-06-partial-daypage-roots.json`), deleted through `delete_occurrence`, modules swept.
+After this morning's restart, stepping to Oct 4 twice found the column and made nothing. The warm cache missing a
+freshly built column is the suspect (the 09-30 class), not proven. Rebuild ops **88**, integrity 0 errors.
+**Probe notes:** account2's `_delocc.mjs` now takes `IDS=` (full ids, comma-separated), not `PREFIXES=`.
+
+---
+
 ### 2026-10-05 (14) — `Fitness: Today's Prescription` BY CLICKING; a collision with account2 on Nutrition
 
 **Fitness, poms' shape (37 steps):** Workout 1-6 bound on Today's Physical › Workouts; per Movement row in the day
