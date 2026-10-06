@@ -12,6 +12,11 @@ import { nanoid } from "nanoid";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
 import { textmapDigest } from "../utils/textmapDigest.js";
 import { recordDoc } from "../utils/txRecorder.js";
+import { createSerialByKey } from "../utils/serialByKey.js";
+
+// One row's writes run in arrival order (utils/serialByKey explains the race).
+// Module-level, so every socket of a user shares it.
+const occWriteQueue = createSerialByKey();
 
 /**
  * A stale write may ADD children, never DROP them.
@@ -129,7 +134,7 @@ export function registerOccurrenceHandlers(socket, {
     abortController.abort();
   });
 
-  socket.on("update_occurrence", async (payload = {}) => {
+  const handleUpdateOccurrence = async (payload = {}) => {
     // `occurrence` is REASSIGNED below (the field-conflict path rewrites the
     // patch to drop conflicted fields), so it cannot be a const — as a const it
     // threw `TypeError: Assignment to constant variable` and the whole write was
@@ -705,7 +710,9 @@ export function registerOccurrenceHandlers(socket, {
       console.error("update_occurrence error:", err);
       socket.emit("server_error", "Failed to update occurrence");
     }
-  });
+  };
+  socket.on("update_occurrence", (payload = {}) =>
+    occWriteQueue(`${userId}:${payload?.occurrence?.id}`, () => handleUpdateOccurrence(payload)));
 
   // Lazy textmap fetch — client requests textmaps for specific occurrence IDs
   // (e.g. when a doc container comes into view for the first time)
