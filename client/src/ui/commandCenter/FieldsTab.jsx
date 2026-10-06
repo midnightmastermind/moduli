@@ -509,6 +509,24 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                 Multi-line
               </label>
             )}
+            {/* A 🎲 re-roll beside the value (FieldRenderer's `meta.randomizable`).
+                The Daily Question carries it on poms and only a seed could set it
+                (2026-10-05, "there should be no hidden setting"). It picks among
+                the field's own options, so it is offered where there are options. */}
+            {(local.type === "select" || local.type === "occurrence") && (
+              <label
+                title="Show a 🎲 button that picks one of this field's options at random."
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  aria-label="Random pick"
+                  checked={local.meta?.randomizable === true}
+                  onChange={(e) => setMeta("randomizable", e.target.checked)}
+                />
+                Random pick 🎲
+              </label>
+            )}
             {/* One pick or many. 46 live fields carry this and there has never
                 been a control for it — whether `Ingredient` takes a list or a
                 single value was a migration-only decision. The two types are

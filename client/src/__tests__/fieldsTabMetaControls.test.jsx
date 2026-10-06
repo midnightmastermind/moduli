@@ -118,6 +118,20 @@ describe("FieldDetail — multi-line and multi-select", () => {
     expect(screen.queryByLabelText("Several picks")).toBeNull();
   });
 
+  it("a SELECT field can offer a random pick (meta.randomizable)", () => {
+    const onSave = vi.fn();
+    renderDetail({ id: "f1", name: "Daily Question", type: "select", meta: {} }, onSave);
+    fireEvent.click(screen.getByLabelText("Random pick"));
+    fireEvent.click(screen.getByText("Save"));
+    expect(saved(onSave).meta.randomizable).toBe(true);
+  });
+
+  it("CONTROL — a text field is never offered a random pick", () => {
+    const onSave = vi.fn();
+    renderDetail({ id: "f1", name: "Notes", type: "text", meta: {} }, onSave);
+    expect(screen.queryByLabelText("Random pick")).toBeNull();
+  });
+
   it("turning multi-select OFF writes false rather than dropping the key", () => {
     // The renderer reads `meta.multiSelect === true`, so a dropped key and a
     // false both read as single-pick — but a DROPPED key is indistinguishable
