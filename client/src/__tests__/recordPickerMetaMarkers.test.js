@@ -113,4 +113,8 @@ describe("every declared childShape is reachable", () => {
   it.each(shapes)("%s descends to at least one row", (shape) => {
     expect(itemsForLevel([], ctx, [], shape).items.length).toBeGreaterThan(0);
   });
+
+  it("offers fieldVisibility — Workouts: Today's Session writes it to show the day's movements", () => {
+    expect(top()).toContain("fieldVisibility");
+  });
 });

@@ -199,6 +199,10 @@ const SHAPES = {
       // applyUpdate routes `$occ.textmap` to UPDATE_ITEM_TEXTMAP.
       { value: "textmap", title: "textmap", sub: "doc", description: "The doc body this occurrence renders (TipTap JSON) — a doc container draws only this", hasChildren: false },
       { value: "ownStyle", title: "ownStyle", sub: "object", description: "This placement's own style — bg / textColor, nearest-wins over the module's", hasChildren: true, childShape: "ownStyle" },
+      // Which fields this placement shows: { mode: "show"|"hide", fieldIds: [...] }. applyUpdate
+      // routes `$occ.fieldVisibility` to its own write; Workouts: Today's Session shows only the day's
+      // movements through it, and it could not be picked (2026-10-06).
+      { value: "fieldVisibility", title: "fieldVisibility", sub: "object", description: "Which fields this placement shows — { mode: show | hide, fieldIds: [...] }", hasChildren: false },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
