@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-06 (2) — MUSIC AND BOOKS BY CLICKING; the operations are done
+
+**Ops census (`server/_opsdiff.mjs`):** rebuild 88, poms 90. The 6 poms names with no rebuild counterpart are the
+4 ops poms keeps DISABLED (Daily Question Rotator, Stamp Filter Date, Hourly chime, Schedule: Place Cycle Day)
+and the two Build Day helpers folded in on purpose ((7)). So the operations pass is complete. What is left is
+pages and fields: Music, Books/Authors, Health › Fitness Plan, Interests, Schedule Table, two projects, and 73
+fields (mostly per-board link and import fields).
+**Built by clicking in Boards › Media** (flat; poms nests Music/ and Books/ as subfolders): board pages
+**Artists · Albums · Songs · Authors · Books**, a container each, 17 rows tagged artist / album / song /
+bookAuthor / book (Board Category options added through the Fields tab). Fields **Artist · Album · Songs**
+(several picks) **· Author** (occurrence, Find `_ancestors HAS_ANCESTOR` the page; 3 matches each). Links from
+poms' own data: Parallel Universe → Red Hot Chili Peppers + *Californication (Deluxe Edition)*; that album →
+the artist + the song; the three books → Maslow / Moore / Watts. Read back from Mongo; integrity 0 errors.
+Poms' rows here are `artifact` kind song/album/…; the rebuild's are instances (the UI's "+ Item").
+**Probe notes:** `_ph3`/`_ph4` now open at 1600×3000 like `_ph2b` (at the default size the Media row read as
+unreachable). `_ph4`'s row step still reports "no Create"; `_rowbatch.sh` (`PAGE|CATEGORY|ROW` on stdin) adds
+each row through `_additem` and tags it through `_setvals`. `_occpick` needs the page already open, so run
+`_bindfield PAGEN=` first. No code changed.
+
+---
+
 ### 2026-10-06 — `Workouts: Today's Session` BY CLICKING; two writes to one row erased each other on the server
 
 The last live poms op (account2's (15) named it). poms' shape: one field per movement on a session tile, 1/0 for each
