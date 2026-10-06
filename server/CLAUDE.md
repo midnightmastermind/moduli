@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-05 (4) — `0392`: Micronutrients re-runs on what it reads)
+- poms' `Nutrition: Today's Micronutrients` was triggered on Fats/Carbs/Protein/Calories/Meal and reads none of them;
+  a meal's Completed / Ingredient / Date change left the tile stale until a reload. `0392` adds onChange on those
+  three at the op's priority (pure `withFieldTriggers`, `micronutrientsTriggers.test.js`). Applied to poms.
+
 ## Recent Changes (2026-10-05 (3) — the in-app Wikipedia import reaches the warm cache)
 - `server.js` `POST /api/research/wikipedia/import` (what "Import from Wikipedia" calls) wrote Mongo and broadcast but
   never `persistImportResult`, so a reload could not see the import until a restart. It persists into

@@ -35,6 +35,41 @@ id; worth a shape decision before cloning it.
 
 ---
 
+### 2026-10-05 (14) — TODAY'S MICRONUTRIENTS BY CLICKING; an "in Schedule" trigger never saw a row in the shared Todo
+
+User: *"keep going please"*. The Daily Question was finished by another session meanwhile ((13)); the poms ops still
+missing from the rebuild were then two live ones — this and `Workouts: Today's Session` (165 steps) — plus four
+disabled ones and the Build Day helpers the rebuild folds in on purpose ((7)).
+- **Groundwork by clicking:** Vitamin C / Iron / Calcium bound and set on Greek Yogurt (1 / 0.1 / 110) and Brown Rice
+  (0 / 0.8 / 20); Ingredient bound on Eat; Meal Count on the Meal Log tile; a Trackers › Nutrition › **Vitamins &
+  Minerals** tile with the 15 Total fields. The op in poms' shape (56 steps, `micro` phase): per completed Schedule
+  meal with Ingredients in the tile's period, each ingredient's 15 micronutrients -> the Totals, the count -> Meal Count.
+  Triggers: onChange Completed / Ingredient / Date (what it reads), onAdd / onDelete instance, onFilterChange
+  filterNav (Trackers) + grid, onLoad, p3.
+```
+an "in X" trigger missed      operationsBridge.getAncestorChain — the scope EVERY create/delete/move/field trigger
+  a row in the shared Todo    is matched against — built its own reverse map where the LAST lister of a child won.
+                              Today's Todo is listed by the Schedule column AND the day page column, so a row added
+                              there walked up through the Day Page and never reached the Schedule: `Stamp Date & Time
+                              Slot` never ran (the row got no Date, and the trackers' period gate dropped it). It
+                              uses buildParentMap + allAncestorsOf now — the any-parent union the executor's
+                              `_ancestors` already uses ((8)'s open item, which said "home path"; it was last-lister).
+                              triggerScopeAnyParent.test.js; A/B: the old code fails the 2 shared-Todo cases.
+```
+**Watched after the deploy:** a Lunch row added to Oct 5's Todo got Date Oct 5; Greek Yogurt + Brown Rice picked ->
+tick: Vitamin C 1, Iron 0.9, Calcium 130, Meal Count 1 -> untick: 0 -> re-tick: back. Lunch stays as sample data;
+four probe rows deleted through the app.
+- **`0392` (poms):** its Micronutrients op was triggered on Fats/Carbs/Protein/Calories/Meal — none of which it reads —
+  so ticking a meal left the tile stale until a reload. Adds onChange Completed / Ingredient / Date; read back.
+- **Probe notes:** `_additem` finds a container by its header TEXT, and Date-Prefix Labels now renames Trackers
+  containers "Today's …" — so `CONT=Nutrition` found nothing and it made a duplicate container (the tile was dragged
+  into the original with `_dragtoid.mjs`, the duplicate removed through its radial, `_rmctr.mjs`). `_tick.mjs` clicks
+  TWICE unless `CLICKS=1`. A long build killed before Save leaves a resume file naming steps that never persisted
+  (delete it) and an empty op of the same name (deleted, `_delop.mjs`). Noticed, not chased: each ingredient's source
+  row and its feed copy are both listed in the same Ingredients container. Client 5,739. Rebuild ops **87**.
+
+---
+
 ### 2026-10-05 (13) — THE DAILY QUESTION ON THE REBUILD; a merged day column dropped the section it had just cloned
 
 Picked up account2's (12) where its limit cut it off. By clicking: the seven Reflection Questions tagged
