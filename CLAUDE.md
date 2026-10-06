@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-06 (3) — SEVEN MORE FIELDS BY CLICKING, each placed where poms puts it
+
+Chosen from a census of the 73 missing fields by what poms BINDS them on: the ones it binds on nothing
+(Priority, Energy, Director, Runtime, the per-100g macros …) are importer or abandoned fields and are not
+rebuilt. Category is bound on poms and valued nowhere, so it is not rebuilt either; Parent Emotion only
+matters for emotions the rebuild does not carry.
+```
+Route   occurrence, under Routes   Routines › Physical › Walk (new) = Park Circuit
+Prompt  occurrence, under Prompts  Routines › Mind › Journal = What went well today?
+Skill   occurrence, under Skills   Routines › Mind › Practice (new) = Guitar
+Topic   occurrence, under Topics   Mind's Study = Algorithms
+Muscle Group   select (poms' 7)    the 4 movements: shoulders · shoulders · legs · core
+Emotion Level  select (core/secondary/tertiary)   the 6 emotions, poms' values
+Media Tags     select, several picks (poms' 25)   Inception / Arrival / Dune, poms' tags
+```
+All read back from Mongo; integrity 0 errors. Rebuild: 83 pages, 255 fields, 88 ops.
+**Probe notes:** `_fieldbatch.sh` (`O|S|M` · page · occ · field · value[s] on stdin) binds through Settings and
+sets through the chip. A row in a past day's Schedule column is not on screen at today's date, so
+`_bindfield` reports "row not rendered". Bank the routine in Routines instead of moving the shared date.
+
+---
+
 ### 2026-10-06 (2) — MUSIC AND BOOKS BY CLICKING; the operations are done
 
 **Ops census (`server/_opsdiff.mjs`):** rebuild 88, poms 90. The 6 poms names with no rebuild counterpart are the
