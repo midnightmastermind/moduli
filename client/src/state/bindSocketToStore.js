@@ -6,6 +6,7 @@
 // =========================================
 
 import { dropStaleFieldWrites } from "../helpers/staleSweep";
+import { buildParentMap, allAncestorsOf } from "../helpers/dragHitTesting";
 import { ActionTypes } from "./actions";
 import { dropEmbedsOf } from "../helpers/embedRegistry";
 import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
@@ -2681,25 +2682,25 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // overlay's write counter answers it in one integer compare, and having ONE
     // answer to the question is the point: two of them is how the 2026-08-25 (9)
     // fix ended up applied to one of the three places that needed it.
+    // buildParentMap, not a hand-rolled reverse map: that one let the LAST lister
+    // of a child win, so a row in the Schedule's Todo — which the day page lists
+    // too — walked Todo -> day-page column -> Day Page and never reached the
+    // Schedule, and every "in Schedule" onAdd/onMove/onDelete missed it
+    // (2026-10-05: `Stamp Date & Time Slot` never ran for an add to today's Todo).
+    // The trigger scope is "under X through ANY parent", the same union the
+    // executor's `_ancestors` uses (dragHitTesting.allAncestorsOf).
     if (_acParentVersion !== _occOverlay.version) {
-      _acParentMap = {};
-      for (const o of Object.values(localOccsById)) {
-        for (const childId of o?.occurrences || []) _acParentMap[childId] = o.id;
-      }
+      _acParentMap = buildParentMap(localOccsById);
       _acParentVersion = _occOverlay.version;
     }
-    const parentByChildId = _acParentMap;
-
-    let cur = localOccsById[occId];
-    const seen = new Set();
-    let depth = 0;
-    while (cur && !seen.has(cur.id) && depth++ < 20) {
-      seen.add(cur.id);
-      ids.push(cur.id);
-      const label = modById[cur.moduleId]?.label;
+    const self = localOccsById[occId];
+    if (!self) return { ids, labels };
+    for (const id of [occId, ...allAncestorsOf(occId, localOccsById, _acParentMap)]) {
+      const o = localOccsById[id];
+      if (!o) continue;
+      ids.push(id);
+      const label = modById[o.moduleId]?.label;
       if (label) labels.push(label);
-      const nextId = parentByChildId[cur.id] ?? cur.parentId;
-      cur = nextId ? localOccsById[nextId] : null;
     }
     return { ids, labels };
   };
