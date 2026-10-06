@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-06 (4) — EIGHTEEN BOARD-LINK FIELDS AND SIXTEEN ROUTINES BY CLICKING
+
+Every board the rebuild already had (Practices, Leisure, Charities, Events, Areas, Equipment, Plants, Mediums,
+Verses, Wins, Ideas, Gratitude Log, Supplements, Medications, Gift Ideas, Savings Goals, Creative Works, Songs)
+got its poms link field: occurrence, Find `_ancestors HAS_ANCESTOR` the page (each preview matched that board's
+rows; Supplement and Medication take several picks). Each is bound on the routine poms binds it on, built in
+Routines under a new or existing area container (Spiritual, Creative, Environmental, Financial are new): Meditate,
+Pray, Gratitude, Relax, Celebrate (Event + Win), Volunteer, Visit, Clean, Repair, Garden, Draw (Medium + Creative
+Work), Brainstorm, Sing, Recover, Take Medication, Save. Each also carries Completed and Date and has a sample
+value picked from its board. Every pick read back on screen. Integrity 0 errors; rebuild 83 pages, 233
+containers, 273 fields, 88 ops. **Not rebuilt:** Subscription (the rebuild has Bills, no Subscriptions board).
+**Probe:** `_routinebatch.sh` (`CONT|ROUTINE|Field=Value;Field=Value` on stdin).
+
+---
+
 ### 2026-10-06 (3) — SEVEN MORE FIELDS BY CLICKING, each placed where poms puts it
 
 Chosen from a census of the 73 missing fields by what poms BINDS them on: the ones it binds on nothing
