@@ -1316,7 +1316,10 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         style={{
           position: "sticky",
           top: 0,
-          zIndex: 3,
+          // ABOVE the row cards: `.instance-wrap` is z-index 3 everywhere, and a
+          // tie let every later row paint over this row — the column menu inside
+          // it drew behind a feed's rows and could not be clicked (2026-10-07).
+          zIndex: 4,
           height: HEADER_H,
           width: totalColsWidth,
           display: "flex",

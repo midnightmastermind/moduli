@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-07 — ContainerTable: the column menu drew behind the rows)
+- The sticky header row was `z-index: 3`, the same as every row card's `.instance-wrap` (global
+  `index.css`), so later rows painted over it. On a table whose rows are occurrences (a feed), the
+  column kebab opened behind them and a click on "Delete column" / "Field visibility…" hit a row.
+  Header row is `zIndex: 4` now. Guard `__tests__/tableHeaderAboveRows.test.js` reads both values.
+- Also learned: a table page's minimum is ONE typed row (`handleRemoveRowAt` refuses `rowCount <= 1`),
+  so a feed-only table (poms' Schedule Table: rowCount 0) cannot be reproduced exactly from the UI.
+
 ## Recent Changes (2026-09-30 — the jump ring blinks, from one helper)
 - **`ManifestTree` (anchor chips) and `ArtifactContent` (`view.scrollAnchor`)** each hand-rolled the
   jump ring: remove the class, force a reflow, add it back, strip it after a hardcoded **1200ms**. That
