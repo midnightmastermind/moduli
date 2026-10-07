@@ -3785,3 +3785,8 @@ User: *"lets switch back to the ui testing (focusing on docs, wraps, occurances 
 User, after hearing Trackers: Date-Prefix Labels reads tile meta flags no editor can set: *"there should be no hidden setting"*.
 
 Standing rule: anything an operation depends on must be user-visible and settable in the UI — a field (preferred, per the no-hardcoding rule) or an editor control, never a seed-only meta key. Done: 0391 turned `meta.cumulative` / `meta.period` / `meta.noDatePrefix` into the fields Tracker Period and No Date Prefix.
+
+### 2026-10-07 13:31 — scope of "exact"
+User, on whether "exact" covers board content: *"dont add all the movies and such and people but add all the tasks and give examples of the others. so yes all the fields"*.
+
+So: every poms TASK is rebuilt (Tasks page contents); media/people/other boards get representative examples, not every row; and every FIELD poms has is rebuilt (incl. the full person template, Poster/Files/Tags on Projects rows), bound where poms binds it.

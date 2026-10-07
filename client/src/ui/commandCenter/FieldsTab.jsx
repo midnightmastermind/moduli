@@ -509,6 +509,19 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                 Multi-line
               </label>
             )}
+            {/* The hint shown in an empty box (`meta.placeholder`, read by a
+                markdown field's textarea and a bound body's editor). Five poms
+                fields carry one and only a seed could write it (2026-10-07,
+                the no-hidden-settings rule). Empty REMOVES the key. */}
+            {(local.type === "text" || local.type === "markdown") && (
+              <input
+                aria-label="Placeholder"
+                value={local.meta?.placeholder || ""}
+                onChange={(e) => setMeta("placeholder", e.target.value || undefined)}
+                placeholder="Placeholder (shown when empty)"
+                style={{ ...inputStyle, width: 190 }}
+              />
+            )}
             {/* A 🎲 re-roll beside the value (FieldRenderer's `meta.randomizable`).
                 The Daily Question carries it on poms and only a seed could set it
                 (2026-10-05, "there should be no hidden setting"). It picks among

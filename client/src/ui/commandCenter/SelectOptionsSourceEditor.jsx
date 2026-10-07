@@ -6,6 +6,9 @@ import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categor
 import ConditionGroup from "../../blocks/ConditionGroup";
 import { useGridActions } from "../../GridActionsContext";
 import { resolveOptions } from "../../helpers/optionsResolver";
+import DestinationPicker from "../DestinationPicker";
+import { buildContainerCrumbOptions } from "../../helpers/containerCrumbs";
+import { normalizeAddNewTargets, targetOptionsForAddNew } from "../../helpers/addNewOption";
 
 const MODES = [
   { key: "manual", label: "Manual" },
@@ -72,12 +75,131 @@ export default function SelectOptionsSourceEditor({ source, onChange, fieldType 
           options-source mode (works in both find & manual modes) so the
           editor lives at the bottom of the panel. */}
       {fieldType === "occurrence" && <ChipDisplayBody source={source} onChange={onChange} />}
+      {/* Where "+ Add new" puts a new option, and what it asks for. Read by
+          Field.jsx (`addNew`) on 45 poms fields and settable from nowhere until
+          2026-10-07 — the no-hidden-settings rule. */}
+      {fieldType === "occurrence" && <AddNewBody source={source} onChange={onChange} />}
       {/* Looping in an outside search is a property of WHERE THE OPTIONS COME
           FROM, so it lives beside the query rather than in a settings panel of
           its own. Occurrence-only for the same reason the select call site in
           Field.jsx is unwired: an import MINTS A ROW, and a select field stores
           strings. */}
       {fieldType === "occurrence" && <SearchProviderBody source={source} onChange={onChange} />}
+    </div>
+  );
+}
+
+// ─── AddNewBody — where "+ Add new" creates an option, and what it asks ─────
+// Persists to `source.addNew`:
+//   targets   — candidate parent occurrences, first = default (a legacy
+//               `parentOccurrenceId` is READ as a one-entry list; any edit here
+//               writes `targets` and drops it, so there is one shape after)
+//   fieldIds  — fields to bind on the new option and ask for at add time
+//   hidden    — new options are identities, not tiles (account pickers)
+// Keys this editor does not author (`stampFields`) are kept as they are.
+// With no destination the key is removed entirely: an `addNew` with nowhere to
+// put a row would show an add button that cannot add.
+export function planAddNew(addNew, patch) {
+  const base = { ...(addNew || {}) };
+  const targets = patch.targets !== undefined ? patch.targets : normalizeAddNewTargets(base);
+  delete base.parentOccurrenceId;
+  const next = { ...base, ...patch, targets: (targets || []).filter(Boolean) };
+  if (!next.targets.length) return undefined;
+  if (!next.fieldIds?.length) delete next.fieldIds;
+  if (!next.hidden) delete next.hidden;
+  return next;
+}
+
+function AddNewBody({ source, onChange }) {
+  const { fieldsById, occurrencesById, modulesById, foldersById } = useGridActions();
+  const addNew = source?.addNew || null;
+  const targets = normalizeAddNewTargets(addNew);
+  const fieldIds = addNew?.fieldIds || [];
+  const [open, setOpen] = useState(false);
+  const containerOptions = useMemo(
+    () => (open || targets.length ? buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById }) : []),
+    [open, targets.length, occurrencesById, modulesById, foldersById],
+  );
+  // A STORED destination the picker would not list (a page, an unlisted row)
+  // still names itself, by its live label — the select-an-occurrence chooser in
+  // Field.jsx does the same — rather than reading "Choose a destination…".
+  const options = useMemo(() => {
+    const have = new Set(containerOptions.map((o) => o.id));
+    const extra = targetOptionsForAddNew({ targets }, { occurrencesById, modulesById }).filter((o) => !have.has(o.id));
+    return [...extra, ...containerOptions];
+  }, [containerOptions, targets.join("|"), occurrencesById, modulesById]);
+  const fields = useMemo(
+    () => Object.values(fieldsById || {}).filter(f => !f.trashed).sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [fieldsById],
+  );
+  const write = (patch) => onChange({ ...source, addNew: planAddNew(addNew, patch) });
+  const sectionLabel = { fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", marginBottom: 3 };
+  const xBtn = { background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", fontSize: 11 };
+  const rows = open || targets.length ? [...targets, null] : [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4, paddingTop: 8, borderTop: "1px dashed var(--border-subtle)" }}>
+      <div style={sectionLabel}>"+ Add new" puts new options in</div>
+      {!rows.length && (
+        <button type="button" onClick={() => setOpen(true)} style={pillStyle(false)} aria-label="Add a destination">
+          + destination
+        </button>
+      )}
+      {rows.map((id, i) => (
+        <div key={id || `new-${i}`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <DestinationPicker
+              options={options}
+              value={id}
+              onChange={(next) => {
+                const t = [...targets];
+                if (id == null) { if (next) t.push(next); } else if (next) t[i] = next; else t.splice(i, 1);
+                write({ targets: t });
+              }}
+              placeholder={id == null ? (targets.length ? "+ another destination…" : "Choose a destination…") : undefined}
+              searchPlaceholder="Search containers…"
+              ariaLabel={id == null ? "Add a destination" : `Destination ${i + 1}`}
+              style={{ fontSize: 10 }}
+            />
+          </div>
+          {id != null && (
+            <button type="button" style={xBtn} title="Remove destination" onClick={() => write({ targets: targets.filter((_, k) => k !== i) })}>✕</button>
+          )}
+        </div>
+      ))}
+      {targets.length > 0 && (
+        <>
+          {targets.length > 1 && (
+            <div style={{ fontSize: 9.5, color: "var(--text-faint)" }}>The first is the default; with several, adding asks which one.</div>
+          )}
+          <div style={sectionLabel}>Ask for these fields when adding</div>
+          {[...fieldIds, null].map((fid, i) => (
+            <div key={fid || "new"} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <FieldSelect
+                  fields={fields}
+                  value={fid}
+                  onChange={(next) => {
+                    const ids = [...fieldIds];
+                    if (fid == null) { if (next && !ids.includes(next)) ids.push(next); } else if (next) ids[i] = next; else ids.splice(i, 1);
+                    write({ fieldIds: ids });
+                  }}
+                  placeholder={fid == null ? "+ ask for a field…" : undefined}
+                  ariaLabel={fid == null ? "Ask for a field" : `Asked field ${i + 1}`}
+                  style={{ fontSize: 10, fontFamily: "monospace", borderRadius: 4, padding: "1px 4px" }}
+                />
+              </div>
+              {fid != null && (
+                <button type="button" style={xBtn} title="Stop asking for this field" onClick={() => write({ fieldIds: fieldIds.filter(x => x !== fid) })}>✕</button>
+              )}
+            </div>
+          ))}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", cursor: "pointer" }}>
+            <input type="checkbox" checked={addNew?.hidden === true} onChange={(e) => write({ hidden: e.target.checked })} />
+            New options are hidden rows
+          </label>
+        </>
+      )}
     </div>
   );
 }
