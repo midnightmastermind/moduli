@@ -41,7 +41,10 @@ function bindingsOf(occ, modulesById) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((b) => b && b.fieldId)
-    .map((b) => ({ fieldId: b.fieldId, role: b.role || "input" }));
+    // A HIDDEN binding stays hidden on the new row (2026-10-07): a templated
+    // board — People binds 27 fields and hides 15 — is a SHAPE, and a new
+    // person showing fifteen chips its siblings keep out of sight is not it.
+    .map((b) => ({ fieldId: b.fieldId, role: b.role || "input", ...(b.hidden === true ? { hidden: true } : null) }));
 }
 
 /**
@@ -111,10 +114,10 @@ export function splitDisplayInput(fields) {
  * @param {boolean} [src.hidden]  include `hidden: false` (App's shape)
  */
 export function normalizeFieldBindings({ fieldBindings, fieldIds, hidden = false } = {}) {
-  const stamp = (fieldId, role) =>
-    hidden ? { fieldId, role, hidden: false } : { fieldId, role };
+  const stamp = (fieldId, role, isHidden = false) =>
+    isHidden ? { fieldId, role, hidden: true } : hidden ? { fieldId, role, hidden: false } : { fieldId, role };
   if (Array.isArray(fieldBindings) && fieldBindings.length) {
-    return fieldBindings.filter((b) => b && b.fieldId).map((b) => stamp(b.fieldId, b.role || "input"));
+    return fieldBindings.filter((b) => b && b.fieldId).map((b) => stamp(b.fieldId, b.role || "input", b.hidden === true));
   }
   if (Array.isArray(fieldIds) && fieldIds.length) return fieldIds.map((fid) => stamp(fid, "input"));
   return [];

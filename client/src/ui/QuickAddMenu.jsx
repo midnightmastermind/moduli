@@ -153,6 +153,8 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // field does not arrive as a typable input on the new row. Hand-picked fields
   // are absent here and default to "input".
   const inheritedRolesRef = useRef({});
+  // Which inherited fields the siblings keep hidden — carried onto the new row.
+  const inheritedHiddenRef = useRef(new Set());
   // Values typed in the picker: fieldId -> raw input value. There is no second
   // screen — a ticked, typeable field renders its own control on its own row
   // (user, 2026-08-22: "just seed the fields themselves so they are at the top
@@ -294,7 +296,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     const roles = inheritedRolesRef.current || {};
     onCreateNew?.({
       fieldIds,
-      fieldBindings: fieldIds.map(fid => ({ fieldId: fid, role: roles[fid] || "input" })),
+      fieldBindings: fieldIds.map(fid => ({ fieldId: fid, role: roles[fid] || "input", ...(inheritedHiddenRef.current?.has?.(fid) ? { hidden: true } : null) })),
       initialFields: toInitialFields(pickingValues),
     });
     closeMenu();
@@ -342,6 +344,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
           ? siblingFieldBindings(occMap[hostOccurrence.id] || hostOccurrence, occMap, modulesById)
           : [];
         inheritedRolesRef.current = Object.fromEntries(inherited.map(b => [b.fieldId, b.role]));
+        inheritedHiddenRef.current = new Set(inherited.filter(b => b.hidden).map(b => b.fieldId));
         setPickingFields(inherited.map(b => b.fieldId));
         return;
       }
