@@ -611,7 +611,10 @@ const Editor = forwardRef(function Editor({
     // content is what buys the row (commit emits the create carrying it).
     if (isProvisionalTextblock(occurrence.id)) {
       if (isEmptyTextblockDoc(json)) return;
-      commitProvisionalTextblock(occurrence.id, json);
+      // The commit's create STORES `json`, so that is now the server text this
+      // editor is built on. Left on the empty doc, the next save was refused as
+      // stale and the editor adopted the first character (2026-10-07).
+      if (commitProvisionalTextblock(occurrence.id, json)) textBasisRef.current = textmapDigest(json);
     }
     // This editor is the doc that HOSTS one. Holding its textmap back is the
     // other half of never emitting the block: a tab closed between the click

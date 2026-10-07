@@ -62,3 +62,28 @@ describe("wiring", () => {
     expect(b).toMatch(/if \(reason === "textmap"\) requestEditorAdopt\(occurrence\.id\)/);
   });
 });
+
+// A click-minted textblock is built on an EMPTY doc. Its first keystroke runs
+// commitProvisionalTextblock, whose create stores the text typed so far — so the
+// stored text is no longer the empty doc the editor was built on. Before
+// 2026-10-07 the basis stayed on the empty doc, the next save ("Ris" after "R")
+// was refused as stale, and the editor adopted "R": every new block kept only
+// its first character (prod log: one "REFUSED stale text" per new block).
+describe("a provisional block's commit moves its basis", () => {
+  const { textSaveIsStale } = require("../../../server/socketHandlers/occurrences.js");
+  const { textmapDigest } = require("../../../server/utils/textmapDigest.js");
+  const doc = (t) => ({ type: "doc", content: [{ type: "paragraph", content: t ? [{ type: "text", text: t }] : undefined }] });
+  const stored = textmapDigest(doc("R"));              // what the create wrote
+  test("control: a save still built on the empty doc is refused", () => {
+    expect(textSaveIsStale({ basis: textmapDigest(doc("")), incoming: textmapDigest(doc("Ris")), stored })).toBe(true);
+  });
+  test("a save built on the committed text is accepted", () => {
+    expect(textSaveIsStale({ basis: textmapDigest(doc("R")), incoming: textmapDigest(doc("Ris")), stored })).toBe(false);
+  });
+  test("wiring: the commit branch sets the basis to the committed text", () => {
+    const ed = fs.readFileSync(path.join(__dirname, "../ui/Editor.jsx"), "utf8");
+    const i = ed.indexOf("commitProvisionalTextblock(occurrence.id, json)");
+    expect(i).toBeGreaterThan(0);
+    expect(ed.slice(i, i + 400)).toMatch(/textBasisRef\.current = textmapDigest\(json\)/);
+  });
+});
