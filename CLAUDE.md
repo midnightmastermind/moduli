@@ -50,8 +50,18 @@ the table column menu      the sticky header row and every .instance-wrap were b
 ```
 **Deviation, reported:** a table keeps at least ONE typed row (`rowCount <= 1` is refused), so the rebuild's
 Schedule Table carries one empty typed row where poms has none. **Not touched:** poms' 134 module-less rows —
-probably this same defect's debris; the user's call. **Left:** Health › Fitness Plan (doc page, 6 sections of
-bullet chips). **Probe notes:** a page's header dropdown is TABBED (Filter · Sort · Data · Fields · Layout) —
+probably this same defect's debris; the user's call.
+**Health › Fitness Plan, by clicking:** a Health folder under Boards › Body, a doc page in it, a root doc section
+holding the intro (bold typed with Ctrl+B) and the six sections — added through the doc's right-click **Add
+occurrence here… › Doc container** (an embedded section's header has no "+") — and 30 bullet chips via
+right-click **Make inline textblock**, read back line for line against poms. **Deviation:** that command builds
+the chip from the selection's PLAIN text, so poms' bold lead-ins are not stored inside the rebuild's chips (the
+chip renders plain text either way). **Found, not fixed:** selecting text that holds a chip and TYPING over it
+removes the chip from the doc and leaves its row (parented, embedded nowhere) — two such were removed through
+the app. With that, every page on the 10-06 list is rebuilt; integrity 0 errors.
+**Probe note:** End/Shift+Home selects one VISUAL line, so a wrapped bullet chipped only its tail — select the
+list line with a DOM range instead (`_chips.mjs` does now); a section below the fold must be scrolled into view
+before its textblock's editor exists. **Probe notes:** a page's header dropdown is TABBED (Filter · Sort · Data · Fields · Layout) —
 the Feed lives on Data and its heading renders "FEED". Searching "Projects" opens the Projects FOLDER page;
 search a row on the board instead. A table column's kebab needs a REAL pointer hover first. `_typesec` /
 `_settb` / `_feedset` / `_tablecols2` / `_cardbatch.sh` are the new probes.
