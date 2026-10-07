@@ -88,3 +88,56 @@ describe("the placeholder box in the field editor", () => {
     expect(screen.queryByLabelText("Placeholder")).toBeNull();
   });
 });
+
+// The rest of the read-but-unsettable keys found by the same scan of poms'
+// field meta (2026-10-07). Each writes the key the renderer reads, and an
+// empty box / "none" removes it.
+describe("behaviour keys the renderer reads are settable", () => {
+  const saved = (fn) => fn.mock.calls.at(-1)[0];
+  const detail = (field) => { const onSave = vi.fn(); wrap(<FieldDetail field={field} onSave={onSave} onDelete={vi.fn()} />); return onSave; };
+  const save = (onSave) => { fireEvent.click(screen.getByText("Save")); return saved(onSave).meta; };
+
+  it("link template on a text field", () => {
+    const s = detail({ id: "x", name: "Instagram", type: "text", meta: {} });
+    fireEvent.change(screen.getByLabelText("Link template"), { target: { value: "https://www.instagram.com/{value}" } });
+    expect(save(s).linkTemplate).toBe("https://www.instagram.com/{value}");
+  });
+  it("live value + granularity on a text field", () => {
+    const s = detail({ id: "x", name: "Now", type: "text", meta: {} });
+    fireEvent.change(screen.getByLabelText("Live value"), { target: { value: "currentTime" } });
+    fireEvent.change(screen.getByLabelText("Live granularity"), { target: { value: "minutes" } });
+    const m = save(s); expect(m.liveSource).toBe("currentTime"); expect(m.liveGranularity).toBe("minutes");
+  });
+  it("a boolean's style", () => {
+    const s = detail({ id: "x", name: "Habit", type: "boolean", meta: {} });
+    fireEvent.change(screen.getByLabelText("Boolean style"), { target: { value: "checkbox" } });
+    expect(save(s).variant).toBe("checkbox");
+  });
+  it("typing new options into a select", () => {
+    const s = detail({ id: "x", name: "Tags", type: "select", meta: {} });
+    fireEvent.click(screen.getByLabelText("Type new options"));
+    expect(save(s).allowNewOptions).toBe(true);
+  });
+  it("a rating's star count, as a NUMBER", () => {
+    const s = detail({ id: "x", name: "Energy", type: "rating", meta: {} });
+    fireEvent.change(screen.getByLabelText("Max stars"), { target: { value: "5" } });
+    expect(save(s).max).toBe(5);
+  });
+  it("the empty label, and clearing it removes the key", () => {
+    const s = detail({ id: "x", name: "Tracker Date", type: "date", meta: { emptyLabel: "Total" } });
+    expect(screen.getByLabelText("Empty label").value).toBe("Total");
+    fireEvent.change(screen.getByLabelText("Empty label"), { target: { value: "" } });
+    expect(save(s).emptyLabel).toBeUndefined();
+  });
+  it("a field note", () => {
+    const s = detail({ id: "x", name: "Cycle Day", type: "text", meta: {} });
+    fireEvent.change(screen.getByLabelText("Field note"), { target: { value: "Which day of the cycle" } });
+    expect(save(s).note).toBe("Which day of the cycle");
+  });
+  it("CONTROL — a number field offers no link template, live value or style", () => {
+    detail({ id: "x", name: "Steps", type: "number", meta: {} });
+    expect(screen.queryByLabelText("Link template")).toBeNull();
+    expect(screen.queryByLabelText("Live value")).toBeNull();
+    expect(screen.queryByLabelText("Boolean style")).toBeNull();
+  });
+});

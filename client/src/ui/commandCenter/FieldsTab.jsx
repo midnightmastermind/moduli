@@ -13,6 +13,7 @@ import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
 import PrefillEditor from "./PrefillEditor";
+import FieldSelect from "../FieldSelect.jsx";
 
 // Shared style helpers
 const labelStyle = {
@@ -701,6 +702,98 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
           />
         </div>
       )}
+
+      {/* BEHAVIOUR KEYS THE RENDERER READS (2026-10-07, "there should be no
+          hidden setting"). Each was written only by a seed on poms grid:
+            linkTemplate     Twitter / X, Website, Instagram, LinkedIn, Facebook
+            variant          Completed, Habit, No Date Prefix (switch | checkbox)
+            allowNewOptions  Tags, Media Tags (type a new option into the pill)
+            emptyLabel       Tracker Date ("Total" when empty)
+            liveSource/-Gran Now, Time Left (a ticking clock / countdown)
+            max (rating)     Priority, Rating, Energy
+            deriveDisplayFrom Tasks Left (its start IS another field's target)
+            note             Cycle Day, Total Needed, Saved (what the field is for)
+          An empty box / "none" REMOVES the key, so the stored config says only
+          what was chosen. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+        {local.type === "text" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Link template</span>
+            <input aria-label="Link template" value={local.meta?.linkTemplate || ""} placeholder="https://x.com/{value}"
+              onChange={(e) => setMeta("linkTemplate", e.target.value || undefined)} style={{ ...inputStyle, width: 220 }} />
+          </label>
+        )}
+        {local.type === "text" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Live value</span>
+            <span style={{ display: "flex", gap: 4 }}>
+              <select aria-label="Live value" value={local.meta?.liveSource || ""} style={{ ...inputStyle, width: "auto" }}
+                onChange={(e) => setMeta("liveSource", e.target.value || undefined)}>
+                <option value="">none</option>
+                <option value="currentTime">current time</option>
+                <option value="endOfDayCountdown">time left today</option>
+              </select>
+              {local.meta?.liveSource && (
+                <select aria-label="Live granularity" value={local.meta?.liveGranularity || "seconds"} style={{ ...inputStyle, width: "auto" }}
+                  onChange={(e) => setMeta("liveGranularity", e.target.value)}>
+                  <option value="seconds">seconds</option>
+                  <option value="minutes">minutes</option>
+                </select>
+              )}
+            </span>
+          </label>
+        )}
+        {local.type === "boolean" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Style</span>
+            <select aria-label="Boolean style" value={local.meta?.variant || "switch"} style={{ ...inputStyle, width: "auto" }}
+              onChange={(e) => setMeta("variant", e.target.value)}>
+              <option value="switch">switch</option>
+              <option value="checkbox">checkbox</option>
+            </select>
+          </label>
+        )}
+        {local.type === "select" && (
+          <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+            title="Let a new option be typed straight into the field's pill.">
+            <input type="checkbox" aria-label="Type new options" checked={local.meta?.allowNewOptions === true}
+              onChange={(e) => setMeta("allowNewOptions", e.target.checked || undefined)} />
+            Type new options
+          </label>
+        )}
+        {local.type === "rating" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={labelStyle}>Stars</span>
+            <input type="number" aria-label="Max stars" value={local.meta?.max ?? ""} placeholder="5" min={1}
+              onChange={(e) => { const n = Number(e.target.value); setMeta("max", e.target.value === "" || Number.isNaN(n) ? undefined : n); }}
+              style={{ ...inputStyle, width: 60 }} />
+          </label>
+        )}
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={labelStyle}>Shown when empty</span>
+          <input aria-label="Empty label" value={local.meta?.emptyLabel || ""} placeholder="—"
+            onChange={(e) => setMeta("emptyLabel", e.target.value || undefined)} style={{ ...inputStyle, width: 110 }} />
+        </label>
+        {local.type === "number" && local.displayEnabled === true && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 180 }}>
+            <span style={labelStyle}>Start follows target of</span>
+            <FieldSelect
+              ariaLabel="Start follows"
+              fields={Object.values(fieldsById || {}).filter((f) => f.type === "number" && f.id !== local.id && !f.trashed)}
+              value={derivationOf(local)?.fieldId || null}
+              onChange={(id) => setMeta("deriveDisplayFrom", id ? { fieldId: id, from: "targetValue", to: "startValue" } : undefined)}
+              noneLabel="— its own start —"
+              placeholder="— its own start —"
+              style={{ fontSize: 11, fontFamily: "monospace" }}
+            />
+          </label>
+        )}
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 220px" }}>
+          <span style={labelStyle}>Note</span>
+          <input aria-label="Field note" value={local.meta?.note || ""} placeholder="What this field is for"
+            onChange={(e) => setMeta("note", e.target.value || undefined)} style={{ ...inputStyle, width: "100%" }} />
+        </label>
+      </div>
 
       {/* Category */}
       {categoryFolders.length > 0 && (
