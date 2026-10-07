@@ -15,6 +15,49 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-07 — PROJECTS AND SCHEDULE TABLE BY CLICKING; three defects the clicking found, all fixed
+
+User: *"please continue with the recreation of poms grid via ui clicking"*.
+**Built by clicking:** the project template gained poms' **Project Scope** doc section (Overview
+`{ProjectScope}` · Goals · Milestones · Risks · Success Criteria, bullet lists typed); the scope-less Via
+Fluere was deleted through the app and **`Project: Create` was run for Via Fluere and Paul's Clown Website**
+with poms' Overview text (substituted on clone, read back); two rows on Boards › Creative › Projects (tagged
+`project`); **12 kanban cards** in poms' columns, each binding Status/Project/Completed/Due/Days Until Due, Status
+stamped by the op, Project picked, Due on poms' four dates. **Schedule Table** is a root table page with poms'
+feed (instances under the Schedule page, sorted Time Slot ↑, limit 100) set in Data › Feed, and columns
+**Task · Date · Time** (Date/Time projected with the label hidden: Add column, then Field visibility repointed).
+```
+a minted textblock kept    the first keystroke commits the block (the create stores the text so far) but
+  its first letter only    the editor's basis stayed on the empty doc, so the next save was REFUSED as stale
+                           (10-02 (7)'s guard) and the editor adopted the first letter. Since 10-02 every new
+                           textblock typed at speed kept one character. Editor.persistContent moves the basis
+                           on commit. Watched: "Criteria" at 40ms/key whole in Mongo, 0 new refusals. adfae4a2
+every load minted a        a fresh load served today's day column as {id, occurrences, textmap, updatedAt}.
+  day-page shell           The build's create_batch cached the full row while its follow-up update_occurrence
+                           awaited a child-id check; the update then cached {...emptyPrev, ...payload} OVER
+                           it (Mongo stayed whole: $set). With no Date/signature in what clients got, Day Page:
+                           Build rebuilt the column on EVERY load; each refused rebuild left a module-less
+                           shell + 5 sections (54 + 270 this morning — the 10-06 "cause not established" Oct 4
+                           shells, and very likely poms' 134). update_occurrence now rebases onto a row cached
+                           under it; an update that would INSERT an id this socket's create_batch refused is
+                           dropped; create_batch refuses a refused parent's SAME-batch children. A/B'd (2+1
+                           fail). Server restart. Shells swept with a backup (backups/orphans/2026-10-07-
+                           refused-daypage-shells.json); the shared wheel + Todos untouched. After: today's
+                           column arrives with 19 keys, a load mints 0, 0 REFUSED lines since restart. 94c7c1f0
+the table column menu      the sticky header row and every .instance-wrap were both z-index 3, so a feed's
+  drew behind the rows     rows painted over the kebab and clicks hit a row. Header row is 4. Watched: delete
+                           column + field-visibility edits work.
+```
+**Deviation, reported:** a table keeps at least ONE typed row (`rowCount <= 1` is refused), so the rebuild's
+Schedule Table carries one empty typed row where poms has none. **Not touched:** poms' 134 module-less rows —
+probably this same defect's debris; the user's call. **Left:** Health › Fitness Plan (doc page, 6 sections of
+bullet chips). **Probe notes:** a page's header dropdown is TABBED (Filter · Sort · Data · Fields · Layout) —
+the Feed lives on Data and its heading renders "FEED". Searching "Projects" opens the Projects FOLDER page;
+search a row on the board instead. A table column's kebab needs a REAL pointer hover first. `_typesec` /
+`_settb` / `_feedset` / `_tablecols2` / `_cardbatch.sh` are the new probes.
+
+---
+
 ### 2026-10-06 (5) — RELATIONSHIP BY CLICKING; Address and Library deliberately not rebuilt
 
 **Relationship** (select, poms' 9 options) bound on the five People rows and set (close friend, family,
