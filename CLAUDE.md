@@ -15,6 +15,43 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-07 (2) — "IT SHOULD BE EXACT": projects, Schedule Table and Fitness Plan now match poms; four more fixes
+
+User: *"keep going fixing those things, it should be exact"*. Each piece below was verified by a text diff of
+the stored data against poms, not by eye.
+```
+Schedule Table   rowCount 0 (the last typed row is removable now), table sort Time ↑, widths 240/200/200 —
+                 every stored setting equal; only internal column ids differ
+Fitness Plan     74-line diff IDENTICAL: bold kept inside the chips (re-chipped after the fix below)
+template         rebuilt as a DOC page like poms (Project Scope above Kanban; columns bind Kanban Column
+                 hidden); the board-page template, both board projects, 10 Occupational mirrors and the
+                 Rebuild Test scaffolding deleted through the app (backup orphans/2026-10-07-board-projects-
+                 and-template.json); 54 orphan modules swept
+Project: Create  rebuilt in poms' exact shape (titled prompts, input type, scope fallback, $allItemsById
+                 template lookup) — pipeline diff IDENTICAL; projects re-created from it
+Tasks            poms' per-project containers "Paul's Website" / "Via Fluere" (Project value, NOT bound)
+cards            12 cards: bindings in poms' order, three hidden, Days Until Due <display>; Paul's card
+                 (its own 9 bindings, People = Paul, Completed false) with its Sync mirror in Paul's
+                 Website; link markers as poms (Break Link / a Docket round trip). Diff IDENTICAL
+```
+**Fixes, each test-first and A/B'd:** (1) **Make inline textblock keeps formatting** — the chip is built from the
+selection's content (`helpers/selectionInline`), not its plain text. (2) **A chip its doc owns is deleted when the
+doc stops drawing it** (`helpers/chipLifecycle`: its Remove, typing over it, Backspace, cut — after 3s so a cut chip
+pasted elsewhere is kept, inside the save's gesture) — watched on prod: 3 chip rows → 0 after typing over them.
+(3) **A binding's role (input/display/media/files) is settable** in the Fields editor — poms has 173/1377/1367
+non-input bindings and the UI could write none. (4) **A container embedded in a doc can add items** —
+`ModuleContainer` falls back to the context's `addInstanceToContainer` (a Kanban column inside a doc-page board
+threw `i is not a function`). Also: a table's LAST typed row is removable. Client 5,767 pass; four client deploys.
+**Probe notes:** in a listbox popover without a search box a typed SPACE picks the highlighted option (`_setvals`
+now types only into a search input). Sync To Todo List runs when a card's Status is stamped on add — before its
+Project is picked — so mirrors fall back to Occupational; set Project, then flip Status, to file them correctly.
+New probes: `_docpageadd`, `_boardcols`, `_bindedit` (hide/role/order/unbind), `_ctrfield`, `_breaklink`,
+`_killgap`, `_pagecmp` (the poms-vs-rebuild page differ).
+**Not exact yet, scope question for the user:** boards' own content — the Projects board rows (poms: Poster
+picture, Files, Tags, a different order), Tasks' real tasks, People's 27-field person template.
+
+---
+
 ### 2026-10-07 — PROJECTS AND SCHEDULE TABLE BY CLICKING; three defects the clicking found, all fixed
 
 User: *"please continue with the recreation of poms grid via ui clicking"*.
