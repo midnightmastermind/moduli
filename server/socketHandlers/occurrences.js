@@ -190,6 +190,17 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
+      // ── A ROW THIS SOCKET'S create_batch REFUSED IS NOT CREATED HERE ─────
+      // A refused duplicate's follow-up writes (its children, its textmap) carry
+      // no signature, so the insert guard below cannot see them — and this
+      // handler upserts, so each one minted a module-less, unlisted shell
+      // (54 on the rebuild grid in one morning, 2026-10-07).
+      if (isInsert && socket.data?.refusedCreateIds?.has?.(id)) {
+        console.log("🟣 update_occurrence DROPPED (create was refused)", id);
+        socket.emit("occurrence_deleted", { occurrenceId: id });
+        return;
+      }
+
       const prev = uc.occurrencesById[id] || {};
 
       let acceptedTextDigest = null;
@@ -333,7 +344,7 @@ export function registerOccurrenceHandlers(socket, {
       // now, but a tab opened before that shipped still holds `_id` from its
       // `full_state` and echoes it back on every write — which the loader fix
       // cannot reach. See utils/mongoId.js.
-      const next = { ...withoutMongoId(prev), ...withoutMongoId(occWithoutTextmap), id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
+      let next = { ...withoutMongoId(prev), ...withoutMongoId(occWithoutTextmap), id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
       // Bump fieldUpdatedAt for every field we actually accepted into
       // this write so the next collision check sees the latest stamps.
       // Only fields whose value/flow CHANGED — a field edit sends the whole map
@@ -500,6 +511,29 @@ export function registerOccurrenceHandlers(socket, {
           socket.to(userRoom(userId)).emit("occurrence_deleted", msg);
           return;
         }
+      }
+
+      // ── A ROW CACHED UNDER US IS REBASED ONTO, NEVER OVERWRITTEN ─────────
+      // Found 2026-10-07: a fresh load served today's day column as
+      // `{ id, occurrences, textmap, updatedAt }` while Mongo held the whole
+      // row. The build's create_batch and this write (the column's children +
+      // textmap) overlapped: this handler found the row nowhere (prev = {}),
+      // awaited the child-id check above, create_batch cached the full row
+      // meanwhile — and `next`, built from the empty prev, replaced it. Mongo
+      // stayed whole because its write is a $set. With no Date and no signature
+      // in what clients were sent, `Day Page: Build` rebuilt the column on every
+      // load and each refused rebuild left a module-less shell. Writes to one id
+      // through THIS handler are already serialized (serialByKey); this covers a
+      // different handler landing during our awaits.
+      const cachedNow = uc.occurrencesById[id];
+      if (cachedNow && cachedNow !== prev) {
+        const rebased = { ...cachedNow };
+        for (const k of Object.keys(next)) if (k !== "meta" && next[k] !== prev[k]) rebased[k] = next[k];
+        // A write without meta must not replace the cached meta with the bare
+        // `{ userTouched }` stamped above onto an empty prev.
+        if (occurrence.meta !== undefined) rebased.meta = next.meta;
+        else if (next.meta?.userTouched && !cachedNow.meta?.userTouched) rebased.meta = { ...(cachedNow.meta || {}), userTouched: true };
+        next = rebased;
       }
 
       uc.occurrencesById[id] = next;

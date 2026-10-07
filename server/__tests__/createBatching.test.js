@@ -329,6 +329,21 @@ describe("the create burst", () => {
       expect(told).toHaveLength(1);
     });
 
+    // 2026-10-07: five day-page sections persisted under a refused column —
+    // they were in the SAME batch, and the cascade only knew earlier batches.
+    it("refuses a refused column's children in the SAME batch", async () => {
+      const create = fire("create_occurrence");
+      await Promise.all([
+        create({ occurrence: signed("col-duplicate") }),
+        create({ occurrence: { ...slot(5), parentId: "col-duplicate" } }),
+        create({ occurrence: slot(6) }),
+      ]);
+      await delayed(30);
+      expect(db.occurrences.has("col-duplicate")).toBe(false);
+      expect(db.occurrences.has("slot-05")).toBe(false);
+      expect(db.occurrences.has("slot-06")).toBe(true);    // control: an unrelated sibling still lands
+    });
+
     it("control: a slot under a REAL parent in the same later batch still persists", async () => {
       const create = fire("create_occurrence");
       await create({ occurrence: signed("col-duplicate") });

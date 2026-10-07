@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-07 — Editor: a minted textblock kept only its first letter)
+- `persistContent`'s provisional branch: `commitProvisionalTextblock` CREATES the row with the text
+  typed so far, but `textBasisRef` stayed on the empty doc the editor was built on, so the next save
+  was refused by the 10-02 stale-text guard and the editor adopted the first character. The commit
+  now moves the basis to `textmapDigest(json)`. Prod log before: one `REFUSED stale text` per new
+  block. `staleTextSaveClient.test.js` (+3; the wiring case fails on the old code). Watched on prod:
+  "Criteria" typed at 40ms/key stays whole in Mongo, 0 new refusals.
+
 ## Recent Changes (2026-10-05 — `ScheduleFieldsSection.jsx` NEW: Grid settings › Schedule)
 - Writes `grid.meta.scheduleFieldIds` (`pageOccurrenceId`, `dateFieldId`, `timeslotFieldId`,
   `scheduleFormatFieldId`) — read by `AlarmDropdown` (a fired alarm files into today's slot) and `PomodoroTimer`.

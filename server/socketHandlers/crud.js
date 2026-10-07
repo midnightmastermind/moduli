@@ -1483,6 +1483,9 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   // Ids this socket's create_batch refused, so their children arriving in a
   // LATER batch are refused too (see handleCreateBatch). Timestamped and pruned.
   const refusedParents = new Map(); // id -> refusedAt
+  // update_occurrence reads it too: a refused create's follow-up writes must not
+  // upsert the row into existence (socketHandlers/occurrences.js).
+  socket.data.refusedCreateIds = refusedParents;
   const REFUSED_PARENT_TTL_MS = 10 * 60 * 1000;
   function rememberRefused(ids) {
     const now = Date.now();
@@ -1545,6 +1548,17 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         for (const sid of stored) refusedIds.add(sid);
         if (stored.size) console.log("🟣 create_batch REFUSED (stored sibling)", stored.size, [...stored].slice(0, 6));
       } catch (e) { console.warn("create_batch: stored-sibling check skipped —", e?.message); }
+      // A child in the SAME batch as a refused parent goes with it — the cascade
+      // above only knows parents refused in EARLIER batches, and the stored-
+      // sibling check can refuse a column after it ran (2026-10-07: five day-
+      // page sections persisted under a refused column).
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const b of batch) {
+          const o = b?.occurrence;
+          if (o?.id && !refusedIds.has(o.id) && o.parentId && refusedIds.has(o.parentId)) { refusedIds.add(o.id); grew = true; }
+        }
+      }
       if (refusedIds.size) {
         rememberRefused(refusedIds);
         console.log("🟣 create_batch REFUSED (duplicate signature)", refusedIds.size, [...refusedIds].slice(0, 6));
