@@ -25,3 +25,20 @@ describe("table header stacking", () => {
     expect(headerZ).toBeGreaterThan(wrapZ);
   });
 });
+
+// 2026-10-07: the LAST typed row can be removed. A table whose rows come from a
+// feed needs none (poms' Schedule Table is stored at rowCount 0), "Add row" is
+// always there, and the table renders at 0 — the old `rowCount <= 1` guard made
+// that shape unreachable from the UI.
+describe("the last typed row is removable", () => {
+  const src = read("../modules/containers/ContainerTable.jsx");
+  it("handleRemoveRowAt only refuses when there is nothing to remove", () => {
+    const i = src.indexOf("const handleRemoveRowAt = useCallback");
+    expect(i).toBeGreaterThan(0);
+    expect(src.slice(i, i + 600)).toMatch(/if \(rowCount <= 0\) return;/);
+  });
+  it("the remove button is disabled only at zero", () => {
+    expect(src).toMatch(/disabled=\{rowCount <= 0\}/);
+    expect(src).not.toMatch(/disabled=\{rowCount <= 1\}/);
+  });
+});

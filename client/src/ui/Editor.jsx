@@ -28,6 +28,10 @@ import {
   hasEditorAdopt, clearEditorAdopt,
 } from "../helpers/editorSyncSignal";
 import { textmapDigest } from "../../../server/utils/textmapDigest.js";
+import { inlineContentFromSlice } from "../helpers/selectionInline";
+import { inlineChipIds, orphanedOwnedChips } from "../helpers/chipLifecycle";
+// Long enough for a cut chip pasted into another doc to have saved there.
+const CHIP_CLEANUP_DELAY_MS = 3000;
 import { withAction, captureAction, retainAction, releaseAction, runInAction } from "../helpers/actionScope";
 import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -640,12 +644,33 @@ const Editor = forwardRef(function Editor({
     const doSave = () => {
       const cap = pendingSaveActionRef.current;
       pendingSaveActionRef.current = null;
+      const prevTextmap = occurrence?.textmap;
       runInAction(cap, () => CommitHelpers.updateOccurrence({
         dispatch, socket,
         occurrence: { ...occurrence, textmap: json },
         emit: true,
         textmapBasis: textBasisRef.current || null,
       }));
+      // ── A CHIP THIS DOC OWNS GOES WHEN THE DOC STOPS DRAWING IT ──────────
+      // helpers/chipLifecycle. Checked again after a beat so a cut chip pasted
+      // into another doc (whose save lands meanwhile) is kept, and joined to
+      // this save's gesture when there is one, so one undo restores both.
+      if (occurrence?.id && [...inlineChipIds(prevTextmap)].some((id) => !inlineChipIds(json).has(id))) {
+        const hostId = occurrence.id;
+        if (cap) retainAction(cap);
+        setTimeout(() => {
+          const occMap = occurrencesByIdRef.current || {};
+          const ids = orphanedOwnedChips({
+            prevTextmap, nextTextmap: occMap[hostId]?.textmap ?? json, hostId,
+            occurrencesById: occMap, modulesById: modulesByIdRef.current || {},
+          });
+          const run = () => ids.forEach((id) => CommitHelpers.removeOccurrence({
+            dispatch: dispatchRef.current, socket: socketRef.current, occurrenceId: id, occurrence: occMap[id], emit: true,
+          }));
+          if (ids.length) { if (cap) runInAction(cap, run); else withAction("Removed mini textblock", run); }
+          if (cap) releaseAction(cap);
+        }, CHIP_CLEANUP_DELAY_MS);
+      }
       if (cap) releaseAction(cap);
       textBasisRef.current = textmapDigest(json);
       setIsSaving(false);
@@ -1397,7 +1422,10 @@ const Editor = forwardRef(function Editor({
     const node = editor.state.schema.nodes.instanceTextblockInline;
     if (!node || !String(text || "").trim()) return;
     withAction("Made inline textblock", () => {
-      const attrs = CommitHelpers.createInlineTextblock({ dispatch, socket, userId: occurrence.userId, gridId: occurrence.gridId, parentId: occurrence.id, text });
+      // The selection's CONTENT, so bold / italic / links survive into the chip.
+      let content = null;
+      try { content = inlineContentFromSlice(editor.state.doc.slice(from, to).content.toJSON()); } catch { content = null; }
+      const attrs = CommitHelpers.createInlineTextblock({ dispatch, socket, userId: occurrence.userId, gridId: occurrence.gridId, parentId: occurrence.id, text, content });
       editor.chain().focus().insertContentAt({ from, to }, node.create(attrs).toJSON()).run();
     });
   };

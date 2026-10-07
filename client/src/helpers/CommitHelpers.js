@@ -1040,16 +1040,19 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
  * its stored label its only content (user, 2026-10-03: "we have minitextblock
  * occurances, not just something in line"). Returns the node's attrs.
  */
-export function createInlineTextblock({ dispatch, socket, userId, gridId, parentId, text = "" }) {
+export function createInlineTextblock({ dispatch, socket, userId, gridId, parentId, text = "", content = null }) {
   const modId = crypto.randomUUID();
   const occId = crypto.randomUUID();
   const t = String(text || "").trim();
+  // `content`: the selection's inline nodes, marks kept (helpers/selectionInline).
+  // Without it the chip holds the plain text, as before.
+  const inline = Array.isArray(content) && content.length ? content : (t ? [{ type: "text", text: t }] : null);
   createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "textblock", kind: "inline", label: "" }, emit: true });
   createOccurrence({
     dispatch, socket,
     occurrence: {
       id: occId, userId, gridId, moduleId: modId, parentId: parentId || null,
-      textmap: { type: "doc", content: [t ? { type: "paragraph", content: [{ type: "text", text: t }] } : { type: "paragraph" }] },
+      textmap: { type: "doc", content: [inline ? { type: "paragraph", content: inline } : { type: "paragraph" }] },
       fields: {},
     },
     emit: true,

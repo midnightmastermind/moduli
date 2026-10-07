@@ -15,6 +15,7 @@ import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Trash2, Maximize2 } from "lucide-react";
 import { liftInlineToBlock } from "../toPill.js";
 import { useGridActions } from "../../GridActionsContext";
+import { embedRemoval, hostOccurrenceIdOf } from "../../helpers/embedRegistry.js";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
 import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
@@ -196,9 +197,21 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
       label: "Remove",
       icon: Trash2,
       color: "bg-red-600 hover:bg-red-500",
-      onClick: () => { try { deleteNode?.(); } catch { /* node already gone */ } },
+      // A chip this doc OWNS is deleted, one placed from elsewhere only
+      // unlinked — the block embeds' rule (embedRegistry.embedRemoval). Taking
+      // only the node left the row behind (2026-10-07). Deleting it runs
+      // dropEmbedsOf, which takes the node out of the doc.
+      onClick: () => {
+        const hostId = hostOccurrenceIdOf(editor);
+        const occ = occurrenceId ? occurrencesById?.[occurrenceId] : null;
+        if (occ && embedRemoval(occ, hostId) === "delete") {
+          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, occurrence: occ, emit: true });
+          return;
+        }
+        try { deleteNode?.(); } catch { /* node already gone */ }
+      },
     },
-  ]), [deleteNode, editor, getPos, occurrenceId]);
+  ]), [deleteNode, editor, getPos, occurrenceId, occurrencesById, dispatch, socket]);
 
   return (
     <NodeViewWrapper

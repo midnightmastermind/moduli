@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-07 (2) — mini textblocks keep their formatting, and go when their doc drops them)
+- **"Make inline textblock" builds the chip from the selection's CONTENT** (`helpers/selectionInline.
+  inlineContentFromSlice`: marked runs kept, blocks joined with a space, atoms dropped, ends trimmed) via
+  `CommitHelpers.createInlineTextblock({ content })`. It used the plain text, so bold lead-ins were lost.
+- **A chip the doc owns is deleted when the doc stops drawing it** (`helpers/chipLifecycle`). The chip's
+  radial Remove uses `embedRemoval` (owned → `removeOccurrence`, else unlink the node); edits that drop a
+  chip (typing over, Backspace, cut) are diffed in `Editor.persistContent`'s `doSave` and, after
+  `CHIP_CLEANUP_DELAY_MS` (3s — a cut chip pasted into another doc is kept), deleted inside the save's
+  gesture so one undo restores text and chip. Before, the row stayed behind, embedded nowhere.
+- Tests: `selectionInline.test.js` (7), `chipLifecycle.test.js` (9; wiring guards fail on the old code).
+
 ## Recent Changes (2026-10-07 — Editor: a minted textblock kept only its first letter)
 - `persistContent`'s provisional branch: `commitProvisionalTextblock` CREATES the row with the text
   typed so far, but `textBasisRef` stayed on the empty doc the editor was built on, so the next save

@@ -1059,7 +1059,10 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // Shifts every cell from rows below up by one row, drops the now-last-row
   // cells, decrements rowCount. Mirrors deleteColumn's reindex pattern.
   const handleRemoveRowAt = useCallback((rowIdx) => {
-    if (rowCount <= 1) return;
+    // The LAST typed row may go too: a table whose rows come from its children
+    // (a feed) needs no typed rows at all, "Add row" is always there to bring
+    // one back, and a table at rowCount 0 renders fine (2026-10-07).
+    if (rowCount <= 0) return;
     const nextCells = {};
     Object.entries(cells || {}).forEach(([k, v]) => {
       const [rs, cs] = k.split(":");
@@ -1717,7 +1720,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   className="table-remove-row-btn"
                   title="Remove this row"
                   onClick={() => handleRemoveRowAt(r)}
-                  disabled={rowCount <= 1}
+                  disabled={rowCount <= 0}
                 >
                   –
                 </button>
