@@ -208,7 +208,7 @@ function Container({
   panelId,
   pageOccurrenceId = null,
   panelLayoutOrientation = "vertical",
-  addInstanceToContainer,
+  addInstanceToContainer: addInstanceToContainerProp,
   dispatch,
   socket,
   gapPx = 12,
@@ -227,6 +227,13 @@ function Container({
   // the honest answer — nothing rendered it.
   renderParentOccurrenceId = null,
 }) {
+  // The parent passes this, but not every parent can: a container rendered by a
+  // doc's embed node (a Kanban column inside a board embedded in a doc page) got
+  // none, and its "+ › Item" threw `i is not a function` (2026-10-07; 2026-08-18
+  // fixed one more call site, which is how the next one gets missed). App
+  // publishes the same function on the actions context — fall back to it here.
+  const addInstanceToContainerCtx = useGridActionsSelector((s) => s.addInstanceToContainer);
+  const addInstanceToContainer = addInstanceToContainerProp || addInstanceToContainerCtx;
   bumpRender("container");
   // RENDER-phase mark (body, not effect): with the commit mark below it, the
   // pair says whether a gap is React rendering the tree or something else

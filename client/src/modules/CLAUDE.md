@@ -2,6 +2,13 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-07 (2) — a container always has addInstanceToContainer)
+- `ModuleContainer` took `addInstanceToContainer` only as a prop. A container rendered by a doc's embed
+  node (a Kanban column inside a board embedded in a doc page) got none, so its "+ › Item" threw
+  `i is not a function` and added nothing. 2026-08-18 fixed one more call site; the default now lives in
+  the callee: `addInstanceToContainerProp || useGridActionsSelector(s => s.addInstanceToContainer)` (App
+  publishes it on the actions context). Guard: `__tests__/containerAddInstanceFallback.test.js`.
+
 ## Recent Changes (2026-10-07 — ContainerTable: the column menu drew behind the rows)
 - The sticky header row was `z-index: 3`, the same as every row card's `.instance-wrap` (global
   `index.css`), so later rows painted over it. On a table whose rows are occurrences (a feed), the
