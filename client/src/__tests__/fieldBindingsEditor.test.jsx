@@ -245,3 +245,26 @@ describe("FieldBindingsEditor — reordering with the arrows", () => {
     expect(updateModule).not.toHaveBeenCalled();
   });
 });
+
+// 2026-10-07: a binding's ROLE had no editor. poms carries 173 display, 1377
+// media and 1367 files bindings, all seed-written; a UI-built grid had only
+// "input", so e.g. a read-only "Days Until Due" could not be reproduced.
+describe("FieldBindingsEditor — a binding's role is settable", () => {
+  const mod = { id: "m1", fieldBindings: [{ fieldId: "f-water", role: "input", order: 0 }, { fieldId: "f-date", role: "input", order: 1 }] };
+  it("offers input / display / media / files and writes the pick onto that binding only", () => {
+    render(<FieldBindingsEditor module={mod} />);
+    const sel = screen.getAllByTitle("Field role")[1];
+    expect([...sel.options].map((o) => o.value)).toEqual(["input", "display", "media", "files"]);
+    fireEvent.change(sel, { target: { value: "display" } });
+    expect(lastBindings()).toEqual([
+      { fieldId: "f-water", role: "input", order: 0 },
+      { fieldId: "f-date", role: "display", order: 1 },
+    ]);
+  });
+  it("shows the stored role, and a binding with none reads as input", () => {
+    render(<FieldBindingsEditor module={{ id: "m1", fieldBindings: [{ fieldId: "f-water" }, { fieldId: "f-date", role: "media" }] }} />);
+    const [a, b] = screen.getAllByTitle("Field role");
+    expect(a.value).toBe("input");
+    expect(b.value).toBe("media");
+  });
+});

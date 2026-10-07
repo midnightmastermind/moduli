@@ -207,6 +207,13 @@ export default function FieldBindingsEditor({
   );
 }
 
+const BINDING_ROLES = [
+  { value: "input", label: "Input", hint: "Editable on the row" },
+  { value: "display", label: "Display", hint: "Read-only value (e.g. what an operation computes)" },
+  { value: "media", label: "Media", hint: "The row's picture" },
+  { value: "files", label: "Files", hint: "Artifacts attached to the row" },
+];
+
 /** A real binding: reorder, hide/show and unbind. No field editing — that is Command Center. */
 function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBinding, onRemove }) {
   const pillColor = "bg-blue-500/20 text-blue-300 border-blue-500/30";
@@ -218,6 +225,19 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
             {field.name || field.type}
           </span>
           <span className="text-[10px] text-muted-foreground">{field.type}</span>
+          {/* The binding's ROLE (FieldRenderer / occurrenceMedia read it): input =
+              editable, display = read-only value, media = the row's picture,
+              files = its attached artifacts. It had no editor, so only seeds
+              could write anything but "input" (2026-10-07). */}
+          <select
+            title="Field role"
+            value={binding.role || "input"}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onUpdateBinding({ role: e.target.value })}
+            className="ml-auto text-[10px] bg-transparent border border-border rounded px-1 py-0 text-muted-foreground"
+          >
+            {BINDING_ROLES.map((r) => <option key={r.value} value={r.value} title={r.hint}>{r.label}</option>)}
+          </select>
         </div>
         {/* Arrows sit FIRST, in the reading order of the thing they move. Both
             stay mounted and go disabled at the ends — a control that disappears
