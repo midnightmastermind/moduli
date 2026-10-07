@@ -15,6 +15,19 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-06 (5) — RELATIONSHIP BY CLICKING; Address and Library deliberately not rebuilt
+
+**Relationship** (select, poms' 9 options) bound on the five People rows and set (close friend, family,
+colleague, neighbor, acquaintance), read back from Mongo. **Address** is not rebuilt: the rebuild's own
+address field is **Location** (09-22 (20)), and a second address field would twin it. **Library** is not
+rebuilt either: it repeats Board Category's media kinds, and its one poms reader is a disabled op.
+**Pages left, from poms:** Schedule Table (a table PAGE listing schedule rows; columns Task / Date), Interests
+(an empty folder page in Library), Health › Fitness Plan (doc page), and the two projects. Each project is a
+`Project: Create` template application (Project Scope doc sections + a six-column Kanban), so on the rebuild
+they come from running that op, not hand-building.
+
+---
+
 ### 2026-10-06 (4) — EIGHTEEN BOARD-LINK FIELDS AND SIXTEEN ROUTINES BY CLICKING
 
 Every board the rebuild already had (Practices, Leisure, Charities, Events, Areas, Equipment, Plants, Mediums,
