@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-08 (2) — TRACKERS LAID OUT LIKE POMS; a container could not be dropped INTO a container
+
+User: *"could you continue with the ui rebuild"* → *"keep going"*. Picked up account2's Trackers-layout pass (limit at 10:12).
+```
+nesting     Nutrition + Media into Physical (after Workout); Intellectual › Media (new, via its "+") holding
+            Movies · Books · Podcasts; the empty "Today's Today's Physical" removed through its radial
+order       top level = poms' (Stats · Physical · Intellectual · Emotional · Social · Spiritual · Occupational ·
+            Financial · Environmental · Creative), Grid State last; tile order in Stats, Physical, Nutrition,
+            Intellectual, its Media and Financial = poms'. A per-container diff against poms: identical except below
+Workouts    bindings in poms' order, Aggregation hidden — but its VALUE ("total") is not set (see open)
+```
+**Fix (deployed, `89c632e5` + `9894408f`):** `handleContainerDrop` always read the destination list as the PAGE, so a
+container dropped beside a NESTED container found no index and did nothing (the mirror of 09-23's drag-out fix).
+`helpers/containerDropDestination` — the list holding the hovered container (page, then its home, then any lister);
+refuses the dragged container's own subtree; a DOC parent is never a destination; a container its old list owned is
+re-homed; one undo step; the page insert line is hidden over a nested container. **The first deploy was INERT**: the
+fixture had no `insertIndex` and every real drop has one (`buildDropContext` resolves it relative to
+`target.parentOccurrenceId`) — watched failing on prod, fixture corrected, watched working (Mongo: Nutrition listed by
+Physical only, re-homed). Client 5,815 pass.
+**My slips, repaired through the app's own events (`_trkrestore.mjs`, dry-run first, then a fresh `full_state` read):**
+(1) `_ctrmove`'s auto-scroll pushed the pointer to the VIEWPORT edge, which is the Routines panel — with the fix live,
+Physical landed in Routines' own "Physical" container and Intellectual + Emotional on the Routines page. (2) a parked
+pointer inside the app's ~150px auto-scroll zone kept the content moving after the last measurement and Social landed
+in Intellectual. *Before this fix such misdrops did nothing; now nested drops work, so a mis-aimed probe does real
+damage.* The probes now run the panel FULL-SCREEN in a 1600x5000 window (no scrolling at all), target a container's
+own top/bottom edge (`EDGE=`), and refuse to release unless the pointer is on the target page/row. Also repeated
+account2's deploy slip (moved TRACKED `_*.sh` aside; the deploy commit deleted 4) — restored `15cccaf5`.
+**Open, the user's call:** an INSTANCE's own `fieldVisibility` has no editor (Settings = Settings · Style · Fields;
+containers/pages/panels have one). On Workouts it is written only by `Workouts: Today's Session` (show: Tracker Date +
+the day's movements), so the Aggregation pill is never rendered and cannot be set by clicking. Also left: Physical ›
+Media is `container/board` where poms' is a bare container (Convert offers no "none"); Grid State/Last Opened stays
+visible where poms keeps the marker unlisted.
+**Probes:** `_ctrinto` (container INTO container, `SIB=` sibling edge), `_ctrmove` (`FULL` `EDGE` `DRY` `SHOT`),
+`_rowmove` (instance onto an instance edge, full-screen), `_trkorder.sh`, `_trkrestore.mjs` (`MOVED` `AFTERID`),
+`_fscheck.mjs` (what a fresh load is served), `_occfv` `LIST=1`.
+
+---
+
 ### 2026-10-08 — THE REBUILD-ONLY SCAFFOLDING DELETED, ALL BY CLICKING; deleting a field left its bindings behind
 
 User: *"delete them to match poms and move on"* → *"all using the ui please"*. Everything below was clicked
