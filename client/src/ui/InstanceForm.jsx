@@ -11,6 +11,7 @@ import EditorBindingSection from "./EditorBindingSection.jsx";
 import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
+import FieldVisibilitySection from "./FieldVisibilitySection";
 import { useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
@@ -304,6 +305,16 @@ export default function InstanceForm({
         {/* FIELDS TAB */}
         <TabsContent value="fields" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
           <FieldBindingsEditor module={instance} />
+
+          {/* This placement's OWN field visibility — the same editor containers, pages and
+              panels carry. Without it a setting an operation writes here (show-lists) was
+              hidden: nothing in the UI could read or change it. */}
+          {occurrence && (
+            <>
+              <Separator className="my-2" />
+              <FieldVisibilitySection occurrence={occurrence} />
+            </>
+          )}
 
           {/* Body binding picker — textblock-role instances only */}
           {instance?.role === "textblock" && (
