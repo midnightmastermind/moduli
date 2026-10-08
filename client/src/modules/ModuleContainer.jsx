@@ -363,35 +363,6 @@ function Container({
   // Forwarded to addInstanceToContainer (App.jsx) which pre-binds those
   // fields on the new module. Other call sites that pass no arg still work.
 
-  const commitLabel = useCallback(() => {
-    const next = (draft?.label ?? "").trim();
-    if (!next) return;
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
-  }, [draft?.label, module, dispatch, socket]);
-
-  // Inline label editor (standard non-embedded header) — double-click flips
-  // the label span into an <input>; Enter / blur commits, Escape cancels.
-  // The embedded variant uses contentEditable directly; this is only for the
-  // standard variant which renders a plain text span.
-  const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const [labelDraft, setLabelDraft] = useState(module.label ?? "");
-  useEffect(() => { setLabelDraft(module.label ?? ""); }, [module.label, module.id]);
-  const commitInlineLabel = useCallback(() => {
-    const next = (labelDraft ?? "").trim();
-    if (next && next !== (module.label ?? "")) {
-      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
-    }
-    setIsEditingLabel(false);
-  }, [labelDraft, module, dispatch, socket]);
-
-  const commitIteration = useCallback((nextIteration) => {
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, iteration: nextIteration }, emit: true });
-  }, [module, dispatch, socket]);
-
-  const commitDragMode = useCallback((nextMode) => {
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
-  }, [module, dispatch, socket]);
-
   // Per-id reactive read of THIS container's occurrence — re-renders only when
   // the own-occurrence ref changes, not on every map rebuild.
   const containerOccurrence = useGridActionsSelector(s => {
@@ -402,6 +373,31 @@ function Container({
     const matches = s.occurrencesByModuleId?.[module.id];
     return matches && matches.length > 0 ? matches[0] : undefined;
   });
+
+  const commitLabel = useCallback(() => {
+    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: draft?.label });
+  }, [draft?.label, module, containerOccurrence, dispatch, socket]);
+
+  // Inline label editor (standard non-embedded header) — double-click flips
+  // the label span into an <input>; Enter / blur commits, Escape cancels.
+  // The embedded variant uses contentEditable directly; this is only for the
+  // standard variant which renders a plain text span.
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(module.label ?? "");
+  useEffect(() => { setLabelDraft(module.label ?? ""); }, [module.label, module.id]);
+  const commitInlineLabel = useCallback(() => {
+    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: labelDraft });
+    setIsEditingLabel(false);
+  }, [labelDraft, module, containerOccurrence, dispatch, socket]);
+
+  const commitIteration = useCallback((nextIteration) => {
+    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, iteration: nextIteration }, emit: true });
+  }, [module, dispatch, socket]);
+
+  const commitDragMode = useCallback((nextMode) => {
+    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
+  }, [module, dispatch, socket]);
+
   // By the PLACEMENT's id, never the module's: copy-linked containers (every day
   // column's slots are copy-links of the template's) share one module, and a
   // lookup by module id added the new instance to whichever placement came first —
@@ -1420,10 +1416,9 @@ function Container({
                       if (!next) { e.currentTarget.textContent = displayLabel || "Container"; return; }
                       const meta = { ...(module?.meta || {}) };
                       if (parsed) meta.headingLevel = parsed.level;
-                      const changed = next !== module.label || (parsed && meta.headingLevel !== module?.meta?.headingLevel);
-                      if (changed) {
-                        CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next, meta }, emit: true });
-                      }
+                      // renameContainer writes nothing when neither the name, the level nor a
+                      // placement label changed — and clears an op-written placement label.
+                      CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: next, meta: parsed ? meta : undefined });
                       // The hashes never stay in the text — they became the level.
                       if (parsed) e.currentTarget.textContent = next;
                     }}

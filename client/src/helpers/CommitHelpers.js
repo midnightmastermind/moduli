@@ -133,6 +133,30 @@ export function updateModule({ dispatch, socket, module, emit = true }) {
   if (shouldEmit(emit)) safeEmit(socket, "update_module", { module });
 }
 
+/**
+ * Rename a container — ONE undo step. Its header shows `occurrence.label ??
+ * module.label`, and a per-placement label (written by an operation:
+ * Date-Prefix Labels' "Today's …") WINS, so writing only the module label made
+ * the rename visibly do nothing and left an op-written label uncleareable from
+ * the UI. The typed name goes to the module (the shared name an op re-derives
+ * from) and this placement's own label is cleared, so the typed name shows.
+ */
+export function renameContainer({ dispatch, socket, module, occurrence, label, meta }) {
+  const next = (label ?? "").trim();
+  if (!next || !module?.id) return;
+  const moduleChanged = next !== (module.label ?? "") || (meta !== undefined && meta !== module.meta);
+  const placementLabel = occurrence?.id && occurrence.label != null;
+  if (!moduleChanged && !placementLabel) return;
+  withAction("Renamed", () => {
+    if (moduleChanged) {
+      updateModule({ dispatch, socket, module: { ...module, label: next, ...(meta !== undefined ? { meta } : {}) }, emit: true });
+    }
+    if (placementLabel) {
+      _updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: null } });
+    }
+  });
+}
+
 export function deleteModule({ dispatch, socket, moduleId, emit = true }) {
   if (!moduleId) return;
   dispatch?.(deleteModuleAction(moduleId));
