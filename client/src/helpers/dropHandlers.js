@@ -491,7 +491,11 @@ export function handleContainerDrop(dropContext, ctx) {
       // stayed null and the drop did nothing (2026-10-08, rebuilding poms'
       // Trackers: Nutrition could not be dragged into Physical).
       let hoveredIndexInDest = null;
-      if (containerOccurrenceId && dropTarget.context?.insertAt === undefined) {
+      // buildDropContext resolves an edge-aware insertAt RELATIVE TO THE HOVERED
+      // CONTAINER'S PARENT. It stays valid only when that parent is the list we
+      // land in; otherwise the index is recomputed from the edge below.
+      let insertAtValid = dropTarget.context?.insertAt !== undefined;
+      if (containerOccurrenceId) {
         const dest = containerDropDestination({ hoveredOccId: containerOccurrenceId, draggedOccId, occurrencesById, fallback: toOrderOcc });
         if (dest.refused) {
           try { toast?.("A container can't be dropped inside itself."); } catch {}
@@ -503,11 +507,13 @@ export function handleContainerDrop(dropContext, ctx) {
         // destination; otherwise the drop keeps the page, as before.
         const destKind = state?.modulesById?.[dest.list?.moduleId]?.kind;
         if (dest.list && (dest.list === toOrderOcc || destKind !== "doc")) { toOrderOcc = dest.list; hoveredIndexInDest = dest.hoveredIndex; }
+        const insertAtParent = target?.parentOccurrenceId;
+        if (insertAtValid && insertAtParent && insertAtParent !== toOrderOcc.id) insertAtValid = false;
       }
 
       let toIndex = null;
 
-      if (dropTarget.context?.insertAt !== undefined) {
+      if (insertAtValid) {
         toIndex = dropTarget.context.insertAt;
       } else if (containerId) {
         const hoveredIndex = hoveredIndexInDest !== null

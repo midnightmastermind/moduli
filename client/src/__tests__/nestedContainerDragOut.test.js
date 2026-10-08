@@ -162,6 +162,18 @@ describe("dragging a container INTO another container (beside a nested one)", ()
     expect(mv.toIndex).toBe(1);
   });
 
+  // The shape a REAL drop has: buildDropContext resolves the hovered
+  // container's parent and an edge-resolved insertIndex relative to it.
+  it("a real drop context (parentOccurrenceId + insertIndex) lands in that parent", () => {
+    const d = dropOnEdgeOf("m-env", "environmental", "m-brews", "brews", "bottom");
+    d.target.parentOccurrenceId = "creative";
+    d.position.insertIndex = 1;
+    handleContainerDrop(d, ctx());
+    const mv = moves.find(m => m.kind === "move");
+    expect(mv?.toPanelOccurrence.id).toBe("creative");
+    expect(mv.toIndex).toBe(1);
+  });
+
   it("a top-edge drop lands before it", () => {
     handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews", "top"), ctx());
     expect(moves.find(m => m.kind === "move").toIndex).toBe(0);
@@ -186,6 +198,16 @@ describe("dragging a container INTO another container (beside a nested one)", ()
     c.state = { ...c.state, modulesById: { ...modulesById, "m-creative": { ...modulesById["m-creative"], kind: "doc" } } };
     handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews"), c);
     expect(moves.find(m => m.kind === "move" && m.toPanelOccurrence.id === "creative")).toBeFalsy();
+  });
+
+  it("a real drop context beside a top-level container keeps its insertAt (control)", () => {
+    const d = dropOnEdgeOf("m-env", "environmental", "m-creative", "creative", "top");
+    d.target.parentOccurrenceId = "page";
+    d.position.insertIndex = 0;
+    handleContainerDrop(d, ctx());
+    const r = moves.find(m => m.kind === "reorder");
+    expect(r?.panelOccurrence.id).toBe("page");
+    expect(r.toIndex).toBe(0);
   });
 
   it("a drop beside a TOP-LEVEL container still reorders on the page (control)", () => {
