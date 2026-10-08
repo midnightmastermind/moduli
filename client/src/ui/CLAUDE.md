@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-08 (2) — a scheduled op's category is settable and shown)
+- `commandCenter/OpCategorySelect.jsx` (NEW) — the one category picker (op editor + the read-only "Managed by
+  the Alarms tab" panel, where it saves on change) and `groupOpsByCategory`, which groups the Schedules list
+  under category headings. Scheduled ops appear in no category column, so before this an alarm's category
+  was seed-only and shown nowhere. Test `opCategorySelect.test.jsx`.
+- Note: the op drill-down's header Save writes `workingCopyRef` — the alarm panel has no editor, so a probe
+  must leave it with the back button, not Save.
+
 ## Recent Changes (2026-10-08 — an operation category can be renamed)
 - `commandCenter/CategoryColumnHeader.jsx` (NEW) — a category column's name, edited in place (blur or Enter
   commits a trimmed, non-blank, changed name; no folder → plain text for Uncategorized). Used by BOTH

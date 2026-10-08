@@ -46,3 +46,14 @@ describe("OperationsTab wiring", () => {
     expect(src.match(/<OpCategorySelect\b/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("the drill-down Save writes only the op on screen", () => {
+  // workingCopyRef is set by the OperationEditor and never cleared, and an alarm's panel has no editor —
+  // so Save there wrote back the PREVIOUS op's working copy, reverting anything that changed it since.
+  const src = fs.readFileSync(path.resolve(__dirname, "../ui/commandCenter/OperationsTab.jsx"), "utf8");
+  const save = src.slice(src.indexOf("const working = workingCopyRef.current"), src.indexOf("Save and return to the operations list"));
+  it("control: the Save handler is there", () => { expect(save).toMatch(/updateOperation/); });
+  it("checks the working copy's id against the selected op", () => {
+    expect(save).toMatch(/working\?\.id === selectedOpId|working && working\.id === selectedOpId/);
+  });
+});

@@ -1183,7 +1183,7 @@ export function OperationsTab() {
               // a fresh account 2026-08-18: an edited name and three pipeline
               // steps were both gone after clicking it, with no warning.
               const working = workingCopyRef.current;
-              if (working) CommitHelpers.updateOperation({ dispatch, socket, operation: working });
+              if (working?.id === selectedOpId) CommitHelpers.updateOperation({ dispatch, socket, operation: working });
               setSelectedOpId(null);
             }}
             style={{ marginLeft: "auto", padding: "3px 12px", borderRadius: 5, fontSize: 11, fontFamily: "monospace", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", color: "var(--accent-blue-text)", cursor: "pointer", fontWeight: 600 }}
