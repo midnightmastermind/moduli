@@ -137,3 +137,61 @@ describe("the ordinary case still works (controls)", () => {
     expect(c.clearSession).toHaveBeenCalled();
   });
 });
+
+// THE OTHER DIRECTION (2026-10-08): a container dropped on the edge of a NESTED
+// container lands beside it, inside that container's parent. The destination was
+// always read as the PAGE, where the nested container is not listed, so the
+// hovered index was -1 and the handler returned having done nothing.
+function dropOnEdgeOf(draggedMod, draggedOcc, hoveredMod, hoveredOcc, edge = "bottom") {
+  return {
+    payload: { moduleId: draggedMod, context: { panelId: "panelA", occurrenceId: draggedOcc, pageOccurrenceId: "page" } },
+    target: { kind: "occurrence", moduleId: hoveredMod, occurrenceId: hoveredOcc,
+              raw: { pageOccurrenceId: "page", panelId: "panelA", occurrenceId: hoveredOcc } },
+    position: { edge, insertIndex: undefined },
+    pointer: { x: 10, y: 10 }, mode: "move", modifiers: {},
+  };
+}
+
+describe("dragging a container INTO another container (beside a nested one)", () => {
+  it("moves it from the page into the nested container's parent, after it", () => {
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews", "bottom"), ctx());
+    const mv = moves.find(m => m.kind === "move");
+    expect(mv).toBeTruthy();
+    expect(mv.fromPanelOccurrence.id).toBe("page");
+    expect(mv.toPanelOccurrence.id).toBe("creative");
+    expect(mv.toIndex).toBe(1);
+  });
+
+  it("a top-edge drop lands before it", () => {
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews", "top"), ctx());
+    expect(moves.find(m => m.kind === "move").toIndex).toBe(0);
+  });
+
+  it("re-homes a container its old list owned", () => {
+    const c = ctx();
+    c.occurrencesById = { ...occurrencesById, environmental: { ...ENV, parentId: "page" } };
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews"), c);
+    expect(updates.find(u => u.id === "environmental" && u.parentId === "creative")).toBeTruthy();
+  });
+
+  it("refuses to drop a container inside its own subtree", () => {
+    const c = ctx();
+    handleContainerDrop(dropOnEdgeOf("m-creative", "creative", "m-brews", "brews"), c);
+    expect(moves).toEqual([]);
+    expect(c.clearSession).toHaveBeenCalled();
+  });
+
+  it("never lists a container into a DOC parent (it renders its textmap, not its list)", () => {
+    const c = ctx();
+    c.state = { ...c.state, modulesById: { ...modulesById, "m-creative": { ...modulesById["m-creative"], kind: "doc" } } };
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews"), c);
+    expect(moves.find(m => m.kind === "move" && m.toPanelOccurrence.id === "creative")).toBeFalsy();
+  });
+
+  it("a drop beside a TOP-LEVEL container still reorders on the page (control)", () => {
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-creative", "creative", "top"), ctx());
+    const r = moves.find(m => m.kind === "reorder");
+    expect(r).toBeTruthy();
+    expect(r.panelOccurrence.id).toBe("page");
+  });
+});

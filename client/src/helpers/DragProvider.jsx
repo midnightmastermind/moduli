@@ -788,10 +788,16 @@ export function DragProvider({
         // LINE ONLY, never the box: outlining the page would flash a border
         // around the entire surface on every crossing, which is the flicker
         // the leaf path documents and deliberately avoids.
-        const el = typeof document !== "undefined"
-          ? document.elementFromPoint(clientX, clientY)?.closest?.("[data-page-occ-id]")
-          : null;
-        if (el) showDropIndicators(el, clientX, clientY, false);
+        //
+        // NOT over a NESTED container, though: a drop there lands beside it,
+        // inside its parent (helpers/containerDropDestination), and its own
+        // edge bar says so. A page line drawn at the outer container's edge
+        // would point somewhere the drop will not go.
+        const under = typeof document !== "undefined" ? document.elementFromPoint(clientX, clientY) : null;
+        const el = under?.closest?.("[data-page-occ-id]");
+        const shell = under?.closest?.(".container-shell");
+        const overNested = !!(shell && el?.contains(shell) && shell.parentElement?.closest?.(".container-shell"));
+        if (el && !overNested) showDropIndicators(el, clientX, clientY, false);
         else hideDropIndicators();
       } else {
         // panel drags — edge indicators come from useDragDrop's closestEdge;

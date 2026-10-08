@@ -88,6 +88,8 @@ import { createImportsDocPage } from "./importsFolder";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
 import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
+import { containerDropDestination } from "./containerDropDestination";
+import { withAction } from "./actionScope";
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -265,7 +267,7 @@ export function handleContainerDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef } = ctx;
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const { containerId, panelId, dropTarget } = dropView(dropContext, ctx);
+  const { containerId, containerOccurrenceId, panelId, dropTarget } = dropView(dropContext, ctx);
   const drop = { dropTarget };
 
   let isCrossWindow = false;
@@ -453,7 +455,7 @@ export function handleContainerDrop(dropContext, ctx) {
     const fromPageOccId = payload.context?.pageOccurrenceId;
     const toPageOccId = dropTarget.context?.pageOccurrenceId;
     const fromOrderOcc = fromPageOccId ? (occurrencesById[fromPageOccId] || fromPanelOcc) : fromPanelOcc;
-    const toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc || fromOrderOcc) : (toPanelOcc || fromOrderOcc);
+    let toOrderOcc = toPageOccId ? (occurrencesById[toPageOccId] || toPanelOcc || fromOrderOcc) : (toPanelOcc || fromOrderOcc);
 
     // The handler used to require both fromPanel and toPanel to exist, but
     // when source/destination is a board *page* (role: "page", not "panel")
@@ -482,12 +484,35 @@ export function handleContainerDrop(dropContext, ctx) {
       const fromListOcc = listedBy || fromOrderOcc;
       const occurrenceId = draggedOccId;
 
+      // THE DESTINATION IS WHOEVER LISTS THE HOVERED CONTAINER, NOT THE PAGE.
+      // A drop on the edge of a container nested inside another container lands
+      // beside it, in that container's parent — the destination half of the rule
+      // above. Read as the page, the nested container was not found, toIndex
+      // stayed null and the drop did nothing (2026-10-08, rebuilding poms'
+      // Trackers: Nutrition could not be dragged into Physical).
+      let hoveredIndexInDest = null;
+      if (containerOccurrenceId && dropTarget.context?.insertAt === undefined) {
+        const dest = containerDropDestination({ hoveredOccId: containerOccurrenceId, draggedOccId, occurrencesById, fallback: toOrderOcc });
+        if (dest.refused) {
+          try { toast?.("A container can't be dropped inside itself."); } catch {}
+          clearSession();
+          return;
+        }
+        // A DOC parent renders its textmap, not its list: listing a container
+        // there would make it invisible. Only a list-rendering parent is a
+        // destination; otherwise the drop keeps the page, as before.
+        const destKind = state?.modulesById?.[dest.list?.moduleId]?.kind;
+        if (dest.list && (dest.list === toOrderOcc || destKind !== "doc")) { toOrderOcc = dest.list; hoveredIndexInDest = dest.hoveredIndex; }
+      }
+
       let toIndex = null;
 
       if (dropTarget.context?.insertAt !== undefined) {
         toIndex = dropTarget.context.insertAt;
       } else if (containerId) {
-        const hoveredIndex = LayoutHelpers.getTargetIndexInOccurrences(containerId, toOrderOcc.occurrences || [], occurrencesById);
+        const hoveredIndex = hoveredIndexInDest !== null
+          ? hoveredIndexInDest
+          : LayoutHelpers.getTargetIndexInOccurrences(containerId, toOrderOcc.occurrences || [], occurrencesById);
         if (hoveredIndex !== -1) {
           const edge = dropTarget.context?.closestEdge;
           if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
@@ -502,7 +527,6 @@ export function handleContainerDrop(dropContext, ctx) {
 
       const gridId = state?.gridId || state?.grid?._id;
       const isCopyMode = sessionRef.current.mode === 'copy';
-      const samePanel = !!(fromPanel && toPanel && fromPanel.id === toPanel.id);
       const sameOrderOcc = fromListOcc.id === toOrderOcc.id;
 
       // Layout-cascade lock rule: reject cross-page container moves out
@@ -545,16 +569,20 @@ export function handleContainerDrop(dropContext, ctx) {
             LayoutHelpers.reorderContainersInPanel({ dispatch, socket, panelOccurrence: fromListOcc, fromIndex, toIndex, emit: true });
           }
         }
-      } else if (samePanel && fromPanelOcc) {
-        // Same panel, different page — move between pages
-        LayoutHelpers.moveContainerBetweenPanels({
-          dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
-          occurrenceId, toIndex, emit: true,
-        });
       } else {
-        LayoutHelpers.moveContainerBetweenPanels({
-          dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
-          occurrenceId, toIndex, emit: true,
+        // Different list (another page, or into / out of a container): one
+        // undo step. A container its old list OWNED (parentId) is re-homed, so
+        // deleting the new parent cascades into it; one placed from elsewhere
+        // keeps its home.
+        withAction("Moved container", () => {
+          LayoutHelpers.moveContainerBetweenPanels({
+            dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
+            occurrenceId, toIndex, emit: true,
+          });
+          const movedOcc = occurrencesById[occurrenceId];
+          if (movedOcc && movedOcc.parentId === fromListOcc.id && toOrderOcc.id !== fromListOcc.id) {
+            CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrenceId, parentId: toOrderOcc.id }, emit: true });
+          }
         });
       }
     }
