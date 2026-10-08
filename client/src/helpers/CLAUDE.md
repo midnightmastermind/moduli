@@ -3,6 +3,18 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-08 — containerDropDestination.js NEW: a container can be dropped INTO a container)
+- `handleContainerDrop` read the destination list as the PAGE, so a drop on the edge of a container nested in
+  another container found no index and did nothing. `containerDropDestination({hoveredOccId, draggedOccId,
+  occurrencesById, fallback})` → `{list, hoveredIndex}` | `{refused}`: the list holding the hovered container
+  (page first, then its `parentId` home, then any lister); refuses the dragged container's own subtree.
+- In the handler: a DOC parent is never a destination (textmap, not list); a real drop's `insertAt` (computed by
+  `buildDropContext` relative to `target.parentOccurrenceId`) is kept only when that parent IS the destination;
+  a container its old list owned is re-homed (`parentId`); the cross-list move is one `withAction`.
+- `DragProvider`: the page insert line is hidden while a container drag is over a NESTED container.
+- Tests `containerDropDestination.test.js` (6) + `nestedContainerDragOut.test.js` (+7). **The first deploy was
+  inert**: the fixture had no `insertIndex`, every real drop has one. Watched on prod after the second.
+
 ## Recent Changes (2026-10-05 (2) — buildParentMap keeps a child's HOME; allAncestorsOf)
 - `buildParentMap`: a child listed by several parents keeps the one its own `parentId` names (when that parent lists
   it), not the last scanned. The other listers are kept in a WeakMap beside the map.
