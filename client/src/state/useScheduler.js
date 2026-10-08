@@ -169,7 +169,7 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           // this stamp exists for, and offlineQueue's `update_operation`
           // dedup key (data.operation?.id) collapsed every queued stamp into
           // one. CommitHelpers.updateOperation already used the nested shape.
-          safeEmit(socket, "update_operation", { operation: { ...op, schedule: nextSchedule } });
+          safeEmit(socket, "update_operation", { operation: { ...op, schedule: nextSchedule }, firedStamp: true });
           // Clear in-flight on next tick once the echo lands (or fail-safe
           // 2s later in case the server is offline). Timer id tracked so
           // unmount can cancel it.

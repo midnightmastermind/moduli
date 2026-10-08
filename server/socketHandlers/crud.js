@@ -743,7 +743,7 @@ export function registerCrudHandlers(socket, {
     }
   });
 
-  socket.on("update_operation", async ({ operation } = {}) => {
+  socket.on("update_operation", async ({ operation, firedStamp } = {}) => {
     try {
       if (!userId) return;
       const uc = await getUc();
@@ -757,8 +757,11 @@ export function registerCrudHandlers(socket, {
       // whichever socket reaches the server first wins, the other is
       // a no-op. Broadcast still goes out so the loser's local cache
       // catches up.
+      // ONLY the scheduler's own stamp (`firedStamp`) is guarded. An EDIT carries whatever
+      // lastFiredAt its tab already holds, so guarding it refused every edit of a scheduled
+      // op (name, pipeline, cadence, category) and the echo reverted the tab (2026-10-08).
       const incomingLastFired = operation?.schedule?.lastFiredAt;
-      if (incomingLastFired) {
+      if (firedStamp && incomingLastFired) {
         const stored = uc.operationsById[id]?.schedule?.lastFiredAt;
         if (stored && new Date(stored).getTime() >= new Date(incomingLastFired).getTime()) {
           // Echo current state so the late client syncs up.
@@ -768,7 +771,14 @@ export function registerCrudHandlers(socket, {
       }
 
       const before = uc.operationsById[id] || null;
-      const next = { ...(before || {}), ...operation, id, userId };
+      let next = { ...(before || {}), ...operation, id, userId };
+      // An edit never moves the stamp backwards: a tab that has not seen the latest fire
+      // would otherwise make the op due again.
+      const storedFired = before?.schedule?.lastFiredAt;
+      if (!firedStamp && storedFired && next.schedule
+          && (!next.schedule.lastFiredAt || new Date(next.schedule.lastFiredAt) < new Date(storedFired))) {
+        next = { ...next, schedule: { ...next.schedule, lastFiredAt: storedFired } };
+      }
       uc.operationsById[id] = next;
       // A pipeline that stamps a field from the destination container makes
       // that field per-placement, so the fan-out must stop sharing it. Refresh

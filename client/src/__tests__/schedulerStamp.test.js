@@ -72,3 +72,13 @@ describe("the update_operation wire shape", () => {
     expect(payload.operation?.id).toBe("op-1");
   });
 });
+
+describe("the scheduler marks its stamp as a fire stamp", () => {
+  // server/socketHandlers/crud.js guards ONLY a write flagged `firedStamp` (the cross-device
+  // lock); an unflagged write is an edit and is applied. A stamp without the flag would let two
+  // devices fire the same window. Source guard, with a control that the emit itself is there.
+  const src = require("fs").readFileSync(require("path").resolve(__dirname, "../state/useScheduler.js"), "utf8");
+  it("the update_operation emit carries firedStamp: true", () => {
+    expect(src).toMatch(/safeEmit\(socket, "update_operation", \{[^;]*firedStamp: true \}\)/);
+  });
+});

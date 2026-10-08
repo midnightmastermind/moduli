@@ -2,6 +2,13 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-08 — an operation category can be renamed)
+- `commandCenter/CategoryColumnHeader.jsx` (NEW) — a category column's name, edited in place (blur or Enter
+  commits a trimmed, non-blank, changed name; no folder → plain text for Uncategorized). Used by BOTH
+  `FieldsTab` (its inline input moved here) and `OperationsTab`, whose header was a plain `<span>` — so every
+  op category made with "+ Category" stayed "New Category" (poms' 8 were seed-written). Test
+  `categoryColumnHeader.test.jsx` (A/B: the old OperationsTab fails the wiring guard).
+
 ## Recent Changes (2026-10-07 (3) — no hidden field settings: Add new, placeholder, link, live value, style, stars, empty label, start-follows, note)
 
 - `commandCenter/SelectOptionsSourceEditor.jsx` — `AddNewBody` (occurrence fields): where "+ Add new" puts a
