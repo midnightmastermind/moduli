@@ -3794,3 +3794,10 @@ So: every poms TASK is rebuilt (Tasks page contents); media/people/other boards 
 ### 2026-10-08 07:34 — delete the rebuild-only scaffolding
 User: *"delete them to match poms and move on"* — the 15 rebuild-only fields, their ops (Water Today, Log a Glass,
 Stamp Logged On, Tasks Done Today) and Tasks › Today / This Week with their rows; then move on (Trackers layout next).
+
+### 2026-10-08 16:58 — rebuild: alarms' category, tree order, "Template" names, extras
+User answers (asked):
+- Alarms' category: **make it settable** (category picker for alarms / scheduled ops, shown under their category), then file poms' two alarms by clicking.
+- Tree order: **folders + pages wherever poms' order is unambiguous** (ignore poms' sort-order ties).
+- Templates: *"change all templates in both to have Template in the name"* — every template page on poms AND the rebuild ends in "Template".
+- Delete the rebuild-only Root test pages (Bookmarks, Canvas, Food, How This Grid Works, Wrap Lab); create poms' empty folders (Documents, Files/Images/<areas>, Files/Examples, Files/Imports); rebuild Library/Reading with example imported articles.

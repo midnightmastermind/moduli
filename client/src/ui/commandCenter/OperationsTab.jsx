@@ -48,6 +48,7 @@ const inputStyle = {
 // hides alias-only entries (onCreate / onNavigation / onDrop).
 import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
 import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
+import OpCategorySelect, { groupOpsByCategory } from "./OpCategorySelect.jsx";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -573,16 +574,12 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         {categoryFolders.length > 0 && (
           <div>
             <span style={labelStyle}>Category</span>
-            <select
-              value={local.folderId || ""}
-              onChange={(e) => setLocal((p) => ({ ...p, folderId: e.target.value || null }))}
+            <OpCategorySelect
+              value={local.folderId}
+              onChange={(folderId) => setLocal((p) => ({ ...p, folderId }))}
+              categoryFolders={categoryFolders}
               style={{ ...inputStyle, width: "auto", minWidth: 110 }}
-            >
-              <option value="">Uncategorized</option>
-              {categoryFolders.map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
+            />
           </div>
         )}
         {/* THE OP-LEVEL TARGET. It decides which page's date filter this operation
@@ -1211,6 +1208,17 @@ export function OperationsTab() {
                   Edit its time, label, type, or enabled state in the Alarms tab — it can't be
                   edited here. Deleting the alarm deletes this operation.
                 </div>
+                {categoryFolders.length > 0 && (
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)" }}>
+                    Category
+                    <OpCategorySelect
+                      value={selectedOp.folderId}
+                      onChange={(folderId) => CommitHelpers.updateOperation({ dispatch, socket, operation: { ...selectedOp, folderId } })}
+                      categoryFolders={categoryFolders}
+                      style={{ padding: "2px 6px", borderRadius: 4, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-primary)" }}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
             <OperationEditor
@@ -1331,7 +1339,12 @@ export function OperationsTab() {
               No scheduled operations yet. Click "+ New Schedule" to create one.
             </div>
           )}
-          {scheduledOps.map((op) => {
+          {groupOpsByCategory(scheduledOps, categoryFolders).map((group) => (
+          <div key={group.key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {categoryFolders.length > 0 && (
+            <span style={{ fontSize: 10, fontFamily: "monospace", fontWeight: 600, color: "var(--text-muted)", marginTop: 4 }}>{group.label}</span>
+          )}
+          {group.ops.map((op) => {
             const sched = op.schedule || {};
             let cadenceLabel = "—";
             if (sched.kind === "interval") cadenceLabel = `every ${sched.every || 1} ${sched.unit || "minute"}${(sched.every || 1) === 1 ? "" : "s"}`;
@@ -1368,6 +1381,8 @@ export function OperationsTab() {
               </div>
             );
           })}
+          </div>
+          ))}
         </div>
       )}
     </div>
