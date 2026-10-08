@@ -15,6 +15,41 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-08 (4) — THE TREE MATCHES POMS; alarms get a category; a stale Save could revert another op
+
+The user's answers (CLAUDE_CHAT 16:58), all done by clicking, read back from Mongo:
+```
+templates   every template ends in "Template", BOTH grids: poms Day Page → Day Page Template, Project: {ProjectName} →
+            … Template; rebuild Project: … Template, Morning Slot → Morning Slot Template (card right-click › Rename…).
+            No op finds a template by name; Project: Create names projects by rootLabel, so names do not leak
+deleted     rebuild-only Root pages Bookmarks · Canvas · Food · How This Grid Works · Wrap Lab (tree › Delete page), and
+            the empty Boards/Body page. The Food page's Meals/Ingredients feed boards + By Category graph were not
+            PARENTED to it, so they survived as unreachable boards — removed via delete_occurrence behind a guard (only
+            feed copies inside), backup backups/orphans/2026-10-08-food-page-feed-boards.json. The 6 Boards rows those
+            feeds copied kept their modules (delete sweeps a module only when no placement is left)
+folders     Documents; Files/Images/{Food, Mind, Social, Home, Money, Creative, Body, Media, People}; Files/Examples;
+            Files/Imports; Library/Reading — all as poms, in poms' order
+Reading     "Import from Wikipedia" gained a Reading folder choice (op editor option rows); run three times →
+            Alan Watts · Noam Chomsky · Carl Jung, cards on the Reading folder page (doc containers; poms' are pages)
+order       Root, Boards and Media folders, and the pages of Tasks, Interfaces, Library, Social, Money, Mind in poms'
+            order (_treeorder); where poms' sortOrders TIE the order is not defined and was left
+alarms      both filed in Alarms → all 84 rebuild ops carry poms' category
+```
+**Code (3 client deploys):** `OpCategorySelect` — the category picker is now shared by the op editor and the
+read-only alarm panel, and the Schedules list groups by category (`616cc303`). **Found writing that: the drill-down
+header Save wrote `workingCopyRef`, which is never cleared — on an alarm panel (no editor) it re-wrote the PREVIOUS op's
+working copy**, reverting anything that changed it since; it now writes only a copy whose id is the selected op
+(`6db9adf0`).
+**My slip, repaired:** `_treemove`'s "already open?" check looked for a child NAME, and the new Root `Documents` matched
+Files' own `Documents`, so Files never opened; the batch then renamed in place and left `Food` / `Mind` at Root. Moved
+into Images by hand; both probes now read the folder's own chevron rotation instead, and `FROMSHALLOW=1` picks the
+shallowest of same-named rows. Integrity 0 errors.
+**Probes:** `_cardrename.mjs` (FOLDER FROM TO OPEN), `_treedel.mjs` (refuses a confirm not naming its target),
+`_newfolder.mjs RENAMEFROM=`, `_treeorder.mjs` (PARENT CHAIN KIND ORDER), `_wikiopt.mjs`, `_oprunask.mjs` (Run now +
+answers prompts), `_folderlist.mjs`.
+
+---
+
 ### 2026-10-08 (3) — THE FOLDER TREE AND THE OP CATEGORIES LIKE POMS; two defects that made both impossible
 
 User: *"please continue with the ui testin"*. All by clicking, every result read back from Mongo.
