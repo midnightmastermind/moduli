@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-08 (3) — THE FOLDER TREE AND THE OP CATEGORIES LIKE POMS; two defects that made both impossible
+
+User: *"please continue with the ui testin"*. All by clicking, every result read back from Mongo.
+```
+boards      the 31-group binding batch finished; _boardplan now finds ONE difference left (Movies' Media Tags, kept)
+tree        Library → Root · Emotions → Library · Projects page → Projects · Basic Nutrition Guide + Nutrition Plan →
+            Body/Health · NEW Interfaces/ (Day Page, Schedule, Schedule Table, Schedule Types, Trackers) + Interfaces/Tasks/
+            (Completed, Routines, Tasks) · NEW Library/Lookup/ (Lookup) · NEW Media/Music/ (Albums, Artists, Songs) +
+            Media/Books/ (Authors, Books). Moving Music/Books surfaced 6 binding groups poms has there (URL, Artist/Album/
+            Songs links, the book fields) — applied
+Media page  poms' Boards/Media/Media board: container + The Daily · Planet Earth II · Lex Fridman Podcast · Veritasium ·
+            Kurzgesagt (Board Category media; Poster/Files bound hidden as poms; pictures not copied)
+op cats     8 categories in poms' order (Other Ops, Trackers, Schedule Ops, Day Page Ops, Bill Ops, Library Ops, Alarms,
+            Projects); 73 ops filed as poms — 82 of 84 ops now carry poms' category
+```
+**Fix 1 (`3123b9dc`, client):** an op category could not be renamed — the Operations tab drew its column name as a
+`<span>`, so "+ Category" made a "New Category" forever (poms' 8 were seed-written). `commandCenter/CategoryColumnHeader`
+is the Fields tab's inline rename, now used by both tabs.
+**Fix 2 (`5e5e2340`, server + restart):** an EDIT of a scheduled operation was never saved. `update_operation`'s
+cross-device guard refused any write whose `schedule.lastFiredAt` was not newer than the stored one, and an edit carries
+the stamp its tab already has — so name / pipeline / cadence / category edits on a scheduled op were refused and the echo
+reverted the tab. Found filing Mark Passed Slots: the emit carried `folderId`, Mongo never changed. The guard now applies
+only to the scheduler's own stamp (`firedStamp: true`); an edit is applied but never moves the stamp backwards. Watched
+on prod after the restart: the category landed and lastFiredAt kept advancing.
+**Left, the user's call:** the two alarms' category (`Alarms` on poms) — their editor is read-only ("Managed by the
+Alarms tab") and a scheduled op shows in no category column, so on poms that value is set by the seed and shown nowhere.
+Rebuild-only root pages kept (Bookmarks, Canvas, Food, How This Grid Works, Wrap Lab — test fixtures); poms' Documents/,
+Files/Images/<area>/, Files/Examples, Files/Imports, Library/Reading are imported content and not rebuilt; sibling ORDER
+inside folders still differs; the template page is "Day Page Template" where poms names it "Day Page".
+**My slip, caught before the deploy:** `mv _*.sh` moved TRACKED scripts too (the 10-08 slip again) — put back before
+`deploy.sh` ran; only untracked ones are moved aside now. Integrity 0 errors.
+**Probes:** `_treemove.mjs` (KIND page|folder, TO=Root works, PRE=PINNED collapses the pinned list), `_newfolder.mjs`
+(NAME=), `_openpage.mjs` (open a page by its tree row when a folder shares its name — search opens the folder page),
+`_opcat.mjs` (PLAN of category → op names; SUBTAB=Schedules OPENPREFIX="⏱ " for scheduled ops). `_ph2b`/`_ph3`
+collapse PINNED first now — a long pinned list hid the folder rows.
+
+---
+
 ### 2026-10-08 (2) — TRACKERS LAID OUT LIKE POMS; a container could not be dropped INTO a container
 
 User: *"could you continue with the ui rebuild"* → *"keep going"*. Picked up account2's Trackers-layout pass (limit at 10:12).
