@@ -15,6 +15,49 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-07 (3) — EVERY POMS FIELD ON THE REBUILD, ALL 29 TASKS, AND EXAMPLES; eleven hidden field settings got editors
+
+User: *"dont add all the movies and such and people but add all the tasks and give examples of the others. so yes all
+the fields"*. Each result below was read back from Mongo by a differ (`server/_gensync.mjs`, `_valcmp.mjs`), not by eye.
+```
+fields      302 poms / 317 rebuild, 0 missing. 43 created by clicking; the rebuild's address field "Location" renamed
+            Address (poms' name) and a new occurrence Location made. Every shared field now matches poms on category
+            (14 Fields-tab categories made), option query (45 rewritten to poms' Board Category / Library predicates),
+            + Add new destinations + asked fields, search provider, chip display, options, flow, placeholder, link
+            template, live value, style, stars, empty label, note, derive-from. Differ: 0 diffs left
+tasks       Tasks page holds poms' 14 containers in poms' order; 29 tasks built from poms' data (Work on Paul's website
+            existed). 23/29 identical; the 6 differ only in Completed On (read-only, stamped TODAY by Stamp Completed On
+            when ticked — poms' historical stamps cannot be re-entered) and Text Tim's People (a dangling id on poms)
+examples    Library board page (2 movies / books / podcasts / courses, poms' hidden Library tag, roles, order); the
+            27-field person template on all 7 People rows + Angela, Keith, Shelly, Terrell; Schedule Types +4;
+            Locations +7 (addresses entered by hand); Bills page as poms (Subscriptions / Utilities / Insurance /
+            Loans / Other, DigitalOcean in Other); account tiles tagged account; 7 questions tagged Library=question.
+            Tasks page's date filter off, like poms (the dated tasks show)
+```
+**No hidden settings, five commits deployed:** the Fields editor can now set `optionsSource.addNew` (destinations,
+asked fields, hidden rows — 45 poms fields), `meta.placeholder`, `linkTemplate`, boolean `variant`,
+`allowNewOptions`, `emptyLabel`, `liveSource`/`liveGranularity`, a rating's `max`, `deriveDisplayFrom`, `note`
+(`addNewPlaceholderEditors.test.jsx`, A/B: the old editor fails the new cases). **Fix:** a new row added to a board now
+inherits which fields its siblings HIDE (`siblingFieldBindings` dropped `hidden`; a new person showed 15 chips every
+sibling hides). Client 5,790 pass.
+**Found while doing it:** setting a dated task's Time Slot after its Date fires Route by Timeslot and moves it into that
+day's schedule column (one Follow-up row; dragged back, Time Slot then Date). `Completed On` is `inputEnabled:false` on
+both grids. poms keeps dead keys this did not copy: `meta.unit` on 6 fields (no reader; the editor writes `unit`),
+`multiline` on the Address field (read only for text), `flow` on two text fields.
+**Not done, the user's call:** the rebuild-only scaffolding — 15 fields (Glasses, Total Water, Logged On (171 values),
+Done, Tasks Done, Log, Task Ref, Focus Rating, Session Length, Journal, Linked Task, Every N Days, Anchor Date, Next
+Due, Podcast), their ops (Water Today, Log a Glass, Stamp Logged On, Tasks Done Today) and the Tasks › Today / This
+Week rows. The Trackers page layout still differs (poms nests accounts in Financial with one Accounts balance tile;
+the rebuild has an Accounts container and per-tile balances; a container reads "Today's Today's Physical"). Poster /
+Files pictures were not copied. 11 providers' field maps not set. Shelly keeps a Library=person tag (picked so her
+tasks could select her; a single-select pick does not deselect).
+**Probes:** `_fcfg.mjs` (SPECFILE of field specs: create, find query, addNew, provider, chip, options, flags),
+`_fcat.mjs`, `_genrows` + `_applyrows` (+ `_fixrows`) build rows from poms data, `_ctrmove.mjs` (container reorder),
+`_setaddr.mjs`, `_pgfilteroff.mjs`, `_opencard.mjs`; `_additem` takes `BEFORE` / `DUP`, `_bindedit` takes `BIND`.
+A multi-select pick TOGGLES — re-running a values pass turns picks off.
+
+---
+
 ### 2026-10-07 (2) — "IT SHOULD BE EXACT": projects, Schedule Table and Fitness Plan now match poms; four more fixes
 
 User: *"keep going fixing those things, it should be exact"*. Each piece below was verified by a text diff of

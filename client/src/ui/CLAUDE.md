@@ -2,6 +2,22 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-07 (3) — no hidden field settings: Add new, placeholder, link, live value, style, stars, empty label, start-follows, note)
+
+- `commandCenter/SelectOptionsSourceEditor.jsx` — `AddNewBody` (occurrence fields): where "+ Add new" puts a
+  new option (`addNew.targets`, the first is the default; a legacy `parentOccurrenceId` is read as a one-entry
+  list and rewritten as `targets` on edit), the fields it asks for (`fieldIds`) and "New options are hidden
+  rows" (`hidden`). `planAddNew` (exported, pure) keeps keys it does not author (`stampFields`) and removes
+  `addNew` when no destination is left. A stored destination the container picker would not list still names
+  itself by its live label.
+- `commandCenter/FieldsTab.jsx` — controls for meta keys the renderer reads and only seeds wrote: placeholder
+  (text/markdown), link template + live value/granularity (text), boolean style (switch|checkbox), "Type new
+  options" (select), star count (rating `meta.max`), "Shown when empty" (`emptyLabel`), "Start follows target
+  of" (`deriveDisplayFrom`, number display fields), note. An empty box / none removes the key.
+- `QuickAddMenu.jsx` — a new row inherits which fields its siblings HIDE (`inheritedHiddenRef`), with
+  `helpers/siblingFieldBindings` carrying `hidden:true` through `bindingsOf` and `normalizeFieldBindings`.
+- Tests: `addNewPlaceholderEditors.test.jsx` (19), `siblingHiddenInherited.test.js` (4).
+
 ## Recent Changes (2026-10-07 (2) — mini textblocks keep their formatting, and go when their doc drops them)
 - **"Make inline textblock" builds the chip from the selection's CONTENT** (`helpers/selectionInline.
   inlineContentFromSlice`: marked runs kept, blocks joined with a space, atoms dropped, ends trimmed) via
