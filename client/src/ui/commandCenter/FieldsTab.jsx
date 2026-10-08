@@ -14,6 +14,7 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
 import PrefillEditor from "./PrefillEditor";
 import FieldSelect from "../FieldSelect.jsx";
+import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
 
 // Shared style helpers
 const labelStyle = {
@@ -1022,18 +1023,11 @@ export function FieldsTab() {
     >
       {/* Column header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-        {folderObj ? (
-          <input
-            defaultValue={label}
-            onBlur={(e) => {
-              const newName = e.target.value.trim();
-              if (newName && newName !== label) CommitHelpers.updateFolder({ dispatch, socket, folder: { ...folderObj, name: newName } });
-            }}
-            style={{ background: "none", border: "none", outline: "none", fontSize: 10, fontFamily: "monospace", fontWeight: 600, color: "var(--text-muted)", width: "100%", cursor: "text" }}
-          />
-        ) : (
-          <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-faint)" }}>{label}</span>
-        )}
+        <CategoryColumnHeader
+          label={label}
+          folder={folderObj}
+          onRename={(name) => CommitHelpers.updateFolder({ dispatch, socket, folder: { ...folderObj, name } })}
+        />
       </div>
 
       {/* Field chips — scrollable list, draggable to instance OR between columns */}

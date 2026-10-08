@@ -47,6 +47,7 @@ const inputStyle = {
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
 import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
+import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -1123,7 +1124,7 @@ export function OperationsTab() {
     color: "var(--text-faint)", cursor: "pointer", alignSelf: "flex-start",
   };
 
-  const renderOpColumn = (colKey, label, ops) => (
+  const renderOpColumn = (colKey, label, ops, folderObj = null) => (
     <div
       key={colKey}
       style={colStyle(overColumn === colKey)}
@@ -1131,9 +1132,13 @@ export function OperationsTab() {
       onDragLeave={() => setOverColumn(null)}
       onDrop={(e) => { e.preventDefault(); handleDropOnFolder(colKey === "uncategorized" ? null : colKey); }}
     >
-      <span style={{ fontSize: 10, fontFamily: "monospace", fontWeight: 600, color: "var(--text-muted)", marginBottom: 2 }}>
-        {label}
-      </span>
+      <div style={{ marginBottom: 2 }}>
+        <CategoryColumnHeader
+          label={label}
+          folder={folderObj}
+          onRename={(name) => CommitHelpers.updateFolder({ dispatch, socket, folder: { ...folderObj, name } })}
+        />
+      </div>
       <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
         {ops.map((op) => (
           <OpItem
@@ -1313,7 +1318,7 @@ export function OperationsTab() {
         <div style={{ display: "flex", gap: 8, overflowX: "auto", alignItems: "flex-start", paddingBottom: 4 }}>
           {renderOpColumn("uncategorized", "Uncategorized", opsByFolder.uncategorized)}
           {categoryFolders.map((folder) =>
-            renderOpColumn(folder.id, folder.name, opsByFolder[folder.id] || [])
+            renderOpColumn(folder.id, folder.name, opsByFolder[folder.id] || [], folder)
           )}
         </div>
       )}
