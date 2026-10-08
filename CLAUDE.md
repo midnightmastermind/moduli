@@ -15,6 +15,36 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-08 — THE REBUILD-ONLY SCAFFOLDING DELETED, ALL BY CLICKING; deleting a field left its bindings behind
+
+User: *"delete them to match poms and move on"* → *"all using the ui please"*. Everything below was clicked
+(radial Delete / Remove, tree "Delete page", Operations › Delete, Fields › Delete) and read back from Mongo.
+```
+ops       Water Today, Log a Glass, Stamp Logged On, Tasks Done Today        rebuild names ⊂ poms names now
+fields    the 15 (Glasses … Podcast)                                         302 = poms' 302, 0 dangling
+rows      Tasks › Today + This Week (+7 rows), Trackers › Today's Water (+6), Done Today's Daily Summary,
+          the Podcasts board page (+3 rows), the Dentist cleaning (probe) row
+repointed Podcasts Listened loops over Media and triggers on it (poms' shape); Listen binds poms' 8 fields
+Completed page  container renamed Completed, feed = poms' (Completed IS true OR (Date DATE_BEFORE $today AND
+          Time Slot IS_NOT_EMPTY), scope Tasks, 300); page date filter off as on poms -> 11 copies (poms 12: its
+          2nd Therapy with Keith matches neither condition — a stale copy there)
+options   Board Category and Tags cleared and re-added in poms' order; bill/podcast/question gone
+pomodoro  destination None (poms unset)
+```
+**Two app fixes (deployed):** deleting a field now removes its bindings and values (`utils/dropFieldEverywhere` +
+the DELETE_FIELD reducer) — before, `delete_field` dropped only the Field record and Logged On would have left 171
+rows pointing at nothing. The feed editor offers the whole comparator catalog (poms' Completed feed uses
+DATE_BEFORE, which the 12-entry list could not author).
+**My slip, repaired:** `_carddel.mjs` matched a folder-page card by any text line, and the Boards card's PREVIEW
+starts with "Podcasts" — the confirm read `Delete "Boards"?` and was accepted. Only the Boards FOLDER PAGE went (it
+owned nothing; the app re-minted an identical one for the same folder at once); a panel's visited-page list lost
+the old entry. Probes now refuse any confirm that does not name their target, and pages are deleted from the tree.
+Also: my deploy step moved four TRACKED `_*.sh` and the commit deleted them — restored next commit; only untracked
+scripts are moved aside now. Field diff left: poms' dead keys (Address multiline, flow on two text fields) and its
+Schedule Format option list, which is EMPTY on poms (its values cannot be picked there) — kept on the rebuild.
+
+---
+
 ### 2026-10-07 (3) — EVERY POMS FIELD ON THE REBUILD, ALL 29 TASKS, AND EXAMPLES; eleven hidden field settings got editors
 
 User: *"dont add all the movies and such and people but add all the tasks and give examples of the others. so yes all
