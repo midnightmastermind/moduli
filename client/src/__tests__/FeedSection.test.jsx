@@ -175,3 +175,19 @@ describe("FeedSection — groups", () => {
     expect(lastFeed().conditions[0].value).toBe(42);
   });
 });
+
+// 2026-10-08: the comparator list is the whole catalog the feed's evaluator
+// understands. With only the 12 simple comparators, poms' Completed feed
+// (Date DATE_BEFORE $today) was seed-only — choosing it in the UI stored "".
+describe("FeedSection — every comparator the evaluator understands", () => {
+  const cmpSelects = () => [...document.querySelectorAll("select")].filter((s) => [...s.options].some((o) => o.value === "IS_NOT_EMPTY"));
+  it("a stored DATE_BEFORE reads as itself", () => {
+    mount(NESTED);
+    expect(cmpSelects().map((s) => s.value)).toContain("DATE_BEFORE");
+  });
+  it("DATE_BEFORE can be chosen and is written back", () => {
+    mount(FLAT);
+    fireEvent.change(cmpSelects()[1], { target: { value: "DATE_BEFORE" } });
+    expect(lastFeed().conditions[1].comparator).toBe("DATE_BEFORE");
+  });
+});

@@ -11,7 +11,13 @@ import { Rss, Plus, X } from "lucide-react";
 import FieldSelect from "./FieldSelect.jsx";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../helpers/comparators";
+import { PIPELINE_COMPARATOR_GROUPS, UNARY_COMPARATORS } from "../helpers/comparators";
+
+// The feed predicate is evaluated by the executor's own evaluator, so the editor
+// offers the WHOLE comparator catalog (2026-10-08): with only the 12 simple ones,
+// poms' Completed feed (Date DATE_BEFORE $today) could be stored by a seed and
+// never authored. A stored comparator the catalog lacks still gets its option.
+const OFFERED = new Set(PIPELINE_COMPARATOR_GROUPS.flatMap((g) => g.items.map((c) => c.value)));
 import { resolveFeedItems } from "../state/selectors";
 
 const uid = () => `feedc-${Math.random().toString(36).slice(2, 9)}`;
@@ -130,8 +136,13 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
             onChange={(e) => replaceAt(i, { ...entry, comparator: e.target.value })}
             style={{ ...inputStyle, flex: 2 }}
           >
-            {COMPARATOR_OPTIONS.map(op => (
-              <option key={op.value || op} value={op.value || op}>{op.label || op.value || op}</option>
+            {entry.comparator && !OFFERED.has(entry.comparator) && (
+              <option value={entry.comparator}>{entry.comparator}</option>
+            )}
+            {PIPELINE_COMPARATOR_GROUPS.map(g => (
+              <optgroup key={g.group} label={g.group}>
+                {g.items.map(c => <option key={c.value} value={c.value}>{c.label || c.value}</option>)}
+              </optgroup>
             ))}
           </select>
           {!UNARY_COMPARATORS?.has?.(entry.comparator) && (
