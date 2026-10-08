@@ -19,6 +19,7 @@ import { recordDoc } from "../utils/txRecorder.js";
 import { registerPendingOccCreate } from "../utils/pendingOccCreates.js";
 import { planOrphanModules, collectReferencedModuleIds } from "../utils/orphanModules.js";
 import { occurrencesEmbedding } from "../utils/scrubEmbeds.js";
+import { dropFieldEverywhere } from "../utils/dropFieldEverywhere.js";
 import { compressTextmap } from "../utils/textmapCompression.js";
 
 export function registerCrudHandlers(socket, {
@@ -682,6 +683,10 @@ export function registerCrudHandlers(socket, {
       const uc = await getUc();
       if (uc.fieldsById?.[fieldId]) delete uc.fieldsById[fieldId];
       await Field.findOneAndDelete({ id: fieldId, userId });
+      // The field's bindings and values go with it (2026-10-07) — a binding to a
+      // deleted field is a dangling reference. Every client drops them in its
+      // DELETE_FIELD reducer; this keeps Mongo and the warm cache in step.
+      await dropFieldEverywhere({ uc, userId, fieldId, Module, Occurrence });
       socket.to(userRoom(userId)).emit("field_deleted", { fieldId });
     } catch (err) {
       console.error("delete_field error:", err);

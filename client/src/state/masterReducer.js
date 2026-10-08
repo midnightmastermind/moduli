@@ -419,9 +419,24 @@ function reduce(state, action) {
             const fieldId = action.payload?.fieldId ?? action.payload;
             if (!fieldId) return state;
 
+            // A deleted field takes its BINDINGS and VALUES with it (2026-10-07): a binding
+            // to a field that no longer exists is a dangling reference every renderer and
+            // integrity rule has to step around. Only the rows that carried it change, so
+            // every other module / occurrence keeps its identity.
+            const modules = (state.modules || []).map((m) =>
+                Array.isArray(m?.fieldBindings) && m.fieldBindings.some((b) => b?.fieldId === fieldId)
+                    ? { ...m, fieldBindings: m.fieldBindings.filter((b) => b?.fieldId !== fieldId) }
+                    : m);
+            const occurrences = (state.occurrences || []).map((o) => {
+                if (!o?.fields || !Object.prototype.hasOwnProperty.call(o.fields, fieldId)) return o;
+                const { [fieldId]: _gone, ...rest } = o.fields;
+                return { ...o, fields: rest };
+            });
             return {
                 ...state,
                 fields: (state.fields || []).filter((f) => f.id !== fieldId),
+                modules,
+                occurrences,
             };
         }
 

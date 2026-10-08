@@ -3790,3 +3790,7 @@ Standing rule: anything an operation depends on must be user-visible and settabl
 User, on whether "exact" covers board content: *"dont add all the movies and such and people but add all the tasks and give examples of the others. so yes all the fields"*.
 
 So: every poms TASK is rebuilt (Tasks page contents); media/people/other boards get representative examples, not every row; and every FIELD poms has is rebuilt (incl. the full person template, Poster/Files/Tags on Projects rows), bound where poms binds it.
+
+### 2026-10-08 07:34 — delete the rebuild-only scaffolding
+User: *"delete them to match poms and move on"* — the 15 rebuild-only fields, their ops (Water Today, Log a Glass,
+Stamp Logged On, Tasks Done Today) and Tasks › Today / This Week with their rows; then move on (Trackers layout next).
