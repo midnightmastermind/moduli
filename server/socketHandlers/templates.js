@@ -124,7 +124,7 @@ export function registerTemplateHandlers(socket, {
         rootOccurrenceId: templateOccurrenceId, userId, gridId, uc,
         occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
         newParentId: targetOccurrenceId,
-        stampSignatures: true, signRoot: false,
+        stampSignatures: true, signRoot: false, freshRoot: true,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template apply failed");

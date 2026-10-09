@@ -3801,3 +3801,8 @@ User answers (asked):
 - Tree order: **folders + pages wherever poms' order is unambiguous** (ignore poms' sort-order ties).
 - Templates: *"change all templates in both to have Template in the name"* — every template page on poms AND the rebuild ends in "Template".
 - Delete the rebuild-only Root test pages (Bookmarks, Canvas, Food, How This Grid Works, Wrap Lab); create poms' empty folders (Documents, Files/Images/<areas>, Files/Examples, Files/Imports); rebuild Library/Reading with example imported articles.
+
+### 2026-10-09 09:40 — schedule templates exact; Day Page template like poms
+User answers (asked):
+- Weekday schedule templates: **add the board rows they use** (the ~20 Movements, 6 Meals, ~12 Ingredients the templates pick, with poms' values), then build poms' 8 templates exactly (Workouts Mon–Fri + Sunday, Meals, Routine).
+- Day Page template: **match poms** — Daily Question as a question section + answer textblock, and update `Day Page: Build` to fill it.

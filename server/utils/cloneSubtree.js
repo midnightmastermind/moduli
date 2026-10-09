@@ -102,6 +102,9 @@ export async function cloneSubtree({
   rootLabel = null,
   stampSignatures = false,
   signRoot = true,
+  // A COPY apply mints a fresh module for the copied ROOT, so each copy is its own thing (renaming one no
+  // longer renames every copy); the nodes below keep sharing modules, which is how poms' weekday templates are built.
+  freshRoot = false,
   persist = mongoPersist,
 }) {
   const created = { occurrenceIds: [], moduleIds: [] };
@@ -129,7 +132,7 @@ export async function cloneSubtree({
     // The first apply still mints: the source is a template and pointing a clone
     // at it would place the template itself. It stamps `clonedFromModuleId`, and
     // every later apply of that node reuses it.
-    const reusedModId = pickReusableModuleId({
+    const reusedModId = (isRoot && freshRoot) ? null : pickReusableModuleId({
       modulesById: uc.modulesById, srcModId: src.moduleId, srcMod,
       isRoot, rootLabelOverride: (isRoot && rootLabel) ? rootLabel : null,
     });

@@ -352,3 +352,30 @@ describe("a Copy apply signs everything below its root", () => {
     expect(src).toMatch(/newParentId: targetOccurrenceId,\s*stampSignatures: true, signRoot: false/);
   });
 });
+
+// A COPY apply ("Stamp a detached copy in") of the same template twice reused the ROOT clone module, so every copy
+// shared one module — renaming one renamed all, and a page holding them showed one copy N times (2026-10-09).
+// poms' weekday templates show the intended shape: each copy its own wrapper module, the slots below shared.
+describe("cloneSubtree freshRoot (a copy apply)", () => {
+  it("two copies get DIFFERENT root modules but share their children's modules", async () => {
+    const uc = ucTwoLevel();
+    const a = await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: fakePersist(), freshRoot: true });
+    const b = await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: fakePersist(), freshRoot: true });
+    const ra = uc.occurrencesById[a.rootClonedOccurrenceId], rb = uc.occurrencesById[b.rootClonedOccurrenceId];
+    expect(ra.moduleId).not.toBe(rb.moduleId);
+    expect(uc.occurrencesById[ra.occurrences[0]].moduleId).toBe(uc.occurrencesById[rb.occurrences[0]].moduleId);
+  });
+
+  it("control: without freshRoot the second apply reuses the root module (the day-column rule)", async () => {
+    const uc = ucTwoLevel();
+    const a = await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: fakePersist() });
+    const b = await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: fakePersist() });
+    expect(uc.occurrencesById[a.rootClonedOccurrenceId].moduleId).toBe(uc.occurrencesById[b.rootClonedOccurrenceId].moduleId);
+  });
+
+  it("the apply_template copy path asks for a fresh root", async () => {
+    const src = (await import("fs")).readFileSync(new URL("../socketHandlers/templates.js", import.meta.url), "utf8");
+    const applyBlock = src.slice(src.indexOf('socket.on("apply_template"'), src.indexOf('socket.on("save_over_template"') > 0 ? src.indexOf('socket.on("save_over_template"') : undefined);
+    expect(applyBlock).toMatch(/cloneSubtree\(\{[\s\S]*?freshRoot: true[\s\S]*?\}\)/);
+  });
+});
