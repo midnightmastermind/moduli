@@ -12,7 +12,7 @@ import { useGridActions } from "../../GridActionsContext";
 import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
+import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../../helpers/embedRegistry.js";
 import { consumeUserInput } from "../../helpers/userInputWindow";
 import {
   isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
@@ -296,9 +296,13 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     if (!editor || !getPos) return;
     const pos = getPos();
     const nodeSize = node.nodeSize;
+    // Whose block is it? A textblock this doc OWNS (or one still provisional, with
+    // no server row) goes; one placed here from elsewhere is only taken out of
+    // this doc — deleting it would remove it everywhere (embedRegistry.embedRemoval).
+    const owned = isProvisionalTextblock(occurrenceId) || embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete";
     editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
-    dropOccurrenceData();
-  }, [editor, getPos, node.nodeSize, dropOccurrenceData]);
+    if (owned) dropOccurrenceData();
+  }, [editor, getPos, node.nodeSize, dropOccurrenceData, occurrenceId, occurrence]);
 
   // Backspace/ArrowLeft/ArrowUp at start of sub-editor.
   // deleteIfEmpty=true (only from Backspace or Shift+Enter): delete the block AND
@@ -506,6 +510,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
             dragMode={entityDragMode}
             onToggleDragMode={toggleEntityDragMode}
             onDelete={handleDeleteBlock}
+            deleteLabel={isProvisionalTextblock(occurrenceId) || embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
           />
         </div>
 

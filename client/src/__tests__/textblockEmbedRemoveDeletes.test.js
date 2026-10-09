@@ -79,3 +79,19 @@ describe("container + artifact embed removal", () => {
     expect((mc.match(/deleteLabel=\{embedDeleteLabel \|\| "Remove"\}/g) || []).length).toBe(3);
   });
 });
+
+// A page-level textblock (an `instanceTextblock` node) ALWAYS deleted its occurrence
+// on "Remove" (2026-10-09) — a textblock placed into the doc from elsewhere was
+// destroyed everywhere, and the label said Remove while it deleted. Same rule now.
+describe("instanceTextblock node removal", () => {
+  const node = fs.readFileSync(path.join(__dirname, "../docs/pills/InstanceTextblockNode.jsx"), "utf8");
+  const fn = node.slice(node.indexOf("const handleDeleteBlock"), node.indexOf("const handleNavigateBack"));
+  it("deletes the occurrence only when owned (or still provisional), else only unlinks", () => {
+    expect(fn).toMatch(/embedRemoval\(occurrence, hostOccurrenceIdOf\(editor\)\) === "delete"/);
+    expect(fn).toMatch(/isProvisionalTextblock\(occurrenceId\)/);
+    expect(fn).toMatch(/if \(owned\) dropOccurrenceData\(\)/);
+  });
+  it("its radial names the action", () => {
+    expect(node).toMatch(/onDelete=\{handleDeleteBlock\}\s*deleteLabel=\{/);
+  });
+});
