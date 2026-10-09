@@ -115,13 +115,40 @@ collapse PINNED first now — a long pinned list hid the folder rows.
 
 ---
 
-### 2026-10-09 — IN PROGRESS (account3): Body › Health doc pages — Nutrition Plan, Basic Nutrition Guide
+### 2026-10-09 — BOARD BINDINGS, THE HEALTH DOC PAGES; four defects found typing a document by clicking
 
-Claimed so two sessions do not build the same page. Also: every board's row BINDINGS now match poms (31 boards,
-`_boardplan.mjs` / `_boardapply.mjs`; Movies keeps Media Tags on purpose), an instance's own field visibility is
-editable in its Settings › Fields (`b1…` InstanceForm, deployed), and the Workouts tile's Aggregation is "total".
-The folder tree was ALREADY done by the main account (10-08 19:18-22:41) — a duplicate "Interfaces" this session
-made was removed through the tree (`_deldupfolder.mjs`). *Re-run the census before acting on one taken hours ago.*
+User: *"keep going"*. Everything below was done by clicking and diffed against poms' stored data, not by eye.
+```
+board rows   every board's row bindings = poms' (31 boards, 92 rows: Poster/Files media+files, Board Category /
+             Poster / Files hidden, plus Address, People, Location, Amount, Medium, Ingredient, Set 1-3, the
+             Ingredients macros). _boardplan.mjs / _boardapply.mjs. Movies keeps Media Tags on purpose (10-06 data)
+Basic        root section + intro, 5 sections, 15 bullet chips, the 10x4 vitamins table with poms' column
+ Nutrition   widths. Text/bold/chips/cells IDENTICAL to poms (_docdump diff). The 09-21 samples removed
+ Guide       (the visible one by its radial; 4 unreachable leftovers via delete_occurrence, dry-run first)
+Nutrition    21 sections, 18 textblocks, 46 bullet chips, four 7-column tables with widths: IDENTICAL to poms
+ Plan        but one invisible trailing space after a chip. Built from poms' doc by _docspec.mjs -> _docbuild.mjs
+             (drives _docpageadd / _docadd / _typesec / _settb / _chips / _tblfill / _tblwidth / _tblrmrow)
+Workouts     Aggregation = "total" (needed the instance field-visibility editor below)
+```
+**Fixes (all deployed, each A/B'd):**
+1. **An instance's own field visibility is editable** (Settings › Fields) — containers/pages/panels had it; on a
+   tile an op writes a show-list into, the hidden fields were unreachable (the no-hidden-setting rule).
+2. **Remove on an owned embedded SECTION or FILE deletes it** — the container/artifact branches of ModuleEmbedNode
+   always unlinked, so a doc page's own section went invisible and stayed listed. Same embedRemoval rule as rows.
+3. **Remove on a page-level textblock only deletes it when the doc owns it** — it ALWAYS deleted, so a textblock
+   placed from elsewhere was destroyed everywhere, under a label that said Remove.
+4. **Popovers opened in a FULL-SCREEN panel were drawn behind it** — the overlay was z 999999, QuickAddMenu 1100,
+   HeaderDropdown 1000, the date picker 9999, the ask-the-user modal 2000; "Add occurrence here" in full screen did
+   nothing. Overlay is 999 (above the toolbar's 998, below every popover). Watched working on prod.
+5. **A "/" inside a word opened the slash command palette**, which sat on "No commands found" and swallowed the next
+   Enter (zucchini/peppers lost a line). Opens only at line start / after whitespace. Watched working on prod.
+**Coordination slip:** the folder tree was ALREADY done by the main account (10-08 19:18-22:41); my census was
+hours old and I made a duplicate "Interfaces", removed through the tree (`_deldupfolder.mjs`). *Re-run the census
+before acting on one taken earlier.* **Probe lessons:** a stale coordinate right after `scrollIntoView` (measure
+after a wait) bit four probes; a section's trailing line is 0px until the section itself is hovered; a panel's
+scroller may not reach a long doc's bottom — full-screen in a tall window instead (`FULL=1`); `_bindedit`'s ORDER
+loop stopped silently at 40 passes (cap 400 now, says so). **Not done:** Basic Nutrition Guide's page has one empty
+line above its root section that poms lacks.
 
 ---
 
