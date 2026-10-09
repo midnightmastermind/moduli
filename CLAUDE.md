@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-09 (2) — SHARE: LINK HAD LOST ITS DESTINATION; Bookmarks rebuilt where poms keeps it; 241 debris rows swept
+
+User: *"please continue with the ui testin and tell me how far we have left"*. All by clicking unless noted.
+```
+Schedule Types   + Optometrist · Haircut · Car Service · Vet (Board Category appointment); bindings = poms'
+Projects board   rows' Poster/Files bindings + hidden flags = poms' (_boardplan PAGES=)
+Bookmarks        a Bookmarks board page + container in Library/Reading (poms' place) — _newpage, _cardrename,
+                 _additem NOITEM. **Share: link** repointed to it (Imports tab, _exprswap): yesterday's delete of the
+                 root Bookmarks page had left its container unreachable, so every shared link would have been filed
+                 into a container nothing shows. Proved with a real POST /api/v1/share → bookmark lands there
+fields           Books Read · Movies Watched · Podcasts Listened: "+ Add new" pointed at an unreachable "Library"
+                 container (the deleted Food page's); now the Library page's own container (_fcfg addNew reset)
+debris           241 rows reachable from nothing (09-22 import tests, the Food/Wrap Lab/Canvas/Bookmarks pages'
+                 unparented containers, 197 inline chips whose docs are gone). Scanner `server/_orphscan.mjs` follows
+                 occurrences[], parentId AND textmap embeds (a chip is only ever embedded); REFS=1 lists op / field /
+                 grid references first — it is what found the two above. Backup backups/orphans/2026-10-09-rebuild-
+                 unreachable-debris.json, deleted via delete_occurrence; sweepOrphans: 0 orphans of any kind
+```
+**Lesson:** deleting a page whose containers are not PARENTED to it leaves them listed by nothing — and operations
+or fields that target those containers keep "working" into an invisible place. Scan references before and after.
+**Probes:** `_newpage` (FOLDER OPEN), `_exprswap` (TAB RULE FROM TO — rewrites expression slots, Saves), `_orphscan`.
+
+---
+
 ### 2026-10-08 (5) — ROUTINES IDENTICAL TO POMS: 10 areas, 30 sub-containers, 99 routines, all by clicking
 
 User: *"please continue with the ui testin"*. Picked from `_gridcmp` (bulk boards — songs, movies, people — stay
