@@ -52,7 +52,11 @@ const allPanels = useMemo(() => {
       style={{
         position: "fixed",
         inset: 10,
-        zIndex: 999999,
+        // Above the toolbar (998), BELOW every popover (1000+): popovers portal to
+        // <body>, so at 999999 the "+" palette, the header dropdown and the date
+        // picker opened inside a full-screen panel drew behind it and could not be
+        // clicked. The layers inside are local to this stacking context.
+        zIndex: 999,
         pointerEvents: "auto", // ✅ ensure clickable even if someone re-adds a bad class
       }}
       // ✅ IMPORTANT: DO NOT use className="dnd-overlay"
@@ -75,7 +79,7 @@ const allPanels = useMemo(() => {
           inset: 0,
           borderRadius: 12,
           overflow: "hidden",
-          zIndex: 999999 + 1,
+          zIndex: 1,
           pointerEvents: "auto",
         }}
       >
@@ -86,7 +90,7 @@ const allPanels = useMemo(() => {
             bottom: 0,
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 999999 + 3,
+            zIndex: 3,
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -159,7 +163,7 @@ const allPanels = useMemo(() => {
         </div>
 
         {/* fullscreen Panel render */}
-        <div style={{ position: "absolute", inset: 0, zIndex: 999999 + 1, pointerEvents: "auto" }}>
+        <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "auto" }}>
           <ModulePanel
             module={panel}
             cols={cols}
