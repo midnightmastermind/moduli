@@ -115,6 +115,16 @@ collapse PINNED first now — a long pinned list hid the folder rows.
 
 ---
 
+### 2026-10-09 — IN PROGRESS (account3): Body › Health doc pages — Nutrition Plan, Basic Nutrition Guide
+
+Claimed so two sessions do not build the same page. Also: every board's row BINDINGS now match poms (31 boards,
+`_boardplan.mjs` / `_boardapply.mjs`; Movies keeps Media Tags on purpose), an instance's own field visibility is
+editable in its Settings › Fields (`b1…` InstanceForm, deployed), and the Workouts tile's Aggregation is "total".
+The folder tree was ALREADY done by the main account (10-08 19:18-22:41) — a duplicate "Interfaces" this session
+made was removed through the tree (`_deldupfolder.mjs`). *Re-run the census before acting on one taken hours ago.*
+
+---
+
 ### 2026-10-08 (2) — TRACKERS LAID OUT LIKE POMS; a container could not be dropped INTO a container
 
 User: *"could you continue with the ui rebuild"* → *"keep going"*. Picked up account2's Trackers-layout pass (limit at 10:12).
