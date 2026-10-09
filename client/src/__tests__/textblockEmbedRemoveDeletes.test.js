@@ -59,3 +59,23 @@ describe("a block moved from one doc to another", () => {
     expect(ed).toMatch(/oldOwner\.id !== occurrence\.id[\s\S]{0,120}JSON\.stringify\(oldOwner\.textmap \|\| ""\)\.includes\(occurrenceId\)[\s\S]{0,200}parentId: occurrence\.id/);
   });
 });
+
+// An embedded CONTAINER (a doc page's section) and an embedded ARTIFACT took the
+// unlink path whatever owned them (2026-10-09): "Remove" on a section homed in
+// its doc page left it listed by the page and drawn nowhere — invisible for good.
+describe("container + artifact embed removal", () => {
+  it("the container branch routes Remove through the ownership rule", () => {
+    const c = src.slice(src.lastIndexOf("<Container"));
+    expect(c.slice(0, c.indexOf("/>"))).toMatch(/embedOnDelete=\{removeRow\}/);
+    expect(c.slice(0, c.indexOf("/>"))).toMatch(/embedDeleteLabel=/);
+  });
+  it("the artifact branch too (a file homed in Files still only unlinks — ownership decides)", () => {
+    const a = src.slice(src.indexOf("embedHideLabel"));
+    expect(a.slice(0, a.indexOf("embedSourceType"))).toMatch(/embedOnDelete=\{removeRow\}/);
+  });
+  it("ModuleContainer shows the label on its radial", () => {
+    const mc = fs.readFileSync(path.join(__dirname, "../modules/ModuleContainer.jsx"), "utf8");
+    expect(mc).toMatch(/embedDeleteLabel = null/);
+    expect((mc.match(/deleteLabel=\{embedDeleteLabel \|\| "Remove"\}/g) || []).length).toBe(3);
+  });
+});

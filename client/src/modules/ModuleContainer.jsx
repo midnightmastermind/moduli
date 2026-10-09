@@ -217,6 +217,7 @@ function Container({
   occurrenceOverride = null,
   embedRadialItems = null,
   embedOnDelete = null,
+  embedDeleteLabel = null,
   embedSourceType = null,
   // WHICH occurrence rendered this one. Not derivable from the data: a SHARED
   // occurrence (the emotions wheel is multi-parented into every day column)
@@ -1271,6 +1272,7 @@ function Container({
                 onHistory={() => setHistoryOpen(true)}
                 onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
+                deleteLabel={embedDeleteLabel || "Remove"}
                 extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
               />
             </div>
@@ -1349,6 +1351,7 @@ function Container({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
+                deleteLabel={embedDeleteLabel || "Remove"}
                       extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
                     />
                   </div>
@@ -1466,6 +1469,7 @@ function Container({
                     onHistory={() => setHistoryOpen(true)}
                     onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
+                deleteLabel={embedDeleteLabel || "Remove"}
                     extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
                   />
                 </div>

@@ -455,7 +455,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             embedHideLabel
             renderBody={() => <ArtifactCard module={mod} label={mod.label} occurrence={occurrence} />}
             embedRadialItems={embedRadialItems}
-            embedOnDelete={deleteNode}
+            embedOnDelete={removeRow}
+            embedDeleteLabel={embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
             embedSourceType="doc-embed"
           />
         ) : (
@@ -467,7 +468,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             occurrenceOverride={occurrence}
             embedded
             embedRadialItems={embedRadialItems}
-            embedOnDelete={deleteNode}
+            embedOnDelete={removeRow}
+            embedDeleteLabel={embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
             embedSourceType="doc-embed"
           />
         )}
