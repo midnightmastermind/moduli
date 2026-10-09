@@ -3,6 +3,19 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-09 — APPLY_TEMPLATE merge: keeps the matched node's record, embeds what it adds)
+- **`operationActions.js` APPLY_TEMPLATE merge** — after topping up a MATCHED node it patched that node's `$vars`
+  record from the raw `occurrencesById` row (dropping `_ancestors` + enrichment) and judged "new" children against
+  the node's SIBLINGS, so existing children were re-appended and every later `_ancestors HAS_ANCESTOR` FIND in the
+  run missed the node. Now: "new" = not in the matched node's own children; the patch starts from the read-model
+  record and covers every role slice. `__tests__/applyTemplateMergeKeepsRecord.test.js`.
+- **Same branch + the unwrapRoot target** — a new clone added under an EXISTING doc node is appended to that doc's
+  textmap (`embedNewInDoc`, via `docEmbedAppend`); before, it was listed and never drawn. A freshly cloned doc needs
+  nothing (its textmap is the template's, remapped). `__tests__/applyTemplateMergeEmbeds.test.js`.
+- Found by replaying the real `Day Page: Build` over a Mongo dump inside vitest (`executePipeline(op, ctx)` with
+  maps built from the dump) — the deployed build prints no op logs, so the in-page Run history + a replay are the
+  instruments.
+
 ## Recent Changes (2026-10-08 — containerDropDestination.js NEW: a container can be dropped INTO a container)
 - `handleContainerDrop` read the destination list as the PAGE, so a drop on the edge of a container nested in
   another container found no index and did nothing. `containerDropDestination({hoveredOccId, draggedOccId,

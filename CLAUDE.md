@@ -15,6 +15,42 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-09 (3) — POMS' EIGHT WEEKDAY TEMPLATES AND THE DAY PAGE'S DAILY QUESTION, BY CLICKING; two merge defects
+
+User: *"please continue with the ui testin and tell me how far we have left"*, answers *"Add the rows they use"* and
+*"Match poms"*. Every result read back from Mongo.
+```
+rows        +20 Movements, +3 Meals, +8 Ingredients with poms' values (the templates' Movement / Meal / Ingredient picks)
+templates   Schedule Template holds Layout + poms' 8 (Workouts Mon–Fri, Meals, Schedule: Routine, Workouts Sunday),
+            each its own container (8c3911ac), Weekday bound + valued as poms. 65 items in poms' order, 55 dragged
+            from Routines (copy), poms' own-module Drink (8 Meals slots) and Planks/Side Planks made by the item picker
+            + copies; every value set by clicking (_tplvals: 65/65 "same"). Own modules' binding order + hidden = poms'.
+            Helper "Schedule Slots Template" deleted (its slot modules were its own — checked before deleting).
+            Diff vs poms: every ITEM line identical; only slot-container BINDINGS differ (below).
+day page    Journal › Daily Question (doc) › section (binds Date(h), Daily Question(h), header = Daily Question linked
+            by Date) › answer textblock (Date(h), Answer(h)); Day Page binds Date(h); the old Daily Question board
+            removed; Day Page: Build's FIND repointed (op editor). Watched: today's and tomorrow's columns get the
+            section, embedded, with a question picked.
+```
+**Fixes (deployed):** (1) `6ed857e7` the integrity rule called Meals + Schedule: Routine "×2" (copied from one
+template, both every weekday) — a NAME now distinguishes copies. (2) `46343f34` an APPLY_TEMPLATE **merge** rebuilt a
+matched node's read-model record from the raw stored row (dropping `_ancestors`) and judged "new" children against its
+SIBLINGS, so every later "under this column" FIND missed it — Day Page: Build never filled the question once the
+section sat a level deeper. Found by replaying the real op over a Mongo dump in vitest. (3) `954420a4` a merge into an
+EXISTING doc listed new clones and never embedded them (invisible); it appends the embed (helpers/docEmbedAppend).
+Both A/B'd (old code fails 3/4 and 1/4). Client 5,857.
+**My slip, repaired:** `_delocc` without `GRID=` deleted on another grid's socket — Mongo dropped 11 rows, the rebuild's
+warm cache kept serving them and a load RE-LISTED one. Re-deleted on the right socket (`_fsghost.mjs`: served vs Mongo
+→ 0 ghosts); `_delocc` now refuses without `GRID`. Also: the socket delete does not unlist from parents — `_unlist.mjs`
+(occurrencesBase-scoped). Stale stamps in today's Schedule (the old 2-slot Routine's Stretch/Read, a Drink stamped while
+it sat in 5:00pm) and a second Oct 10 day column from two quick probes were removed the same way.
+**Left, not exact:** poms' weekday-template SLOTS bind nothing (Routine's share Layout's slot modules); the rebuild's
+bind Time Slot + Schedule Format. The section's stored name reads "Container" (inline rename refuses empty; its header
+shows the question). **Probes:** `_tplitems` / `_tplslots` (server), `_tplbuild`, `_tplvals`, `_dragslot` (TOP=/BOTTOM=
+row id, conditional source scroll), `_hdrlink`, `_runhist`, `_unlist`, `_fsghost`, `_loadwait`.
+
+---
+
 ### 2026-10-09 (2) — SHARE: LINK HAD LOST ITS DESTINATION; Bookmarks rebuilt where poms keeps it; 241 debris rows swept
 
 User: *"please continue with the ui testin and tell me how far we have left"*. All by clicking unless noted.
