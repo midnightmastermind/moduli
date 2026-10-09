@@ -502,6 +502,21 @@ describe("duplicate template application", () => {
     expect(codes(f)).not.toContain("duplicate-template-application");
   });
 
+  // A COPY-APPLIED TEMPLATE IS ITS OWN CONTAINER, renamed for what it holds. The
+  // rebuild's eight weekday templates were copied from one template; "Meals" and
+  // "Schedule: Routine" both run every day, so their Weekday values are identical
+  // — and their names (and everything inside them) are not. A NAME distinguishes them.
+  it("is quiet when the applications carry different names", () => {
+    const named = (id, label) => occ(id, `m${id}`, {
+      parentId: "board", meta: { appliedFromTemplateId: "tpl" }, fields: { fDay: { value: ["Monday"] } },
+    });
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("ma", { role: "container", label: "Meals" }), mod("mb", { role: "container", label: "Schedule: Routine" })],
+      occurrences: [board, named("a"), named("b")],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+
   // A PARENT THAT DOES NOT EXIST HAS NO SIBLINGS. Both false positives the rule
   // produced across the live grids were groups whose parentId names nothing —
   // eight weekday templates sharing a hand-authored signature, and two project

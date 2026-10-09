@@ -371,7 +371,12 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
       // (2026-09-21, the UI-rebuilt grid). A clone's signature names its source
       // node, so two copies of one node still share it and a real duplicate is
       // still caught.
-      const key = `${o.parentId}\u0000${tpl}\u0000${o.identitySignature || ""}\u0000${shape}`;
+      // …and its NAME. A copy-applied template is its own container, renamed for
+      // what it holds: "Meals" and "Schedule: Routine" were copied from one template
+      // and both carry all seven weekdays (2026-10-09, the rebuild). Two copies that
+      // still wear the same name are what a duplicate looks like.
+      const name = o.label || modById.get(o.moduleId)?.label || "";
+      const key = `${o.parentId}\u0000${tpl}\u0000${o.identitySignature || ""}\u0000${name}\u0000${shape}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(o);
     }
