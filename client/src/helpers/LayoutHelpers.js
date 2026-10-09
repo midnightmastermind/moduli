@@ -2,6 +2,7 @@
 import * as CommitHelpers from "./CommitHelpers";
 import { kindForNewModule } from "./operationActions.js";
 import { uid } from "../uid";
+import { withAction } from "./actionScope";
 // ============================================================================
 // LOOKUP HELPERS - get items from state by ID
 // ============================================================================
@@ -1015,6 +1016,33 @@ export function copyContainerToPanel({
   }
 
   return { occurrence };
+}
+
+// A copied container is a new PLACEMENT of the same module in the list the drop computed —
+// a page's list or another container's. copyContainerToPanel added it to the PANEL
+// occurrence's list (which lists pages), so on a board page the copy landed nowhere visible,
+// and a container could never be copied INTO another container (2026-10-09: poms' Schedule:
+// Routine places Layout's own slot modules). The copy takes the source placement's field
+// values, as an instance copy does; its children are its own, so it starts with none.
+export function copyContainerToList({ dispatch, socket, gridId, userId, sourceOccurrence, toListOcc, toIndex = null, emit = true }) {
+  if (!gridId || !sourceOccurrence?.moduleId || !toListOcc?.id || !userId) return null;
+  return withAction("Copied container", () => {
+    const occurrence = {
+      id: uid(),
+      userId,
+      moduleId: sourceOccurrence.moduleId,
+      gridId,
+      parentId: toListOcc.id,
+      fields: sourceOccurrence.fields ? JSON.parse(JSON.stringify(sourceOccurrence.fields)) : {},
+      occurrences: [],
+      ...(sourceOccurrence.label ? { label: sourceOccurrence.label } : {}),
+    };
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
+    const list = toListOcc.occurrences || [];
+    const next = toIndex == null ? ensureId(list, occurrence.id) : insertAt(list, toIndex, occurrence.id);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toListOcc.id, occurrences: next }, emit, occurrencesBase: list });
+    return { occurrence };
+  });
 }
 
 // ============================================================================

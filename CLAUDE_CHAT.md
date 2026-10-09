@@ -3806,3 +3806,15 @@ User answers (asked):
 User answers (asked):
 - Weekday schedule templates: **add the board rows they use** (the ~20 Movements, 6 Meals, ~12 Ingredients the templates pick, with poms' values), then build poms' 8 templates exactly (Workouts Mon–Fri + Sunday, Meals, Routine).
 - Day Page template: **match poms** — Daily Question as a question section + answer textblock, and update `Day Page: Build` to fill it.
+
+### 2026-10-09 16:44 — slot bindings yes; anything the UI can't do, add it
+User, on the remaining differences: *"yes to the template slot bindings"* and *"if something cant be done with ui,
+add it in to the system to do"*. So: match poms' Schedule Template slot bindings (weekday templates' slots bind
+nothing; Routine shares Layout's slot modules), and where the rebuild can't match poms because the UI lacks a
+control (a textblock's name, a container with no name, a bare/no-kind container), build the control, then use it.
+Answers (asked, 16:50):
+- Routine slots: **build copy-drag into a container, rebuild Routine on Layout's slot modules exactly**.
+- Inline chips: *"if it doesnt match poms, fix it on poms too. that goes for each of these"* — keep the app's rule
+  (chips listed by their doc) and bring poms' chips in line with it.
+- Financial's No Date Prefix: **hide like poms**.
+- Grid State marker: *"keep it visible but fix it on poms"* — poms gets the visible Grid State › Last Opened.

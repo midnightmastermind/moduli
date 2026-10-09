@@ -566,7 +566,8 @@ export function handleContainerDrop(dropContext, ctx) {
           }
         }
       } else if (isCopyMode) {
-        LayoutHelpers.copyContainerToPanel({ dispatch, socket, gridId, sourceContainerId: draggedContainerId, toPanel, userId: state?.userId, toIndex, emit: true });
+        // Into the list the drop computed (page or container), never the panel's list.
+        LayoutHelpers.copyContainerToList({ dispatch, socket, gridId, userId: state?.userId, sourceOccurrence: occurrencesById[occurrenceId], sourceOccurrenceId: occurrenceId, toListOcc: toOrderOcc, toIndex, emit: true });
       } else if (sameOrderOcc) {
         const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedContainerId, fromListOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1) {

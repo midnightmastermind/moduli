@@ -141,9 +141,11 @@ export function updateModule({ dispatch, socket, module, emit = true }) {
  * the UI. The typed name goes to the module (the shared name an op re-derives
  * from) and this placement's own label is cleared, so the typed name shows.
  */
-export function renameContainer({ dispatch, socket, module, occurrence, label, meta }) {
+// `allowEmpty` — an unnamed container is legitimate (its header can show a bound field
+// instead); only a deliberate gesture (Container settings › Label) may clear the name.
+export function renameContainer({ dispatch, socket, module, occurrence, label, meta, allowEmpty = false }) {
   const next = (label ?? "").trim();
-  if (!next || !module?.id) return;
+  if ((!next && !allowEmpty) || !module?.id) return;
   const moduleChanged = next !== (module.label ?? "") || (meta !== undefined && meta !== module.meta);
   const placementLabel = occurrence?.id && occurrence.label != null;
   if (!moduleChanged && !placementLabel) return;

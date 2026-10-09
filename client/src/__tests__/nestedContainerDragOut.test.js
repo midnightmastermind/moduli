@@ -33,7 +33,8 @@ vi.mock("../helpers/CommitHelpers", () => ({
 vi.mock("../helpers/LayoutHelpers", () => ({
   moveContainerBetweenPanels: (a) => { moves.push({ kind: "move", ...a }); },
   reorderContainersInPanel: (a) => { moves.push({ kind: "reorder", ...a }); },
-  copyContainerToPanel: (a) => { moves.push({ kind: "copy", ...a }); },
+  copyContainerToPanel: (a) => { moves.push({ kind: "copyToPanel", ...a }); },
+  copyContainerToList: (a) => { moves.push({ kind: "copy", ...a }); },
   createContainerInPanel: vi.fn(),
   findOccurrenceIdByTarget: (moduleId, ids, occs) =>
     (ids || []).find(id => occs[id]?.moduleId === moduleId) || null,
@@ -215,5 +216,38 @@ describe("dragging a container INTO another container (beside a nested one)", ()
     const r = moves.find(m => m.kind === "reorder");
     expect(r).toBeTruthy();
     expect(r.panelOccurrence.id).toBe("page");
+  });
+});
+
+// A COPY-MODE container drop added the copy to the PANEL occurrence's list — which lists
+// PAGES — whatever the computed destination, so a copied container on a board page (or into
+// a container) landed nowhere visible (2026-10-09: rebuilding poms' Schedule: Routine on
+// Layout's slot modules needs a slot copied INTO another template).
+describe("copy-dragging a container", () => {
+  const copyCtx = () => { const c = ctx(); c.sessionRef.current.mode = "copy"; return c; };
+  it("copies INTO the nested container's parent, at the drop index", () => {
+    const d = dropOnEdgeOf("m-env", "environmental", "m-brews", "brews", "bottom");
+    d.mode = "copy";
+    handleContainerDrop(d, copyCtx());
+    const cp = moves.find(m => m.kind === "copy");
+    expect(cp?.toListOcc.id).toBe("creative");
+    expect(cp.toIndex).toBe(1);
+    expect(cp.sourceOccurrenceId).toBe("environmental");
+    expect(moves.find(m => m.kind === "copyToPanel")).toBeFalsy();
+  });
+  it("copies a nested container out onto the PAGE list, never the panel's", () => {
+    const d = dropOnEdgeOf("m-brews", "brews", "m-env", "environmental", "top");
+    d.mode = "copy";
+    handleContainerDrop(d, copyCtx());
+    const cp = moves.find(m => m.kind === "copy");
+    expect(cp?.toListOcc.id).toBe("page");
+    expect(cp.toIndex).toBe(1);
+  });
+  it("a copy-mode drag within its own list still reorders (control)", () => {
+    const d = dropOnEdgeOf("m-env", "environmental", "m-creative", "creative", "top");
+    d.mode = "copy";
+    handleContainerDrop(d, copyCtx());
+    expect(moves.find(m => m.kind === "copy")).toBeFalsy();
+    expect(moves.find(m => m.kind === "reorder")).toBeTruthy();
   });
 });

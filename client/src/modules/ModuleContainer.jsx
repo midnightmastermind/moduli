@@ -376,7 +376,7 @@ function Container({
   });
 
   const commitLabel = useCallback(() => {
-    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: draft?.label });
+    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: draft?.label, allowEmpty: true });
   }, [draft?.label, module, containerOccurrence, dispatch, socket]);
 
   // Inline label editor (standard non-embedded header) — double-click flips

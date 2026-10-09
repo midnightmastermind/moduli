@@ -60,6 +60,17 @@ describe("renameContainer", () => {
     renameContainer({ socket, module: { id: "m1", label: "Old" }, occurrence: { id: "o1", label: "X" }, label: "   " });
     expect(socket.emit).not.toHaveBeenCalled();
   });
+
+  // A container can be UNNAMED (poms' Daily Question section binds its header to the
+  // question instead). The Settings Label is a deliberate gesture, so it may clear the
+  // name; the inline header rename keeps refusing an empty one (2026-10-09).
+  it("clears the name when the caller allows an empty one", () => {
+    const socket = connected();
+    renameContainer({ socket, module: { id: "m1", label: "Container" }, occurrence: { id: "o1", label: null }, label: "  ", allowEmpty: true });
+    const out = emits(socket);
+    expect(out.map((e) => e.event)).toEqual(["update_module"]);
+    expect(out[0].payload.module.label).toBe("");
+  });
 });
 
 describe("ModuleContainer renames through it", () => {
