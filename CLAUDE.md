@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-08 (5) — ROUTINES IDENTICAL TO POMS: 10 areas, 30 sub-containers, 99 routines, all by clicking
+
+User: *"please continue with the ui testin"*. Picked from `_gridcmp` (bulk boards — songs, movies, people — stay
+out of scope). The rebuild's Routines page was 7 flat containers with 38 routines; poms' is 9 areas × sub-containers.
+```
+areas       Mind renamed Intellectual; Emotional + Occupational made; page order = poms'
+subs        28 sub-containers (_subctr) + the existing Media → Intellectual and Admin → Financial (_ctrinto FULL SIB=)
+moved       26 routines into their sub-container (_rtmove: drag mode → Move, drag, restore)
+renamed     Workout → Exercise (same fields as poms' Exercise; no op reads the name)
+deleted     rebuild-only Morning Walk, Push-ups, Read 10 pages, Call a friend (no op referenced them)
+added       73 routines with poms' exact field list (_rtadd → _additem CONTOCC=)
+bindings    _boardplan PAGES=Routines → 69 groups through Settings › Fields: 0 rows differ after
+order       rows in every sub-container in poms' order (_rtorder → _rowmove); Media before Skill
+drag mode   95 routines set to Copy through their radial (poms' routines all copy out of the bank; the rebuild's
+            were mostly Move, so dragging one to the Schedule would have taken it OUT of the bank)
+result      _pagecmp: Routines structure IDENTICAL to poms; integrity 0 errors
+```
+**No app defects found** in this pass. **Probe faults, all caught before damage:** `_additem`'s new `CONTOCC` selector
+was invalid JS (nested quotes) — every add errored, nothing written; a container drag in a 3000px window auto-scrolled
+and dropped Admin into Emotional (moved on, then fixed with `FULL` + a refuse-unless-inside check); a routine dragged in
+Copy mode made a COPY (removed via `delete_occurrence`) — hence the Move/restore wrapper; `_ctrmove` ignored `FULLH`.
+**Probes:** `_ctrrename` (ID NAME), `_rowrename` (OCC NAME), `_rowdel` (OCC NAME, refuses a row that does not read NAME),
+`_dragmode` (OCC MODE via radial › Drag mode), `_rtmove`, `_rtadd`, `_rtorder`; `_dragtoid` / `_ctrinto` gained
+`FULL`/`FULLH` and refuse to release outside the destination; `_additem` takes `CONTOCC`.
+
+---
+
 ### 2026-10-08 (4) — THE TREE MATCHES POMS; alarms get a category; a stale Save could revert another op
 
 The user's answers (CLAUDE_CHAT 16:58), all done by clicking, read back from Mongo:
