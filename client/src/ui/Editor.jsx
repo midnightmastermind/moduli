@@ -91,6 +91,7 @@ import { ExprPill } from "../docs/ExprPillExtension";
 import { CellEmbedContext } from "../docs/CellEmbedContext";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
 import CommandPalette from "../docs/suggestions/CommandPalette";
+import { slashOpensPalette } from "../docs/suggestions/slashTrigger.js";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
 import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
@@ -1386,7 +1387,7 @@ const Editor = forwardRef(function Editor({
         // ── end cell-mode keymaps ─────────────────────────────────────────────
 
         if (event.key === "@") handleAtKey();
-        if (event.key === "/") handleSlashKey();
+        if (event.key === "/" && slashOpensPalette(_view.state.selection.$from.parent.textBetween(0, _view.state.selection.$from.parentOffset, "\n", "\ufffc"))) handleSlashKey();
         if (event.key === "[" && lastCharRef.current === "[") handleDocLinkTrigger();
         if (event.key === "=" && !showExprSuggestion) handleEqualKey();
         if (event.key === ":" && lastCharRef.current === "@") handleEmbedTrigger();
