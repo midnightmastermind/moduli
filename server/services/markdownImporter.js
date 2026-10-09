@@ -28,6 +28,7 @@
 // Returns { modules: [...], occurrences: [...], rootOccurrenceId, dryRun }.
 // Caller broadcasts the entities via socket so connected tabs sync.
 
+import { ownInlineChips } from "../utils/inlineChipOwnership.js";
 import crypto from "crypto";
 import { annotationLabelOf } from "../utils/codexParse.js";
 import Module from "../models/Module.js";
@@ -924,6 +925,9 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   // whose `parentId` points back, so deleting an imported page used to orphan
   // most of it (measured 2026-09-22: 3 of 4, 10 of 18). First lister wins; an
   // explicit parent (the root's, a section's) is never overwritten.
+  // A link chip belongs to the text that embeds it — parented and listed, as "Make inline
+  // textblock" does — so deleting that text reaches it (utils/inlineChipOwnership).
+  ownInlineChips(occurrences);
   const byId = new Map(occurrences.map((o) => [o.id, o]));
   for (const parent of occurrences) {
     for (const childId of parent.occurrences || []) {

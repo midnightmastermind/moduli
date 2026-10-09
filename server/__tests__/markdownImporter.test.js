@@ -648,3 +648,16 @@ describe("parseInline backslash escapes", () => {
     expect(t).toContain("\\alpha");
   });
 });
+
+// A link becomes an inline chip; it belongs to the textblock whose text embeds it (2026-10-09).
+describe("imported link chips are owned by their text", () => {
+  it("parents and lists the chip under the textblock that draws it", async () => {
+    const r = await markdownToModuli({ gridId: "g1", userId: "u1", markdown: "# T\n\nSee [Zen](https://en.wikipedia.org/wiki/Zen) here.", dryRun: true });
+    const holder = r.occurrences.find((o) => JSON.stringify(o.textmap || {}).includes("instanceTextblockInline"));
+    expect(holder).toBeTruthy();
+    const chipId = JSON.stringify(holder.textmap).match(/"occurrenceId":"([^"]+)"/)[1];
+    const chip = r.occurrences.find((o) => o.id === chipId);
+    expect(chip.parentId).toBe(holder.id);
+    expect(holder.occurrences).toContain(chipId);
+  });
+});
