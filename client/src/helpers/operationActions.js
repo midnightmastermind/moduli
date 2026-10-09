@@ -3559,21 +3559,32 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             // walking matched.occurrences[] see them. Without this, recursive
             // clones into a matched node are invisible to FINDs that ran later
             // in the same pipeline (the optimistic stub was never patched).
+            //
+            // "New" is measured against the MATCHED node's own children, and the
+            // patch starts from its READ-MODEL record, not the raw stored row.
+            // Both were wrong (2026-10-09): the check read the node's SIBLINGS, so
+            // children it already had were appended again; and the patch spread
+            // `matched` — the raw row from `occurrencesById` — over the enriched
+            // record, dropping `_ancestors`, so every later "under this column"
+            // FIND in the same run missed the node (Day Page: Build's Daily
+            // Question pass found nothing once the section sat a level deeper).
             const addedChildIds = [];
+            const ownChildren = matched.occurrences || [];
             for (const childOccId of (srcOcc.occurrences || [])) {
               const childCloneId = clone(childOccId, matched.id, false);
-              if (childCloneId && !siblingIds.includes(childCloneId)) {
+              if (childCloneId && !ownChildren.includes(childCloneId) && !addedChildIds.includes(childCloneId)) {
                 addedChildIds.push(childCloneId);
               }
             }
             if (addedChildIds.length && Array.isArray($vars.$allOccurrences)) {
-              const patchedMatched = {
-                ...matched,
-                occurrences: [...(matched.occurrences || []), ...addedChildIds],
-              };
-              $vars.$allOccurrences = $vars.$allOccurrences.map(o => o.id === matched.id ? patchedMatched : o);
-              if (Array.isArray($vars.$allItems)) {
-                $vars.$allItems = $vars.$allItems.map(o => o.id === matched.id ? patchedMatched : o);
+              const record = $vars.$allOccurrences.find(o => o && o.id === matched.id) || matched;
+              const have = record.occurrences || [];
+              const fresh = addedChildIds.filter(id => !have.includes(id));
+              if (fresh.length) {
+                const patched = { ...record, occurrences: [...have, ...fresh] };
+                for (const key of ["$allOccurrences", "$allItems", "$allContainers", "$allPages", "$allPanels", "$allInstances"]) {
+                  if (Array.isArray($vars[key])) $vars[key] = $vars[key].map(o => (o && o.id === matched.id ? patched : o));
+                }
               }
             }
             return matched.id;
