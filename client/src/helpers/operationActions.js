@@ -22,6 +22,7 @@
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
+import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
 import { pickReusableModuleId, stampCloneOrigin } from "../../../server/utils/cloneModuleReuse.js";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
@@ -3401,6 +3402,32 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         return remapEmbeddedRefs(out);
       };
 
+      // A DOC draws its TEXTMAP and nothing else. A merge that clones a new child
+      // into a doc node that already EXISTED (a day column built before the
+      // template gained a section) only listed it, so it never appeared — the
+      // listed-but-not-embedded class (2026-10-09). A freshly cloned doc needs
+      // none of this: its textmap is the template's, remapped. Appends at the
+      // end, as every other add to a doc does (helpers/docEmbedAppend).
+      const embedNewInDoc = (parentId, childIds) => {
+        if (!parentId || !childIds?.length) return;
+        const parent = occurrencesById[parentId];
+        if (!parent || !isDocParent(modulesById?.[parent.moduleId])) return;
+        const drawn = new Set();
+        const scan = (n) => { if (!n || typeof n !== "object") return; if (n.attrs?.occurrenceId) drawn.add(n.attrs.occurrenceId); (n.content || []).forEach(scan); };
+        scan(parent.textmap);
+        let tm = parent.textmap && typeof parent.textmap === "object" ? parent.textmap : null;
+        for (const id of childIds) {
+          if (drawn.has(id)) continue;
+          const made = updates.find(u => u._effect === "CREATE_ITEM" && u.instance?.id === id);
+          if (!made) continue;
+          tm = appendDocEmbed(tm, docEmbedNode({ moduleId: made.template?.id, occurrenceId: id, role: made.template?.role }));
+          drawn.add(id);
+        }
+        if (!tm || tm === parent.textmap) return;
+        occurrencesById[parentId] = { ...parent, textmap: tm };
+        updates.push({ _effect: "UPDATE_ITEM_TEXTMAP", itemId: parentId, textmap: tm });
+      };
+
       // rootParent (optional): when set, the cloned ROOT is parented directly
       // here (a folder id is fine — pages parent to folders via parentId) and
       // no clone-into-an-existing-target is required. Used to mint a brand-new
@@ -3576,6 +3603,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
                 addedChildIds.push(childCloneId);
               }
             }
+            embedNewInDoc(matched.id, addedChildIds);
             if (addedChildIds.length && Array.isArray($vars.$allOccurrences)) {
               const record = $vars.$allOccurrences.find(o => o && o.id === matched.id) || matched;
               const have = record.occurrences || [];
@@ -3761,9 +3789,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // Clone only the template root's CHILDREN into target (skip root node).
         const templateRoot = occurrencesById[templateRef];
         if (templateRoot) {
+          const before = new Set(target.occurrences || []);
+          const made = [];
           for (const childOccId of (templateRoot.occurrences || [])) {
-            clone(childOccId, target.id, false);
+            const id = clone(childOccId, target.id, false);
+            if (id && !before.has(id)) made.push(id);
           }
+          if (mode === "merge") embedNewInDoc(target.id, made);
         }
       } else {
         rootCloneId = clone(templateRef, target.id, true);
