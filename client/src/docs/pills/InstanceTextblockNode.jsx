@@ -4,13 +4,16 @@
 // embed delete registry, the drag registration and the caret hand-off between
 // adjacent blocks. The BODY (field binding + lazy editor) belongs to
 // ModuleTextblock's `block` context.
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { disarmDraggableUntilHandle } from "../../helpers/dragSystem";
 import { useGridActions } from "../../GridActionsContext";
 import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
+import InstanceForm from "../../ui/InstanceForm";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { X } from "lucide-react";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../../helpers/embedRegistry.js";
 import { consumeUserInput } from "../../helpers/userInputWindow";
@@ -53,6 +56,20 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // typeable in the frame it appears instead of a second later.
   const occurrence = occurrencesById?.[occurrenceId] || getProvisionalOccurrence(occurrenceId) || null;
   const instance = modulesById?.[instanceId] || null;
+
+  // SETTINGS. The radial's default "Settings" item calls onSettings, and this
+  // node passed none — so on a doc page a textblock's Settings did nothing and
+  // its module name could not be set by any click. A row's ModuleInstance owns
+  // the same popover; this is that popover, writing the same updateModule call.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [draft, setDraft] = useState(() => ({ label: instance?.label ?? "" }));
+  useEffect(() => { if (settingsOpen) setDraft({ label: instance?.label ?? "" }); }, [settingsOpen, instance?.label]);
+  const commitLabel = useCallback(() => {
+    if (!instance?.id) return;
+    const next = (draft?.label ?? "").trim();
+    if (next === (instance.label ?? "")) return;
+    CommitHelpers.updateModule({ dispatch, socket, module: { id: instance.id, label: next }, emit: true });
+  }, [draft?.label, instance?.id, instance?.label, dispatch, socket]);
 
   // A NODE FOR AN OCCURRENCE THAT RESOLVES FROM NOWHERE — not the store, not the
   // provisional registry. This node draws the "—" below, and it is the shape of
@@ -493,6 +510,8 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       >
         {/* RadialMenu handle — always visible, top-left.
             Doubles as the Pragmatic DnD drag handle (see useEffect above). */}
+        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <PopoverAnchor asChild>
         <div
           ref={handleRef}
           className="module-drag-handle"
@@ -509,10 +528,28 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
             forceDirection="down"
             dragMode={entityDragMode}
             onToggleDragMode={toggleEntityDragMode}
+            onSettings={instance ? () => setSettingsOpen(true) : undefined}
             onDelete={handleDeleteBlock}
             deleteLabel={isProvisionalTextblock(occurrenceId) || embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
           />
         </div>
+        </PopoverAnchor>
+        {settingsOpen && instance && (
+          <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
+            <button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
+            <InstanceForm
+              value={draft}
+              onChange={setDraft}
+              onCommitLabel={commitLabel}
+              instanceId={instance.id}
+              instance={instance}
+              occurrence={occurrence}
+              dispatch={dispatch}
+              socket={socket}
+            />
+          </PopoverContent>
+        )}
+        </Popover>
 
         {occurrence ? (
           // The BODY belongs to ModuleTextblock; this node view keeps only the
