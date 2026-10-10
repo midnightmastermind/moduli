@@ -15,6 +15,41 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-09 (4) — SCHEDULE TEMPLATE IDENTICAL; chips owned by their text on both grids; four things the UI could not do
+
+User: *"if something cant be done with ui, add it in to the system to do"* · *"yes to the template slot bindings"* ·
+on each mismatch *"if it doesnt match poms, fix it on poms too"*. Answers recorded in CLAUDE_CHAT (16:44 / 16:50).
+```
+Schedule Tmpl  Routine rebuilt on Layout's own slot modules (49 copies, in order) + Weekday all 7 + its 21 items;
+               _gridcmp: IDENTICAL. Slot bindings "clean" on BOTH grids: hidden Time Slot + Schedule Format only
+               (poms' stray Date/Last Seen bindings removed by clicking; values kept)
+textblocks     15 project textblocks (Overview…Success Criteria, template + both projects) and Daily Answer named;
+               the Day Page section's "Container" name cleared — all through Settings, read back from Mongo
+Trackers       Financial's No Date Prefix hidden (as poms); Last Opened binds Aggregation = total, both hidden, in
+               poms' order; its stale Date cleared; Grid State shows it (as poms, after 0393)
+poms (0393)    a Grid State container listing the unlisted Last Opened marker; Physical › Media kind = board
+both (0394)    every inline chip listed + parented by the text that embeds it — poms 1,861 chips, rebuild 1,537
+```
+**Code, each test-first and A/B'd, deployed:**
+1. **A container could not be copy-dragged INTO another container** — the copy branch always listed the copy on the
+   PANEL. `LayoutHelpers.copyContainerToList` (one action), used by `handleContainerDrop` (`6994ddbe`).
+2. **A container's name could not be cleared** — Settings › Label refused empty (`renameContainer allowEmpty`).
+3. **The importer minted inline chips owned by nothing** (`server/utils/inlineChipOwnership`, `373fb33f`).
+4. **An in-doc textblock's radial "Settings" did nothing** — `InstanceTextblockNode` passed no `onSettings`, so a
+   textblock on a doc page could never be named. It opens the row's `InstanceForm` now (`92d7377d`).
+5. **A date cleared through its chip hid the row from EVERY day** — the native input clears to `""` and the filter's
+   persistent rule skipped only `null` (`bd36ce5a`). Grid-wide 3 such values; poms' 2 sit on Tasks (filter off).
+   Watched on prod: Last Opened appears in Grid State.
+**Not done, the user's call:** Basic Nutrition Guide's empty FIRST line above its section — clicking it mints a
+textblock and Backspace hands the line back (nothing above to join), so it cannot be removed by clicking; changing
+that means the mint/backspace path. **Where it stands (_gridcmp):** only poms' `Files/Examples` page is one-sided;
+every differing page is bulk content kept out of scope (Songs 5,485 / Albums / Movies / Artists / People / Books /
+TV / Authors / Lookup / Library / Emotions / Questions), past days' Schedule and Day Page columns, or sample boards
+with fewer rows. **Probes:** `_setlabel` (OCC NAME PG — Settings › Label), `_ctrflt` (CTR WANT=on|off — a container's
+Active filter), `_gscheck`, `_ctrcopy`, `_panelgo`; `_killgap KEY=`; server `_pgof`, `_emptydate`, `_bng`.
+
+---
+
 ### 2026-10-09 (3) — POMS' EIGHT WEEKDAY TEMPLATES AND THE DAY PAGE'S DAILY QUESTION, BY CLICKING; two merge defects
 
 User: *"please continue with the ui testin and tell me how far we have left"*, answers *"Add the rows they use"* and
