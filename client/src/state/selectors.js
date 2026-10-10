@@ -746,7 +746,9 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       const fieldVal = occurrence.fields?.[fieldId];
       const leftVal = fieldVal?.value !== undefined ? fieldVal.value : fieldVal;
       // Persistent semantics: occurrence with no value for this field passes (e.g. recurring habits).
-      if (leftVal == null) continue;
+      // "" is no value too: a date cleared through its chip stores the native input's empty string,
+      // and counting it as a date hid the row from every day.
+      if (leftVal == null || leftVal === "") continue;
       const rightVal = cond.value !== undefined && cond.value !== null && cond.value !== ""
         ? cond.value
         : effectiveFilters?.[fieldId];
@@ -833,7 +835,7 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
     // No value for this field → treat as persistent (always pass)
     if (fieldVal == null) continue;
     const val = fieldVal?.value !== undefined ? fieldVal.value : fieldVal;
-    if (val == null) continue;
+    if (val == null || val === "") continue;
     // Period-shape `{value, unit}` filter values broaden the match window —
     // route through DATE_IN_PERIOD which handles week/month/year correctly.
     // Multi-shape `{kind:"multi", dates:[...]}` also routes through
