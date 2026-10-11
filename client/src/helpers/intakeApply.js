@@ -27,6 +27,7 @@
 // layer is transparent before any new shape rides on it.
 
 import { INTAKE_SHAPES, allIntakeShapeIds } from "./intake";
+import { externalFileOf } from "./externalFile.js";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
 import { convertLinkToPage, harvestLinks } from "./linkToPage";
 import { openConfirmList } from "../ui/ConfirmListHost";
@@ -105,6 +106,8 @@ export const INTAKE_ROUTES = {
   // A real RECORD — Title / URL / Notes with the site's favicon as its face —
   // rather than a chip. Mints immediately and fills from the server-side
   // lookup when it lands, because that lookup fetches an arbitrary host.
+  // The file the link points at, as an artifact (fileRef = the URL). Offered only for a media URL.
+  [S.LINK_FILE.id]: { run: runLinkFile, note: "an image / video / PDF artifact showing the linked file" },
   [S.LINK_BOOKMARK.id]: { run: runLinkBookmark, note: "the same bookmark the Browser tile makes: title, cover, opens in the viewer" },
   // Attach an image to the occurrence it was dropped ON, rather than adding a
   // sibling next to it. Offered only where there is a Files field to attach to.
@@ -581,6 +584,21 @@ export function bookmarkFieldIds(fieldsById = {}) {
     (f) => String(f?.name || "").trim().toLowerCase() === "url" && f?.type === "text",
   )?.id || null;
   return { url };
+}
+
+function runLinkFile(ctx) {
+  const { payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket, insertIndex = null } = ctx;
+  const url = payload.urls?.[0];
+  const file = externalFileOf(url);
+  if (!url || !file || !destinationOccurrence) {
+    notifyIntake(ctx, { ok: false, error: "nowhere to put the file" });
+    return;
+  }
+  const made = CommitHelpers.addExternalFileOccurrence({
+    dispatch, socket, gridId, userId, containerOccurrence: destinationOccurrence, url, file, index: insertIndex,
+  });
+  if (!made) { notifyIntake(ctx, { ok: false, error: "could not add the file" }); return; }
+  notifyIntake(ctx, { ok: true, message: `Added ${file.fileName}` });
 }
 
 function runLinkBookmark(ctx) {

@@ -1393,6 +1393,31 @@ export function addScratchBrowser(args) {
  * Browser" tile and one made by "Save bookmark" would quietly stop matching —
  * the drift class this repo keeps paying for.
  */
+/**
+ * An artifact that IS a file on the web — fileRef is the URL, nothing is uploaded (`meta.external`).
+ * The shape of poms' Files/Examples samples; `resolveFileRef` serves an absolute URL as-is. One undo
+ * step: the module, the placement and the parent's list write.
+ */
+export function addExternalFileOccurrence({ dispatch, socket, gridId, userId, containerOccurrence, url, file, label = null, index = null }) {
+  if (!gridId || !userId || !containerOccurrence || !url || !file?.kind) return null;
+  return withAction("Added file", () => {
+    const moduleId = crypto?.randomUUID?.() || `xf-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const occurrenceId = crypto?.randomUUID?.() || `xo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const module = {
+      id: moduleId, userId, gridId, role: "artifact", kind: file.kind,
+      label: label || file.fileName || "File", fileRef: url,
+      meta: { external: true, mimeType: file.mimeType, originalName: label || file.fileName, uploadStatus: "ready" },
+    };
+    const occurrence = { id: occurrenceId, userId, gridId, moduleId, parentId: containerOccurrence.id };
+    dispatch?.(createModuleAction(module));
+    dispatch?.(createOccurrenceAction(occurrence));
+    safeEmit(socket, "create_module", { module });
+    safeEmit(socket, "create_occurrence", { occurrence });
+    spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
+    return { module, occurrence };
+  });
+}
+
 export function addBookmarkOccurrence(args) {
   if (!args?.gridId || !args?.userId || !args?.containerOccurrence) return null;
   // One undo step — see createLeafInstanceInParent.

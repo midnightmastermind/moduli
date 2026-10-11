@@ -1,3 +1,4 @@
+import { externalFileOf } from "./externalFile.js";
 // helpers/intake.js
 //
 // Task 1 of docs/superpowers/plans/2026-08-06-intake-links-and-artifacts.md —
@@ -54,6 +55,7 @@ export const INTAKE_SHAPES = {
   LINK_BOARD_OPTION: { id: "link-board-option", label: "Board option", hint: "A real tagged option this board's dropdowns can see" },
   LINK_FIELD_VALUE: { id: "link-field-value", label: "Set as field value", hint: "Fill this occurrence's link field" },
   LINK_FOLLOW: { id: "link-follow", label: "…and follow its links", hint: "Import the pages it points at too" },
+  LINK_FILE: { id: "link-file", label: "File from the link", hint: "The image / video / PDF itself, not a page about it" },
 
   // image
   IMAGE_ARTIFACT: { id: "image-artifact", label: "Image", hint: "An image artifact, as today" },
@@ -190,6 +192,10 @@ export function classifyIntake(payload = {}, destination = {}) {
     //     (Dropped anywhere else the pages are still reachable under Imports.)
     if (!many && !inDoc) add(S.LINK_FOLLOW);
     fallback = many ? S.LINK_CONTAINER.id : S.LINK_CHIP.id;
+    // A link straight to a media FILE can be that file — an artifact whose fileRef is the URL — and
+    // that is what pasting it most likely means, so it is the default. Single link only: a set of
+    // links still goes to the container shape.
+    if (!many && externalFileOf(p.urls?.[0])) { add(S.LINK_FILE); fallback = S.LINK_FILE.id; }
   } else if (p.kind === "file" || p.kind === "files") {
     const files = p.files || [];
     const one = files.length === 1 ? files[0] : null;
