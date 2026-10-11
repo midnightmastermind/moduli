@@ -216,15 +216,21 @@ export function registerCrudHandlers(socket, {
     }
   });
 
-  socket.on("update_module", async ({ module: moduleData } = {}) => {
+  socket.on("update_module", async (payload = {}) => {
+    const moduleData = payload.module;
     try {
       if (!userId) return;
       const uc = await getUc();
       const id = moduleData?.id;
       if (!id) return;
+      // Recorded like every occurrence write: a module edit (a row's or container's rename, Settings ›
+      // Fields bindings, a style, the default drag mode) was invisible to undo — it wrote no
+      // transaction at all (found 2026-10-11 renaming a row by clicking).
+      const before = uc.modulesById[id] ? withoutMongoId(uc.modulesById[id]) : null;
       const next = { ...withoutMongoId(uc.modulesById[id] || {}), ...withoutMongoId(moduleData), id, userId };
       uc.modulesById[id] = next;
       await Module.findOneAndUpdate({ id, userId }, next, { upsert: true });
+      recordChange({ model: "module", id, before, after: next, payload });
       socket.to(userRoom(userId)).emit("module_updated", { module: next });
     } catch (err) {
       console.error("update_module error:", err);

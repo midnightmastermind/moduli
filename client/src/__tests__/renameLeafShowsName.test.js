@@ -25,3 +25,13 @@ describe("renameLeaf", () => {
     expect(src.match(/CommitHelpers\.renameLeaf\(/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("a rename is one undo step", () => {
+  it("its write carries the gesture's action id (unstamped writes are recorded derived — not undoable)", () => {
+    const emits = []; const socket = { connected: true, emit: (ev, data) => emits.push([ev, data]) };
+    renameLeaf({ dispatch: () => {}, socket, module: { id: "i", role: "instance", label: "Old" }, label: "New" });
+    const w = emits.find((e) => e[0] === "update_module");
+    expect(w, "no update_module emitted").toBeTruthy();
+    expect(w[1].__actionId).toBeTruthy();
+  });
+});

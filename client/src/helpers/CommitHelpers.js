@@ -144,10 +144,10 @@ export function renameLeaf({ dispatch, socket, module, label }) {
   const next = (label ?? "").trim();
   const nameShown = module.role === "artifact" && module.meta?.originalName != null;
   if (next === (module.label ?? "") && (!nameShown || module.meta.originalName === next)) return;
-  updateModule({
+  withAction("Renamed", () => updateModule({
     dispatch, socket, emit: true,
     module: { id: module.id, label: next, ...(nameShown ? { meta: { ...module.meta, originalName: next } } : {}) },
-  });
+  }));
 }
 
 /**

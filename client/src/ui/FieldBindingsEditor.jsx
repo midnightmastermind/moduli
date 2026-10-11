@@ -42,6 +42,7 @@ import { useGridActions } from "../GridActionsContext";
 import { gridAutoAppliedFieldIds } from "../helpers/autoAppliedFields";
 import { sortBindingsForDisplay, moveBinding } from "../helpers/fieldBindingOrder";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { withAction } from "../helpers/actionScope";
 
 /**
  * @param module      the module whose `fieldBindings` are edited (required)
@@ -77,11 +78,12 @@ export default function FieldBindingsEditor({
 
   const commit = useCallback((next) => {
     if (!module?.id) return;
-    CommitHelpers.updateModule({
+    // A user gesture — one undo step (update_module records it since 2026-10-11).
+    withAction("Changed fields", () => CommitHelpers.updateModule({
       dispatch, socket,
       module: { id: module.id, fieldBindings: next },
       emit: true,
-    });
+    }));
   }, [module?.id, dispatch, socket]);
 
   // One flat category — a field is picked in one click, no drilling.

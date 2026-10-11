@@ -19,6 +19,7 @@
 // card's context menu is the surface (it already sets the cover and deletes),
 // and the write is the SAME one a container's inline rename makes.
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { withAction } from "../helpers/actionScope";
 
 /**
  * @returns a context-menu item, or null when there is nothing to rename.
@@ -40,7 +41,7 @@ export function buildRenameItem({ module, dispatch, socket, onStart = null }) {
   const commit = (next) => {
     const label = String(next ?? "").trim();
     if (!label || label === (module.label ?? "")) return false;   // same guard the container rename has
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label }, emit: true });
+    withAction("Renamed", () => CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label }, emit: true }));
     return true;
   };
 
