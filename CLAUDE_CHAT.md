@@ -3818,3 +3818,7 @@ Answers (asked, 16:50):
   (chips listed by their doc) and bring poms' chips in line with it.
 - Financial's No Date Prefix: **hide like poms**.
 - Grid State marker: *"keep it visible but fix it on poms"* — poms gets the visible Grid State › Last Opened.
+
+### 2026-10-10 21:17 — continue the UI testing
+User: *"please continue with the ui testin"* (after the 10-09 (4) report: Schedule Template identical, bulk content
+out of scope, Files/Examples poms-only, Basic Nutrition Guide's empty first line left as their call).
