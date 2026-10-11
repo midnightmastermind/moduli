@@ -15,6 +15,40 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-10 — FILES/EXAMPLES, INGREDIENTS + GROCERY LIST (both feeds) BY CLICKING; a link could not become its file
+
+User: *"please continue with the ui testin"*. All by clicking, read back from Mongo; `_gridcmp` now finds **no
+one-sided page** and these pages IDENTICAL: Files/Examples, Ingredients, Grocery List, Ideas, Tasks.
+```
+Examples      board page in Files/Examples + "Sample Files" holding poms' 5 external files (3 images, a webm, a
+              pdf): pasted as links -> "File from the link" (new, below), named through Settings › Label.
+              kind / label / shown name / URL / type = poms for all 5
+Ingredients   +10 rows from poms' data (_genrows/_applyrows) — Lettuce, Frozen Mixed Veggies and Protein Powder
+              were MOVED in from Grocery List instead (14 meal / template Ingredient picks point at those rows;
+              a duplicate would have stranded them), given poms' 30 fields; feed = poms' (Board Category
+              CONTAINS ingredient, 200) -> Milk / Bananas / Coffee Beans copies; order = poms' (_ctrorder)
+Grocery List  poms' own 4 rows + feed (CONTAINS grocery) -> the 15 copies; order = poms'
+Ideas / Tasks a row renamed + bindings; Zhong Yi's / Frozen Berries' extra bindings unbound
+```
+**Code (deployed, each A/B'd):** (1) `bd36ce5a`-follow-up commits: **"File from the link"** — a pasted link to an
+image / video / audio / PDF can become that file (`helpers/externalFile`, `CommitHelpers.addExternalFileOccurrence`,
+preselected for a media URL; before, a link could only be a chip / bookmark / page). (2) **Renaming an artifact
+renamed nothing on screen** — the card shows `meta.originalName` first; `CommitHelpers.renameLeaf` moves it with the
+label (Settings, inline, and the in-doc textblock's Settings use it). Label-first display was NOT chosen: it would
+rename 1,350 People photos on poms ("Sari Lee.jpg" -> "Sari Lee").
+**Found, worth knowing: bindings RENDER IN ARRAY ORDER; `binding.order` is read by nothing** (poms carries ties and
+gaps in it). I first "fixed" two Therapy rows by sorting on `order` and broke what was already right — put back.
+**Left, the user's call:** poms' Zucchini Peppers Onions stores the STRING "1/2 cup" in the NUMBER field Quantity
+(no click can produce it; the rebuild holds 0.5); its Ingredient/feed Poster pictures not copied (as before).
+**Probe faults:** searching "Tasks" opens the Tasks FOLDER page and `_bindedit` grabbed the row inside its tiny
+preview card (it now takes the largest copy outside `.preview-node-preview` and hit-tests until the point is on
+the handle); an overnight token expiry reads as a Playwright timeout (`_mkauth`, then set gridId back); the shell
+reorder loop dropped a last line with no trailing newline. **Probes:** `_pastefile` (CTR URL SHAPE), `_ctrfeed2`
+(CID PG FIELD CMP VALUE LIMIT), `_ctrorder` (CID PAGEOCC WANT), `_ctrflt`, `_shotpanel`, `_idle`; `_applyrows` takes
+an existing `occ` per row; server `_find`, `_binds`.
+
+---
+
 ### 2026-10-09 (4) — SCHEDULE TEMPLATE IDENTICAL; chips owned by their text on both grids; four things the UI could not do
 
 User: *"if something cant be done with ui, add it in to the system to do"* · *"yes to the template slot bindings"* ·
