@@ -30,9 +30,9 @@ Ingredients   +10 rows from poms' data (_genrows/_applyrows) — Lettuce, Frozen
 Grocery List  poms' own 4 rows + feed (CONTAINS grocery) -> the 15 copies; order = poms'
 Ideas / Tasks a row renamed + bindings; Zhong Yi's / Frozen Berries' extra bindings unbound
 ```
-**Code (deployed, each A/B'd):** (1) `bd36ce5a`-follow-up commits: **"File from the link"** — a pasted link to an
+**Code (deployed, each A/B'd):** (1) `9fd6c913` **"File from the link"** — a pasted link to an
 image / video / audio / PDF can become that file (`helpers/externalFile`, `CommitHelpers.addExternalFileOccurrence`,
-preselected for a media URL; before, a link could only be a chip / bookmark / page). (2) **Renaming an artifact
+preselected for a media URL; before, a link could only be a chip / bookmark / page). (2) `62baf44c` **Renaming an artifact
 renamed nothing on screen** — the card shows `meta.originalName` first; `CommitHelpers.renameLeaf` moves it with the
 label (Settings, inline, and the in-doc textblock's Settings use it). Label-first display was NOT chosen: it would
 rename 1,350 People photos on poms ("Sari Lee.jpg" -> "Sari Lee").
