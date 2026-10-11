@@ -17,6 +17,6 @@ describe("in-doc textblock settings", () => {
   });
   it("the popover is the row's InstanceForm, and its label writes the module", () => {
     expect(src).toMatch(/<InstanceForm[\s\S]*onCommitLabel=\{commitLabel\}/);
-    expect(src).toMatch(/updateModule\(\{[^}]*module: \{ id: instance\.id, label: next \}/);
+    expect(src).toMatch(/renameLeaf\(\{[^}]*module: instance,[^}]*label: draft\?\.label/);
   });
 });

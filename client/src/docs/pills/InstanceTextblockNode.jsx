@@ -66,9 +66,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   useEffect(() => { if (settingsOpen) setDraft({ label: instance?.label ?? "" }); }, [settingsOpen, instance?.label]);
   const commitLabel = useCallback(() => {
     if (!instance?.id) return;
-    const next = (draft?.label ?? "").trim();
-    if (next === (instance.label ?? "")) return;
-    CommitHelpers.updateModule({ dispatch, socket, module: { id: instance.id, label: next }, emit: true });
+    CommitHelpers.renameLeaf({ dispatch, socket, module: instance, label: draft?.label });
   }, [draft?.label, instance?.id, instance?.label, dispatch, socket]);
 
   // A NODE FOR AN OCCURRENCE THAT RESOLVES FROM NOWHERE — not the store, not the

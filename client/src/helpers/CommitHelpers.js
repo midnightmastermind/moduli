@@ -134,6 +134,23 @@ export function updateModule({ dispatch, socket, module, emit = true }) {
 }
 
 /**
+ * Rename a row (instance / artifact / textblock) — its MODULE's label. An artifact is displayed by
+ * `meta.originalName` ahead of its label (ArtifactCard), so writing only the label made a rename of
+ * an uploaded or linked file visibly do nothing; for an artifact that carries one, the displayed name
+ * follows the rename. The rest of `meta` is kept (the server replaces `meta` whole).
+ */
+export function renameLeaf({ dispatch, socket, module, label }) {
+  if (!module?.id) return;
+  const next = (label ?? "").trim();
+  const nameShown = module.role === "artifact" && module.meta?.originalName != null;
+  if (next === (module.label ?? "") && (!nameShown || module.meta.originalName === next)) return;
+  updateModule({
+    dispatch, socket, emit: true,
+    module: { id: module.id, label: next, ...(nameShown ? { meta: { ...module.meta, originalName: next } } : {}) },
+  });
+}
+
+/**
  * Rename a container — ONE undo step. Its header shows `occurrence.label ??
  * module.label`, and a per-placement label (written by an operation:
  * Date-Prefix Labels' "Today's …") WINS, so writing only the module label made
