@@ -13,10 +13,15 @@
 const BULLET = /^\s*([•·▪◦‣⁃●○■□*-]|\(?\d{1,2}[.)])\s+/;
 const NUMBERED = /^\s*\(?(\d{1,2})[.)]\s+/;
 
+// A line's SIZE is tesseract's rowHeight (the font's row, ascenders to descenders), not its bounding box:
+// the box of a line with no descenders is ~25% shorter ("near the boat house." 18px vs 23px on the same
+// 24px type), which reads as a size change. The box is the fallback when rowHeight is missing.
 const height = (line) => {
+  const row = Number(line?.rowAttributes?.rowHeight);
+  if (row > 0) return row;
   const b = line?.bbox;
   const h = b ? b.y1 - b.y0 : 0;
-  return h > 0 ? h : Number(line?.rowAttributes?.rowHeight) || 0;
+  return h > 0 ? h : 0;
 };
 const median = (xs) => {
   const s = xs.filter((x) => x > 0).sort((a, b) => a - b);
@@ -45,7 +50,7 @@ export function joinLines(lines) {
 // and the next sub-heading into ONE paragraph (measured on a plain picnic flyer). A change of line height,
 // or a gap wider than a line, is the layout saying "new block" — so a paragraph is split there.
 const SIZE_JUMP = 1.25;
-const GAP_LINES = 0.9;
+const GAP_LINES = 1.2;
 function splitAtLayoutBreaks(lines) {
   const runs = [];
   let run = [];
@@ -54,7 +59,9 @@ function splitAtLayoutBreaks(lines) {
     if (prev) {
       const ratio = l.h > 0 && prev.h > 0 ? Math.max(l.h, prev.h) / Math.min(l.h, prev.h) : 1;
       const gap = l.y0 != null && prev.y1 != null ? l.y0 - prev.y1 : 0;
-      const unit = Math.min(l.h || 0, prev.h || 0);
+      // Against the TALLER line: a line with no descenders ("near the boat house.") is short, and measuring
+      // against it reads ordinary line spacing as a paragraph gap.
+      const unit = Math.max(l.h || 0, prev.h || 0);
       if (ratio >= SIZE_JUMP || (unit > 0 && gap > unit * GAP_LINES)) { runs.push(run); run = []; }
     }
     run.push(l);
@@ -98,11 +105,15 @@ export function ocrToMarkdown(page, { mode = "reader" } = {}) {
   if (!paras.length) return "";
   const body = median(paras.flatMap((p) => p.lines.map((l) => l.h)));
   const out = [];
+  let prevWasList = false;
   for (const p of paras) {
     const texts = p.lines.map((l) => l.text);
     // Lists: a paragraph whose lines start with bullets is a list, one item per bullet; a wrapped
     // continuation line joins the item above it.
     if (BULLET.test(texts[0])) {
+      // tesseract often gives each bullet its own paragraph; consecutive ones are ONE list.
+      if (prevWasList && out[out.length - 1] === "") out.pop();
+      prevWasList = true;
       const items = [];
       for (const t of texts) {
         if (BULLET.test(t) || !items.length) items.push([t]);
@@ -117,6 +128,7 @@ export function ocrToMarkdown(page, { mode = "reader" } = {}) {
       out.push("");
       continue;
     }
+    prevWasList = false;
     const text = joinLines(texts);
     if (mode === "magic" && body > 0 && p.lines.length <= 3) {
       const ratio = p.h / body;

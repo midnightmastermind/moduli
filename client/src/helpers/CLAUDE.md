@@ -12,8 +12,10 @@ _Updated: 2026-09-27. Check this file before re-reading source._
   `-`/`N.` lists from bullets. Leading `#`/`>`/`|` OCR happened to read are escaped. No layout → splits
   the plain text on blank lines. **A tesseract paragraph is split where the line height jumps (≥1.25×) or
   a gap wider than ~a line opens** — on a real flyer tesseract put the title, the prose and the next
-  sub-heading in ONE paragraph, so Magic found no headings. Test `__tests__/ocrLayout.test.js` (19; each
-  split rule A/B'd — the first fixture let the gap rule cover the size rule, so its lines are packed tight).
+  sub-heading in ONE paragraph, so Magic found no headings. **Line size is tesseract's `rowHeight`, not
+  the bbox** — a line with no descenders has an 18px box against 23px on the same type, which read as a
+  size change and split a sentence (seen on prod). Consecutive bullet paragraphs join into one list.
+  Test `__tests__/ocrLayout.test.js` (21; each rule A/B'd).
 
 ## Recent Changes (2026-10-12 — op effects stamp the gesture's action; duplicateInstance)
 - `state/bindSocketToStore` op effects (CREATE_ITEM, CREATE_FOLDER, UPDATE_VIEW, create_occurrence_in_container,

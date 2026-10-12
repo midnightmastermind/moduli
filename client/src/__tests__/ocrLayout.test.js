@@ -43,6 +43,13 @@ describe("layout breaks inside one tesseract paragraph", () => {
     expect(md[1]).toBe("We meet at the lake on Saturday until the afternoon.");
     expect(md[2]).toBe("## Shopping List");
   });
+  it("keeps ordinary line spacing together, even next to a short line", () => {
+    // The real lines from the picnic flyer: same type, but the second has no descenders, so its BOX is
+    // 18px against 23px. tesseract's rowHeight (23 / 23.29) is what says they are the same size.
+    const row = (text, y0, y1, rowHeight) => ({ text, bbox: { x0: 0, y0, x1: 100, y1 }, rowAttributes: { rowHeight } });
+    const p = page(para([row("If it rains we will move everything to the shelter", 442, 465, 23), row("near the boat house.", 474, 492, 23.289568)]));
+    expect(ocrParagraphs(p).map((x) => x.lines.length)).toEqual([2]);
+  });
   it("splits at a gap wider than a line, even at the same size", () => {
     const p = page(para([at("one", 0, 20), at("two", 22, 20), at("three", 80, 20)]));
     expect(ocrParagraphs(p).map((x) => x.lines.length)).toEqual([2, 1]);
@@ -91,6 +98,10 @@ describe("ocrToMarkdown — magic", () => {
   it("turns bullets into a list, joining a wrapped item", () => {
     const p = page(para([line("- eggs"), line("- milk and"), line("cream")]), ...body());
     expect(ocrToMarkdown(p, { mode: "magic" })).toMatch(/^- eggs\n- milk and cream/);
+  });
+  it("joins bullets tesseract split into separate paragraphs into one list", () => {
+    const p = page(para([line("- eggs")]), para([line("- milk")]), para([line("Then cook.")]), ...body());
+    expect(ocrToMarkdown(p, { mode: "magic" })).toMatch(/^- eggs\n- milk\n\nThen cook\./);
   });
   it("keeps a numbered list numbered", () => {
     const p = page(para([line("1. preheat"), line("2. bake")]), ...body());
