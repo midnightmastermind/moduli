@@ -1690,6 +1690,60 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { connErr(res, e); }
   });
 
+  // ── Calendar subscriptions (services/feeds.js) ───────────────────
+  // A calendar link fetched on a timer and run through the calendar share rule. The Imports tab lists,
+  // adds, re-syncs and removes them; the per-event bookkeeping never leaves the server.
+  const feedsMod = () => import("../services/feeds.js");
+  const ownedGrid = (req) => Grid.findOne({ _id: req.params.id, userId: req.userId }, { feeds: 1 }).lean().catch(() => null);
+  const feedDeps = async (req) => (await feedsMod()).makeFeedDeps({ userId: req.userId, gridId: req.params.id, io, userRoom, peekUserCache });
+  const emitFeeds = async (req, feeds) => {
+    const { publicFeeds } = await feedsMod();
+    io?.to(userRoom(req.userId)).emit("grid_updated", { gridId: req.params.id, grid: { feeds: publicFeeds(feeds) } });
+    return publicFeeds(feeds);
+  };
+  router.get("/grids/:id/feeds", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    const g = await ownedGrid(req); if (!g) return err(res, 404, "not_found", "grid not found");
+    res.json({ feeds: (await feedsMod()).publicFeeds(g.feeds || []) });
+  });
+  router.post("/grids/:id/feeds", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const g = await ownedGrid(req); if (!g) return err(res, 404, "not_found", "grid not found");
+      const { newFeed, syncFeed } = await feedsMod();
+      const feed = newFeed(req.body || {});
+      if ((g.feeds || []).some((f) => f.url === feed.url)) return err(res, 409, "conflict", "that calendar is already subscribed");
+      await Grid.updateOne({ _id: req.params.id, userId: req.userId }, { $push: { feeds: feed } });
+      const synced = await syncFeed({ userId: req.userId, gridId: req.params.id, feedId: feed.id, deps: await feedDeps(req) });
+      const after = await ownedGrid(req);
+      res.status(201).json({ feed: (await feedsMod()).publicFeeds([synced || feed])[0], feeds: await emitFeeds(req, after.feeds) });
+    } catch (e) { err(res, e.status || 500, e.status === 400 ? "validation_error" : "internal_error", e.message); }
+  });
+  router.patch("/grids/:id/feeds/:feedId", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    const { FEED_INTERVALS } = await feedsMod();
+    const set = {};
+    if (typeof req.body?.name === "string" && req.body.name.trim()) set["feeds.$.name"] = req.body.name.trim();
+    if (FEED_INTERVALS.includes(Number(req.body?.everyMinutes))) set["feeds.$.everyMinutes"] = Number(req.body.everyMinutes);
+    if (typeof req.body?.enabled === "boolean") set["feeds.$.enabled"] = req.body.enabled;
+    if (!Object.keys(set).length) return err(res, 400, "validation_error", "send name, everyMinutes or enabled");
+    const g = await Grid.findOneAndUpdate({ _id: req.params.id, userId: req.userId, "feeds.id": req.params.feedId }, { $set: set },
+      { returnDocument: "after", projection: { feeds: 1 } }).lean().catch(() => null);
+    if (!g) return err(res, 404, "not_found", "feed not found");
+    res.json({ feeds: await emitFeeds(req, g.feeds) });
+  });
+  router.post("/grids/:id/feeds/:feedId/sync", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    const g = await ownedGrid(req); if (!g) return err(res, 404, "not_found", "grid not found");
+    if (!(g.feeds || []).some((f) => f.id === req.params.feedId)) return err(res, 404, "not_found", "feed not found");
+    const { syncFeed, publicFeeds } = await feedsMod();
+    const feed = await syncFeed({ userId: req.userId, gridId: req.params.id, feedId: req.params.feedId, deps: await feedDeps(req) });
+    res.json({ feed: publicFeeds([feed])[0] });
+  });
+  // Unsubscribing keeps every row the feed made (they are the user's now).
+  router.delete("/grids/:id/feeds/:feedId", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    const g = await Grid.findOneAndUpdate({ _id: req.params.id, userId: req.userId }, { $pull: { feeds: { id: req.params.feedId } } },
+      { returnDocument: "after", projection: { feeds: 1 } }).lean().catch(() => null);
+    if (!g) return err(res, 404, "not_found", "grid not found");
+    res.json({ feeds: await emitFeeds(req, g.feeds) });
+  });
+
   router.get("/me/share", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { default: User } = await import("../models/User.js");

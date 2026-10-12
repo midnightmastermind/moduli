@@ -719,6 +719,11 @@ app.use("/api/v1", makeApiV1Router({
   storeUploadedFile: artifactUploader.storeUploadedFile,
 }));
 
+// Calendar subscriptions: fetch due feeds every minute (services/feeds.js).
+import("./services/feeds.js").then(({ startFeedScheduler, makeFeedDeps }) => {
+  startFeedScheduler({ makeDeps: (userId, gridId) => makeFeedDeps({ userId, gridId, io, userRoom, peekUserCache }) });
+}).catch((e) => console.warn("[feeds] scheduler not started:", e?.message));
+
 // ─── Image search + bare image upload (ImagePickerMenu) ───────────────────
 // Calibre-style "look up cover": the client's ImagePickerMenu queries this
 // proxy by name (e.g. "Inception movie poster") and shows a thumbnail grid.

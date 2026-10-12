@@ -238,8 +238,8 @@ export async function prepareShare({
  * one (spec §7). Recurrence is not expanded (D12) and there is no cap (D20);
  * both are reported in `notices`, as is a timezone that had to be guessed.
  */
-export async function icsEvents(text, { timeZone = null, resolveSlotLabels = null } = {}) {
-  const { events, zoneGuessed } = parseIcs(text, { timeZone });
+export async function icsEvents(text, { timeZone = null, resolveSlotLabels = null, expand = null } = {}) {
+  const { events, zoneGuessed } = parseIcs(text, { timeZone, expand });
   const needsSlots = events.some((e) => e.start?.time);
   const slotLabels = needsSlots && resolveSlotLabels ? (await resolveSlotLabels()) || [] : [];
   const out = events.map((e) => ({
@@ -249,7 +249,7 @@ export async function icsEvents(text, { timeZone = null, resolveSlotLabels = nul
   }));
   const notices = [];
   if (!events.length) notices.push("no events found in this calendar");
-  if (out.some((e) => e.recurring)) notices.push("recurrence not imported — first occurrence only");
+  if (!expand && out.some((e) => e.recurring)) notices.push("recurrence not imported — first occurrence only");
   if (zoneGuessed) notices.push("your timezone is unknown — times read in each invite's own zone");
   if (needsSlots && !slotLabels.length) notices.push("this grid has no time slots — events have no Time Slot");
   return { events: out, notices };

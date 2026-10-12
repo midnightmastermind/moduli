@@ -63,7 +63,7 @@ export function icsText(v) {
   return String(v);
 }
 
-export function parseIcs(text, { timeZone = null } = {}) {
+export function parseIcs(text, { timeZone = null, expand = null } = {}) {
   let parsed;
   try { parsed = ical.sync.parseICS(String(text || "")); }
   catch { return { events: [], skipped: 0, zoneGuessed: false }; }
@@ -80,26 +80,48 @@ export function parseIcs(text, { timeZone = null } = {}) {
       zoneGuessed = true;
       zone = isZone(v.start.tz) ? v.start.tz : "UTC";
     }
-    const s = inZone(v.start, zone);
-    const e = v.end ? inZone(v.end, zone) : null;
-
-    events.push({
-      summary: icsText(v.summary).trim() || "(no title)",
-      start: { date: s.date, time: allDay ? null : s.time, timeSlot: null },
-      end:   e ? { date: e.date, time: allDay ? null : e.time } : null,
-      // An invite whose DTEND equals its DTSTART states no length (the clinic
-      // invites that found this: every one, 2026-09-24). null, not 0 — a
-      // "Duration 0" chip claims a length the sender never gave, and the
-      // Schedule places both the same way (in the start slot).
-      durationMin: (v.end && !allDay && v.end > v.start)
-        ? Math.round((v.end - v.start) / 60000) : null,
-      allDay,
-      location: icsText(v.location) || null,
-      description: icsText(v.description) || null,
-      organizer: v.organizer?.val ? String(v.organizer.val) : null,
-      uid: v.uid ? String(v.uid) : null,
-      recurring: !!v.rrule,          // FIRST OCCURRENCE ONLY — not expanded
-    });
+    const lengthMs = v.end && v.end > v.start ? v.end - v.start : 0;
+    const one = (start, end, uid, recurring) => {
+      const s = inZone(start, zone);
+      const e = end ? inZone(end, zone) : null;
+      return {
+        summary: icsText(v.summary).trim() || "(no title)",
+        start: { date: s.date, time: allDay ? null : s.time, timeSlot: null },
+        end:   e ? { date: e.date, time: allDay ? null : e.time } : null,
+        // An invite whose DTEND equals its DTSTART states no length (the clinic
+        // invites that found this: every one, 2026-09-24). null, not 0 — a
+        // "Duration 0" chip claims a length the sender never gave, and the
+        // Schedule places both the same way (in the start slot).
+        durationMin: (end && !allDay && end > start) ? Math.round((end - start) / 60000) : null,
+        allDay,
+        location: icsText(v.location) || null,
+        description: icsText(v.description) || null,
+        organizer: v.organizer?.val ? String(v.organizer.val) : null,
+        uid,
+        recurring,
+      };
+    };
+    const uid = v.uid ? String(v.uid) : null;
+    // A SUBSCRIPTION expands a repeating event over its window (feeds.js); each occurrence gets
+    // its own identity `<UID>@<date>` so it is its own row, and an EXDATE / moved instance is honoured.
+    // A one-off share keeps the first occurrence only (D12).
+    if (v.rrule && expand && uid) {
+      const exdates = new Set(Object.values(v.exdate || {}).map((d) => new Date(d).toISOString()));
+      for (const at of v.rrule.between(expand.from, expand.to, true)) {
+        if (exdates.has(new Date(at).toISOString())) continue;
+        const key = inZone(at, zone).date;
+        const moved = Object.values(v.recurrences || {}).find((r) => r?.recurrenceid && inZone(r.recurrenceid, zone).date === key);
+        if (moved?.status === "CANCELLED") continue;
+        const st = moved?.start || at;
+        const en = moved?.end || (lengthMs ? new Date(new Date(st).getTime() + lengthMs) : null);
+        const ev = one(st, en, `${uid}@${key}`, true);
+        if (moved?.summary) ev.summary = icsText(moved.summary).trim() || ev.summary;
+        events.push(ev);
+      }
+      continue;
+    }
+    if (expand && v.status === "CANCELLED") continue;
+    events.push(one(v.start, v.end, uid, !!v.rrule));   // FIRST OCCURRENCE ONLY when not expanded
   }
   return { events, skipped: 0, zoneGuessed };
 }

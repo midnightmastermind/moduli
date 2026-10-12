@@ -80,6 +80,10 @@ const GridSchema = new mongoose.Schema({
   // would clobber entries appended server-side between their read and write.
   shareLog: { type: [mongoose.Schema.Types.Mixed], default: undefined },
 
+  // CALENDAR SUBSCRIPTIONS (services/feeds.js). Top-level for the same reason as shareLog:
+  // the timer writes it while tabs write `meta` back whole.
+  feeds: { type: [mongoose.Schema.Types.Mixed], default: undefined },
+
 }, { timestamps: true });
 
 export default mongoose.model("Grid", GridSchema);

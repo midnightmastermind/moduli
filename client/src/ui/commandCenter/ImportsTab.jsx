@@ -65,7 +65,7 @@ function shortTime(at) {
 const typeLabel = (t) => (t === "*" ? "Anything else" : SHARE_TYPES.find(x => x.id === t)?.label || t || "—");
 
 function SubTabs({ value, onChange, logCount }) {
-  const tabs = [["rules", "Rules"], ["log", `Recent shares${logCount ? ` (${logCount})` : ""}`]];
+  const tabs = [["rules", "Rules"], ["log", `Recent shares${logCount ? ` (${logCount})` : ""}`], ["feeds", "Feeds"]];
   return (
     <div style={{ display: "flex", gap: 4 }}>
       {tabs.map(([id, label]) => (
@@ -307,6 +307,106 @@ export function ShareGridPicker({ grids, fetchImpl = (...a) => fetch(...a) }) {
   );
 }
 
+// FEED SUBSCRIPTIONS (server/services/feeds.js). A link the server re-fetches on a timer. A CALENDAR (.ics /
+// webcal) runs its events through the calendar share rule like a shared invite, and an event that leaves the
+// feed is kept and marked Cancelled. An RSS / Atom feed shares each new item as a link (a bookmark, via
+// `Share: link`). Unsubscribing keeps every row the feed made.
+const FEED_EVERY = [[15, "15 min"], [30, "30 min"], [60, "hour"], [180, "3 hours"], [360, "6 hours"], [1440, "day"]];
+export function FeedSubscriptions({ gridId, gridFeeds, fetchImpl = (...a) => fetch(...a) }) {
+  const token = (() => { try { return localStorage.getItem(AUTH_KEYS.token); } catch { return null; } })();
+  const [feeds, setFeeds] = useState(null);
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [every, setEvery] = useState(60);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+  const base = `/api/v1/grids/${encodeURIComponent(gridId || "")}/feeds`;
+  const call = async (path, opts = {}) => {
+    const r = await fetchImpl(base + path, { ...opts, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message || j?.message || `failed (${r.status})`);
+    return j;
+  };
+  useEffect(() => {
+    if (!token || !gridId) return;
+    let live = true;
+    call("").then(j => { if (live) setFeeds(j.feeds || []); }).catch(e => { if (live) { setFeeds([]); setError(e.message); } });
+    return () => { live = false; };
+  }, [token, gridId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The timer's fetches arrive as grid updates; show them without a reload.
+  useEffect(() => {
+    if (Array.isArray(gridFeeds)) setFeeds(gridFeeds.map(({ items, ...f }) => ({ ...f, eventCount: f.eventCount ?? Object.keys(items || {}).length })));
+  }, [gridFeeds]);
+  if (!token) return <div style={small}>Sign in to subscribe to feeds.</div>;
+  const run = async (key, fn) => {
+    setBusy(key); setError(null);
+    try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(null); }
+  };
+  const add = () => run("add", async () => {
+    const j = await call("", { method: "POST", body: JSON.stringify({ url, name, everyMinutes: every }) });
+    setFeeds(j.feeds || []); setUrl(""); setName("");
+  });
+  const patch = (id, body) => run(id, async () => { const j = await call(`/${id}`, { method: "PATCH", body: JSON.stringify(body) }); setFeeds(j.feeds || []); });
+  const sync = (id) => run(id, async () => {
+    const j = await call(`/${id}/sync`, { method: "POST" });
+    setFeeds(fs => (fs || []).map(f => (f.id === id ? { ...f, ...j.feed } : f)));
+  });
+  const remove = (f) => {
+    if (!window.confirm(`Unsubscribe from "${f.name}"? Its events stay where they are.`)) return;
+    run(f.id, async () => { const j = await call(`/${f.id}`, { method: "DELETE" }); setFeeds(j.feeds || []); });
+  };
+  return (
+    <div data-testid="feeds" style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 720 }}>
+      <div style={small}>
+        Paste a feed link. A calendar (Google, Outlook and iCloud all offer a private .ics or webcal:// address)
+        puts its events in the Schedule like a shared invite; an event that disappears from it is kept and marked
+        Cancelled. An RSS or Atom feed (a blog, podcast, YouTube channel, subreddit) adds each new post as a
+        bookmark, the way a shared link does.
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…  (.ics, webcal://, RSS or Atom)"
+          aria-label="Feed link" style={{ ...btn, flex: "1 1 260px", textAlign: "left" }} />
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (optional)"
+          aria-label="Feed name (optional)" style={{ ...btn, flex: "0 1 150px", textAlign: "left" }} />
+        <label style={small}>check every{" "}
+          <select value={every} onChange={e => setEvery(Number(e.target.value))} style={{ ...btn, padding: "2px 4px" }}>
+            {FEED_EVERY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </label>
+        <button style={{ ...btn, ...primaryBtn }} disabled={!url.trim() || busy === "add"} onClick={add}>
+          {busy === "add" ? "Subscribing…" : "Subscribe"}
+        </button>
+      </div>
+      {error && <div style={{ ...small, color: "var(--danger-text)" }}>{error}</div>}
+      {feeds === null ? <div style={small}>Loading…</div> : !feeds.length ? <div style={small}>No feeds yet.</div> : feeds.map(f => (
+        <div key={f.id} data-testid="feed-row" style={{ border: "1px solid var(--border-default)", borderRadius: 6, padding: 8,
+          display: "flex", flexDirection: "column", gap: 4, opacity: f.enabled === false ? 0.6 : 1 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input defaultValue={f.name} aria-label="Feed name" onBlur={e => e.target.value.trim() && e.target.value !== f.name && patch(f.id, { name: e.target.value })}
+              style={{ ...btn, flex: "1 1 160px", textAlign: "left", fontWeight: 600 }} />
+            <select value={f.everyMinutes} onChange={e => patch(f.id, { everyMinutes: Number(e.target.value) })} style={{ ...btn, padding: "2px 4px" }}
+              aria-label="Check every">
+              {FEED_EVERY.map(([v, l]) => <option key={v} value={v}>every {l}</option>)}
+            </select>
+            <label style={small}><input type="checkbox" checked={f.enabled !== false} onChange={e => patch(f.id, { enabled: e.target.checked })} /> on</label>
+            <button style={btn} disabled={busy === f.id} onClick={() => sync(f.id)}>{busy === f.id ? "Checking…" : "Check now"}</button>
+            <button style={btn} onClick={() => remove(f)}>Unsubscribe</button>
+          </div>
+          <div style={{ ...small, wordBreak: "break-all", opacity: 0.7 }}>{f.url}</div>
+          <div style={small}>
+            {f.kind === "news" ? "RSS / Atom · " : f.kind === "calendar" ? "Calendar · " : ""}
+            {f.lastFetchedAt ? `checked ${shortTime(f.lastFetchedAt)} · ` : "not checked yet · "}
+            {f.lastStatus === "failed" ? <span style={{ color: "var(--danger-text)" }}>failed</span>
+              : f.kind === "news" ? `${f.lastEventCount ?? 0} items${f.lastNew ? `, ${f.lastNew} new` : ""}` : `${f.lastEventCount ?? 0} events`}
+            {f.lastCancelled ? ` · ${f.lastCancelled} newly cancelled` : ""}
+            {f.lastError ? ` · ${f.lastError}` : ""}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ImportsTab() {
   const { state, socket, dispatch } = useGridActions();
   const gridId = state?.gridId;
@@ -337,7 +437,8 @@ export function ImportsTab() {
         <ShareGridPicker grids={state?.availableGrids} />
       </div>
 
-      {sub === "log" ? <ShareLog entries={log} /> : (
+      {sub === "feeds" ? <FeedSubscriptions gridId={gridId} gridFeeds={state?.grid?.feeds} />
+        : sub === "log" ? <ShareLog entries={log} /> : (
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 190px", display: "flex", flexDirection: "column", gap: 3 }}>
             <div style={{ ...small, marginBottom: 4 }}>Run in this order. A type's own rule runs first; “Anything else” catches the rest.</div>
