@@ -301,8 +301,10 @@ export async function makeFeedDeps({ userId, gridId, io = null, userRoom = null,
     timeZone: user?.meta?.share?.timeZone || null,
     resolveSlotLabels: () => scheduleSlotLabels({ userId, gridId }),
     fetchText: async (u) => {
-      const r = await fetchPageHtml(u, { allowTypes: /text\/calendar|text\/plain|application\/octet-stream|text\/html/i, maxBytes: 20 * 1024 * 1024 });
-      return r.ok ? r.html : null;
+      const r = await fetchPageHtml(u, { maxBytes: 20 * 1024 * 1024,
+        allowTypes: /text\/calendar|text\/plain|application\/octet-stream|text\/html|xml/i });
+      if (!r.ok) throw new Error(r.error || r.reason || `could not fetch that link (${r.status || "no answer"})`);
+      return r.html;
     },
     prepareLink: async ({ url, title }) => {
       const { prepareShare } = await import("./shareIngress.js");
