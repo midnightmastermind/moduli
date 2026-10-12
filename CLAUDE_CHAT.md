@@ -3833,3 +3833,7 @@ then re-clean poms' 21 slot modules.
 
 - **2026-10-12 12:03 CDT** — "also sharing reddit links doesnt allow the body to be transfered over" (mid-turn, while starting the small-boards rows).
   Answers (12:10): shares come from the Phone (Reddit app) and Windows share; **set up Reddit's official API** (a script app, keys in server/.env); post text lands as the textblock **Body** by default (fallback selection, then title).
+
+### 2026-10-12 13:40 CDT (account3)
+- "the schedule is completely broken on poms grid now" → it was Panel D showing the **Schedule Template** page (active since 10:38 CDT), not the Schedule.
+- "there should be a page for each template, not one template page" → answers: **Templates/Schedule folder** holding one page per template (Schedule Layout, Schedule - Monday … Sunday, Schedule: Routine); the Schedule Template page goes away; do it on **both grids** (poms first, then the rebuild by clicking).

@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 (2) — ONE PAGE PER SCHEDULE TEMPLATE; the sample boards' rows filled
+
+User: *"the schedule is completely broken on poms grid now"* → *"it currently just shows all the templates"* →
+*"there should be a page for each template, not one template page"*; picked a **Templates/Schedule folder** on
+**both grids**. The Schedule was not broken: Panel D had been switched to the Schedule Template page (since
+10:38 CDT, cause unknown), which drew all nine templates at once. Today's column was healthy.
+- **`0395` (poms, applied):** Templates/Schedule holds nine board pages (Schedule: Layout, Workouts Mon–Fri,
+  Meals, Schedule: Routine, Workouts Sunday), each holding its one container — ids kept, so every op naming one
+  is untouched. The empty Schedule Template page is deleted. `Schedule: Fill Day` looped that page's children;
+  it loops `$allContainers` now and keeps the ones holding a Weekday (on both grids exactly the 8 weekday
+  templates hold one). `repointFillDay` is pure and tested; a replay over the poms fixture shows the repointed
+  op applies **exactly the same template items** as the old one with each template on its own page (A/B: the
+  old op on the split layout applies nothing).
+- **Client:** template pickers looked only at the Templates folder's DIRECT children, so a template in a
+  subfolder was invisible. `templateHelpers.templateOccurrences` walks the whole Templates tree
+  (`templateSubfolders.test.js`).
+- **Small sample boards:** every poms board of ≤25 rows now has its rows on the rebuild (`_missrows` → 0 missing;
+  ~40 rows via `_genrows`/`_applyrows`). Left: 6 binding groups differ only in field ORDER (poms stores 98 for
+  Poster/Files), Movies' Media Tags kept as before.
+- **Not done yet:** the same split on the rebuild, by clicking. The fixture was NOT re-exported — a fresh export
+  fails ~30 fixture suites written against the frozen one.
+
+---
+
 ### 2026-10-12 — A SHARED REDDIT LINK BRINGS ITS POST TEXT (account3, finishing the main account's work)
 
 User: *"also sharing reddit links doesnt allow the body to be transfered over"*; answers: shares come from the phone

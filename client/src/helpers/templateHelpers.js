@@ -33,9 +33,28 @@ export function templateLabelOf(lookups, templateOccurrence) {
   return templateOccurrence.label || m?.label || "(unnamed)";
 }
 
-export function templatesByKind(lookups, gridId, kind) {
+/** True when `folderId` is the Templates folder or a folder anywhere under it. */
+function isUnderTemplates(lookups, folderId, rootId) {
+  const folders = lookups?.foldersById || {};
+  const seen = new Set();
+  for (let id = folderId; id && !seen.has(id); id = folders[id]?.parentId) {
+    if (id === rootId) return true;
+    seen.add(id);
+  }
+  return false;
+}
+
+/**
+ * Every template: an occurrence placed in the Templates folder OR in a folder under it
+ * (Templates/Schedule holds one page per schedule template, 2026-10-12).
+ */
+export function templateOccurrences(lookups, gridId) {
   const folder = templatesFolderFor(lookups, gridId);
   if (!folder) return [];
   return Object.values(lookups?.occurrencesById || {})
-    .filter(o => o.parentId === folder.id && templateKindOf(lookups, o) === kind);
+    .filter(o => o?.parentId && isUnderTemplates(lookups, o.parentId, folder.id));
+}
+
+export function templatesByKind(lookups, gridId, kind) {
+  return templateOccurrences(lookups, gridId).filter(o => templateKindOf(lookups, o) === kind);
 }

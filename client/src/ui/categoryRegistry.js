@@ -12,7 +12,7 @@
 // stay in the Fields category alongside the global field templates.
 
 import { Database, Box, Hash, Variable, Sparkles, Zap } from "lucide-react";
-import { templatesFolderFor, templateLabelOf } from "../helpers/templateHelpers";
+import { templateOccurrences, templateLabelOf } from "../helpers/templateHelpers";
 
 const OCCURRENCE_COLLECTION_TYPES = new Set([
   "allOccurrences", "allContainers", "allPages", "allInstances", "allTemplates",
@@ -377,10 +377,7 @@ export const TEMPLATE_PICKER_CONFIG = {
           occurrencesById: occById,
           modulesById: modById,
         };
-        const folder = templatesFolderFor(lookups, ctx?.gridId);
-        if (!folder) return [];
-        return Object.values(occById)
-          .filter(o => o?.parentId === folder.id)
+        return templateOccurrences(lookups, ctx?.gridId)
           .map(o => {
             const mod = modById[o.moduleId];
             const kind = mod?.kind || mod?.role || "";
