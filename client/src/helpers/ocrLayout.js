@@ -41,17 +41,41 @@ export function joinLines(lines) {
   return out;
 }
 
-/** The paragraphs tesseract found, flattened, with what Magic needs to classify them. */
+// tesseract groups lines into paragraphs by position, and it happily puts a big title, the prose under it
+// and the next sub-heading into ONE paragraph (measured on a plain picnic flyer). A change of line height,
+// or a gap wider than a line, is the layout saying "new block" — so a paragraph is split there.
+const SIZE_JUMP = 1.25;
+const GAP_LINES = 0.9;
+function splitAtLayoutBreaks(lines) {
+  const runs = [];
+  let run = [];
+  for (const l of lines) {
+    const prev = run[run.length - 1];
+    if (prev) {
+      const ratio = l.h > 0 && prev.h > 0 ? Math.max(l.h, prev.h) / Math.min(l.h, prev.h) : 1;
+      const gap = l.y0 != null && prev.y1 != null ? l.y0 - prev.y1 : 0;
+      const unit = Math.min(l.h || 0, prev.h || 0);
+      if (ratio >= SIZE_JUMP || (unit > 0 && gap > unit * GAP_LINES)) { runs.push(run); run = []; }
+    }
+    run.push(l);
+  }
+  if (run.length) runs.push(run);
+  return runs;
+}
+
+/** The paragraphs tesseract found, flattened and split at layout breaks, with what Magic needs to classify them. */
 export function ocrParagraphs(page) {
   const out = [];
   for (const block of page?.blocks || []) {
     for (const p of block?.paragraphs || []) {
-      const lines = (p.lines || []).map((l) => ({ text: clean(l.text), h: height(l) })).filter((l) => l.text);
+      const lines = (p.lines || []).map((l) => ({ text: clean(l.text), h: height(l), y0: l.bbox?.y0, y1: l.bbox?.y1 })).filter((l) => l.text);
       if (!lines.length) continue;
       const alnum = lines.map((l) => l.text).join("").replace(/[^A-Za-z0-9]/g, "").length;
       // Noise: a speck read as a character or two, with no confidence behind it.
       if (alnum < 2 && (p.confidence ?? 100) < 60) continue;
-      out.push({ lines, h: median(lines.map((l) => l.h)), confidence: p.confidence ?? null });
+      for (const run of splitAtLayoutBreaks(lines)) {
+        out.push({ lines: run, h: median(run.map((l) => l.h)), confidence: p.confidence ?? null });
+      }
     }
   }
   return out;

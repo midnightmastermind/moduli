@@ -24,6 +24,31 @@ describe("ocrParagraphs", () => {
   });
 });
 
+describe("layout breaks inside one tesseract paragraph", () => {
+  const at = (text, y0, h) => ({ text, bbox: { x0: 0, y0, x1: 100, y1: y0 + h } });
+  // The picnic flyer, as tesseract grouped it on prod: title, prose and a sub-heading in ONE paragraph.
+  // Lines packed tight (4px apart) so only the SIZE rule can split them; the gap rule has its own case.
+  const flyer = page(para([at("Weekend Picnic Plan", 40, 52), at("We meet at the lake on Saturday", 96, 24),
+    at("until the afternoon.", 124, 24), at("Shopping List", 152, 34)]),
+  para([at("Body text body text.", 400, 24)]), para([at("More body text.", 440, 24)]));
+  it("splits where the line height jumps", () => {
+    expect(ocrParagraphs(flyer).map((p) => p.lines.map((l) => l.text).join(" | "))).toEqual([
+      "Weekend Picnic Plan", "We meet at the lake on Saturday | until the afternoon.", "Shopping List",
+      "Body text body text.", "More body text.",
+    ]);
+  });
+  it("so Magic finds the title and the sub-heading", () => {
+    const md = ocrToMarkdown(flyer, { mode: "magic" }).split("\n").filter(Boolean);
+    expect(md[0]).toBe("# Weekend Picnic Plan");
+    expect(md[1]).toBe("We meet at the lake on Saturday until the afternoon.");
+    expect(md[2]).toBe("## Shopping List");
+  });
+  it("splits at a gap wider than a line, even at the same size", () => {
+    const p = page(para([at("one", 0, 20), at("two", 22, 20), at("three", 80, 20)]));
+    expect(ocrParagraphs(p).map((x) => x.lines.length)).toEqual([2, 1]);
+  });
+});
+
 describe("ocrToMarkdown — reader", () => {
   it("keeps paragraphs apart and lines within them together", () => {
     const p = page(para([line("First line of the"), line("first paragraph.")]), para([line("Second paragraph.")]));
