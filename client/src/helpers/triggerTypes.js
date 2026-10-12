@@ -130,6 +130,15 @@ export function priorityOptions(stored) {
 // surfaced to avoid confusing the user with redundant choices.
 export const VISIBLE_EVENT_TYPES = EVENT_TYPES.filter((e) => !e.hidden);
 
+/** The events to offer for a trigger currently storing `stored`: a stored hidden alias (onCreate, onDrop,
+ *  onNavigation) gets its own entry so the select shows it instead of falling back to its first option.
+ *  Same rule as `priorityOptions` / `subjectOptions`. */
+export function eventOptions(stored) {
+  if (!stored || VISIBLE_EVENT_TYPES.some((e) => e.value === stored)) return VISIBLE_EVENT_TYPES;
+  const hit = _byValue.get(stored);
+  return [...VISIBLE_EVENT_TYPES, hit || { value: stored, label: stored }];
+}
+
 
 // isEventCompatible — gate an event name against the current transaction
 // type and payload semantics. Pure type/shape check — no subject/target

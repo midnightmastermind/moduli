@@ -3826,3 +3826,7 @@ out of scope, Files/Examples poms-only, Basic Nutrition Guide's empty first line
 ### 2026-10-11 09:22 — continue
 User: *"please continue"* — after the 10-10 report naming the ~20 small sample boards that each lack 1–5 of poms'
 rows (Comics, Games, Mediums, Supplements, Areas, Equipment, Plants, Gift Ideas, Savings Goals …) as next.
+Answer (asked, 2026-10-11): poms' `Schedule: Stamp Date & Time Slot` (onCreate · role panel · Panel C — the role
+check fails open for same-tick mints, so each day's new slots get Date + Last Seen bound) → **re-scope poms' op** to
+the rebuild's triggers (onAdd + onMove, instances under the Schedule), add its Last Seen step to the rebuild's op,
+then re-clean poms' 21 slot modules.

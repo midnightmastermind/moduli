@@ -46,7 +46,7 @@ const inputStyle = {
 // Event types come from the shared triggerTypes module so the editor and
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
-import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
+import { VISIBLE_EVENT_TYPES as EVENT_TYPES, eventOptions, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
 import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
 import OpCategorySelect, { groupOpsByCategory } from "./OpCategorySelect.jsx";
 
@@ -699,7 +699,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   }}
                   style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                 >
-                  {EVENT_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
+                  {eventOptions(eventType).map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
                 </select>
                 {/* Subject type */}
                 <select
