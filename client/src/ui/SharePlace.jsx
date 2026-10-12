@@ -33,7 +33,7 @@ const ImagePickerMenu = lazy(() => import("./ImagePickerMenu.jsx"));
 import { AUTH_KEYS } from "../helpers/authStorage";
 import { SHARE_SOURCES, SHARE_TRANSFORMS, resolveMapping } from "../helpers/shareMapping.js";
 import {
-  CLIP_KINDS, clipFromStage, shapeFromDestination, shapeFromKind, autoMappings, isShapeRow, buildSharePayload,
+  CLIP_KINDS, clipFromStage, defaultBodyMapping, shapeFromDestination, shapeFromKind, autoMappings, isShapeRow, buildSharePayload,
 } from "../helpers/sharePlacement.js";
 import { coverSearchQuery } from "../helpers/coverQuery.js";
 import { readPresets, withPreset, replacePreset, deletePreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
@@ -45,8 +45,6 @@ const enc = encodeURIComponent;
 // The label a new row gets unless you change it: the page title with its site
 // suffix stripped ("… (2006) IMDb" → "… (2006)").
 const DEFAULT_LABEL = { source: "title", transform: "stripSuffix" };
-// A textblock's body: what you selected, else the page title.
-const defaultBody = (clip) => ({ source: clip?.selection ? "selection" : "title" });
 
 export default function SharePlace() {
   const stageId = useMemo(() => param("stage"), []);
@@ -100,12 +98,23 @@ export default function SharePlace() {
   // own photos rather than a web search for its title.
   const [coverChoices, setCoverChoices] = useState([]);
 
-  const clip = useMemo(() => (payload ? clipFromStage(payload) : null), [payload]);
+  // The post's own text for a shared Reddit link — read by the server (the share carries only a URL and a title).
+  const [postText, setPostText] = useState("");
+  useEffect(() => {
+    if (!payload || !stageId) return;
+    let live = true;
+    fetch(`/api/v1/share/stage/${enc(stageId)}/text?k=${enc(stageKey)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => { if (live && b?.text) setPostText(b.text); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [payload, stageId, stageKey]);
+  const clip = useMemo(() => (payload ? { ...clipFromStage(payload), postText } : null), [payload, postText]);
   const shape = useMemo(
     () => (kindOverride ? shapeFromKind(kindOverride) : siblingShape) || shapeFromDestination(null),
     [kindOverride, siblingShape]);
   const isTextblock = shape?.role === "textblock";
-  const bodyMappingNow = bodyMapping || defaultBody(clip);
+  const bodyMappingNow = bodyMapping || defaultBodyMapping(clip);
 
   // ── the staged clip, then where shares go by default ────────────────────
   useEffect(() => {

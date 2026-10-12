@@ -3830,3 +3830,6 @@ Answer (asked, 2026-10-11): poms' `Schedule: Stamp Date & Time Slot` (onCreate �
 check fails open for same-tick mints, so each day's new slots get Date + Last Seen bound) → **re-scope poms' op** to
 the rebuild's triggers (onAdd + onMove, instances under the Schedule), add its Last Seen step to the rebuild's op,
 then re-clean poms' 21 slot modules.
+
+- **2026-10-12 12:03 CDT** — "also sharing reddit links doesnt allow the body to be transfered over" (mid-turn, while starting the small-boards rows).
+  Answers (12:10): shares come from the Phone (Reddit app) and Windows share; **set up Reddit's official API** (a script app, keys in server/.env); post text lands as the textblock **Body** by default (fallback selection, then title).

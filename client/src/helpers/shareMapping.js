@@ -21,6 +21,10 @@ export const SHARE_SOURCES = [
   { value: "url",         label: "page URL",         read: (c) => str(c?.url) },
   { value: "linkUrl",     label: "link URL",         read: (c) => str(c?.linkUrl || c?.url) },
   { value: "selection",   label: "selected text",    read: (c) => str(c?.selection || c?.text) },
+  // The post's own text, read by the server for a shared Reddit link (GET /share/stage/:id/text). It falls back
+  // like the default body does (selection, then title): a preset saved from a Reddit share stores this source,
+  // and a later share without post text must not file an empty body.
+  { value: "postText",    label: "post text",        read: (c) => str(c?.postText || c?.selection || c?.title) },
   { value: "imageUrl",    label: "image source",     read: (c) => str(c?.imageUrl) },
   { value: "siteName",    label: "site name",        read: (c) => str(c?.siteName) },
   { value: "description", label: "description",      read: (c) => str(c?.description) },
