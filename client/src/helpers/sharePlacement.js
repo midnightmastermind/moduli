@@ -28,15 +28,6 @@ const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); 
  * "image source") need those told apart, or "page URL" on a link clip would
  * read the link.
  */
-/**
- * A textblock share's default BODY: the post's own text when the server found one (a shared Reddit link carries
- * only a URL and a title), else what was selected, else the page title.
- */
-export function defaultBodyMapping(clip) {
-  if (clip?.postText) return { source: "postText" };
-  return { source: clip?.selection ? "selection" : "title" };
-}
-
 export function clipFromStage(payload = {}) {
   const shape = payload.shape || null;
   const url = payload.url || "";

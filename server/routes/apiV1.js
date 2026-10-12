@@ -1324,22 +1324,6 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  // The post's own text, for a shared Reddit link (user, 2026-10-12: the body
-  // never came over). Key-authorized like the stage read. Answers 200 with
-  // `{text:null, reason}` when it cannot — the window then falls back to the
-  // selection / title rather than showing an error.
-  router.get("/share/stage/:id/text", async (req, res) => {
-    try {
-      const { readStage } = await import("../services/shareStage.js");
-      const payload = await readStage(req.params.id, req.query.k);
-      if (!payload) return err(res, 404, "not_found", "no such stage");
-      const { redditReader } = await import("../utils/redditPost.js");
-      const out = await redditReader().readPost(payload.url || "");
-      if (!out.ok) return res.json({ text: null, title: null, reason: out.reason });
-      res.json({ text: out.text || null, title: out.title || null, source: "reddit" });
-    } catch (e) { err(res, 500, "internal_error", e.message); }
-  });
-
   // Which rule Auto would run, and where it files things — said BEFORE Clip is
   // pressed. Key-authorized like the stage read. Resolved through
   // selectShareRules, the function the real run uses, so the window cannot

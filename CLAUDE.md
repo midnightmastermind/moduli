@@ -15,6 +15,17 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 (3) — A SHARED REDDIT LINK IS A BOOKMARK AGAIN (the Reddit API reader is reverted)
+
+User: *"just change it to handle reddit links like how we been doing other links. turns them into bookmark
+occurances"*. `42b268b5` reverted whole: `server/utils/redditPost.js`, `GET /share/stage/:id/text`, the `postText`
+share source and `defaultBodyMapping`. No REDDIT_* keys are needed. Checked: the Reddit app's share (text holding a
+`/s/` link) and a plain post URL both classify as `link`, so they run `Share: link` and land in Bookmarks like
+any other link; no saved preset used `postText`. Reddit still refuses server reads, so the bookmark is titled by
+what the share carries (no fetched cover).
+
+---
+
 ### 2026-10-12 (2) — ONE PAGE PER SCHEDULE TEMPLATE; the sample boards' rows filled
 
 User: *"the schedule is completely broken on poms grid now"* → *"it currently just shows all the templates"* →
