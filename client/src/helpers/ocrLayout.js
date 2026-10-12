@@ -111,8 +111,9 @@ export function ocrToMarkdown(page, { mode = "reader" } = {}) {
     // Lists: a paragraph whose lines start with bullets is a list, one item per bullet; a wrapped
     // continuation line joins the item above it.
     if (BULLET.test(texts[0])) {
-      // tesseract often gives each bullet its own paragraph; consecutive ones are ONE list.
-      if (prevWasList && out[out.length - 1] === "") out.pop();
+      // tesseract often gives each bullet its own paragraph; consecutive ones are ONE list. Magic only:
+      // Reader's single textblock reads a single newline as a space, so there each item keeps its own line.
+      if (mode === "magic" && prevWasList && out[out.length - 1] === "") out.pop();
       prevWasList = true;
       const items = [];
       for (const t of texts) {
@@ -124,6 +125,7 @@ export function ocrToMarkdown(page, { mode = "reader" } = {}) {
         const num = NUMBERED.exec(first);
         const text = joinLines([first.replace(BULLET, ""), ...it.slice(1)]);
         out.push(mode === "magic" ? `${num ? `${num[1]}.` : "-"} ${escapeLead(text)}` : escapeLead(`${num ? `${num[1]}.` : "•"} ${text}`));
+        if (mode !== "magic") out.push("");
       }
       out.push("");
       continue;

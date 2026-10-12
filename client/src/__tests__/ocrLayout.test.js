@@ -65,9 +65,9 @@ describe("ocrToMarkdown — reader", () => {
     const p = page(para([line("Big Title", 60)]), para([line("Body text body text.")]), para([line("More body.")]));
     expect(ocrToMarkdown(p, { mode: "reader" })).not.toMatch(/^#/m);
   });
-  it("keeps bullets as their own lines", () => {
-    const p = page(para([line("• eggs"), line("• milk")]));
-    expect(ocrToMarkdown(p, { mode: "reader" })).toBe("• eggs\n• milk");
+  it("keeps each bullet on its own line (its own paragraph — one textblock reads a single newline as a space)", () => {
+    expect(ocrToMarkdown(page(para([line("• eggs"), line("• milk")])), { mode: "reader" })).toBe("• eggs\n\n• milk");
+    expect(ocrToMarkdown(page(para([line("• eggs")]), para([line("• milk")])), { mode: "reader" })).toBe("• eggs\n\n• milk");
   });
   it("escapes markdown that OCR happened to read", () => {
     const p = page(para([line("# 1 in the charts")]));
