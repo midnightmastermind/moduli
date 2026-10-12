@@ -15,6 +15,42 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 (4) — FEEDS, A DATE-OR-REPEAT FIELD, REMINDERS IN THE ALARMS LIST, A SCHEDULE FIELD
+
+User (17:35): feed subscriptions in the Command Center; a **Reminder** field (date+time or interval, a new time
+menu) that sets reminders in the alarms area; alarms get names; a **Schedule** field (date+time or interval) that
+an op places on that day. Answers: an event that leaves a calendar is kept and marked cancelled; feeds are their
+own section in the Imports tab; "any kind of feed"; interval = every N min/hour/day/week/month **or** chosen
+weekdays; a separate copy per day; a one-time reminder that rang stays, switched off.
+```
+Feeds         Imports › Feeds. server/services/feeds.js + grid.feeds (top-level, like shareLog) + routes
+              /api/v1/grids/:id/feeds (list/add/patch/sync/delete) + a 1-minute server timer. A CALENDAR runs its
+              events through the calendar share rule; repeats are expanded over 60 days (icsImport `expand`,
+              uid@date); an event gone from the feed gets Cancelled = true (boolean field, bound visibly), back
+              -> false; a repeat that fell off the back of the window is not cancelled. RSS / ATOM: each NEW item
+              is shared as a link (Share: link -> a bookmark); the first check takes the newest 25 and remembers
+              the rest as seen. Watched on prod: xkcd's Atom -> 4 bookmarks in the rebuild's Bookmarks (feed left
+              switched off). Not watched: a real calendar feed.
+when field    new field type `when` (helpers/when.js, ui/WhenPicker.jsx: Once / Every / On days); the pill shows
+              "Every 2 days at 9:00am". Field.jsx passes a when object through (it has no `value` key and read
+              as empty — found by the browser probe, fixed + A/B'd).
+Reminder      a when field with "Adds a reminder" (Fields tab, meta.reminder) keeps one Alarms-list entry per
+              value (helpers/reminderSync + hooks/useReminderSync; op id rem:<occ>:<field>, schedule kind "when"
+              in useScheduler, 15-min grace; a one-time one switches off after ringing). Copies (feed / placed)
+              are skipped; a deleted occurrence removes its reminder once the grid has fully loaded.
+alarm names   the name is an underlined "Name this alarm" box, focused on a new alarm. Field reminders show
+              their when + next time, link to the occurrence, and their bin clears the field.
+Schedule      0396 (poms, applied): fields Reminder + Schedule (type when) and `Schedule: Place Scheduled Items`
+              (Place Weekday Tasks' shape; comparator WHEN_ON_DAY, action WHEN_SLOTS -> the half-hour slot, or
+              Todo when all day; APPLY merge so a re-run adds nothing).
+```
+**Watched on poms with a probe item (deleted after through the app):** Schedule = today 2:40pm -> one dated copy in
+today's 2:30pm slot, still one after several loads; Reminder = 6:12pm -> in the Alarms list, notified at
+6:12:02pm, then switched off; deleting the item removed its reminder. **Not done:** the same fields/op on the
+rebuild (by clicking), the rebuild's schedule-template split, and the queued OCR Reader / OCR Magic tabs.
+
+---
+
 ### 2026-10-12 (3) — A SHARED REDDIT LINK IS A BOOKMARK AGAIN (the Reddit API reader is reverted)
 
 User: *"just change it to handle reddit links like how we been doing other links. turns them into bookmark
