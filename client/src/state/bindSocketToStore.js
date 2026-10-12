@@ -1791,7 +1791,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           }
         }
 
-        socket?.emit("create_occurrence", {
+        safeEmit(socket, "create_occurrence", {
           occurrence: {
             ...newOcc,
             ...(typeof inst.insertAtIndex === "number" && { insertAtIndex: inst.insertAtIndex }),
@@ -1850,7 +1850,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "CREATE_FOLDER":
-        socket?.emit("create_folder", {
+        safeEmit(socket, "create_folder", {
           folder: {
             id: effect.folderId,
             name: effect.name,
@@ -1864,12 +1864,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "UPDATE_VIEW":
-        socket?.emit("update_view", { view: { id: effect.viewId, ...effect.patch } });
+        safeEmit(socket, "update_view", { view: { id: effect.viewId, ...effect.patch } });
         break;
 
       case "CREATE_OCCURRENCE_AT":
         // PREPEND_OCCURRENCE variant — position 0
-        socket?.emit("create_occurrence_in_container", {
+        safeEmit(socket, "create_occurrence_in_container", {
           instanceId: effect.instanceId,
           containerId: effect.containerId,
           position: effect.position ?? 0,
@@ -1913,11 +1913,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
 
       case "HIDE_OCCURRENCE":
-        socket?.emit("update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: true });
+        safeEmit(socket, "update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: true });
         break;
 
       case "SHOW_OCCURRENCE":
-        socket?.emit("update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: false });
+        safeEmit(socket, "update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: false });
         break;
 
       case "SCROLL_TO": {
