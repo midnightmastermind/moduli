@@ -1197,7 +1197,8 @@ function Field({
     // key" returned undefined, so every array-history field (Workouts /
     // Meals / Moods rows) rendered "—" unless a computed slot masked it
     // (found 2026-07-14: "last workout works but not Workouts").
-    if (value && typeof value === "object" && !Array.isArray(value)) {
+    // A WHEN value is itself an object ({mode, date, …}) and has no `value` key — it passes through too.
+    if (value && typeof value === "object" && !Array.isArray(value) && !isWhen(value)) {
       if ("value" in value) return value.value;
       return undefined;
     }
@@ -1211,7 +1212,7 @@ function Field({
   // multiSelect); treating an array as "object without a value key" returned
   // undefined and every stored multi-value rendered EMPTY on load (found
   // 2026-07-12 via the tags feed E2E).
-  const extractValue = (v) => (v && typeof v === "object" && !Array.isArray(v) ? ("value" in v ? v.value : undefined) : v);
+  const extractValue = (v) => (v && typeof v === "object" && !Array.isArray(v) && !isWhen(v) ? ("value" in v ? v.value : undefined) : v);
   const defaultValue = field?.meta?.defaultValue ?? (field?.type === "boolean" ? false : undefined);
   const resolveInputVal = (v) => { const raw = extractValue(v); return (raw === null || raw === undefined) ? (defaultValue ?? raw) : raw; };
 
