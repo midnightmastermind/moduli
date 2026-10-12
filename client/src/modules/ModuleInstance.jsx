@@ -1513,8 +1513,10 @@ function ModuleInstance({
         label: "Duplicate (new instance)",
         icon: Copy,
         onClick: () => {
-          const newInstance = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
-          CommitHelpers.createInstanceInContainer({ dispatch, socket, containerId, instance: newInstance, emit: true });
+          // The row's OWN parent, read at click time (the placement, not the module).
+          const parentId = getParentId?.(occurrence?.id) || occurrence?.parentId;
+          const parent = (parentId && occsNow[parentId]) || liveContainerOccurrence(containerOccurrence, getOccMap);
+          CommitHelpers.duplicateInstance({ dispatch, socket, module, occurrence, parentOccurrence: parent });
         },
       },
       // Convert this leaf between a typed textblock and a data instance

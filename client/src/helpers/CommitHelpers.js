@@ -1689,6 +1689,23 @@ function _createLeafInstanceInParent({
 // template); when null a brand-new role:"instance" module is minted.
 // Synchronous — the new occurrence id is known up-front so the splice has no
 // race (unlike the App-level append path).
+// "Duplicate (new instance)": a NEW module (its own template, "(Copy)" label,
+// the same bindings) and its occurrence, placed right after the row in the
+// row's OWN parent, with the row's values. It used create_instance_in_container,
+// whose reducer adds only the module and whose echo skips the sender — the
+// clicking tab never saw the copy (2026-10-12).
+export function duplicateInstance({ dispatch, socket, module, occurrence, parentOccurrence }) {
+  if (!module?.id || !occurrence?.id || !parentOccurrence) return null;
+  const at = (parentOccurrence.occurrences || []).indexOf(occurrence.id);
+  return createLeafInstanceAtIndex({
+    dispatch, socket, gridId: module.gridId || occurrence.gridId, userId: module.userId || occurrence.userId,
+    parentOccurrence, index: at >= 0 ? at + 1 : null,
+    role: module.role || "instance", label: `${module.label || ""} (Copy)`,
+    fieldBindings: Array.isArray(module.fieldBindings) ? module.fieldBindings : null,
+    initialFields: occurrence.fields || {},
+  });
+}
+
 export function createLeafInstanceAtIndex(args) {
   if (!args?.gridId || !args?.userId || !args?.parentOccurrence) return null;
   // One undo step — see createLeafInstanceInParent.
