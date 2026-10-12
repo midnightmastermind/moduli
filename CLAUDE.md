@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 — A SHARED REDDIT LINK BRINGS ITS POST TEXT (account3, finishing the main account's work)
+
+User: *"also sharing reddit links doesnt allow the body to be transfered over"*; answers: shares come from the phone
+app + Windows share, **use Reddit's official API**, post text is the default body. The main account wrote the reader
+and the route, then hit its limit; account3 finished and deployed it (`a…` feat(share)).
+- `server/utils/redditPost.js` — reads a post through the API with an APP token (client_credentials), resolves the
+  app's `/r/<sub>/s/<code>` links, caches the token. Reddit refuses unauthenticated server reads (403 for the page,
+  `.json`, old.reddit, `/s/`), so without keys it reads nothing and says `not_configured`.
+- `GET /share/stage/:id/text` (key-authorized like the stage read) → `{text, title}` or `{text:null, reason}`.
+- Placement window: fetches it; the textblock **Body** defaults to post text → selection → title
+  (`sharePlacement.defaultBodyMapping`); the `postText` source falls back the same way, so a preset saved from a
+  Reddit share still fills a body later.
+- **Not live until keys exist:** create a "script" app at reddit.com/prefs/apps and set `REDDIT_CLIENT_ID` /
+  `REDDIT_CLIENT_SECRET` in prod's `server/.env` (never in chat), then restart. Not yet watched with a real share.
+- **IN PROGRESS (account3): the small sample boards' missing rows** (`_genrows` → `_applyrows`, by clicking).
+
+---
+
 ### 2026-10-12 — "WAS ALL FUNCTIONALITY TESTED VIA THE UI": no. Five defects found by clicking the untested parts
 
 User: *"please continue with the ui testin"* → *"and was all functionality tested via the ui"*. It was not; the
