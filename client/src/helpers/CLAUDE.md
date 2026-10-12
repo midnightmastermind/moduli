@@ -3,6 +3,15 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-12 — `ocrLayout.js` NEW; `ocr.runOcrPage`)
+- `ocr.runOcrPage(url, onProgress, {blocks})` → `{text, blocks}` (tesseract's blocks → paragraphs →
+  lines with boxes); `runOcr` is now a thin wrapper returning the text.
+- `ocrLayout.ocrToMarkdown(page, {mode})` — PURE. Reader: paragraphs of prose (lines joined, a word
+  hyphenated across a line mended, bullets kept as lines). Magic: also headings from LINE HEIGHT against
+  the body median (≥1.6 → `#`, ≥1.25 → `##`, a short shouty or colon-ending single line → `###`) and
+  `-`/`N.` lists from bullets. Leading `#`/`>`/`|` OCR happened to read are escaped. No layout → splits
+  the plain text on blank lines. Test `__tests__/ocrLayout.test.js` (16).
+
 ## Recent Changes (2026-10-12 — op effects stamp the gesture's action; duplicateInstance)
 - `state/bindSocketToStore` op effects (CREATE_ITEM, CREATE_FOLDER, UPDATE_VIEW, create_occurrence_in_container,
   hide/unhide) emit through `safeEmit`, not a raw `socket.emit`, so a gesture's op writes carry `__actionId` (a

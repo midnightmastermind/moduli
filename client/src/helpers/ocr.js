@@ -10,6 +10,14 @@
 // out of here is what let the second caller exist without a second OCR path.
 
 export async function runOcr(imageUrl, onProgress) {
+  return (await runOcrPage(imageUrl, onProgress, { blocks: false })).text;
+}
+
+/**
+ * The whole page tesseract read: `{ text, blocks }`. `blocks` (paragraphs, lines and their pixel boxes)
+ * is what OCR Magic reads headings and lists from (helpers/ocrLayout.js).
+ */
+export async function runOcrPage(imageUrl, onProgress, { blocks = true } = {}) {
   const mod = await import("tesseract.js");
   const createWorker = mod.createWorker || mod.default?.createWorker;
   if (!createWorker) throw new Error("tesseract.js loaded without createWorker");
@@ -17,8 +25,8 @@ export async function runOcr(imageUrl, onProgress) {
     logger: (m) => onProgress?.(m),
   });
   try {
-    const { data } = await worker.recognize(imageUrl);
-    return (data?.text || "").trim();
+    const { data } = await worker.recognize(imageUrl, {}, { text: true, blocks });
+    return { text: (data?.text || "").trim(), blocks: data?.blocks || null };
   } finally {
     await worker.terminate();
   }

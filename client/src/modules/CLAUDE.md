@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-12 — an image has OCR Reader / OCR Magic tabs)
+- **`ImageOcrViews.jsx` (NEW)** wraps the image branch of `ArtifactContent`: tabs `Image · OCR Reader ·
+  OCR Magic`, the same Reader/Magic pair a web page has in `BookmarkView`. OCR runs only when a text tab
+  is picked, once per image per session (a promise cache keyed by the image URL). The words become
+  markdown (`helpers/ocrLayout`), `import_plan` plans them in the tab's shape (reader → one textblock,
+  magic → sections/textblocks/lists), and lazy `PagePreviewBody` renders the plan read-only from
+  `readerStateFromPlan` (`publishComputed={false}`). `+ Page` imports it (`import_text`, same shape) into
+  Imports and opens it in this panel; `Attach` (Reader) adds the text under the picture as a textblock —
+  what the old OCR button did. **`OcrButton` is deleted**; textblocks already under an image still show
+  in the Image tab. Test `__tests__/imageOcrViews.test.jsx` (5; A/B: forcing shape "reader" fails one).
+
 ## Recent Changes (2026-10-07 (2) — a container always has addInstanceToContainer)
 - `ModuleContainer` took `addInstanceToContainer` only as a prop. A container rendered by a doc's embed
   node (a Kanban column inside a board embedded in a doc page) got none, so its "+ › Item" threw

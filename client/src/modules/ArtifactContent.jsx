@@ -4,7 +4,6 @@
 // viewType: "artifact" + artifactType: "image"|"pdf"|"audio"|"video" → file renderer
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
-import { runOcr } from "../helpers/ocr";
 import { flashElement } from "../helpers/jumpToOccurrence";
 import BookmarkView from "./BookmarkView.jsx";
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
@@ -14,14 +13,14 @@ import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { resolveFileRef } from "../helpers/fileRef.js";
 import LoadingImage from "../ui/LoadingImage.jsx";
+import ImageOcrViews from "./ImageOcrViews.jsx";
 // The global image picker (search / upload / URL). Its single host is mounted in
 // App.jsx and call sites open it imperatively — the same way ui/QuickAddMenu does.
 // The "Replace" button below called this WITHOUT the import, so clicking it threw
 // a ReferenceError instead of opening the picker.
 import { openImagePicker } from "../ui/ImagePickerMenu";
 import "highlight.js/styles/atom-one-dark.css";
-import { Settings, Download, ScanText, Loader2, ImagePlus } from "lucide-react";
-import { toast } from "../state/notificationStore";
+import { Settings, Download, ImagePlus } from "lucide-react";
 
 // Human-readable byte count. Mirrors ArtifactCard's formatBytes —
 // duplicated rather than imported so each viewer surface stays
@@ -399,80 +398,6 @@ function CodeViewer({ fileRef, label, originalName, size }) {
   );
 }
 
-// OCR button rendered next to the image's download badge. On click:
-//   1. Lazy-loads tesseract.js
-//   2. Recognizes text from the image URL
-//   3. Mints a role:"textblock" module + occurrence and appends it to the
-//      image occurrence's occurrences[] so the editor renders under the media.
-function OcrButton({ imageUrl, hostOccurrence, dispatch, socket, gridId, userId, style }) {
-  const [running, setRunning] = useState(false);
-  const handleClick = useCallback(async (e) => {
-    e.preventDefault();
-    if (running || !imageUrl || !hostOccurrence || !gridId || !userId) return;
-    setRunning(true);
-    const toastId = toast.loading("Running OCR…");
-    try {
-      const text = await runOcr(imageUrl, (m) => {
-        if (m?.status === "recognizing text" && typeof m.progress === "number") {
-          toast.loading(`OCR · ${Math.round(m.progress * 100)}%`, { id: toastId });
-        }
-      });
-      if (!text) {
-        toast.warning("OCR finished — no text detected", { id: toastId });
-        return;
-      }
-      // Build TipTap textmap: one paragraph per non-empty line of OCR output.
-      const paragraphs = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
-      const textmap = {
-        type: "doc",
-        content: paragraphs.length > 0
-          ? paragraphs.map(line => ({ type: "paragraph", content: [{ type: "text", text: line }] }))
-          : [{ type: "paragraph" }],
-      };
-      // Mint textblock module + occurrence with the OCR'd content inline,
-      // then append to the image's occurrences[] (multi-child membership).
-      const moduleId = crypto?.randomUUID?.() || `tb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const occurrenceId = crypto?.randomUUID?.() || `to-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const newModule = { id: moduleId, userId, gridId, role: "textblock", kind: "doc", label: "OCR" };
-      const newOccurrence = { id: occurrenceId, userId, gridId, moduleId, parentId: hostOccurrence.id, textmap };
-      CommitHelpers.createModule({ dispatch, socket, module: newModule, emit: true });
-      CommitHelpers.createOccurrence({ dispatch, socket, occurrence: newOccurrence, emit: true });
-      CommitHelpers.updateOccurrence({
-        dispatch, socket,
-        occurrence: { id: hostOccurrence.id, occurrences: [...(hostOccurrence.occurrences || []), occurrenceId] },
-        emit: true,
-      });
-      toast.success(`OCR · ${paragraphs.length} line${paragraphs.length === 1 ? "" : "s"} extracted`, { id: toastId });
-    } catch (err) {
-      console.error("[OCR] error:", err);
-      toast.error(`OCR failed: ${err.message || "unknown error"}`, { id: toastId });
-    } finally {
-      setRunning(false);
-    }
-  }, [running, imageUrl, hostOccurrence, dispatch, socket, gridId, userId]);
-  return (
-    <button
-      onClick={handleClick}
-      disabled={running}
-      title={running ? "OCR in progress…" : "Extract text from this image into a new textblock below"}
-      style={{
-        position: "absolute", top: 10, right: 220, zIndex: 5,
-        display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "4px 10px", borderRadius: 14,
-        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        color: "rgba(255,255,255,0.92)",
-        fontFamily: "var(--font-mono)", fontSize: 12,
-        border: "1px solid rgba(255,255,255,0.18)",
-        cursor: running ? "wait" : "pointer", opacity: running ? 0.7 : 1,
-        ...(style || {}),
-      }}
-    >
-      {running ? <Loader2 size={12} className="animate-spin" /> : <ScanText size={12} />}
-      <span>{running ? "OCR…" : "OCR"}</span>
-    </button>
-  );
-}
 
 export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight }) {
   const { modulesById, occurrencesById, gridId, userId } = useGridActions();
@@ -671,6 +596,8 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     const natW = Number(module?.meta?.width) || 0;
     const natH = Number(module?.meta?.height) || 0;
     return (
+      <ImageOcrViews occurrence={occurrence} module={module} imgSrc={imgSrc}
+        dispatch={dispatch} socket={socket} gridId={gridId} userId={userId}>
       <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", overflow: "auto" }}>
         {/* Media — flex:0 so it sizes to its natural height; child textblocks
             stack underneath instead of being pushed off-screen. */}
@@ -700,12 +627,6 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
             }
           />
           <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
-          <OcrButton
-            imageUrl={imgSrc}
-            hostOccurrence={occurrence}
-            dispatch={dispatch} socket={socket}
-            gridId={gridId} userId={userId}
-          />
           {/* Replace image — search / upload / URL via the global picker.
               The pick rewrites module.fileRef, so every placement of this
               artifact updates. */}
@@ -754,6 +675,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
           </div>
         )}
       </div>
+      </ImageOcrViews>
     );
   }
 
