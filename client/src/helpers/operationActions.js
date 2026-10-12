@@ -28,6 +28,7 @@ import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { slotsCovered } from "./slotSpan";
 import { isDueOn } from "./dueSpan";
+import { whenOnDay, whenTimesOnDay, slotLabelFor } from "./when.js";
 import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
 import { startAlarmRing } from "../state/alarmRingStore";
@@ -672,6 +673,9 @@ export function evalRule(rule, $vars) {
       return !arrayIncludes(Array.isArray(leftVal) ? leftVal : [], rightVal);
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_EQUALS":
+    // A WHEN value (a date + time, or a repeat — helpers/when.js) that falls on the day on the right.
+    case "WHEN_ON_DAY":
+      return whenOnDay(leftVal, rightVal);
     case "SAME_DAY": {
       // Right null/"" = wildcard ("no filter set" → match everything).
       // Left null = occurrence has no date → doesn't match a concrete filter.
@@ -2891,6 +2895,15 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // The labels come from the caller rather than being generated here for the
     // same reason `slotsCovered` takes them: regenerating the day would be a
     // second definition of it that could disagree with the one the grid uses.
+    // cfg: { when, day, to? } — the schedule SLOTS a when value lands in on that day ("9:00am", floored to the
+    // half hour), one per time; an all-day value yields []. The Schedule field's placing op loops over it.
+    case "WHEN_SLOTS": {
+      const w = resolveExpr(cfg.when, $vars);
+      const day = resolveExpr(cfg.day, $vars);
+      $vars[cfg.to || "$whenSlots"] = [...new Set(whenTimesOnDay(w, day).map(slotLabelFor).filter(Boolean))];
+      break;
+    }
+
     case "SLOTS_COVERED": {
       const start = resolveExpr(cfg.start, $vars);
       const duration = resolveExpr(cfg.duration, $vars);

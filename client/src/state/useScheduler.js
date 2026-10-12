@@ -27,6 +27,7 @@ import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
 import { operationsBridge } from "./bindSocketToStore";
 import { safeEmit } from "../helpers/offlineQueue";
+import { lastFireAtOrBefore } from "../helpers/when";
 
 const UNIT_MS = { second: 1_000, minute: 60_000, hour: 3_600_000, day: 86_400_000 };
 // Cadence floor for persistent-effect schedules (UPDATE_ITEM_FIELD,
@@ -51,12 +52,21 @@ export function cadenceMs(schedule) {
   return Infinity;
 }
 
+const WHEN_GRACE_MS = 15 * 60_000;
+
 export function isDueAt(schedule, now, lastFiredAt) {
   if (!schedule) return false;
   const lastMs = lastFiredAt ? new Date(lastFiredAt).getTime() : 0;
   if (schedule.kind === "interval") {
     if (!lastMs) return true;
     return now.getTime() - lastMs >= cadenceMs(schedule);
+  }
+  // A WHEN schedule (helpers/when.js) — a Reminder field's alarm: due once per fire moment, and only
+  // within a grace window, so a tab opened days later does not ring every missed repeat.
+  if (schedule.kind === "when") {
+    const t = lastFireAtOrBefore(schedule.when, now);
+    if (!t) return false;
+    return t.getTime() > lastMs && now.getTime() - t.getTime() <= WHEN_GRACE_MS;
   }
   if (schedule.kind === "atTimes") {
     const times = Array.isArray(schedule.times) ? schedule.times : [];
@@ -157,7 +167,10 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           // guard expires before a slow echo). The socket emit then broadcasts
           // so other devices skip their next due check too.
           const nextSchedule = { ...sched, lastFiredAt: now.toISOString() };
-          dispatch(updateOperationAction({ ...op, schedule: nextSchedule }));
+          // A one-time reminder that has rung stays in the Alarms list switched OFF (user, 2026-10-12),
+          // so it can be seen and re-armed; clearing its field is what removes it.
+          const spent = sched.kind === "when" && sched.when?.mode === "once";
+          dispatch(updateOperationAction({ ...op, schedule: nextSchedule, ...(spent ? { enabled: false } : {}) }));
           // The payload MUST nest the operation under `operation` — the server
           // handler is `({ operation }) => { const id = operation?.id; if (!id)
           // return; }`, so a spread payload made `operation` undefined and the
@@ -169,7 +182,7 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           // this stamp exists for, and offlineQueue's `update_operation`
           // dedup key (data.operation?.id) collapsed every queued stamp into
           // one. CommitHelpers.updateOperation already used the nested shape.
-          safeEmit(socket, "update_operation", { operation: { ...op, schedule: nextSchedule }, firedStamp: true });
+          safeEmit(socket, "update_operation", { operation: { ...op, schedule: nextSchedule, ...(spent ? { enabled: false } : {}) }, firedStamp: true });
           // Clear in-flight on next tick once the echo lands (or fail-safe
           // 2s later in case the server is offline). Timer id tracked so
           // unmount can cancel it.

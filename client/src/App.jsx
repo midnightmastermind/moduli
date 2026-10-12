@@ -49,6 +49,7 @@ import { useUndoRedo } from "./hooks/useUndoRedo";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
+import { useReminderSync } from "./hooks/useReminderSync";
 import { useTheme } from "./helpers/useTheme";
 import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
 import { useSkin } from "./hooks/useSkin";
@@ -286,6 +287,8 @@ export default function App() {
     state, dispatch, socket,
     fieldsById, operationsById, occurrencesById, modulesById,
   });
+  // Reminder fields -> entries in the Alarms list (helpers/reminderSync).
+  useReminderSync({ state, dispatch, socket, modulesById });
 
   // Undo/Redo state (lifted from Grid so Toolbar can access it)
   const [commandCenterOpen, setCommandCenterOpen] = useState(false);

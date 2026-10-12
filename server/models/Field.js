@@ -25,7 +25,7 @@ const FieldSchema = new mongoose.Schema(
       // is a type. "Location" itself needs no type: it is an ordinary
       // `occurrence` dropdown into the Locations container whose OPTIONS each
       // carry an address-typed field.
-      enum: ["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence", "markdown", "button", "address"],
+      enum: ["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence", "markdown", "button", "address", "when"],
       default: "text"
     },
 

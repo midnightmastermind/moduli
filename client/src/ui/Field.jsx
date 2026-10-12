@@ -60,6 +60,8 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 import { formatDuration, splitDuration } from "../helpers/duration.js";
+import { describeWhen, isWhen } from "../helpers/when.js";
+import WhenPicker from "./WhenPicker.jsx";
 
 // "Sep 23" for this year, "Aug 21, 1982" for any other. A date field used to
 // drop the year always, so a birthday stored as 1982-08-21 read exactly like a
@@ -116,6 +118,31 @@ export const FIELD_FONT_PX = 13;
 // a number cannot. FIELD_FONT_PX stays as the documented desktop maximum and as
 // the var()'s fallback.
 export const FIELD_FONT = `var(--field-font-px, ${FIELD_FONT_PX}px)`;
+
+// The pill + menu for a `when` field. Opens the WhenPicker; Save writes the value, Clear writes null.
+function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
+  const [open, setOpen] = useState(false);
+  const text = isWhen(value) ? describeWhen(value) : "—";
+  return (
+    <Popover open={open} onOpenChange={(o) => !disabled && setOpen(o)}>
+      <PopoverTrigger asChild>
+        <button type="button" disabled={disabled} data-testid="when-pill"
+          className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all cursor-pointer hover:brightness-110 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+          style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text, fontFamily: "var(--font-mono)" }}
+          title={`${name}: ${text} — Click to change`}>
+          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
+          <span>{text}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+        <WhenPicker value={isWhen(value) ? value : null}
+          onSave={(v) => { onCommit(v); setOpen(false); }}
+          onClear={() => { onCommit(null); setOpen(false); }}
+          onCancel={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 // Whole-control tints per flow (2026-07-11, per user): the control CARRYING a
@@ -1590,6 +1617,7 @@ function Field({
         }
         return options.find(o => o.value === rawDisplayValue)?.label ?? rawDisplayValue;
       }
+      case "when": return isWhen(rawDisplayValue) ? describeWhen(rawDisplayValue) : "—";
       case "duration": return formatDuration(rawDisplayValue);
       case "rating": return rawDisplayValue;
       case "text": {
@@ -1974,6 +2002,15 @@ function Field({
             ))}
           </PopoverContent>
         </Popover>
+      );
+    }
+
+    // A WHEN value (helpers/when.js): one moment or a repeat, edited in the WhenPicker menu. Same pill in
+    // compact and full layouts — the value is a sentence ("Every 2 days at 9:00am"), not a box to type in.
+    if (type === "when") {
+      return (
+        <WhenFieldPill name={name} hideName={hideName} value={localValue} disabled={disabled}
+          onCommit={(v) => { handleChange(v); onCommit?.(v); }} />
       );
     }
 

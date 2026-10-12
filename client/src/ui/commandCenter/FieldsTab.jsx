@@ -851,6 +851,16 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
         />
       )}
 
+      {/* When — a date + time or a repeat. "Adds a reminder" makes every value an entry in the Alarms list
+          (helpers/reminderSync). Placing it on the Schedule is an operation's job, not a setting. */}
+      {local.type === "when" && (
+        <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={!!local.meta?.reminder}
+            onChange={(e) => setMeta("reminder", e.target.checked || undefined)} />
+          Adds a reminder (each value shows in the Alarms list and notifies when it is due)
+        </label>
+      )}
+
       {/* Used In — reverse lookup of all instances binding this field */}
       <div>
         <span style={labelStyle}>

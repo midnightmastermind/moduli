@@ -430,6 +430,14 @@ export const ACTION_CONFIG_SCHEMA = {
     ],
     hint: "Does a recurring item fall on a given day? `completed on` and `recurring from` are what let a repeat skip a day it was already done.",
   },
+  WHEN_SLOTS: {
+    fields: [
+      { key: "when", kind: "expr", label: "when", placeholder: "$item.fields.<Schedule>.value" },
+      { key: "day", kind: "expr", label: "day", placeholder: "$day" },
+      { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$whenSlots" },
+    ],
+    hint: "The time slots a date-and-time / repeat value lands in on that day (\"9:00am\"), one per time. An all-day value gives none.",
+  },
   SLOTS_COVERED: {
     fields: [
       { key: "start", kind: "expr", label: "start slot", placeholder: "$item.fields.<Time Slot>.value" },

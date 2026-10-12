@@ -132,6 +132,7 @@ export const ACTION_TREE = [
           { value: "DATE_FORMAT", title: "📅 format", sub: "ISO → human label",       description: "Format ISO date via CLDR-like tokens. yyyy / yy / MMMM / MMM / MM / M / dd / d / EEEE / EEE. Default 'EEE MMM d' → 'Mon May 5'." },
           { value: "DATE_DIFF",     title: "📐 difference",   sub: "days between two dates", description: "Days between two dates. Negative when the first is the earlier one." },
           { value: "IS_DUE_ON",     title: "🔁 is due on",    sub: "recurrence check",       description: "Does a recurring item fall on a given date, per its own recurrence settings?" },
+          { value: "WHEN_SLOTS",    title: "🗓 when → slots", sub: "a date/repeat on a day", description: "The time slots a Schedule-style value (a date and time, or a repeat) lands in on a given day." },
           { value: "SLOTS_COVERED", title: "⌛ slots covered", sub: "start slot + duration",  description: "Every time slot a start slot plus a duration spans — what places one row across several slots." },
         ],
       },

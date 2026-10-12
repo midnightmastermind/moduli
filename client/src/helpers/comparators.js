@@ -67,6 +67,7 @@ export const COMPARATOR_CATALOG = [
   { value: "DATE_WITHIN_DAYS",         label: "within N days",            group: "Dates" },
   { value: "DATE_IN_PERIOD",           label: "in the period",            group: "Dates" },
   { value: "DATE_ON_OR_BEFORE_PERIOD", label: "on or before the period",  group: "Dates" },
+  { value: "WHEN_ON_DAY",              label: "falls on the day",         group: "Dates" },
 
   // ── Time of day ─────────────────────────────────────────────────────────
   { value: "TIME_BEFORE", label: "time before", group: "Time of day" },

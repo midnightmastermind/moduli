@@ -13,6 +13,8 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildAlarmOperation, applyAlarmToOperation, listAlarmOperations, alarmTimeParts } from "../helpers/alarmOps";
 import { ringAlarm } from "../helpers/alarmSound";
 import { subscribeAlarmRing, getAlarmRing, stopAlarmRing, snoozeAlarmRing } from "../state/alarmRingStore";
+import { describeWhen, nextFireAfter, formatClock } from "../helpers/when";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
 // The current time, so an alarm can be set relative to NOW without looking
 // elsewhere (user, 2026-09-19). Mounted only while the panel is open, so the
@@ -37,7 +39,31 @@ export function NowClock({ now: fixedNow = null }) {
   );
 }
 
-export function AlarmRow({ op, onPatch, onDelete }) {
+// A reminder made by a Reminder FIELD (helpers/reminderSync): its time lives on the occurrence, so the
+// row shows when it is due and offers the occurrence; the switch turns it off, and the bin clears the field.
+export function FieldReminderRow({ op, fieldName, onToggle, onClear }) {
+  const alarm = op.alarm || {};
+  const next = op.enabled ? nextFireAfter(alarm.when, new Date()) : null;
+  return (
+    <div data-testid="field-reminder-row" className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
+      style={{ background: "var(--input-bg)", borderColor: "var(--border-subtle, rgba(255,255,255,0.08))", opacity: op.enabled ? 1 : 0.55 }}>
+      <BellRing className="w-4 h-4 shrink-0" style={{ color: "rgb(var(--signal-zero))" }} />
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <button type="button" onClick={() => jumpToOccurrence(alarm.source?.occurrenceId)} title="Show it"
+          className="text-left text-xs text-text-primary truncate cursor-pointer hover:underline">{alarm.label || "Reminder"}</button>
+        <span className="text-[10px] text-text-muted truncate">
+          {describeWhen(alarm.when)}{next ? ` · next ${next.toLocaleDateString([], { month: "short", day: "numeric" })} ${formatClock(`${next.getHours()}:${String(next.getMinutes()).padStart(2, "0")}`)}` : ""}
+          {fieldName ? ` · ${fieldName} field` : ""}
+        </span>
+      </div>
+      <button type="button" title="Clear the reminder" onClick={onClear}
+        className="text-text-muted hover:text-red-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+      <Switch checked={!!op.enabled} onCheckedChange={onToggle} />
+    </div>
+  );
+}
+
+export function AlarmRow({ op, onPatch, onDelete, autoFocusName = false }) {
   const alarm = op.alarm || {};
   const isAlarm = (alarm.type || "alarm") === "alarm";
   // alarmTimeParts, NOT formatAlarmTime: that one returns a STRING, and
@@ -54,9 +80,13 @@ export function AlarmRow({ op, onPatch, onDelete }) {
           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
       </label>
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <input value={alarm.label || ""} placeholder={isAlarm ? "Alarm" : "Reminder"}
+        {/* The alarm's NAME (user, 2026-10-12: "let alarms have names"): an underlined box so it reads as
+            something you can type into, focused on a new alarm. */}
+        <input value={alarm.label || ""} placeholder={isAlarm ? "Name this alarm" : "Name this reminder"}
+          aria-label="Alarm name" autoFocus={autoFocusName}
           onChange={(e) => onPatch({ label: e.target.value })}
-          className="h-5 text-xs bg-transparent px-0 outline-none border-0 text-text-primary" />
+          className="h-5 text-xs bg-transparent px-0 outline-none border-0 border-b border-dashed text-text-primary placeholder:text-text-faint focus:border-solid"
+          style={{ borderColor: "var(--border-default)" }} />
         <button type="button" onClick={() => onPatch({ type: isAlarm ? "reminder" : "alarm" })}
           title="Alarms ring + notify; reminders only notify. Click to switch."
           className="self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-px rounded-full border cursor-pointer hover:brightness-125"
@@ -81,7 +111,7 @@ export function AlarmRow({ op, onPatch, onDelete }) {
 }
 
 export default function AlarmDropdown() {
-  const { state, dispatch, socket, operationsById } = useGridActions();
+  const { state, dispatch, socket, operationsById, occurrencesById, fieldsById } = useGridActions();
   const gridId = state?.gridId;
   const userId = state?.userId;
   const [open, setOpen] = useState(false);
@@ -138,7 +168,19 @@ export default function AlarmDropdown() {
     const mm = String(now.getMinutes()).padStart(2, "0");
     const op = buildAlarmOperation({ gridId, userId, type, time: `${hh}:${mm}`, sortOrder: alarms.length, sched });
     CommitHelpers.createOperation({ dispatch, socket, operation: op });
+    setFocusId(op.id);
     if (!open) setOpen(true);
+  };
+  const [focusId, setFocusId] = useState(null);
+  // A field reminder is turned off on its op, and removed by clearing the field it came from (the op
+  // follows the field, so deleting the op alone would only bring it back).
+  const toggleFieldReminder = (op, v) => CommitHelpers.updateOperation({ dispatch, socket, operation: { ...op, enabled: v } });
+  const clearFieldReminder = (op) => {
+    const src = op.alarm?.source;
+    const occ = src && occurrencesById?.[src.occurrenceId];
+    if (!occ) { CommitHelpers.deleteOperation({ dispatch, socket, operationId: op.id }); return; }
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...occ, fields: { ...(occ.fields || {}), [src.fieldId]: { ...(occ.fields?.[src.fieldId] || {}), value: null } } },
+      triggerField: { fieldId: src.fieldId, value: null, instanceId: occ.moduleId } });
   };
   const patch = (op, p) => CommitHelpers.updateOperation({ dispatch, socket, operation: applyAlarmToOperation(op, p) });
   const remove = (op) => CommitHelpers.deleteOperation({ dispatch, socket, operationId: op.id });
@@ -220,8 +262,11 @@ export default function AlarmDropdown() {
           {alarms.length === 0 && (
             <div className="px-3 py-6 text-center text-text-faint text-[11px]">No alarms yet — add one above.</div>
           )}
-          {alarms.map((op) => (
-            <AlarmRow key={op.id} op={op} onPatch={(p) => patch(op, p)} onDelete={() => remove(op)} />
+          {alarms.map((op) => op.alarm?.source ? (
+            <FieldReminderRow key={op.id} op={op} fieldName={fieldsById?.[op.alarm.source.fieldId]?.name}
+              onToggle={(v) => toggleFieldReminder(op, v)} onClear={() => clearFieldReminder(op)} />
+          ) : (
+            <AlarmRow key={op.id} op={op} onPatch={(p) => patch(op, p)} onDelete={() => remove(op)} autoFocusName={op.id === focusId} />
           ))}
         </MenuSurface>
       )}

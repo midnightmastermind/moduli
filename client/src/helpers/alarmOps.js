@@ -188,9 +188,12 @@ export function applyAlarmToOperation(op, patch = {}) {
   };
 }
 
+// A field reminder has no single time; it sorts after the timed alarms, by name.
+const sortKey = (op) => (op.alarm?.source ? `~${op.alarm.label || ""}` : String(op.alarm?.time || ""));
+
 // The Alarms tab's list: alarm-managed ops for this grid, stable time order.
 export function listAlarmOperations(operationsById, gridId) {
   return Object.values(operationsById || {})
     .filter((op) => op && op.alarm && (!gridId || op.gridId === gridId))
-    .sort((a, b) => String(a.alarm.time).localeCompare(String(b.alarm.time)) || String(a.id).localeCompare(String(b.id)));
+    .sort((a, b) => sortKey(a).localeCompare(sortKey(b)) || String(a.id).localeCompare(String(b.id)));
 }

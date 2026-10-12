@@ -24,6 +24,7 @@ export const FIELD_TYPES = [
   "markdown",
   "button",
   "address",
+  "when",
 ];
 
 // Types whose stored value is a plain scalar the assistant can set directly.
@@ -31,5 +32,5 @@ export const FIELD_TYPES = [
 // to point at, `button` runs something, and `address` is an object with
 // coordinates — none of them is a value you can type into a chat box.
 export const ASSISTANT_FIELD_TYPES = FIELD_TYPES.filter(
-  (t) => !["occurrence", "button", "address"].includes(t)
+  (t) => !["occurrence", "button", "address", "when"].includes(t)
 );
