@@ -15,6 +15,47 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 — "WAS ALL FUNCTIONALITY TESTED VIA THE UI": no. Five defects found by clicking the untested parts
+
+User: *"please continue with the ui testin"* → *"and was all functionality tested via the ui"*. It was not; the
+untested parts were tested by clicking, and five of them were broken. Each fix is test-first and A/B'd. All are
+deployed, and each was watched on prod.
+```
+module edits never undoable   update_module recorded no transaction: renames and Settings › Fields bindings could
+  (59b37e14)                  not be undone. It records before/after now; renameLeaf + FieldBindingsEditor +
+                              pageCardRename open an action. Watched: rename -> the pill's Undo restores it
+a trigger showed "On Change"  a stored hidden alias (onCreate) was not in the event <select>, so it read as the first
+  (9cd2a710)                  option. triggerTypes.eventOptions(stored) adds it
+today's column served partial  an update_occurrence for a row whose create sat in this socket's createQueue INSERTED it
+  + 11 shells (4b2888e5)      bare (no moduleId), so the column rendered nothing and loads minted shells. The update now
+                              waits for the queued create (pendingCreateIds). Shells + a duplicate 2:30pm slot swept
+                              with backups (backups/orphans/2026-10-12-*). After: 0 partial rows, 0 shells in 3 loads
+mood pick not undoable        an op's CREATE_ITEM / CREATE_FOLDER / UPDATE_VIEW / hide effects went out through a raw
+  (dcc7390b)                  socket.emit (no __actionId), so a wheel click's Check In was derived and Ctrl+Z undid an
+                              older write. safeEmit now. Watched: Check Ins 4 -> 5 -> Ctrl+Z 4; delete path 3 -> 2 -> 3
+Duplicate (new instance) did  it used create_instance_in_container, whose reducer adds only the module and whose echo
+  nothing visible (aef83ddf)  skips the sender. CommitHelpers.duplicateInstance mints both, after the row, one action.
+                              Watched: copy on screen + listed; one Ctrl+Z removes it
+```
+**Data, both grids (the user's pick: "Re-scope poms' op"):** poms' `Schedule: Stamp Date & Time Slot` fired on
+every create, so it stamped Last Seen onto slot CONTAINERS — re-scoped to onAdd + onMove, instance, under the
+Schedule page, and its 21 slot modules unbound from Last Seen. The rebuild's copy now matches poms (the else-branch
+plus Last Seen). Ingredients, Grocery List, Tasks and Examples are identical in binding DISPLAY order — the order
+comes from `binding.order` via `helpers/fieldBindingOrder`, not from array order (my earlier differ compared arrays
+and broke the Therapy rows; fixed). Integrity 0 errors.
+**Not tested, said plainly:** op-editor step drag-reorder (pragmatic's native drag does not start headless); a
+button field running only its own op (the rebuild has one onButton op, so there is nothing to tell apart); Jonah's
+save_bookmark/import_url in the chat drawer; anything that needs the user's devices (phone/Windows share, touch,
+Firefox signing). DocToolbar's text→mini-textblock button cannot be reached (the toolbar is not shown on doc
+pages). The history panel no longer exists (the notification pills replaced it).
+**Seen, not chased:** 12 orphan "Monday, October 12th" day-column MODULES (no occurrence), all < 1h old. That is
+most likely my probes closing the browser mid-burst (the create/disconnect asymmetry). `sweepOrphans` keeps them
+until they are old enough. `dragPerfPhases` failed once under full-suite load and passes alone.
+**Probes:** `_moodundo`/`_moodws` (A0=angle; socket-send log), `_moodclick`, `_dupinst` (ROW=), `_rowsnow`,
+server `_txlast`/`_txone`/`_dupchk`/`_find2`.
+
+---
+
 ### 2026-10-10 — FILES/EXAMPLES, INGREDIENTS + GROCERY LIST (both feeds) BY CLICKING; a link could not become its file
 
 User: *"please continue with the ui testin"*. All by clicking, read back from Mongo; `_gridcmp` now finds **no

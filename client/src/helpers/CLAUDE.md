@@ -3,6 +3,14 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-12 — op effects stamp the gesture's action; duplicateInstance)
+- `state/bindSocketToStore` op effects (CREATE_ITEM, CREATE_FOLDER, UPDATE_VIEW, create_occurrence_in_container,
+  hide/unhide) emit through `safeEmit`, not a raw `socket.emit`, so a gesture's op writes carry `__actionId` (a
+  wheel click's Check In is undoable). Guard `__tests__/opEffectsStampAction.test.js`.
+- `CommitHelpers.duplicateInstance({module, occurrence, parentOccurrence})` — "Duplicate (new instance)": a new
+  module ("(Copy)", same bindings) + occurrence after the row, with its values, via `createLeafInstanceAtIndex`.
+  `createInstanceInContainer` never showed the copy in the clicking tab. Test `duplicateInstance.test.js`.
+
 ## Recent Changes (2026-10-09 — APPLY_TEMPLATE merge: keeps the matched node's record, embeds what it adds)
 - **`operationActions.js` APPLY_TEMPLATE merge** — after topping up a MATCHED node it patched that node's `$vars`
   record from the raw `occurrencesById` row (dropping `_ancestors` + enrichment) and judged "new" children against
