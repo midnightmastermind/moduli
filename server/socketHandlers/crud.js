@@ -1377,6 +1377,9 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     // for that child (see addBookmarkOccurrence). Pushing it here anyway is how a
     // row's browser ended up in the row's own occurrences[].
     pendingCreates.push({ occurrence, actionId: payload?.__actionId || null, list: payload?.list !== false });
+    // update_occurrence waits for a row this socket has queued (occurrences.js) instead of
+    // upserting a partial copy ahead of it.
+    if (occurrence.id) (socket.data.pendingCreateIds ||= new Set()).add(occurrence.id);
     if (!drainScheduled) {
       drainScheduled = true;
       createQueue = createQueue
@@ -1385,9 +1388,12 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
           drainScheduled = false;
           const batch = pendingCreates;
           pendingCreates = [];
-          return handleCreateBatch(batch);
+          return handleCreateBatch(batch).finally(() => {
+            for (const b of batch) socket.data.pendingCreateIds?.delete(b?.occurrence?.id);
+          });
         })
         .catch(() => {});
+      socket.data.createQueue = createQueue;
     }
     return createQueue;
   });

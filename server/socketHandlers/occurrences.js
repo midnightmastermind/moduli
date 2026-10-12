@@ -190,6 +190,28 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
+      // ── AN UPDATE THAT OVERTAKES ITS OWN QUEUED CREATE WAITS FOR IT ──────
+      // create_occurrence is QUEUED (crud.js drains it in batches); this handler is not. So a column's
+      // follow-up write (its children, its textmap) can arrive before the create of the same row has
+      // run, find the row nowhere and upsert a partial, module-less row. Found 2026-10-12 on the
+      // rebuild grid: a refused duplicate's follow-up stayed a SHELL (11 in one morning), and today's
+      // real day column had its partial save re-stamped into the warm cache — whole in Mongo, served
+      // without a moduleId, so the Day Page drew nothing and every load rebuilt (and was refused).
+      // Waiting for this socket's queue lets the create cache the full row (we merge onto it) or be
+      // refused (the guard below drops us). Only an id this socket has queued waits; capped.
+      if (isInsert && socket.data?.pendingCreateIds?.has?.(id) && socket.data.createQueue) {
+        await Promise.race([socket.data.createQueue, new Promise((r) => setTimeout(r, 15000))]);
+        if (uc.occurrencesById[id]) isInsert = false;
+        else {
+          const stored2 = await Occurrence.findOne({ id, userId }).lean().catch(() => null);
+          if (stored2) {
+            isInsert = false;
+            const bare = withoutMongoId(stored2);
+            uc.occurrencesById[id] = stored2.textmap ? { ...bare, id, textmap: decompressTextmap(stored2.textmap) } : { ...bare, id };
+          }
+        }
+      }
+
       // ── A ROW THIS SOCKET'S create_batch REFUSED IS NOT CREATED HERE ─────
       // A refused duplicate's follow-up writes (its children, its textmap) carry
       // no signature, so the insert guard below cannot see them — and this
