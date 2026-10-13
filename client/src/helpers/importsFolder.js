@@ -35,10 +35,14 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
   // lookup pinned to the root would miss it there and mint a second one at the
   // root on the next import. Falls back to an unprotected one at the root,
   // which is the pre-protection shape the self-heal below upgrades.
-  const existing = (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME && f.meta?.protected)
-    || (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME && f.parentId === rootFolderId);
   // A new one goes inside the protected Files folder when the grid has one.
   const filesFolder = (folders || []).find((f) => onGrid(f) && f.name === FILES_FOLDER_NAME && f.meta?.protected);
+  // The unprotected fallback also looks UNDER Files: until 2026-10-12 the server's create_folder dropped
+  // `meta`, so an Imports folder this function made there came back unprotected, and missing it here
+  // minted a second id per import (which the server then refused by name, stranding the import's page).
+  const existing = (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME && f.meta?.protected)
+    || (folders || []).find((f) => onGrid(f) && f.name === IMPORTS_FOLDER_NAME
+      && (f.parentId === rootFolderId || (filesFolder && f.parentId === filesFolder.id)));
   const folderId = existing?.id || crypto.randomUUID();
   if (!existing) {
     CommitHelpers.createFolder({
@@ -62,7 +66,11 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
       folder: { id: folderId, meta: { ...(existing.meta || {}), protected: true } },
     });
   }
-  const folderPageOccId = ensureFolderPageOcc({ folderId, label: "Imports", gridId, occurrencesById, dispatch, socket, userId });
+  // A folder created just now gets its card from the SERVER (create_folder mints one with every folder);
+  // minting another here made two Imports cards. So the card id is unknown (null) on the first import.
+  const folderPageOccId = existing
+    ? ensureFolderPageOcc({ folderId, label: "Imports", gridId, occurrencesById, dispatch, socket, userId })
+    : null;
   return { folderId, folderPageOccId };
 }
 

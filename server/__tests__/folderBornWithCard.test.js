@@ -95,6 +95,21 @@ describe("a folder is born with its card", () => {
     expect(cards()).toHaveLength(1);
   });
 
+  it("KEEPS the folder's meta — `protected` is how the app finds its own Imports folder again", async () => {
+    // Measured on prod 2026-10-12: the client created Imports with meta.protected, Mongo stored meta {},
+    // so the next import's lookup missed it and minted a second Imports id — which this handler then
+    // de-duplicated by name, leaving that import's page parented to a folder that never existed.
+    await fire("create_folder")({ folder: { id: "imp", name: "Imports", gridId: "g1", parentId: "files", meta: { protected: true } } });
+    expect(db.folders.get("imp").meta).toEqual({ protected: true });
+    expect(uc.foldersById.imp.meta).toEqual({ protected: true });
+    expect(emitted.find((x) => x.to === "self" && x.e === "folder_created").p.meta).toEqual({ protected: true });
+  });
+
+  it("a meta that is not a plain object is not stored", async () => {
+    await fire("create_folder")({ folder: { id: "x", name: "X", gridId: "g1", meta: "nope" } });
+    expect(db.folders.get("x").meta).toEqual({});
+  });
+
   it("the folder still succeeds when the card cannot be written", async () => {
     // Best-effort by design: a folder with no card is the OLD behaviour and is
     // recoverable on view. Failing the folder over its card is strictly worse.

@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-12 — `importsFolder`: one Imports folder, one card)
+- `ensureImportsFolderAndPage` also adopts an UNPROTECTED Imports folder under the protected Files folder
+  (the server had been dropping `meta` on create, so ones made there came back unprotected) and heals it;
+  and when it creates the folder itself it mints NO client card (`folderPageOccId: null`) — the server's
+  `create_folder` mints one with every folder, so the client's was a second Imports card. Tests in
+  `importsFolder.test.js` (+2, A/B'd against the old file).
+
 ## Recent Changes (2026-10-12 — `ocrLayout.js` NEW; `ocr.runOcrPage`)
 - `ocr.runOcrPage(url, onProgress, {blocks})` → `{text, blocks}` (tesseract's blocks → paragraphs →
   lines with boxes); `runOcr` is now a thin wrapper returning the text.

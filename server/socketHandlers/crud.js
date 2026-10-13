@@ -843,6 +843,10 @@ export function registerCrudHandlers(socket, {
         folderType: folder.folderType || "normal",
         sortOrder: folder.sortOrder ?? 0,
         isExpanded: folder.isExpanded !== false,
+        // The client's meta is KEPT. `meta.protected` is how the app finds its own Imports folder again
+        // (helpers/importsFolder); dropped here, every later import minted a second Imports id, which the
+        // name check above then refused — leaving that import's page under a folder that never existed.
+        meta: folder.meta && typeof folder.meta === "object" && !Array.isArray(folder.meta) ? folder.meta : {},
       };
       if (!uc.foldersById) uc.foldersById = {};
       uc.foldersById[folderData.id] = folderData;

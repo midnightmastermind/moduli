@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-12 — create_folder keeps the folder's meta)
+- `socketHandlers/crud.js create_folder` built `folderData` without `meta`, so a client-made Imports folder
+  lost `meta.protected`. The next import's lookup missed it, minted a new id, this handler refused it by
+  name, and that import's page was left parented to a folder that never existed (found by the OCR "+ Page"
+  probe on test grid 2). Keeps a plain-object `meta` now. Test `folderBornWithCard.test.js` (+2).
+
 ## Recent Changes (2026-10-05 (4) — `0392`: Micronutrients re-runs on what it reads)
 - poms' `Nutrition: Today's Micronutrients` was triggered on Fats/Carbs/Protein/Calories/Meal and reads none of them;
   a meal's Completed / Ingredient / Date change left the tile stale until a reload. `0392` adds onChange on those

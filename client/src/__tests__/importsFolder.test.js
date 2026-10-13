@@ -142,6 +142,19 @@ describe("ensureImportsFolder", () => {
     expect(CommitHelpers.createFolder).toHaveBeenCalledTimes(1);
   });
 
+  // 2026-10-12: the server's create_folder dropped `meta`, so Imports folders made under Files on the
+  // client came back UNPROTECTED and every later import minted another (the server then refused it by
+  // name, stranding that import's page). The one under Files is ours: adopt it and heal it.
+  it("adopts an unprotected Imports folder under the Files folder, and heals its protection", () => {
+    const folders = [
+      { id: "files-1", name: "Files", parentId: "root-1", gridId: "grid-1", meta: { protected: true } },
+      { id: "imp-files", name: "Imports", parentId: "files-1", gridId: "grid-1", meta: {} },
+    ];
+    expect(ensureImportsFolder({ ...baseArgs, folders })).toBe("imp-files");
+    expect(CommitHelpers.createFolder).not.toHaveBeenCalled();
+    expect(CommitHelpers.updateFolder.mock.calls[0][0].folder).toEqual({ id: "imp-files", meta: { protected: true } });
+  });
+
   it("creates a new Imports folder inside the protected Files folder", () => {
     const folders = [{ id: "files-1", name: "Files", parentId: "root-1", gridId: "grid-1", meta: { protected: true } }];
     ensureImportsFolder({ ...baseArgs, folders });
@@ -170,6 +183,17 @@ describe("ensureImportsFolderAndPage", () => {
     expect(occ.id).toBe(folderPageOccId);
     expect(occ.parentId).toBe("imp-1");          // folder-page occ lives under Imports
     expect(occ.meta.folderPage).toBe(true);       // self-identifying idempotency tag
+  });
+
+  // The server mints a folder's card WITH the folder (create_folder), so a client card on top of it was a
+  // second Imports card (two seen on test grid 2, 2026-10-12). A brand-new folder gets no client card.
+  it("a freshly created Imports folder gets no client card — the server mints it with the folder", () => {
+    const { folderId, folderPageOccId } = ensureImportsFolderAndPage({ ...baseArgs, folders: [], occurrencesById: {} });
+    expect(CommitHelpers.createFolder).toHaveBeenCalledTimes(1);
+    expect(folderId).toBeTruthy();
+    expect(folderPageOccId).toBeNull();
+    expect(CommitHelpers.createModule).not.toHaveBeenCalled();
+    expect(CommitHelpers.createOccurrence).not.toHaveBeenCalled();
   });
 
   it("reuses an existing folder-page occurrence (idempotent across imports)", () => {
