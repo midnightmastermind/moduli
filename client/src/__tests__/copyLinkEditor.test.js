@@ -11,6 +11,11 @@ describe("COPY_LINK schema", () => {
     expect(f.linked).toMatchObject({ kind: "bool", defaultValue: true });
   });
   it("offers the fields map", () => { expect(f.fields.kind).toBe("fieldMap"); });
+  it("can save the whole new copy as a var (Combine Days sets the new slot's feed from it)", () => {
+    expect(f.itemVar).toMatchObject({ kind: "var" });
+    const exec = fs.readFileSync(path.join(__dirname, "../helpers/operationActions.js"), "utf8");
+    expect(exec).toMatch(/cfg\.itemVar/); // the executor writes it
+  });
   it("the renderer draws a fieldMap with the CREATE step's editor, which also writes fieldHidden", () => {
     const src = fs.readFileSync(path.join(__dirname, "../blocks/OperationsBuilder.jsx"), "utf8");
     expect(src).toMatch(/case "fieldMap":\s*return <FieldsMapEditor cfg=\{cfg\} setCfg=\{setCfg\} fields=\{fields\} exprProps=\{exprProps\} mapKey=\{key\}/);

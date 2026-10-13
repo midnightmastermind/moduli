@@ -296,6 +296,9 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "linked", kind: "bool", label: "linked (ticks stay in sync)", defaultValue: true },
       { key: "fields", kind: "fieldMap", label: "set on the copy:" },
       { key: "itemIdVar", kind: "var", label: "new id → $", optional: true },
+      // The executor has read `itemVar` since COPY_LINK existed; Combine Days (0397) needs the
+      // whole new slot to set its feed, and there was no box for it (2026-10-13).
+      { key: "itemVar", kind: "var", label: "new item → $", optional: true },
     ],
     hint: "Linked, the copy SHARES its fields with the source: ticking one ticks all of them. Unlinked, it is a copy with its own values.",
   },
