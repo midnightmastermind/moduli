@@ -3883,3 +3883,6 @@ then re-clean poms' 21 slot modules.
   comlink worker, CLAUDE.md write-up, Combine Schedule field, search "Keep filters".
 - **13:25** (account3) — "could you please continue" → the approved packages (12:12): IndexedDB snapshot,
   vite-plugin-pwa, comlink worker; then Combine Schedule + search "Keep filters".
+- **13:58** — Combine Schedule answers: ONE column with the 49 slots, each slot listing every matching item from
+  all picked dates (tagged with its date) · edits change the REAL item · the checkbox is a field bound on the
+  Schedule page, in its Filter menu · BOTH grids (poms by migration, the rebuild by clicking).

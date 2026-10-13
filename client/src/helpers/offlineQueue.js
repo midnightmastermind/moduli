@@ -45,12 +45,9 @@ export function safeEmit(socket, event, data) {
   // A boot snapshot is the LAST load's copy; nothing derived from it may reach the server.
   // Input is held meanwhile, so what is dropped here is app-made (ops, syncs), and the real
   // full_state makes it again from fresh data.
-  // A USER write (it carries an action id) is QUEUED like an offline edit — the real full_state
-  // takes it in before it is drawn (applyQueuedEditsToPayload) and the queue is flushed after
-  // the load sweep. An app-made write (no action) is DROPPED: it was derived from stale data,
-  // and the real load derives it again.
-  const snapshotHold = isSnapshotMode() && !NON_MUTATING.has(event);
-  if (snapshotHold && !getActionId()) return;
+  // The boot snapshot is a READ-ONLY copy (user, 2026-10-13: "id like to scroll a read only
+  // copy"): input is held (state/snapshotMode), and anything written from it is dropped.
+  if (isSnapshotMode() && !NON_MUTATING.has(event)) return;
   // `window.__emitDiag = true` records every write with the stack that made it
   // (window.__emitLog) — for "who sent this?" when a value is overwritten.
   if (typeof window !== "undefined" && window.__emitDiag) {
@@ -66,7 +63,7 @@ export function safeEmit(socket, event, data) {
     data = { ...data, __actionId: actionId, __actionLabel: getActionLabel() || undefined };
   }
 
-  if (socket.connected && !snapshotHold) {
+  if (socket.connected) {
     socket.emit(event, data);
     return;
   }

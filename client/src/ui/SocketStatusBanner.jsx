@@ -36,7 +36,7 @@ export default function SocketStatusBanner() {
     return (
       <div
         data-testid="snapshot-pill"
-        title="Showing your grid from the last visit while the latest copy loads. Edits you make now are saved once it arrives."
+        title="Showing your grid from the last visit while the latest copy loads. Editing unlocks when it arrives."
         className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium"
         style={{ background: "var(--accent-blue-bg)", color: "var(--accent-blue-text)", border: "1px solid var(--accent-blue-border, transparent)" }}
       >

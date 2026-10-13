@@ -1652,6 +1652,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
       }
 
+      case "UPDATE_ITEM_FEED": {
+        // A container's whole feed object (applyUpdate `$x.feed`). Same path as the header's
+        // Data › Feed section: updateOccurrence, then a feed sync so the copies follow.
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
+        const occ = occOverlay[effect.itemId];
+        if (!occ) break;
+        const nextFeed = effect.value ?? null;
+        if (JSON.stringify(occ.feed ?? null) === JSON.stringify(nextFeed)) break; // unchanged: write nothing
+        setLocalOcc(effect.itemId, { ...occ, feed: nextFeed });
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, feed: nextFeed } });
+        scheduleFeedSync();
+        break;
+      }
+
       case "UPDATE_ITEM_FILTER_OVERRIDE": {
         // Move (or clear, with a null value) one key of an occurrence's own
         // filter override. Goes through updateOccurrenceFilterOverride so the

@@ -203,6 +203,8 @@ const SHAPES = {
       // routes `$occ.fieldVisibility` to its own write; Workouts: Today's Session shows only the day's
       // movements through it, and it could not be picked (2026-10-06).
       { value: "fieldVisibility", title: "fieldVisibility", sub: "object", description: "Which fields this placement shows — { mode: show | hide, fieldIds: [...] }", hasChildren: false },
+      // UPDATE `$occ.feed` (applyUpdate) — the whole feed object, as the header's Data › Feed writes it.
+      { value: "feed", title: "feed", sub: "object", description: "This container's feed — { enabled, scope, roles, conditions, limit } — the rows it pulls in", hasChildren: false },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],

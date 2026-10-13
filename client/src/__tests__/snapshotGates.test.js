@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { safeEmit } from "../helpers/offlineQueue.js";
-import { setSnapshotMode } from "../state/snapshotMode.js";
+import { setSnapshotMode, bindSnapshotInputGuard } from "../state/snapshotMode.js";
 import { withAction } from "../helpers/actionScope.js";
 import { peekOfflineQueue, flushOfflineQueue } from "../helpers/offlineQueue.js";
 
@@ -11,20 +11,27 @@ const sock = () => ({ connected: true, emit: vi.fn() });
 afterEach(() => setSnapshotMode(false));
 
 describe("safeEmit during a boot snapshot", () => {
-  it("drops an APP write (no user action open)", () => {
+  it("drops every write, a user's included — the snapshot is read-only", () => {
     const s = sock(); setSnapshotMode(true);
     safeEmit(s, "update_occurrence", { occurrence: { id: "o" } });
+    withAction("Changed a value", () => safeEmit(s, "update_occurrence", { occurrence: { id: "o2" } }));
     expect(s.emit).not.toHaveBeenCalled();
     expect(peekOfflineQueue()).toEqual([]);
   });
-  it("QUEUES a user edit and sends it once flushed", () => {
-    const s = sock(); setSnapshotMode(true);
-    withAction("Changed a value", () => safeEmit(s, "update_occurrence", { occurrence: { id: "o2" } }));
-    expect(s.emit).not.toHaveBeenCalled();
-    expect(peekOfflineQueue().map((q) => q.data.occurrence.id)).toEqual(["o2"]);
-    setSnapshotMode(false); flushOfflineQueue(s);
-    expect(s.emit).toHaveBeenCalledTimes(1);
-    expect(peekOfflineQueue()).toEqual([]);
+  it("holds a click while the snapshot shows, lets scrolling keys through, and releases after", () => {
+    const t = new EventTarget();
+    const off = bindSnapshotInputGuard(t);
+    let clicks = 0, keys = 0;
+    t.addEventListener("click", () => { clicks++; }); t.addEventListener("keydown", () => { keys++; });
+    setSnapshotMode(true);
+    t.dispatchEvent(new Event("click", { cancelable: true }));
+    const down = Object.assign(new Event("keydown", { cancelable: true }), { key: "PageDown" });
+    t.dispatchEvent(down);
+    expect([clicks, keys]).toEqual([0, 1]);
+    setSnapshotMode(false);
+    t.dispatchEvent(new Event("click", { cancelable: true }));
+    expect(clicks).toBe(1);
+    off();
   });
   it("still lets a read through (the real state must be requested)", () => {
     const s = sock(); setSnapshotMode(true);

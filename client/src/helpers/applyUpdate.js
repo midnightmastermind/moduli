@@ -300,6 +300,16 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
     };
   }
 
+  // $slot.feed — the WHOLE feed object ({enabled, scope, roles, conditions, …}), so an
+  // operation can make a container pull its rows (helpers/feedSync), the way the header's
+  // Data › Feed section does. Whole, for the same reason as fieldVisibility above.
+  if (segments[1] === "feed" && segments.length === 2) {
+    return {
+      effects: [{ _effect: "UPDATE_ITEM_FEED", itemId, value }],
+      varWrites: {},
+    };
+  }
+
   if (segments[1] === "textmap" && segments.length === 2) {
     let textmap = value;
     if (

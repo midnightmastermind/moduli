@@ -63,6 +63,7 @@ import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { revealNewRow } from "./helpers/revealNewRow.js";
 import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
+import { bindSnapshotInputGuard } from "./state/snapshotMode.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -120,6 +121,8 @@ export default function App() {
   // are deliberately untouched, and the drag autoscroll is a different system
   // (`helpers/autoscrollMath.js`) — see the helper's header.
   useEffect(() => installFastWheel(document), []);
+  // The boot snapshot is a read-only copy: presses/keys are held until the real state lands.
+  useEffect(() => bindSnapshotInputGuard(window), []);
 
   // Every button and every picker buzzes (user, 2026-09-02). ONE document
   // listener rather than a prop on hundreds of controls — see the helper's
