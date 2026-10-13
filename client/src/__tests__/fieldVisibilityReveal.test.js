@@ -20,6 +20,9 @@ describe("fieldVisibility.reveal", () => {
   it("combines with a hide list", () => {
     expect(names({ mode: "hide", fieldIds: ["fTag"], reveal: ["fDate"] })).toEqual(["Completed", "Date"]);
   });
+  it("reveal wins over the same level's hide list", () => {
+    expect(names({ mode: "hide", fieldIds: ["fTag", "fDate"], reveal: ["fDate"] })).toEqual(["Completed", "Date"]);
+  });
   it("the resolver carries reveal from the nearest level, and off+reveal is not 'no constraint'", () => {
     const occ = {
       col: { id: "col", fieldVisibility: { mode: "off", reveal: ["fDate"] } },

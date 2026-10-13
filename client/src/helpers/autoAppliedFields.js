@@ -127,7 +127,9 @@ export function resolveOccurrenceFields({
     if (binding.role === "media") return null;
     const forced = showSet?.has(binding.fieldId) || revealSet?.has(binding.fieldId);
     if (binding.hidden && !forced) return null;
-    if (!passes(binding.fieldId)) return null;
+    // A field the level REVEALS shows even if the same level's hide list names it — reveal is the
+    // narrower, explicit ask (the combined Schedule restates the page's hide list, which hides Date).
+    if (!revealSet?.has(binding.fieldId) && !passes(binding.fieldId)) return null;
     const field = fieldsById[binding.fieldId];
     if (!field) return null;
     // Clone without the hidden flag when force-shown, so downstream UI reading
