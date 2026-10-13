@@ -580,14 +580,19 @@ export function handleContainerDrop(dropContext, ctx) {
         // Different list (another page, or into / out of a container): one
         // undo step. A container its old list OWNED (parentId) is re-homed, so
         // deleting the new parent cascades into it; one placed from elsewhere
-        // keeps its home.
+        // keeps its home. A HOMELESS container (no parentId) whose only lister
+        // is the list it leaves is adopted too — otherwise deleting its new
+        // parent would orphan it.
         withAction("Moved container", () => {
           LayoutHelpers.moveContainerBetweenPanels({
             dispatch, socket, fromPanelOccurrence: fromListOcc, toPanelOccurrence: toOrderOcc,
             occurrenceId, toIndex, emit: true,
           });
           const movedOcc = occurrencesById[occurrenceId];
-          if (movedOcc && movedOcc.parentId === fromListOcc.id && toOrderOcc.id !== fromListOcc.id) {
+          const ownedByOld = movedOcc?.parentId === fromListOcc.id;
+          const homelessHere = movedOcc && !movedOcc.parentId && !Object.values(occurrencesById).some(
+            (o) => o && o.id !== fromListOcc.id && (o.occurrences || []).includes(occurrenceId));
+          if (movedOcc && (ownedByOld || homelessHere) && toOrderOcc.id !== fromListOcc.id) {
             CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrenceId, parentId: toOrderOcc.id }, emit: true });
           }
         });

@@ -187,6 +187,23 @@ describe("dragging a container INTO another container (beside a nested one)", ()
     expect(updates.find(u => u.id === "environmental" && u.parentId === "creative")).toBeTruthy();
   });
 
+  // 2026-10-12: the rebuild's "Schedule: Layout" was listed by the Schedule
+  // Template page with NO parentId; dragged onto its own page it stayed
+  // homeless, so deleting that page would orphan it. A container whose only
+  // lister is the list it leaves belongs to where it goes.
+  it("adopts a homeless container listed only by the list it leaves", () => {
+    const c = ctx();
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews"), c);
+    expect(updates.find(u => u.id === "environmental" && u.parentId === "creative")).toBeTruthy();
+  });
+
+  it("does not home a homeless container that another list also shows", () => {
+    const c = ctx();
+    c.occurrencesById = { ...occurrencesById, other: { id: "other", moduleId: "m-x", occurrences: ["environmental"] } };
+    handleContainerDrop(dropOnEdgeOf("m-env", "environmental", "m-brews", "brews"), c);
+    expect(updates.find(u => u.id === "environmental")).toBeFalsy();
+  });
+
   it("refuses to drop a container inside its own subtree", () => {
     const c = ctx();
     handleContainerDrop(dropOnEdgeOf("m-creative", "creative", "m-brews", "brews"), c);
