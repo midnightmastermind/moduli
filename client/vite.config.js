@@ -3,8 +3,12 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import os from "os";
 
+// React Compiler (automatic memoization) — opt-in via REACT_COMPILER=1 while it is
+// being measured against the plain build (2026-10-13).
+const reactCompiler = process.env.REACT_COMPILER === "1";
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(reactCompiler ? { babel: { plugins: [["babel-plugin-react-compiler", {}]] } } : {})],
   // Vitest's per-project cache lives under `<cacheDir>/vitest`. Top-level
   // `cacheDir` replaces the deprecated `test.cache.dir`.
   cacheDir: path.join(os.tmpdir(), "vitest-client"),

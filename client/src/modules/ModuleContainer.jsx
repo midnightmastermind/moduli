@@ -137,7 +137,8 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
 );
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
-import { useRenderWindow } from "../helpers/renderWindow";
+import { useRenderWindow, WINDOW_MIN, WINDOW_INITIAL } from "../helpers/renderWindow";
+import { useVirtualRows } from "../helpers/virtualRows";
 import { usePanelRowsHidden } from "../helpers/offscreenRows";
 import { applyRowSeed } from "../helpers/rowSeed";
 import { afterPaint } from "../helpers/afterPaint";
@@ -903,7 +904,34 @@ function Container({
     (occId) => itemsWithOccurrences.findIndex(it => it.occurrence?.id === occId),
     [itemsWithOccurrences],
   );
-  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: windowResetKey, indexOf: windowIndexOf });
+  // A long STACKED list is virtualized (helpers/virtualRows): only the rows
+  // near the viewport exist, and a search pins its target instead of mounting
+  // everything above it. Row / wrap / tile layouts keep the render window —
+  // their CSS addresses rows as DIRECT children of the list, and a grid's
+  // rows cannot be measured one item at a time.
+  const itemsListRef = useRef(null);
+  // STACK lists virtualize row by row (each row in a measured wrapper). WRAP
+  // grids virtualize line by line, tiles staying direct children — but only
+  // when every child is a leaf: a nested container takes a whole line of its
+  // own, which breaks "n tiles per line".
+  const isWrapGrid = childLayout.mode === "wrap" && childContentDir !== "row";
+  const virtualEligible = itemsWithOccurrences.length > WINDOW_MIN
+    && ((!childLayout.className && childContentDir !== "column")
+      || (isWrapGrid && !itemsWithOccurrences.some((it) => it.instance?.role === "container")));
+  const virtualGrid = useMemo(() => (isWrapGrid ? {
+    tileW: parseFloat(childLayout.vars?.["--child-w"]) || 132,
+    gap: parseFloat(childLayout.vars?.["--child-gap"]) || 0,
+  } : null), [isWrapGrid, childLayout.vars]);
+  const virtualKeyOf = useCallback((i) => itemsWithOccurrences[i]?.occurrence?.id, [itemsWithOccurrences]);
+  const virtualRows = useVirtualRows({
+    count: itemsWithOccurrences.length,
+    enabled: virtualEligible,
+    listRef: itemsListRef,
+    keyOf: virtualKeyOf,
+    indexOf: windowIndexOf,
+    grid: virtualGrid,
+  });
+  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { enabled: !virtualEligible, resetKey: windowResetKey, indexOf: windowIndexOf });
 
   // A panel the mobile grid has translated off screen renders NO rows. The
   // container shell, its header and its label stay — they are ~105 nodes across
@@ -1896,7 +1924,7 @@ function Container({
              that moved 0.7px in 3.1s, with ZERO long tasks (so none of it was
              our JS). Long boards are the case it was written for and keep it.
              Structural, so it cannot drift as pages change shape. */
-          className={`container-list${items.length >= LONG_LIST_MIN ? " container-list--long" : ""}`}
+          className={`container-list${items.length >= LONG_LIST_MIN ? " container-list--long" : ""}${virtualRows.active ? " container-list--virtual" : ""}`}
           style={{
             flex: items.length === 0 ? 1 : "0 0 auto",
             minHeight: items.length === 0 ? 40 : "fit-content",
@@ -1909,6 +1937,7 @@ function Container({
         >
           <div
             role="list"
+            ref={itemsListRef}
             aria-label={`${module.label || "Container"} items`}
             className={"container-items"
               + (childLayout.className ? ` ${childLayout.className}` : "")
@@ -1943,7 +1972,8 @@ function Container({
                 : null),
             }}
           >
-            {itemsWithOccurrences.slice(0, renderCount).map(({ instance, occurrence }, idx) => {
+            {(() => {
+            const renderRow = ({ instance, occurrence }, idx) => {
               const role = instance?.role;
               // Container-in-container: when the parent has allowChildContainers,
               // a role:"container" child mounts its own <Container> instead of a
@@ -2040,7 +2070,29 @@ function Container({
                   {node}
                 </React.Fragment>
               );
-            })}
+            };
+            if (rowsHidden) return null;
+            if (virtualRows.active) {
+              if (virtualRows.isGrid) {
+                // Tiles stay DIRECT children (the wrap CSS addresses them so);
+                // the hook finds each line's tiles by occurrence id to measure it.
+                return virtualRows.plan.map((p, k) => p.spacer != null
+                  ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer, flex: "0 0 100%" }} />
+                  : renderRow(itemsWithOccurrences[p.index], p.index));
+              }
+              return virtualRows.plan.map((p, k) => p.spacer != null
+                ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer, flex: "0 0 auto" }} />
+                : (
+                  <div key={p.key} data-index={p.index} ref={virtualRows.measureRef} className="virtual-row">
+                    {renderRow(itemsWithOccurrences[p.index], p.index)}
+                  </div>
+                ));
+            }
+            // Eligible but the scroller is not known yet (first frame): a short
+            // slice, so a long board never paints in full while it waits.
+            const n = virtualEligible ? Math.min(WINDOW_INITIAL, itemsWithOccurrences.length) : renderCount;
+            return itemsWithOccurrences.slice(0, n).map(renderRow);
+            })()}
             {/* THE WINDOW'S SEAM. A sentinel after the last rendered row asks
                for the next chunk as it approaches the viewport, so a long board
                stays fully browsable — nothing here is permanently unreachable.

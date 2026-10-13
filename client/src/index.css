@@ -8790,3 +8790,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   cursor: pointer;
 }
 .artifact-set-cover:hover { color: var(--text-primary); border-color: var(--accent-blue); }
+
+/* Virtualized long stacks (helpers/virtualRows). A row wrapper is measured by
+   the virtualizer, so it must CONTAIN its row's margins (flow-root) or every
+   measurement is short by the collapsed margin. The off-screen skip is off
+   inside a virtual list: only rows near the viewport exist, and a skipped row
+   would be measured at its placeholder height. */
+.virtual-row { display: flow-root; flex: 0 0 auto; min-width: 0; }
+.container-list--virtual .instance-wrap { content-visibility: visible; contain-intrinsic-size: none; }

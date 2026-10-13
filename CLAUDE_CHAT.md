@@ -3866,3 +3866,14 @@ then re-clean poms' 21 slot modules.
 - **10:42** (main account) — "please continue what my other account was working on" · "read its chat logs" → account3's
   session (limit 09:58) was mid-way through the Holidays board (answer 1 of 09:43). Continued it on both grids.
 - **11:23** — holidays' Schedule Type: "holiday type" → a Holiday row in Schedule Types; feed events filed into Holidays get it.
+- **11:51** — "for the mobile/tablet thing, lets look into what packages might speed up the app" (queued after the Emotions wheel).
+- **12:00** — "where are all the occurances in the schedule stored?" (answered) · NEW TASKS:
+  1. a **Combine Schedule** field (checkbox) that is also a filter on the Schedule: when yes, build ONE schedule
+     copy for all the selected dates (instead of a column per date), showing every occurrence that matches the filter.
+  2. **Search › "Keep filters"** checkbox: search only the currently filtered results instead of everywhere.
+  "but hold on after doing that, i want to review the packages stuff" → recorded, not started; waiting on the
+  user's package review (React Compiler / IndexedDB cache / comlink worker / PWA — msgpack measured: no).
+
+- 12:11 — "okay lets add in react virtual to that and solve the search issue." → @tanstack/react-virtual on long boards; search/jump must reach a row that is not mounted.
+- 12:12 — "do the other packages too if you havent finished those" → React Compiler A/B, IndexedDB snapshot, vite-plugin-pwa, comlink worker (after virtualization).
+- 12:14 — "see if the scroll has the slide activated … fling scroll … the after effect of the scroll still moving" → check momentum (inertial) scrolling works on boards (touch), incl. virtualized ones.
