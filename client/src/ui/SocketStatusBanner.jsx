@@ -19,9 +19,32 @@
 import React from "react";
 import { WifiOff, Wifi } from "lucide-react";
 import { useSocketStatus } from "../hooks/useSocketStatus";
+import { isSnapshotMode, subscribeSnapshotMode } from "../state/snapshotMode";
+
+function useSnapshotMode() {
+  const [on, setOn] = React.useState(isSnapshotMode());
+  React.useEffect(() => subscribeSnapshotMode(setOn), []);
+  return on;
+}
 
 export default function SocketStatusBanner() {
   const { status, attempts, retryInMs } = useSocketStatus();
+  const snapshot = useSnapshotMode();
+
+  // The grid on screen is the last load's copy (helpers/bootSnapshot).
+  if (snapshot) {
+    return (
+      <div
+        data-testid="snapshot-pill"
+        title="Showing your grid from the last visit while the latest copy loads. Edits you make now are saved once it arrives."
+        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium"
+        style={{ background: "var(--accent-blue-bg)", color: "var(--accent-blue-text)", border: "1px solid var(--accent-blue-border, transparent)" }}
+      >
+        <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "currentColor" }} />
+        Updating…
+      </div>
+    );
+  }
 
   if (status === "connected") return null;
 

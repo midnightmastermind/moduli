@@ -22,6 +22,7 @@
 //     console (soft warn) so the author can see what their op is doing.
 // ============================================================
 import { useEffect, useRef } from "react";
+import { isSnapshotMode } from "./snapshotMode.js";
 import { executePipeline, opRunsOnGrid } from "../helpers/operationExecutor";
 import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
@@ -98,6 +99,7 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
     if (!operationsById || !socket) return;
 
     const tick = () => {
+      if (isSnapshotMode()) return; // a boot snapshot is on screen (state/snapshotMode)
       const now = new Date();
       const inFlight = inFlightRef.current;
       for (const opId of Object.keys(operationsById)) {

@@ -136,7 +136,9 @@ function reduce(state, action) {
                 }
                 if (Object.keys(existingTextmaps).length > 0) {
                     mergedOccs = occurrences.map(o =>
-                        existingTextmaps[o.id] ? { ...o, textmap: existingTextmaps[o.id] } : o
+                        // Only rows the payload sends WITHOUT a textmap; when it carries
+                        // one, the server's is the truth (a boot snapshot holds older text).
+                        !o.textmap && existingTextmaps[o.id] ? { ...o, textmap: existingTextmaps[o.id] } : o
                     );
                 }
             }

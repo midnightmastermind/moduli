@@ -62,6 +62,7 @@ import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { revealNewRow } from "./helpers/revealNewRow.js";
+import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -1117,7 +1118,7 @@ export default function App() {
           commandCenterOpen={commandCenterOpen}
           userId={state.userId}
           userEmail={state.userEmail}
-          onLogout={() => { socket?.emit("logout"); dispatch(logoutAction()); }}
+          onLogout={() => { clearBootSnapshots(); socket?.emit("logout"); dispatch(logoutAction()); }}
           isMobileLayout={isMobileLayout}
         />
 

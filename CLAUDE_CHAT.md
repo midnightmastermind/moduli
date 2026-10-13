@@ -3881,3 +3881,5 @@ then re-clean poms' 21 slot modules.
   account (limit 12:31) left: deploy the virtualization (suite not yet run), finish the 128-emotion batch (stuck at
   row 114) + set the wheel's chart/feed, time the React Compiler A/B, then IndexedDB snapshot, vite-plugin-pwa,
   comlink worker, CLAUDE.md write-up, Combine Schedule field, search "Keep filters".
+- **13:25** (account3) — "could you please continue" → the approved packages (12:12): IndexedDB snapshot,
+  vite-plugin-pwa, comlink worker; then Combine Schedule + search "Keep filters".

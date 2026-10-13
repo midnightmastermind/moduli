@@ -2,6 +2,7 @@
 // Buffers socket.emit calls when disconnected. Flushes after reconnect + full_state.
 
 import { getActionId, getActionLabel } from "./actionScope";
+import { isSnapshotMode } from "../state/snapshotMode.js";
 
 const queue = [];
 
@@ -41,6 +42,15 @@ function dedupKey(event, data) {
  */
 export function safeEmit(socket, event, data) {
   if (!socket) return;
+  // A boot snapshot is the LAST load's copy; nothing derived from it may reach the server.
+  // Input is held meanwhile, so what is dropped here is app-made (ops, syncs), and the real
+  // full_state makes it again from fresh data.
+  // A USER write (it carries an action id) is QUEUED like an offline edit — the real full_state
+  // takes it in before it is drawn (applyQueuedEditsToPayload) and the queue is flushed after
+  // the load sweep. An app-made write (no action) is DROPPED: it was derived from stale data,
+  // and the real load derives it again.
+  const snapshotHold = isSnapshotMode() && !NON_MUTATING.has(event);
+  if (snapshotHold && !getActionId()) return;
   // `window.__emitDiag = true` records every write with the stack that made it
   // (window.__emitLog) — for "who sent this?" when a value is overwritten.
   if (typeof window !== "undefined" && window.__emitDiag) {
@@ -56,7 +66,7 @@ export function safeEmit(socket, event, data) {
     data = { ...data, __actionId: actionId, __actionLabel: getActionLabel() || undefined };
   }
 
-  if (socket.connected) {
+  if (socket.connected && !snapshotHold) {
     socket.emit(event, data);
     return;
   }
@@ -100,6 +110,11 @@ export function flushOfflineQueue(socket) {
       // Older runtimes / SSR — silently skip; the queue still flushed.
     }
   }
+}
+
+/** The queued writes, in order, without removing them. */
+export function peekOfflineQueue() {
+  return queue.map(({ event, data }) => ({ event, data }));
 }
 
 /**

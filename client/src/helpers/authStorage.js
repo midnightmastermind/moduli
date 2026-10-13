@@ -12,6 +12,8 @@
 // React mounts, and a browser with storage denied must fall through to the
 // landing page rather than throw on the first line of the app.
 
+import { clearBootSnapshots } from "./bootSnapshot.js";
+
 export const AUTH_KEYS = {
   token: "moduli-token",
   userId: "moduli-userId",
@@ -26,6 +28,8 @@ export function persistAuth({ token, userId } = {}) {
 }
 
 export function clearAuth() {
+  // The boot snapshot is this user's data in the browser; it leaves with the session.
+  clearBootSnapshots();
   try {
     localStorage.removeItem(AUTH_KEYS.token);
     localStorage.removeItem(AUTH_KEYS.userId);

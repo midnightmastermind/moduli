@@ -3,6 +3,7 @@
 // the store settles, so a burst of writes is one plan. Every tab computes the same deterministic ids, so
 // two tabs racing produce the same writes, never duplicates.
 import { useEffect, useRef } from "react";
+import { isSnapshotMode } from "../state/snapshotMode.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { planReminderOps } from "../helpers/reminderSync";
 
@@ -15,6 +16,7 @@ export function useReminderSync({ state, dispatch, socket, modulesById }) {
     if (!gridId || !socket) return undefined;
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      if (isSnapshotMode()) return; // a boot snapshot is on screen; the real load re-runs this
       const { create, update, remove } = planReminderOps({
         fields: fields || [], occurrences: occurrences || [], operations: operations || [], modulesById: modulesById || {}, gridId, complete,
       });

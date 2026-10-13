@@ -31,7 +31,8 @@ import {
   updateOccurrenceFilterOverride,
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
-import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
+import { flushOfflineQueue, safeEmit, peekOfflineQueue } from "../helpers/offlineQueue";
+import { applyQueuedEditsToPayload } from "../helpers/queuedEdits.js";
 import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
 import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
@@ -45,6 +46,8 @@ import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptions
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
 import { persistAuth, clearAuth } from "../helpers/authStorage.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
+import { loadBootSnapshot, saveBootSnapshot } from "../helpers/bootSnapshot.js";
+import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -135,6 +138,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // (offline). It does NOT expire mid-storm, so it closes the async leak
   // regardless of how long the cascade runs.
   const opEmittedOccIds = new Set();
+  // Boot snapshot bookkeeping (see BOOT SNAPSHOT below).
+  let realFullStateSeen = false;
+  let unbound = false;
   // ── FEED SYNC SCHEDULER (2026-07-07) ──────────────────────────────────────
   // Debounced full-grid feed reconciliation (helpers/feedSync.js). Runs after
   // full_state settles, after filter changes, and after occurrence CRUD
@@ -186,6 +192,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
+      if (isSnapshotMode()) return;
       if (!_isSyncLeader && socket?.connected) return;
       try {
         const state = stateRef.current || {};
@@ -225,6 +232,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // FULL STATE HYDRATE
   // ======================================================
   function onFullState(payload = {}) {
+    // A BOOT SNAPSHOT (helpers/bootSnapshot) comes through here too, flagged, and only draws:
+    // no writes, no sweep, no deferred request. The first REAL full_state ends snapshot mode.
+    const fromSnapshot = !!payload.__fromSnapshot;
+    if (!fromSnapshot) { realFullStateSeen = true; setSnapshotMode(false); }
     // PUT THE HOISTED CONSTANTS BACK FIRST. `gridId`/`userId` are identical on
     // every row, so they travel once on the envelope (server/utils/
     // wireProjection.js) — 1.24MB on the catalogue alone. Restoring them here,
@@ -248,10 +259,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const migratedFields = (payload.fields || []).map(f => {
       if (!needsMigration(f)) return f;
       const migrated = migrateFieldOptionsSource(f);
-      safeEmit(socket, "update_field", { field: migrated });
+      if (!fromSnapshot) safeEmit(socket, "update_field", { field: migrated });
       return migrated;
     });
     payload = { ...payload, fields: migratedFields };
+    // Writes queued while the grid was a boot snapshot (or offline) are not in this payload yet;
+    // take them in so the screen keeps them and the sweep computes from them. The queue itself
+    // is still flushed to the server after the sweep.
+    if (!fromSnapshot) payload = applyQueuedEditsToPayload(payload, peekOfflineQueue());
 
     timeLoad("dispatch", () => socketDispatch({ type: ActionTypes.FULL_STATE, payload }));
 
@@ -321,12 +336,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           // Persist to server so a subsequent load (or another tab) sees the
           // bootstrapped value rather than re-bootstrapping each time.
           // THE KEY IS `grid`, NOT `patch` — see the SET_FILTER emit below.
-          safeEmit(socket, "update_grid", { gridId: grid._id || payload.gridId, grid: { activeFilterValues: patch } });
+          if (!fromSnapshot) safeEmit(socket, "update_grid", { gridId: grid._id || payload.gridId, grid: { activeFilterValues: patch } });
         }
       }
     }
 
     markFS(`reducer dispatched (${(payload.occurrences || []).length} occs, ${(payload.modules || []).length} mods)`);
+    if (fromSnapshot) return;
+    scheduleSnapshotSave(payload);
 
     // ── AN EARLY SAMPLE, because a session can end before the sweep does ─────
     //
@@ -746,6 +763,36 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }), 50)));
   }
 
+
+  // ── BOOT SNAPSHOT ──────────────────────────────────────────────────────────
+  // Draw the last load's full_state while the real one downloads (helpers/bootSnapshot).
+  // Never in a preview iframe, never once the real state has arrived.
+  if (!_inFrame) {
+    const snapUser = localStorage.getItem("moduli-userId");
+    const snapGrid = localStorage.getItem("moduli-gridId");
+    if (snapUser && snapGrid) {
+      loadBootSnapshot(snapUser, snapGrid).then((snap) => {
+        if (!snap || realFullStateSeen || unbound) return;
+        setSnapshotMode(true);
+        try { onFullState({ ...snap, __fromSnapshot: true }); }
+        catch (e) { console.warn("[bootSnapshot] could not draw:", e); setSnapshotMode(false); }
+      });
+    }
+  }
+  // Saved once the load has settled, when the tab is idle: putting ~15MB in IndexedDB
+  // structured-clones it on the main thread.
+  let _snapSaveTimer = null;
+  function scheduleSnapshotSave(payload) {
+    if (_inFrame) return;
+    const userId = payload.userId || localStorage.getItem("moduli-userId");
+    if (!userId || !payload.gridId) return;
+    clearTimeout(_snapSaveTimer);
+    _snapSaveTimer = setTimeout(() => {
+      const run = () => { if (!unbound) saveBootSnapshot(userId, payload); };
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 10000 });
+      else run();
+    }, 20000);
+  }
 
   socket.on("full_state", onFullState);
   socket.on("full_state_rest", onFullStateRest);
@@ -2048,6 +2095,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   const _fireWarnAt = new Map();
 
   function fireOperations(transactionType, transaction) {
+    if (isSnapshotMode()) return; // the grid on screen is a boot snapshot (state/snapshotMode)
     // During a drop batch (beginDropBatch active), collect top-level fires instead
     // of executing them synchronously. endDropBatch flushes them after rAF so the
     // browser paints the visual drop result before any operation work runs.
@@ -3165,6 +3213,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // CLEANUP (important with HMR)
   // ======================================================
   return () => {
+    unbound = true;
+    clearTimeout(_snapSaveTimer);
     operationsBridge.fireOperations = null;
     operationsBridge.fireOperationsBatch = null;
     operationsBridge.updateLocalOcc = null;
