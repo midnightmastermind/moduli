@@ -29,7 +29,7 @@ feeds            each US Holidays feed › "file events into" Holidays › Holid
                  from Appointments through the app, Check now -> 6 events filed into Holidays on each grid
                  (poms' 3 real appointments stay in Appointments)
 ```
-**Code (`d8d1…` fix(share), client-only deploy):** the rule path picker's ics catalog lacked the feed share's
+**Code (`e241890d` fix(share), client-only deploy):** the rule path picker's ics catalog lacked the feed share's
 props, so `$share.props.destinationId` could not be picked — added `url` / `feedId` / `destinationId`
 (`sharePathPicker.test.js`, fails without).
 **Untested surface, tested: op-editor step drag-reorder WORKS.** Headless Playwright's drag session delivers ONE
