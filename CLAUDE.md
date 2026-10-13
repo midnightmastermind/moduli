@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (5) — THE EMOTIONS WHEEL IS FULL ON THE REBUILD; three things the UI could not do, and the React Compiler measured
+
+Account3 finishing the main account's list (its limit hit at 12:31).
+```
+emotions      all 128 rows on the rebuild (Emotion Level + Parent Emotion by clicking), read back from Mongo
+wheel         chart settings + feed limit = poms': readout 8 roots · 128 rows · 3 deep, all three rings labelled
+virtualize    long boards on @tanstack/react-virtual (a817ad25/e51cff80), full client suite green, deployed
+```
+**Fixed, each test-first + A/B'd, deployed:**
+1. **The graph's label settings were migration-only** (`labelFontPx`, `labelMinArcPx`, `hideTooltipValue`):
+   Settings › Chart › Labels writes them now (`ui/GraphSection`, 72b7a3d6). Sizing shows on a sunburst only.
+2. **A container embedded in a doc had no header menu** (Filter · Sort · Data · Fields · Layout) — the
+   chevron was only ever added to the standard header, so the wheel on a day page could not be edited
+   at all. `.embedded-header-menu` (reveals on hover/focus, half-visible on touch; cdf8121b).
+3. **"+ › Item" on a long board never opened the new row's name editor** — the row is appended past the
+   mounted range, never mounts, and so never consumes `pendingLabelEdit`. `helpers/revealNewRow` jumps to a
+   new row that is not in the DOM (App's add + InsertGap). Watched on prod: the probe that read
+   `ADD FAILED no label editor` now reads `ok` (b00181cb). Probe rows deleted through the app.
+**React Compiler, measured (`_rcab.mjs`, interleaved builds):** ~5% faster load milestones — inside what a
+second run moves. Kept OPT-IN (`REACT_COMPILER=1`): this codebase mutates in place in places the compiler's
+memoization would serve stale, and one control test (`fieldHookOrder`) is rewritten by it.
+**Not done:** IndexedDB snapshot cache, vite-plugin-pwa, comlink op-sweep worker — each a design call
+(2026-09-28 (3): boot is one 15MB message + the first render, not bytes). Combine Schedule + search
+"Keep filters" wait on the user's package review. Fling scroll inside a virtualized board: untested on a device.
+
+---
+
 ### 2026-10-13 (4) — A CONTAINER THE FILTER EMPTIES SAYS WHICH FILTER
 
 User (09:43 answer): *"show a hint, but it shouldnt be hard coded to Date"*. A container with rows that the
