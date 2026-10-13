@@ -3877,3 +3877,7 @@ then re-clean poms' 21 slot modules.
 - 12:11 — "okay lets add in react virtual to that and solve the search issue." → @tanstack/react-virtual on long boards; search/jump must reach a row that is not mounted.
 - 12:12 — "do the other packages too if you havent finished those" → React Compiler A/B, IndexedDB snapshot, vite-plugin-pwa, comlink worker (after virtualization).
 - 12:14 — "see if the scroll has the slide activated … fling scroll … the after effect of the scroll still moving" → check momentum (inertial) scrolling works on boards (touch), incl. virtualized ones.
+- **12:41** (account3) — "can you look at what the other claude accounts tasks were and continue them" → the main
+  account (limit 12:31) left: deploy the virtualization (suite not yet run), finish the 128-emotion batch (stuck at
+  row 114) + set the wheel's chart/feed, time the React Compiler A/B, then IndexedDB snapshot, vite-plugin-pwa,
+  comlink worker, CLAUDE.md write-up, Combine Schedule field, search "Keep filters".
