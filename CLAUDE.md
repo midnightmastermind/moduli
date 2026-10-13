@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (2) — THE USER'S ANSWERS: reminder rang, holidays feed on both grids, 700 shell rows swept, first line removable
+
+User: *"ask me the questions you need"* → answers in CLAUDE_CHAT (07:53). Each below was done and read back.
+```
+Reminder      rebuild: probe in Todo, Reminder = 08:00 by clicking -> op rem:<occ>:<field> fired 08:00:02, then
+              switched itself off (one-time). Deleting the probe through the app removed the reminder (0 left)
+feed window   Google's US holidays .ics brought 317 rows (2021-2031) into the rebuild: a subscription windowed only
+  (bd...)     REPEATING events. One-off events now keep the same 60-day window, and planFeedChanges does not cancel
+              a row past the window's END (`until`). Server, test-first, A/B 2 fail. Rebuild: unsubscribed + 317
+              rows deleted through the app, re-subscribed -> 6 events (Halloween .. Black Friday), listed in
+              Appointments. poms: the same feed, by clicking -> the same 6
+first line    an empty FIRST line above a section came back on Backspace (the section is an atom, no caret below).
+              planBlockBackspace keeps a line only when NOTHING follows; an atom gets a NodeSelection. Client,
+              A/B'd. Watched on prod: Basic Nutrition Guide (rebuild) click -> mint -> Backspace -> the section is
+              the first node, as poms
+shells        poms' 134 module-less rows + their exclusive subtrees = 700 rows: 0 text, 0 non-automatic values,
+              all day-column skeletons from refused rebuilds (Sep 22 - Oct 1). The one child listed elsewhere (the
+              shared Emotions Wheel) kept. Backup server/backups/orphans/2026-10-13-poms-module-less-shells.json,
+              deleted via delete_occurrence on a poms socket (WAIT=60s — a closed socket aborts the cascade), one
+              straggler (an empty Daily Answer the cascade could not reach) after. Then sweepOrphans removed their
+              89 unplaced day-column modules (dump backups/orphans/2026-10-13T13-31-18-369Z.json). poms: 0
+              module-less, 0 dangling, integrity 1 error (the long-standing container-filtered-empty)
+order         the six boards' binding order (Settings > Fields) and four boards' row order (_ctrorder): all six now
+              IDENTICAL to poms
+```
+**Found, not touched:** a poms Todo `e94ef71f` (has a module) listed by nothing — outside the shell sweep.
+**Probe notes:** `_ctrorder` needs `--env-file=server/.env` and the page already open (`_openpage`); `_delocc` takes
+`WAIT=` now; a `pkill -f <script>` whose pattern appears in the shell's own command line kills that shell.
+
+---
+
 ### 2026-10-13 — THE LAST SMALL DIFFERENCES: one fixed, the rest are order or bulk
 
 User: *"could you please continue"*. `_gridcmp` after the OCR work, read line by line rather than by count:
