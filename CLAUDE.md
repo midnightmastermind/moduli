@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (4) — A CONTAINER THE FILTER EMPTIES SAYS WHICH FILTER
+
+User (09:43 answer): *"show a hint, but it shouldnt be hard coded to Date"*. A container with rows that the
+active filter hides ALL of now shows a dashed button above its add bar:
+**"6 items hidden by the Daily filter (Date)"** — clicking it opens the container's filter dropdown.
+`helpers/filterHiddenHint.js` (`filterHiddenHint` / `filterHiddenHintText`): the filter and field are read off
+`isOccurrenceVisible(occ, effectiveFilters, [cond])` one condition at a time, so the hint cannot disagree with
+what hid the rows. Grid named-filter conditions are named by the filter ("the Daily filter (Date)"), an
+occurrence's own local filters by their field ("the Time Slot filter"); the no-conditions path tests each
+effective-filter key alone. Rows hidden by hand (`occurrence.hidden`) do not count. Computed only when every
+row is hidden. `ModuleContainer` + `.container-filter-hint` (index.css). Test `filterHiddenHint.test.js` (6,
+incl. a wiring guard); client 5,951 pass. `19befabe` deployed.
+**Watched on prod:** poms has no such container on screen (the 92 rows the server check flags all sit in PAST
+day columns, which are themselves hidden on today's date), so the positive check was done on the rebuild:
+Holidays page date filter switched back ON → "6 items hidden by the Daily filter (Date)" rendered over the
+empty board (screenshot); switched OFF again, panel restored, integrity 0 errors.
+**Probes:** `_hintcheck.mjs` (SHOT=), `_pgfiltertoggle.mjs` (FROMSTATE=true|false).
+
+---
+
 ### 2026-10-13 (3) — HOLIDAYS GET THEIR OWN BOARD ON BOTH GRIDS; op-step drag reorder works (headless drag does not)
 
 Picked up account3 (session limit 09:58, mid-rename). All by clicking, read back from Mongo:
