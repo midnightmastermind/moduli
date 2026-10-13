@@ -2,6 +2,21 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-13 — `0397`/`0398`: Combine Schedule, as data)
+- `0397` adds a boolean field **Combine Schedule**, a local filter on the Schedule page naming it (Filter
+  menu › Local Filters, true/false pills) and the op **Schedule: Combine Days** (priority 4, target the
+  Schedule page; onLoad, onFilterChange grid + filterNav under the page). On with >1 day picked: one column
+  "Schedule - Combined" (Schedule Format `combined`, so no day-col rule touches it) holding copy-links of the
+  template's 49 slots (`$dayCont` read off Build Schedule), each slot given a FEED `Time Slot IS <label>`
+  under the Schedule page — copy-links of the real items, kept to the picked days by the slot's inherited
+  date filter; the day columns go in the page's `hideChildIds`. Off or one day: the column is deleted.
+  Pure `combineDaysPipeline` / `layoutContainerOf` / `withCombineFilter`; test drives the real executor over
+  the poms fixture (`client/src/__tests__/combineSchedule.test.js`).
+- `0398` replaces the op's pipeline: the column restates the page's field visibility and adds
+  `reveal: [Date]` (new client option — helpers/CLAUDE.md), so each combined row shows its day.
+- Watched on poms: on → 49 slots, 70 copies (35 per day, each linked to its source); off → column, slots and
+  copies gone, day columns back side by side.
+
 ## Recent Changes (2026-10-12 — create_folder keeps the folder's meta)
 - `socketHandlers/crud.js create_folder` built `folderData` without `meta`, so a client-made Imports folder
   lost `meta.protected`. The next import's lookup missed it, minted a new id, this handler refused it by

@@ -3,6 +3,14 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-13 — `fieldVisibility.reveal`)
+- A level may carry `reveal: [fieldIds]` — shown even where a module binds them HIDDEN, and NOT a
+  whitelist (show-mode drops everything it does not name; a union show-list put every Workout field on
+  Sleep). `state/selectors.getEffectiveFieldVisibilityForOccurrence` carries it (`visibilityLevel`; "off"
+  with a reveal is `{mode:"off", fieldIds:[], reveal}`, not null); `autoAppliedFields.resolveOccurrenceFields`
+  forces revealed bindings and lets them past the same level's hide list. Editor: Field Visibility › "Also
+  show (even if bound hidden)". Test `__tests__/fieldVisibilityReveal.test.js` (A/B'd).
+
 ## Recent Changes (2026-10-12 — `importsFolder`: one Imports folder, one card)
 - `ensureImportsFolderAndPage` also adopts an UNPROTECTED Imports folder under the protected Files folder
   (the server had been dropping `meta` on create, so ones made there came back unprotected) and heals it;

@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (7) — COMBINE SCHEDULE: ONE COLUMN FOR EVERY PICKED DAY, BUILT BY AN OPERATION
+
+User: *"a field called combine schedule thats a checkbox field and is also a filter on schedule"* → (13:58) one
+column with the 49 slots, each listing the matching items from all picked days tagged with their date, edits
+change the real item → (14:31) *"handled by the operations not some hard coded thing … a copylinked schedule"*.
+```
+0397 (poms)   field Combine Schedule (boolean) · a local filter on the Schedule page naming it (Filter menu, pills)
+              · op "Schedule: Combine Days" (p4, onLoad + onFilterChange grid / filterNav under the page)
+on, >1 day    one "Schedule - Combined" column (Schedule Format "combined" — no day-col rule touches it) of
+              copy-links of the template's 49 slots; each slot gets a FEED (Time Slot IS <label>, under the
+              Schedule page) -> copy-links of the real items; the day columns go in hideChildIds
+off / 1 day   the column is deleted
+0398          the column restates the page's field visibility + reveal:[Date], so each row shows its day
+```
+**Client, generic:** `fieldVisibility.reveal` — fields shown even where the module binds them hidden, and not a
+whitelist (a union show-list put every Workout field on Sleep). It wins over the same level's hide list: the
+page's own hide list names Date, which is why the first deploy rendered no dates. Settings › Field Visibility ›
+"Also show". Tests `combineSchedule.test.js` (real executor over the poms fixture) + `fieldVisibilityReveal.test.js`,
+both A/B'd. **Watched on poms:** on -> 49 slots, 70 copies (35 per day, each linked to its source), rows read
+"Date: Oct 13 / Oct 14"; off -> column, slots and copies gone, day columns back. Restored to Oct 13 / off;
+0 feed copies left without a parent; integrity = the long-standing container-filtered-empty only.
+**Not done:** the same on the rebuild grid by clicking.
+
+---
+
 ### 2026-10-13 (6) — THE GRID SHOWS FROM THE LAST VISIT WHILE THE REAL ONE DOWNLOADS; and it boots offline
 
 User: *"could you please continue"* — the approved packages (12:12). Measured first (`_loadsplit.mjs`, poms, 390px, 4x CPU):
@@ -85,7 +110,7 @@ memoization would serve stale, and one control test (`fieldHookOrder`) is rewrit
 
 ---
 
-### 2026-10-13 (5) — LONG BOARDS ARE VIRTUALIZED; a search no longer mounts every row above its target
+### 2026-10-13 (5b) — LONG BOARDS ARE VIRTUALIZED; a search no longer mounts every row above its target
 
 User: *"lets add in react virtual to that and solve the search issue"* · *"do the other packages too"* · *"see if
 the scroll has the slide activated … the after effect of the scroll still moving"*.
