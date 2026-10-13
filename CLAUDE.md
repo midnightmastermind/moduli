@@ -22,7 +22,7 @@ User: *"ask me the questions you need"* → answers in CLAUDE_CHAT (07:53). Each
 Reminder      rebuild: probe in Todo, Reminder = 08:00 by clicking -> op rem:<occ>:<field> fired 08:00:02, then
               switched itself off (one-time). Deleting the probe through the app removed the reminder (0 left)
 feed window   Google's US holidays .ics brought 317 rows (2021-2031) into the rebuild: a subscription windowed only
-  (bd...)     REPEATING events. One-off events now keep the same 60-day window, and planFeedChanges does not cancel
+  (c374ab80)  REPEATING events. One-off events now keep the same 60-day window, and planFeedChanges does not cancel
               a row past the window's END (`until`). Server, test-first, A/B 2 fail. Rebuild: unsubscribed + 317
               rows deleted through the app, re-subscribed -> 6 events (Halloween .. Black Friday), listed in
               Appointments. poms: the same feed, by clicking -> the same 6
