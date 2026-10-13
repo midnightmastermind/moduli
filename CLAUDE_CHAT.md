@@ -3891,3 +3891,9 @@ then re-clean poms' 21 slot modules.
 - **14:31** — "this field filter thing … should be handled by the operations not some hard coded thing" ·
   "it would show a copylinked schedule" → Combine Schedule = a field + Schedule-page filter + an OPERATION that
   copy-links the picked days' items into one combined column; no app code knows about it.
+
+### 2026-10-13 18:48 CDT (account3)
+User: *"it esentially makes the filter work as intended correct, instead of creating days i mean"* — asked while
+Combine Days was being watched on the rebuild. Answer given: not quite — Build Schedule still creates a day column
+per picked date (that is where the items live); Combine hides those and shows one column of copy-linked items.
+

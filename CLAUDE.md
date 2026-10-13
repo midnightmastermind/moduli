@@ -149,6 +149,29 @@ first), `_build.mjs LOCALBUILD=<dist>` serves a local build against prod's serve
 
 ---
 
+### 2026-10-13 (5) — COMBINE SCHEDULE ON THE REBUILD, BY CLICKING; a page's layout override can be picked key by key
+
+Account3, finishing the main account's open item ("the same on the rebuild grid by clicking"). Field + local filter
+were done earlier; this pass built `Schedule: Combine Days` in the op editor (`_comb.mjs`, phases create/vars/gate/make/
+slots/hide/fv/off), filed it under Schedule Ops, and diffed it against poms' 0397/0398 with ids mapped
+(`server/_combcmp.mjs`): triggers, target page and every step equal; the only differences are representation
+(`literal:combined`, `"true"`, `"1"`, the feed/fieldVisibility values stored as `json:` strings — all resolve the same).
+**Code (`fix(ops)`, client deploy):** `meta.layoutCascadeOverride` had no children in the path picker, so
+`…layoutCascadeOverride.hideChildIds` / `.mode` (written one key at a time so Build Schedule's `sortChildrenByField`
+survives) could not be picked. New `layoutOverride` shape (mode / columns / hideChildIds / sortChildrenByField);
+`updateFeedPath.test.js` +2 (A/B: the picker case fails on the old file).
+**Watched on the rebuild, by clicking (`_combwatch.mjs` STEP=look|on|tick|off|restore):** Schedule page's Filter menu ›
+Combine Schedule `true` with Oct 13–14 picked → "Schedule - Combined", 49 slots, all 49 feeds on, 60 copies, each
+tagged with its Date (revealed), all 16 day columns hidden. Ticking a copy's Completed ticked the real item (and back).
+`false` → the column is deleted, the day columns show again. Grid + page date restored to Oct 13; integrity: only the
+pre-existing container-filtered-empty.
+**Known gap (both grids, reported):** a slot's feed matches on Time Slot, so an item in a day's slot with no Time Slot
+value — every Todo item, most routine rows — is not shown in the combined column (the Todo slot read empty). Also: the
+day columns are still BUILT for each picked day; Combine only changes what is shown.
+**Probe slip:** a date-button lookup by text matched the TOOLBAR's picker and set the grid to Oct 13–14; restored.
+
+---
+
 ### 2026-10-13 (4) — A CONTAINER THE FILTER EMPTIES SAYS WHICH FILTER
 
 User (09:43 answer): *"show a hint, but it shouldnt be hard coded to Date"*. A container with rows that the
