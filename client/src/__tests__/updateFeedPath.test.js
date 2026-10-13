@@ -24,3 +24,11 @@ describe("UPDATE $x.feed", () => {
     expect(b.slice(at, at + 1200)).toMatch(/updateOccurrence\([\s\S]*feed[\s\S]*scheduleFeedSync\(/);
   });
 });
+
+describe("the path picker drills into a feed", () => {
+  it("offers feed.enabled (Combine Days tests it before turning a slot's feed on)", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../ui/DrilldownPicker.jsx"), "utf8");
+    expect(src).toMatch(/value: "feed",[^\n]*hasChildren: true, childShape: "feed"/);
+    expect(src).toMatch(/feed: \{\n\s*keys: \(\) => \[\n\s*\{ value: "enabled"/);
+  });
+});

@@ -204,7 +204,7 @@ const SHAPES = {
       // movements through it, and it could not be picked (2026-10-06).
       { value: "fieldVisibility", title: "fieldVisibility", sub: "object", description: "Which fields this placement shows — { mode: show | hide, fieldIds: [...] }", hasChildren: false },
       // UPDATE `$occ.feed` (applyUpdate) — the whole feed object, as the header's Data › Feed writes it.
-      { value: "feed", title: "feed", sub: "object", description: "This container's feed — { enabled, scope, roles, conditions, limit } — the rows it pulls in", hasChildren: false },
+      { value: "feed", title: "feed", sub: "object", description: "This container's feed — { enabled, scope, roles, conditions, limit } — the rows it pulls in", hasChildren: true, childShape: "feed" },
       { value: "filterOverride",   title: "filterOverride",   sub: "object", description: "Per-occurrence filter override — the date a page pinned for itself", hasChildren: true, childShape: "filter" },
       { value: "_effectiveFilter", title: "_effectiveFilter", sub: "object", description: "Effective filter merged from grid + ancestor chain (read-only)",      hasChildren: true, childShape: "filter" },
     ],
@@ -233,6 +233,16 @@ const SHAPES = {
     keys: () => [
       { value: "bg",        title: "bg",        sub: "color", description: "Background — any CSS colour value; empty clears it", hasChildren: false },
       { value: "textColor", title: "textColor", sub: "color", description: "Text colour", hasChildren: false },
+    ],
+  },
+  // A container's feed (helpers/feedSync) — what an op tests before turning one on.
+  feed: {
+    keys: () => [
+      { value: "enabled",    title: "enabled",    sub: "boolean", description: "The feed is on", hasChildren: false },
+      { value: "scope",      title: "scope",      sub: "id",      description: "Only rows under this occurrence", hasChildren: false },
+      { value: "roles",      title: "roles",      sub: "array",   description: "Which roles it pulls (instance / container …)", hasChildren: false },
+      { value: "conditions", title: "conditions", sub: "array",   description: "The rules a row must pass", hasChildren: false },
+      { value: "limit",      title: "limit",      sub: "number",  description: "At most this many rows", hasChildren: false },
     ],
   },
   filter: {
