@@ -15,6 +15,34 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-12 (5) — THE REBUILD'S SCHEDULE TEMPLATES, ONE PAGE EACH, BY CLICKING; a homeless container moved stayed homeless
+
+User: *"please continue what my other account was working on"* — account3's open item from (2): the same split on the
+rebuild. All by clicking, read back from Mongo:
+```
+folder      Templates/Schedule (tree "New folder" at Root, renamed, dragged into Templates)
+pages       9 board pages in poms' order (folder › New page… › Board page, renamed from the card — a new page is
+            named "Untitled", not "Board Page"): Layout, Workouts Mon–Fri, Meals, Routine, Workouts Sunday
+containers  each dragged from the Schedule Template page (one panel) onto its page (another panel); ids kept,
+            49 slots each, listed + parented by its page (= poms)
+Fill Day    op editor: loop $stKids -> $allContainers, $wdTpl = $wdTplId, $stPage/$stKids INIT_VARs removed (= 0395's
+            repointFillDay). Only the 8 weekday templates are containers holding a Weekday
+old page    Schedule Template deleted through the tree (it was empty)
+```
+**Watched:** stepping to Tue Oct 13 (no column yet) built it holding **43 items = Routine 21 + Meals 16 + Tuesday 6**;
+stepped back to today. Integrity 0 errors; the borrowed panels were put back (Medications, Routines).
+**Fix (`abf41d98`, client, deployed):** `handleContainerDrop` re-homed a moved container only when its old list owned
+it (`parentId`). The rebuild's Layout container had NO parentId (listed by the template page only), so after the drop
+it was homeless — deleting its new page would orphan it. A homeless container whose only lister is the list it leaves
+is now adopted. Test-first (`nestedContainerDragOut`: adopt + a control that one listed elsewhere stays homeless);
+client 5,941 pass. Re-homed Layout by moving it to Monday's page and back (parent = its page, as poms).
+**Probes:** `_ctrxpage` (CTR DSTOCC [DSTNAME = open that card in a folder-page panel first]; drops above a non-empty
+page's first container), `_paneltree` (PANEL OPEN NAME — open a page from a given panel's own tree), `_filldayrepoint`,
+server `_tplpage` / `_panels` / `_daycol` (GRID DAY). **Still open:** the rebuild's Reminder + Schedule fields and
+`Schedule: Place Scheduled Items` (poms 0396), by clicking.
+
+---
+
 ### 2026-10-12 (4) — FEEDS, A DATE-OR-REPEAT FIELD, REMINDERS IN THE ALARMS LIST, A SCHEDULE FIELD
 
 User (17:35): feed subscriptions in the Command Center; a **Reminder** field (date+time or interval, a new time

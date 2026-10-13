@@ -3849,3 +3849,4 @@ then re-clean poms' 21 slot modules.
 - 18:15 — feeds (calendar + RSS/Atom), the `when` field type + time menu, Reminder -> Alarms list, alarm name box, Schedule field + `Schedule: Place Scheduled Items` (0396) shipped and watched on poms. Next: OCR Reader / OCR Magic (queued 17:41); rebuild-side fields + template split still open.
 
 - 19:10 — OCR Reader / OCR Magic tabs shipped on the image viewer (1663afb2 + 3 layout fixes), watched on prod with a generated flyer. Found + fixed: create_folder dropped meta, so Imports lost `protected` and later imports stranded their page; client also double-minted the Imports card (9634aa41, server restarted). Rebuild grid Imports folder is unprotected; heals on next import.
+- 20:05 — "please continue what my other account was working on" → the rebuild's schedule-template split (done by clicking, 20:50), then the rebuild's Reminder/Schedule fields + Place Scheduled Items op.
