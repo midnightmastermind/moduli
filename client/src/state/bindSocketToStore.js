@@ -786,9 +786,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (_inFrame) return;
     const userId = payload.userId || localStorage.getItem("moduli-userId");
     if (!userId || !payload.gridId) return;
+    // A SHALLOW COPY NOW: the deferred catalogue is concatenated onto this same payload
+    // object (pendingFullState.occurrences = …concat(rest)) before the save runs, which made
+    // the snapshot 26k rows / 36MB instead of the ~8k on-screen half.
+    const core = { ...payload };
     clearTimeout(_snapSaveTimer);
     _snapSaveTimer = setTimeout(() => {
-      const run = () => { if (!unbound) saveBootSnapshot(userId, payload); };
+      const run = () => { if (!unbound) saveBootSnapshot(userId, core); };
       if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 10000 });
       else run();
     }, 20000);

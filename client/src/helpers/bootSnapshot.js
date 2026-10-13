@@ -6,7 +6,11 @@
 //
 // Every call FAILS QUIET: no IndexedDB, a private window, a full quota or a blocked open all mean
 // "no snapshot", never an error on the load path.
-export const SNAPSHOT_VERSION = 1;
+// v2 stores the payload as JSON TEXT. Measured (poms, 4x CPU): IndexedDB handing back a 15MB object
+// is ~0.9s of structured-clone on the main thread; a string comes back as a plain copy and
+// JSON.parse costs about a third of that. (A worker would not help: it can only return the object
+// by cloning it again.)
+export const SNAPSHOT_VERSION = 2;
 const DB = "moduli-boot";
 const STORE = "snapshots";
 // A snapshot older than this is not worth showing — too much may have changed.
@@ -64,14 +68,16 @@ const idbStore = {
 // it is not on screen, and the real load sends it anyway.
 export function snapshotRecord(payload, now = Date.now()) {
   if (!payload?.gridId) return null;
-  return { v: SNAPSHOT_VERSION, savedAt: now, payload };
+  let json;
+  try { json = JSON.stringify(payload); } catch { return null; }
+  return { v: SNAPSHOT_VERSION, savedAt: now, gridId: payload.gridId, json };
 }
 
 export function usableSnapshot(record, { gridId, now = Date.now() } = {}) {
-  if (!record || record.v !== SNAPSHOT_VERSION || !record.payload) return null;
-  if (gridId && record.payload.gridId !== gridId) return null;
+  if (!record || record.v !== SNAPSHOT_VERSION || typeof record.json !== "string") return null;
+  if (gridId && record.gridId !== gridId) return null;
   if (!(now - record.savedAt <= SNAPSHOT_MAX_AGE_MS)) return null;
-  return record.payload;
+  try { return JSON.parse(record.json); } catch { return null; }
 }
 
 export async function saveBootSnapshot(userId, payload, { store = idbStore, now } = {}) {

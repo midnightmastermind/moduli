@@ -56,14 +56,15 @@ fast net   before        8.9s                ~9s
   load when idle (putting 15MB structured-clones on the main thread), max age 7 days, cleared on logout
   (`authStorage.clearAuth`, App's logout). Drawn at boot through `onFullState({__fromSnapshot})`, which returns
   right after the dispatch: no sweep, no deferred request, no save, no migration/filter emits.
-- **`state/snapshotMode.js` (NEW)** — while the snapshot shows: operations, feed sync, the scheduler and reminder
-  sync stand down; `safeEmit` DROPS writes with no open action (app-made, derived from stale data) and QUEUES
-  writes inside an action (the user's) like offline edits. **The user's call** (asked with the numbers): edit
-  during the snapshot, not a read-only preview — a read-only one unlocked 5-7s LATER than today, because drawing
-  the snapshot stalls the WebSocket download (Chrome stops reading a message while the page is busy).
+- **`state/snapshotMode.js` (NEW)** — while the snapshot shows it is a READ-ONLY copy: operations, feed sync, the
+  scheduler and reminder sync stand down, `safeEmit` drops every write, and clicks / keys / drops / pastes are held
+  in the capture phase (`bindSnapshotInputGuard`; wheel, touch and the scroll keys pass, so it scrolls). The user
+  first chose "edit during the snapshot" (user writes queued like offline edits), then at 14:30 asked for a
+  read-only copy instead — editing unlocks when the real state lands (16s fast net / 25s 4G at 4x CPU), because
+  drawing the snapshot stalls the WebSocket download (Chrome stops reading a message while the page is busy).
 - **`helpers/queuedEdits.applyQueuedEditsToPayload` (NEW)** — the real full_state takes the queued edits in BEFORE
   it is dispatched, so the screen keeps them and the load sweep computes from them; the queue is flushed after
-  the sweep as before. This also fixes offline edits vanishing locally on reconnect. The server's stale-write
+  the sweep as before. Kept for OFFLINE edits (they used to vanish locally on reconnect); a snapshot queues none. The server's stale-write
   guards (expectedUpdatedAt / textmapBasis) still refuse a queued edit to a row that changed elsewhere.
 - **`masterReducer` FULL_STATE** now keeps an in-memory textmap only for rows the payload sends WITHOUT one — it
   overwrote the server's text with whatever was in memory (a snapshot would have resurrected old text).
@@ -73,6 +74,16 @@ fast net   before        8.9s                ~9s
   the snapshot (watched on prod with the context offline: 9 rows + "Offline — showing your last visit").
 - **Watched on prod:** a switch ticked WHILE the snapshot showed stayed ticked through the real load and reached
   Mongo; `Stamp Completed On` stamped it after the sweep. Probe row restored through the app.
+- **Later the same day (v2):** the snapshot is stored as JSON TEXT and only the core half — the save captured the
+  payload object, and the deferred catalogue is concatenated onto that same object first, so v1 held 26k rows /
+  36MB. Now 9k rows / 17MB, read 41ms + parse 632ms at 4x; rows at **3.4-3.6s**. **Probe trap:** since the offline
+  shell shipped, the live service worker answers page loads and Playwright's `page.route` does not see requests a
+  worker handles — a LOCALBUILD probe silently ran the deployed bundle (which then overwrote the v2 record with a v1
+  one). Local-build probes launch with `serviceWorkers: "block"`.
+- **comlink, profiled before deciding (CPU profile of a snapshot load, `_snapprof.mjs` + `_profmap.mjs`):** native
+  WebSocket message handling 6.5s, React 3.5s, derived indexes (buildParentMap / isRendered) ~1.4s, reading the
+  snapshot 0.9s, JSON parse 0.3s. Only the snapshot read could move, and a worker returns it by cloning the same 15MB
+  on the main thread — so the text format above is the win, not a worker.
 - **comlink worker — not built, and why:** the sweep is already sliced between frames; a worker needs its own copy
   of the grid (~15MB cloned across plus every edit kept in step — about what it saves) and the executor calls
   main-thread bridges (requestUserInput, importText).

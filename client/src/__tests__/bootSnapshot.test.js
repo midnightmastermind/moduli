@@ -24,6 +24,12 @@ describe("bootSnapshot", () => {
     expect(await saveBootSnapshot("u1", payload, { store: bad })).toBe(false);
     expect(await loadBootSnapshot("u1", "g1", { store: bad })).toBeNull();
   });
+  it("stores JSON text, not the object (cheap to read back), and ignores an old v1 record", async () => {
+    await saveBootSnapshot("u1", payload, { store, now: 1 });
+    expect(typeof [...store.m.values()][0].json).toBe("string");
+    store.m.set("u1:g1", { v: 1, savedAt: 1, payload });
+    expect(await loadBootSnapshot("u1", "g1", { store, now: 2 })).toBeNull();
+  });
   it("logout clears it", async () => {
     await saveBootSnapshot("u1", payload, { store, now: 1 });
     await clearBootSnapshots({ store });
