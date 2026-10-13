@@ -142,6 +142,7 @@ import { usePanelRowsHidden } from "../helpers/offscreenRows";
 import { applyRowSeed } from "../helpers/rowSeed";
 import { afterPaint } from "../helpers/afterPaint";
 import { observeContainerSize } from "../helpers/containerSkip";
+import { filterHiddenHint, filterHiddenHintText } from "../helpers/filterHiddenHint";
 
 // Minimum children before a list opts into the browser off-screen skip.
 // Below this the skip costs more than it saves (see .container-list--long).
@@ -865,6 +866,22 @@ function Container({
   );
 
   const items = useMemo(() => itemsWithOccurrences.map(item => item.instance), [itemsWithOccurrences]);
+
+  // Every row present but none visible: say WHICH filter hid them, instead of an
+  // empty box that reads as "there is nothing here". Only computed in that case.
+  const filterHint = useMemo(() => {
+    if (itemsWithOccurrences.length || !allItemsWithOccurrences.length) return null;
+    const conditions = activeFilterConditions
+      ? [
+          ...(activeNamedFilter?.conditions || []).map(c => ({ ...c, __filterName: activeNamedFilter?.name || null })),
+          ...getLocalFilterConditions(containerOccurrence).map(c => ({ ...c, __filterName: null })),
+        ]
+      : null;
+    return filterHiddenHint({
+      occurrences: allItemsWithOccurrences.map(i => i.occurrence),
+      visibleCount: 0, effectiveFilters, conditions, fieldsById,
+    });
+  }, [itemsWithOccurrences.length, allItemsWithOccurrences, activeFilterConditions, activeNamedFilter, containerOccurrence, effectiveFilters, fieldsById]);
 
   // A BOUNDED WINDOW FOR VERY LONG LISTS. Measured on the 993-row Movies board:
   // rendering every row costs 74,592 nodes, 7,377 ResizeObservers and 645 MB of
@@ -2045,6 +2062,12 @@ function Container({
             {/* Empty container still gets the insert-here / quick-add bar so you
                can add the first item without dropping (gated on the occurrence
                resolving, same as the between-item gaps). */}
+            {filterHint && !awaitingChildren && (
+              <button type="button" className="container-filter-hint" onClick={openDropdown}
+                title="Open this container's filters">
+                {filterHiddenHintText(filterHint)}
+              </button>
+            )}
             {containerOccurrence && items.length === 0 && !awaitingChildren && (
               <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} emptyBody />
             )}

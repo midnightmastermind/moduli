@@ -2887,6 +2887,25 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    The 150ms no-flash delay comes from `.staged-hold-spinner`, and it is CSS for
    the reason recorded there: during a load the main thread is busy, so a JS
    timer would sit frozen behind the very work the spinner exists to cover. */
+/* "N items hidden by the Daily filter (Date)" — a container whose rows the
+   active filter hides. Same full-line sizing as .container-awaiting (it lives in
+   .container-items, which can be a wrapping row). A button: it opens the filters. */
+.container-filter-hint {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: 1px dashed var(--border-default);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+  text-align: center;
+  cursor: pointer;
+}
+.container-filter-hint:hover { color: var(--text-primary); border-style: solid; }
+
 .container-awaiting {
   /* IT LIVES INSIDE `.container-items`, WHICH IS NOT ALWAYS A COLUMN. A media
      board is wrap mode — a wrapping flex ROW — so without a width this shrinks
