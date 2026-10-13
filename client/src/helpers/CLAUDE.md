@@ -3243,3 +3243,13 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   cached overlay entry instead of writing a partial payload bare (it stripped placement from the executor's view).
 - **`staleSweep.js` `dropStaleFieldWrites`** (2026-10-03) — a SLICED sweep's field write is dropped when the
   field was written after the sweep began. **`offlineQueue.safeEmit`**: `window.__emitDiag` logs writes + stacks.
+
+## Recent Changes (2026-10-13 — virtualRows.js NEW: long boards are virtualized)
+- `useVirtualRows({count, enabled, listRef, keyOf, indexOf, grid})` — @tanstack/react-virtual over the nearest
+  scrolling ancestor, offset read live from the list's position. Stack mode: one measured `.virtual-row` wrapper
+  per row. Grid mode (`grid: {tileW, gap}`): virtual items are LINES of tiles; tiles stay direct children and
+  each line is measured from its tiles (found by `data-occurrence-id`). `planRows` emits spacers (grid spacers
+  are `lineGap` shorter, since each flex line adds the row-gap). A targeted `moduli:render-all` is claimed and
+  PINS the target line (`rangeWithPin`) so a search finds the row without mounting what is above it.
+  `renderWindow.useRenderWindow` stays for layouts that are not virtualized (its `enabled` is off otherwise, so
+  the two never both claim a request). Tests `__tests__/virtualRows.test.js`.

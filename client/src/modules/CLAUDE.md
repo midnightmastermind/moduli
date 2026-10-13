@@ -2,6 +2,12 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-13 — ModuleContainer virtualizes long lists)
+- A stack list > 120 rows, or a WRAP grid of leaves > 120, renders through `helpers/virtualRows` (spacers + the
+  rows near the viewport). The map body became `renderRow`; the items div carries `itemsListRef`; the list gets
+  `container-list--virtual` (index.css turns the content-visibility skip off inside it). Other layouts keep the
+  render window.
+
 ## Recent Changes (2026-10-12 — an image has OCR Reader / OCR Magic tabs)
 - **`ImageOcrViews.jsx` (NEW)** wraps the image branch of `ArtifactContent`: tabs `Image · OCR Reader ·
   OCR Magic`, the same Reader/Magic pair a web page has in `BookmarkView`. OCR runs only when a text tab

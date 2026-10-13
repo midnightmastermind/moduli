@@ -3886,3 +3886,8 @@ then re-clean poms' 21 slot modules.
 - **13:58** — Combine Schedule answers: ONE column with the 49 slots, each slot listing every matching item from
   all picked dates (tagged with its date) · edits change the REAL item · the checkbox is a field bound on the
   Schedule page, in its Filter menu · BOTH grids (poms by migration, the rebuild by clicking).
+- **14:30** — "can you make it not be editable on load so we can use the comlink thing. id like to scroll a read
+  only copy" → the boot snapshot is read-only again (scroll allowed); then the comlink worker.
+- **14:31** — "this field filter thing … should be handled by the operations not some hard coded thing" ·
+  "it would show a copylinked schedule" → Combine Schedule = a field + Schedule-page filter + an OPERATION that
+  copy-links the picked days' items into one combined column; no app code knows about it.

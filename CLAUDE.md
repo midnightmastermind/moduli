@@ -85,6 +85,34 @@ memoization would serve stale, and one control test (`fieldHookOrder`) is rewrit
 
 ---
 
+### 2026-10-13 (5) — LONG BOARDS ARE VIRTUALIZED; a search no longer mounts every row above its target
+
+User: *"lets add in react virtual to that and solve the search issue"* · *"do the other packages too"* · *"see if
+the scroll has the slide activated … the after effect of the scroll still moving"*.
+```
+virtualization   helpers/virtualRows.useVirtualRows (@tanstack/react-virtual 3.13). A STACK list > WINDOW_MIN rows
+                 renders row by row in measured wrappers (.virtual-row, flow-root); a WRAP grid (Songs, Movies) renders
+                 line by line, tiles staying DIRECT children (the wrap CSS addresses them so), each line measured from
+                 its tiles' rects (resizeItem); columns from width, corrected from the real layout. Spacers keep the
+                 scroller its full length. The scroller is the nearest overflow-auto ancestor; the list's offset in it
+                 is read LIVE (scrollerTop - listTop), and the virtualizer's own size correction is OFF (normal flow:
+                 browser scroll anchoring already holds the view). Row/flex-row/column-tile layouts and a wrap list
+                 holding a sub-container keep the old render window
+search           a targeted moduli:render-all is CLAIMED by the list and PINS the target's line into the rendered set
+                 (rangeWithPin, 6s) — the jump finds it at its estimated place. Measured, song #600 of 5,484: 625 rows
+                 mounted -> 72; highlight 3.2/2.2s vs 5.6/3.4s (two runs each, noisy). Scroll top->bottom: 45-75 mounted
+fling            momentum WORKS on the live mobile layout: a fast release coasts ~2,500px over ~1.8s, a rested release 0
+                 (CDP dispatchTouchEvent; synthesizeScrollGesture does NOT scroll in headless — validated on a blank page)
+React Compiler   babel-plugin-react-compiler@1 behind REACT_COMPILER=1. It compiles 295 components and SKIPS 147,
+                 including every hot one (ModuleInstance, ModuleContainer, FieldRenderer, ModulePage, PageBoard, Editor):
+                 they carry eslint-disable react-hooks lines (45 in the app), and the compiler refuses those on purpose
+```
+**Probes:** `_vrjump.mjs` (search jump: rows mounted, ring ms, scroll sweep), `_fling.mjs` (mobile flick, NAV= search
+first), `_build.mjs LOCALBUILD=<dist>` serves a local build against prod's server (page + /assets routed).
+**Not watched:** a flick INSIDE a virtualized board on mobile (the probe's search did not navigate on the phone layout).
+
+---
+
 ### 2026-10-13 (4) — A CONTAINER THE FILTER EMPTIES SAYS WHICH FILTER
 
 User (09:43 answer): *"show a hint, but it shouldnt be hard coded to Date"*. A container with rows that the
