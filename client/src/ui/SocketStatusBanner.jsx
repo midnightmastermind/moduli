@@ -41,7 +41,7 @@ export default function SocketStatusBanner() {
         style={{ background: "var(--accent-blue-bg)", color: "var(--accent-blue-text)", border: "1px solid var(--accent-blue-border, transparent)" }}
       >
         <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "currentColor" }} />
-        Updating…
+        {status === "disconnected" ? "Offline — showing your last visit" : "Updating…"}
       </div>
     );
   }
