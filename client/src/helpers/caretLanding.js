@@ -140,7 +140,11 @@ export function planBlockBackspace({ doc, pos, nodeSize, prevSibling } = {}) {
   // ProseMirror with no valid cursor position — UNLESS something below can hold
   // one, in which case inserting another paragraph would leave TWO empty lines
   // (which is what a mint on the only line + backspace produced).
-  if (!prevSibling) return { extra: 0, keepParagraph: !canHoldCaret(after) };
+  // Anything below — a line OR an atom (a section, a picture) — means no line needs to
+  // stay: a text node takes the caret, an atom takes a node selection (the caller picks).
+  // Keeping one under an atom made an empty first line above a section impossible to
+  // delete (user, 2026-10-13: Basic Nutrition Guide).
+  if (!prevSibling) return { extra: 0, keepParagraph: !after };
 
   if (!after || after.type?.name !== "paragraph") return none;
   if ((after.content?.size ?? 0) !== 0) return none;        // the user wrote there

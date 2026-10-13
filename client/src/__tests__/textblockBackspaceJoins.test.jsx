@@ -68,6 +68,7 @@ function makeEditor(prevSibling, { after = null, docSize } = {}) {
     deleteRange: (r) => (calls.push(["deleteRange", r]), chain),
     insertContentAt: (p, c) => (calls.push(["insertContentAt", p, c]), chain),
     setTextSelection: (p) => (calls.push(["setTextSelection", p]), chain),
+    command: () => (calls.push(["command"]), chain),
     run: () => calls.push(["run"]),
   };
   return {
@@ -142,6 +143,16 @@ describe("backspace on an empty textblock", () => {
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(namesOf(ed.calls)).toContain("insertContentAt");
+  });
+
+  // 2026-10-13: an empty first line above a SECTION (an atom) must be removable — no
+  // replacement line, the caret lands as a node selection on the section instead.
+  it("inserts NO line when only an atom follows (the first line above a section)", () => {
+    const ed = makeEditor(null, { after: { type: { name: "moduleEmbed", inlineContent: false }, nodeSize: 1 } });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(namesOf(ed.calls)).toContain("deleteRange");
+    expect(namesOf(ed.calls)).not.toContain("insertContentAt");
   });
 
   it("suppresses the mint at the vacated position, or the block comes straight back", () => {

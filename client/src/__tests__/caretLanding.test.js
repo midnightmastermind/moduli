@@ -192,6 +192,15 @@ describe("planBlockBackspace", () => {
     expect(plan.keepParagraph).toBe(false);
   });
 
+  // User, 2026-10-13: an empty FIRST line above a section could not be removed — the
+  // line came back because the section below (an atom) cannot hold a caret. The block
+  // and its line go; the caller puts a node selection on what follows instead.
+  test("drops the line when only an atom follows it", () => {
+    const section = { type: { name: "moduleEmbed", inlineContent: false }, nodeSize: 1 };
+    const doc = docOf([block(), section]);
+    expect(planBlockBackspace({ doc, pos: 0, nodeSize: 1, prevSibling: null }).keepParagraph).toBe(false);
+  });
+
   // THE CONTROL. Deleting the only block with nothing below leaves ProseMirror
   // with no valid cursor position, so that one case must still keep a line.
   test("keeps a line when there is nothing above AND nothing below", () => {

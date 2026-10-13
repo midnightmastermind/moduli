@@ -23,7 +23,8 @@ import {
 } from "../../helpers/provisionalTextblock.js";
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
 import { nextDragMode } from "../../helpers/dragModes";
-import { caretPosBeforeBlock, planBlockBackspace } from "../../helpers/caretLanding";
+import { NodeSelection, TextSelection } from "prosemirror-state";
+import { canHoldCaret, caretPosBeforeBlock, planBlockBackspace } from "../../helpers/caretLanding";
 import { findBlockPos } from "../../helpers/staleProvisionalBlocks";
 import { mintMark } from "../../helpers/mintDiag";
 
@@ -391,7 +392,13 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         // inserting another there gave TWO empty lines.
         const chain = editor.chain().focus().deleteRange({ from: pos, to: delTo });
         if (plan.keepParagraph) chain.insertContentAt(pos, { type: "paragraph" });
-        chain.setTextSelection(pos + 1).run();
+        // What now starts at `pos` takes the caret: a text block gets a text caret, an
+        // atom (the section an empty first line sat above) is node-selected.
+        chain.command(({ tr }) => {
+          const next = tr.doc.nodeAt(pos);
+          tr.setSelection(next && !canHoldCaret(next) ? NodeSelection.create(tr.doc, pos) : TextSelection.create(tr.doc, Math.min(pos + 1, tr.doc.content.size)));
+          return true;
+        }).run();
         dropOccurrenceData();
         return;
       }
