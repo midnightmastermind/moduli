@@ -17,10 +17,13 @@ import { getSearchIndex, searchOccurrences } from "../helpers/occurrenceSearch";
 import { getModuleTypeIcon } from "../helpers/moduleIcons";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 import { highlightSegments } from "../helpers/searchHighlight";
+import { makeFilterKeeper } from "../helpers/filterKeep";
 
 const MENU_W = 340;
 const MENU_MAX_H = 380;
 const DEBOUNCE_MS = 120;
+const KEEP_KEY = "moduli-search-keepFilters";
+const readKeep = () => { try { return localStorage.getItem(KEEP_KEY) === "1"; } catch { return false; } };
 
 function Row({ hit, term, active, onPick, onHover }) {
   const { entry, why } = hit;
@@ -67,11 +70,16 @@ export default function OccurrenceSearch({
   const [activeIdx, setActiveIdx] = useState(0);
   const [anchorRect, setAnchorRect] = useState(null);
   const wrapRef = useRef(null);
+  // Search only what the filters in force leave on screen (remembered per browser).
+  const [keepFilters, setKeepFilters] = useState(readKeep);
+  const toggleKeep = () => setKeepFilters((v) => { try { localStorage.setItem(KEEP_KEY, v ? "0" : "1"); } catch { /* per-viewer convenience */ } return !v; });
 
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const gridId = useGridActionsSelector(s => s.grid?._id || s.state?.grid?._id || null);
+  // The grid object carries the filters (active filter + its values); read at query time.
+  const grid = useGridActionsSelector(s => s.grid || s.state?.grid || null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), DEBOUNCE_MS);
@@ -88,10 +96,11 @@ export default function OccurrenceSearch({
       fieldsById,
       gridId,
     });
-    return searchOccurrences(index, term, { scopeRootId });
+    const keep = keepFilters ? makeFilterKeeper({ grid, occurrencesById: getOccMap(), modulesById: getModMap() }) : null;
+    return searchOccurrences(index, term, { scopeRootId, keep });
     // getOccMap/getModMap are stable getters — read at compute time, not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsById, gridId, scopeRootId]);
+  }, [fieldsById, gridId, scopeRootId, keepFilters, grid]);
 
   const hits = useMemo(() => runSearch(debounced), [runSearch, debounced]);
 
@@ -171,8 +180,12 @@ export default function OccurrenceSearch({
       }}
       onMouseDown={(e) => e.preventDefault()}
     >
+      <label className="occ-search-keep" title="Only search what the filters in force leave on screen">
+        <input type="checkbox" aria-label="Keep filters" checked={keepFilters} onChange={toggleKeep} />
+        Keep filters
+      </label>
       {hits.results.length === 0 ? (
-        <div className="occ-search-empty">No matches</div>
+        <div className="occ-search-empty">{keepFilters ? "No matches under the current filters" : "No matches"}</div>
       ) : (
         <>
           {hits.results.map((hit, i) => (

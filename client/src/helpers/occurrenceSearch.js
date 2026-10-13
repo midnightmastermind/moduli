@@ -241,7 +241,8 @@ function whyFor(entry, tier, term) {
  * ancestor carries that date. Substring, case-insensitive, no fuzzing —
  * with AND-of-terms, fuzz produces more noise than help.
  */
-export function searchOccurrences(index, query, { scopeRootId = null, limit = 50 } = {}) {
+// `keep(occId)` (Search › Keep filters, helpers/filterKeep) drops hits the filters in force hide.
+export function searchOccurrences(index, query, { scopeRootId = null, limit = 50, keep = null } = {}) {
   const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length || !index?.entries?.length) return { results: [], total: 0 };
 
@@ -251,6 +252,7 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
       if (entry.occId === scopeRootId) continue;
       if (!entry.ancestorIds.includes(scopeRootId)) continue;
     }
+    if (keep && !keep(entry.occId)) continue;
     let score = 0;
     let worstTier = -1;
     let why = null;

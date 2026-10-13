@@ -6725,6 +6725,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    picking it only answers "That item isn't on a page yet". Said in the list
    rather than after the click; italic so it reads as a state, not a path. */
 .occ-search-row-path--orphan { font-style: italic; opacity: 0.72; }
+/* Search › Keep filters: the first row of the results menu. */
+.occ-search-keep {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; font-size: 11px; color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle); cursor: pointer; user-select: none;
+}
+.occ-search-keep input { margin: 0; cursor: pointer; }
 .occ-search-empty,
 .occ-search-more { padding: 6px; font-size: 12px; color: var(--text-faint); text-align: center; }
 
