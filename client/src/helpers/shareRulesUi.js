@@ -33,7 +33,10 @@ export const SHARE_PROPS = {
   // and keyed on its UID (a row made in the loop follows its event on re-share).
   ics:   ["$share.events", "$share.notices", "$e.summary", "$e.start.date", "$e.start.time",
           "$e.start.timeSlot", "$e.durationMin", "$e.allDay", "$e.location", "$e.description",
-          "$e.recurring", "$e.uid"],
+          "$e.recurring", "$e.uid",
+          // A feed subscription's share (server/services/feeds.js) also carries
+          // the feed's url, id, and the container its events file into.
+          "$share.props.url", "$share.props.feedId", "$share.props.destinationId"],
   // A person — from a contact card or a profile page. `photoIds` is the
   // stored photo as a list, ready for the Files field.
   contact: ["$share.person.name", "$share.person.phone", "$share.person.email", "$share.person.birthday",

@@ -22,6 +22,11 @@ describe("the path picker drills $share", () => {
     expect(level(["localVars", "$share", "person"])).toContain("network");
     expect(level(["localVars", "$share", "clip", "meta"])).toContain("clipShape");
   });
+  it("a feed's calendar share offers the props the feed puts on it", () => {
+    // server/services/feeds.js sends { url, feedId, destinationId } — a rule
+    // filing a feed's events into its chosen container reads destinationId.
+    expect(level(["localVars", "$share", "props"])).toEqual(expect.arrayContaining(["feedId", "destinationId"]));
+  });
   it("every catalog path is reachable", () => {
     for (const p of allSharePaths()) {
       const segs = p.split(".").slice(1);
