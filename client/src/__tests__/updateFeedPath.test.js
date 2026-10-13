@@ -32,3 +32,18 @@ describe("the path picker drills into a feed", () => {
     expect(src).toMatch(/feed: \{\n\s*keys: \(\) => \[\n\s*\{ value: "enabled"/);
   });
 });
+
+describe("the path picker drills into a page's layout override", () => {
+  it("offers hideChildIds and mode (Combine Days writes them one key at a time)", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../ui/DrilldownPicker.jsx"), "utf8");
+    expect(src).toMatch(/value: "meta.layoutCascadeOverride",[^\n]*hasChildren: true, childShape: "layoutOverride"/);
+    const block = src.slice(src.indexOf("layoutOverride: {"), src.indexOf("feed: {\n"));
+    expect(block).toMatch(/value: "hideChildIds"/);
+    expect(block).toMatch(/value: "mode"/);
+  });
+  it("a sub-key write is routed as a meta merge, not a whole-object write", () => {
+    const page = { id: "pg", fields: {}, meta: { layoutCascadeOverride: { sortChildrenByField: "d" } } };
+    const out = applyUpdate("$pg.meta.layoutCascadeOverride.hideChildIds", ["a"], { vars: { $pg: page }, occurrencesById: { pg: page } });
+    expect(JSON.stringify(out.effects)).toMatch(/hideChildIds/);
+  });
+});

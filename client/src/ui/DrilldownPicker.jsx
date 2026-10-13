@@ -180,7 +180,7 @@ const SHAPES = {
       { value: "meta.userTouched",          title: "userTouched",         sub: "boolean", description: "True once a person has edited this row (not an operation)",                                     hasChildren: false },
       // 3 live UPDATEs write it (Schedule: Build Schedule on every grid) and it could
       // not be picked as a path (2026-09-28); applyUpdate routes any meta.<key>.
-      { value: "meta.layoutCascadeOverride", title: "layoutCascadeOverride", sub: "object", description: "How a page lays out its children ({mode, columns, …}) — the day-column builder writes it", hasChildren: false },
+      { value: "meta.layoutCascadeOverride", title: "layoutCascadeOverride", sub: "object", description: "How a page lays out its children ({mode, columns, …}) — the day-column builder writes it", hasChildren: true, childShape: "layoutOverride" },
       { value: "meta.table.columns",        title: "columns",             sub: "table columns", description: "Column defs (title / width / displayFieldId / sort / filter / fieldVisibility)",            hasChildren: true,  childShape: "tableColumn" },
       { value: "meta.table.rowCount",       title: "rowCount",            sub: "number",  description: "Total row count rendered by the table",                                                          hasChildren: false },
       { value: "meta.table.cells",          title: "cells",               sub: "cell map", description: "Per-cell TipTap doc keyed by \"r:c\"",                                                          hasChildren: true,  childShape: "tableCellsMap" },
@@ -236,6 +236,16 @@ const SHAPES = {
     ],
   },
   // A container's feed (helpers/feedSync) — what an op tests before turning one on.
+  // `$page.meta.layoutCascadeOverride.<key>` — Combine Days writes mode + hideChildIds and
+  // leaves the rest (Build Schedule's sortChildrenByField) alone; a whole-object write would drop it.
+  layoutOverride: {
+    keys: () => [
+      { value: "mode",                title: "mode",                sub: "string", description: "stack · columns · wrap", hasChildren: false },
+      { value: "columns",             title: "columns",             sub: "number", description: "How many columns", hasChildren: false },
+      { value: "hideChildIds",        title: "hideChildIds",        sub: "array",  description: "Children this page does not show", hasChildren: false },
+      { value: "sortChildrenByField", title: "sortChildrenByField", sub: "id",     description: "Order the children by this field", hasChildren: false },
+    ],
+  },
   feed: {
     keys: () => [
       { value: "enabled",    title: "enabled",    sub: "boolean", description: "The feed is on", hasChildren: false },
