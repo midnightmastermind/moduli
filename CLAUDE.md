@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 — THE LAST SMALL DIFFERENCES: one fixed, the rest are order or bulk
+
+User: *"could you please continue"*. `_gridcmp` after the OCR work, read line by line rather than by count:
+```
+Interfaces/Trackers   the rebuild's Last Opened marker BOUND Tracker Date visibly; poms holds the value
+                      (Date-Prefix Labels writes it on both) with no binding. Unbound through Settings ›
+                      Fields; two loads later still unbound -> the page is IDENTICAL
+Comics / Games        poms' rows are imported drive files (artifact/comic|game, Drive, File Path, Size);
+                      the rebuild keeps 3 sample instances each — bulk content, out of scope
+Readings / Courses    the rebuild has MORE sample rows than poms (poms 1 each)
+Locations, Savings Goals, Gift Ideas, Events, Creative Works, Workouts - Thursday
+                      same fields, same hidden flags — only binding ORDER differs (the 10-12 (2) "order
+                      only" groups; poms stores order 98 for Poster/Files)
+```
+No code changed. Nothing one-sided is left.
+
+---
+
 ### 2026-10-12 (5) — THE REBUILD'S SCHEDULE TEMPLATES, ONE PAGE EACH, BY CLICKING; a homeless container moved stayed homeless
 
 User: *"please continue what my other account was working on"* — account3's open item from (2): the same split on the
