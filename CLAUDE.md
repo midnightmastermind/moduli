@@ -15,6 +15,39 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (3) — HOLIDAYS GET THEIR OWN BOARD ON BOTH GRIDS; op-step drag reorder works (headless drag does not)
+
+Picked up account3 (session limit 09:58, mid-rename). All by clicking, read back from Mongo:
+```
+Holidays board   Boards/Social › Holidays (board page + container) on poms AND the rebuild; page date filter
+                 off (Active), like poms' other boards — with it on the board read EMPTY (checkGrid
+                 container-filtered-empty) because each holiday only matches its own day
+calendar rule    Share: calendar (.ics), both grids: $dest = literal:<Appointments>; IF
+                 $share.props.destinationId IS_NOT_EMPTY -> $dest = it; dragged above the loop; the loop's
+                 CREATE parent = $dest. One rule per type (shareRules D8), so a branch, not a second rule
+feeds            each US Holidays feed › "file events into" Holidays › Holidays; the 6 holiday rows deleted
+                 from Appointments through the app, Check now -> 6 events filed into Holidays on each grid
+                 (poms' 3 real appointments stay in Appointments)
+```
+**Code (`d8d1…` fix(share), client-only deploy):** the rule path picker's ics catalog lacked the feed share's
+props, so `$share.props.destinationId` could not be picked — added `url` / `feedId` / `destinationId`
+(`sharePathPicker.test.js`, fails without).
+**Untested surface, tested: op-editor step drag-reorder WORKS.** Headless Playwright's drag session delivers ONE
+`dragover` and never a `drop` (logged: dragstart, dragenter×N, dragover×1, dragend) — that is the probe, not
+the app. Dispatching the native DragEvent sequence with one shared `DataTransfer` shows the top drop indicator
+and reorders. `_opb.dragStepAbove` does that now.
+**Probe fixes:** the manifest tree no longer stamps `data-drop-target-for-element` on folder rows, so every
+probe that found a folder row by it ("no folder-open button for Social") now keys on `.folder-open-btn` (22
+probes). `_feeddest.mjs` (NAME DEST), `_sharedest.mjs` (APPTS), `_panelrestore.mjs` (GRID VIEW ACTIVE PANEL
+DROP — put a panel's page + list back through update_view/update_occurrence).
+**Panels:** probes opened pages in poms' Schedule panel and the rebuild's first panel; both restored (poms ->
+Schedule, list back to 22; rebuild -> Routines).
+**For the user:** holidays still carry `Schedule Type = Appointment` (the rule's CREATE sets it for every
+event). **Left from 09:43:** filtered-empty hint (not Date-specific), full 128 Emotions wheel on the rebuild,
+mobile/tablet load-time pass.
+
+---
+
 ### 2026-10-13 (2) — THE USER'S ANSWERS: reminder rang, holidays feed on both grids, 700 shell rows swept, first line removable
 
 User: *"ask me the questions you need"* → answers in CLAUDE_CHAT (07:53). Each below was done and read back.

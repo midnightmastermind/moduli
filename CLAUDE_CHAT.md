@@ -3863,3 +3863,5 @@ then re-clean poms' 21 slot modules.
   2. Filtered-empty containers (13 on poms) → **show a hint, but not hard-coded to Date** (name whatever filter hides them).
   3. Media rows → keep instances on the rebuild.
   4. Next, all of: **test the untested surfaces** · **full Emotions wheel on the rebuild** (128) · **performance pass — "for load times, lets focus on mobile and tablet"**.
+- **10:42** (main account) — "please continue what my other account was working on" · "read its chat logs" → account3's
+  session (limit 09:58) was mid-way through the Holidays board (answer 1 of 09:43). Continued it on both grids.
