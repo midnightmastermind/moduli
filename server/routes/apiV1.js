@@ -1723,7 +1723,18 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     if (typeof req.body?.name === "string" && req.body.name.trim()) set["feeds.$.name"] = req.body.name.trim();
     if (FEED_INTERVALS.includes(Number(req.body?.everyMinutes))) set["feeds.$.everyMinutes"] = Number(req.body.everyMinutes);
     if (typeof req.body?.enabled === "boolean") set["feeds.$.enabled"] = req.body.enabled;
-    if (!Object.keys(set).length) return err(res, 400, "validation_error", "send name, everyMinutes or enabled");
+    // A container on THIS grid the feed's events file into (a share rule reads $share.props.destinationId);
+    // null clears it. Refused for anything that is not this grid's container.
+    if (req.body && "destinationId" in req.body) {
+      const id = req.body.destinationId;
+      if (id === null || id === "") set["feeds.$.destinationId"] = null;
+      else {
+        const occ = await Occurrence.findOne({ id: String(id), userId: req.userId, gridId: req.params.id }).lean().catch(() => null);
+        if (!occ) return err(res, 400, "validation_error", "destinationId is not an occurrence on this grid");
+        set["feeds.$.destinationId"] = occ.id;
+      }
+    }
+    if (!Object.keys(set).length) return err(res, 400, "validation_error", "send name, everyMinutes, enabled or destinationId");
     const g = await Grid.findOneAndUpdate({ _id: req.params.id, userId: req.userId, "feeds.id": req.params.feedId }, { $set: set },
       { returnDocument: "after", projection: { feeds: 1 } }).lean().catch(() => null);
     if (!g) return err(res, 404, "not_found", "feed not found");

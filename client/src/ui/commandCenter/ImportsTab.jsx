@@ -24,6 +24,8 @@ import { AUTH_KEYS } from "../../helpers/authStorage";
 import { pickPanelOccurrence } from "../../helpers/lastPanel";
 import { openOccurrenceInPanel } from "../../helpers/openOccurrenceInPanel";
 import { toast } from "sonner";
+import DestinationPicker from "../DestinationPicker";
+import { buildContainerCrumbOptions } from "../../helpers/containerCrumbs";
 import {
   shareRulesFrom, freeShareTypes, newShareRule, shareTriggerOf, isCatchAll,
   haltsChain, setHaltsChain, markUserEdited, recentShares, sharePropsFor, SHARE_TYPES,
@@ -312,7 +314,7 @@ export function ShareGridPicker({ grids, fetchImpl = (...a) => fetch(...a) }) {
 // feed is kept and marked Cancelled. An RSS / Atom feed shares each new item as a link (a bookmark, via
 // `Share: link`). Unsubscribing keeps every row the feed made.
 const FEED_EVERY = [[15, "15 min"], [30, "30 min"], [60, "hour"], [180, "3 hours"], [360, "6 hours"], [1440, "day"]];
-export function FeedSubscriptions({ gridId, gridFeeds, fetchImpl = (...a) => fetch(...a) }) {
+export function FeedSubscriptions({ gridId, gridFeeds, containerOptions = [], fetchImpl = (...a) => fetch(...a) }) {
   const token = (() => { try { return localStorage.getItem(AUTH_KEYS.token); } catch { return null; } })();
   const [feeds, setFeeds] = useState(null);
   const [url, setUrl] = useState("");
@@ -392,6 +394,16 @@ export function FeedSubscriptions({ gridId, gridFeeds, fetchImpl = (...a) => fet
             <button style={btn} disabled={busy === f.id} onClick={() => sync(f.id)}>{busy === f.id ? "Checking…" : "Check now"}</button>
             <button style={btn} onClick={() => remove(f)}>Unsubscribe</button>
           </div>
+          {f.kind !== "news" && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={small}>file events into</span>
+              {/* none = the share rules decide where an invite goes, as for a shared .ics */}
+              <DestinationPicker options={containerOptions} value={f.destinationId || null}
+                onChange={(id) => patch(f.id, { destinationId: id || null })}
+                noneLabel="Share rules decide" placeholder="Share rules decide" ariaLabel="File events into"
+                searchPlaceholder="Search containers…" style={{ fontSize: 11, minWidth: 220 }} />
+            </div>
+          )}
           <div style={{ ...small, wordBreak: "break-all", opacity: 0.7 }}>{f.url}</div>
           <div style={small}>
             {f.kind === "news" ? "RSS / Atom · " : f.kind === "calendar" ? "Calendar · " : ""}
@@ -417,6 +429,10 @@ export function ImportsTab() {
   const rules = useMemo(() => shareRulesFrom(state?.operations || [], gridId), [state?.operations, gridId]);
   const fields = useMemo(() => (state?.fields || []).filter(f => f.gridId === gridId), [state?.fields, gridId]);
   const log = useMemo(() => recentShares(state?.grid), [state?.grid]);
+  const { occurrencesById: occById, modulesById: modById, foldersById: fById } = useGridActions();
+  // Only built while the Feeds sub-tab is showing — a grid-wide walk (see PomodoroTimer's note).
+  const feedContainerOptions = useMemo(() => (sub === "feeds" ? buildContainerCrumbOptions(occById || {}, modById || {}, { foldersById: fById }) : []),
+    [sub, occById, modById, fById]);
   // Nothing picked (or the pick was deleted) → the first rule, so the editor
   // is never an empty pane asking you to click something.
   const selected = rules.find(r => r.id === selectedId) || rules[0] || null;
@@ -437,7 +453,7 @@ export function ImportsTab() {
         <ShareGridPicker grids={state?.availableGrids} />
       </div>
 
-      {sub === "feeds" ? <FeedSubscriptions gridId={gridId} gridFeeds={state?.grid?.feeds} />
+      {sub === "feeds" ? <FeedSubscriptions gridId={gridId} gridFeeds={state?.grid?.feeds} containerOptions={feedContainerOptions} />
         : sub === "log" ? <ShareLog entries={log} /> : (
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 190px", display: "flex", flexDirection: "column", gap: 3 }}>

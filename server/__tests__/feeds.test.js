@@ -121,6 +121,17 @@ describe("calendar feeds", () => {
     expect(planFeedChanges(prev, {}, { today: "2026-10-13" }).cancel).toEqual(["9"]);   // control
   });
 
+  it("a feed's destination rides on the share, so a rule can file its events there", async () => {
+    db.grids[0].feeds[0].destinationId = "ctr-holidays";
+    let seen = null;
+    const d = { ...deps(ics(["a"])), runRules: async ({ share }) => { seen = share.props; return { ran: [{ ok: true }] }; } };
+    await syncFeed({ userId: "u1", gridId: "g1", feedId: "f1", deps: d });
+    expect(seen.destinationId).toBe("ctr-holidays");
+    db.grids[0].feeds[0].destinationId = null;
+    await syncFeed({ userId: "u1", gridId: "g1", feedId: "f1", deps: d });
+    expect(seen.destinationId ?? null).toBe(null);   // control: no destination named, none passed
+  });
+
   it("an RSS feed shares each NEW item as a link, once; the first check takes only the newest few", async () => {
     const rss = (n) => `<?xml version="1.0"?><rss version="2.0"><channel><title>A Blog</title>${
       Array.from({ length: n }, (_, k) => `<item><title>Post ${k}</title><link>https://blog.example.com/${k}</link><guid>p${k}</guid></item>`).join("")}</channel></rss>`;

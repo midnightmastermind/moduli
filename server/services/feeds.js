@@ -45,6 +45,7 @@ export function newFeed({ url, name, everyMinutes } = {}) {
     enabled: true,
     kind: null,           // "calendar" | "news" — set by the first fetch
     items: {},            // uid / item id -> { ids: [occurrenceId], date }
+    destinationId: null,  // a container its events file into (a share rule reads $share.props.destinationId)
     lastFetchedAt: null, lastStatus: null, lastError: null, lastEventCount: 0, lastCancelled: 0,
   };
 }
@@ -222,7 +223,7 @@ export async function syncFeed({ userId, gridId, feedId, deps }) {
     const window = feedWindow(deps.now || new Date());
     const cal = await icsEvents(text, { timeZone: deps.timeZone || null, resolveSlotLabels: deps.resolveSlotLabels || null, expand: window });
     const share = {
-      type: "ics", source: "feed", props: { url: feed.url, feedId: feed.id },
+      type: "ics", source: "feed", props: { url: feed.url, feedId: feed.id, destinationId: feed.destinationId || null },
       events: cal.events, notices: cal.notices, label: feed.name,
       externalId: `feed:${feed.id}`, receivedAt: at,
     };

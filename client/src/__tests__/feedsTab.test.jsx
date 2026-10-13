@@ -25,3 +25,34 @@ describe("Imports › Feeds", () => {
     expect(JSON.parse(post[2])).toMatchObject({ url: "https://y/b.ics", everyMinutes: 60 });
   });
 });
+
+// "File into": a calendar feed can name the container its events land in (2026-10-13, Holidays board).
+// DestinationPicker is a Radix popover — stood in by a <select> so the test is about what the row WRITES.
+vi.mock("../ui/DestinationPicker", () => ({
+  default: ({ options, value, onChange, ariaLabel }) => (
+    <select aria-label={ariaLabel} value={value || ""} onChange={(e) => onChange(e.target.value || null)}>
+      <option value="">none</option>{options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+    </select>
+  ),
+}));
+
+describe("Imports › Feeds › File into", () => {
+  it("a calendar feed's destination is PATCHed; a news feed offers none", async () => {
+    localStorage.setItem(AUTH_KEYS.token, "t");
+    const calls = [];
+    const feeds = [
+      { id: "f1", name: "Holidays", kind: "calendar", url: "webcal://x/a.ics", everyMinutes: 60, enabled: true, destinationId: null },
+      { id: "f2", name: "Blog", kind: "news", url: "https://y/rss", everyMinutes: 60, enabled: true },
+    ];
+    const fetchImpl = vi.fn(async (url, opts = {}) => { calls.push([url, opts.method || "GET", opts.body]); return { ok: true, json: async () => ({ feeds }) }; });
+    render(<FeedSubscriptions gridId="g1" fetchImpl={fetchImpl} containerOptions={[{ id: "ctr-h", label: "Holidays" }]} />);
+    await screen.findByDisplayValue("Blog");
+    const pickers = screen.getAllByLabelText("File events into");
+    expect(pickers).toHaveLength(1);
+    fireEvent.change(pickers[0], { target: { value: "ctr-h" } });
+    await waitFor(() => expect(calls.some((c) => c[1] === "PATCH")).toBe(true));
+    const patch = calls.find((c) => c[1] === "PATCH");
+    expect(patch[0]).toBe("/api/v1/grids/g1/feeds/f1");
+    expect(JSON.parse(patch[2])).toEqual({ destinationId: "ctr-h" });
+  });
+});
