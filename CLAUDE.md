@@ -15,6 +15,49 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (6) — THE GRID SHOWS FROM THE LAST VISIT WHILE THE REAL ONE DOWNLOADS; and it boots offline
+
+User: *"could you please continue"* — the approved packages (12:12). Measured first (`_loadsplit.mjs`, poms, 390px, 4x CPU):
+the 15.9MB `full_state` reaches the tab ~5s after the socket opens (~12s on 4G) and rows follow ~3.7s later, so a
+phone load is mostly the WAIT, not the work.
+```
+                    rows on screen        editable
+fast net   before        8.9s                ~9s
+           after         4.1s (prod 4.2s)    4.1s   (edits queue until the real state lands)
+4G         before       19.6s               ~20s
+           after         3.8s                3.8s
+```
+- **`helpers/bootSnapshot.js` (NEW)** — the last full_state (core half) in IndexedDB per user+grid, saved 20s after a
+  load when idle (putting 15MB structured-clones on the main thread), max age 7 days, cleared on logout
+  (`authStorage.clearAuth`, App's logout). Drawn at boot through `onFullState({__fromSnapshot})`, which returns
+  right after the dispatch: no sweep, no deferred request, no save, no migration/filter emits.
+- **`state/snapshotMode.js` (NEW)** — while the snapshot shows: operations, feed sync, the scheduler and reminder
+  sync stand down; `safeEmit` DROPS writes with no open action (app-made, derived from stale data) and QUEUES
+  writes inside an action (the user's) like offline edits. **The user's call** (asked with the numbers): edit
+  during the snapshot, not a read-only preview — a read-only one unlocked 5-7s LATER than today, because drawing
+  the snapshot stalls the WebSocket download (Chrome stops reading a message while the page is busy).
+- **`helpers/queuedEdits.applyQueuedEditsToPayload` (NEW)** — the real full_state takes the queued edits in BEFORE
+  it is dispatched, so the screen keeps them and the load sweep computes from them; the queue is flushed after
+  the sweep as before. This also fixes offline edits vanishing locally on reconnect. The server's stale-write
+  guards (expectedUpdatedAt / textmapBasis) still refuse a queued edit to a row that changed elsewhere.
+- **`masterReducer` FULL_STATE** now keeps an in-memory textmap only for rows the payload sends WITHOUT one — it
+  overwrote the server's text with whatever was in memory (a snapshot would have resurrected old text).
+- **`public/sw.js` offline shell** — page loads network first with the last good page as fallback, `/assets/` cache
+  first (newest 400). Chosen over vite-plugin-pwa, which would REPLACE this worker (it carries share_target).
+  Assets were already `immutable` for a year, so this buys nothing online; offline, a cold start boots and shows
+  the snapshot (watched on prod with the context offline: 9 rows + "Offline — showing your last visit").
+- **Watched on prod:** a switch ticked WHILE the snapshot showed stayed ticked through the real load and reached
+  Mongo; `Stamp Completed On` stamped it after the sweep. Probe row restored through the app.
+- **comlink worker — not built, and why:** the sweep is already sliced between frames; a worker needs its own copy
+  of the grid (~15MB cloned across plus every edit kept in step — about what it saves) and the executor calls
+  main-thread bridges (requestUserInput, importText).
+- **Seen, not chased:** an untick clicked during the load sweep left `Completed On` stamped (prod build, before
+  these changes); the same untick after the load settled cleared it.
+**Probes:** `_loadsplit.mjs` (NET=4g), `_snapprobe.mjs` (LOCALBUILD, EDIT=1), `_offlineprobe.mjs`, `_clickswitch.mjs`
+(OCC SETTLE CLICKS); server `_occfields.mjs`, `_txrow2.mjs`.
+
+---
+
 ### 2026-10-13 (5) — THE EMOTIONS WHEEL IS FULL ON THE REBUILD; three things the UI could not do, and the React Compiler measured
 
 Account3 finishing the main account's list (its limit hit at 12:31).
