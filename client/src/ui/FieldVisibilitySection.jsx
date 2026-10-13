@@ -26,6 +26,7 @@ import {
 } from "../state/selectors";
 import { buildParentMap } from "../helpers/dragHitTesting";
 import FieldRenderer from "./FieldRenderer";
+import FieldSelect from "./FieldSelect.jsx";
 import { MENU_CAPTION } from "./menuText";
 
 const MODES = [
@@ -71,6 +72,9 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
   // At the root, "nothing set" reads as Off — there is no level to inherit from.
   const currentMode = own == null ? (isGrid ? "off" : "inherit") : (own.mode || (isGrid ? "off" : "inherit"));
   const ownFieldIds = Array.isArray(own?.fieldIds) ? own.fieldIds : [];
+  // Fields shown even where a module binds them hidden — kept through every other edit at this level.
+  const ownRevealIds = Array.isArray(own?.reveal) ? own.reveal : [];
+  const withReveal = (fv) => (ownRevealIds.length && fv ? { ...fv, reveal: ownRevealIds } : fv);
 
   const parentByChildId = useMemo(
     () => buildParentMap(occurrencesById || {}),
@@ -111,7 +115,7 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
       // Spread the WHOLE meta: a partial write drops every other key on it
       // (defaultStyle, scheduleFieldIds, autoAppliedFieldIds all live here).
       const nextMeta = { ...(grid?.meta || {}) };
-      if (nextFieldVisibility == null || nextFieldVisibility.mode === "off") delete nextMeta.fieldVisibility;
+      if (nextFieldVisibility == null || (nextFieldVisibility.mode === "off" && !nextFieldVisibility.reveal?.length)) delete nextMeta.fieldVisibility;
       else nextMeta.fieldVisibility = nextFieldVisibility;
       CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
       return;
@@ -144,9 +148,16 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
 
   const setMode = (mode) => {
     if (mode === "inherit") return write(null);
-    if (mode === "off") return write({ mode: "off" });
+    if (mode === "off") return write(withReveal({ mode: "off" }));
     // show / hide — keep any fieldIds the user already picked.
-    write({ mode, fieldIds: ownFieldIds });
+    write(withReveal({ mode, fieldIds: ownFieldIds }));
+  };
+
+  // Writing a reveal list at an "inherit" level makes the level explicit ("off" + reveal).
+  const setRevealIds = (ids) => {
+    const base = own && own.mode ? { ...own } : { mode: "off" };
+    if (ids.length) base.reveal = ids; else delete base.reveal;
+    write(base.mode === "off" && !ids.length && !own ? null : base);
   };
 
   const toggleFieldId = (fieldId) => {
@@ -154,14 +165,16 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
     const nextIds = has
       ? ownFieldIds.filter(f => f !== fieldId)
       : [...ownFieldIds, fieldId];
-    write({ mode: currentMode === "show" || currentMode === "hide" ? currentMode : "show", fieldIds: nextIds });
+    write(withReveal({ mode: currentMode === "show" || currentMode === "hide" ? currentMode : "show", fieldIds: nextIds }));
   };
 
   const fieldName = (fid) => fieldsById?.[fid]?.name || fid;
   const describe = (fv) => {
-    if (!fv || !fv.mode || fv.mode === "off") return "All fields";
+    const r = (fv?.reveal || []).length;
+    const plus = r ? ` + ${r} hidden shown` : "";
+    if (!fv || !fv.mode || fv.mode === "off") return `All fields${plus}`;
     const n = (fv.fieldIds || []).length;
-    return `${fv.mode === "show" ? "Show only" : "Hide"} ${n} field${n === 1 ? "" : "s"}`;
+    return `${fv.mode === "show" ? "Show only" : "Hide"} ${n} field${n === 1 ? "" : "s"}${plus}`;
   };
 
   const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
@@ -203,6 +216,22 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
         {currentMode === "inherit" && inherited && (
           <span style={{ opacity: 0.7 }}> (inheriting {describe(inherited)})</span>
         )}
+      </div>
+
+      {/* Also show — fields shown even where a module binds them HIDDEN (unlike Show, not a whitelist). */}
+      <div style={{ ...sectionHeader, marginTop: 6 }}>Also show (even if bound hidden)</div>
+      <div data-testid="fv-reveal" style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginBottom: 4 }}>
+        {ownRevealIds.map((fid) => (
+          <span key={fid} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, padding: "1px 6px", borderRadius: 10, border: "1px solid var(--input-border, #374151)" }}>
+            {fieldName(fid)}
+            <button type="button" title="Stop showing" onClick={() => setRevealIds(ownRevealIds.filter((x) => x !== fid))}
+              style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: "var(--text-muted, #888)" }}>×</button>
+          </span>
+        ))}
+        <div style={{ minWidth: 140 }}>
+          <FieldSelect fields={allFields.filter((f) => !ownRevealIds.includes(f.id))} value={null}
+            placeholder="+ field" onChange={(fid) => fid && setRevealIds([...ownRevealIds, fid])} />
+        </div>
       </div>
 
       {/* Reveal cascade — WHEN the fields show. Its own nearest-wins walk.

@@ -359,6 +359,20 @@ function nextHop(cur, occ, viaParentId, pbc, occurrencesById) {
   return pbc[cur.id] ?? cur.parentId;
 }
 
+// One cascade level's answer. `reveal` lists fields to show even where a module binds them HIDDEN
+// (Date is bound hidden on schedule items; a surface that wants each row's date asks for it here)
+// — unlike show-mode, which is a whitelist and drops every field it does not name. A level is still a
+// complete answer (nearest wins), so its reveal list replaces an ancestor's. "off" with nothing to
+// reveal is no constraint at all (null), exactly as before.
+function visibilityLevel(fv) {
+  const reveal = Array.isArray(fv.reveal) && fv.reveal.length ? fv.reveal : null;
+  if (fv.mode === "show" || fv.mode === "hide") {
+    const out = { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
+    return reveal ? { ...out, reveal } : out;
+  }
+  return reveal ? { mode: "off", fieldIds: [], reveal } : null;
+}
+
 export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId, grid, viaParentId } = {}) {
   // THE GRID IS THE ROOT OF THIS CASCADE TOO, and it had none until 2026-08-11.
   // User: *"hide tags everywhere, and hide date everywhere thats not tasks,
@@ -370,11 +384,8 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
   // default, any occurrence overrides it for itself and everything under it.
   const gridDefault = (() => {
     const fv = grid?.meta?.fieldVisibility;
-    if (!fv || fv.mode === "off") return null;
-    if (fv.mode === "show" || fv.mode === "hide") {
-      return { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
-    }
-    return null;
+    if (!fv) return null;
+    return visibilityLevel(fv);
   })();
   if (!occ) return gridDefault;
   // Memoised fallback — ModuleInstance calls this per row inside its own
@@ -387,10 +398,7 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
     guard.add(cur.id);
     const fv = cur.fieldVisibility;
     if (fv != null) {
-      if (fv.mode === "off") return null;
-      if (fv.mode === "show" || fv.mode === "hide") {
-        return { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
-      }
+      if (fv.mode === "off" || fv.mode === "show" || fv.mode === "hide") return visibilityLevel(fv);
       // Unknown/empty mode — treat as no constraint, keep walking up.
     }
     const nextId = nextHop(cur, occ, viaParentId, pbc, occurrencesById);

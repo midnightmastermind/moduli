@@ -108,6 +108,10 @@ export function resolveOccurrenceFields({
   const showSet = fieldVisibility?.mode === "show" && Array.isArray(fieldVisibility.fieldIds)
     ? new Set(fieldVisibility.fieldIds)
     : null;
+  // `reveal` asks for fields by name the same way, WITHOUT making the list a whitelist.
+  const revealSet = Array.isArray(fieldVisibility?.reveal) && fieldVisibility.reveal.length
+    ? new Set(fieldVisibility.reveal)
+    : null;
 
   const passes = (fieldId) => {
     if (!fieldVisibility || !fieldVisibility.mode || fieldVisibility.mode === "off") return true;
@@ -121,7 +125,7 @@ export function resolveOccurrenceFields({
     // A media-role binding renders in the dedicated media block, never as an
     // inline pill — dropping this filter puts a poster URL in the pill row.
     if (binding.role === "media") return null;
-    const forced = showSet?.has(binding.fieldId);
+    const forced = showSet?.has(binding.fieldId) || revealSet?.has(binding.fieldId);
     if (binding.hidden && !forced) return null;
     if (!passes(binding.fieldId)) return null;
     const field = fieldsById[binding.fieldId];
