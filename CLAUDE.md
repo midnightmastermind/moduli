@@ -57,6 +57,23 @@ while its source still holds a Schedule value brings it back on the next load �
 
 ---
 
+### 2026-10-12 (6) — OCR READER / OCR MAGIC, and new folders lost their meta on the server
+
+User: *"lets look at ocr … works like the tabs in browser … call it ocr reader and ocr magic"*. An image's viewer has
+**Image · OCR Reader · OCR Magic** (`modules/ImageOcrViews.jsx`): OCR runs once per image when a text tab opens,
+`helpers/ocrLayout.ocrToMarkdown` turns tesseract's blocks into markdown (Magic: headings from tesseract's `rowHeight`
+against the body, lists from bullets; a paragraph is split where the line height jumps or a gap opens), and the
+browser's own `import_plan` planner renders it. **+ Page** files it in Imports and opens it; **Attach** (Reader) puts
+the text under the picture as a textblock (replaces the old OCR button).
+**Found testing + Page:** server `create_folder` dropped `meta`, so a client-made Imports folder came back unprotected
+and every later import minted another the server refused (its page parented to nothing); the client also minted a
+second Imports card. Both fixed (`9634aa41`, server restart). **Watched on prod (test grid 2), after the fix:** + Page
+→ still one Imports folder and one card, the folder healed to protected, the page inside it, 0 page errors; probe rows
+deleted through the app. Not done: the rebuild's schedule-template split, Reminder/Schedule fields + Place Scheduled
+Items by clicking.
+
+---
+
 ### 2026-10-12 (4) — FEEDS, A DATE-OR-REPEAT FIELD, REMINDERS IN THE ALARMS LIST, A SCHEDULE FIELD
 
 User (17:35): feed subscriptions in the Command Center; a **Reminder** field (date+time or interval, a new time
