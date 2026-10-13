@@ -42,8 +42,11 @@ probes). `_feeddest.mjs` (NAME DEST), `_sharedest.mjs` (APPTS), `_panelrestore.m
 DROP — put a panel's page + list back through update_view/update_occurrence).
 **Panels:** probes opened pages in poms' Schedule panel and the rebuild's first panel; both restored (poms ->
 Schedule, list back to 22; rebuild -> Routines).
-**For the user:** holidays still carry `Schedule Type = Appointment` (the rule's CREATE sets it for every
-event). **Left from 09:43:** filtered-empty hint (not Date-specific), full 128 Emotions wheel on the rebuild,
+**Holiday type (user, 11:23):** Schedule Types gained a **Holiday** row on both grids (by clicking; Board Category
+= appointment, hidden, like its siblings). The calendar rule now sets `$stype` = Appointment, switched to Holiday
+when `$share.props.destinationId IS <the Holidays container>`; the CREATE's Schedule Type reads `$stype`. Check now
+re-typed all 6 holidays on each grid (a re-share updates rows in place). Probe `_sharetype.mjs` (APPT HOL DESTC).
+**Left from 09:43:** filtered-empty hint (not Date-specific), full 128 Emotions wheel on the rebuild,
 mobile/tablet load-time pass.
 
 ---
