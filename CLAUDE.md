@@ -38,8 +38,22 @@ is now adopted. Test-first (`nestedContainerDragOut`: adopt + a control that one
 client 5,941 pass. Re-homed Layout by moving it to Monday's page and back (parent = its page, as poms).
 **Probes:** `_ctrxpage` (CTR DSTOCC [DSTNAME = open that card in a folder-page panel first]; drops above a non-empty
 page's first container), `_paneltree` (PANEL OPEN NAME — open a page from a given panel's own tree), `_filldayrepoint`,
-server `_tplpage` / `_panels` / `_daycol` (GRID DAY). **Still open:** the rebuild's Reminder + Schedule fields and
-`Schedule: Place Scheduled Items` (poms 0396), by clicking.
+server `_tplpage` / `_panels` / `_daycol` (GRID DAY).
+
+**Then poms' 0396 on the rebuild, by clicking:** fields **Reminder** (when, "Adds a reminder") and **Schedule** (when)
+in the Fields tab (`_selfield TYPE=when REMINDER=1`) — stored identical to poms'; and `Schedule: Place Scheduled
+Items` in the op editor (`_psi.mjs`, phases create/gate/day/task/ap/apval/slots/trig; built with its only trigger
+onChange Schedule so a half-built op never ran on a load, the onLoad + two filter triggers added last). A sorted-key
+diff against poms (ids mapped) leaves 8 lines, all representation: `templateRef "$task"` where poms has `"$task.id"`
+(the template picker offers the variable whole; the executor takes either) and SET_VAR stored as `expr` where poms
+has `value` (the executor reads both). **Watched:** a probe row with Schedule = today 9:40pm -> one dated copy in
+today's **9:30pm** slot (Time Slot 9:30pm, `auto:<source>`), made by the onChange the moment it was saved, still one
+after several loads; probe + copies deleted through the app (0 left after a further load). Reminder not watched on
+the rebuild (same client code poms watched ring at 6:12pm).
+**Probe trap, cost a replay:** an APPLY copy has a NEW module (a clone), so "copies sharing the source's moduleId"
+found 0 and read as "the op did nothing" — find them by `meta.appliedFromTemplateId`. The vitest replay over a Mongo
+dump then gave 0 effects for the right reason (the copy existed; merge recognised it). Also: deleting a placed copy
+while its source still holds a Schedule value brings it back on the next load — by design.
 
 ---
 
