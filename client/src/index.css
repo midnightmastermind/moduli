@@ -1160,6 +1160,24 @@ select:disabled { cursor: not-allowed; }
   display: inline-block;
   opacity: 0.5;
 }
+/* The embedded header's own menu button (filter funnel + Data/Fields/Layout).
+   OPACITY, not display: the label beside it marquees and re-measures, so a slot
+   that appears on hover would reflow the heading under the pointer. Shown while
+   its menu is open, and faintly at rest on touch (no hover to reveal it). */
+.embedded-container-header .embedded-header-menu {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.embedded-container-header:hover .embedded-header-menu,
+.embedded-container-header:focus-within .embedded-header-menu,
+.embedded-container-header .embedded-header-menu[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (pointer: coarse) {
+  .embedded-container-header .embedded-header-menu { opacity: 0.55; pointer-events: auto; }
+}
 .embedded-container-header .embedded-hash-btn {
   background: none;
   border: none;

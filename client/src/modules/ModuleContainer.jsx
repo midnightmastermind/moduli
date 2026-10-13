@@ -1485,7 +1485,26 @@ function Container({
                   </span>
                 </LabelShell>
               )}
-              <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
+              {/* The container's OWN menu (Filter · Sort · Data · Fields · Layout).
+                  This slot sat empty after its inline filter nav was removed, so a
+                  container inside a doc — a day-page section, a graph on a day page,
+                  an imported article section — had no way into it: an embedded
+                  graph's feed could not be edited at all. Revealed on header hover
+                  (index.css), like the heading hashes, so a 40-section article does
+                  not grow 40 funnels; it stays shown while its menu is open. */}
+              <div
+                className="embedded-header-menu"
+                data-open={dropdownAnchor ? "true" : undefined}
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{ flexShrink: 0, marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                {containerOccurrence?.feed?.enabled && (
+                  <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+                )}
+                <HeaderChevron
+                  onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence}
+                  showPill={layoutCascade?.resolved?.hideFilterPill !== true}
+                />
               </div>
             </div>
             {/* Row 3: the container's OWN fields, below the label (prevents the
