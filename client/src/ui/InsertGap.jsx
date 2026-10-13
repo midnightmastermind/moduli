@@ -15,6 +15,7 @@ import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { createChildInContainer, createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
 import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { revealNewRow } from "../helpers/revealNewRow.js";
 import { gapOpened, gapClosed } from "../helpers/insertGapDiag.js";
 import { claimGapHover, releaseGapHover } from "../helpers/gapHover.js";
 
@@ -72,7 +73,11 @@ export default function InsertGap({
     });
     // Open the new item's label editor focused (see helpers/pendingLabelEdit) —
     // sync creates only (artifact resolves to a Promise).
-    if (res && typeof res.then !== "function" && res.moduleId) requestLabelEdit(res.moduleId);
+    if (res && typeof res.then !== "function" && res.moduleId) {
+      requestLabelEdit(res.moduleId);
+      // A gap far down a long board can sit past the mounted range.
+      revealNewRow(res.occurrenceId);
+    }
   };
 
   const insertExisting = (m) => {

@@ -61,6 +61,7 @@ import { enableStagedMount } from "./helpers/stagedMount";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
+import { revealNewRow } from "./helpers/revealNewRow.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -845,7 +846,7 @@ export default function App() {
       if (!container) return;
 
       // Use the occurrence-based helper which creates module + occurrence + adds to container
-      LayoutHelpers.createInstanceInContainer({
+      const created = LayoutHelpers.createInstanceInContainer({
         dispatch,
         socket,
         gridId: s.gridId,
@@ -859,6 +860,9 @@ export default function App() {
       });
       // Open the new item's label editor focused so it can be named right away.
       requestLabelEdit(id);
+      // On a long board the new row is appended past the mounted range; it only opens
+      // its name editor once it mounts, so bring it into view (helpers/revealNewRow).
+      revealNewRow(created?.occurrence?.id);
     },
     [dispatch, socket]
   );
