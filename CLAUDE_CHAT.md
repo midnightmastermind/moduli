@@ -3858,3 +3858,8 @@ then re-clean poms' 21 slot modules.
   2. poms' 134 module-less shells: **audit then sweep** — check each one's children, delete only shells whose children are empty or listed elsewhere, with a backup; report anything holding real data.
   3. Binding order on the 6 boards: **match poms' order on the rebuild** by clicking.
   4. Next, all of: watch the Reminder ring on the rebuild · test a real calendar feed (a holidays .ics) · sample a few bulk boards (a handful of examples on Songs/Movies/People etc.) · **add the holiday calendar feed to poms too**.
+- **09:43** — "get rid of the todo if no container uses it and ask the questions you need" → Todo e94ef71f deleted (unlisted, parent gone, nothing embedded/referenced it; backup server/backups/orphans/2026-10-13-poms-unlisted-todo.json). Answers:
+  1. Holidays feed → **its own Holidays board** (not Appointments).
+  2. Filtered-empty containers (13 on poms) → **show a hint, but not hard-coded to Date** (name whatever filter hides them).
+  3. Media rows → keep instances on the rebuild.
+  4. Next, all of: **test the untested surfaces** · **full Emotions wheel on the rebuild** (128) · **performance pass — "for load times, lets focus on mobile and tablet"**.
