@@ -68,7 +68,8 @@ describe("wiring", () => {
     expect(src).toMatch(/useRenderWindow\([^)]*enabled:\s*!virtualEligible/);
     expect(src).toMatch(/ref=\{itemsListRef\}/);
   });
-  it("only STACK layouts are eligible (row / wrap / tile CSS needs direct children)", () => {
-    expect(src).toMatch(/virtualEligible\s*=\s*!childLayout\.className\s*&&\s*childContentDir !== "column"/);
+  it("STACK layouts and leaf-only WRAP grids are eligible (row layouts keep the render window)", () => {
+    expect(src).toMatch(/\(!childLayout\.className && childContentDir !== "column"\)/);
+    expect(src).toMatch(/isWrapGrid && !itemsWithOccurrences\.some\(\(it\) => it\.instance\?\.role === "container"\)/);
   });
 });
