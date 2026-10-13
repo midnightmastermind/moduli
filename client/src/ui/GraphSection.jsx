@@ -308,6 +308,34 @@ export default function GraphSection({ occurrence }) {
             onChange={(v) => patch({ dayFieldId: v })}
           />
 
+          {/* HOW IT READS. graphOption has honoured these since 2026-08 and only
+              migrations could write them — a wheel built in the UI could never match
+              one a seed made. Blank = the default (stored null, so the default can move). */}
+          <div style={{ ...labelStyle, marginTop: 2 }}>Labels</div>
+          {(spec.type || "sunburst") === "sunburst" && (
+            <div style={{ display: "flex", gap: 4 }}>
+              {[
+                ["labelFontPx", "Label font (px)", "font"],
+                ["labelMinArcPx", "Smallest labelled slice (px of arc)", "min arc"],
+              ].map(([key, aria, ph]) => (
+                <input
+                  key={key} type="number" min="1" aria-label={aria} title={aria} placeholder={ph}
+                  value={spec[key] ?? ""}
+                  onChange={(e) => patch({ [key]: e.target.value === "" ? null : Number(e.target.value) })}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+              ))}
+            </div>
+          )}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)" }}>
+            <input
+              type="checkbox" aria-label="Tooltip shows the name only"
+              checked={!!spec.hideTooltipValue}
+              onChange={(e) => patch({ hideTooltipValue: e.target.checked })}
+            />
+            Tooltip shows the name only
+          </label>
+
           {/* Hardcoded values — the third data source, alongside a feed and dragging. */}
           <div style={{ ...labelStyle, marginTop: 2, display: "flex", justifyContent: "space-between" }}>
             <span>Fixed values</span>

@@ -119,6 +119,31 @@ describe("GraphSection", () => {
     expect(lastWrite().meta.graph.dayFieldId).toBe(null);
   });
 
+  it("writes the sunburst LABEL settings and the tooltip toggle (no longer migration-only)", () => {
+    // graphOption has read labelFontPx / labelMinArcPx / hideTooltipValue since
+    // 2026-08; only migrations could write them, so a wheel built in the UI could
+    // never match one built by a seed. Blank means "use the default", stored null.
+    // The spec is a prop that never re-renders here, so each change is made against the
+    // STORED value (React does not fire onChange for an unchanged value).
+    const occ = world({ graph: { type: "sunburst", encoding: {}, highlight: ["kept"], labelFontPx: 9 } });
+    const { getByLabelText } = render(<GraphSection occurrence={occ} />);
+    fireEvent.change(getByLabelText("Label font (px)"), { target: { value: "7" } });
+    expect(lastWrite().meta.graph).toMatchObject({ labelFontPx: 7, highlight: ["kept"] });
+    fireEvent.change(getByLabelText("Smallest labelled slice (px of arc)"), { target: { value: "6" } });
+    expect(lastWrite().meta.graph.labelMinArcPx).toBe(6);
+    fireEvent.change(getByLabelText("Label font (px)"), { target: { value: "" } });
+    expect(lastWrite().meta.graph.labelFontPx).toBe(null);
+    fireEvent.click(getByLabelText("Tooltip shows the name only"));
+    expect(lastWrite().meta.graph.hideTooltipValue).toBe(true);
+  });
+
+  it("offers the label sizing only on a sunburst, and the tooltip toggle on every type", () => {
+    const occ = world({ graph: { type: "bar", encoding: {} } });
+    const { queryByLabelText } = render(<GraphSection occurrence={occ} />);
+    expect(queryByLabelText("Label font (px)")).toBeNull();
+    expect(queryByLabelText("Tooltip shows the name only")).toBeTruthy();
+  });
+
   it("hides the hierarchy controls for a chart that cannot draw one", () => {
     const occ = world({ graph: { type: "bar", encoding: {} } });
     const { queryByTitle } = render(<GraphSection occurrence={occ} />);
