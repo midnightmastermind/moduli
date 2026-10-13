@@ -3851,3 +3851,10 @@ then re-clean poms' 21 slot modules.
 - 19:10 — OCR Reader / OCR Magic tabs shipped on the image viewer (1663afb2 + 3 layout fixes), watched on prod with a generated flyer. Found + fixed: create_folder dropped meta, so Imports lost `protected` and later imports stranded their page; client also double-minted the Imports card (9634aa41, server restarted). Rebuild grid Imports folder is unprotected; heals on next import.
 - 20:05 — "please continue what my other account was working on" → the rebuild's schedule-template split (done by clicking, 20:50), then the rebuild's Reminder/Schedule fields + Place Scheduled Items op.
 - 21:10 — rebuild: Reminder + Schedule fields and `Schedule: Place Scheduled Items` built by clicking, watched placing a probe in today's 9:30pm slot. Both of account3's rebuild items done; OCR tabs already shipped.
+
+## 2026-10-13 07:53 CDT (account3)
+- "ask me the questions you need" → answers:
+  1. Basic Nutrition Guide's empty first line: **make it removable** in the app (Backspace/Delete on an empty first line above a section removes it), for every doc.
+  2. poms' 134 module-less shells: **audit then sweep** — check each one's children, delete only shells whose children are empty or listed elsewhere, with a backup; report anything holding real data.
+  3. Binding order on the 6 boards: **match poms' order on the rebuild** by clicking.
+  4. Next, all of: watch the Reminder ring on the rebuild · test a real calendar feed (a holidays .ics) · sample a few bulk boards (a handful of examples on Songs/Movies/People etc.) · **add the holiday calendar feed to poms too**.
