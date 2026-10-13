@@ -36,6 +36,7 @@ function fakeCaches() {
 function loadWorker(caches) {
   const listeners = {};
   const self = {
+    location: { origin: "https://viafluere.com" },
     addEventListener: (t, fn) => { listeners[t] = fn; },
     skipWaiting: vi.fn(), clients: { claim: vi.fn(async () => {}) },
     crypto: { randomUUID: () => "stash-1" },
@@ -71,10 +72,12 @@ describe("public/sw.js", () => {
     expect(await form.get("files").text()).toContain("VCALENDAR");
   });
 
-  it("leaves every other request alone — no caching, no offline mode", async () => {
-    expect(await sw.fetchEvent(new Request("https://viafluere.com/share-target"))).toBe(null);           // GET
+  // The worker keeps an offline shell since 2026-10-13 (swOfflineShell.test.js covers it); the
+  // API and a non-navigation GET of share-target still pass through untouched.
+  it("leaves the API and other requests alone", async () => {
+    expect(await sw.fetchEvent(new Request("https://viafluere.com/share-target"))).toBe(null);           // GET, not a navigation
     expect(await sw.fetchEvent(new Request("https://viafluere.com/api/v1/share", { method: "POST", body: "x" }))).toBe(null);
-    expect(await sw.fetchEvent(new Request("https://viafluere.com/assets/app.js"))).toBe(null);
+    expect(await sw.fetchEvent(new Request("https://viafluere.com/api/v1/grids"))).toBe(null);
   });
 
   it("an unreadable share still ends on the pending page, with the reason (§12)", async () => {
