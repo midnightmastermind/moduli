@@ -44,6 +44,7 @@ const ics = (uids) => ["BEGIN:VCALENDAR", "VERSION:2.0", ...uids.flatMap((u) => 
 
 function deps(text) {
   return {
+    now: new Date(2099, 9, 1),   // the fixture's events are on 2099-10-15, inside a 60-day window from here
     fetchText: async () => text,
     // stands in for the calendar rule: one row per event, keyed ics:<UID>::<step>
     runRules: async ({ share }) => {
@@ -104,6 +105,20 @@ describe("calendar feeds", () => {
     await syncFeed({ userId: "u1", gridId: "g1", feedId: "f1", deps: d });
     expect(db.occs.map((o) => o.meta.externalId).sort()).toEqual(
       ["2026-10-13", "2026-10-20", "2026-10-27", "2026-11-03", "2026-11-10", "2026-11-17", "2026-11-24", "2026-12-01", "2026-12-08"].map((x) => `ics:wk@${x}::mk`));
+  });
+
+  it("a one-off event outside the window is not brought in (a holidays calendar holds years)", async () => {
+    const ev = (u, d) => ["BEGIN:VEVENT", `UID:${u}`, `SUMMARY:${u}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d}`, "END:VEVENT"];
+    const text = ["BEGIN:VCALENDAR", "VERSION:2.0", ...ev("past", "20211225"), ...ev("soon", "20261111"),
+      ...ev("far", "20271225"), "END:VCALENDAR"].join("\r\n");
+    await syncFeed({ userId: "u1", gridId: "g1", feedId: "f1", deps: { ...deps(text), now: new Date(2026, 9, 13) } });
+    expect(db.occs.map((o) => o.meta.externalId)).toEqual(["ics:soon::mk"]);
+  });
+
+  it("a row for an event beyond the window's end is not cancelled when it is left out", () => {
+    const prev = { far: { ids: ["9"], date: "2027-12-25" } };
+    expect(planFeedChanges(prev, {}, { today: "2026-10-13", until: "2026-12-12" }).cancel).toEqual([]);
+    expect(planFeedChanges(prev, {}, { today: "2026-10-13" }).cancel).toEqual(["9"]);   // control
   });
 
   it("an RSS feed shares each NEW item as a link, once; the first check takes only the newest few", async () => {

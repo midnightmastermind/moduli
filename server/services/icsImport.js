@@ -121,7 +121,11 @@ export function parseIcs(text, { timeZone = null, expand = null } = {}) {
       continue;
     }
     if (expand && v.status === "CANCELLED") continue;
-    events.push(one(v.start, v.end, uid, !!v.rrule));   // FIRST OCCURRENCE ONLY when not expanded
+    const single = one(v.start, v.end, uid, !!v.rrule);   // FIRST OCCURRENCE ONLY when not expanded
+    // A SUBSCRIPTION holds its window for one-off events too: a holidays calendar lists a decade
+    // of them (317 rows from Google's US holidays, 2026-10-13). Compared as days in the event's zone.
+    if (expand && (single.start.date < inZone(expand.from, zone).date || single.start.date >= inZone(expand.to, zone).date)) continue;
+    events.push(single);
   }
   return { events, skipped: 0, zoneGuessed };
 }

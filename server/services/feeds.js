@@ -62,12 +62,14 @@ export function isFeedDue(feed, now = new Date()) {
  * become cancelled and which come back. A uid seen before and missing now is cancelled; a uid present
  * now is (re)active. Rows are never removed.
  */
-export function planFeedChanges(prevItems = {}, nowItems = {}, { today = null } = {}) {
+export function planFeedChanges(prevItems = {}, nowItems = {}, { today = null, until = null } = {}) {
   const cancel = [], active = [];
   for (const [uid, it] of Object.entries(prevItems || {})) {
     if (uid in nowItems) continue;
-    // A repeat that fell off the BACK of the window is history, not a cancellation.
+    // A repeat that fell off the BACK of the window is history, not a cancellation; one past its
+    // END is not due yet (the window only ever reads ahead FEED_WINDOW_DAYS).
     if (today && it?.date && it.date < today) continue;
+    if (until && it?.date && it.date >= until) continue;
     cancel.push(...(it?.ids || []));
   }
   for (const it of Object.values(nowItems || {})) active.push(...(it?.ids || []));
@@ -227,7 +229,7 @@ export async function syncFeed({ userId, gridId, feedId, deps }) {
     const result = await deps.runRules({ share });
     const failed = (result?.ran || []).filter((r) => !r.ok);
     const nowItems = await rowsForEvents({ userId, gridId, events: cal.events });
-    const { cancel, active } = planFeedChanges(feed.items || {}, nowItems, { today: localDay(window.from) });
+    const { cancel, active } = planFeedChanges(feed.items || {}, nowItems, { today: localDay(window.from), until: localDay(window.to) });
     // A uid that was cancelled and is gone for good stays in `items`, so it keeps its mark next time.
     const items = { ...Object.fromEntries(Object.entries(feed.items || {}).filter(([u]) => !(u in nowItems))), ...nowItems };
     const cancelled = await setCancelled({ userId, gridId, occurrenceIds: cancel, value: true, deps });
