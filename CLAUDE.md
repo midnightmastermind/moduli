@@ -32,6 +32,11 @@ day's Todo items; both grids; and slots pull **by where an item sits**. Measured
   picked column (`meta.copyLinkSource` = the template slot — 1,666 of 1,666 day slots do). No picked column → feed OFF.
   Tests: `combineSchedule.test.js` (a no-Time-Slot item is pulled; no columns → feeds off) + `feedUnderOccurrence`
   + FeedSection, all A/B'd. The Todo case first passed on an EMPTY list — the frozen fixture has no Todo items.
+- **The filter is a switch** (user: *"the true and false field input … should be a switch"*): a boolean filter's nav
+  defaults to `switch` (`FilterNavWidgets`, 5aac6cc8; unset reads off). But a STORED style wins over the default and
+  0397 had written `style: "pills"` on poms' filter, so poms kept the pills — `0400` drops it (0397 no longer writes
+  it). Read back: both grids' filters carry no style. Watched on the rebuild: a switch, off. poms' Schedule page was
+  not open in any panel, so it was not looked at there; its stored filter is now the rebuild's.
 
 ---
 
