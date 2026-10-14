@@ -40,3 +40,32 @@ describe("LayoutCascadeEditor — square size", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ childMinWidth: 184 }));
   });
 });
+
+describe("LayoutCascadeEditor — typing a number keystroke by keystroke", () => {
+  it("typing 1, 18, 184 into a min-40 field ends at 184, never 40", () => {
+    const calls = [];
+    const Harness = () => {
+      const [v, setV] = React.useState({ mode: "wrap" });
+      return <LayoutCascadeEditor value={v} onChange={(n) => { calls.push(n?.childMinWidth); setV(n); }} />;
+    };
+    render(<Harness />);
+    const input = rowControl("Square size");
+    fireEvent.focus(input);
+    for (const t of ["1", "18", "184"]) fireEvent.change(input, { target: { value: t } });
+    fireEvent.blur(input);
+    expect(calls).not.toContain(40);
+    expect(calls.at(-1)).toBe(184);
+    expect(input.value).toBe("184");
+  });
+
+  it("an out-of-range value is clamped on blur", () => {
+    const onChange = vi.fn();
+    render(<LayoutCascadeEditor value={{ mode: "wrap" }} onChange={onChange} />);
+    const input = rowControl("Square size");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "5" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ childMinWidth: 40 }));
+  });
+});

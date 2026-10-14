@@ -322,6 +322,20 @@ function RuleRadio({ label, value, onChange, options }) {
 }
 
 function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
+  // The typed text is held locally and only an IN-RANGE number is committed
+  // while typing; anything else is clamped on blur. Clamping per keystroke
+  // turned the "1" of a typed 184 into the minimum (40/80) and the next
+  // keystrokes appended to that, so 184 could not be typed at all.
+  const [draft, setDraft] = React.useState(value ?? "");
+  const focused = React.useRef(false);
+  React.useEffect(() => { if (!focused.current) setDraft(value ?? ""); }, [value]);
+  const commit = (raw, clamp) => {
+    if (raw === "") { onChange(null); return; }
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    if (n >= min && n <= max) onChange(n);
+    else if (clamp) { const c = Math.max(min, Math.min(max, n)); setDraft(c); onChange(c); }
+  };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
       <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
@@ -329,14 +343,11 @@ function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
         type="number"
         min={min}
         max={max}
-        value={value ?? ""}
+        value={draft}
         placeholder="—"
-        onChange={(e) => {
-          const raw = e.target.value;
-          if (raw === "") { onChange(null); return; }
-          const n = Number(raw);
-          if (Number.isFinite(n)) onChange(Math.max(min, Math.min(max, n)));
-        }}
+        onFocus={() => { focused.current = true; }}
+        onChange={(e) => { setDraft(e.target.value); commit(e.target.value, false); }}
+        onBlur={(e) => { focused.current = false; commit(e.target.value, true); }}
         style={{
           width: 56, padding: "1px 5px", borderRadius: 3,
           background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
