@@ -12,6 +12,7 @@ import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { resolveFileRef } from "../helpers/fileRef.js";
+import ZoomableImage from "../ui/ZoomableImage.jsx";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import ImageOcrViews from "./ImageOcrViews.jsx";
 // The global image picker (search / upload / URL). Its single host is mounted in
@@ -615,17 +616,21 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
               square floor rather than guessing an aspect keeps an image with no
               stored dimensions from reserving a WRONG shape, which would jump
               just as badly in the other direction. */}
-          <LoadingImage
-            src={imgSrc}
-            alt={module?.label || fileRef}
-            spinnerSize="lg"
-            imgStyle={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          <ZoomableImage
             frameStyle={
               natW > 0 && natH > 0
-                ? { position: "relative", display: "block", aspectRatio: `${natW} / ${natH}`, maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
-                : { position: "relative", display: "block", minWidth: 160, minHeight: 160, maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
+                ? { display: "block", aspectRatio: `${natW} / ${natH}`, width: "100%", maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
+                : { display: "block", width: "100%", minHeight: 160, height: "min(70vh, 800px)", maxWidth: "100%" }
             }
-          />
+          >
+            <LoadingImage
+              src={imgSrc}
+              alt={module?.label || fileRef}
+              spinnerSize="lg"
+              imgStyle={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+              frameStyle={{ position: "relative", display: "block", width: "100%", height: "100%" }}
+            />
+          </ZoomableImage>
           <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
           {/* Replace image — search / upload / URL via the global picker.
               The pick rewrites module.fileRef, so every placement of this

@@ -3925,3 +3925,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **09:49** — *"could you also increase the textblock and minitextblock font size by 1"*
 - **09:51** — *"increase it to the size of instance labels"* (textblock + mini textblock font = instance label size)
 - **10:15** — answers: delete the ~30 unused Files/Images pictures; delete the 4 hidden duplicate ingredient rows (Eggs, Greek Yogurt, Chicken Thighs, Frozen Berries) + their 18 pictures; convert the Facebook bookmark clip into a stored image (remove the bookmark); extension image clips default to Files › Images.
+- **10:27** — *"i should be able to zoom when an image file is open too"*
