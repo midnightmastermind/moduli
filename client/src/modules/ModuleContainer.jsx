@@ -1241,6 +1241,26 @@ function Container({
   // Deferred from above, now that every hook has run.
   if (representationView) return representationView;
 
+  // ONE prop set for every settings form below (standard header, header hidden,
+  // embedded). Two of the three hand-copies never passed onOccurrenceStyleChange,
+  // so Style › "This Placement" could not leave Inherit on those surfaces.
+  const containerFormProps = {
+    value: draft,
+    onChange: setDraft,
+    onCommitLabel: commitLabel,
+    onDeleteContainer: removeMe,
+    containerId: module.id,
+    container: module,
+    onContainerUpdate: commitContainerStyleUpdate,
+    iteration: module.iteration,
+    onIterationChange: commitIteration,
+    defaultDragMode: module.defaultDragMode,
+    onDragModeChange: commitDragMode,
+    occurrence: containerOccurrence,
+    onOccurrenceUpdate: commitOccurrenceUpdate,
+    onOccurrenceStyleChange: (style) => commitOccurrenceUpdate({ ownStyle: style }),
+  };
+
   return (
     <div
       ref={containerRef}
@@ -1324,20 +1344,7 @@ function Container({
           </PopoverAnchor>
           <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet">
             <ContainerForm
-              value={draft}
-              onChange={setDraft}
-              onCommitLabel={commitLabel}
-              onDeleteContainer={removeMe}
-              containerId={module.id}
-              container={module}
-              onContainerUpdate={commitContainerStyleUpdate}
-              iteration={module.iteration}
-              onIterationChange={commitIteration}
-              defaultDragMode={module.defaultDragMode}
-              onDragModeChange={commitDragMode}
-              occurrence={containerOccurrence}
-              onOccurrenceUpdate={commitOccurrenceUpdate}
-              onOccurrenceStyleChange={(style) => commitOccurrenceUpdate({ ownStyle: style })}
+              {...containerFormProps}
             />
           </PopoverContent>
         </Popover>
@@ -1404,19 +1411,7 @@ function Container({
                 <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
                   <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                   <ContainerForm
-                    value={draft}
-                    onChange={setDraft}
-                    onCommitLabel={commitLabel}
-                    onDeleteContainer={removeMe}
-                    containerId={module.id}
-                    container={module}
-                    onContainerUpdate={commitContainerStyleUpdate}
-                    iteration={module.iteration}
-                    onIterationChange={commitIteration}
-                    defaultDragMode={module.defaultDragMode}
-                    onDragModeChange={commitDragMode}
-                    occurrence={containerOccurrence}
-                    onOccurrenceUpdate={commitOccurrenceUpdate}
+                    {...containerFormProps}
                   />
                 </PopoverContent>
               </Popover>
@@ -1541,19 +1536,7 @@ function Container({
               <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
                 <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                 <ContainerForm
-                  value={draft}
-                  onChange={setDraft}
-                  onCommitLabel={commitLabel}
-                  onDeleteContainer={removeMe}
-                  containerId={module.id}
-                  container={module}
-                  onContainerUpdate={commitContainerStyleUpdate}
-                  iteration={module.iteration}
-                  onIterationChange={commitIteration}
-                  defaultDragMode={module.defaultDragMode}
-                  onDragModeChange={commitDragMode}
-                  occurrence={containerOccurrence}
-                  onOccurrenceUpdate={commitOccurrenceUpdate}
+                  {...containerFormProps}
                 />
               </PopoverContent>
             </Popover>
