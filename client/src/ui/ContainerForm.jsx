@@ -341,8 +341,12 @@ export default function ContainerForm({
             cascade={cascadeForChildInstance}
             styleMode={container?.childInstanceStyle ? "own" : "inherit"}
             ownStyle={container?.childInstanceStyle}
+            // "Own" must START an empty rule: it only ever handled Inherit, so
+            // a container with no child defaults could never get one — the
+            // editor below renders only once the mode reads own.
             onStyleModeChange={(mode) => {
               if (mode === "inherit") onContainerUpdate?.({ childInstanceStyle: null });
+              else if (!container?.childInstanceStyle) onContainerUpdate?.({ childInstanceStyle: {} });
             }}
             onOwnStyleChange={(style) => onContainerUpdate?.({ childInstanceStyle: style })}
             label="Child Instance Defaults (pushed down)"
@@ -363,6 +367,7 @@ export default function ContainerForm({
                 ownStyle={occurrence?.ownStyle}
                 onStyleModeChange={(mode) => {
                   if (mode === "inherit") onOccurrenceStyleChange?.(null);
+                  else if (!occurrence?.ownStyle) onOccurrenceStyleChange?.({});
                 }}
                 onOwnStyleChange={(style) => onOccurrenceStyleChange?.(style)}
                 label="This Placement (overrides module)"
