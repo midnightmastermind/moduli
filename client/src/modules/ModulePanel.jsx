@@ -1230,7 +1230,7 @@ function Panel({
                       borderBottom: "1px solid var(--border-default)",
                       pointerEvents: "auto",
                     }}>
-                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
                         {rootTree}
                       </div>
                     </div>
@@ -1242,7 +1242,7 @@ function Panel({
                       borderLeft: "1px solid var(--border-default)",
                       overflow: "hidden",
                     }}>
-                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
                         {rootTree}
                       </div>
                     </div>

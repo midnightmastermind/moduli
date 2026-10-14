@@ -3926,3 +3926,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **09:51** — *"increase it to the size of instance labels"* (textblock + mini textblock font = instance label size)
 - **10:15** — answers: delete the ~30 unused Files/Images pictures; delete the 4 hidden duplicate ingredient rows (Eggs, Greek Yogurt, Chicken Thighs, Frozen Berries) + their 18 pictures; convert the Facebook bookmark clip into a stored image (remove the bookmark); extension image clips default to Files › Images.
 - **10:27** — *"i should be able to zoom when an image file is open too"*
+- **10:39** — *"look at the performance of the manifest list when all folders are open and see if we should only allow one folder tree open at a time"*
+- **10:49** — *"cant you do just whatever is on the screen and not just 40"* → virtualize the folder's rows (only what's visible), not a 40-step load

@@ -3,7 +3,8 @@
 // Selecting a doc row calls updateView({ activeOccurrenceId }) so the content pane updates.
 // Selecting an anchor chip calls updateView({ activeOccurrenceId: parentOccId, scrollAnchor: heading })
 // so the parent doc stays open and scrolls to that heading.
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useVirtualRows } from "../helpers/virtualRows";
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
@@ -105,7 +106,7 @@ function getDocHeading(textmap) {
 // ─── DocNode — occurrence item ──────────────────────────────────────────────
 // isAnchor=false: renders as a clickable file row (opens the doc)
 // isAnchor=true: renders as a small anchor chip (scrolls to heading in parent doc)
-function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true, dispatch: dispatchProp, socket: socketProp, siblingOccs }) {
+function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true, dispatch: dispatchProp, socket: socketProp, siblingOccs }) {
   const ga = useGridActions();
   const dispatch = dispatchProp || ga.dispatch;
   const socket = socketProp || ga.socket;
@@ -543,8 +544,12 @@ export function resolveFolderDrop({ folder } = {}) {
   return folder?.meta?.protected ? "copy" : "move";
 }
 
+// A folder with more items than this draws only the ones near the visible part
+// of the sidebar (helpers/virtualRows); below it, every row renders.
+export const FOLDER_VIRTUAL_MIN = 50;
+
 // ─── FolderNode ──────────────────────────────────────────────────────────────
-function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true, scope = ROOT_SCOPE }) {
+function FolderNodeImpl({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true, scope = ROOT_SCOPE }) {
   const { dispatch, socket, state } = useGridActions();
   // CLOSED by default, and what you open is remembered per browser.
   //
@@ -613,6 +618,27 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     }),
     [allChildOccs, modulesById]
   );
+
+  // A LONG FOLDER DRAWS ONLY WHAT IS ON SCREEN (user, 2026-10-14: "super slow
+  // and choppy with multiple folders open" → "cant you do just whatever is on
+  // the screen"). Files › Images › People alone drew 1,351 rows — 24,313 of the
+  // 35,548 elements in a fully open tree, ~940ms per scroll frame at 4x CPU.
+  // Pages then files are one list; past FOLDER_VIRTUAL_MIN it is virtualized
+  // against the sidebar's own scroller, with spacers keeping its full length.
+  const leafItems = useMemo(() => [
+    ...pageOccs.map((occ) => ({ kind: "page", occ })),
+    ...artifactOccs.map((occ) => ({ kind: "file", occ })),
+  ], [pageOccs, artifactOccs]);
+  const leafListRef = useRef(null);
+  const leafKeyOf = useCallback((i) => leafItems[i]?.occ.id, [leafItems]);
+  const leafIndexOf = useCallback((id) => leafItems.findIndex((it) => it.occ.id === id), [leafItems]);
+  const leafVirtual = useVirtualRows({
+    count: leafItems.length,
+    enabled: open && leafItems.length > FOLDER_VIRTUAL_MIN,
+    listRef: leafListRef,
+    keyOf: leafKeyOf,
+    indexOf: leafIndexOf,
+  });
 
   // Sibling-reorder drop target — accepts other folder drags onto this
   // row's top/bottom edge and rewrites sortOrder so the dropped folder
@@ -997,20 +1023,32 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
               onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} onOpenPageAndClose={onOpenPageAndClose} showAnchors={showAnchors} scope={scope} />
           ))}
-          {pageOccs.map(occ => (
-            <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
-              onOpenPage={onOpenPageAndClose || onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
-              childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
-              activeOccurrenceId={activeOccurrenceId}
-              siblingOccs={pageOccs}
-              depth={depth + 1} />
-          ))}
-          {artifactOccs.map(occ => (
-            <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
-              occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
-              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} showAnchors={showAnchors}
-              dispatch={dispatch} socket={socket} siblingOccs={artifactOccs} />
-          ))}
+          <div ref={leafListRef}>
+            {(() => {
+              const renderLeaf = ({ kind, occ }) => (kind === "page" ? (
+                <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
+                  onOpenPage={onOpenPageAndClose || onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
+                  childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
+                  activeOccurrenceId={activeOccurrenceId}
+                  siblingOccs={pageOccs}
+                  depth={depth + 1} />
+              ) : (
+                <DocNode key={occ.id} occ={occ} depth={depth + 1} isAnchor={false} parentOccId={occ.id}
+                  occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
+                  onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} showAnchors={showAnchors}
+                  dispatch={dispatch} socket={socket} siblingOccs={artifactOccs} />
+              ));
+              if (leafVirtual.active) {
+                return leafVirtual.plan.map((p, k) => (p.spacer != null
+                  ? <div key={`sp-${k}`} aria-hidden="true" style={{ height: p.spacer }} />
+                  : <div key={p.key} data-index={p.index} ref={leafVirtual.measureRef}>{renderLeaf(leafItems[p.index])}</div>));
+              }
+              // Long, but the scroller is not known yet (first frame): a short
+              // slice, so a big folder never paints in full while it waits.
+              const n = leafItems.length > FOLDER_VIRTUAL_MIN ? FOLDER_VIRTUAL_MIN : leafItems.length;
+              return leafItems.slice(0, n).map(renderLeaf);
+            })()}
+          </div>
         </div>
       )}
     </div>
@@ -1018,7 +1056,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 }
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, reverseIndent = false, depth = 0, siblingOccs = null }) {
+function PageTreeNodeImpl({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, reverseIndent = false, depth = 0, siblingOccs = null }) {
   const { dispatch, socket, state, foldersById } = useGridActions();
   const [ctxMenu, setCtxMenu] = useState(null);
   const [addTrigger, setAddTrigger] = useState(0);
@@ -1469,7 +1507,11 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           </div>
 
           {/* Tree content */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
+          {/* OPAQUE, the same colour as the sidebar behind it. A transparent
+              scroller cannot be scrolled on its own compositor layer, so every
+              scroll frame re-layered the whole page: 229ms a frame with all
+              folders open at 4x CPU, 43ms with this (2026-10-14, trace: Layerize). */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px", background: "var(--surface-card)" }}>
             {/* ── PINNED ───────────────────────────────────────────────
                 This panel's own open pages, ABOVE the full manifest. Until
                 2026-08-21 the sidebar rendered EITHER this OR the manifest —
@@ -1568,3 +1610,11 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     </div>
   );
 }
+
+// Tree rows are memoized: the virtualized folder re-renders on every scroll
+// step, and a row whose props did not change (nothing writes during a scroll)
+// should not be drawn again. A grid write still reaches them through the maps
+// and the context they read.
+const DocNode = React.memo(DocNodeImpl);
+const FolderNode = React.memo(FolderNodeImpl);
+const PageTreeNode = React.memo(PageTreeNodeImpl);
