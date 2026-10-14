@@ -3919,3 +3919,5 @@ per picked date (that is where the items live); Combine hides those and shows on
   when hovered / pressed / focused; the 🎲 button appears then (not on load).
 - **09:18** — *"also the grids are not showing in the extension in the dropdown so look at that after this. then tell
   me how to add it permanetly to firefox instead of temporaru"*
+- **09:25** — *"and we have a ton of random images inside the images folder that arent filed in the correct places"*
+- **09:27** — *"those image occurances dont have a drag handle either"* (the loose images in Files/Images)

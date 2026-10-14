@@ -33,6 +33,18 @@ export function registerAuthHandlers(socket, { signToken }) {
     socket.emit("auth_success", { token, userId });
   });
 
+  // A SIGNED-IN SOCKET CAN RENEW ITS SESSION (2026-10-14). A token lives 7 days
+  // and the socket checks it only when it connects, so a tab left open kept
+  // working while its stored token expired — and everything that reads that token
+  // over REST (the share placement window's grid list, uploads) was refused and
+  // showed nothing. Only a socket that already passed the auth middleware has a
+  // userId; an anonymous one gets nothing.
+  socket.on("refresh_session", () => {
+    const userId = socket.data?.userId || socket.userId;
+    if (!userId) return;
+    socket.emit("session_token", { token: signToken({ userId }), userId: String(userId) });
+  });
+
   socket.on("login", async ({ email, password } = {}) => {
     console.log("🟦 EVENT login:", { email });
     try {

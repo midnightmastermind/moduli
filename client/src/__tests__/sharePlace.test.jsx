@@ -368,3 +368,23 @@ describe("SharePlace — the window scrolls", () => {
   });
 });
 
+
+describe("SharePlace — an expired sign-in says so (2026-10-14)", () => {
+  it("a refused grid list shows the sign-in message instead of an empty dropdown, and Auto still previews", async () => {
+    const base = global.fetch;
+    global.fetch = vi.fn(async (url, opts) => {
+      if (String(url).includes("/grids")) { calls.push({ url: String(url), opts }); return json({ error: "invalid_token" }, 401); }
+      return base(url, opts);
+    });
+    render(<SharePlace />);
+    expect(await screen.findByTestId("session-expired")).toBeTruthy();
+    expect(document.getElementById("share-grid")?.tagName).not.toBe("SELECT");
+    await screen.findByText(/Share: link/);
+  });
+
+  it("control: a good grid list still renders the dropdown", async () => {
+    await ready();
+    expect(document.getElementById("share-grid")?.tagName).toBe("SELECT");
+    expect(screen.queryByTestId("session-expired")).toBeNull();
+  });
+});

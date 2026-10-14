@@ -66,6 +66,7 @@ export default function SharePlace() {
   const [gone, setGone] = useState(false);
   const [grids, setGrids] = useState([]);
   const [gridId, setGridId] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [mode, setMode] = useState("auto");
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -117,7 +118,12 @@ export default function SharePlace() {
       const p = (await r.json().catch(() => ({}))).payload || {};
       setPayload(p);
       if (!token) return;       // signed out: the preview resolves the grid itself
-      const [me, gs] = await Promise.all([getJson("/me/share"), getJson("/grids")]);
+      const gr = await api("/grids").catch(() => null);
+      const me = await getJson("/me/share");
+      if (!live) return;
+      // A refused token (7-day expiry) used to leave the list silently empty.
+      if (gr && (gr.status === 401 || gr.status === 403)) { setSessionExpired(true); return; }
+      const gs = gr?.ok ? await gr.json().catch(() => ({})) : null;
       if (!live) return;
       const list = gs?.grids || [];
       setGrids(list);
@@ -126,11 +132,11 @@ export default function SharePlace() {
       setGridId(pick || "");
     })();
     return () => { live = false; };
-  }, [stageId, stageKey, token, getJson]);
+  }, [stageId, stageKey, token, getJson, api]);
 
   // ── which rule Auto would run — re-asked whenever the grid changes ──────
   useEffect(() => {
-    if (!payload || (token && !gridId)) return;
+    if (!payload || (token && !gridId && !sessionExpired)) return;
     let live = true;
     const g = gridId ? `&gridId=${enc(gridId)}` : "";
     fetch(`/api/v1/share/stage/${enc(stageId)}/preview?k=${enc(stageKey)}${g}`)
@@ -138,7 +144,7 @@ export default function SharePlace() {
       .then((b) => { if (live) setPreview(b); })
       .catch(() => { if (live) setPreview(null); });
     return () => { live = false; };
-  }, [payload, gridId, stageId, stageKey, token]);
+  }, [payload, gridId, stageId, stageKey, token, sessionExpired]);
 
   // ── the grid's fields and presets; a grid change resets the form ────────
   useEffect(() => {
@@ -324,7 +330,12 @@ export default function SharePlace() {
       </header>
 
       <label htmlFor="share-grid" style={lblSt}>Grid</label>
-      {token ? (
+      {token && sessionExpired ? (
+        <div id="share-grid" data-testid="session-expired" style={{ ...inputSt, opacity: 0.9 }}>
+          Your sign-in has expired — <a href="/" target="_blank" rel="noreferrer" style={{ color: "var(--link, #8ab4ff)" }}>open Moduli</a> and
+          sign in again, then reopen this window. Auto still works.
+        </div>
+      ) : token ? (
         <select id="share-grid" value={gridId} onChange={(e) => setGridId(e.target.value)} style={inputSt}>
           {grids.map((g) => <option key={g.id} value={g.id}>{g.name || "(unnamed grid)"}</option>)}
         </select>

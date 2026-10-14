@@ -12,6 +12,7 @@ import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unha
 
 import { socket } from "./socket";
 import { bindFullStateRequest } from "./helpers/fullStateRequest";
+import { bindSessionRefresh } from "./helpers/sessionRefresh";
 import { bindSocketToStore, operationsBridge } from "./state/bindSocketToStore";
 import { toast } from "./state/notificationStore";
 
@@ -576,8 +577,11 @@ export default function App() {
       socket,
       () => localStorage.getItem("moduli-gridId"),
     );
+    // A tab left open renews its stored sign-in (helpers/sessionRefresh.js).
+    const unbindRefresh = bindSessionRefresh(socket);
 
     return () => {
+      unbindRefresh();
       unbindRequest();
       unbind?.();
     };
