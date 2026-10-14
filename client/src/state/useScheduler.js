@@ -5,8 +5,9 @@
 // action op queue / run log.
 //
 // Design notes:
-//   - One trigger per scheduled op (enforced by editor — schedule != null
-//     means triggerObjects must be empty).
+//   - The schedule is this file's only concern. A scheduled op MAY also carry
+//     event triggers (the editor allows both since 2026-10-14); those run
+//     through runMatchingOperations like any other op, never through here.
 //   - Cross-device sync via `schedule.lastFiredAt` on the Operation record.
 //     Whichever client fires first updates lastFiredAt; server rejects
 //     stale lastFiredAt writes (see socketHandlers/crud.js update_operation

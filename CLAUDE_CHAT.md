@@ -3929,3 +3929,6 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **10:39** — *"look at the performance of the manifest list when all folders are open and see if we should only allow one folder tree open at a time"*
 - **10:49** — *"cant you do just whatever is on the screen and not just 40"* → virtualize the folder's rows (only what's visible), not a 40-step load
 - **11:14** — *"i just checked it and it looks nothing like the pomsgrid style and layout wise"*
+- **14:49** — *"the layout is still different than poms grid"*
+- **14:5x** — scheduled op + On Load: *"Allow triggers too"* (a scheduled op may also carry triggers; rebuild gets Mark Passed Slots' On Load by clicking)
+- **14:59** — *"anything we are recreating should be able to be reproduced via the ui"* (standing rule: every rebuild change goes through the UI; anything the UI cannot do gets built into it)

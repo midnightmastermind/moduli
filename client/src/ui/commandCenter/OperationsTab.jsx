@@ -460,7 +460,7 @@ export function ScheduleEditor({ schedule, onChange }) {
 
       {/* Trigger conflict warning */}
       <div style={{ fontSize: 9, fontFamily: "monospace", color: "var(--text-faint)", lineHeight: 1.4 }}>
-        Scheduled ops are time-only — event triggers (onChange / onAdd / etc.) are ignored when a schedule is set.
+        Runs on this schedule AND on any triggers below (e.g. On Load to run once when the grid opens).
       </div>
     </div>
   );
@@ -626,10 +626,10 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
           onClick={() => setLocal((p) => ({
             ...p,
             schedule: { kind: "interval", every: 1, unit: "hour", suppressNotifications: false, lastFiredAt: null },
-            // Scheduled ops have no event triggers — clear them.
-            triggerObjects: [],
-            triggerTypes: [],
-            triggerType: "manual",
+            // Triggers are KEPT: a scheduled op may also run on events — poms'
+            // Mark Passed Slots runs every 5 minutes AND On Load (to scroll to
+            // the current slot). The scheduler ignores triggers; the event
+            // sweep ignores the schedule, so the two never double-fire.
           }))}
           style={{ alignSelf: "flex-start", fontSize: 10, fontFamily: "monospace", padding: "4px 10px", borderRadius: 4, border: "1px dashed var(--border-default)", background: "transparent", color: "var(--text-muted)", cursor: "pointer" }}
         >
@@ -637,8 +637,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
         </button>
       )}
 
-      {/* ── Triggers (hidden when schedule is set) ── */}
-      {!local.schedule && (
+      {/* ── Triggers — shown with or without a schedule ── */}
+      {(
       <div>
         <span style={labelStyle}>Triggers</span>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
