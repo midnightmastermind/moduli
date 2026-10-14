@@ -3836,19 +3836,16 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   white-space: nowrap;
 }
 
-.preview-node-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  color: var(--text-muted);
-  cursor: grab;
+/* The card's radial handle sits over the top-left of the preview, like a row's,
+   always visible. A small dark backing keeps it readable over any picture. */
+.preview-node-card > .preview-node-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 5;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
 }
-.preview-node-handle:hover { color: var(--text-primary); background: var(--input-bg); }
-.preview-node-handle:active { cursor: grabbing; }
 
 /* ============================================================ */
 /* ArtifactCard — thumbnail + expanded media viewer             */

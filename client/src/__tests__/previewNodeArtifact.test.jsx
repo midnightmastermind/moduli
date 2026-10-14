@@ -41,11 +41,12 @@ describe("PreviewNode — artifact cards", () => {
     expect(container.querySelector(".preview-node-artifact")).toBeNull();
   });
 
-  it("carries a visible drag handle, and pressing it does not open the card", () => {
+  it("carries the standard radial drag handle top-left, and pressing it does not open the card", () => {
     const onDrillDown = vi.fn();
     const { container } = render(<PreviewNode occurrence={occ} module={img} onDrillDown={onDrillDown} />);
-    const h = container.querySelector(".preview-node-handle[data-dnd-handle]");
+    const h = container.querySelector(".preview-node-card > .module-drag-handle[data-dnd-handle]");
     expect(h).toBeTruthy();
+    expect(h.querySelector(".radial-menu, [data-radial-open], button")).toBeTruthy();
     fireEvent.click(h);
     expect(onDrillDown).not.toHaveBeenCalled();
   });

@@ -19,7 +19,8 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { File, Image as ImageIcon, X, Trash2, Pencil } from "lucide-react";
-import { dragModeMeta } from "../helpers/dragModes";
+import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
+import RadialMenu from "../ui/RadialMenu";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
@@ -291,6 +292,43 @@ export default function PreviewNode({
     });
   }, [occurrence, module, extraMenuItems, coverSrc, handleSetCover, handleClearCover, handleDelete, renameItem]);
 
+  // THE SAME HANDLE EVERY OTHER OCCURRENCE CARRIES (user, 2026-10-14: "the
+  // image card needs to have the drag handle in the top left and the same one
+  // as all the other occurances WITH the radial menu"): module-drag-handle +
+  // RadialMenu, the mode icon, the drag-mode submenu, and the card's own
+  // actions (rename / cover / delete) on the arc.
+  const cardDragMode = occurrence?.dragMode ?? module?.defaultDragMode ?? "move";
+  const toggleCardDragMode = useCallback((mode) => {
+    if (!occurrence?.id) return;
+    const next = typeof mode === "string" ? mode : nextDragMode(cardDragMode, INSTANCE_DRAG_MODES);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, dragMode: next }, emit: true });
+  }, [occurrence?.id, cardDragMode, dispatch, socket]);
+  const radialItems = [
+    dragModeItem({ dragMode: cardDragMode, allowed: INSTANCE_DRAG_MODES, onClick: toggleCardDragMode }),
+    renameItem ? { label: renameItem.label, icon: Pencil, onClick: renameItem.onClick } : null,
+    { label: coverSrc ? "Change cover" : "Set cover", icon: ImageIcon, onClick: handleSetCover },
+    coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover } : null,
+  ].filter(Boolean);
+  const cardHandle = (
+    <div
+      className="module-drag-handle preview-node-handle"
+      data-dnd-handle="true"
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
+    >
+      <RadialMenu
+        dragMode={cardDragMode}
+        allowedDragModes={INSTANCE_DRAG_MODES}
+        onToggleDragMode={toggleCardDragMode}
+        size="sm"
+        forceDirection="down"
+        items={radialItems}
+        deleteLabel="Delete"
+        onDelete={handleDelete}
+      />
+    </div>
+  );
+
   // Representation mode renders a single chip (no iframe, no preview
   // body) — the user can still drill in by clicking it.
   if (viewMode === "representation") {
@@ -339,6 +377,7 @@ export default function PreviewNode({
       onContextMenu={handleContextMenu}
       style={{ position: "relative", ...extraStyle }}
     >
+      {cardHandle}
       <div className="preview-node-preview" style={isLandscape ? { aspectRatio: "4 / 3" } : undefined}>
         {coverSrc
           ? <img
@@ -361,14 +400,6 @@ export default function PreviewNode({
         }
       </div>
       <div className="preview-node-title">
-        {/* The card itself is the drag source; this is the same mode-glyph handle
-            every other occurrence shows, so a card reads as grabbable (user,
-            2026-10-14: "those image occurances dont have a drag handle"). */}
-        {(() => { const DragIcon = dragModeMeta(occurrence?.dragMode || module?.defaultDragMode || "move").Icon; return (
-          <span className="preview-node-handle" data-dnd-handle="true" title="Drag" onClick={(e) => e.stopPropagation()}>
-            <DragIcon size={11} />
-          </span>
-        ); })()}
         <Icon size={10} style={{ color, flexShrink: 0 }} />
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <AutoMarquee>{label}</AutoMarquee>
