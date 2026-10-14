@@ -8837,3 +8837,18 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    would be measured at its placeholder height. */
 .virtual-row { display: flow-root; flex: 0 0 auto; min-width: 0; }
 .container-list--virtual .instance-wrap { content-visibility: visible; contain-intrinsic-size: none; }
+
+/* TEXTBLOCKS AND MINI TEXTBLOCKS AT THE INSTANCE-LABEL SIZE (user, 2026-10-14:
+   "increase the textblock and minitextblock font size" → "increase it to the
+   size of instance labels"). Doc prose is 12px (13px on the Stardew skins); a
+   textblock's body is that editor, so it is set here to the same var the row
+   label uses (ModuleInstance INSTANCE_LABEL_PX, shrunk below tablet width by
+   --instance-label-px). A chip takes the same size wherever it sits. */
+.textblock-card .doc-editor-content.ProseMirror,
+.textblock-card .doc-editor-content.ProseMirror p,
+.instance-textblock-block .doc-editor-content.ProseMirror,
+.instance-textblock-block .doc-editor-content.ProseMirror p,
+.doc-editor-content .instance-textblock-inline,
+.instance-textblock-inline {
+  font-size: var(--instance-label-px, 17px);
+}

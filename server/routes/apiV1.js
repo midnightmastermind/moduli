@@ -1605,11 +1605,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           },
           fetchImage: async (u) => {
             if (!/^https:\/\//i.test(u)) return null;
-            const r = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+            const r = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(20000),
+              headers: { "user-agent": "Mozilla/5.0 (compatible; Moduli/1.0; +https://viafluere.com)" } });
             const type = String(r.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
             if (!r.ok || !type.startsWith("image/")) return null;
             const buf = Buffer.from(await r.arrayBuffer());
-            return buf.length && buf.length <= 5 * 1024 * 1024 ? { buf, type } : null;
+            return buf.length && buf.length <= 25 * 1024 * 1024 ? { buf, type } : null;
           },
           timeZone,
           fetchCalendar: async (u) => {

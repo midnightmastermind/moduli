@@ -3922,3 +3922,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **09:25** — *"and we have a ton of random images inside the images folder that arent filed in the correct places"*
 - **09:27** — *"those image occurances dont have a drag handle either"* (the loose images in Files/Images)
 - **09:44** — *"the extension isnt allowing me to save images either. i cant find where they go. i tried manual and auto. please clean up the extensions menu cause its hard to understand like the mapping"*
+- **09:49** — *"could you also increase the textblock and minitextblock font size by 1"*
+- **09:51** — *"increase it to the size of instance labels"* (textblock + mini textblock font = instance label size)
