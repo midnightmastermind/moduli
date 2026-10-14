@@ -180,7 +180,17 @@ export default function LayoutCascadeEditor({
               value={cur.childMinWidth ?? null}
               onChange={(v) => setKey("childMinWidth", v)}
               placeholder="132"
+              // RuleNumber's own default caps at 99, which silently stored a
+              // typed 184 (poms' tracker + media tiles) as 99.
+              min={40}
+              max={1200}
             />
+          ) : null}
+          {/* A wrap tile's max width (resolveContainerChildLayout reads it for
+              wrap as well as columns) — poms' media boards pin tiles at 184. */}
+          {cur.mode === "wrap" ? (
+            <RuleNumber label="Max width" value={cur.childMaxWidth ?? null}
+              onChange={(v) => setKey("childMaxWidth", v)} min={80} max={1600} />
           ) : null}
           {cur.mode === "grid" ? (
             <RuleNumber
@@ -261,6 +271,12 @@ export default function LayoutCascadeEditor({
             value={cur.stickyHeaders ?? null}
             onChange={(v) => setKey("stickyHeaders", v)}
             tooltip="Pin the container header to the top of the scroll region as you scroll past it. Cascades to descendants until overridden."
+          />
+          <RuleSwitch
+            label="Hide filter pill"
+            value={cur.hideFilterPill ?? null}
+            onChange={(v) => setKey("hideFilterPill", v)}
+            tooltip="Hide the active-filter pill in this surface's header and every container under it (the Kanban columns use it)."
           />
           {showRepresentationFieldIds ? (
             <RuleFieldList
