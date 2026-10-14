@@ -105,7 +105,7 @@ describe("Combine Schedule", () => {
       ?.fields?.[ids.dateFieldId]?.value === lastCol && occ[o.parentId]?.fields?.[ids.scheduleFormatFieldId]?.value === "day-col");
     expect(daySlot).toBeTruthy();
     expect(f.conditionOperator).toBe("OR");
-    expect(f.conditions).toEqual([{ id: `under-${daySlot.id}`, path: "_ancestors", comparator: "HAS_ANCESTOR", value: daySlot.id }]);
+    expect(f.conditions).toEqual([{ id: daySlot.id, path: "_ancestors", comparator: "HAS_ANCESTOR", value: daySlot.id }]);
     const hide = effects.find((e) => e._effect === "UPDATE_ITEM_META" && e.metaPath.join(".") === "layoutCascadeOverride.hideChildIds");
     const dayCols = Object.values(occ).filter((o) => o.parentId === ids.pageOccurrenceId
       && o.fields?.[ids.scheduleFormatFieldId]?.value === "day-col").map((o) => o.id);

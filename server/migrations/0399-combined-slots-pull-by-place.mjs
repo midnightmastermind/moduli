@@ -20,7 +20,10 @@ export async function up({ gridId, models, log, dryRun }) {
   const ids = grid?.meta?.scheduleFieldIds || {};
   const op = await Operation.findOne({ gridId, name: OP_NAME }).lean();
   if (!op) { log(`no "${OP_NAME}" — nothing to do`); return; }
-  if (JSON.stringify(op.pipeline).includes("\"$dayColIds\"")) { log("already pulls by place"); return; }
+  const stored = JSON.stringify(op.pipeline);
+  // (a first version named each condition "under-${$dsId}"; a json: literal resolves only $-leaves, so the
+  // version built by clicking names it "$dsId" — re-applied so both grids hold the same step)
+  if (stored.includes("\"$dayColIds\"") && !stored.includes("under-${")) { log("already pulls by place"); return; }
   const field = await Field.findOne({ gridId, name: FIELD_NAME }).lean();
   const layoutContId = layoutContainerOf(await Operation.findOne({ gridId, name: BUILD_OP }).lean());
   if (!field || !layoutContId || !ids.dateFieldId) throw new Error("0399: Combine Schedule field, template container or date field missing");

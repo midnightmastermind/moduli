@@ -90,7 +90,7 @@ export function combineDaysPipeline({ pageOccurrenceId, layoutContId, combineFie
                 act({ type: "SET_VAR", name: "$ds", expr: "$allItemsById.${$dsId}" }),
                 iff(all(r("$ds.meta.copyLinkSource", "IS", "$tplSlotId")), [
                   act({ type: "PUSH_TO_ARRAY", name: "$conds",
-                    value: { id: "under-${$dsId}", path: "_ancestors", comparator: "HAS_ANCESTOR", value: "$dsId" } }),
+                    value: { id: "$dsId", path: "_ancestors", comparator: "HAS_ANCESTOR", value: "$dsId" } }),
                 ]),
               ]),
             ]),
