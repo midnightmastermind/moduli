@@ -198,6 +198,7 @@ const inputStyle = {
 export default function FeedSection({ occurrence }) {
   const { dispatch, socket, occurrencesById, modulesById, fieldsById } = useGridActions() || {};
   const feed = occurrence?.feed || null;
+  const cfg = feed || {};
 
   const write = useCallback((next) => {
     if (!occurrence?.id) return;
@@ -231,10 +232,12 @@ export default function FeedSection({ occurrence }) {
     return out.sort((a, b) => a.label.localeCompare(b.label));
   }, [occurrencesById, modulesById]);
 
+  // Counted while Off too ("would match"), so the conditions can be checked
+  // before the feed is switched On and starts minting copies.
   const matchCount = useMemo(() => {
-    if (!feed?.enabled) return null;
+    if (!feed) return null;
     try {
-      return resolveFeedItems({ ...occurrence, feed }, { occurrencesById, modulesById }).length;
+      return resolveFeedItems({ ...occurrence, feed: { ...feed, enabled: true } }, { occurrencesById, modulesById }).length;
     } catch { return null; }
   }, [feed, occurrence, occurrencesById, modulesById]);
 
@@ -253,7 +256,7 @@ export default function FeedSection({ occurrence }) {
           <Rss size={11} /> Feed
           {matchCount != null && (
             <span style={{ color: "var(--text-muted)", textTransform: "none", letterSpacing: 0 }}>
-              · {matchCount} match{matchCount === 1 ? "" : "es"} now
+              · {matchCount} {feed?.enabled ? `match${matchCount === 1 ? "" : "es"} now` : "would match"}
             </span>
           )}
         </div>
@@ -271,14 +274,19 @@ export default function FeedSection({ occurrence }) {
         </button>
       </div>
 
-      {feed?.enabled && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {/* SHOWN WHILE OFF, so a feed is built BEFORE it pulls anything. It used to
+          appear only once switched On — and an On feed with no conditions pulls
+          every row its roles allow, so building one meant minting a copy of the
+          whole grid first (2026-10-14: 183 copies each into Beverages and
+          Supplements on the rebuild). */}
+      {(
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, opacity: feed?.enabled ? 1 : 0.75 }}>
           {/* Conditions — one recursive control set, so a nested group offers
               exactly what the top level does. `conditionOperator` is absent on
               every feed authored before 2026-08-08 and reads as AND. */}
           <ConditionList
-            entries={feed.conditions || []}
-            operator={feed.conditionOperator}
+            entries={cfg.conditions || []}
+            operator={cfg.conditionOperator}
             onEntries={(conditions) => patch({ conditions })}
             onOperator={(conditionOperator) => patch({ conditionOperator })}
             fields={fields}
@@ -294,12 +302,12 @@ export default function FeedSection({ occurrence }) {
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>pull:</span>
             {ROLE_OPTIONS.map(role => {
-              const on = (feed.roles || ["instance"]).includes(role);
+              const on = (cfg.roles || ["instance"]).includes(role);
               return (
                 <button
                   key={role}
                   onClick={() => {
-                    const cur = new Set(feed.roles || ["instance"]);
+                    const cur = new Set(cfg.roles || ["instance"]);
                     if (on) cur.delete(role); else cur.add(role);
                     if (cur.size === 0) cur.add("instance");
                     patch({ roles: [...cur] });
@@ -321,7 +329,7 @@ export default function FeedSection({ occurrence }) {
           {/* Scope + sort + limit */}
           <div style={{ display: "flex", gap: 4 }}>
             <select
-              value={feed.scope || ""}
+              value={cfg.scope || ""}
               onChange={(e) => patch({ scope: e.target.value || null })}
               title="Only pull occurrences under this page"
               style={{ ...inputStyle, flex: 3 }}
@@ -331,7 +339,7 @@ export default function FeedSection({ occurrence }) {
             </select>
             <input
               type="number" min={1} max={500}
-              value={feed.limit ?? 50}
+              value={cfg.limit ?? 50}
               onChange={(e) => patch({ limit: Math.max(1, Number(e.target.value) || 50) })}
               title="Max pulled items"
               style={{ ...inputStyle, flex: 1 }}
@@ -341,8 +349,8 @@ export default function FeedSection({ occurrence }) {
             <div style={{ flex: 3, minWidth: 0 }}>
               <FieldSelect
                 fields={fields}
-                value={feed.sort?.fieldId || null}
-                onChange={(id) => patch({ sort: id ? { fieldId: id, dir: feed.sort?.dir || "asc" } : null })}
+                value={cfg.sort?.fieldId || null}
+                onChange={(id) => patch({ sort: id ? { fieldId: id, dir: cfg.sort?.dir || "asc" } : null })}
                 noneLabel="no sort"
                 placeholder="no sort"
                 extraOptions={[{ value: "label", label: "Label" }]}
@@ -350,12 +358,12 @@ export default function FeedSection({ occurrence }) {
                 style={inputStyle}
               />
             </div>
-            {feed.sort?.fieldId && (
+            {cfg.sort?.fieldId && (
               <button
-                onClick={() => patch({ sort: { ...feed.sort, dir: feed.sort.dir === "desc" ? "asc" : "desc" } })}
+                onClick={() => patch({ sort: { ...cfg.sort, dir: cfg.sort.dir === "desc" ? "asc" : "desc" } })}
                 style={{ ...inputStyle, flex: 1, cursor: "pointer", textAlign: "center" }}
               >
-                {feed.sort.dir === "desc" ? "↓" : "↑"}
+                {cfg.sort.dir === "desc" ? "↓" : "↑"}
               </button>
             )}
           </div>

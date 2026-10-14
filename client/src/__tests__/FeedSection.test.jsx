@@ -205,3 +205,22 @@ describe("FeedSection — a condition can name where a row sits", () => {
   });
 });
 
+
+describe("FeedSection — built while Off", () => {
+  // An On feed with no conditions pulls every row its roles allow, so the
+  // conditions must be settable BEFORE it is switched on (2026-10-14: switching
+  // On first minted 183 copies each into two boards).
+  it("a container with no feed yet offers '+ condition', and the condition is written with the feed still off", () => {
+    mount(null);
+    fireEvent.click(screen.getByText("condition"));
+    const f = lastFeed();
+    expect(f.enabled).toBe(false);
+    expect(f.conditions).toHaveLength(1);
+  });
+  it("CONTROL — the On/Off button still switches it on", () => {
+    mount({ enabled: false, conditions: [{ id: "c1", fieldId: F_DONE, comparator: "IS", value: true }], roles: ["instance"], limit: 200 });
+    fireEvent.click(screen.getByText("Off"));
+    expect(lastFeed()).toMatchObject({ enabled: true, limit: 200 });
+    expect(lastFeed().conditions).toHaveLength(1);
+  });
+});
