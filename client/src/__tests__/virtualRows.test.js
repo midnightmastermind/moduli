@@ -73,3 +73,14 @@ describe("wiring", () => {
     expect(src).toMatch(/isWrapGrid && !itemsWithOccurrences\.some\(\(it\) => it\.instance\?\.role === "container"\)/);
   });
 });
+
+import { readFileSync as _rf } from "node:fs";
+import { fileURLToPath as _fu } from "node:url";
+import _p from "node:path";
+describe("virtualRows does not flushSync on scroll", () => {
+  it("passes useFlushSync: false to the virtualizer", () => {
+    const src = _rf(_p.join(_p.dirname(_fu(import.meta.url)), "../helpers/virtualRows.js"), "utf8");
+    expect(src).toMatch(/useFlushSync:\s*false/);
+    expect(src).toMatch(/useVirtualizer\(\{/); // control: still the virtualizer
+  });
+});

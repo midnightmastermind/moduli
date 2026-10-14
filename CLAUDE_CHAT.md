@@ -3912,3 +3912,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **07:34** — *"the tab in the picker shouldnt say once btw cause you can select multiple dates"* → the when picker's
   first tab is "Dates" and holds several dates sharing one time (stored `{mode:"once", dates:[…]}`; an old single
   `date` still reads). A reminder on several dates switches off only after the last one rings.
+- **07:48** — *"yes test it and look at the flicker scroll"* → build the op-sweep worker as a measured experiment
+  (keep it only if scroll during load improves), and check flick (momentum) scrolling inside a long virtualized board.

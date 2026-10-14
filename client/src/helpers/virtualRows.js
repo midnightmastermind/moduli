@@ -141,6 +141,11 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
   }, [active, isGrid, tileW, lineGap, listRef]);
 
   const v = useVirtualizer({
+    // NOT flushSync. The adapter's default re-renders the whole board SYNCHRONOUSLY inside each scroll
+    // event while scrolling, which made every touch event of a swipe slow to handle (measured in Movies,
+    // 2026-10-14: ~72ms of a ~200ms swipe), so Chrome saw a slow finger and flicks coasted little or not at
+    // all. Overscan covers the one frame the rows now lag the scroll by.
+    useFlushSync: false,
     count: active ? lines : 0,
     enabled: active,
     getScrollElement: () => scrollEl,
