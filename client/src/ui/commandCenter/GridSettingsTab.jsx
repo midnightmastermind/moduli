@@ -29,7 +29,10 @@ const inputCls = "w-full h-7 text-[11px] px-2 rounded bg-backgroundScale-0 borde
 const selectCls = "h-6 text-[11px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none focus:border-primary cursor-pointer";
 
 export function GridSettingsTab() {
-  const { state, dispatch, socket, fieldsById } = useGridActions();
+  // occurrencesById / modulesById come from the context, NOT from `state`: the
+  // app's state keeps occurrences as a LIST, so `state.occurrencesById` was
+  // always undefined and Mosaic saved no layout (2026-10-14).
+  const { state, dispatch, socket, fieldsById, occurrencesById, modulesById } = useGridActions();
   const grid = state?.grid;
   const gridId = state?.gridId || grid?._id;
 
@@ -64,27 +67,27 @@ export function GridSettingsTab() {
       // Derive an initial split tree from the current panel positions so the
       // user's layout is preserved on convert (they re-tune via the splitters).
       const panels = (grid?.occurrences || [])
-        .map((id) => state?.occurrencesById?.[id])
+        .map((id) => occurrencesById?.[id])
         .filter((o) => o && o.placement)
         .map((o) => ({
           _occurrenceId: o.id,
           row: o.placement.row ?? 0,
           col: o.placement.col ?? 0,
-          layout: state?.modulesById?.[o.moduleId]?.layout,
+          layout: modulesById?.[o.moduleId]?.layout,
         }));
       meta.layoutTree = deriveTreeFromPlacements(panels);
     } else {
       delete meta.layoutTree; // placements were never mutated → rows×cols resumes
     }
     CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta }, emit: true });
-  }, [gridId, grid?.meta, grid?.occurrences, state?.occurrencesById, state?.modulesById, dispatch, socket]);
+  }, [gridId, grid?.meta, grid?.occurrences, occurrencesById, modulesById, dispatch, socket]);
 
   // Panel occurrences with placement (the grid owns these ids).
   const panelOccs = useMemo(
     () => (grid?.occurrences || [])
-      .map((id) => state?.occurrencesById?.[id])
+      .map((id) => occurrencesById?.[id])
       .filter((o) => o && o.placement),
-    [state?.occurrencesById, grid?.occurrences],
+    [occurrencesById, grid?.occurrences],
   );
 
   // Distinct occupied indices along an axis ("col"/"row"), spanning width/height.
