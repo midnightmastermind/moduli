@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 (4) — THE REBUILD WEARS POMS' COLOURS AND LAYOUTS; "This Placement" was inert on two of three settings forms
+
+User (11:14): *"it looks nothing like the pomsgrid style and layout wise"*. Account3 did the skin, the Mosaic
+and the Trackers layouts (and four Layout/Style editor fixes, 752ba72e..17cb6b4f) before its limit; this session
+finished it, all by clicking, read back out of Mongo (`server/_stylemap.mjs` built the poms->rebuild map by path).
+```
+layouts   Trackers page + 13 containers = poms' · 11 media/library boards (wrap 184px squares) = poms'
+colours   169 modules' own bg (+ Tasks › Emotional's child-instance default) through Settings › Style
+          (`_stylebatch.mjs` TODO PAGE [NOSEARCH PLACEMENT]); Routines 129, Tasks 9, Trackers 8, Bills 5,
+          the Schedule template pages 12, the project template's 6 kanban columns
+placement Paul's Clown Website's 6 kanban columns: its modules are SHARED with Via Fluere on the rebuild
+          (both from the template) and poms colours only Paul's, so the colour went on This Placement
+skipped   poms' "6:00am › Drink" / "12:00pm › Walk": rows no page reaches, whose rebuild modules also paint
+          6 past-day copies poms leaves plain
+```
+**Fix (client):** `ModuleContainer` renders `ContainerForm` in three places (standard header, header hidden,
+embedded); two never passed `onOccurrenceStyleChange`, so This Placement could not leave Inherit there (a nested
+Kanban column was one). One `containerFormProps` object, spread at all three (`containerFormPropsShared.test.js`,
+fails before). **Panels left:** the rebuild's first panel now shows Routines (probes navigate it); the second
+showed "National Geographic.jpg" before this session started.
+
+---
+
 ### 2026-10-14 (3) — THE SIDEBAR TREE: ONLY WHAT IS ON SCREEN, AND A SCROLLER THAT CAN BE COMPOSITED
 
 User: *"super slow and choppy with multiple folders open"* → *"just whatever is on the screen"*. Measured on poms
