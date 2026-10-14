@@ -3904,3 +3904,11 @@ per picked date (that is where the items live); Combine hides those and shows on
   combined schedule is ever seen (no flash of the day columns).
 - Items with no Time Slot: **the combined Todo slot pulls each picked day's Todo items**, tagged with their date.
 - **Both grids** (poms by migration, rebuild by clicking).
+
+### 2026-10-14 07:31 CDT (main) — comlink, again
+- *"why wouldnt running comlink in the background work, if we arent editing anymore … in the beginning"* →
+  *"its mostly not letting the operation after load make scrolling slow down"*. Goal: the load-time op sweep runs
+  off the main thread (worker), so scrolling stays smooth while it runs; read-only until it lands is acceptable.
+- **07:34** — *"the tab in the picker shouldnt say once btw cause you can select multiple dates"* → the when picker's
+  first tab is "Dates" and holds several dates sharing one time (stored `{mode:"once", dates:[…]}`; an old single
+  `date` still reads). A reminder on several dates switches off only after the last one rings.

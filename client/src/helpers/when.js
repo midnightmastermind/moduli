@@ -4,7 +4,8 @@
 // field (an alarm in the Alarms list) and the Schedule field (an operation places the occurrence on the day)
 // both use (user, 2026-10-12). Pure — no store, no clock unless one is passed.
 //
-//   { mode: "once",     date: "2026-10-13", time: "14:30" }            time optional (all day)
+//   { mode: "once",     dates: ["2026-10-13", "2026-10-15"], time: "14:30" }   time optional (all day);
+//                       one or several dates sharing the time. An older value carries a single `date`.
 //   { mode: "every",    every: 2, unit: "minute"|"hour"|"day"|"week"|"month",
 //                       start: { date: "2026-10-13", time: "09:00" } } time optional for day/week/month
 //   { mode: "weekdays", days: [1, 3, 5], time: "09:00", start?: { date } }   0 = Sunday
@@ -33,10 +34,17 @@ const at = (day, time) => {
 const DAY_MS = 86_400_000;
 const daysBetween = (a, b) => Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / DAY_MS);
 
+/** PURE. The dates of a "once" value, sorted and deduplicated — `dates`, plus a legacy single `date`. */
+export function onceDates(v) {
+  const all = [...(Array.isArray(v?.dates) ? v.dates : []), ...(v?.date ? [v.date] : [])]
+    .map(parseDay).filter(Boolean).map(dayKey);
+  return [...new Set(all)].sort();
+}
+
 /** PURE. Is this a usable when value? */
 export function isWhen(v) {
   if (!v || typeof v !== "object") return false;
-  if (v.mode === "once") return !!parseDay(v.date);
+  if (v.mode === "once") return onceDates(v).length > 0;
   if (v.mode === "every") return WHEN_UNITS.includes(v.unit) && Number(v.every) >= 1 && !!parseDay(v.start?.date);
   if (v.mode === "weekdays") return Array.isArray(v.days) && v.days.length > 0;
   return false;
@@ -48,7 +56,7 @@ export function whenTimesOnDay(v, day) {
   const d = typeof day === "string" ? parseDay(day) : day;
   if (!d) return [];
   const key = dayKey(d);
-  if (v.mode === "once") return dayKey(parseDay(v.date)) === key ? [v.time || null] : [];
+  if (v.mode === "once") return onceDates(v).includes(key) ? [v.time || null] : [];
   if (v.mode === "weekdays") {
     const start = parseDay(v.start?.date);
     if (start && daysBetween(start, d) < 0) return [];
@@ -120,7 +128,11 @@ const fmtDay = (s) => {
 export function describeWhen(v) {
   if (!isWhen(v)) return "";
   const time = (t) => (t ? ` at ${formatClock(t)}` : "");
-  if (v.mode === "once") return `${fmtDay(v.date)}${time(v.time)}`;
+  if (v.mode === "once") {
+    const ds = onceDates(v);
+    const days = ds.length <= 3 ? ds.map(fmtDay).join(", ") : `${fmtDay(ds[0])} + ${ds.length - 1} more dates`;
+    return `${days}${time(v.time)}`;
+  }
   if (v.mode === "weekdays") {
     const days = [...v.days].map(Number).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
     const name = days.length === 7 ? "Every day" : days.join(",") === "1,2,3,4,5" ? "Weekdays" : days.map((d) => WEEKDAY_SHORT[d]).join(", ");

@@ -28,7 +28,7 @@ import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
 import { operationsBridge } from "./bindSocketToStore";
 import { safeEmit } from "../helpers/offlineQueue";
-import { lastFireAtOrBefore } from "../helpers/when";
+import { lastFireAtOrBefore, nextFireAfter } from "../helpers/when";
 
 const UNIT_MS = { second: 1_000, minute: 60_000, hour: 3_600_000, day: 86_400_000 };
 // Cadence floor for persistent-effect schedules (UPDATE_ITEM_FIELD,
@@ -171,7 +171,8 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           const nextSchedule = { ...sched, lastFiredAt: now.toISOString() };
           // A one-time reminder that has rung stays in the Alarms list switched OFF (user, 2026-10-12),
           // so it can be seen and re-armed; clearing its field is what removes it.
-          const spent = sched.kind === "when" && sched.when?.mode === "once";
+          // With several dates it is spent only after the LAST one has rung.
+          const spent = sched.kind === "when" && sched.when?.mode === "once" && !nextFireAfter(sched.when, now);
           dispatch(updateOperationAction({ ...op, schedule: nextSchedule, ...(spent ? { enabled: false } : {}) }));
           // The payload MUST nest the operation under `operation` — the server
           // handler is `({ operation }) => { const id = operation?.id; if (!id)
