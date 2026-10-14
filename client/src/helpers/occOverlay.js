@@ -42,9 +42,26 @@
  * @returns an overlay whose `map` is the live local occurrence cache. Reads go
  *   straight to `map`; every WRITE must go through `set` / `drop` / `reset`.
  */
+/** Same parent and same child list (by id, in order)? A missing previous row is a structural change. */
+function sameStructure(prev, next) {
+  if (!prev || !next) return false;
+  if ((prev.parentId ?? null) !== (next.parentId ?? null)) return false;
+  const a = prev.occurrences, b = next.occurrences;
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return !Array.isArray(a) && !Array.isArray(b);
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export function makeOccOverlay() {
   const map = {};
   let version = 0;
+  // STRUCTURE version: moves only when a write can change who lists whom — a new or dropped row, a changed
+  // `parentId`, or a changed child list. A value write (a field, a label, meta) does not, and it is ~all of
+  // what an operation sweep applies: keying the whole-grid parent index on `version` rebuilt it once PER
+  // field write — measured 1.7s of a 2.5s block applying one load's effects (2026-10-14).
+  let structVersion = 0;
   // Keyed on the BASE MAP'S IDENTITY. A WeakMap rather than a single slot for
   // two reasons: the two consumers pass different base maps (the load sweep's
   // `hydratedState.occurrencesById` and the fire path's `_cachedBaseOccsById`),
@@ -57,10 +74,12 @@ export function makeOccOverlay() {
   return {
     map,
     get version() { return version; },
+    get structVersion() { return structVersion; },
 
     set(id, occ) {
       if (!id) return occ;
       tombstones.delete(id);
+      if (!sameStructure(map[id], occ)) structVersion++;
       map[id] = occ;
       version++;
       return occ;
@@ -83,6 +102,7 @@ export function makeOccOverlay() {
       if (!(id in map)) return false;
       delete map[id];
       version++;
+      structVersion++;
       return true;
     },
 
@@ -90,6 +110,7 @@ export function makeOccOverlay() {
       tombstones.clear();
       for (const key in map) delete map[key];
       version++;
+      structVersion++;
       // Emptying the map is the ONE thing that can retract a coverage verdict,
       // so the verdicts go with it. A WeakMap cannot be cleared in place.
       cache = new WeakMap();

@@ -2283,7 +2283,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const sweepCtx = { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps,
       // Lets the executor reuse one parent map across the per-descendant sweeps
       // of a date change (operationExecutor.sweepParentMap).
-      _occVersion: _occOverlay.version };
+      // The STRUCTURE version: a value write does not change the parent index (occOverlay.structVersion).
+      _occVersion: _occOverlay.structVersion };
     const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById }));
 
     // ── THE SWEEP MAY YIELD, AND EVERYTHING AFTER IT IS SHARED ─────────────
@@ -2755,9 +2756,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // (2026-10-05: `Stamp Date & Time Slot` never ran for an add to today's Todo).
     // The trigger scope is "under X through ANY parent", the same union the
     // executor's `_ancestors` uses (dragHitTesting.allAncestorsOf).
-    if (_acParentVersion !== _occOverlay.version) {
+    if (_acParentVersion !== _occOverlay.structVersion) {
       _acParentMap = buildParentMap(localOccsById);
-      _acParentVersion = _occOverlay.version;
+      _acParentVersion = _occOverlay.structVersion;
     }
     const self = localOccsById[occId];
     if (!self) return { ids, labels };
