@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 (2) — EXTENSION: SIGN-IN, IMAGE CLIPS, A PLAINER PLACEMENT WINDOW; textblocks at label size
+
+Account3 finishing the main account's queue (limit at 09:31).
+- **Empty grid dropdown in the "choose where" window** = an expired 7-day session token. `refresh_session` (server
+  `socketHandlers/auth.js`) signs a fresh one for a signed-in socket; the app asks on connect + every 6h
+  (`helpers/sessionRefresh.js`). SharePlace shows "sign in again" on 401/403. Verified on prod.
+- **Image clips landed in Bookmarks** as a remote reference (Facebook CDN urls expire, `oe=`). `shareIngress.
+  storeImageClip` downloads (or decodes `data:`) and stores it like a shared image → type `image`, row in
+  Files › Images. Download: browser UA, 25 MB cap (a 6.5 MB photo was refused at 5). Verified on prod with a probe
+  share (rebuild grid; deleted after). **The user's earlier Facebook clip is still the old bookmark in poms'
+  Bookmarks** (`f61d3270`, remote url).
+- **Placement window wording**: Auto / Choose where / Use a preset with hints; "Saved as a movie, like the 993
+  already there"; field rows = field + value, "from <source> then <transform>" under it. Auto's destination was
+  WRONG for branching rules — `createTargetOf` named the first CREATE (Lookup) for a plain link that goes to
+  Bookmarks; `createTargetsOf` lists every branch ("Lookup, YouTube or Bookmarks (depends on what you clipped)").
+- **Folder-page cards** show the mode-glyph drag handle (the card was already draggable; nothing showed it).
+- **Textblocks + mini textblocks** use `--instance-label-px` (17px desktop) — user: "to the size of instance labels".
+- **Not done:** the 52 loose images in poms' Files/Images — measured: 18 referenced by the 4 superseded unlisted
+  ingredient rows (Eggs / Greek Yogurt / Chicken Thighs / Frozen Berries), 2 by Apple rows, ~30 referenced by
+  nothing (Aug seed pictures replaced since), 2 phone shares, the logo (embedded), the folder page. Filing vs
+  deleting is the user's call.
+
+---
+
 ### 2026-10-14 — SCROLLING DURING LOAD, MEASURED; one 1.7s stall gone; the when picker holds several dates
 
 User: *"why wouldnt running comlink in the background work, if we arent editing anymore"* → *"its mostly not letting
