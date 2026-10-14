@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 (3) — THE SIDEBAR TREE: ONLY WHAT IS ON SCREEN, AND A SCROLLER THAT CAN BE COMPOSITED
+
+User: *"super slow and choppy with multiple folders open"* → *"just whatever is on the screen"*. Measured on poms
+grid, every folder open, 4x CPU (`_treeperf.mjs`; Firefox check `_treeff.mjs`):
+```
+                         before     virtualized   + opaque scroller
+elements in the tree     35,548       9,627          9,627
+open every folder (47)   50.5s        13.8s           9.2s
+worst single folder      13s (Food)   1.2s            0.4s (People)
+scroll frame             940ms        214ms           40ms     idle floor 29ms
+```
+- **One folder was the cost, not "many open":** Files › Images › People drew all 1,351 rows (24,313 elements), so
+  "one folder open at a time" would not have helped. A folder over `FOLDER_VIRTUAL_MIN` (50) pages+files is
+  virtualized with `helpers/virtualRows` against the sidebar scroller (spacers keep its length); subfolders always render.
+- **The remaining 200ms was Layerize** (trace: 9.9s of 15s; JS under 300ms; no animations in the tree). The tree's
+  scroller was TRANSPARENT over an opaque `--surface-card` parent, so it could not scroll on its own layer and each
+  frame re-layered the page. Both sidebar scrollers (ManifestTree + ModulePanel's two) paint `--surface-card` now —
+  same colour, no visual change. A/B in one page: transparent 229ms, opaque 43ms; `contain` did nothing;
+  `will-change` was close but stalled once at 1.4s.
+- DocNode / FolderNode / PageTreeNode are `React.memo` (measured: no effect on its own; kept, harmless).
+- Also today: image cards on folder pages carry the standard radial handle top-left; an opened image zooms
+  (`ui/ZoomableImage`, reusing `helpers/graphView`); 52 loose Files/Images items deleted at the user's ask (backup
+  `server/backups/orphans/2026-10-14-poms-files-images-cleanup.json`); the Facebook clip re-stored as a file.
+
+---
+
 ### 2026-10-14 (2) — EXTENSION: SIGN-IN, IMAGE CLIPS, A PLAINER PLACEMENT WINDOW; textblocks at label size
 
 Account3 finishing the main account's queue (limit at 09:31).
