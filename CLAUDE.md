@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 — SCROLLING DURING LOAD, MEASURED; one 1.7s stall gone; the when picker holds several dates
+
+User: *"why wouldnt running comlink in the background work, if we arent editing anymore"* → *"its mostly not letting
+the operation after load make scrolling slow down"*. Measured before building (`_sweepscroll.mjs` scrolls the board
+every frame from rows-on-screen, phone 390px, 4x CPU, poms; `PROF=1` + `_sweepprofmap.mjs` attribute each phase):
+```
+phase (after rows show)       busy      what
+before the sweep (~13s)      ~12s      React drawing the grid ~6s (FieldRenderer/resolveOptions ~1.1s), catalogue
+op sweep (~5s)               4.4-6s    pure op calculation — the only part a worker can take
+applying its effects         2.4s      1.7s of it buildParentMap, once PER field write   -> 0.8-1.0s (fixed)
+after (first 10s)            7.6s      feed sync 1.6s, saving the boot snapshot ~0.7s, React 0.9s
+```
+**Fix (`occOverlay.structVersion`):** the overlay counts STRUCTURE changes (parentId / child list / add / drop /
+reset) apart from value writes; the bridge's ancestor-chain index and the sweep's parent map key on it.
+`occOverlayStructVersion.test.js`, both halves A/B'd. **Open:** the worker for the sweep (~4.5s, minus a ~0.5-1s copy
+of the grid into it); the 6s of drawing before the sweep is not an op and a worker does not touch it.
+**When picker:** the first tab is "Dates" and holds several dates sharing one time (`{mode:"once", dates:[…]}`, an
+old `date` still reads); a reminder on several dates switches off after the last (`whenDates.test.jsx`, A/B'd).
+**Panel D on poms** set back to the Schedule (the user's own Doc Page stays in its list). Reminder + Schedule fields:
+confirmed done on both grids.
+
+---
+
 ### 2026-10-13 (8) — COMBINE SCHEDULE ON THE REBUILD BY CLICKING; a combined slot pulls what SITS in it
 
 Account3. **Built on the rebuild by clicking** (`_comb.mjs`, op editor), filed under Schedule Ops, and diffed against

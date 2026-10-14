@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-14 — `occOverlay.structVersion`; `when` once-mode holds `dates`)
+- `structVersion` moves only when a write can change who lists whom (new/dropped row, parentId, child list by id).
+  `bindSocketToStore.getAncestorChain` and the sweep's `_occVersion` key on it — a field write used to rebuild the
+  whole-grid parent index (1.7s while applying one load's effects). `occOverlayStructVersion.test.js`.
+- `when.onceDates(v)` — `dates` plus a legacy `date`, sorted + deduped; isWhen/whenTimesOnDay/describeWhen use it.
+  `useScheduler` switches a once-reminder off only when `nextFireAfter` finds nothing left. `whenDates.test.jsx`.
+
 ## Recent Changes (2026-10-13 (2) — a feed condition can name WHERE a row sits)
 - `feedPredicate` leaf: `{ path, comparator, value }` with `path` in `RECORD_PATHS` (`_ancestors`, `parentId`) instead
   of `fieldId` — `_ancestors HAS_ANCESTOR <occ>` = "under that occurrence" (any parent's chain). Any other path is not
