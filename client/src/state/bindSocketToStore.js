@@ -17,6 +17,8 @@ import { describeSnapshotTransaction } from "../helpers/transactionScope";
 import { afterPaint } from "../helpers/afterPaint";
 import { measureCoalesceKey, mergeMeasureTransaction } from "../helpers/measureCoalesce";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
+import { loadSweepWorkerSafe } from "../helpers/opSweepCore";
+import { runSweepInWorker, sweepWorkerEnabled } from "../helpers/opSweepWorkerClient";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { autoScrollWhenReady, browserTakeoverSubscription } from "../helpers/autoScrollOnLoad";
@@ -580,10 +582,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // continuation below, which the effect loop then re-uses.
       const capturedScope = captureAction();
 
-      void runMatchingOperationsSliced(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
-        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById })),
-        { wrap: (fn) => runInAction(capturedScope, fn) },
-      ).then((allUpdates) => runInAction(capturedScope, () => {
+      const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById }));
+      const onPage = () => runMatchingOperationsSliced(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
+        sweepCbs, { wrap: (fn) => runInAction(capturedScope, fn) });
+      // ── THE SWEEP MAY RUN IN A WORKER (2026-10-14) ───────────────────────────
+      // Off the page, so scrolling stays smooth while it computes (measured: 4.5-6s of a phone's main thread).
+      // Same executor over a snapshot (helpers/opSweepCore), so the same effects; they are applied below
+      // exactly as before. Only when no op needs the page (a prompt, a fetch, a toast); any failure runs it
+      // here instead. Its writes were computed from the snapshot, so a field the user changed meanwhile wins.
+      const useWorker = sweepWorkerEnabled() && loadSweepWorkerSafe(operations);
+      const sweepStartedAt = Date.now();
+      const sweep = useWorker
+        ? runSweepInWorker({ occurrences: Object.values(overlay), modules: payload.modules || [], fields: payload.fields || [], operations,
+            grid: hydratedState.grid, gridId: hydratedState.gridId || hydratedState.grid?._id, folders: hydratedState.folders || [] })
+            .then((res) => {
+              if (!res) return onPage();
+              markLoad("ops:worker", { ms: Math.round(res.ms) });
+              for (const r of res.ran) sweepCbs.onSuccess?.(r.name, r.results, r.meta || {});
+              for (const e of res.errors) sweepCbs.onError?.(e.name, new Error(e.message));
+              return dropStaleFieldWrites(res.updates, mergedOccsOverlay(occurrencesById), sweepStartedAt);
+            })
+        : onPage();
+      void sweep.then((allUpdates) => runInAction(capturedScope, () => {
       const tOps1 = performance.now();
       markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
