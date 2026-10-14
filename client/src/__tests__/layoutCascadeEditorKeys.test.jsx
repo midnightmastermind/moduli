@@ -69,3 +69,21 @@ describe("LayoutCascadeEditor — typing a number keystroke by keystroke", () =>
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ childMinWidth: 40 }));
   });
 });
+
+describe("LayoutCascadeEditor — switching to Own seeds only what a control can show", () => {
+  it("drops an empty navOptions and a non-grid columns", () => {
+    const onChange = vi.fn();
+    render(<LayoutCascadeEditor value={null} onChange={onChange}
+      cascade={{ levels: [], resolved: { mode: "stack", columns: 1, navOptions: [] } }} />);
+    fireEvent.click(screen.getByText(/^Inherit/));
+    const seed = onChange.mock.calls[0][0];
+    expect(seed).toEqual({ mode: "stack" });
+  });
+  it("keeps columns under grid and a real navOptions (control)", () => {
+    const onChange = vi.fn();
+    render(<LayoutCascadeEditor value={null} onChange={onChange}
+      cascade={{ levels: [], resolved: { mode: "grid", columns: 3, navOptions: ["preview"] } }} />);
+    fireEvent.click(screen.getByText(/^Inherit/));
+    expect(onChange.mock.calls[0][0]).toEqual({ mode: "grid", columns: 3, navOptions: ["preview"] });
+  });
+});

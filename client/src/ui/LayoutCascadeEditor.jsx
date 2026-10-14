@@ -70,7 +70,9 @@ export default function LayoutCascadeEditor({
       const r = cascade?.resolved || {};
       const seed = {};
       if (r.dragInView) seed.dragInView = r.dragInView;
-      if (Array.isArray(r.navOptions)) seed.navOptions = r.navOptions;
+      // Only a non-empty list: an empty one is "no opinion", and once stored it
+      // has no control that can clear it.
+      if (Array.isArray(r.navOptions) && r.navOptions.length) seed.navOptions = r.navOptions;
       if (typeof r.navAllowChange === "boolean") seed.navAllowChange = r.navAllowChange;
       if (typeof r.locked === "boolean") seed.locked = r.locked;
       if (typeof r.showFieldsByDefault === "boolean") seed.showFieldsByDefault = r.showFieldsByDefault;
@@ -78,7 +80,9 @@ export default function LayoutCascadeEditor({
       // Seed the layout shape too, so switching to Own starts from what is
       // on screen rather than snapping the board back to a stacked default.
       if (r.mode) seed.mode = r.mode;
-      if (Number.isFinite(r.columns)) seed.columns = r.columns;
+      // Grid columns has a control only in Grid mode; seeded under any other
+      // arrangement it is a key nothing can show or clear.
+      if (r.mode === "grid" && Number.isFinite(r.columns)) seed.columns = r.columns;
       if (Number.isFinite(r.childGap)) seed.childGap = r.childGap;
       onChange?.(seed);
     }
