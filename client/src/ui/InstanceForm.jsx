@@ -119,6 +119,28 @@ export default function InstanceForm({
 
           <Separator />
 
+          {/* Picture inline with the label — `meta.mediaInline`, read by
+              ModuleInstance. Seed-only until 2026-10-14 (187 poms rows carry it). */}
+          <label className="flex items-center gap-2 py-2 text-[11px] cursor-pointer">
+            <input
+              type="checkbox"
+              aria-label="Picture inline with label"
+              checked={!!instance?.meta?.mediaInline}
+              onChange={(e) => {
+                if (!instance) return;
+                const { mediaInline, ...rest } = instance.meta || {};
+                CommitHelpers.updateModule({
+                  dispatch, socket,
+                  module: { ...instance, meta: e.target.checked ? { ...rest, mediaInline: true } : rest },
+                  emit: true,
+                });
+              }}
+            />
+            Picture inline with label (small thumbnail)
+          </label>
+
+          <Separator />
+
           {/* Drag Behavior */}
           <div className="py-2">
             <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Drag Behavior</h4>

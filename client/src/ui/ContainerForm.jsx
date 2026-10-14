@@ -153,6 +153,37 @@ export default function ContainerForm({
             onChange={onChange}
           />
 
+          {/* Two module-level looks that were seed-only until 2026-10-14:
+              `meta.headerBand: false` drops the header's band (489 poms slot
+              containers) and `meta.cardChrome` frames a NESTED container as a
+              card (ModuleContainer reads both). Unticking removes the key. */}
+          <div className="py-2 flex flex-col gap-1">
+            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+              <input
+                type="checkbox"
+                aria-label="Header band"
+                checked={container?.meta?.headerBand !== false}
+                onChange={(e) => {
+                  const { headerBand, ...rest } = container?.meta || {};
+                  onContainerUpdate?.({ meta: e.target.checked ? rest : { ...rest, headerBand: false } });
+                }}
+              />
+              Header band
+            </label>
+            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+              <input
+                type="checkbox"
+                aria-label="Card frame when nested"
+                checked={container?.meta?.cardChrome === true}
+                onChange={(e) => {
+                  const { cardChrome, ...rest } = container?.meta || {};
+                  onContainerUpdate?.({ meta: e.target.checked ? { ...rest, cardChrome: true } : rest });
+                }}
+              />
+              Card frame when nested
+            </label>
+          </div>
+
           {/* Header label overflow (per-occurrence) */}
           {occurrence && (
             <div className="py-2">
