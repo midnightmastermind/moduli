@@ -287,6 +287,29 @@ function SelectWidget({ filter, value, options, dispatch, onNav }) {
   );
 }
 
+// A true/false filter is a switch. Unset reads OFF (a boolean filter with no value is not on), and
+// pills for "true"/"false" started with neither picked (user, 2026-10-13).
+function SwitchWidget({ filter, value, dispatch, onNav }) {
+  const write = makeWriter(filter, onNav, dispatch);
+  const on = value === true || value === "true";
+  return (
+    <button
+      type="button" role="switch" aria-checked={on}
+      onClick={() => write(!on)}
+      style={{
+        width: 26, height: 14, padding: 0, position: "relative", cursor: "pointer", flexShrink: 0,
+        border: "1px solid var(--border-default, #374151)", borderRadius: 999,
+        background: on ? "var(--accent-blue, #14b8a6)" : "transparent",
+      }}
+    >
+      <span style={{
+        position: "absolute", top: 1, left: on ? 13 : 1, width: 10, height: 10, borderRadius: "50%",
+        background: on ? "white" : "var(--text-muted, #888)", transition: "left 0.12s",
+      }} />
+    </button>
+  );
+}
+
 function InputWidget({ filter, value, dispatch, onNav }) {
   const [local, setLocal] = useState(value || "");
   const timer = useRef(null);
@@ -318,6 +341,7 @@ export default function FilterNavWidget({ filter, navConfig, value, fieldsById, 
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
+  if (style === "switch") return <SwitchWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
   return null;
 }
 
@@ -341,7 +365,8 @@ export function defaultStyleForFilter(filter, fieldsById) {
     return fid ? fieldsById?.[fid] : null;
   })();
   if (fld?.type === "date") return "arrows";
-  if (fld?.type === "select" || fld?.type === "boolean") return "pills";
+  if (fld?.type === "boolean") return "switch";
+  if (fld?.type === "select") return "pills";
   if (fld?.type === "number") return "arrows";
   return "input";
 }
