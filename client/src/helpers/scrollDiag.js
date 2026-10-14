@@ -806,16 +806,30 @@ export function armScrollDiag() {
       return;
     }
     const el = e.target;
-    // Only real content scrollers — ignore tiny menus and the document itself.
-    if (!el || el === document || !el.scrollHeight) return;
-    if (el.scrollHeight - el.clientHeight < 400) return;
-
-    if (!active) startSession(el);
-    if (active && active.scroller === el) active.endTop = el.scrollTop;
-
+    if (!el || el === document) return;
+    // ONE LOOK PER FRAME, NOT PER EVENT. Reading scrollHeight / scrollTop
+    // forces a layout, and inside a scroll event during load (the grid is
+    // still mounting rows) that layout is thrown away and done again for the
+    // frame — 0.66s of a phone load (4x CPU, 2026-10-14). In a rAF callback
+    // it is the same layout the frame was about to do.
+    pendingEl = el;
     clearTimeout(idleTimer);
     idleTimer = setTimeout(endSession, IDLE_END_MS);
+    if (frameQueued) return;
+    frameQueued = true;
+    requestAnimationFrame(() => {
+      frameQueued = false;
+      const t = pendingEl;
+      pendingEl = null;
+      // Only real content scrollers — ignore tiny menus and the document itself.
+      if (!t || !t.scrollHeight) return;
+      if (t.scrollHeight - t.clientHeight < 400) return;
+      if (!active) startSession(t);
+      if (active && active.scroller === t) active.endTop = t.scrollTop;
+    });
   };
+  let pendingEl = null;
+  let frameQueued = false;
 
   window.addEventListener("scroll", onScroll, { capture: true, passive: true });
 

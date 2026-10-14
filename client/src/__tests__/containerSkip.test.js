@@ -75,7 +75,7 @@ describe("a skipped element must not seed from itself", () => {
   it("the observer SKIPS a skipped target", () => {
     const target = { ...el(), checkVisibility: () => false };
     let cb;
-    class RO { constructor(f) { cb = f; } observe() {} disconnect() {} }
+    class RO { constructor(f) { cb = f; } observe() {} unobserve() {} disconnect() {} }
     observeContainerSize(target, { ResizeObserverImpl: RO });
     cb([{ target, contentBoxSize: [{ blockSize: 999 }] }]);
     expect(target.getAttribute(CV_ATTR)).toBeNull();
@@ -84,7 +84,7 @@ describe("a skipped element must not seed from itself", () => {
   it("and seeds a rendered one — the control", () => {
     const target = { ...el(), checkVisibility: () => true };
     let cb;
-    class RO { constructor(f) { cb = f; } observe() {} disconnect() {} }
+    class RO { constructor(f) { cb = f; } observe() {} unobserve() {} disconnect() {} }
     observeContainerSize(target, { ResizeObserverImpl: RO });
     cb([{ target, contentBoxSize: [{ blockSize: 999 }] }]);
     expect(target.getAttribute(CV_ATTR)).toBe("999");
@@ -99,6 +99,35 @@ describe("which box", () => {
     expect(heightFromEntry({ contentBoxSize: [{ blockSize: 120 }], contentRect: { height: 999 } })).toBe(120);
     expect(heightFromEntry({ contentRect: { height: 77 } })).toBe(77);   // older engines
     expect(heightFromEntry(undefined)).toBe(0);                          // -> refused above
+  });
+});
+
+describe("one observer, reads before writes", () => {
+  it("shares one observer across containers and flushes style once", () => {
+    // Per-container observers asked checkVisibility, wrote a seed, asked again —
+    // one style flush per container. The shared callback reads every target
+    // first, then writes.
+    const log = [];
+    const mk = (name) => ({ ...el(), checkVisibility: () => { log.push(`read ${name}`); return true; },
+      setAttribute(k, v) { log.push(`write ${name}`); this._a = { ...(this._a || {}), [k]: v }; },
+      getAttribute(k) { return this._a?.[k] ?? null; } });
+    let made = 0, cb;
+    class RO { constructor(f) { made++; cb = f; } observe() {} unobserve() {} disconnect() {} }
+    const a = mk("a"), b = mk("b");
+    observeContainerSize(a, { ResizeObserverImpl: RO });
+    observeContainerSize(b, { ResizeObserverImpl: RO });
+    expect(made).toBe(1);
+    cb([{ target: a, contentBoxSize: [{ blockSize: 10 }] }, { target: b, contentBoxSize: [{ blockSize: 20 }] }]);
+    expect(log).toEqual(["read a", "read b", "write a", "write b"]);
+  });
+
+  it("a teardown stops observing only its own element", () => {
+    const seen = [];
+    class RO { constructor() {} observe(e) { seen.push(["observe", e.id]); } unobserve(e) { seen.push(["unobserve", e.id]); } disconnect() { seen.push(["disconnect"]); } }
+    const t = observeContainerSize({ ...el(), id: "x" }, { ResizeObserverImpl: RO });
+    observeContainerSize({ ...el(), id: "y" }, { ResizeObserverImpl: RO });
+    t();
+    expect(seen).toEqual([["observe", "x"], ["observe", "y"], ["unobserve", "x"]]);
   });
 });
 

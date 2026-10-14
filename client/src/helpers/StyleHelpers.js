@@ -5,7 +5,7 @@
 // Each level can "inherit" (use parent defaults) or "own" (override).
 // ============================================================
 
-import { buildParentMap } from "./dragHitTesting";
+import { cachedParentMap } from "./dragHitTesting";
 
 // Default shape — all null means "inherit everything".
 // Granular border + font fields let the cascade override pieces
@@ -166,7 +166,10 @@ export function resolveInstanceStyle(instance, container, panel, grid = null) {
 export function buildStyleCascadeContext({ leafOccurrence, occurrencesById, modulesById, grid }) {
   const ctx = { grid };
   if (!leafOccurrence || !occurrencesById || !modulesById) return ctx;
-  const parentByChildId = buildParentMap(occurrencesById);
+  // Render-path only (ModulePage, the style forms), handed the store map —
+  // cachedParentMap is safe here and the uncached build cost ~440ms of a phone
+  // load, once per page render (2026-10-14).
+  const parentByChildId = cachedParentMap(occurrencesById);
   let cur = leafOccurrence;
   let safety = 32;
   const seen = new Set();

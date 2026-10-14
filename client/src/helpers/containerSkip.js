@@ -106,16 +106,33 @@ export function heightFromEntry(entry) {
  * Returns a teardown. No ResizeObserver (jsdom, old engines) means no seed and
  * therefore no skipping — the feature is off rather than half on.
  */
+// ONE OBSERVER FOR EVERY CONTAINER, READS BEFORE WRITES. With an observer per
+// container, each callback asked `checkVisibility` (a style flush) and then wrote
+// a seed (which dirties style again), so a load that mounted N containers paid N
+// style recalculations — ~0.47s of a phone load (4x CPU, 2026-10-14). One shared
+// observer delivers every entry in one callback: all the reads, then all the
+// writes, one flush. Keyed by implementation so an injected one (tests) gets its
+// own instance.
+const _shared = new Map();
+function sharedObserver(RO) {
+  let ro = _shared.get(RO);
+  if (ro) return ro;
+  ro = new RO((entries) => {
+    const toSeed = [];
+    for (const entry of entries) {
+      const target = entry.target;
+      if (target && isRendered(target)) toSeed.push([target, heightFromEntry(entry)]);
+    }
+    for (const [target, h] of toSeed) seedIntrinsicSize(target, h);
+  });
+  _shared.set(RO, ro);
+  return ro;
+}
+
 export function observeContainerSize(el, { ResizeObserverImpl } = {}) {
   const RO = ResizeObserverImpl || (typeof ResizeObserver !== "undefined" ? ResizeObserver : null);
   if (!el || !RO) return () => {};
-  const ro = new RO((entries) => {
-    for (const entry of entries) {
-      const target = entry.target || el;
-      if (!isRendered(target)) continue;
-      seedIntrinsicSize(target, heightFromEntry(entry));
-    }
-  });
+  const ro = sharedObserver(RO);
   ro.observe(el);
-  return () => { try { ro.disconnect(); } catch { /* teardown */ } };
+  return () => { try { ro.unobserve(el); } catch { /* teardown */ } };
 }
