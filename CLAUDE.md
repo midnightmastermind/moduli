@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 (6) — THE REBUILD OPENS LIKE POMS: panels, page field visibility, no "false" pills, scrolled to now
+
+User: *"the layout is still different than poms grid"* → *"anything we are recreating should be able to be reproduced
+via the ui"* (standing rule, CLAUDE_CHAT 14:59). Found by SCREENSHOTTING both grids side by side (`_shotgrid.mjs`
+GRID TAG), not by a data diff — the earlier panel census read placements and called a mirrored grid "matching".
+```
+panels        rebuild showed image | Schedule | Routines; poms Routines | Tasks | Schedule (right, full height).
+              Each opened from its own panel's tree (_paneltree)
+page fields   Routines hide Time Slot + Last Seen · Tasks hide Tags · Schedule hide Tags/Time Slot/Last Seen/Date
+              = poms (page chevron › Fields › Hide, `_pagefv.mjs` ID FIELDS)
+"false" pill  a boolean filter value printed "false" on every container under the Schedule. HeaderChevron:
+              off -> no pill (unset already reads off), on -> the field's name. headerChevronBoolPill, A/B'd
+scroll to now poms' Mark Passed Slots runs every 5 min AND On Load (the load run scrolls to the current slot);
+              the editor hid triggers on a scheduled op. It shows them now and "Convert to scheduled op" keeps
+              them (scheduledOpTriggers, A/B'd). On Load P9 added to the rebuild's op by clicking (`_addtrig.mjs`)
+```
+Watched: a fresh rebuild load lands on 3:00pm (green), as poms. Slot paint already matched slot for slot. Left:
+values on rows (sample data) and the Schedule page's two seed-made local filters (Date, Time Slot) poms carries.
+
+---
+
 ### 2026-10-14 (5) — THE KANBANS AND THE DAY PAGE'S COLUMNS; and four Layout-menu defects found typing poms' numbers
 
 Account3, after its limit reset (the other session had done the colours, (4)). Still by clicking (`_ctrlayout.mjs`
