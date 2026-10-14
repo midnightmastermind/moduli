@@ -3921,3 +3921,4 @@ per picked date (that is where the items live); Combine hides those and shows on
   me how to add it permanetly to firefox instead of temporaru"*
 - **09:25** — *"and we have a ton of random images inside the images folder that arent filed in the correct places"*
 - **09:27** — *"those image occurances dont have a drag handle either"* (the loose images in Files/Images)
+- **09:44** — *"the extension isnt allowing me to save images either. i cant find where they go. i tried manual and auto. please clean up the extensions menu cause its hard to understand like the mapping"*

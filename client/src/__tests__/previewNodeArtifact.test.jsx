@@ -40,4 +40,13 @@ describe("PreviewNode — artifact cards", () => {
     const { container } = render(<PreviewNode occurrence={{ id: "po", moduleId: "p", meta: {} }} module={page} onDrillDown={() => {}} />);
     expect(container.querySelector(".preview-node-artifact")).toBeNull();
   });
+
+  it("carries a visible drag handle, and pressing it does not open the card", () => {
+    const onDrillDown = vi.fn();
+    const { container } = render(<PreviewNode occurrence={occ} module={img} onDrillDown={onDrillDown} />);
+    const h = container.querySelector(".preview-node-handle[data-dnd-handle]");
+    expect(h).toBeTruthy();
+    fireEvent.click(h);
+    expect(onDrillDown).not.toHaveBeenCalled();
+  });
 });

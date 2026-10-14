@@ -3836,6 +3836,20 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   white-space: nowrap;
 }
 
+.preview-node-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: grab;
+}
+.preview-node-handle:hover { color: var(--text-primary); background: var(--input-bg); }
+.preview-node-handle:active { cursor: grabbing; }
+
 /* ============================================================ */
 /* ArtifactCard — thumbnail + expanded media viewer             */
 /* ============================================================ */

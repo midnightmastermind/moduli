@@ -19,6 +19,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { File, Image as ImageIcon, X, Trash2, Pencil } from "lucide-react";
+import { dragModeMeta } from "../helpers/dragModes";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
@@ -360,6 +361,14 @@ export default function PreviewNode({
         }
       </div>
       <div className="preview-node-title">
+        {/* The card itself is the drag source; this is the same mode-glyph handle
+            every other occurrence shows, so a card reads as grabbable (user,
+            2026-10-14: "those image occurances dont have a drag handle"). */}
+        {(() => { const DragIcon = dragModeMeta(occurrence?.dragMode || module?.defaultDragMode || "move").Icon; return (
+          <span className="preview-node-handle" data-dnd-handle="true" title="Drag" onClick={(e) => e.stopPropagation()}>
+            <DragIcon size={11} />
+          </span>
+        ); })()}
         <Icon size={10} style={{ color, flexShrink: 0 }} />
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <AutoMarquee>{label}</AutoMarquee>
