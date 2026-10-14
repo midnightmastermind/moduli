@@ -38,9 +38,16 @@ const STATE_COLOR = {
 // cast. Supports both bare ISO date strings and the new period-shape
 // `{ value, unit }` form (D/W/M/Y selector). Returns null when the
 // value isn't worth rendering (empty / unresolvable).
-function formatFilterValue(fieldId, value, fieldsById) {
+export function formatFilterValue(fieldId, value, fieldsById) {
   if (value == null || value === "") return null;
   const field = fieldsById?.[fieldId];
+  // A switch filter (Combine Schedule): OFF is the resting state — an unset
+  // value reads as off too — so it earns no pill; ON is named by its field.
+  // A bare "false"/"true" pill on every container under the page said nothing.
+  if (typeof value === "boolean" || field?.type === "boolean") {
+    const on = value === true || value === "true";
+    return on ? (field?.name || "On") : null;
+  }
   const isDate = field?.type === "date";
   // Multi-shape detection: { kind: "multi", dates: ["YYYY-MM-DD", ...] }
   // List the actual days and contiguous ranges ("May 6, May 9–12, May 20").
