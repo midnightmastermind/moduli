@@ -79,6 +79,8 @@ export async function runShareRules({ share, userId, gridId, io = null, mirror =
 export function shareTypeOfPayload(payload = {}) {
   const f = payload.file;
   const files = f ? [{ filename: f.originalname || f.filename, mimetype: f.mimetype, size: f.size }] : [];
+  // An image clip is stored as a file when it is shared (shareIngress.storeImageClip).
+  if (!files.length && (payload.shape === "image" || payload.clip?.meta?.clipShape === "image")) return "image";
   return classifyShare({ files, url: payload.url || null, text: payload.text || null, title: payload.title || null }).type;
 }
 

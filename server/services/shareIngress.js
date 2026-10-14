@@ -123,6 +123,40 @@ async function storePersonPhoto(photo, { storeFile, fetchImage, userId, gridId, 
   return stored?.occurrenceId || null;
 }
 
+const EXT_BY_PATH = /\.(jpe?g|png|webp|gif)(?:$|[?#])/i;
+
+/**
+ * AN IMAGE CLIP IS A FILE (2026-10-14). The extension's "save image" sent only
+ * the picture's URL, so it ran as a LINK: it landed in Bookmarks as a remote
+ * reference — and a CDN link like Facebook's is signed and expires (`oe=`), so
+ * the picture would have gone blank within days. The bytes are fetched and
+ * stored like any shared image, so the share is an `image` with its own row in
+ * Files › Images. Returns null when the picture cannot be read; the caller then
+ * shares it as before.
+ */
+async function storeImageClip(url, { storeFile, fetchImage, userId, gridId }) {
+  let buf = null, mime = null;
+  const data = /^data:(image\/[\w+.-]+);base64,(.+)$/i.exec(url || "");
+  if (data) { mime = data[1].toLowerCase(); buf = Buffer.from(data[2], "base64"); }
+  else if (/^https?:\/\//i.test(url || "") && fetchImage) {
+    const got = await fetchImage(url).catch(() => null);
+    if (!got?.buf) return null;
+    buf = got.buf; mime = got.type || null;
+  }
+  if (mime === "image/jpg") mime = "image/jpeg";
+  if (!buf?.length || !EXT_FOR[mime]) return null;
+  let base = "image";
+  try {
+    if (!data) base = decodeURIComponent(new URL(url).pathname.split("/").pop() || "image").replace(EXT_BY_PATH, "");
+  } catch {}
+  base = base.replace(/[^\w .-]+/g, "").trim().slice(0, 80) || "image";
+  const name = `${base}.${EXT_FOR[mime]}`;
+  const tmp = path.join(os.tmpdir(), `share-clip-${randomUUID()}.${EXT_FOR[mime]}`);
+  await fs.writeFile(tmp, buf);
+  const file = { path: tmp, originalname: name, mimetype: mime, size: buf.length };
+  return storeFile({ file: { ...file, filename: name, _multer: file }, userId, gridId });
+}
+
 export async function prepareShare({
   userId, gridId, source = "api",
   files = [], url = null, text = null, title = null, label = null, shape = null,
@@ -130,10 +164,31 @@ export async function prepareShare({
   fetchPreview = null, storeFile = null, fetchProfile = null, fetchImage = null,
   timeZone = null, resolveSlotLabels = null, fetchCalendar = null,
 }) {
-  const { type, props } = classifyShare({ files, url, text, title });
-  const enriched = { ...props, shape: shape || null };
-  const cleanClip = sanitizeClip(clip);
+  let { type, props } = classifyShare({ files, url, text, title });
+  let enriched = { ...props, shape: shape || null };
+  let cleanClip = sanitizeClip(clip);
   let sha256 = null;
+  let clipLabel = null;
+
+  const isImageClip = !files.length && (shape === "image" || cleanClip?.meta?.clipShape === "image");
+  if (isImageClip && storeFile) {
+    const src = url || cleanClip?.moduleFileRef;
+    const stored = await storeImageClip(src, { storeFile, fetchImage, userId, gridId }).catch(() => null);
+    if (stored?.occurrenceId) {
+      clipLabel = label || cleanClip?.label || null;
+      type = "image";
+      enriched = {
+        filename: null, mimeType: null, sizeBytes: null, shape: "image",
+        url: /^https?:/i.test(src || "") ? src : null,
+        clippedFrom: cleanClip?.meta?.clippedFrom || null,
+        occurrenceId: stored.occurrenceId, fileRef: stored.fileRef,
+      };
+      sha256 = stored.sha256 || null;
+      // The stored file IS the thing — a clip record beside it would make the
+      // catch-all mint a second row.
+      cleanClip = cleanClip ? { ...cleanClip, _stored: true } : null;
+    }
+  }
 
   // A CALENDAR is read BEFORE the file is stored — storing moves the temp file.
   let calendar = null;
@@ -220,10 +275,10 @@ export async function prepareShare({
   return {
     type: shareType, source,
     props: enriched,
-    clip: cleanClip,
+    clip: cleanClip?._stored ? null : cleanClip,
     ...(person ? { person } : {}),
     ...(calendar ? { events: calendar.events, notices: calendar.notices } : {}),
-    label: shareLabelFor(type, enriched, label || cleanClip?.label),
+    label: shareLabelFor(type, enriched, label || clipLabel || cleanClip?.label),
     externalId: cleanClip?.externalId || (shareType === "ics" && type === "link"
       ? `webcal:${calendarFetchUrl(enriched.url)}`
       : shareExternalIdFor(type, enriched, { shape, sha256 })),

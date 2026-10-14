@@ -1361,6 +1361,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         const m = o?.moduleId ? await Module.findOne({ id: o.moduleId, userId: opened.userId }).lean() : null;
         lands = o?.label || m?.label || null;
       }
+      // A file share is stored in Files before any rule runs; a rule that only
+      // halts leaves it there, so say so rather than naming nowhere.
+      const FILE_HOME = { image: "Files › Images", video: "Files › Video", audio: "Files › Audio", pdf: "Files › Documents", file: "Files › Documents" };
+      if (!lands && FILE_HOME[type]) lands = FILE_HOME[type];
       res.json({
         type, gridId: String(gridId), ruleId: first?.id || null, ruleName: first?.name || null, lands,
         then: rules.slice(1).map((r) => r.name),
