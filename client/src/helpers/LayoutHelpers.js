@@ -1210,8 +1210,11 @@ export function addInstanceToContainer({
       ? ensureId(list, occurrenceId)
       : insertAt(list, index, occurrenceId);
 
-  const updated = { ...containerOccurrence, occurrences: nextList };
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: list });
+  // ONLY the list. Resending the whole record wrote back whatever else the
+  // caller's snapshot held — feedSync passes one taken when its pass began, so
+  // a feed switched On listed its copies with `feed.conditions: []` and erased
+  // the conditions typed meanwhile (2026-10-14).
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, occurrences: nextList }, emit, occurrencesBase: list });
 }
 
 export function removeInstanceFromContainer({
@@ -1222,7 +1225,7 @@ export function removeInstanceFromContainer({
   emit = true,
 }) {
   if (!containerOccurrence || !occurrenceId) return;
-  const updated = { ...containerOccurrence, occurrences: removeId(containerOccurrence.occurrences || [], occurrenceId) };
+  const updated = { id: containerOccurrence.id, occurrences: removeId(containerOccurrence.occurrences || [], occurrenceId) };
   CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: updated, emit, occurrencesBase: containerOccurrence.occurrences || [] });
 }
 
@@ -1237,7 +1240,7 @@ export function reorderInstancesInContainer({
   if (!containerOccurrence) return;
   const prev = containerOccurrence.occurrences || [];
   const next = arrayMove(prev, fromIndex, toIndex);
-  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, occurrences: next }, emit, occurrencesBase: containerOccurrence.occurrences || [] });
+  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, occurrences: next }, emit, occurrencesBase: containerOccurrence.occurrences || [] });
 }
 
 /**
