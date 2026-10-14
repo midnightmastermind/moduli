@@ -3,6 +3,16 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-14 (3) — three costs off the first draw)
+- `scrollDiag` (on by default on touch) read `scrollHeight` in every scroll event: a forced layout per event while
+  the grid mounts (~0.66s, phone 4x). One rAF look per frame now.
+- `StyleHelpers.buildStyleCascadeContext` uses `cachedParentMap` (render-path callers only; was ~0.44s per load).
+- `containerSkip.observeContainerSize` shares ONE ResizeObserver: all `checkVisibility` reads, then all seed writes
+  (was one style flush per container, ~0.47s). Test `containerSkip.test.js` (+2, A/B'd).
+- Measured (`_sweepscroll.mjs`, two interleaved pairs): rows on screen 7.2s -> 6.7s, load ops start 13.2s -> 12.0s.
+- Still there: dropdown option lists — 40 fields, each resolved twice per load (initial + catalogue), 1.28s total
+  (`_orcount.mjs` with a temporary counter build). React render + commit of the grid is ~5s of the rest.
+
 ## Recent Changes (2026-10-14 (2) — the load sweep runs in a worker; virtualRows no flushSync)
 - `opSweepCore.js` (NEW): `runSweepSnapshot(snap)` (pure), `workerSafeOp(op)`, `loadSweepWorkerSafe(operations)`.
   `opSweepWorkerClient.js` (NEW): `runSweepInWorker(...)` streams chunks, null on failure; `sweepWorkerEnabled()`.
