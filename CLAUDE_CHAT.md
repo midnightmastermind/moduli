@@ -3914,3 +3914,8 @@ per picked date (that is where the items live); Combine hides those and shows on
   `date` still reads). A reminder on several dates switches off only after the last one rings.
 - **07:48** — *"yes test it and look at the flicker scroll"* → build the op-sweep worker as a measured experiment
   (keep it only if scroll during load improves), and check flick (momentum) scrolling inside a long virtualized board.
+- **08:40** — *"12s is a long time to draw the grid"* → measure the before-sweep window and cut what it can.
+- **09:15** — dice question → *"once you reach for the dropdown"*: an occurrence dropdown builds its option list only
+  when hovered / pressed / focused; the 🎲 button appears then (not on load).
+- **09:18** — *"also the grids are not showing in the extension in the dropdown so look at that after this. then tell
+  me how to add it permanetly to firefox instead of temporaru"*

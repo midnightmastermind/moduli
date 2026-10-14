@@ -124,7 +124,20 @@ function FieldRenderer({
   // Fails toward correctness: anything that is not explicitly a static mode
   // keeps subscribing, so an unrecognised or missing mode still refreshes.
   const optionsMode = field?.meta?.optionsSource?.mode;
-  const poolFromOccurrences = wantsResolve && optionsMode !== "manual" && optionsMode !== "range";
+  // AN OCCURRENCE DROPDOWN BUILDS ITS LIST WHEN YOU REACH FOR IT (user, 2026-10-14:
+  // "once you reach for the dropdown"). A closed one only shows its picks, and those
+  // come from the occurrence map (withSelectedOptions), not from the list. Measured on
+  // a phone load: 40 dropdown fields resolved twice each, 1.28s, every one closed.
+  // Hover / press / focus on the field asks for the list; the 🎲 appears then.
+  // A re-rollable (randomizable) field keeps resolving up front — its dice is the point.
+  const lazyOptions = field?.type === "occurrence" && field?.meta?.randomizable !== true;
+  const [optionsWanted, setOptionsWanted] = useState(false);
+  const resolveNow = !lazyOptions || optionsWanted;
+  const wantOptions = useCallback(() => setOptionsWanted(true), []);
+  const reachHandlers = lazyOptions && !optionsWanted
+    ? { onPointerEnter: wantOptions, onPointerDownCapture: wantOptions, onFocusCapture: wantOptions }
+    : null;
+  const poolFromOccurrences = wantsResolve && resolveNow && optionsMode !== "manual" && optionsMode !== "range";
   // NARROWED FROM THE GRID-WIDE COUNT TO THE POOL (helpers/optionPoolKey.js).
   //
   // The count moved on any create anywhere — including a DROP, which is what
@@ -157,12 +170,12 @@ function FieldRenderer({
   // display-only randomize button needs a candidate pool (e.g. journalQuestion
   // text field with an optionsSource.find).
   const { options: resolvedOptions, totalMatched } = useMemo(() => {
-    if (!wantsResolve) return { options: [], totalMatched: 0 };
+    if (!wantsResolve || !resolveNow) return { options: [], totalMatched: 0 };
     // occSetKey (occurrence count) is the reactive dep; the map is a fresh
     // read at compute time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return resolveOptions(field, { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById }, occurrence ?? null);
-  }, [field, wantsResolve, poolFromOccurrences, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
+  }, [field, wantsResolve, resolveNow, poolFromOccurrences, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
 
   // This row's own pick(s), as a key so the options below recompute only when
   // they change.
@@ -184,7 +197,7 @@ function FieldRenderer({
     // the ~99% of fields that declare none.
     const resolved = resolveDisplayConfig(field, fieldsById);
     if (resolved?.type !== "select" && resolved?.type !== "occurrence") return resolved;
-    return { ...resolved, meta: { ...resolved.meta, _resolvedOptions: withSelectedOptions(resolvedOptions, resolved, selectedKey, getOccMap, modulesById), _totalMatched: totalMatched } };
+    return { ...resolved, meta: { ...resolved.meta, _resolvedOptions: withSelectedOptions(resolvedOptions, resolved, selectedKey, getOccMap, getModMap?.() || modulesById), _totalMatched: totalMatched } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field, fieldsById, resolvedOptions, totalMatched, selectedKey]);
 
@@ -434,7 +447,7 @@ function FieldRenderer({
   // to the column-stacked input renderers.
   if (displayEnabled && !inputEnabled) {
     return (
-      <div style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column", alignItems: "flex-start" }}>
+      <div {...reachHandlers} style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column", alignItems: "flex-start" }}>
         <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 2 }}>
           <Field
             field={effectiveField}
@@ -501,7 +514,7 @@ function FieldRenderer({
   const showDisplay = displayEnabled || role === "both";
 
   return (
-    <div style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column"}} className={showDisplay ? "field-renderer-both" : undefined}>
+    <div {...reachHandlers} style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column"}} className={showDisplay ? "field-renderer-both" : undefined}>
       {showDisplay && (
         <Field
           field={effectiveField}
