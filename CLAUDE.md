@@ -57,6 +57,41 @@ Panels: the rebuild's left panel is back on Schedule (its list trimmed to Root +
 
 ---
 
+### 2026-10-14 (5) — THE REBUILD PUNCH LIST, BY CLICKING; a feed's own sync erased the conditions being typed into it
+
+Continuing account3's census (`server/_deepcmp.mjs`, weekly limit at 15:31) of everything non-bulk that differs.
+All by clicking, read back from Mongo; a re-run census is the check (`before -> after` by category):
+```
+looks     account3's three new switches (mediaInline / headerBand / cardChrome) on 196 items   modMeta 822 -> 666
+feeds     31 boards "Board Category CONTAINS <tag>", limit 200                                  32 -> 1 (Completed: ids only)
+nav       the date nav hidden on 54 pages/folder pages (filter › Nav off)        58 left = filter-id naming only
+drag      188 rows Copy/Move as poms (radial › Drag mode)                                       188 -> 0
+links     139 lone one-member copy-link tags cleared (radial › Break Link)                      169 -> 32
+hidden    Checking / Savings / Mom's Account / Cash / Last Opened hidden (new control)          5 -> 0
+fv        Grocery List show 4 · Trackers hide Tags,Date · 3 Tasks rows + Mr Brews Off            9 -> 5 (order only + Workouts)
+colours   the 5 the first pass missed                                                           12 -> 6 (Paul's, placement on purpose)
+```
+**Fix 1 (`helpers/LayoutHelpers`):** add/remove/reorder of a child list resent the WHOLE container record it was
+handed. feedSync hands it a snapshot from the start of its pass, so switching a feed On (no conditions yet)
+listed ~183 copies whose writes each carried `feed.conditions: []` and erased the conditions typed meanwhile —
+Beverages and Supplements stored "match everything" and held 183 copies each. Now `{ id, occurrences }`
+(`childListWriteIsPartial.test.js`, fails before). The copies were swept by the sync once the conditions stuck.
+**Fix 2 (`ui/FeedSection`):** the condition editor showed only once the feed was On, and an On feed with no
+conditions pulls everything its roles allow; it now shows while Off ("N would match") so a feed is built first.
+"No conditions + no scope = whole grid" is left as designed (tests pin it; 0 of 115 live feeds use it).
+**Fix 3 (InstanceForm / ContainerForm):** `occurrence.hidden` had no control — "Hide this row" in a row's Settings,
+and its container's Settings lists hidden rows with Show.
+**Left (re-run census, deep3):** `headingLevel` on 63 doc sections (Nutrition Plan, Fitness Plan, Basic Nutrition
+Guide, Day Page Template) · `allowChildContainers` 39 · Day Page Template's bodyLink/labelOverflow and Daily
+Question binding · Readings/Courses rows' Poster/Files/Library/Media Tags bindings · Trackers balance-tile
+bindings · Schedule template slots' Last Seen binding (42) · local filters on Schedule/Trackers · kind of Day Page
+Template (doc on poms) · ops: 57 tracker shapes, 70 trigger rows, 6 poms-only. Not needed: slotHour/Label/Minute,
+todoListContainer, nutrition meta (read by nothing). **Probes:** `_stylebatch` (NOSEARCH PLACEMENT), `_dragbatch`
+(BREAK=1), `_navoff`, `_openfolder` (same-named folders: search cannot tell "Food" from Files/Images/Food),
+`_instfv`, `_pagefv` (KIND MODE), `_ctrfeed2` now builds the feed Off and switches it On last.
+
+---
+
 ### 2026-10-14 (4) — THE REBUILD WEARS POMS' COLOURS AND LAYOUTS; "This Placement" was inert on two of three settings forms
 
 User (11:14): *"it looks nothing like the pomsgrid style and layout wise"*. Account3 did the skin, the Mosaic
