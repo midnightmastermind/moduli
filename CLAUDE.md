@@ -33,6 +33,28 @@ reset) apart from value writes; the bridge's ancestor-chain index and the sweep'
 of the grid into it); the 6s of drawing before the sweep is not an op and a worker does not touch it.
 **When picker:** the first tab is "Dates" and holds several dates sharing one time (`{mode:"once", dates:[…]}`, an
 old `date` still reads); a reminder on several dates switches off after the last (`whenDates.test.jsx`, A/B'd).
+**THE SWEEP RUNS IN A WEB WORKER now** (user: *"yes test it"*). `helpers/opSweepCore.runSweepSnapshot` is the load
+sweep as a pure function of a snapshot; `workers/opSweep.worker.js` runs it; `helpers/opSweepWorkerClient` streams the
+snapshot in 1,500-row chunks a frame apart (one structured clone of the grid measured 0.75s at 4x) and resolves to the
+effects, which `runLoadSweep` applies as before. Used only when `loadSweepWorkerSafe` — no op the load runs, or calls
+through RUN_OPERATION, needs the page (prompt / fetch / import / toast); otherwise, or on any failure, on the page.
+Field writes made meanwhile win (`dropStaleFieldWrites`). Off with localStorage `moduli-sweepWorker=0`. Fixture:
+worker effects match the page's as well as two page runs match (99.7% of 370). Interleaved A/B on poms, scrolling:
+```
+                      worker off   worker on
+sweep phase              5.6s        2.2s      (worker computes ~1.25s)
+time stuck in it         4.4s        0.2s
+worst frame in it        ~1.5s       ~0.1s
+```
+Watched on prod: the worker ran (1.22s), 233ms stuck. **Lost:** load runs no longer appear in the op editor's Run
+history (the run log lives in the worker). **Left:** a ~0.7-0.9s block applying the effects, and the ~12s before the
+sweep (drawing + the catalogue arriving).
+**FLICK inside a long board (Movies, 1,000 rows, virtualized):** headless, the old build coasted 0 of 8 flicks after
+the load settled (the Schedule 7 of 8). Cause: `@tanstack/react-virtual` re-renders with `flushSync` INSIDE every
+scroll event, so each touch event took longer and Chrome saw a slow finger. `useFlushSync: false` -> 5 of 8 coast.
+Caveat: the probe waits for each touch event, so busy code slows its swipe; a real touchscreen stamps its own times.
+Probes `_fling.mjs` (VARIANTS LISTENERS REGIONS SWIPEPROF), `_phonepanel.mjs`, `_clonecost.mjs`; the phone's panel is
+pointed at Movies with `_panelrestore` and put back after.
 **Panel D on poms** set back to the Schedule (the user's own Doc Page stays in its list). Reminder + Schedule fields:
 confirmed done on both grids.
 

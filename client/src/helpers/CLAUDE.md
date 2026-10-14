@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-14 (2) — the load sweep runs in a worker; virtualRows no flushSync)
+- `opSweepCore.js` (NEW): `runSweepSnapshot(snap)` (pure), `workerSafeOp(op)`, `loadSweepWorkerSafe(operations)`.
+  `opSweepWorkerClient.js` (NEW): `runSweepInWorker(...)` streams chunks, null on failure; `sweepWorkerEnabled()`.
+  `../workers/opSweep.worker.js` (NEW). Wired in `state/bindSocketToStore.runLoadSweep`. Test `opSweepCore.test.js`.
+- `virtualRows.useVirtualRows` passes `useFlushSync: false` (flicks inside a long board coasted 0 of 8 headless).
+
 ## Recent Changes (2026-10-14 — `occOverlay.structVersion`; `when` once-mode holds `dates`)
 - `structVersion` moves only when a write can change who lists whom (new/dropped row, parentId, child list by id).
   `bindSocketToStore.getAncestorChain` and the sweep's `_occVersion` key on it — a field write used to rebuild the
