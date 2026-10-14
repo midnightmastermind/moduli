@@ -39,7 +39,7 @@ export default function InstanceForm({
   dispatch,
   socket,
 }) {
-  const { fieldsById, occurrencesById, modulesById, state } = useGridActions();
+  const { fieldsById, occurrencesById, modulesById, state, dispatch: ctxDispatch, socket: ctxSocket } = useGridActions();
 
   // Cascade context — walks from THIS instance occurrence up through
   // Container → Page → Panel → Grid so the StyleEditor's "Inherited
@@ -118,6 +118,25 @@ export default function InstanceForm({
           />
 
           <Separator />
+
+          {/* Hide THIS placement — `occurrence.hidden` (selectors.isOccurrenceVisible).
+              Only an operation could set it before 2026-10-14 and nothing could
+              clear it; its container's Settings lists hidden rows to show again. */}
+          {occurrence && (
+            <label className="flex items-center gap-2 py-2 text-[11px] cursor-pointer">
+              <input
+                type="checkbox"
+                aria-label="Hide this row"
+                checked={!!occurrence.hidden}
+                onChange={(e) => CommitHelpers.updateOccurrence({
+                  dispatch: dispatch || ctxDispatch, socket: socket || ctxSocket,
+                  occurrence: { id: occurrence.id, hidden: e.target.checked },
+                  emit: true,
+                })}
+              />
+              Hide this row (show it again from its container's Settings)
+            </label>
+          )}
 
           {/* Picture inline with the label — `meta.mediaInline`, read by
               ModuleInstance. Seed-only until 2026-10-14 (187 poms rows carry it). */}

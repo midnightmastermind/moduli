@@ -7,6 +7,7 @@ import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import GraphSection from "./GraphSection";
 import { useGridActions } from "../GridActionsContext";
+import * as CommitHelpers from "../helpers/CommitHelpers";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
@@ -36,7 +37,12 @@ export default function ContainerForm({
   onOccurrenceStyleChange, // (style|null) => void — writes occurrence.ownStyle
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
-  const { occurrencesById, modulesById, fieldsById, state } = useGridActions();
+  const { occurrencesById, modulesById, fieldsById, state, dispatch, socket } = useGridActions();
+  const hiddenRows = useMemo(() => (occurrence?.occurrences || [])
+    .map((id) => occurrencesById?.[id])
+    .filter((o) => o?.hidden)
+    .map((o) => ({ id: o.id, name: o.label || modulesById?.[o.moduleId]?.label || o.id.slice(0, 8) })),
+  [occurrence?.occurrences, occurrencesById, modulesById]);
 
   // Cascade context for the StyleEditor — shows what every ancestor
   // (Grid → Panel → Page) is pushing down so the user can see WHY this
@@ -183,6 +189,25 @@ export default function ContainerForm({
               Card frame when nested
             </label>
           </div>
+
+          {/* Rows hidden by hand (`occurrence.hidden`) cannot be clicked, so this is
+              where they come back. Hidden from a row's own Settings. */}
+          {hiddenRows.length > 0 && (
+            <div className="py-2">
+              <span className="text-[10px] text-muted-foreground font-semibold block mb-1">Hidden rows</span>
+              {hiddenRows.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="truncate">{r.name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Show ${r.name}`}
+                    className="text-[10px] px-2 py-0.5 rounded border border-[var(--border-subtle)]"
+                    onClick={() => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: r.id, hidden: false }, emit: true })}
+                  >Show</button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Header label overflow (per-occurrence) */}
           {occurrence && (
