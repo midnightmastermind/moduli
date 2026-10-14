@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-14 (5) — THE KANBANS AND THE DAY PAGE'S COLUMNS; and four Layout-menu defects found typing poms' numbers
+
+Account3, after its limit reset (the other session had done the colours, (4)). Still by clicking (`_ctrlayout.mjs`
+ID KIND PG SPEC RESET — header chevron › Layout, Inherit → Own, every unnamed key cleared; `sortBy` drives Order by):
+```
+Kanban x3     template + Via Fluere + Paul's: Columns, gap 10, 260/260, max height 420, Hide filter pill = poms'
+Day Page      Columns, gap 12, 420-560, Order by Date = poms'
+all 31        poms' layout rules now stored identically on the rebuild (Schedule's columns is the string "1",
+              written by the Combine op; mode is stack, so columns is not read)
+```
+**Layout menu, each test-first + A/B'd (`layoutCascadeEditorKeys.test.jsx`), deployed:** Square size capped at 99
+(RuleNumber's default) so poms' 184 could not be stored; Max width showed only for Columns although wrap reads it;
+`hideFilterPill` had no control; a number clamped PER KEYSTROKE (typing 184 into a min-40 box went 1→40→408);
+switching to Own seeded `navOptions: []` and a non-grid `columns` that no control could clear.
+**Header menu (`headerDropdownReclamp.test.jsx`):** it clamped to the screen once, on the short Filter tab; the
+Layout tab then ran past the bottom with its last rows unreachable. It re-clamps on every content resize.
+**ContainerForm:** Own under Child Instance Defaults / This Placement did nothing (only Inherit was handled).
+Panels: the rebuild's left panel is back on Schedule (its list trimmed to Root + Schedule). Integrity 0 errors.
+
+---
+
 ### 2026-10-14 (4) — THE REBUILD WEARS POMS' COLOURS AND LAYOUTS; "This Placement" was inert on two of three settings forms
 
 User (11:14): *"it looks nothing like the pomsgrid style and layout wise"*. Account3 did the skin, the Mosaic
