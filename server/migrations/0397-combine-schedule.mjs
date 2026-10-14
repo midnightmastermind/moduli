@@ -140,7 +140,7 @@ export function layoutContainerOf(buildOp) {
 export function withCombineFilter(filters, combineFieldId) {
   const list = filters || [];
   if (list.some((f) => f.fieldId === combineFieldId)) return null;
-  return [...list, { id: uid(), fieldId: combineFieldId, active: true, showNav: true, style: "pills", condition: null }];
+  return [...list, { id: uid(), fieldId: combineFieldId, active: true, showNav: true, condition: null }];
 }
 
 export async function up({ gridId, models, log, dryRun }) {
