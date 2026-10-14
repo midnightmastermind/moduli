@@ -31,6 +31,19 @@ const ROLE_OPTIONS = ["instance", "textblock", "artifact", "container"];
 const MAX_UI_DEPTH = 2;
 
 const isGroup = (entry) => Array.isArray(entry?.conditions);
+// A condition can name WHERE a row sits instead of a field: "under" an
+// occurrence (any of its parents' chains) or directly in one. The value is the
+// occurrence's id.
+const UNDER_OPTIONS = [
+  { value: "@_ancestors", label: "Under (occurrence)", hint: "anywhere inside it" },
+  { value: "@parentId", label: "In (occurrence)", hint: "directly in it" },
+];
+const pickLeft = (entry, id) => {
+  const { path: _p, ...rest } = entry;
+  if (id === "@_ancestors") return { ...rest, fieldId: "", path: "_ancestors", comparator: "HAS_ANCESTOR" };
+  if (id === "@parentId") return { ...rest, fieldId: "", path: "parentId", comparator: "IS" };
+  return { ...rest, fieldId: id || "" };
+};
 const newLeaf = () => ({ id: uid(), fieldId: "", comparator: "IS", value: "" });
 const newGroup = () => ({ id: uid(), operator: "AND", conditions: [newLeaf()] });
 
@@ -124,8 +137,9 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
           <div style={{ flex: 2, minWidth: 0 }}>
             <FieldSelect
               fields={fields}
-              value={entry.fieldId || null}
-              onChange={(id) => replaceAt(i, { ...entry, fieldId: id || "" })}
+              extraOptions={UNDER_OPTIONS}
+              value={entry.path ? `@${entry.path}` : (entry.fieldId || null)}
+              onChange={(id) => replaceAt(i, pickLeft(entry, id))}
               noneLabel="field…"
               placeholder="field…"
               style={inputStyle}

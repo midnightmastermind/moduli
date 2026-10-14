@@ -8,6 +8,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { executePipeline } from "../helpers/operationExecutor";
+import { resolveFeedItems } from "../state/selectors";
 import { combineDaysPipeline, layoutContainerOf, withCombineFilter, COMBINED_FORMAT, COMBINED_LABEL, BUILD_OP }
   from "../../../server/migrations/0397-combine-schedule.mjs";
 
@@ -46,12 +47,47 @@ function run({ combine, picked = days, existing = false }) {
 }
 
 describe("Combine Schedule", () => {
+  it("each combined slot pulls what SITS in that slot on a picked day — an item with no Time Slot too (a Todo item's shape)", () => {
+    // A day slot holding an item with NO Time Slot — the case matching by Time Slot dropped. (The frozen
+    // fixture has no Todo items; a live Todo item is the same shape: listed in a slot, no Time Slot.)
+    const byId = Object.fromEntries(fx.occurrences.map((o) => [o.id, o]));
+    const noTs = (id) => byId[id] && !byId[id].meta?.feedSourceId && byId[id].fields?.[ids.timeslotFieldId]?.value == null;
+    let dayCol = null, dayTodo = null;
+    for (const o of fx.occurrences) {
+      if (o.parentId !== ids.pageOccurrenceId || o.fields?.[ids.scheduleFormatFieldId]?.value !== "day-col") continue;
+      const s = (o.occurrences || []).map((id) => byId[id]).find((sl) => sl && (sl.occurrences || []).some(noTs));
+      if (s) { dayCol = o; dayTodo = s; break; }
+    }
+    expect(dayTodo).toBeTruthy();
+    const day = dayCol.fields[ids.dateFieldId].value;
+    const { occ, effects } = run({ combine: true, picked: [day, nextDay(day)] });
+    const col = effects.find((e) => e._effect === "CREATE_ITEM" && e.instance?.fields?.[ids.scheduleFormatFieldId]?.value === COMBINED_FORMAT);
+    const slotOf = (tplId) => effects.find((e) => e._effect === "CREATE_ITEM" && e.instance?.parentId === col.instance.id
+      && e.instance?.meta?.copyLinkSource === tplId)?.instance;
+    const combTodo = slotOf(dayTodo.meta.copyLinkSource);
+    const feed = effects.find((e) => e._effect === "UPDATE_ITEM_FEED" && e.itemId === combTodo.id).value;
+    const world = { ...occ, [combTodo.id]: { ...combTodo, feed } };
+    const pulled = resolveFeedItems(world[combTodo.id], { occurrencesById: world, modulesById: Object.fromEntries(fx.modules.map((m) => [m.id, m])) })
+      .map((i) => i.occurrence.id).sort();
+    const expected = (dayTodo.occurrences || []).filter((id) => occ[id] && !occ[id].meta?.feedSourceId).sort();
+    expect(expected.some(noTs)).toBe(true);
+    expect(pulled).toEqual(expected);
+  });
+
+  it("picked days with no column yet: every combined slot's feed is OFF (never the whole page)", () => {
+    const far = nextDay(nextDay(lastCol));
+    const { effects } = run({ combine: true, picked: [nextDay(lastCol), far] });
+    const feeds = effects.filter((e) => e._effect === "UPDATE_ITEM_FEED");
+    expect(feeds.length).toBeGreaterThan(0);
+    expect(feeds.every((f) => f.value.enabled === false)).toBe(true);
+  });
+
   it("fixture has a template container and a day to start from", () => {
     expect(layoutContId).toBeTruthy();
     expect(days).toHaveLength(2);
   });
 
-  it("on, two days: one combined column, one copy-linked slot per template slot, each fed by its Time Slot", () => {
+  it("on, two days: one combined column, one copy-linked slot per template slot, each fed by its slot on each picked day", () => {
     const { occ, effects } = run({ combine: true });
     const creates = effects.filter((e) => e._effect === "CREATE_ITEM");
     const col = creates.find((e) => e.instance?.fields?.[ids.scheduleFormatFieldId]?.value === COMBINED_FORMAT);
@@ -63,9 +99,13 @@ describe("Combine Schedule", () => {
     expect(feeds.length).toBeGreaterThan(0);
     const f = feeds[0].value;
     expect(f).toMatchObject({ enabled: true, roles: ["instance"], scope: ids.pageOccurrenceId });
-    const tpl = occ[slots.find((s) => s.instance.id === feeds[0].itemId).instance.meta.copyLinkSource];
-    expect(f.conditions[0]).toMatchObject({ fieldId: ids.timeslotFieldId, comparator: "IS",
-      value: tpl.fields[ids.timeslotFieldId].value });
+    // Since 0399 a slot pulls by WHERE a row sits: the same slot on each picked day that has a column.
+    const tplId = slots.find((s) => s.instance.id === feeds[0].itemId).instance.meta.copyLinkSource;
+    const daySlot = Object.values(occ).find((o) => o.meta?.copyLinkSource === tplId && occ[o.parentId]
+      ?.fields?.[ids.dateFieldId]?.value === lastCol && occ[o.parentId]?.fields?.[ids.scheduleFormatFieldId]?.value === "day-col");
+    expect(daySlot).toBeTruthy();
+    expect(f.conditionOperator).toBe("OR");
+    expect(f.conditions).toEqual([{ id: `under-${daySlot.id}`, path: "_ancestors", comparator: "HAS_ANCESTOR", value: daySlot.id }]);
     const hide = effects.find((e) => e._effect === "UPDATE_ITEM_META" && e.metaPath.join(".") === "layoutCascadeOverride.hideChildIds");
     const dayCols = Object.values(occ).filter((o) => o.parentId === ids.pageOccurrenceId
       && o.fields?.[ids.scheduleFormatFieldId]?.value === "day-col").map((o) => o.id);

@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-13 (2) — a feed condition can name WHERE a row sits)
+- `feedPredicate` leaf: `{ path, comparator, value }` with `path` in `RECORD_PATHS` (`_ancestors`, `parentId`) instead
+  of `fieldId` — `_ancestors HAS_ANCESTOR <occ>` = "under that occurrence" (any parent's chain). Any other path is not
+  a condition. Used by Combine Days (0399). Tests `feedUnderOccurrence.test.js` (A/B'd).
+
 ## Recent Changes (2026-10-13 — `fieldVisibility.reveal`)
 - A level may carry `reveal: [fieldIds]` — shown even where a module binds them HIDDEN, and NOT a
   whitelist (show-mode drops everything it does not name; a union show-list put every Workout field on

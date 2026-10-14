@@ -3897,3 +3897,10 @@ User: *"it esentially makes the filter work as intended correct, instead of crea
 Combine Days was being watched on the rebuild. Answer given: not quite — Build Schedule still creates a day column
 per picked date (that is where the items live); Combine hides those and shows one column of copy-linked items.
 
+
+### 2026-10-13 18:55 CDT (account3) — Combine Schedule answers
+- Day columns: *"it would esentially be a filter on the one schedule (showing all items for all days)"* → follow-up
+  picked **"Build silently, show one"**: day columns are still built so each day's items exist, but only the one
+  combined schedule is ever seen (no flash of the day columns).
+- Items with no Time Slot: **the combined Todo slot pulls each picked day's Todo items**, tagged with their date.
+- **Both grids** (poms by migration, rebuild by clicking).

@@ -57,6 +57,9 @@ import { UNARY_COMPARATORS } from "./comparators.js";
 // offers and still bounded for the sync path.
 const MAX_DEPTH = 4;
 
+/** The record paths a leaf may name instead of a field. */
+export const RECORD_PATHS = new Set(["_ancestors", "parentId"]);
+
 const isGroup = (entry) => Array.isArray(entry?.conditions);
 const normaliseOperator = (op) => (String(op).toUpperCase() === "OR" ? "OR" : "AND");
 
@@ -71,7 +74,12 @@ function buildNode(entry, now, depth) {
     if (!rules.length) return null;
     return { operator: normaliseOperator(entry.operator), rules };
   }
-  if (!entry?.fieldId) return null;
+  // A leaf names a FIELD (`fieldId`) or WHERE a row sits (`path`, one of
+  // RECORD_PATHS) — Combine Days pulls "whatever is under this day's slot", which
+  // no field says (a Todo item carries no Time Slot; a shift spanning 13 slots
+  // carries only its start).
+  const path = RECORD_PATHS.has(entry?.path) ? entry.path : null;
+  if (!entry?.fieldId && !path) return null;
   // A comparator that needs a value but has none is not a condition yet — the
   // row is still being typed. `CONTAINS ""` matches every string, so treating it
   // as live pulled the whole grid while the user was mid-edit (2026-09-22).
@@ -80,7 +88,7 @@ function buildNode(entry, now, depth) {
   const v = entry.value;
   if (!UNARY_COMPARATORS.has(comparator) && (v == null || v === "" || (Array.isArray(v) && !v.length))) return null;
   return {
-    left: `fields.${entry.fieldId}.value`,
+    left: path || `fields.${entry.fieldId}.value`,
     comparator,
     right: resolveFeedConditionValue(entry.value, now),
   };

@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-13 (8) — COMBINE SCHEDULE ON THE REBUILD BY CLICKING; a combined slot pulls what SITS in it
+
+Account3. **Built on the rebuild by clicking** (`_comb.mjs`, op editor), filed under Schedule Ops, and diffed against
+poms' (`server/_combcmp.mjs`, ids mapped): same triggers / target / steps, differences representation only.
+Watched (`_combwatch.mjs`): Combine on + Oct 13–14 → one column, 49 slots, 60 date-tagged copies, 16 day columns
+hidden; ticking a copy ticked the real item; off → column gone. Fix on the way: `meta.layoutCascadeOverride` had no
+children in the path picker, so `.hideChildIds` / `.mode` could not be picked (`layoutOverride` shape).
+**User's answers (18:55, CLAUDE_CHAT):** day columns still built, only the combined one seen; the Todo slot pulls each
+day's Todo items; both grids; and slots pull **by where an item sits**. Measured: every Todo item has no Time Slot
+(poms 30 / rebuild 20), 18% / 45% of slot items have none, 41 / 23 sit in a slot that is not their Time Slot.
+- **Client:** a feed condition may name `path: "_ancestors"` (HAS_ANCESTOR) or `parentId` instead of a field
+  (`feedPredicate.RECORD_PATHS`), with "Under / In (occurrence)" in the feed editor.
+- **0399 / 0397's builder:** one pass over the page's day columns hides all and collects the picked ones (Date
+  DATE_IN_PERIOD the page's period); each combined slot's feed = OR of `_ancestors HAS_ANCESTOR` that slot in each
+  picked column (`meta.copyLinkSource` = the template slot — 1,666 of 1,666 day slots do). No picked column → feed OFF.
+  Tests: `combineSchedule.test.js` (a no-Time-Slot item is pulled; no columns → feeds off) + `feedUnderOccurrence`
+  + FeedSection, all A/B'd. The Todo case first passed on an EMPTY list — the frozen fixture has no Todo items.
+
+---
+
 ### 2026-10-13 (7) — COMBINE SCHEDULE: ONE COLUMN FOR EVERY PICKED DAY, BUILT BY AN OPERATION
 
 User: *"a field called combine schedule thats a checkbox field and is also a filter on schedule"* → (13:58) one

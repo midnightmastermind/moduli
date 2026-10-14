@@ -12,8 +12,8 @@
 //      true / false pills) — toggling it writes the page's filterOverride and fires a NavigationOp;
 //   3. the operation "Schedule: Combine Days". When the page's Combine Schedule is true and more than
 //      one day is picked it keeps ONE column, "Schedule - Combined", holding copy-links of the
-//      template's slots; each slot gets a FEED (Time Slot IS that slot's label, under the Schedule
-//      page) so it lists every matching item from every picked day as a copy-link of the real item
+//      template's slots; each slot gets a FEED (since 0399: whatever is listed in that slot on each
+//      picked day, under the Schedule page) so it lists every matching item from every picked day as a copy-link of the real item
 //      (edits change the real item; the copy carries its Date). The day columns stay and are hidden
 //      through the page's layoutCascadeOverride.hideChildIds. Off, or one day: the column is deleted.
 //
@@ -58,9 +58,21 @@ export function combineDaysPipeline({ pageOccurrenceId, layoutContId, combineFie
               itemIdVar: "$combColId", itemVar: "$combCol" }),
           ]),
           act({ type: "ADD_CHILD", parentId: "$schedPageId", childId: "$combColId" }),
+          // One pass over the page's day columns: every one is HIDDEN, and the ones dated inside the
+          // picked period are the days the combined slots pull from (0399).
+          act({ type: "INIT_VAR", name: "$hideIds", expr: "json:[]" }),
+          act({ type: "INIT_VAR", name: "$dayColIds", expr: "json:[]" }),
+          act({ type: "INIT_VAR", name: "$period", expr: `$schedPage._effectiveFilter.${dateFieldId}` }),
+          loop("$allContainers", "$col", [
+            iff(all(r("$col.parentId", "IS", "$schedPageId"), r(`$col.${fmt}`, "IS", "day-col")), [
+              act({ type: "PUSH_TO_ARRAY", name: "$hideIds", value: "$col.id" }),
+              iff(all(r(`$col.fields.${dateFieldId}.value`, "DATE_IN_PERIOD", "$period")), [
+                act({ type: "PUSH_TO_ARRAY", name: "$dayColIds", value: "$col.id" }),
+              ]),
+            ]),
+          ]),
           act({ type: "INIT_VAR", name: "$layout", expr: `$allItemsById.${layoutContId}` }),
           loop("$layout.occurrences", "$tplSlotId", [
-            act({ type: "SET_VAR", name: "$tplSlot", expr: "$allItemsById.${$tplSlotId}" }),
             act({ type: "FIND", over: "$allContainers",
               predicate: all(r("meta.copyLinkSource", "IS", "$tplSlotId"), r("parentId", "IS", "$combColId")), itemIdVar: "$slotId", itemVar: "$slotOcc" }),
             iff(all(r("$slotId", "IS_EMPTY")), [
@@ -68,18 +80,28 @@ export function combineDaysPipeline({ pageOccurrenceId, layoutContId, combineFie
             ], [
               act({ type: "ADD_CHILD", parentId: "$combColId", childId: "$slotId" }),
             ]),
-            act({ type: "SET_VAR", name: "$slotLabel", expr: `$tplSlot.fields.${timeslotFieldId}.value` }),
-            iff(all(r("$slotLabel", "IS_NOT_EMPTY"), r("$slotOcc.feed.enabled", "IS_EMPTY")), [
-              act({ type: "UPDATE", path: "$slotOcc.feed", value: {
-                enabled: true, roles: ["instance"], scope: "$schedPageId", limit: 200,
-                conditions: [{ id: "combine-ts", fieldId: timeslotFieldId, comparator: "IS", value: "$slotLabel" }],
-              } }),
+            // The slot pulls WHATEVER SITS in the same slot on each picked day — a Todo item has no Time
+            // Slot, a shift spanning 13 slots carries only its start, so no field says where a row sits.
+            // Each day column's slot is a copy-link of this template slot (meta.copyLinkSource).
+            act({ type: "SET_VAR", name: "$conds", expr: "json:[]" }),
+            loop("$dayColIds", "$dcId", [
+              act({ type: "SET_VAR", name: "$dc", expr: "$allItemsById.${$dcId}" }),
+              loop("$dc.occurrences", "$dsId", [
+                act({ type: "SET_VAR", name: "$ds", expr: "$allItemsById.${$dsId}" }),
+                iff(all(r("$ds.meta.copyLinkSource", "IS", "$tplSlotId")), [
+                  act({ type: "PUSH_TO_ARRAY", name: "$conds",
+                    value: { id: "under-${$dsId}", path: "_ancestors", comparator: "HAS_ANCESTOR", value: "$dsId" } }),
+                ]),
+              ]),
             ]),
-          ]),
-          act({ type: "INIT_VAR", name: "$hideIds", expr: "json:[]" }),
-          loop("$allContainers", "$col", [
-            iff(all(r("$col.parentId", "IS", "$schedPageId"), r(`$col.${fmt}`, "IS", "day-col")), [
-              act({ type: "PUSH_TO_ARRAY", name: "$hideIds", value: "$col.id" }),
+            // No day slot to pull from must pull NOTHING — a scoped feed with no usable condition
+            // mirrors the whole Schedule page.
+            iff(all(r("$conds", "IS_EMPTY")), [
+              act({ type: "UPDATE", path: "$slotOcc.feed", value: { enabled: false, roles: ["instance"], scope: "$schedPageId", limit: 200, conditions: [] } }),
+            ], [
+              act({ type: "UPDATE", path: "$slotOcc.feed", value: {
+                enabled: true, roles: ["instance"], scope: "$schedPageId", limit: 200, conditionOperator: "OR", conditions: "$conds",
+              } }),
             ]),
           ]),
           act({ type: "UPDATE", path: "$schedPage.meta.layoutCascadeOverride.hideChildIds", value: "$hideIds" }),

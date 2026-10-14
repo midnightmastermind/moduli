@@ -2,6 +2,10 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-13 — FeedSection: "Under (occurrence)" / "In (occurrence)")
+- The condition's field picker offers two place rows (`UNDER_OPTIONS`): picking one writes `path: "_ancestors"` +
+  `HAS_ANCESTOR` (or `parentId` + `IS`); the value is the occurrence id. So Combine Days' slot feeds are editable.
+
 ## Recent Changes (2026-10-08 (2) — a scheduled op's category is settable and shown)
 - `commandCenter/OpCategorySelect.jsx` (NEW) — the one category picker (op editor + the read-only "Managed by
   the Alarms tab" panel, where it saves on change) and `groupOpsByCategory`, which groups the Schedules list

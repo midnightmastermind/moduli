@@ -191,3 +191,17 @@ describe("FeedSection — every comparator the evaluator understands", () => {
     expect(lastFeed().conditions[1].comparator).toBe("DATE_BEFORE");
   });
 });
+
+describe("FeedSection — a condition can name where a row sits", () => {
+  it("picking 'Under (occurrence)' writes path _ancestors + HAS_ANCESTOR, and back to a field drops the path", () => {
+    mount({ enabled: true, roles: ["instance"], scope: null, limit: 50, conditions: [{ id: "c1", fieldId: F_DONE, comparator: "IS", value: true }] });
+    const sel = screen.getAllByTestId("field-select")[0];
+    fireEvent.change(sel, { target: { value: "@_ancestors" } });
+    expect(lastFeed().conditions[0]).toMatchObject({ path: "_ancestors", comparator: "HAS_ANCESTOR", fieldId: "" });
+  });
+  it("shows a stored path leaf as that option", () => {
+    mount({ enabled: true, roles: ["instance"], scope: null, limit: 50, conditions: [{ id: "c1", path: "_ancestors", fieldId: "", comparator: "HAS_ANCESTOR", value: "slot" }] });
+    expect(screen.getAllByTestId("field-select")[0].value).toBe("@_ancestors");
+  });
+});
+
