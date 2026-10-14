@@ -345,20 +345,20 @@ export default function SharePlace() {
 
       <fieldset style={{ border: 0, padding: 0, margin: "12px 0 4px" }}>
         <label style={rowSt}>
-          <input type="radio" name="mode" aria-label="Auto" checked={mode === "auto"} onChange={() => setMode("auto")} /> Auto
+          <input type="radio" name="mode" aria-label="Auto" checked={mode === "auto"} onChange={() => setMode("auto")} /> Auto <span style={hintSt}>— your share rules decide</span>
         </label>
         {mode === "auto" && (
           <div data-testid="auto-rule" style={{ fontSize: 11, color: "var(--text-muted, #aaa)", margin: "2px 0 8px 22px" }}>
             {preview?.ruleName
-              ? <>→ {preview.ruleName}{preview.lands ? <> · files it in <strong>{preview.lands}</strong></> : null}</>
-              : "→ no rule matches — the catch-all will file it"}
+              ? <>Goes to <strong>{preview.lands || "wherever “" + preview.ruleName + "” puts it"}</strong> <span style={{ color: "var(--text-faint, #888)" }}>(rule: {preview.ruleName})</span></>
+              : "No rule matches — it goes to Files."}
           </div>
         )}
         <label style={rowSt}>
-          <input type="radio" name="mode" aria-label="New" checked={mode === "new"} onChange={() => setMode("new")} disabled={!token} /> New
+          <input type="radio" name="mode" aria-label="New" checked={mode === "new"} onChange={() => setMode("new")} disabled={!token} /> Choose where <span style={hintSt}>— pick a board, page or container</span>
         </label>
         <label style={rowSt}>
-          <input type="radio" name="mode" aria-label="Preset" checked={mode === "preset"} onChange={() => setMode("preset")} disabled={!token} /> Preset
+          <input type="radio" name="mode" aria-label="Preset" checked={mode === "preset"} onChange={() => setMode("preset")} disabled={!token} /> Use a preset <span style={hintSt}>— a place + fields saved earlier</span>
         </label>
         {!token && (
           <div style={{ fontSize: 11, color: "var(--text-muted, #aaa)", marginLeft: 22 }}>
@@ -397,7 +397,7 @@ export default function SharePlace() {
             </div>
           )}
 
-          <label style={lblSt}>Where</label>
+          <label style={lblSt}>Where should it go?</label>
           {destination ? (
             <div style={{ ...inputSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{destination.label}{destination.crumb ? <span style={{ color: "var(--text-faint, #888)", fontSize: 10 }}> · {destination.crumb}</span> : null}</span>
@@ -422,14 +422,14 @@ export default function SharePlace() {
           {destination && (
             <div style={{ fontSize: 11, color: "var(--text-muted, #aaa)", margin: "6px 0", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <span data-testid="shape">
-                Shape: {kindOverride
-                  ? CLIP_KINDS.find((k) => k.value === kindOverride)?.label
+                Saved as {kindOverride
+                  ? `a ${CLIP_KINDS.find((k) => k.value === kindOverride)?.label.toLowerCase()}`
                   : likeRows != null
-                    ? `like its ${likeRows} rows — ${shape.role}${shape.kind ? `/${shape.kind}` : ""}`
-                    : `${shape.role}${shape.kind ? `/${shape.kind}` : ""}`}
+                    ? `${aKind(shape)}, like the ${likeRows} already there`
+                    : aKind(shape)}
               </span>
               <select aria-label="make it a" value={kindOverride} onChange={(e) => changeKind(e.target.value)} style={{ ...miniSelSt }}>
-                <option value="">{siblingShape?.bindingsLike ? "like its rows" : "plain item"}</option>
+                <option value="">{siblingShape?.bindingsLike ? "same as the others there" : "a plain item"}</option>
                 {CLIP_KINDS.map((k) => <option key={k.value} value={k.value}>make it a {k.label.toLowerCase()}</option>)}
               </select>
             </div>
@@ -462,7 +462,8 @@ export default function SharePlace() {
             </div>
           )}
 
-          <label style={{ ...lblSt, marginTop: 8 }}>Fields</label>
+          <label style={{ ...lblSt, marginTop: 10 }}>What it fills in</label>
+          <div style={{ ...hintSt, marginBottom: 6 }}>Each box shows what will be saved. Type over it, or change where it comes from.</div>
           {isTextblock
             ? <MappingRow name="Body" mapping={bodyMappingNow} clip={clip} onChange={setBodyMapping} />
             : <MappingRow name="Label" mapping={labelMapping} clip={clip} onChange={setLabelMapping} />}
@@ -480,7 +481,7 @@ export default function SharePlace() {
             />
             </Suspense>
           ) : (
-            <button type="button" onClick={() => setAdding(true)} style={linkBtnSt}>+ field…</button>
+            <button type="button" onClick={() => setAdding(true)} style={linkBtnSt}>+ fill in another field…</button>
           )}
 
           {destination && (
@@ -517,32 +518,47 @@ const touched = ({ fromShape, ...m }) => m; // eslint-disable-line no-unused-var
 
 function MappingRow({ name, mapping, clip, onChange, onRemove }) {
   const shown = mapping.override ?? (mapping.auto ? mapping.value : resolveMapping(clip, mapping));
+  const fromClip = mapping.source && mapping.source !== "none" && mapping.source !== "literal";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 6 }}>
-      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-        <span style={{ fontSize: 11, minWidth: 90, flex: "0 0 auto", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <span title={name} style={{ fontSize: 12, width: 110, flex: "0 0 auto", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {name}{mapping.auto ? <span style={{ color: "var(--text-faint, #888)" }}> (auto)</span> : null}
         </span>
+        <input aria-label={`value for ${name}`} value={shown ?? ""} style={{ ...inputSt, flex: 1 }}
+          placeholder={fromClip ? "(empty — nothing will be saved)" : "type a value"}
+          onChange={(e) => onChange(mapping.source === "literal"
+            ? { source: "literal", value: e.target.value }
+            : { ...touched(mapping), override: e.target.value })} />
+        {onRemove && <button type="button" onClick={onRemove} title="don't fill this field" aria-label={`remove ${name}`} style={linkBtnSt}>×</button>}
+      </div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center", margin: "2px 0 0 116px", ...hintSt }}>
+        from
         <select aria-label={`source for ${name}`} value={mapping.source || "none"} style={miniSelSt}
           onChange={(e) => onChange({ source: e.target.value, transform: mapping.transform, ...(e.target.value === "literal" ? { value: shown || "" } : null) })}>
-          {SHARE_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {SHARE_SOURCES.map((s) => <option key={s.value} value={s.value}>{SOURCE_WORDS[s.value] || s.label}</option>)}
         </select>
-        <select aria-label={`transform for ${name}`} value={mapping.transform || "none"} style={miniSelSt}
-          disabled={mapping.source === "literal"}
+        <span style={{ visibility: fromClip ? "visible" : "hidden" }}>then</span>
+        <select aria-label={`transform for ${name}`} value={mapping.transform || "none"} style={{ ...miniSelSt, visibility: fromClip ? "visible" : "hidden" }}
+          disabled={!fromClip}
           onChange={(e) => onChange({ ...touched(mapping), transform: e.target.value, override: undefined })}>
-          {SHARE_TRANSFORMS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {SHARE_TRANSFORMS.map((t) => <option key={t.value} value={t.value}>{t.value === "none" ? "use as is" : t.label}</option>)}
         </select>
-        {onRemove && <button type="button" onClick={onRemove} title="remove" aria-label={`remove ${name}`} style={linkBtnSt}>×</button>}
       </div>
-      <input aria-label={`value for ${name}`} value={shown ?? ""} style={inputSt}
-        placeholder={mapping.source === "none" ? "type a value" : "(empty — nothing will be written)"}
-        onChange={(e) => onChange(mapping.source === "literal"
-          ? { source: "literal", value: e.target.value }
-          : { ...touched(mapping), override: e.target.value })} />
     </div>
   );
 }
 
+// Plain words for the two sources whose list labels are symbols.
+const SOURCE_WORDS = { none: "nothing — I'll type it", literal: "what I type" };
+
+// "an image", "a movie", "an item" — a destination's row shape in words.
+function aKind(shape) {
+  const k = shape?.kind || (shape?.role === "artifact" ? "file" : shape?.role === "textblock" ? "text block" : "item");
+  return `${/^[aeiou]/i.test(k) ? "an" : "a"} ${k}`;
+}
+
+const hintSt = { fontSize: 11, color: "var(--text-faint, #888)" };
 const lblSt = { fontSize: 11, color: "var(--text-faint, #888)", display: "block", marginBottom: 2 };
 const inputSt = { width: "100%", boxSizing: "border-box", padding: "4px 6px", background: "var(--input-bg, #1f2126)", color: "var(--text-primary, #eee)", border: "1px solid var(--input-border, #3a3d44)", borderRadius: 4, fontSize: 12 };
 const miniSelSt = { ...inputSt, width: "auto", padding: "2px 4px", fontSize: 11 };

@@ -100,7 +100,7 @@ describe("SharePlace — the window and Auto", () => {
 
   it("NAMES the rule Auto would run, and where it files things", async () => {
     await ready();
-    expect(screen.getByTestId("auto-rule").textContent).toMatch(/Share: link.*Bookmarks/);
+    expect(screen.getByTestId("auto-rule").textContent).toMatch(/Goes to Bookmarks.*Share: link/);
   });
 
   it("re-asks which rule would run when the grid changes", async () => {
@@ -158,7 +158,7 @@ describe("SharePlace — New", () => {
 
   it("adopts the destination's shape, and SAYS what it adopted", async () => {
     await openNew(); await pickMovies();
-    expect(screen.getByTestId("shape").textContent).toMatch(/like its 993 rows — artifact\/movie/);
+    expect(screen.getByTestId("shape").textContent).toMatch(/a movie, like the 993 already there/);
   });
 
   it("pre-fills the value the rows agree on, marked (auto)", async () => {
@@ -190,7 +190,7 @@ describe("SharePlace — New", () => {
 
   it("shows the value each mapping will write, and posts the resolved values", async () => {
     await openNew(); await pickMovies();
-    fireEvent.click(screen.getByText(/\+ field/));
+    fireEvent.click(screen.getByText(/\+ fill in another field/));
     fireEvent.change(await screen.findByTestId("field-select"), { target: { value: "f-year" } });
     fireEvent.change(screen.getByLabelText("source for Year"), { target: { value: "title" } });
     fireEvent.change(screen.getByLabelText("transform for Year"), { target: { value: "year" } });

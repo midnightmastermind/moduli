@@ -84,6 +84,29 @@ export function shareTypeOfPayload(payload = {}) {
   return classifyShare({ files, url: payload.url || null, text: payload.text || null, title: payload.title || null }).type;
 }
 
+/** Every distinct literal destination a rule's CREATEs write into, in pipeline
+ *  order. A rule that branches (Share: link → Lookup / YouTube / Bookmarks) has
+ *  several, and naming only the first told the placement window a plain link
+ *  went to Lookup when it went to Bookmarks (2026-10-14). */
+export function createTargetsOf(op) {
+  const out = []; const keys = new Set(); const seen = new Set();
+  const lit = (v) => (typeof v === "string" && v && !v.startsWith("$") ? v.replace(/^literal:/, "") : null);
+  const walk = (node) => {
+    if (!node || typeof node !== "object" || seen.has(node)) return;
+    seen.add(node);
+    if (node.type === "CREATE") {
+      const folderId = lit(node.parentFolderId);
+      const parentId = lit(node.parentId ?? node.parent);
+      const t = folderId ? { folderId } : parentId ? { parentId } : null;
+      const k = t && (t.folderId || t.parentId);
+      if (t && !keys.has(k)) { keys.add(k); out.push(t); }
+    }
+    for (const v of Array.isArray(node) ? node : Object.values(node)) walk(v);
+  };
+  walk(op?.pipeline?.steps || []);
+  return out;
+}
+
 /** The first literal destination a rule's CREATE writes into, or null. */
 export function createTargetOf(op) {
   const seen = new Set();

@@ -41,3 +41,16 @@ describe("image clips", () => {
     expect(shareTypeOfPayload({ url: "https://x.test/a" })).toBe("link");
   });
 });
+
+import { createTargetsOf } from "../services/shareRules.js";
+describe("createTargetsOf", () => {
+  it("lists every branch's destination, once each, in order", () => {
+    const op = { pipeline: { steps: [{ type: "if", then: [{ type: "action", config: { type: "CREATE", parent: "literal:lookup" } }],
+      else: [{ type: "if", then: [{ type: "action", config: { type: "CREATE", parentFolderId: "yt" } }],
+        else: [{ type: "action", config: { type: "CREATE", parent: "bm" } }, { type: "action", config: { type: "CREATE", parent: "bm" } }] }] }] } };
+    expect(createTargetsOf(op)).toEqual([{ parentId: "lookup" }, { folderId: "yt" }, { parentId: "bm" }]);
+  });
+  it("skips computed parents", () => {
+    expect(createTargetsOf({ pipeline: { steps: [{ type: "CREATE", parent: "$dest" }] } })).toEqual([]);
+  });
+});

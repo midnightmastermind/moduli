@@ -1347,20 +1347,27 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const owned = await Grid.exists({ _id: gridId, userId: opened.userId }).catch(() => null);
       if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
       const { default: Operation } = await import("../models/Operation.js");
-      const { selectShareRules, shareTypeOfPayload, createTargetOf } = await import("../services/shareRules.js");
+      const { selectShareRules, shareTypeOfPayload, createTargetsOf } = await import("../services/shareRules.js");
       const type = shareTypeOfPayload(opened.payload || {});
       const rules = selectShareRules(await Operation.find({ userId: opened.userId, gridId }).lean(), type);
       const first = rules[0] || null;
-      let lands = null;
-      const target = first ? createTargetOf(first) : null;
-      if (target?.folderId) {
-        const f = await Folder.findOne({ id: target.folderId, userId: opened.userId }).lean();
-        lands = f?.name || null;
-      } else if (target?.parentId) {
-        const o = await Occurrence.findOne({ id: target.parentId, userId: opened.userId }).lean();
-        const m = o?.moduleId ? await Module.findOne({ id: o.moduleId, userId: opened.userId }).lean() : null;
-        lands = o?.label || m?.label || null;
+      const names = [];
+      for (const target of first ? createTargetsOf(first) : []) {
+        let name = null;
+        if (target.folderId) {
+          const f = await Folder.findOne({ id: target.folderId, userId: opened.userId }).lean();
+          name = f?.name || null;
+        } else {
+          const o = await Occurrence.findOne({ id: target.parentId, userId: opened.userId }).lean();
+          const m = o?.moduleId ? await Module.findOne({ id: o.moduleId, userId: opened.userId }).lean() : null;
+          name = o?.label || m?.label || null;
+        }
+        if (name && !names.includes(name)) names.push(name);
       }
+      // A branching rule can land in several places; say all of them rather
+      // than the first branch (which named Lookup for a plain link).
+      let lands = names.length <= 1 ? (names[0] || null)
+        : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]} (depends on what you clipped)`;
       // A file share is stored in Files before any rule runs; a rule that only
       // halts leaves it there, so say so rather than naming nowhere.
       const FILE_HOME = { image: "Files › Images", video: "Files › Video", audio: "Files › Audio", pdf: "Files › Documents", file: "Files › Documents" };
