@@ -2633,6 +2633,12 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           .find((f) => f.src && (f.kind === "pdf" || f.kind === "ebook"));
         if (book) { src = book.src; kind = book.kind; }
       }
+      // A file REFERENCE (a "gdrive:…" ref, a url, an uploads path) is read directly with `cfg.kind`:
+      // a book row's file arrives in the deferred half of a load, after the load-time ops run.
+      if (!src && !occ && !mod && typeof fileId === "string" && /[:/]/.test(fileId)) {
+        src = resolveFileRef(fileId);
+        kind = (cfg.kind ? String(resolveExpr(cfg.kind, $vars) || "") : "") || (/\.pdf$/i.test(fileId) ? "pdf" : "ebook");
+      }
       const resultVar = cfg.resultVar || "$fileText";
       if (!src || (kind !== "pdf" && kind !== "ebook")) {
         $vars[resultVar] = { text: "", found: false, error: "not a readable file" };

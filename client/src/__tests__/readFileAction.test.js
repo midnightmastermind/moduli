@@ -25,6 +25,10 @@ describe("READ_FILE", () => {
     expect(out[0]).toMatchObject({ _suspend: true, _readFile: true, resultVar: "$fileText" });
     expect(out[0].request).toMatchObject({ src: "/files/c/dr", kind: "pdf", from: "/^October 15\\b/im" });
   });
+  it("reads a file REFERENCE directly (its row may not be loaded yet)", () => {
+    const out = executeActionItem("READ_FILE", { file: "literal:gdrive:c:dr", kind: "pdf", from: "October 15" }, {}, ctx(), {});
+    expect(out[0].request).toMatchObject({ src: "/files/c/dr", kind: "pdf" });
+  });
   it("a row with no readable file binds found:false instead of suspending", () => {
     const c = ctx(); c.occurrencesById.row.fields = {};
     const $vars = {};

@@ -452,7 +452,8 @@ export const ACTION_CONFIG_SCHEMA = {
   },
   READ_FILE: {
     fields: [
-      { key: "file", kind: "expr", label: "file", placeholder: "a book row or its file" },
+      { key: "file", kind: "expr", label: "file", placeholder: "a book row, its file, or a file reference" },
+      { key: "kind", kind: "select", label: "kind", optional: true, defaultsTo: "pdf", options: ["pdf", "ebook"] },
       { key: "from", kind: "expr", label: "from", optional: true, placeholder: "text, or /^OCTOBER 15\\b/" },
       { key: "to", kind: "expr", label: "up to", optional: true, placeholder: "text or /regex/ — the next marker" },
       { key: "page", kind: "expr", label: "page", optional: true, placeholder: "used when there is no from" },
