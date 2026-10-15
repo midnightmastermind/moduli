@@ -3933,3 +3933,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **14:5x** — scheduled op + On Load: *"Allow triggers too"* (a scheduled op may also carry triggers; rebuild gets Mark Passed Slots' On Load by clicking)
 - **14:59** — *"anything we are recreating should be able to be reproduced via the ui"* (standing rule: every rebuild change goes through the UI; anything the UI cannot do gets built into it)
 - **15:21** — *"other than bulk data, i want everything recreated. we need the ui to be tested everywhere. what else is left in the rebuild"*
+- **2026-10-15 07:56** — "yes" (to: rebuild the 57 trackers to poms' exact pipeline shape — display rules, trigger-type gate, Tags rule — instead of the simpler rebuild shape)

@@ -10,6 +10,7 @@ import BlockPalette, { MiniPalette } from "./BlockPalette";
 import OperationsCanvas, { CompactCanvas } from "./OperationsCanvas";
 import { evaluateBlockTree, describeBlock, serializeBlockTree, deserializeBlockTree } from "../helpers/blockEvaluator";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { copyStep, readCopiedStep, pasteableStep, STEP_CLIPBOARD_EVENT } from "../helpers/stepClipboard";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";
 import ActionPicker from "../ui/ActionPicker";
@@ -424,7 +425,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
 }
 
 // ---- DraggableStepWrapper — drag handle + edge drop target per step ----
-function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
+function DraggableStepWrapper({ step, depth, steps, onReorder, children, extra = null }) {
   const containerRef = useRef(null);
   const handleRef = useRef(null);
   const [closestEdge, setClosestEdge] = useState(null);
@@ -498,6 +499,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
       {closestEdge === "top" && <div className="drop-indicator drop-indicator-top" />}
 
       {React.cloneElement(children, { dragHandleRef: handleRef })}
+      {extra}
 
       {closestEdge === "bottom" && <div className="drop-indicator drop-indicator-bottom" />}
     </div>
@@ -519,6 +521,15 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
 
   const updateStep = (id, patch) => onChange(steps.map(s => s.id === id ? { ...s, ...patch } : s));
   const removeStep = (id) => onChange(steps.filter(s => s.id !== id));
+  // Copy / Paste (helpers/stepClipboard): the only way to move a block INTO an
+  // if/loop or reuse it in another operation — drag reorders within one list.
+  const [hasCopied, setHasCopied] = useState(() => !!readCopiedStep());
+  useEffect(() => {
+    const on = () => setHasCopied(!!readCopiedStep());
+    window.addEventListener(STEP_CLIPBOARD_EVENT, on);
+    return () => window.removeEventListener(STEP_CLIPBOARD_EVENT, on);
+  }, []);
+  const pasteStep = () => { const p = pasteableStep(); if (p) onChange([...steps, p]); };
 
   const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources, foldersById, gridId };
 
@@ -550,6 +561,13 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
             depth={depth}
             steps={steps}
             onReorder={onChange}
+            extra={<button
+              type="button"
+              title="Copy step"
+              aria-label="Copy step"
+              onClick={() => copyStep(step)}
+              style={{ position: "absolute", top: 3, right: 26, background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", fontSize: 11, padding: "0 2px", lineHeight: 1 }}
+            >⧉</button>}
           >
             {inner}
           </DraggableStepWrapper>
@@ -559,6 +577,7 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
         <button style={addBtnStyle} onClick={addAction}>+ Action</button>
         <button style={addBtnStyle} onClick={addIf}>+ If</button>
         <button style={{ ...addBtnStyle, color: "rgba(167,139,250,0.7)" }} onClick={addLoop}>+ Loop</button>
+        {hasCopied && <button style={addBtnStyle} onClick={pasteStep} title="Paste the copied step here (fresh ids)">+ Paste</button>}
       </div>
     </div>
   );
