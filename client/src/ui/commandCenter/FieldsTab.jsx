@@ -1037,6 +1037,8 @@ export function FieldsTab() {
           label={label}
           folder={folderObj}
           onRename={(name) => CommitHelpers.updateFolder({ dispatch, socket, folder: { ...folderObj, name } })}
+          onDelete={folderObj ? () => CommitHelpers.deleteCategory({ dispatch, socket, folder: folderObj, fields }) : undefined}
+          count={fields.length}
         />
       </div>
 

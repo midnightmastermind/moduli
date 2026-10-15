@@ -1006,6 +1006,18 @@ export function createOperation({ dispatch, socket, operation, emit = true }) {
   if (shouldEmit(emit)) safeEmit(socket, "create_operation", { operation });
 }
 
+// Delete a field / operation CATEGORY (a `folderType: "category"` folder). Its members go to
+// Uncategorized first — the server deletes only the folder record, so a member left pointing at
+// it would belong to nothing — and the whole thing is ONE undo step.
+export function deleteCategory({ dispatch, socket, folder, fields = [], operations = [] }) {
+  if (!folder?.id || folder.folderType !== "category") return;
+  withAction("Deleted category", () => {
+    for (const f of fields) if (f?.folderId === folder.id) updateField({ dispatch, socket, field: { ...f, folderId: null } });
+    for (const o of operations) if (o?.folderId === folder.id) updateOperation({ dispatch, socket, operation: { ...o, folderId: null } });
+    deleteFolder({ dispatch, socket, folderId: folder.id });
+  });
+}
+
 export function updateOperation({ dispatch, socket, operation, emit = true }) {
   if (!operation?.id) return;
   dispatch?.(updateOperationAction(operation));

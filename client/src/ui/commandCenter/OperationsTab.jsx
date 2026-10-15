@@ -1134,6 +1134,8 @@ export function OperationsTab() {
           label={label}
           folder={folderObj}
           onRename={(name) => CommitHelpers.updateFolder({ dispatch, socket, folder: { ...folderObj, name } })}
+          onDelete={folderObj ? () => CommitHelpers.deleteCategory({ dispatch, socket, folder: folderObj, operations: ops }) : undefined}
+          count={ops.length}
         />
       </div>
       <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
