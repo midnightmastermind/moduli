@@ -4,7 +4,17 @@ User, 2026-10-15: *"connect my book files, which ill upload in google drive, wit
 when i open to view, we have a similar view for browser which shows the book in normal format, and a magic button
 that turns that page into temporary occurances (unless dragged out obvi). with a save page button as well."*
 
-Status: **plan only — nothing built.** Decisions the user needs to make are marked **ASK**.
+Status: **plan only — nothing built.**
+
+## Decisions (user, 2026-10-15 13:15)
+- Files live in Drive's **Moduli uploads** (a `Books` subfolder), uploaded **by Moduli** — that is what lets the
+  app's `drive.file` permission see them. Claude organizes them: read from the Freyja drive, upload server-side as
+  the app, match and link. Needs: the Freyja drive reachable from WSL (`/mnt/freyja` is empty — not mounted) and
+  the Drive connection reconnected (`needs_reconnect`).
+- Batches with a progress list (which book, which row it matched, failures to retry).
+- A file matching no book row → **create a book row**.
+- **Save page** → **Imports**.
+- First version opens **epub, pdf, mobi/azw3 and azw** (DRM-locked Kindle files say so).
 
 ## What exists today (measured on poms grid, 2026-10-15)
 
