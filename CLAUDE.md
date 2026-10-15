@@ -57,6 +57,19 @@ Panels: the rebuild's left panel is back on Schedule (its list trimmed to Root +
 
 ---
 
+### 2026-10-15 (3) — A CATEGORY CAN BE DELETED; no uncategorized fields on either grid
+
+User: *"we cant delete a field category (should make the ones in there uncategorized) … we shouldnt have any
+uncategorized fields"*. `CommitHelpers.deleteCategory` moves a category's fields (or ops) to Uncategorized and then
+deletes the folder — the generic `delete_folder` removes only the folder record — as one undo step; the shared
+`CategoryColumnHeader` shows a × (confirm names how many move) in both the Fields and Operations tabs
+(`deleteCategory.test.js`). The 14 uncategorized fields, filed by clicking (`_fieldcat.mjs`) on poms AND the rebuild:
+Trackers ← Aggregation, Tracker Period, No Date Prefix · Scheduling ← Reminder, Schedule, Combine Schedule ·
+People ← Facebook, Facebook Friends Since, Instagram Following Since, Found Via, Hometown, Relationship Status,
+Languages · Pickers ← Job. Read back: 0 uncategorized on both.
+
+---
+
 ### 2026-10-15 (2) — THE REBUILD'S TRACKERS IN POMS' EXACT SHAPE, BY CLICKING; copy/paste for steps; a bad paste repaired
 
 User: *"yes"* — rebuild the 57 "simpler shape" ops exactly. 19 of them are not trackers (Build Schedule, Pomodoro, Birthdays…)
