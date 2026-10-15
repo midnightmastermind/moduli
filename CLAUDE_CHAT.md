@@ -3946,3 +3946,6 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-15 13:20** — chose to widen the Drive permission to read-only so Moduli can see the books they moved into Moduli uploads.
 - **2026-10-15 13:40** — Drive reconnected with read access. Books folder: 282 book files (255 azw, 16 mobi, 11 pdf); 253/255 azw + 15/16 mobi have no DRM. Dry-run match to poms book rows: 201 exact, 64 by main title (all checked correct), 1 ambiguous (duplicate rows), 16 unmatched.
 - **2026-10-15 ~13:45** — linking answers: two book rows for the same book → **merge the rows**; a book in several volumes → **a row per volume**; **do them all** (no test batch first).
+- **2026-10-15 15:07** — *"you can only copy outside of the magic"* (on the reader's open item, dragging a Magic node out
+  to keep it): a node dragged OUT of a Magic view is always a COPY — the planned node and its planned children are
+  minted for real at the drop; there is no move or copy-link out of Magic.

@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGridActions } from "../GridActionsContext";
 import { readerStateFromPlan } from "../helpers/readerPlan";
+import { usePlannedRegistration } from "../helpers/plannedDrop";
 import { ensureImportsFolderAndPage, createImportsDocPage } from "../helpers/importsFolder";
 import { activatePageInPanel } from "../helpers/openOccurrenceInPanel";
 import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
@@ -37,6 +38,8 @@ export function usePlannedImport({ socket, gridId, content, format = "markdown",
     });
   }, [enabled, content, format, shape, socket, gridId, title, reqPrefix]);
   const tree = useMemo(() => (plan?.ok ? readerStateFromPlan(plan) : null), [plan]);
+  // While the view shows this plan, its pieces can be dragged out as copies (helpers/plannedDrop).
+  usePlannedRegistration(enabled ? tree?.state || null : null);
   return { plan, tree };
 }
 

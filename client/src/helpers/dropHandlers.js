@@ -90,6 +90,7 @@ import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend
 import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
 import { containerDropDestination } from "./containerDropDestination";
 import { withAction } from "./actionScope";
+import { plannedStateFor, materializePlanned } from "./plannedDrop";
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -2395,6 +2396,55 @@ function dropView(dropContext, ctx) {
 // handler. All handlers take (dropContext, ctx).
 export function routeDrop(dropContext, ctx) {
   if (!dropContext) { ctx.clearSession?.(); return; }
+  const plannedId = dropContext.payload?.context?.occurrenceId || dropContext.payload?.occurrenceId;
+  const plannedState = plannedId && !ctx.occurrencesById?.[plannedId] ? plannedStateFor(plannedId) : null;
+  if (plannedState) return withAction("Kept from Magic", () => routePlannedDrop(dropContext, ctx, plannedId, plannedState));
+  return _routeDrop(dropContext, ctx);
+}
+
+// A piece dragged out of a Magic view (helpers/plannedDrop): it is always a COPY. The planned node
+// and everything under it are minted for real, then the copy is placed like any doc-embed row being
+// moved (handleDocEmbedDrop: a board container, a canvas page, or an empty grid cell). A drop on a
+// place that takes no rows leaves nothing behind — the copy is removed again.
+export function routePlannedDrop(dropContext, ctx, plannedId, plannedState) {
+  const { dispatch, socket, state } = ctx;
+  const gridId = state?.gridId || state?.grid?._id || state?.grid?.id;
+  const plan = materializePlanned({ rootId: plannedId, state: plannedState, gridId, userId: state?.userId, dispatch, socket });
+  if (!plan) { ctx.clearSession?.(); return; }
+  const rootId = plan.rootId;
+  let placed = false;
+  const placedRe = new RegExp(`"id":"${rootId}","parentId":"[^"]+"`);
+  const watchDispatch = (action) => {
+    if (!placed && placedRe.test(JSON.stringify(action?.payload ?? null))) placed = true;
+    return dispatch?.(action);
+  };
+  const occurrencesById = { ...(ctx.occurrencesById || {}) };
+  for (const o of plan.occurrences) occurrencesById[o.id] = o;
+  const modulesById = { ...(state?.modulesById || {}) };
+  for (const m of plan.modules) modulesById[m.id] = m;
+  const payload = {
+    ...dropContext.payload,
+    occurrenceId: rootId,
+    moduleId: plan.rootModuleId,
+    sourceKind: "doc-embed",
+    context: { ...(dropContext.payload?.context || {}), occurrenceId: rootId, sourceType: "doc-embed" },
+  };
+  const sessionRef = ctx.sessionRef?.current ? ctx.sessionRef : { current: {} };
+  const prevMode = sessionRef.current.mode;
+  sessionRef.current.mode = "move";
+  try {
+    handleDocEmbedDrop({ ...dropContext, payload, mode: "move" },
+      { ...ctx, dispatch: watchDispatch, occurrencesById, state: { ...state, modulesById }, sessionRef });
+  } finally {
+    sessionRef.current.mode = prevMode;
+  }
+  if (!placed) {
+    CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: rootId, fireTrigger: false });
+    try { toast("Magic pieces can be dropped onto a board, a canvas or an empty cell."); } catch { /* ignore */ }
+  }
+}
+
+function _routeDrop(dropContext, ctx) {
   const { payload } = dropContext;
   const sourceModule = payload.moduleId ? ctx.state?.modulesById?.[payload.moduleId] : null;
   const sourceRole = sourceModule?.role || null;

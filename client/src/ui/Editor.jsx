@@ -98,6 +98,7 @@ import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { mintLinkedCopy } from "../helpers/LayoutHelpers";
+import { plannedStateFor, materializePlanned } from "../helpers/plannedDrop";
 import {
   buildTextClipboardItems, readClipboardText, writeClipboardText,
   plainTextToProseContent,
@@ -2355,6 +2356,8 @@ const Editor = forwardRef(function Editor({
         // the indicator is the visible half of that contract.
         const sourceOccId = sd.context?.occurrenceId || sd.occurrenceId;
         if (sourceOccId && occurrence?.id && sourceOccId === occurrence.id) return false;
+        // A Magic view is read-only: nothing is dropped INTO it (its pieces only copy out).
+        if (occurrence?.id && plannedStateFor(occurrence.id)) return false;
         // Per user request: fields + operations from the CommandCenter are
         // organize-in-place only. Reject drops of those payloads when they
         // originate in the CC. Use `@` mention inside the editor to insert
@@ -2674,6 +2677,25 @@ const Editor = forwardRef(function Editor({
             if (existing) occurrenceId = existing.id;
           }
           if (!occurrenceId) { DLOG("BAIL block-embed: no occurrenceId resolved"); return; }
+          // A piece of a Magic view (helpers/plannedDrop) is always a COPY: the planned node and
+          // everything under it are minted for real, owned by this doc, and the copy embedded here.
+          // The Magic view keeps its piece (user, 2026-10-15: "you can only copy outside of the magic").
+          const plannedState = !occsById[occurrenceId] ? plannedStateFor(occurrenceId) : null;
+          if (plannedState) {
+            const ctxGridNow = ctxGridRef.current;
+            const plan = materializePlanned({
+              rootId: occurrenceId, state: plannedState,
+              gridId: occurrence?.gridId || ctxGridNow?._id || ctxGridNow?.id,
+              userId: occurrence?.userId || ctxUserIdRef.current,
+              parentId: occurrence?.id || null,
+              dispatch: dispatchRef.current, socket: socketRef.current,
+            });
+            if (!plan) { DLOG("BAIL planned: nothing to mint"); return; }
+            const wrapped = sideHost && wrapHostWithNeighbor(plan.rootId, sideHost);
+            DLOG("PLANNED copy done", { copyId: plan.rootId, rows: plan.occurrences.length, wrappedBeside: !!wrapped });
+            if (!wrapped) insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: plan.rootId } });
+            return;
+          }
           const dragMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
           DLOG("block-embed path", { occurrenceId, dragMode, dragModeSource: data?.occurrence?.dragMode != null ? "occurrence.dragMode" : data?.defaultDragMode != null ? "defaultDragMode" : "DEFAULT(move)", hasSideHost: !!sideHost });
 
