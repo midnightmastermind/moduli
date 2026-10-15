@@ -2,6 +2,14 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 (2) — `0402` day-page readings; import_text `embed`)
+- `import_text` takes `embed` (and `shape`): after the broadcast, `utils/embedRootInDocParent` appends a moduleEmbed
+  of the root to a DOC parent's textmap (skips one already there), updates the cache, emits occurrence_updated.
+- `0402` creates "Day Page: Add Reading" (callee) + "Day Page: Readings" (caller, Day Page: Build's triggers/gate,
+  priority 6); run with `READING_FILE_OCC=<file occurrence>` — the title is read from the file, so none is in git;
+  re-running with another file appends it to `$readings`. Board + date field read off "Day Page: Build Day".
+  Applied to poms with Daily Reflections; test `client/src/__tests__/dayPageReadings.test.js`.
+
 ## Recent Changes (2026-10-15 — `import_plan` takes `format`)
 - `socketHandlers/import.js`: `import_plan` accepts `format` ("markdown" default, "html", "auto") + `htmlOpts`, through
   the new exported `contentToMarkdown` / `resolveImportFormat`, which `import_text` uses too (one converter). The book

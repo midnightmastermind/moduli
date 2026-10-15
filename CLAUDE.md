@@ -64,6 +64,41 @@ back to the book; a DRM-locked file was not watched (253/255 azw are open).
 
 ---
 
+### 2026-10-15 (6) — A DAY PAGE GETS THAT DAY'S READING; a book opens beside its cover; Magic pages
+
+User (15:56/15:59, CLAUDE_CHAT): which books are missing; clicking a cover should show the cover AND the book
+open side by side (and the same for a video or a set of images); Magic needs previous/next; *"i want to be able
+to add daily reflections and other day to day reflection books to the daypage for that day"*.
+```
+missing     of 585 book rows 281 have a file, 304 have none (148 epub, 90 pdf, 35 azw, 19 mobi, 5 azw3, …);
+            3 Drive files DRM-locked. List in the scratchpad (titles stay out of git). A new Drive folder
+            needs a fresh listing (BOOKS_DRIVE_PATH) and 0401 re-run.
+viewer      occurrenceMedia.filesOf puts the row's cover beside its files unless a file IS the cover
+            (1,172/1,172 movie+series posters are — the double-poster case); a book file in the viewer
+            opens in the reader inside its tile (ArtifactCard). Magic gets ◀ ▶ (ebook goLeft/Right,
+            pdf via PdfViewer controlRef).
+READ_FILE   new action (helpers/bookText): a pdf / e-book's text, cut from a /regex/ or text marker to the
+            next; binds {text, found}. Page-only, wired through operationsBridge.readFileText in main.jsx —
+            a static import put pdf.js into the sweep WORKER and broke the build (iife can't code-split).
+            Takes a file REFERENCE + kind too: a book row arrives in the deferred half, after load ops.
+IMPORT_*    take shape (magic|reader) + embed; server import_text embeds the root in a doc parent
+            (utils/embedRootInDocParent).
+0402        "Day Page: Readings" (onLoad/filter, like Day Page: Build) loops shown days (≤7) × $readings and
+            runs "Day Page: Add Reading": find the column, skip if it holds the title or is marked
+            meta.readings.<key>, mark BEFORE the wait, READ_FILE "Month d" → next "Month d", IMPORT_MARKDOWN
+            into the column. WHY A CALLEE: a waiting action inside a LOOP/IF is dropped by the executor
+            (only top-level suspends resume); a callee's own top level waits on its own.
+```
+**Watched on prod:** a load imported Oct 15's passage ("MY CHECKLIST, NOT YOURS") into today's column — listed,
+embedded once, marked; a second load imported nothing. Daily Reflections row → viewer: the pdf open at left in
+its tile, the cover at right; Magic p.1 → p.2. **Not watched:** a video / image-set row's cover beside its files
+(same `filesOf` rule, unit-tested). Adding another reflection book = re-run 0402 with READING_FILE_OCC=<its file
+occurrence> (it appends to $readings) or edit $readings in the op editor; its pages must start "Month d".
+Tests `dayPageReadings` (5, A/B'd: dropping the mark check fails exactly "a day already marked"),
+`readFileAction`, `bookText`, `embedRootInDocParent`. Client 6,177 / server 3,093.
+
+---
+
 ### 2026-10-15 (5) — THE BOOK ROWS POINT AT THEIR FILES: 282 Drive books linked (`0401`)
 
 User: *"connect my book files, which ill upload in google drive, with our book file occurances"*; answers in

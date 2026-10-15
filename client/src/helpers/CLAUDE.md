@@ -3,6 +3,16 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-15 (4) — bookText.js NEW + READ_FILE; filesOf puts the cover beside the files)
+- `bookText.readFileText({src, kind, from, to, page, maxChars})` → `{text, found}` (pdf via pdf.js page by page,
+  e-book via foliate sections; whole text cached per file). `toPattern` ("/re/flags", default `im`, else literal),
+  `slicePassage`. Page only — reached through `operationsBridge.readFileText`, set in `main.jsx`, never imported by
+  the executor (it is in the sweep worker's bundle).
+- `operationActions` READ_FILE: file = a row (its Files' pdf/ebook), a file occurrence, or a file reference + `kind`
+  (all expressions). Suspends (`_readFile`); `_handleSuspend` resumes with `{text, found}` (onError continue).
+  A suspend only resumes at a pipeline's TOP LEVEL — put the read in a callee op (0402).
+- `occurrenceMedia.filesOf` pushes the row itself (drawn as its cover) when no file's src is the cover url.
+
 ## Recent Changes (2026-10-15 (3) — plannedDrop.js NEW: a Magic piece dragged out is a copy)
 - `registerPlannedState` / `usePlannedRegistration` / `plannedStateFor(occId)`, `collectPlannedSubtree` (listed +
   text-embedded, children first), `planMaterialize` (pure: fresh ids, refs remapped), `materializePlanned`.
