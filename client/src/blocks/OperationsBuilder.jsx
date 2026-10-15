@@ -896,6 +896,14 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
             width={150}
             {...exprProps}
           />
+          {/* `fallback` / `fallback2`: tried in order when the value resolves empty
+              (operationActions INIT_VAR). Read by the executor and written only by
+              seeds until 2026-10-15 — 9 poms ops use them ($goalPeriod falls back to
+              $trigger.date, then $today). */}
+          {fl("if empty")}
+          <ExprInput value={cfg.fallback ?? ""} onChange={v => setCfg({ fallback: v || undefined })} placeholder="fallback" width={110} title="Used when the value above resolves empty" />
+          {fl("then")}
+          <ExprInput value={cfg.fallback2 ?? ""} onChange={v => setCfg({ fallback2: v || undefined })} placeholder="fallback 2" width={90} title="Used when the fallback is empty too" />
         </div>
       );
 
