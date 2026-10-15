@@ -6890,6 +6890,17 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   max-height: 100%;
   object-fit: contain;
 }
+/* A BOOK expanded is the reader (BookReader), which needs a definite box to paginate into: it
+   fills the card, leaving room for the close button and the meta bar beneath. */
+.artifact-expanded-book {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100% - 40px);
+  background: var(--panel-bg);
+  border-radius: 6px;
+  overflow: hidden;
+}
 
 /* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full height
    and width of the screen"). It was `min(1180px, 92vw) x 86vh` centred at 50/50

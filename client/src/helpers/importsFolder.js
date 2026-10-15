@@ -220,6 +220,8 @@ export function viewFieldsForArtifactKind(kind) {
   // through to markdown is a DEFAULT, and a default that is wrong for a kind
   // the app already has is indistinguishable from a missing feature.
   if (kind === "bookmark") return { viewType: "display", artifactType: "bookmark" };
+  // A book file (epub / mobi / azw / azw3) opens in the book reader, like a PDF.
+  if (kind === "ebook") return { viewType: "display", artifactType: "ebook" };
   if (kind === "code") return { viewType: "code", artifactType: null };
   return { viewType: "markdown", artifactType: null };
 }

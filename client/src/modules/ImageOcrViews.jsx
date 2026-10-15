@@ -18,10 +18,7 @@ import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { runOcrPage } from "../helpers/ocr";
 import { ocrToMarkdown } from "../helpers/ocrLayout";
-import { readerStateFromPlan } from "../helpers/readerPlan";
-import { ensureImportsFolderAndPage, createImportsDocPage } from "../helpers/importsFolder";
-import { activatePageInPanel } from "../helpers/openOccurrenceInPanel";
-import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
+import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { Spinner } from "@/components/ui/spinner";
 
 const PagePreviewBody = React.lazy(() =>
@@ -70,7 +67,7 @@ const Waiting = ({ label }) => (
 
 export default function ImageOcrViews({ occurrence, module, imgSrc, children, dispatch, socket, gridId: gridIdProp, userId: userIdProp }) {
   const ctx = useGridActions() || {};
-  const { state, occurrencesById, modulesById, viewsById, manifestsById, foldersById } = ctx;
+  const { state } = ctx;
   const gridId = gridIdProp || ctx.gridId || state?.gridId;
   const userId = userIdProp || ctx.userId || state?.userId;
   const [mode, setMode] = useState("image");
@@ -86,44 +83,20 @@ export default function ImageOcrViews({ occurrence, module, imgSrc, children, di
     [ocr, isText, mode],
   );
 
-  // The plan, per shape + text, cached so flipping Reader <-> Magic is instant the second time.
-  const [plan, setPlan] = useState(null);
-  const planCache = useRef(new Map());
-  const reqRef = useRef(0);
-  useEffect(() => {
-    if (!isText || !markdown || !socket) { setPlan(null); return; }
-    const key = `${mode} ${markdown}`;
-    const req = ++reqRef.current;
-    const hit = planCache.current.get(key);
-    if (hit) { setPlan(hit); return; }
-    setPlan({ loading: true });
-    socket.emit("import_plan", { content: markdown, gridId, shape: mode, title, requestId: `ocr${req}` }, (out) => {
-      const res = out || { ok: false, error: "no reply" };
-      if (res.ok) planCache.current.set(key, res);
-      if (reqRef.current === req) setPlan(res);
-    });
-  }, [isText, mode, markdown, socket, gridId, title]);
-  const tree = useMemo(() => (plan?.ok ? readerStateFromPlan(plan) : null), [plan]);
+  // Planned per shape + text (cached), and "+ Page" — both shared with the book reader.
+  const { plan, tree } = usePlannedImport({ socket, gridId, content: markdown, format: "markdown", shape: mode, title, enabled: isText, reqPrefix: "ocr" });
+  const saveAsPage = useSaveAsPage({ socket, gridId, userId, dispatch, rootRef, occurrence });
 
   const flash = (text) => { setNote(text); setTimeout(() => setNote(null), 5000); };
 
   const addAsPage = useCallback(() => {
-    if (!markdown || !socket || !gridId || busy) return;
+    if (!markdown || busy) return;
     setBusy("page");
-    socket.emit("import_text", { content: markdown, format: "markdown", gridId, parentId: null, title, shape: mode }, (out) => {
+    saveAsPage({ content: markdown, format: "markdown", shape: mode, title }).then((res) => {
       setBusy(null);
-      if (!out?.ok || !out.rootOccurrenceId) { flash(`Could not add the page: ${out?.error || "no reply"}`); return; }
-      const { folderId } = ensureImportsFolderAndPage({
-        grid: state?.grid, manifests: Object.values(manifestsById || {}), folders: Object.values(foldersById || {}),
-        occurrencesById, dispatch, socket, userId,
-      });
-      const pageOccId = createImportsDocPage({ rootOccId: out.rootOccurrenceId, folderId, grid: state?.grid, dispatch, socket, userId, label: title });
-      const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
-      const panelId = panelOccIdForElement(rootRef.current, panelsById) || enclosingPanelId(occurrence?.id, occurrencesById, panelsById);
-      if (pageOccId && panelId) activatePageInPanel({ pageOccId, panelOccurrence: panelsById[panelId], modulesById, viewsById, dispatch, socket });
-      flash("Added as a page in Imports");
+      flash(res.ok ? "Added as a page in Imports" : `Could not add the page: ${res.error}`);
     });
-  }, [markdown, socket, gridId, busy, title, mode, state?.grid, manifestsById, foldersById, occurrencesById, modulesById, viewsById, dispatch, userId, occurrence?.id]);
+  }, [markdown, busy, saveAsPage, mode, title]);
 
   // The old OCR button's outcome: the text as an editable textblock under the image.
   const attach = useCallback(() => {

@@ -22,6 +22,7 @@ import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
 import { useDockRect, useInSpread, dockVars } from "../helpers/spreadDock";
 import BookmarkView from "./BookmarkView.jsx";
+import BookReader from "./BookReader.jsx";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -579,7 +580,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
           <X size={14} />
         </button>
-        {renderExpanded(kind, src, label, thumb1024Src, coverSrc)}
+        {renderExpanded(kind, src, label, thumb1024Src, coverSrc, { module, occurrence })}
         <div className="artifact-expanded-meta">
           {originalName && <span className="artifact-expanded-name" title={originalName}>{originalName}</span>}
           {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
@@ -709,6 +710,11 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
       <span style={{ fontSize: 22 }} aria-hidden="true">📕</span>
     </div>
   );
+  if (kind === "ebook") return (
+    <div className="artifact-thumb artifact-thumb--pdf">
+      <span style={{ fontSize: 22 }} aria-hidden="true">📗</span>
+    </div>
+  );
   // A BOOKMARK IS A PAGE, NOT AN UNKNOWN FILE. Without this it fell to the
   // glyph below and read as "some file we cannot preview", which it never is —
   // we know exactly what it is and where it goes.
@@ -730,13 +736,20 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
   );
 }
 
-function renderExpanded(kind, src, label, imgSrc = src, cover = null) {
+function renderExpanded(kind, src, label, imgSrc = src, cover = null, ctx = {}) {
   if (kind === "image") return <LoadingImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
+  // A book file opens in the reader, never behind its cover: the cover is what the card shows, the
+  // book is what opening it is for.
+  if (kind === "ebook" || kind === "pdf") return (
+    <div className="artifact-expanded-book" onClick={(e) => e.stopPropagation()}>
+      <BookReader module={ctx.module} occurrence={ctx.occurrence} src={src} kind={kind} />
+    </div>
+  );
   if (coverAppliesTo(kind, cover))
     return (
       <LoadingImage
         className="artifact-expanded-media" src={cover} alt={label || "cover"}
-        fallback={renderExpanded(kind, src, label, imgSrc)}
+        fallback={renderExpanded(kind, src, label, imgSrc, null, ctx)}
       />
     );
   if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
@@ -746,7 +759,6 @@ function renderExpanded(kind, src, label, imgSrc = src, cover = null) {
       <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{label}</span>
     </div>
   );
-  if (kind === "pdf") return <iframe className="artifact-expanded-media" src={src} title={label || "pdf"} />;
   // A bookmark is expanded for its COVER (above). This is where a DEAD cover
   // lands — ~28% of the 1,467 have rotted — and "Unsupported kind: bookmark"
   // would read as the app not knowing what a bookmark is. It knows exactly.

@@ -22,7 +22,7 @@
 // socket room for every minted entity (the existing client store handlers
 // fold them into local state — no client-side ID tracking needed).
 // Event: `import_plan`
-//   payload: { content, gridId?, title?, requestId }
+//   payload: { content, format?, gridId?, title?, requestId }  (format "html" converts like import_text)
 //   Response (via `import_plan_result`): { ok, requestId, rootOccurrenceId,
 //                                          modules, occurrences, error? }
 //
@@ -51,6 +51,24 @@ import { framingVerdict } from "../utils/framingVerdict.js";
 import { readerHostStalls } from "../utils/hostStallMemory.js";
 import { readLinkForImport } from "../utils/linkImport.js";
 import { extractLinks } from "../utils/harvestLinks.js";
+
+/**
+ * The markdown an import plans from. `format` "auto" sniffs for tags the way
+ * /api/v1/import/text does; "html" goes through the same converter the drag
+ * import uses (images, tables and figures kept). Shared by import_text and
+ * import_plan so a planned page and a saved one read the same text.
+ */
+export function resolveImportFormat(content, format = "auto") {
+  if (format !== "auto") return format;
+  return /<\/?[a-z][\s\S]*?>/i.test(content) ? "html" : "markdown";
+}
+
+export function contentToMarkdown({ content, format = "auto", title = "", htmlOpts = {} }) {
+  const fmt = resolveImportFormat(content, format);
+  return fmt === "html"
+    ? htmlToMarkdown(content, title, { keepImages: true, keepTables: true, keepFigures: true, ...htmlOpts })
+    : content;
+}
 
 // How long the INTERACTIVE reader fetch may take before it gives up and lets the
 // frame have the page. Exported so the rule is testable rather than a number
@@ -104,18 +122,8 @@ export function registerImportHandlers(socket, {
         return reply({ ok: false, error: "content (non-empty string) required" });
       }
 
-      // Resolve format with the same conservative HTML sniff /api/v1/import/text uses.
-      let format = rawFormat;
-      if (format === "auto") {
-        format = /<\/?[a-z][\s\S]*?>/i.test(content) ? "html" : "markdown";
-      }
-
-      const markdown = format === "html"
-        ? htmlToMarkdown(content, title, {
-            keepImages: true, keepTables: true, keepFigures: true,
-            ...htmlOpts,
-          })
-        : content;
+      const format = resolveImportFormat(content, rawFormat);
+      const markdown = contentToMarkdown({ content, format, title, htmlOpts });
 
       // SHAPE, so "add this as a page" mints the tree you were actually reading.
       // Absent = magic, which is byte-identical to what the drag/paste import
@@ -192,7 +200,7 @@ export function registerImportHandlers(socket, {
   // `occurrence_created` here would fold phantoms into every open tab's store,
   // which is the 2026-08-04 dangling-child-ref class handed a megaphone.
   socket.on("import_plan", async (payload = {}, ack) => {
-    const { content, gridId, title = "", requestId = null, shape = "magic" } = payload;
+    const { content, gridId, title = "", requestId = null, shape = "magic", format = "markdown", htmlOpts = {} } = payload;
     const userId = socket.userId;
 
     function reply(out) {
@@ -214,7 +222,7 @@ export function registerImportHandlers(socket, {
       // Anything unrecognised gets MAGIC, which is what this handler returned
       // before the shape existed.
       const result = await buildImportShape({
-        shape, gridId, userId, markdown: content, title, parentId: null, dryRun: true,
+        shape, gridId, userId, markdown: contentToMarkdown({ content, format, title, htmlOpts }), title, parentId: null, dryRun: true,
       });
 
       reply({

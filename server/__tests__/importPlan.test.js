@@ -230,3 +230,23 @@ describe("markdownToReaderDoc", () => {
     expect(text.join("")).toContain("[escaped]");
   });
 });
+
+// The book reader's Magic sends the visible page as HTML (an e-book page is HTML).
+describe("import_plan with format html", () => {
+  const HTML = "<h2>Chapter One</h2><p>It was a <b>bright</b> cold day.</p><ul><li>first</li><li>second</li></ul>";
+  it("converts the HTML the way import_text does, so the page reads as sections and lists", async () => {
+    const { handlers } = harness();
+    const out = await new Promise((res) => handlers.import_plan({ content: HTML, format: "html", gridId: "g1" }, res));
+    expect(out.ok).toBe(true);
+    const text = JSON.stringify(out.occurrences);
+    expect(text).toContain("bright");
+    expect(text).not.toContain("<b>");          // converted, not pasted as tags
+    expect(out.modules.some((m) => m.label === "Chapter One")).toBe(true);
+    expect(insertManyOccurrence).not.toHaveBeenCalled();
+  });
+  it("without a format it stays markdown (the existing callers)", async () => {
+    const { handlers } = harness();
+    const out = await new Promise((res) => handlers.import_plan({ content: "<b>x</b>", gridId: "g1" }, res));
+    expect(JSON.stringify(out.occurrences)).toContain("<b>x</b>");
+  });
+});

@@ -1,0 +1,99 @@
+// @vitest-environment jsdom
+import React from "react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+
+vi.mock("../GridActionsContext", () => ({ useGridActions: () => ({ state: { grid: { id: "g" } }, occurrencesById: {}, modulesById: {}, viewsById: {}, manifestsById: {}, foldersById: {} }) }));
+vi.mock("../PagePreviewApp.jsx", () => ({ PagePreviewBody: ({ occurrenceId }) => <div data-testid="preview">{occurrenceId}</div> }));
+vi.mock("../helpers/readerPlan", () => ({ readerStateFromPlan: (plan) => ({ state: {}, rootOccurrenceId: plan.root }) }));
+const createImportsDocPage = vi.fn(() => "page1");
+vi.mock("../helpers/importsFolder", () => ({
+  ensureImportsFolderAndPage: () => ({ folderId: "imports" }),
+  createImportsDocPage: (...a) => createImportsDocPage(...a),
+}));
+const updateModule = vi.fn();
+vi.mock("../helpers/CommitHelpers", () => ({ updateModule: (...a) => updateModule(...a) }));
+// The PDF viewer reports page 3 of a 10-page document whose text is two lines.
+const fakeDoc = {
+  numPages: 10,
+  getPage: () => Promise.resolve({ getTextContent: () => Promise.resolve({ items: [
+    { str: "Page three text.", transform: [1, 0, 0, 1, 0, 700], height: 10, hasEOL: true },
+  ] }) }),
+};
+vi.mock("../modules/PdfViewer.jsx", () => ({
+  default: ({ onPage, initialPage }) => {
+    React.useEffect(() => { onPage?.(initialPage, fakeDoc); }, []);
+    return <div data-testid="pdf">pdf at {initialPage}</div>;
+  },
+}));
+
+import BookReader from "../modules/BookReader.jsx";
+
+function makeSocket() {
+  const emits = [];
+  return { emits, emit: vi.fn((event, payload, ack) => { emits.push({ event, payload }); ack?.({ ok: true, root: `${payload.shape}-root`, rootOccurrenceId: "imp1" }); }) };
+}
+const MOD = { id: "m1", label: "Dune", kind: "pdf", meta: { originalName: "dune.pdf", readingPosition: { page: 3 } } };
+const mount = (socket) => render(
+  <BookReader module={MOD} occurrence={{ id: "o1" }} src="/files/c/f" kind="pdf" socket={socket} dispatch={vi.fn()} gridId="g" />,
+);
+
+beforeEach(() => { updateModule.mockReset(); createImportsDocPage.mockClear(); });
+afterEach(() => vi.useRealTimers());
+
+describe("BookReader", () => {
+  it("opens the PDF at the stored page, in Book mode, and plans nothing until Magic", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    expect(screen.getByTestId("pdf").textContent).toBe("pdf at 3");
+    for (const t of ["Book", "Magic"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Dune — p. 3")).toBeTruthy());
+    expect(socket.emits.some((e) => e.event === "import_plan")).toBe(false);
+  });
+
+  it("Magic plans the page on screen as magic, titled with the place in the book", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save page" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    await waitFor(() => expect(screen.getByTestId("preview").textContent).toBe("magic-root"));
+    const plan = socket.emits.find((e) => e.event === "import_plan");
+    expect(plan.payload).toMatchObject({ content: "Page three text.", format: "markdown", shape: "magic", title: "Dune — p. 3" });
+  });
+
+  it("Save page keeps the page in the current mode's shape and files it in Imports", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save page" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Save page" }));
+    await waitFor(() => expect(createImportsDocPage).toHaveBeenCalled());
+    const save = socket.emits.find((e) => e.event === "import_text");
+    expect(save.payload).toMatchObject({ shape: "reader", title: "Dune — p. 3", content: "Page three text." });
+    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save page" }));
+    await waitFor(() => expect(socket.emits.filter((e) => e.event === "import_text").length).toBe(2));
+    expect(socket.emits.filter((e) => e.event === "import_text")[1].payload.shape).toBe("magic");
+  });
+
+  it("does not write the position back when it has not moved, and keeps the rest of meta when it has", async () => {
+    vi.useFakeTimers();
+    const socket = makeSocket();
+    const { rerender } = mount(socket);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(updateModule).not.toHaveBeenCalled(); // page 3 was already stored
+    const moved = { ...MOD, meta: { ...MOD.meta, readingPosition: { page: 1 } } };
+    // a fresh reader that starts at page 1 then lands on page 1 -> unchanged; simulate a move by a new start page
+    rerender(<BookReader key="b" module={{ ...moved, meta: { originalName: "dune.pdf" } }} occurrence={{ id: "o1" }} src="/files/c/f" kind="pdf" socket={socket} dispatch={vi.fn()} gridId="g" />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(updateModule).toHaveBeenCalledTimes(1);
+    const written = updateModule.mock.calls[0][0].module;
+    expect(written.id).toBe("m1");
+    expect(written.meta.originalName).toBe("dune.pdf");
+    expect(written.meta.readingPosition.page).toBe(1);
+  });
+
+  it("says plainly when a file is not a book it can open", () => {
+    render(<BookReader module={MOD} src="/x" kind="image" socket={makeSocket()} />);
+    expect(screen.getByText(/not a book this reader can open/)).toBeTruthy();
+  });
+});
