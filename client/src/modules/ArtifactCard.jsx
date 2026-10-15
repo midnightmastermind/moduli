@@ -501,6 +501,19 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // A BOOK FILE IN THE VIEWER IS ALREADY OPEN (user, 2026-10-15: the cover and "the book file
+  // (already opened, right now it takes a click on an icon of the file) right next to each other. i
+  // can then click into one of those and full screen it"). Same rule as the url tile above: the tile
+  // IS the reader; the tile header's maximize fills the viewer with it. Outside the viewer (a board of
+  // 280 books) it stays a thumbnail — only a spread mounts a reader.
+  if (inSpread && (kind === "ebook" || kind === "pdf") && src) {
+    return (
+      <div className="artifact-card artifact-card--bookmark-open artifact-card--book-open" data-kind={kind} onClick={(e) => e.stopPropagation()}>
+        <BookReader module={module} occurrence={occurrence} src={src} kind={kind} />
+      </div>
+    );
+  }
+
   if (!src && !coverSrc) {
     // Nothing to draw. This used to be the title and nothing else, so an
     // instance that arrived without a picture (a shared IMDb link) could not be

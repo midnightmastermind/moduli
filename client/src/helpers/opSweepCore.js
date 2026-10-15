@@ -37,7 +37,7 @@ export function runSweepSnapshot(snap) {
 }
 
 /** Actions a worker cannot carry out (they ask the page: a prompt, a fetch, an import, a toast or a sound). */
-const PAGE_ACTIONS = /^(GET_USER_INPUT|CALL_API|IMPORT_HTML|IMPORT_MARKDOWN|NOTIFY)$/;
+const PAGE_ACTIONS = /^(GET_USER_INPUT|CALL_API|IMPORT_HTML|IMPORT_MARKDOWN|READ_FILE|NOTIFY)$/;
 
 /** PURE. May this op run in the worker? No step anywhere in its pipeline may need the page. */
 export function workerSafeOp(op) {

@@ -55,7 +55,7 @@ import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -2812,7 +2812,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // same flow, which the existing store handlers absorb — pipeline
   // callers only need the root id to chain MOVE_OCCURRENCE / UPDATE
   // steps against the imported subtree.
-  operationsBridge.importText = ({ content, format = "auto", parentId = null, title = "Imported", htmlOpts = {}, timeoutMs = 60000 } = {}) => {
+  operationsBridge.importText = ({ content, format = "auto", parentId = null, title = "Imported", htmlOpts = {}, timeoutMs = 60000, shape = "magic", embed = false } = {}) => {
     return new Promise((resolve, reject) => {
       if (!content) { reject(new Error("IMPORT: content required")); return; }
       const stateNow = stateRef?.current || {};
@@ -2836,7 +2836,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       };
       socket.on("import_text_result", onResult);
       socket.emit("import_text", {
-        content, format, gridId, parentId, title, htmlOpts, requestId,
+        content, format, gridId, parentId, title, htmlOpts, requestId, shape, embed,
       });
     });
   };

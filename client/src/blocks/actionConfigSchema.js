@@ -450,11 +450,22 @@ export const ACTION_CONFIG_SCHEMA = {
     ],
     hint: "Every slot a start slot plus a duration spans — what places one shift across several time slots. `all slots` is the ordered label list to walk.",
   },
+  READ_FILE: {
+    fields: [
+      { key: "file", kind: "expr", label: "file", placeholder: "a book row or its file" },
+      { key: "from", kind: "expr", label: "from", optional: true, placeholder: "text, or /^OCTOBER 15\\b/" },
+      { key: "to", kind: "expr", label: "up to", optional: true, placeholder: "text or /regex/ — the next marker" },
+      { key: "page", kind: "expr", label: "page", optional: true, placeholder: "used when there is no from" },
+      { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$fileText" },
+    ],
+    hint: "Reads a PDF or e-book's text — all of it, one page, or the passage from one marker to the next. Binds { text, found }; feed `text` to Import markdown to lay it out like Magic.",
+  },
   IMPORT_HTML: {
     fields: [
       { key: "html", kind: "expr", label: "html", placeholder: "$response.body" },
       { key: "parentExpr", kind: "expr", label: "into", optional: true, placeholder: "blank = grid level" },
       { key: "title", kind: "expr", label: "title", optional: true, defaultsTo: "Imported" },
+      { key: "shape", kind: "select", label: "as", optional: true, defaultsTo: "magic", options: ["magic", "reader"] },
       { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$importResult" },
       { key: "onError", kind: "select", label: "on error", optional: true, defaultsTo: "fail",
         options: ["fail", "continue"] },
@@ -466,6 +477,7 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "markdown", kind: "expr", label: "markdown", placeholder: "$llmResponse.text" },
       { key: "parentExpr", kind: "expr", label: "into", optional: true, placeholder: "blank = grid level" },
       { key: "title", kind: "expr", label: "title", optional: true, defaultsTo: "Imported" },
+      { key: "shape", kind: "select", label: "as", optional: true, defaultsTo: "magic", options: ["magic", "reader"] },
       { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$importResult" },
       { key: "onError", kind: "select", label: "on error", optional: true, defaultsTo: "fail",
         options: ["fail", "continue"] },

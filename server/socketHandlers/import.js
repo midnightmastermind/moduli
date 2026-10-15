@@ -42,6 +42,7 @@
 import { htmlToMarkdown } from "../services/wikipediaTools.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { linkRootIntoParent } from "../utils/linkRootIntoParent.js";
+import { embedRootInDocParent } from "../utils/embedRootInDocParent.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
 import { fetchLinkPreview, titleFromHtml } from "../utils/linkPreview.js";
@@ -106,7 +107,7 @@ export function registerImportHandlers(socket, {
   socket.on("import_text", async (payload = {}, ack) => {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
-      title = "", htmlOpts = {}, requestId = null, shape = "magic",
+      title = "", htmlOpts = {}, requestId = null, shape = "magic", embed = false,
     } = payload;
     const userId = socket.userId;
 
@@ -152,6 +153,16 @@ export function registerImportHandlers(socket, {
       }
       for (const o of result.occurrences) {
         io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
+      }
+
+      // After the rows exist on every tab: a doc parent draws its text, not its list: an operation's Import asks for the root to be
+      // embedded too (utils/embedRootInDocParent). Drag/paste imports place their own embed.
+      if (embed && parentId) {
+        const embedded = await embedRootInDocParent({ parentId, childId: result.rootOccurrenceId, userId });
+        if (embedded) {
+          if (uc?.occurrencesById?.[parentId]) uc.occurrencesById[parentId] = { ...uc.occurrencesById[parentId], textmap: embedded.textmap };
+          io.to(userRoom(socket.userId)).emit("occurrence_updated", { occurrence: { ...(uc?.occurrencesById?.[parentId] || {}), id: parentId, textmap: embedded.textmap } });
+        }
       }
 
       reply({

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 // each page on demand into a canvas; navigation via prev/next buttons +
 // page-number input. Falls back to a plain `<iframe>` while the module
 // loads OR if pdfjs throws — better to show *something* than a blank.
-export default function PdfViewer({ src, title, initialPage = 1, onPage = null }) {
+export default function PdfViewer({ src, title, initialPage = 1, onPage = null, controlRef = null }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const pdfDocRef = useRef(null);
@@ -104,6 +104,8 @@ export default function PdfViewer({ src, title, initialPage = 1, onPage = null }
   }
 
   const go = (delta) => setPageNum((n) => Math.max(1, Math.min(totalPages || 1, n + delta)));
+  // The book reader turns pages from its Magic view, where this viewer is mounted but hidden.
+  if (controlRef) controlRef.current = { go };
   const jump = (raw) => {
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 1) return;

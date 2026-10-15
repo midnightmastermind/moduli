@@ -3949,3 +3949,10 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-15 15:07** — *"you can only copy outside of the magic"* (on the reader's open item, dragging a Magic node out
   to keep it): a node dragged OUT of a Magic view is always a COPY — the planned node and its planned children are
   minted for real at the drop; there is no move or copy-link out of Magic.
+- **2026-10-15 15:56** — (1) *"are there any books that didnt get added? im going to add one more folder"* —
+  (2) clicking a file occurrence's COVER should open the cover image AND the book file side by side (the book
+  already open in its tile, not an icon to click); click into either to full screen it. (3) Magic needs
+  previous / next (goes to the next page and converts it). (4) the Magic view, file access and reading files
+  must be usable in OPERATIONS — e.g. add Daily Reflections (and other day-by-day reflection books) to the day
+  page for that day.
+- **2026-10-15 15:59** — the cover-beside-the-file view is the same for video or anything else: the cover image (if it has one) next to the file(s), all in the viewer; the same for an occurrence with a bunch of images, when you click the cover photo.

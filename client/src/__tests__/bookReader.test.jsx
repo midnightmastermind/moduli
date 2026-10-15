@@ -20,8 +20,10 @@ const fakeDoc = {
     { str: "Page three text.", transform: [1, 0, 0, 1, 0, 700], height: 10, hasEOL: true },
   ] }) }),
 };
+const pdfGo = vi.fn();
 vi.mock("../modules/PdfViewer.jsx", () => ({
-  default: ({ onPage, initialPage }) => {
+  default: ({ onPage, initialPage, controlRef }) => {
+    if (controlRef) controlRef.current = { go: (d) => pdfGo(d) };
     React.useEffect(() => { onPage?.(initialPage, fakeDoc); }, []);
     return <div data-testid="pdf">pdf at {initialPage}</div>;
   },
@@ -90,6 +92,16 @@ describe("BookReader", () => {
     expect(written.id).toBe("m1");
     expect(written.meta.originalName).toBe("dune.pdf");
     expect(written.meta.readingPosition.page).toBe(1);
+  });
+
+  it("Magic has previous / next, which turn the book underneath", async () => {
+    pdfGo.mockReset();
+    mount(makeSocket());
+    expect(screen.queryByRole("button", { name: "Next page" })).toBe(null);
+    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    expect(pdfGo.mock.calls).toEqual([[1], [-1]]);
   });
 
   it("says plainly when a file is not a book it can open", () => {

@@ -2424,6 +2424,27 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
   // event via the bridge, await `import_text_result`, bind the
   // { rootOccurrenceId, stats, detectedFormat } result to resultVar
   // (or smuggle the error envelope to errorVar when onError === "continue").
+  // READ_FILE path: read the file's text in the page (helpers/bookText), bind { text, found }.
+  // onError "continue" (the default) binds { text: "", found: false, error } to resultVar too, so a
+  // pipeline can branch on `found` instead of stopping.
+  if (last._readFile) {
+    // Set by main.jsx (page only): pdf.js / foliate must stay out of the load-sweep worker's bundle.
+    const readFn = operationsBridge.readFileText;
+    const read = typeof readFn === "function" ? readFn(last.request) : Promise.reject(new Error("files can only be read in the page"));
+    Promise.resolve(read).then((value) => {
+      resumeContinuation(last.continuation, last.resultVar || "$fileText", value, { onPipelineDone, accumulated: nextAccumulated });
+    }).catch((err) => {
+      const msg = String(err?.message || err);
+      if (last.onError === "fail") {
+        console.warn("[READ_FILE] failed:", err);
+        if (onPipelineDone) onPipelineDone(nextAccumulated);
+        return;
+      }
+      resumeContinuation(last.continuation, last.resultVar || "$fileText", { text: "", found: false, error: msg }, { onPipelineDone, accumulated: nextAccumulated });
+    });
+    return pre;
+  }
+
   if (last._importText) {
     const importFn = operationsBridge.importText;
     if (typeof importFn !== "function") {

@@ -22,6 +22,11 @@ import "./index.css";
 import reportWebVitals from './reportWebVitals';
 import { hasSession } from "./helpers/authStorage.js";
 import { PROMO_PATHS } from "./promo/promoPaths.js";
+import { operationsBridge } from "./state/bindSocketToStore";
+
+// READ_FILE (operations) reads a pdf / e-book's text in the page. Wired here, not in the executor,
+// so pdf.js and foliate stay out of the load-sweep worker's bundle.
+operationsBridge.readFileText = (req) => import("./helpers/bookText").then((m) => m.readFileText(req));
 
 // Polyfill crypto.randomUUID for insecure contexts (LAN/WSL IPs over http).
 // crypto.getRandomValues is available everywhere; only randomUUID is

@@ -313,3 +313,35 @@ describe("filesOf — an artifact row that carries no file of its own", () => {
     expect(got.map(e => e.occ.id)).toEqual(["art-a", "art-b"]);
   });
 });
+
+describe("filesOf — a book row's cover sits beside its book file", () => {
+  function bookRow({ cover = "https://c/cover.jpg", fileKind = "ebook" } = {}) {
+    const file = artifact("f1", "gdrive:c:f1", fileKind);
+    const row = {
+      module: { id: "m-book", role: "artifact", kind: "book", fileRef: null, label: "Book", fieldBindings: [{ fieldId: F_FILES, role: "files" }] },
+      occ: { id: "o-book", moduleId: "m-book", meta: cover ? { cover } : {}, fields: { [F_FILES]: { value: ["f1"] } } },
+    };
+    return { file, row };
+  }
+  it("lists the row itself (its cover) first, then the book", () => {
+    const { file, row } = bookRow();
+    const got = filesOf(row.occ, ctxOf({ occurrences: [file.occ, row.occ], modules: [file.module, row.module] }));
+    expect(got.map((f) => f.occ.id)).toEqual(["o-book", "f1"]);
+  });
+  it("no cover → just the book", () => {
+    const { file, row } = bookRow({ cover: null });
+    const got = filesOf(row.occ, ctxOf({ occurrences: [file.occ, row.occ], modules: [file.module, row.module] }));
+    expect(got.map((f) => f.occ.id)).toEqual(["f1"]);
+  });
+  it("a file that IS the cover (same url) → no second poster (the movie case)", () => {
+    const { file, row } = bookRow({ cover: "gdrive:c:f1", fileKind: "image" });
+    const got = filesOf(row.occ, ctxOf({ occurrences: [file.occ, row.occ], modules: [file.module, row.module] }));
+    expect(got.map((f) => f.occ.id)).toEqual(["f1"]);
+  });
+  it("images that are not the cover still get the cover beside them; so does a video", () => {
+    const img = bookRow({ fileKind: "image" });
+    expect(filesOf(img.row.occ, ctxOf({ occurrences: [img.file.occ, img.row.occ], modules: [img.file.module, img.row.module] })).map((f) => f.occ.id)).toEqual(["o-book", "f1"]);
+    const vid = bookRow({ fileKind: "video" });
+    expect(filesOf(vid.row.occ, ctxOf({ occurrences: [vid.file.occ, vid.row.occ], modules: [vid.file.module, vid.row.module] })).map((f) => f.occ.id)).toEqual(["o-book", "f1"]);
+  });
+});

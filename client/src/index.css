@@ -4182,6 +4182,14 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   min-height: 0;
   cursor: auto;
 }
+/* An open BOOK in the viewer is an open page too (it carries --bookmark-open so every "an open page
+   fills its tile" rule below applies to it), and the reader needs the whole card to paginate into. */
+.artifact-card--book-open {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
 /* A bookmark opened in the spread fills its tile — the rule that does it lives
    with the per-count caps further down, because it has to BEAT them and shares
    their specificity exactly. See ".artifact-spread-body[data-count]" below. */

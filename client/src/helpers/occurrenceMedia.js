@@ -187,10 +187,24 @@ export function filesOf(occ, ctx) {
   // duplicate. Deliberately NOT a dedupe on fileRef: two DIFFERENT artifacts
   // that happen to share a url are still two attachments, and collapsing them
   // would hide a real double-attach instead of fixing one.
+  //
+  // AND WHEN ITS FILES ARE NOT PICTURES, ITS COVER IS ONE (user, 2026-10-15: clicking a book's cover
+  // should open "the image and … the book file right next to each other"). A book row's attachment is
+  // the book itself (an e-book / pdf), so without its own tile the cover it is known by was nowhere
+  // in the viewer. Only when no other file is an image — a movie's poster child IS its cover, and
+  // pushing self there is the double poster above (decided by URL, below).
   const selfArtifact = resolveArtifact(occ?.id, ctx);
-  const othersExist = [primaryId, ...attachedIds, ...childIds]
-    .some(id => id && id !== occ?.id && resolveArtifact(id, ctx));
-  if (selfArtifact && (selfArtifact.src || !othersExist)) push(occ?.id, "self");
+  const others = [primaryId, ...attachedIds, ...childIds]
+    .filter(id => id && id !== occ?.id).map(id => resolveArtifact(id, ctx)).filter(Boolean);
+  const othersExist = others.length > 0;
+  // The same for a video, a song, a set of images (user, 2026-10-15 15:59): the cover sits beside
+  // whatever the files are — unless one of the files IS the cover. Measured on poms grid: every movie
+  // and series row's poster child has exactly the cover's url (1,172 of 1,172), which is the double
+  // poster above; no book, album or other row's file shares its cover's url.
+  const coverRef = occ?.meta?.cover || selfArtifact?.module?.meta?.cover || null;
+  const coverSrc = coverRef ? resolveFileRef(coverRef) : null;
+  const coverIsOnlyPicture = !!coverSrc && !others.some((a) => a.src && a.src === coverSrc);
+  if (selfArtifact && (selfArtifact.src || !othersExist || coverIsOnlyPicture)) push(occ?.id, "self");
   if (primaryId) push(primaryId, attachedIds.includes(primaryId) ? "field" : "child");
   for (const id of attachedIds) push(id, "field");
   for (const id of childIds) push(id, "child");

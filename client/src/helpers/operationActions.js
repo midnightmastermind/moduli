@@ -34,6 +34,8 @@ import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
 import { startAlarmRing } from "../state/alarmRingStore";
 import { sessionHeaders } from "./authStorage";
+import { resolveFileRef } from "./fileRef";
+import { filesOf } from "./occurrenceMedia";
 
 /** A path on THIS site: "/api/…", not "//host/…" and not "https://…". */
 export function isSameSiteUrl(url) {
@@ -2615,6 +2617,39 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }];
     }
 
+    case "READ_FILE": {
+      // The text of a file (helpers/bookText): a pdf or an e-book, optionally cut between two markers.
+      // cfg: file (an occurrence — the file itself, or a row whose Files hold one — or its id),
+      //      from / to (text or /regex/), page (1-based, when there is no `from`), maxChars,
+      //      resultVar (default "$fileText") bound to { text, found }.
+      const ref = resolveExpr(cfg.file, $vars);
+      const fileId = ref && typeof ref === "object" ? ref.id : ref;
+      const occ = fileId ? occurrencesById[fileId] : null;
+      const mod = occ ? modulesById[occ.moduleId] : (fileId ? modulesById[fileId] : null);
+      let src = mod?.fileRef ? resolveFileRef(mod.fileRef) : null;
+      let kind = mod?.kind || null;
+      if ((!src || (kind !== "pdf" && kind !== "ebook")) && occ) {
+        const book = filesOf(occ, { occurrencesById, modulesById, fieldsById })
+          .find((f) => f.src && (f.kind === "pdf" || f.kind === "ebook"));
+        if (book) { src = book.src; kind = book.kind; }
+      }
+      const resultVar = cfg.resultVar || "$fileText";
+      if (!src || (kind !== "pdf" && kind !== "ebook")) {
+        $vars[resultVar] = { text: "", found: false, error: "not a readable file" };
+        break;
+      }
+      const interp = (v) => (v == null || v === "" ? null : String(resolveExpr(v, $vars) ?? ""));
+      const pageVal = cfg.page != null && cfg.page !== "" ? Number(resolveExpr(cfg.page, $vars)) : null;
+      return [{
+        _suspend: true,
+        _readFile: true,
+        request: { src, kind, from: interp(cfg.from), to: interp(cfg.to), page: pageVal, maxChars: Number(cfg.maxChars) || 20000 },
+        resultVar,
+        errorVar: cfg.errorVar || "$fileError",
+        onError: cfg.onError === "fail" ? "fail" : "continue",
+      }];
+    }
+
     case "IMPORT_HTML":
     case "IMPORT_MARKDOWN": {
       // Pipe arbitrary HTML or markdown through the server-side
@@ -2656,7 +2691,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       return [{
         _suspend: true,
         _importText: true,
-        request: { content: String(content), format, parentId, title, htmlOpts, timeoutMs },
+        // shape: "magic" (sections / textblocks / lists — what the Magic view shows) or "reader" (one
+        // textblock). embed: a doc parent draws its text, so the root is embedded there too.
+        request: {
+          content: String(content), format, parentId, title, htmlOpts, timeoutMs,
+          shape: cfg.shape === "reader" ? "reader" : "magic",
+          embed: cfg.embed !== false && cfg.embed !== "false",
+        },
         resultVar,
         errorVar,
         onError,

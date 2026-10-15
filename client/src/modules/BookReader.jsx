@@ -155,6 +155,7 @@ export default function BookReader({ module, occurrence, src, kind, dispatch: di
   const [note, setNote] = useState(null);
   const rootRef = useRef(null);
   const viewRef = useRef(null);
+  const pdfCtl = useRef(null);
 
   // What is on screen: the page's content for Magic / Save page, and the position to remember.
   const [page, setPage] = useState({ content: "", format: "markdown", pos: null });
@@ -197,6 +198,10 @@ export default function BookReader({ module, occurrence, src, kind, dispatch: di
   const { plan, tree } = usePlannedImport({ socket, gridId, content: page.content, format: page.format, shape: "magic", title: label, enabled: isMagic, reqPrefix: "book" });
   const saveAsPage = useSaveAsPage({ socket, gridId, dispatch, rootRef, occurrence });
 
+  const turn = (d) => {
+    if (engine === "ebook") { if (d < 0) viewRef.current?.goLeft(); else viewRef.current?.goRight(); }
+    else pdfCtl.current?.go(d);
+  };
   const flash = (text) => { setNote(text); setTimeout(() => setNote(null), 5000); };
   const savePage = () => {
     if (!page.content || busy) return;
@@ -222,6 +227,13 @@ export default function BookReader({ module, occurrence, src, kind, dispatch: di
       <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {MODES.map(([m, l]) => tabBtn(m, l))}
+        {isMagic && (
+          <>
+            {/* Turns the book underneath; the new page is laid out as soon as it lands. */}
+            <button type="button" style={navBtn} aria-label="Previous page" title="Previous page" onClick={() => turn(-1)}><ChevronLeft size={14} /></button>
+            <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
+          </>
+        )}
         <span style={{ flex: 1, minWidth: 8, fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         <button type="button" onClick={savePage} disabled={!page.content || busy} aria-label="Save page"
@@ -239,7 +251,7 @@ export default function BookReader({ module, occurrence, src, kind, dispatch: di
         <div style={{ position: "absolute", inset: 0, visibility: isMagic ? "hidden" : "visible" }}>
           {engine === "ebook"
             ? <EbookView src={src} title={title} startCfi={saved?.cfi || null} onRelocate={onRelocate} viewRef={viewRef} />
-            : <PdfViewer src={src} title={title} initialPage={saved?.page || 1} onPage={onPdfPage} />}
+            : <PdfViewer src={src} title={title} initialPage={saved?.page || 1} onPage={onPdfPage} controlRef={pdfCtl} />}
         </div>
         {isMagic && (
           <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "var(--panel-bg)", color: "var(--text-primary)" }}>
