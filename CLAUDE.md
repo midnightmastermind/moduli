@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-15 (5) — THE BOOK ROWS POINT AT THEIR FILES: 282 Drive books linked (`0401`)
+
+User: *"connect my book files, which ill upload in google drive, with our book file occurances"*; answers in
+CLAUDE_CHAT (13:14-13:45): files in Drive's Moduli uploads/Books, read-only access, unmatched file → new row,
+duplicate rows → merge, volumes → a row per volume, do them all. Drive scope widened to
+`drive.file + drive.readonly` (`services/googleOAuth.js`, deployed, user reconnected).
+```
+files     282 (azw 255 · mobi 16 · pdf 11; .sdr folders + My Clippings skipped). DRM scan: 253/255 azw, 15/16 mobi open
+artifact  one per file, fileRef gdrive:<conn>:<fileId>, kind ebook | pdf, homed in a new Files › Books folder
+rows      Files bound (role files, hidden) on the Book + Comic modules; 281 rows carry their files, `main` set
+merged    12 same-book pairs (one row per drive scan): fuller row kept, empty fields + meta filled from the other,
+          references repointed, the other deleted
+volumes   "… (Volume 2/3)" became rows copied from Volume 1's; new rows for 5 books no row named
+```
+The match runs on the file NAME (`parseFileName`: Kindle key / ASIN suffixes, `_ ` for `:`, `.pdf-cdeKey`,
+"[(Title)] [Author_ X]", "Last, First - title-Publisher (year)" pdfs, last " - " = author), then exact → title
+without author → main title, size as the tie-break. File Path held the old local names and is not used. Author
+is an occurrence field, so a new row links an EXISTING Authors-board row only. The Drive listing is read from
+`BOOKS_DRIVE_PATH` (outside git: titles). Read back: 0 unresolved file refs, every `main` in its list, Books
+board listing 0 dangling / 0 unlisted; prod proxy serves a pdf and an azw (206). Integrity = the long-standing
+container-filtered-empty only. Tests `server/__tests__/linkDriveBooks.test.js` (13). **Next:** the reader
+(Book mode, Magic, Save page) — plan `docs/superpowers/plans/2026-10-15-book-files-from-drive.md`.
+
+---
+
 ### 2026-10-15 (4) — A PLACEMENT LAYS OUT ITS OWN ROW; Command Center columns can be reordered
 
 User (11:42-12:06): instance rows need layout styling — cover/label/fields arranged in nested rows and columns

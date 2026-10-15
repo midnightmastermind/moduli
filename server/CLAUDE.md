@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 — `0401`: Drive book files linked to the book rows)
+- Reads `BOOKS_DRIVE_PATH` (`{connectionId, files:[{id,name,size,mimeType}]}`, written by the gitignored
+  `_drivebooks.mjs` ON PROD — the Drive token needs SECRETS_KEY) and THROWS without it. One artifact per file
+  (`gdrive:` fileRef, kind ebook/pdf, `meta.source:"drive-books"`) in Files › Books; Files bound (role files,
+  hidden) on the book/comic modules; rows get `fields[Files] = {value, main}`. Merges same-title rows a file
+  hits (fuller kept, fields + meta filled, refs repointed), copies a row per extra volume, mints rows for
+  unmatched files (`meta.externalId: gdrive-book:<fileId>`). Pure `parseFileName` / `planBookLinks` /
+  `pickKeeper` / `mergeFields` / `mergeMeta`, tested (`__tests__/linkDriveBooks.test.js`, 13). Applied to poms.
+- `services/googleOAuth.js DRIVE_SCOPE` now also asks `drive.readonly` (files the user put in Drive by hand).
+
 ## Recent Changes (2026-10-13 — `0397`/`0398`: Combine Schedule, as data)
 - `0397` adds a boolean field **Combine Schedule**, a local filter on the Schedule page naming it (Filter
   menu › Local Filters, true/false pills) and the op **Schedule: Combine Days** (priority 4, target the
