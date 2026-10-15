@@ -57,6 +57,31 @@ Panels: the rebuild's left panel is back on Schedule (its list trimmed to Root +
 
 ---
 
+### 2026-10-15 — THE REBUILD PUNCH LIST, PART 2: triggers, headings, filters, bindings
+
+User: *"please continue"*. All by clicking, each read back; the census (`_deepcmp`, new `server/_trigcmp.mjs`) is the check.
+```
+triggers   104 added to 42 ops: poms' "container added/removed in Schedule" pair and "Trackers page date nav"
+           (`_trigs.mjs`). The rebuild's trackers did not recompute when the Trackers page's OWN date moved.
+           Completed Tasks -> P3, Days Until Due -> P4 (`_opfix.mjs`); Place Scheduled Items uncategorized.
+           ops whose triggers differ: 70 -> 33 — the rest are the rebuild's deliberate extras (onChange
+           Completed etc., scoped where poms is unscoped), kept on purpose
+headings   50 doc sections' heading level via their "#" button (`_headbatch.mjs`; VH=1100 for the last one —
+           a 3000px window put it under the toolbar). Board containers' headingLevel only feeds a CSS hook: left
+bindings   Readings + Courses rows bind poms' Files/Library/Media Tags/Pages/Poster with poms' hidden + roles
+body link  Daily Answer (template + the day columns' shared module): Answer, linked by Date (`_bodylink.mjs`)
+filters    local filters as poms: Trackers Date (off) + Tags; Schedule Date + Time Slot (`_localflt.mjs`).
+           poms' Date/Tags ones carry a `condition` with `hides:false`, which getLocalFilterConditions IGNORES,
+           so they are nav widgets only; the editor cannot write a condition, so the rebuild's are nav + IS
+           (same screen today; differs only once a Tags value is picked)
+```
+**Left:** 57 trackers in the simpler shape (display rules / trigger-type gate / Tags rule left out on purpose earlier);
+Day Page Template is a board page where poms has a doc page; Schedule template slots' Last Seen binding; Trackers
+balance tiles bind their total visibly; seed-only meta nothing reads (slotHour/Label/Minute, todoListContainer,
+nutrition keys). Navcfg/fieldVisibility/feed rows left in the census are naming or order only.
+
+---
+
 ### 2026-10-14 (5) — THE REBUILD PUNCH LIST, BY CLICKING; a feed's own sync erased the conditions being typed into it
 
 Continuing account3's census (`server/_deepcmp.mjs`, weekly limit at 15:31) of everything non-bulk that differs.
