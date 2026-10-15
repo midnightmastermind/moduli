@@ -3934,3 +3934,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **14:59** — *"anything we are recreating should be able to be reproduced via the ui"* (standing rule: every rebuild change goes through the UI; anything the UI cannot do gets built into it)
 - **15:21** — *"other than bulk data, i want everything recreated. we need the ui to be tested everywhere. what else is left in the rebuild"*
 - **2026-10-15 07:56** — "yes" (to: rebuild the 57 trackers to poms' exact pipeline shape — display rules, trigger-type gate, Tags rule — instead of the simpler rebuild shape)
+- **2026-10-15 11:42** — after the tracker rebuild: layout styling for instance occurrences — change the flow layout of the cover image, the label and the fields, plus individual styling per field; e.g. Exercise's fields stacked 2 by 2 (Completed + Movement in one stack, Set 1 + Weight 1 in the next, …).
+- **2026-10-15 11:47** — a field CATEGORY can't be deleted: deleting one should make its fields uncategorized. And there should be no uncategorized fields: look through poms grid's and reorganize them into categories.

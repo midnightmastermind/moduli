@@ -57,6 +57,32 @@ Panels: the rebuild's left panel is back on Schedule (its list trimmed to Root +
 
 ---
 
+### 2026-10-15 (2) — THE REBUILD'S TRACKERS IN POMS' EXACT SHAPE, BY CLICKING; copy/paste for steps; a bad paste repaired
+
+User: *"yes"* — rebuild the 57 "simpler shape" ops exactly. 19 of them are not trackers (Build Schedule, Pomodoro, Birthdays…)
+whose steps differ but which were each watched working; left. The 38 trackers:
+```
+gate + vars   23 (Steps' shape): poms' event gate ($trigger.type onLoad / NavigationOp / Create|Delete|Measure with
+              the changed row's Date in the tile's period) around loop + UPDATE, + $displayRules (the value pill's
+              colours) / $goalId / $goalCategory, + the inner Tags rule (`_gate.mjs`, `_trkconv.mjs`, `_datefix.mjs`)
+rebuilt       21 by `_opbuild.mjs`: empties an op's steps and re-creates poms' pipeline (spec from server/_opspec.mjs,
+              ids mapped: fields by name, occurrences/modules by unique label, OVERRIDE for the rest) through the
+              editor — action menu paths, rule groups addressed by path, FIND, loops
+result        `server/_opcmp.mjs` (order-insensitive, same-op groups flattened, json:/arrayOf, default `by`):
+              IDENTICAL except Coffee (poms points at a tile poms no longer has), Pomodoros Today/Time + Pomodoro
+              History (the rebuild's timer files sessions in Tasks, poms' in Schedule), Current Streak (arrayOf vs
+              json: list). Backup of every rebuild op first: server/backups/ops/2026-10-15-rebuild-ops-before-*.json
+```
+**App:** Copy step / + Paste (`helpers/stepClipboard`, fresh ids) — the editor reorders only within one list, so a
+loop could never be moved into an IF; INIT_VAR `fallback` / `fallback2` got inputs (9 poms ops, seed-only before).
+**Mistake, repaired:** the gate was copied from Steps AFTER Steps' loop + UPDATE had been moved into it, so four ops
+(Water, Completed Tasks, Time Spent, Pomodoros Today) got Steps' loop + Daily Steps UPDATE inside their gate for
+~1h (their tiles read Steps' total added to their own). Removed by clicking (`_fixdmg.mjs`); the converter now empties
+a pasted gate first. Left behind: an unbound Daily Steps "0" on those four tiles — invisible, no UI can clear it.
+Also Completion Rate's MULTIPLY/DIV were left outside the gate (they carry a varName box, read as INIT) — fixed.
+
+---
+
 ### 2026-10-15 — THE REBUILD PUNCH LIST, PART 2: triggers, headings, filters, bindings
 
 User: *"please continue"*. All by clicking, each read back; the census (`_deepcmp`, new `server/_trigcmp.mjs`) is the check.
