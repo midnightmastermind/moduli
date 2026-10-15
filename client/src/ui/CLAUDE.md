@@ -2,6 +2,13 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 — InstanceLayoutEditor; Command Center columns are Pragmatic drop targets)
+- `InstanceLayoutEditor.jsx` (NEW) — the row-layout editor, mounted by `LayoutCascadeSection` for an instance's
+  placement override (InstanceForm › Style). Hidden bindings are not offered (the row does not draw them).
+- `commandCenter/CategoryColumnDnd.jsx` (NEW) — `DropColumn`, `SortableRow` (closest-edge line),
+  `useCategoryDropMonitor`. FieldsTab + OperationsTab use it; their native onDragOver/onDrop column handlers are
+  gone (a Pragmatic chip drag never delivered a native drop to them). Guard `categoryColumnDndWiring.test.js`.
+
 ## Recent Changes (2026-10-13 — FeedSection: "Under (occurrence)" / "In (occurrence)")
 - The condition's field picker offers two place rows (`UNDER_OPTIONS`): picking one writes `path: "_ancestors"` +
   `HAS_ANCESTOR` (or `parentId` + `IS`); the value is the occurrence id. So Combine Days' slot feeds are editable.

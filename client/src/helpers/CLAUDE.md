@@ -3,6 +3,15 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-15 — instanceLayout.js + categoryColumnSort.js NEW)
+- `instanceLayout.js` — a placement's own row layout (`occurrence.meta.instanceLayout`): pure tree edits
+  (`moveItem`, `addGroup`, `removeGroup`, `toggleDir`, `setGroupProps`, `setFieldStyle`, `setCoverMode`),
+  `resolveTree` (drops missing/duplicate keys, appends unplaced), `groupFlexStyle`, `fieldWrapStyle`, and
+  `carriedPlacementMeta` — the one list of meta keys every copy path carries (LayoutHelpers copy/copy-link,
+  CommitHelpers.duplicateInstance, operationActions COPY_LINK). Tests instanceLayout / copyCarriesLayout.
+- `categoryColumnSort.js` — `orderColumn`, `planColumnMove`, `dropIndex` for Command Center category columns
+  (`columnOrder`, display only). Test categoryColumnSort.
+
 ## Recent Changes (2026-10-14 (3) — three costs off the first draw)
 - `scrollDiag` (on by default on touch) read `scrollHeight` in every scroll event: a forced layout per event while
   the grid mounts (~0.66s, phone 4x). One rAF look per frame now.

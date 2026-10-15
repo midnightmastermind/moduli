@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-15 (4) — A PLACEMENT LAYS OUT ITS OWN ROW; Command Center columns can be reordered
+
+User (11:42-12:06): instance rows need layout styling — cover/label/fields arranged in nested rows and columns
+like the fields organizer, per placement, with per-field styling, the cover able to sit behind the row, columns
+that can be responsive or not, all in the placement's Layout settings and carried by copies.
+```
+stored     occurrence.meta.instanceLayout = { tree:{dir row|col, wrap?, grow?, items[label|cover|field:id|group]},
+           cover layout|background|hidden, fieldStyles{fid:{width,size,color,ownLine}} }  (helpers/instanceLayout)
+editor     Settings › Style › Layout: "Arrange this row…" -> nested dashed boxes, drag chips between them,
+           Columns/Rows, Wraps/No wrap, Fills/Fits, + Box, ×, Reset; a field chip opens Hide its name (the row's
+           existing fields[id].hideName) / Own line / Width / Size / Colour (ui/InstanceLayoutEditor)
+renderer   ModuleInstance draws the tree when set; a field bound later is appended, an unbound one dropped
+copies     copy, copy-link, Duplicate, an op's COPY_LINK carry it (carriedPlacementMeta) — paste/APPLY_TEMPLATE
+           already copied meta
+```
+Watched on prod: an Exercise row in Routines — Arrange -> stored -> drawn -> Reset -> null.
+**Fields / Operations tabs (user 12:17): "i cant reorganize them in the col at all and its not letting me even place
+them in diff columns."** The columns listened for native HTML5 `drop`, which a Pragmatic drag of the chip never
+delivered there. Columns and rows are Pragmatic drop targets now (`ui/commandCenter/CategoryColumnDnd`), with a
+blue line at the closest edge; the order is stored as `columnOrder` on the field / operation (new schema key,
+display only — an op's run order stays priority then sortOrder). Watched on prod, read back from Mongo: Pomodoro
+History reordered, moved into References above Tags, moved back; Books Read reordered in Library Ops and back.
+Probe `_ccdrag.mjs` (TAB FROM TO EDGE | TOCOL) dispatches the native drag events with one DataTransfer.
+
+---
+
 ### 2026-10-14 (6) — THE REBUILD OPENS LIKE POMS: panels, page field visibility, no "false" pills, scrolled to now
 
 User: *"the layout is still different than poms grid"* → *"anything we are recreating should be able to be reproduced

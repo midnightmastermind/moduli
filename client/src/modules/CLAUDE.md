@@ -2,6 +2,11 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-15 — ModuleInstance draws a placement's own row layout)
+- When `occurrence.meta.instanceLayout` is set (and no renderBody), the label, cover and field pills are drawn in
+  its nested boxes (`layoutView`); cover `background` darkens the image behind the row, `hidden` omits it.
+  `labelNode` / `mediaNode` / `renderFieldPill` were lifted out so both layouts share them.
+
 ## Recent Changes (2026-10-13 — ModuleContainer virtualizes long lists)
 - A stack list > 120 rows, or a WRAP grid of leaves > 120, renders through `helpers/virtualRows` (spacers + the
   rows near the viewport). The map body became `renderRow`; the items div carries `itemsListRef`; the list gets
