@@ -55,6 +55,10 @@ import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import {
+  LABEL as LAYOUT_LABEL, COVER as LAYOUT_COVER, fieldKey as layoutFieldKey, fieldIdOf as layoutFieldIdOf,
+  resolveTree as resolveLayoutTree, fieldWrapStyle, groupFlexStyle,
+} from "../helpers/instanceLayout";
+import {
   getEffectiveFieldVisibilityForOccurrence,
   getEffectiveAutoAppliedFieldIds,
   getAutoAppliedRoles,
@@ -784,6 +788,207 @@ function InstanceInner({
     );
   }
 
+  const labelNode = labelRowRendered && (
+        isEditingLabel ? (
+          <input
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={commitInlineLabel}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitInlineLabel(); }
+              if (e.key === "Escape") { setLabelDraft(label ?? ""); setIsEditingLabel(false); }
+              e.stopPropagation();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onFocus={(e) => e.target.select()}
+            autoFocus
+            style={{
+              flex: "0 1 auto", minWidth: 0,
+              background: "transparent", border: "none", outline: "none",
+              // MATCHES the rendered label exactly. This is the edit box
+              // that REPLACES it on double-click, so any difference makes
+              // the text visibly resize the moment you start renaming.
+              fontSize: INSTANCE_LABEL, color: "var(--text-primary)",
+              paddingTop: 0, paddingLeft: 2,
+              fontFamily: "inherit",
+            }}
+          />
+        ) : (
+          <>
+          <div
+            className="instance-label"
+            onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
+            style={{
+              // `0 0 auto` — NEVER SHRINK. This box is an item in a COLUMN
+              // flex (`.instance-textcol`), so `flex-shrink` acts on its
+              // HEIGHT, not its width. It was `0 1 auto`, and the comment
+              // below reasons entirely about WIDTH — which is the cross
+              // axis here and is governed by `minWidth: 0` and the max-width
+              // cap, not by shrink. So the shrink was doing nothing anyone
+              // intended and one thing nobody did: on a tile whose fields
+              // overflow its 200px cap, flex took the squeeze out of the
+              // TITLE. Measured on prod: `Vitamins & Minerals` rendered its
+              // label 10px tall against a 25.5px line-height — the top
+              // third of the glyphs, which reads as the title being covered
+              // by the fields (user, 2026-09-05). `Workout Log` was at 21.
+              //
+              // The fields are the scroller and already absorb it
+              // (`overflow-y: auto`, 439px of content in 180px). A/B'd live:
+              // 10 -> 26 and 21 -> 26, while the four tiles that fit stayed
+              // at 26 and no tile's height moved.
+              flex: "0 0 auto",
+              minWidth: 0,
+              // WITHOUT THIS CAP THE LABEL SIZES TO ITS TEXT AND NOTHING
+              // EVER MARQUEES. This box is a fit-content item in a COLUMN
+              // flex (`.instance-textcol`, align-items:flex-start), and the
+              // `white-space: nowrap` inside it makes its MIN-content width
+              // equal the full text width — so it cannot shrink to the
+              // space available. Measured on prod, a 184px media tile:
+              //
+              //   .auto-marquee     box 266  content 266  -> overflow 0
+              //   .instance-label   width 268   max-width NONE
+              //   .instance-textcol width 164   scrollWidth 268
+              //   .instance-wrap    width 184   overflow: hidden  <- clips
+              //
+              // AutoMarquee's own `max-width: 100%` resolved against that
+              // 268, so its box always equalled its content and it
+              // correctly found nothing to scroll, while the text was
+              // clipped 104px further out by a box it cannot see. A
+              // percentage max-width does not feed intrinsic sizing, so it
+              // only ever CAPS: 268 -> 164, overflow 0 -> 83, and the title
+              // scrolls. (Same failure the note at the top of this file
+              // records for the absolutely-positioned field strip — a
+              // marquee that "never fired" is nearly always a box that was
+              // never squeezed.)
+              maxWidth: "100%",
+              overflow: "hidden",
+              // Bumped twice on 2026-08-24 — 11 -> 13 -> 15 -> 16 — because
+              // the user kept reading it as body text. It is the row's
+              // TITLE now that it sits over the fields rather than in line
+              // with them, so it should read like one.
+              // 16 -> 18 (user, 2026-08-25: "the instance label and
+              // input/display fields need to be bigger"). The fields under
+              // it went 10-13 -> 14 in the same pass, so the title has to
+              // move with them or it stops reading as the title.
+              fontSize: INSTANCE_LABEL,
+              color: "var(--text-primary)",
+              paddingTop: 0,
+              paddingLeft: 2,
+              cursor: "text",
+            }}
+            title="Double-click to rename"
+          >
+            {/* Auto-marquee: scrolls the label only when it's wider than the
+                space it has; otherwise renders static. Empty labels render a
+                faint, double-clickable "Untitled" placeholder so a blank
+                occurrence can be named — but NOT for textblock / artifact
+                bodies (renderBody), whose content IS the body and which have
+                no meaningful label.
+                Display goes through resolveLabelTokens: "[Field Name]" in
+                the label renders the occurrence's live field value; the
+                RAW label (with tokens) is what inline editing shows. */}
+            {hasLabel
+              ? <AutoMarquee>{resolveLabelTokens(label, occurrence, fieldsById)}</AutoMarquee>
+              : (renderBody ? null : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>)}
+          </div>
+          </>
+        )
+  );
+  const mediaNode = (showMedia && !mediaInline) ? (() => {
+    // Resolved once, above, through helpers/occurrenceMedia — the
+    // local-vs-absolute fileRef split lives in resolveFileRef now rather
+    // than being re-derived at every render site.
+    const src = mediaSrc;
+    return (
+      <div
+        ref={mediaDropRef}
+        // TWO drag affordances, because the gesture means two different
+        // things (user 2026-08-07). With nothing here, dragging an
+        // artifact over shows a LINE marking where it would land. With a
+        // picture already here, it shows a ring AROUND that picture —
+        // because the drop REPLACES the face, and a line would read as
+        // "adds another".
+        className={
+          "instance-media"
+          + (src ? "" : " instance-media-empty")
+          + (mediaDragOver ? (src ? " instance-media-dragover-filled" : " instance-media-dragover-empty") : "")
+        }
+        style={{ flex: "1 1 100%", minWidth: 0 }}
+        title={src ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
+      >
+        {src && mediaTag === "img" && (
+          <img className="instance-media-el" src={src} alt={mediaBinding?.field?.name || label || "media"} />
+        )}
+        {src && mediaTag === "video" && (
+          <video className="instance-media-el" src={src} controls playsInline preload="metadata" />
+        )}
+        {src && mediaTag === "audio" && (
+          <audio className="instance-media-el" src={src} controls style={{ width: "100%" }} />
+        )}
+        {!src && (
+          <span className="instance-media-placeholder">Drop media here</span>
+        )}
+      </div>
+    );
+  })() : null;
+  // Each pill is its own AutoMarquee box: the fields row still wraps normally
+  // (each box is a flex item), but a single pill that is itself wider than the
+  // available width auto-scrolls instead of overflowing the container.
+  const renderFieldPill = ({ field, binding }) => (
+    <AutoMarquee key={field.id} className="instance-field-mq">
+      <FieldRenderer
+        field={field}
+        binding={binding}
+        occurrence={occurrence}
+        instance={instance}
+        context={fieldContext}
+        state={ctxStateLite}
+        dispatch={dispatch}
+        socket={socket}
+        compact={true}
+        disabled={!!instance?.meta?.disabled}
+      />
+    </AutoMarquee>
+  );
+
+  // ── THIS PLACEMENT'S OWN ROW LAYOUT (user, 2026-10-15) ───────────────────
+  // `meta.instanceLayout` places the label, the cover and each field in a nested
+  // tree of row/column boxes (helpers/instanceLayout). Set on the placement, so
+  // other placements of the same module keep the default. A body-rendered card
+  // (textblock / file) keeps its own layout.
+  const rowLayout = !renderBody && occurrence?.meta?.instanceLayout ? occurrence.meta.instanceLayout : null;
+  const coverMode = rowLayout?.cover || "layout";
+  const layoutView = (() => {
+    if (!rowLayout) return null;
+    const pillById = new Map(instanceFields.map((f) => [f.field.id, f]));
+    const avail = [
+      ...(labelNode ? [LAYOUT_LABEL] : []),
+      ...(mediaNode && coverMode === "layout" ? [LAYOUT_COVER] : []),
+      ...instanceFields.map((f) => layoutFieldKey(f.field.id)),
+    ];
+    const { tree } = resolveLayoutTree(rowLayout, avail);
+    const drawItem = (key) => {
+      if (key === LAYOUT_LABEL) return <div key={key} style={{ minWidth: 0, maxWidth: "100%" }}>{labelNode}</div>;
+      if (key === LAYOUT_COVER) return <div key={key} style={{ minWidth: 0, flex: "1 1 120px" }}>{mediaNode}</div>;
+      const fid = layoutFieldIdOf(key);
+      const pill = pillById.get(fid);
+      if (!pill) return null;
+      return <div key={key} className="instance-layout-field" style={{ minWidth: 0, ...fieldWrapStyle(rowLayout.fieldStyles?.[fid]) }}>{renderFieldPill(pill)}</div>;
+    };
+    const drawGroup = (g, path) => (
+      <div key={path.join(".") || "root"} className="instance-layout-group" style={groupFlexStyle(g)}>
+        {g.items.map((it, i) => (typeof it === "object" ? drawGroup(it, [...path, i]) : drawItem(it)))}
+      </div>
+    );
+    const bg = coverMode === "background" && mediaSrc && mediaTag === "img"
+      ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url("${mediaSrc}")`, backgroundSize: "cover", backgroundPosition: "center", borderRadius: 6, padding: 6 }
+      : null;
+    return (
+      <div className="instance-layout" style={{ flex: "1 1 0%", minWidth: 0, ...bg }}>
+        {drawGroup(tree, [])}
+      </div>
+    );
+  })();
   return (
     <div
       role="listitem"
@@ -993,116 +1198,12 @@ function InstanceInner({
             now recorded six times. The axis is knowable in CSS (the container
             carries `.container-items--content-column`) and not knowable here,
             so the decision belongs there. */}
+        {rowLayout ? layoutView : (
         <div className="instance-textcol" style={{
           display: "flex", flexDirection: "column", alignItems: "flex-start",
           gap: 2, minWidth: 0,
         }}>
-          {labelRowRendered && (
-            isEditingLabel ? (
-              <input
-                value={labelDraft}
-                onChange={(e) => setLabelDraft(e.target.value)}
-                onBlur={commitInlineLabel}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); commitInlineLabel(); }
-                  if (e.key === "Escape") { setLabelDraft(label ?? ""); setIsEditingLabel(false); }
-                  e.stopPropagation();
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onFocus={(e) => e.target.select()}
-                autoFocus
-                style={{
-                  flex: "0 1 auto", minWidth: 0,
-                  background: "transparent", border: "none", outline: "none",
-                  // MATCHES the rendered label exactly. This is the edit box
-                  // that REPLACES it on double-click, so any difference makes
-                  // the text visibly resize the moment you start renaming.
-                  fontSize: INSTANCE_LABEL, color: "var(--text-primary)",
-                  paddingTop: 0, paddingLeft: 2,
-                  fontFamily: "inherit",
-                }}
-              />
-            ) : (
-              <>
-              <div
-                className="instance-label"
-                onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
-                style={{
-                  // `0 0 auto` — NEVER SHRINK. This box is an item in a COLUMN
-                  // flex (`.instance-textcol`), so `flex-shrink` acts on its
-                  // HEIGHT, not its width. It was `0 1 auto`, and the comment
-                  // below reasons entirely about WIDTH — which is the cross
-                  // axis here and is governed by `minWidth: 0` and the max-width
-                  // cap, not by shrink. So the shrink was doing nothing anyone
-                  // intended and one thing nobody did: on a tile whose fields
-                  // overflow its 200px cap, flex took the squeeze out of the
-                  // TITLE. Measured on prod: `Vitamins & Minerals` rendered its
-                  // label 10px tall against a 25.5px line-height — the top
-                  // third of the glyphs, which reads as the title being covered
-                  // by the fields (user, 2026-09-05). `Workout Log` was at 21.
-                  //
-                  // The fields are the scroller and already absorb it
-                  // (`overflow-y: auto`, 439px of content in 180px). A/B'd live:
-                  // 10 -> 26 and 21 -> 26, while the four tiles that fit stayed
-                  // at 26 and no tile's height moved.
-                  flex: "0 0 auto",
-                  minWidth: 0,
-                  // WITHOUT THIS CAP THE LABEL SIZES TO ITS TEXT AND NOTHING
-                  // EVER MARQUEES. This box is a fit-content item in a COLUMN
-                  // flex (`.instance-textcol`, align-items:flex-start), and the
-                  // `white-space: nowrap` inside it makes its MIN-content width
-                  // equal the full text width — so it cannot shrink to the
-                  // space available. Measured on prod, a 184px media tile:
-                  //
-                  //   .auto-marquee     box 266  content 266  -> overflow 0
-                  //   .instance-label   width 268   max-width NONE
-                  //   .instance-textcol width 164   scrollWidth 268
-                  //   .instance-wrap    width 184   overflow: hidden  <- clips
-                  //
-                  // AutoMarquee's own `max-width: 100%` resolved against that
-                  // 268, so its box always equalled its content and it
-                  // correctly found nothing to scroll, while the text was
-                  // clipped 104px further out by a box it cannot see. A
-                  // percentage max-width does not feed intrinsic sizing, so it
-                  // only ever CAPS: 268 -> 164, overflow 0 -> 83, and the title
-                  // scrolls. (Same failure the note at the top of this file
-                  // records for the absolutely-positioned field strip — a
-                  // marquee that "never fired" is nearly always a box that was
-                  // never squeezed.)
-                  maxWidth: "100%",
-                  overflow: "hidden",
-                  // Bumped twice on 2026-08-24 — 11 -> 13 -> 15 -> 16 — because
-                  // the user kept reading it as body text. It is the row's
-                  // TITLE now that it sits over the fields rather than in line
-                  // with them, so it should read like one.
-                  // 16 -> 18 (user, 2026-08-25: "the instance label and
-                  // input/display fields need to be bigger"). The fields under
-                  // it went 10-13 -> 14 in the same pass, so the title has to
-                  // move with them or it stops reading as the title.
-                  fontSize: INSTANCE_LABEL,
-                  color: "var(--text-primary)",
-                  paddingTop: 0,
-                  paddingLeft: 2,
-                  cursor: "text",
-                }}
-                title="Double-click to rename"
-              >
-                {/* Auto-marquee: scrolls the label only when it's wider than the
-                    space it has; otherwise renders static. Empty labels render a
-                    faint, double-clickable "Untitled" placeholder so a blank
-                    occurrence can be named — but NOT for textblock / artifact
-                    bodies (renderBody), whose content IS the body and which have
-                    no meaningful label.
-                    Display goes through resolveLabelTokens: "[Field Name]" in
-                    the label renders the occurrence's live field value; the
-                    RAW label (with tokens) is what inline editing shows. */}
-                {hasLabel
-                  ? <AutoMarquee>{resolveLabelTokens(label, occurrence, fieldsById)}</AutoMarquee>
-                  : (renderBody ? null : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>)}
-              </div>
-              </>
-            )
-          )}
+          {labelNode}
 
 
         {/* Custom body — used by ArtifactCard / TextblockCard. Replaces fields layout when provided.
@@ -1155,73 +1256,19 @@ function InstanceInner({
                 : null),
             }}
           >
-            {instanceFields.map(({ field, binding }) => (
-              // Each pill is its own AutoMarquee box: the fields row still
-              // wraps normally (each box is a flex item), but a single pill
-              // that is itself wider than the available width auto-scrolls
-              // instead of overflowing the container.
-              <AutoMarquee key={field.id} className="instance-field-mq">
-                <FieldRenderer
-                  field={field}
-                  binding={binding}
-                  occurrence={occurrence}
-                  instance={instance}
-                  context={fieldContext}
-                  state={ctxStateLite}
-                  dispatch={dispatch}
-                  socket={socket}
-                  compact={true}
-                  disabled={!!instance?.meta?.disabled}
-                />
-              </AutoMarquee>
-            ))}
+            {instanceFields.map(renderFieldPill)}
           </div>
         )}
 
-        </div>{/* end label-over-fields column */}
+        </div>
+        )}{/* end label-over-fields column */}
 
         {/* Media section — full-width row below label + fields. Board/list
             only (showMedia gate). Doubles as an artifact drop target.
             `meta.mediaInline` opts into a SMALL thumbnail rendered inline with
             the label instead (board options — a poster-sized block per option
             made the boards unreadable). */}
-        {showMedia && !mediaInline && (() => {
-          // Resolved once, above, through helpers/occurrenceMedia — the
-          // local-vs-absolute fileRef split lives in resolveFileRef now rather
-          // than being re-derived at every render site.
-          const src = mediaSrc;
-          return (
-            <div
-              ref={mediaDropRef}
-              // TWO drag affordances, because the gesture means two different
-              // things (user 2026-08-07). With nothing here, dragging an
-              // artifact over shows a LINE marking where it would land. With a
-              // picture already here, it shows a ring AROUND that picture —
-              // because the drop REPLACES the face, and a line would read as
-              // "adds another".
-              className={
-                "instance-media"
-                + (src ? "" : " instance-media-empty")
-                + (mediaDragOver ? (src ? " instance-media-dragover-filled" : " instance-media-dragover-empty") : "")
-              }
-              style={{ flex: "1 1 100%", minWidth: 0 }}
-              title={src ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
-            >
-              {src && mediaTag === "img" && (
-                <img className="instance-media-el" src={src} alt={mediaBinding?.field?.name || label || "media"} />
-              )}
-              {src && mediaTag === "video" && (
-                <video className="instance-media-el" src={src} controls playsInline preload="metadata" />
-              )}
-              {src && mediaTag === "audio" && (
-                <audio className="instance-media-el" src={src} controls style={{ width: "100%" }} />
-              )}
-              {!src && (
-                <span className="instance-media-placeholder">Drop media here</span>
-              )}
-            </div>
-          );
-        })()}
+        {!rowLayout && mediaNode}
 
         {/* Operation widgets */}
         {!renderBody && operationWidgets.length > 0 && (

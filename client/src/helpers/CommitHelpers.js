@@ -1,4 +1,5 @@
 // helpers/CommitHelpers.js
+import { carriedPlacementMeta } from "./instanceLayout.js";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
 import { dropEmbedsOf } from "./embedRegistry";
@@ -1715,6 +1716,7 @@ export function duplicateInstance({ dispatch, socket, module, occurrence, parent
     role: module.role || "instance", label: `${module.label || ""} (Copy)`,
     fieldBindings: Array.isArray(module.fieldBindings) ? module.fieldBindings : null,
     initialFields: occurrence.fields || {},
+    occMeta: carriedPlacementMeta(occurrence),
   });
 }
 
@@ -1727,7 +1729,7 @@ export function createLeafInstanceAtIndex(args) {
 function _createLeafInstanceAtIndex({
   dispatch, socket, gridId, userId, parentOccurrence, index = null,
   existingModuleId = null, role = "instance", kind = null, label = "", initialFields = {},
-  fieldIds = [], fieldBindings = null, panelId = null, containerLabel = "",
+  fieldIds = [], fieldBindings = null, panelId = null, containerLabel = "", occMeta = null,
 }) {
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   // Tolerate a full module object — QuickAddMenu.onSelect hands back the module
@@ -1763,6 +1765,7 @@ function _createLeafInstanceAtIndex({
     moduleId,
     parentId: parentOccurrence.id,
     fields: { ...initialFields },
+    ...(occMeta && Object.keys(occMeta).length ? { meta: occMeta } : {}),
   };
   // Through createOccurrence so OccurrenceCreateOp FIRES with panel/container
   // context — the raw dispatch+emit here never fired the create trigger, so

@@ -1,0 +1,184 @@
+// helpers/instanceLayout.js
+//
+// A PLACEMENT's own layout of its row (user, 2026-10-15): the label, the cover and
+// each field are items in a NESTED tree of boxes, each box laid out as a row or a
+// column, rearranged by dragging — "like the fields organizer … col 1 Completed,
+// col 2 Movement, col 3 all the sets and weights, and inside that col 1 Set 1 +
+// Weight 1, etc."
+//
+// Stored on the occurrence (per placement, the user's pick):
+//   occurrence.meta.instanceLayout = {
+//     tree:  { dir: "row" | "col", wrap?: false, grow?: true, items: [ "label" | "cover" | "field:<id>" | <group> ] },
+//     cover: "layout" | "background" | "hidden",          // default "layout"
+//     fieldStyles: { [fieldId]: { width, size, color, ownLine } },
+//   }
+// A field's hidden NAME is not here: it is the row's existing per-field flag
+// (`occurrence.fields[id].hideName`, read by FieldRenderer), so there is one switch.
+//
+// Every function is pure and returns a NEW layout; nothing here touches the store.
+
+export const LABEL = "label";
+export const COVER = "cover";
+export const fieldKey = (id) => `field:${id}`;
+export const fieldIdOf = (key) => (typeof key === "string" && key.startsWith("field:") ? key.slice(6) : null);
+const isGroup = (x) => !!x && typeof x === "object" && Array.isArray(x.items);
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+/** The layout a row starts from when its editor first opens: label, then the fields in a row, then the cover. */
+export function defaultLayout(fieldIds = [], { hasCover = false } = {}) {
+  const items = [LABEL, { dir: "row", items: fieldIds.map(fieldKey) }];
+  if (hasCover) items.push(COVER);
+  return { tree: { dir: "col", items }, cover: "layout", fieldStyles: {} };
+}
+
+/** Every item key the tree holds, in order. */
+export function keysIn(tree) {
+  const out = [];
+  const walk = (g) => { for (const it of g?.items || []) { if (isGroup(it)) walk(it); else out.push(it); } };
+  walk(tree);
+  return out;
+}
+
+/**
+ * The tree to DRAW: items that no longer exist are dropped, each key appears once,
+ * and anything available but not placed (a field bound after the layout was made)
+ * is appended to the root — a new binding must never vanish because a layout
+ * predates it.
+ */
+export function resolveTree(layout, availableKeys) {
+  const avail = new Set(availableKeys);
+  const seen = new Set();
+  const prune = (g) => ({
+    ...(g?.wrap === false ? { wrap: false } : {}),
+    ...(g?.grow ? { grow: true } : {}),
+    dir: g?.dir === "row" ? "row" : "col",
+    items: (g?.items || []).flatMap((it) => {
+      if (isGroup(it)) return [prune(it)];
+      if (!avail.has(it) || seen.has(it)) return [];
+      seen.add(it);
+      return [it];
+    }),
+  });
+  const tree = prune(layout?.tree || { dir: "col", items: [] });
+  const unplaced = availableKeys.filter((k) => !seen.has(k));
+  tree.items.push(...unplaced);
+  return { tree, unplaced };
+}
+
+/** The group at `path` (indices from the root), or null. */
+export function groupAt(tree, path) {
+  let g = tree;
+  for (const i of path) { g = g?.items?.[i]; if (!isGroup(g)) return null; }
+  return g;
+}
+
+function removeKey(g, key) {
+  g.items = g.items.filter((it) => it !== key);
+  for (const it of g.items) if (isGroup(it)) removeKey(it, key);
+}
+
+/** Move an item into the group at `path`, at `index` (end when null). */
+export function moveItem(layout, key, path, index = null) {
+  const next = clone(layout);
+  removeKey(next.tree, key);
+  const g = groupAt(next.tree, path);
+  if (!g) return layout;
+  const at = index == null ? g.items.length : Math.max(0, Math.min(index, g.items.length));
+  g.items.splice(at, 0, key);
+  return next;
+}
+
+/** Add an empty group inside the group at `path`; it runs the other way to its parent. */
+export function addGroup(layout, path) {
+  const next = clone(layout);
+  const g = groupAt(next.tree, path);
+  if (!g) return layout;
+  g.items.push({ dir: g.dir === "row" ? "col" : "row", items: [] });
+  return next;
+}
+
+/** Remove the group at `path` (never the root); its items take its place in the parent. */
+export function removeGroup(layout, path) {
+  if (!path.length) return layout;
+  const next = clone(layout);
+  const parent = groupAt(next.tree, path.slice(0, -1));
+  const i = path[path.length - 1];
+  const g = parent?.items?.[i];
+  if (!isGroup(g)) return layout;
+  parent.items.splice(i, 1, ...g.items);
+  return next;
+}
+
+/** Switch the group at `path` between rows and columns. */
+export function toggleDir(layout, path) {
+  const next = clone(layout);
+  const g = groupAt(next.tree, path);
+  if (!g) return layout;
+  g.dir = g.dir === "row" ? "col" : "row";
+  return next;
+}
+
+/** Merge a style patch into one field's style; a null/"" value removes that key. */
+export function setFieldStyle(layout, fieldId, patch) {
+  const next = clone(layout);
+  const cur = { ...(next.fieldStyles?.[fieldId] || {}) };
+  for (const [k, v] of Object.entries(patch)) { if (v === null || v === "" || v === false) delete cur[k]; else cur[k] = v; }
+  next.fieldStyles = { ...(next.fieldStyles || {}) };
+  if (Object.keys(cur).length) next.fieldStyles[fieldId] = cur; else delete next.fieldStyles[fieldId];
+  return next;
+}
+
+/**
+ * What a COPY of a placement carries from the original's meta (user, 2026-10-15:
+ * "it should be copied with all the other stuff if copied"). One list so every copy
+ * path — copy, copy-link, duplicate, an operation's COPY_LINK — carries the same.
+ */
+export const CARRIED_PLACEMENT_META = ["instanceLayout"];
+export function carriedPlacementMeta(sourceOccurrence) {
+  const out = {};
+  for (const k of CARRIED_PLACEMENT_META) {
+    const v = sourceOccurrence?.meta?.[k];
+    if (v != null) out[k] = clone(v);
+  }
+  return out;
+}
+
+/** Set flags on the group at `path` (e.g. `{ wrap: false }`); a null value removes the flag. */
+export function setGroupProps(layout, path, patch) {
+  const next = clone(layout);
+  const g = groupAt(next.tree, path);
+  if (!g) return layout;
+  for (const [k, v] of Object.entries(patch)) { if (v == null) delete g[k]; else g[k] = v; }
+  return next;
+}
+
+/** Flex style for a drawn group. A group WRAPS (responsive) unless `wrap: false`. */
+export function groupFlexStyle(group = {}) {
+  const row = group.dir === "row";
+  return {
+    display: "flex",
+    flexDirection: row ? "row" : "column",
+    flexWrap: row && group.wrap !== false ? "wrap" : "nowrap",
+    gap: row ? 6 : 3,
+    alignItems: row ? "flex-start" : "stretch",
+    minWidth: 0,
+    ...(group.grow ? { flex: "1 1 0%" } : {}),
+  };
+}
+
+export function setCoverMode(layout, mode) {
+  return { ...clone(layout), cover: ["background", "hidden"].includes(mode) ? mode : "layout" };
+}
+
+const WIDTHS = { narrow: 80, wide: 220 };
+const SIZES = { sm: 0.85, lg: 1.2 };
+/** Inline style for a field's wrapper in the drawn layout. */
+export function fieldWrapStyle(style = {}) {
+  const s = {};
+  if (style.width === "full" || style.ownLine) { s.flex = "1 1 100%"; s.width = "100%"; }
+  else if (WIDTHS[style.width]) { s.width = WIDTHS[style.width]; s.flex = "0 0 auto"; }
+  if (SIZES[style.size]) s.zoom = SIZES[style.size];
+  if (style.color) { s.background = style.color; s.borderRadius = 999; }
+  return s;
+}

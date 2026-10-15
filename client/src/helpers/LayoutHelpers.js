@@ -1,4 +1,5 @@
 // helpers/LayoutHelpers.js
+import { carriedPlacementMeta } from "./instanceLayout.js";
 import * as CommitHelpers from "./CommitHelpers";
 import { kindForNewModule } from "./operationActions.js";
 import { uid } from "../uid";
@@ -778,7 +779,7 @@ export function copyInstanceToContainer({
     timestamp: new Date(),
     fields: copiedFields,
     parentId: toContainer._occurrence?.id || null,
-    ...(initialMeta ? { meta: initialMeta } : {}),
+    ...(placementMetaFor(sourceOccurrence, initialMeta)),
   };
 
   CommitHelpers.createOccurrence({
@@ -899,7 +900,7 @@ export function mintLinkedCopy({
     ...(typeof sourceOccurrence?.label === "string" && sourceOccurrence.label
       ? { label: sourceOccurrence.label }
       : {}),
-    ...(initialMeta ? { meta: initialMeta } : {}),
+    ...(placementMetaFor(sourceOccurrence, initialMeta)),
     ...(dragMode ? { dragMode } : {}),
   };
 
@@ -1282,4 +1283,11 @@ export function resizeGrid({ dispatch, socket, grid, rows, cols, emit = true }) 
   const gridId = updatedGrid?._id ?? updatedGrid?.id;
   if (!gridId) return;
   CommitHelpers.updateGrid({ dispatch, socket, gridId: String(gridId), grid: updatedGrid, emit });
+}
+
+// A copy's meta: what the source placement carries (its row layout) under the
+// caller's own initialMeta (canvas x/y), which wins.
+function placementMetaFor(sourceOccurrence, initialMeta) {
+  const meta = { ...carriedPlacementMeta(sourceOccurrence), ...(initialMeta || {}) };
+  return Object.keys(meta).length ? { meta } : {};
 }

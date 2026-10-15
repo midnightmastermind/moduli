@@ -10,6 +10,7 @@ import React, { useCallback, useMemo } from "react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import LayoutCascadeEditor from "./LayoutCascadeEditor";
+import InstanceLayoutEditor from "./InstanceLayoutEditor";
 import {
   buildLayoutCascadeContext,
   resolveLayoutCascade,
@@ -76,6 +77,8 @@ export default function LayoutCascadeSection({ occurrence }) {
         showRepresentationFieldIds={true}
         fieldsList={fieldsList}
       />
+      {/* A row's own layout of its label, cover and fields — this placement only. */}
+      {slot === "layoutCascadeOverride" && role === "instance" && <InstanceLayoutEditor occurrence={occurrence} />}
     </div>
   );
 }

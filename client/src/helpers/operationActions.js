@@ -22,6 +22,7 @@
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
+import { carriedPlacementMeta } from "./instanceLayout.js";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
 import { pickReusableModuleId, stampCloneOrigin } from "../../../server/utils/cloneModuleReuse.js";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
@@ -2269,7 +2270,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const rootMeta = isRoot && cfg.meta && typeof cfg.meta === "object"
           ? deepResolveExpr(cfg.meta, $vars)
           : null;
-        const baseMeta = { createdByOperation: true, copyLinkSource: src.id, ...(rootMeta || {}) };
+        const baseMeta = { ...carriedPlacementMeta(src), createdByOperation: true, copyLinkSource: src.id, ...(rootMeta || {}) };
 
         const stub = {
           id: newId,
