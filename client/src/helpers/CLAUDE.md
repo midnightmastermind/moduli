@@ -3,6 +3,13 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-15 (3) — plannedDrop.js NEW: a Magic piece dragged out is a copy)
+- `registerPlannedState` / `usePlannedRegistration` / `plannedStateFor(occId)`, `collectPlannedSubtree` (listed +
+  text-embedded, children first), `planMaterialize` (pure: fresh ids, refs remapped), `materializePlanned`.
+- `dropHandlers.routeDrop` intercepts a planned source (`routePlannedDrop`: mint, then handleDocEmbedDrop as a move
+  of the copy; deletes the copy when nothing placed it). `Editor` block-embed path mints + embeds; `canDropDoc`
+  refuses a planned editor. Tests `plannedDrop`, `plannedDropRouting`.
+
 ## Recent Changes (2026-10-15 (2) — bookEngine.js NEW)
 - `bookEngineFor(kind)`, `mobiDrmStatus(bytes)` (PalmDOC encryption field), `pdfTextToMarkdown(textContent)`
   (lines → paragraphs, a wide gap breaks, hyphens mended), `rangeToHtml`, `htmlHasText`, `makeReadingPosition`,

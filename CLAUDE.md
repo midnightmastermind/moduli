@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-15 (7) — A PIECE DRAGGED OUT OF MAGIC IS KEPT, AS A COPY (`1d20b1e7`)
+
+User: *"you can only copy outside of the magic"* (CLAUDE_CHAT 15:07). A Magic view renders a PLANNED tree that no
+store has (helpers/readerPlan), so its rows used to drag and drop into nothing. Now `helpers/plannedDrop`:
+```
+registry   a Magic view registers its isolated state while shown (usePlannedImport -> usePlannedRegistration)
+mint       the dragged node + its listed children + the blocks its text embeds (list/link chips, quotes), fresh
+           ids, every internal reference (child lists, parentIds, embed attrs incl. instanceId) remapped
+place      board / canvas / empty cell: routeDrop -> routePlannedDrop -> handleDocEmbedDrop as a MOVE of the copy
+           doc: Editor's block-embed path embeds the copy, owned by the doc (wrap-beside honoured)
+refuse     a drop where no row can go deletes the copy again (toast); nothing can be dropped INTO a Magic view
+```
+Magic keeps its piece; one undo step ("Kept from Magic" / "Dropped block"). Tests `plannedDrop` (5),
+`plannedDropRouting` (3, real routeDrop; A/B: without the interception 2 fail). Client 6157 pass.
+**Watched on prod:** AA-12-Steps (pdf) opened from Files › Books in panel 0, Magic, a real mouse drag of its
+textblock onto Tasks › Spiritual -> a textblock row there, listed + parented in Mongo, Magic unchanged; the test row
+was then deleted (Mongo: gone, module too). Panel 0 was left showing that book. **Limit:** from the FULL-SCREEN
+reader (a book row's card → file) there is no board on screen to drop onto — drag out from a book opened in a panel.
+
+---
+
 ### 2026-10-15 (6) — A BOOK FILE OPENS IN A READER: Book · Magic · Save page
 
 Continuing the other account's book work (it stopped at its weekly limit with the server half written and
