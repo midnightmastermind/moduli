@@ -5,8 +5,10 @@
 //   completeConnect({ code, state, redirectUri })    -> the Connection created/refreshed
 //   refreshAccessToken(refreshToken)                  -> { accessToken, expiresIn }
 //
-// Scope is drive.file ONLY: the app sees files it created and nothing else in
-// the user's Drive (and Google does not put that scope through a review).
+// Scope: drive.file (create and manage what the app uploads) + drive.readonly
+// (read files the user put in Drive themselves — the book library, user
+// 2026-10-15). drive.readonly is a restricted scope: while the Google app is in
+// "Testing" the user sees an "unverified app" screen once at connect time.
 // The refresh token is encrypted on the Connection record (models/Connection).
 //
 // Needs GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in server/.env and SECRETS_KEY
@@ -17,7 +19,7 @@ import jwt from "jsonwebtoken";
 import Connection from "../models/Connection.js";
 import { encryptValue, isSecretsKeyConfigured } from "../models/Secret.js";
 
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
