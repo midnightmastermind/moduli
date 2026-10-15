@@ -15,6 +15,34 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-15 (6) — A BOOK FILE OPENS IN A READER: Book · Magic · Save page
+
+Continuing the other account's book work (it stopped at its weekly limit with the server half written and
+foliate-js installed). Opening a book's file — the row's card → its file tile, or the file from Files › Books —
+now shows a reader instead of "Unsupported kind: ebook".
+```
+Book       e-books (epub / mobi / azw / azw3) through foliate-js (lazy chunk, 25 kB); PDFs through the pdf.js
+           viewer, moved to modules/PdfViewer.jsx. Prev/next, arrow keys, a Contents list. The place you stop is
+           stored on the FILE's module, meta.readingPosition {cfi|page, fraction, at}, written 2s after it stops
+           moving, as a derived write (not an undo step), and the book reopens there
+DRM        a Kindle-store file is read from its PalmDOC header (record 0 + 12) and says so instead of a blank page
+Magic      the page on screen through import_plan (now takes format "html" — an e-book page is HTML), planned,
+           never written
+Save page  import_text into Imports in the current mode's shape (Book -> reader, Magic -> magic), titled
+           "<book> — p. 12" / "— 34%", opened in the panel
+```
+The plan/save halves moved into `hooks/usePlannedImport.js` and the image OCR viewer uses them too.
+**Fixed on the way:** the uncommitted server edit had `import_text` reporting `detectedFormat: format` after that
+local was removed — every import_text threw (5 server tests red); `resolveImportFormat` is shared now.
+**Watched on prod:** Project Hail Mary (.azw from Drive) opened at its cover with 40+ contents entries; Magic laid
+out its copyright page as a section + textblocks with link chips. Daily Reflections (.pdf) opened at p. 1 and
+Magic read "JANUARY 1 — I AM A MIRACLE…". 0 page errors. The two opens stored a reading position on those two
+file modules (what the feature does). Tests: `bookEngine` (8), `bookReader` (5, A/B'd on the unchanged-position
+guard); client 6149, server 3090. **Not done:** dragging a Magic node out to keep it; a saved page has no link
+back to the book; a DRM-locked file was not watched (253/255 azw are open).
+
+---
+
 ### 2026-10-15 (5) — THE BOOK ROWS POINT AT THEIR FILES: 282 Drive books linked (`0401`)
 
 User: *"connect my book files, which ill upload in google drive, with our book file occurances"*; answers in

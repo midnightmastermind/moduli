@@ -4,7 +4,7 @@ User, 2026-10-15: *"connect my book files, which ill upload in google drive, wit
 when i open to view, we have a similar view for browser which shows the book in normal format, and a magic button
 that turns that page into temporary occurances (unless dragged out obvi). with a save page button as well."*
 
-Status: **step 2 (link library) DONE 2026-10-15 via migration `0401` — 282 files linked; reader (steps 3-7) not started.**
+Status: **step 2 DONE (`0401`); steps 3-5 + 7 DONE 2026-10-15 (`fb08d708`: Book / Magic / Save page / DRM message). Open: step 6 (drag a Magic node out), a back-link from a saved page to the book.**
 
 ## Decisions (user, 2026-10-15 13:15)
 - Files live in Drive's **Moduli uploads** (a `Books` subfolder), uploaded **by Moduli** — that is what lets the

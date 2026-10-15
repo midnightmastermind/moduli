@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-15 (2) — bookEngine.js NEW)
+- `bookEngineFor(kind)`, `mobiDrmStatus(bytes)` (PalmDOC encryption field), `pdfTextToMarkdown(textContent)`
+  (lines → paragraphs, a wide gap breaks, hyphens mended), `rangeToHtml`, `htmlHasText`, `makeReadingPosition`,
+  `samePosition`, `positionLabel`. Used by `modules/BookReader`. Test `bookEngine.test.js`.
+
 ## Recent Changes (2026-10-15 — instanceLayout.js + categoryColumnSort.js NEW)
 - `instanceLayout.js` — a placement's own row layout (`occurrence.meta.instanceLayout`): pure tree edits
   (`moveItem`, `addGroup`, `removeGroup`, `toggleDir`, `setGroupProps`, `setFieldStyle`, `setCoverMode`),

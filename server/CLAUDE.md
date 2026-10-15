@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 — `import_plan` takes `format`)
+- `socketHandlers/import.js`: `import_plan` accepts `format` ("markdown" default, "html", "auto") + `htmlOpts`, through
+  the new exported `contentToMarkdown` / `resolveImportFormat`, which `import_text` uses too (one converter). The book
+  reader sends an e-book page as HTML. `import_text`'s `detectedFormat` is the resolved format.
+  Tests in `importPlan.test.js`.
+
 ## Recent Changes (2026-10-15 — `0401`: Drive book files linked to the book rows)
 - Reads `BOOKS_DRIVE_PATH` (`{connectionId, files:[{id,name,size,mimeType}]}`, written by the gitignored
   `_drivebooks.mjs` ON PROD — the Drive token needs SECRETS_KEY) and THROWS without it. One artifact per file

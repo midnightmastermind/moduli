@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-15 (2) — BookReader.jsx + PdfViewer.jsx NEW: a book file opens to read)
+- `BookReader` — Book (foliate-js `<foliate-view>` for kind `ebook`; `PdfViewer` for `pdf`) · Magic (`import_plan`
+  of the page on screen, rendered read-only) · Save page (Imports). Position on the file module
+  (`meta.readingPosition`), debounced, `runDerived`, skipped when unchanged. DRM via `helpers/bookEngine`.
+- Routed from `ArtifactContent` (pdf + ebook artifact pages; `importsFolder.viewFieldsForArtifactKind` maps `ebook`)
+  and `ArtifactCard.renderExpanded` (both kinds; `.artifact-expanded-book` in index.css). 📗 thumbnail for ebook.
+- `PdfViewer` moved out of ArtifactContent; takes `initialPage` + `onPage(pageNum, doc)`.
+- `ImageOcrViews` uses `hooks/usePlannedImport` (`usePlannedImport`, `useSaveAsPage`) — shared with the reader.
+
 ## Recent Changes (2026-10-15 — ModuleInstance draws a placement's own row layout)
 - When `occurrence.meta.instanceLayout` is set (and no renderBody), the label, cover and field pills are drawn in
   its nested boxes (`layoutView`); cover `background` darkens the image behind the row, `hidden` omits it.
