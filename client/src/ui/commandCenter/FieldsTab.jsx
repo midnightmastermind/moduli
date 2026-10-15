@@ -4,8 +4,9 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { FIELD_TYPES } from "../../helpers/fieldTypes.js";
 import { derivationOf } from "../../helpers/derivedDisplayConfig";
-import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { DropColumn, SortableRow, useCategoryDropMonitor } from "./CategoryColumnDnd";
+import { orderColumn } from "../../helpers/categoryColumnSort";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
 
 import { useGridActions } from "../../GridActionsContext";
@@ -953,23 +954,27 @@ export function FieldsTab() {
       const key = field.folderId && groups[field.folderId] !== undefined ? field.folderId : "uncategorized";
       groups[key].push(field);
     }
+    for (const k of Object.keys(groups)) groups[k] = orderColumn(groups[k]);
     return groups;
   }, [gridFields, categoryFolders]);
 
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const selectedField = selectedFieldId ? fieldsById?.[selectedFieldId] : null;
-  const [dragFieldId, setDragFieldId] = useState(null);
-  const [overColumn, setOverColumn] = useState(null);
-
-  // Track Pragmatic DnD field drags so column HTML5 onDrop can read the dragged field
-  useEffect(() => {
-    return monitorForElements({
-      onDragStart({ source }) {
-        if (source.data?.type === "field") setDragFieldId(source.data.id);
-      },
-      onDrop() { setDragFieldId(null); setOverColumn(null); },
-    });
-  }, []);
+  // Reorder within a column / move to another column (CategoryColumnDnd).
+  const { overColumn, indicator } = useCategoryDropMonitor({
+    kind: "field",
+    getColumn: (colKey) => fieldsByFolder[colKey] || [],
+    onMove: (draggedId, colKey, writes) => {
+      const folderId = colKey === "uncategorized" ? null : colKey;
+      for (const { id, columnOrder } of writes) {
+        const f = fieldsById?.[id];
+        if (!f) continue;
+        const patch = { ...f, columnOrder };
+        if (id === draggedId) patch.folderId = folderId;
+        CommitHelpers.updateField({ dispatch, socket, field: patch });
+      }
+    },
+  });
 
   const handleCreate = (folderId = null) => {
     // Unique default name — two quick "+ Field" clicks must not mint two
@@ -986,14 +991,6 @@ export function FieldsTab() {
   const handleCreateCategory = () => {
     const folder = { id: uid(), gridId, name: "New Category", folderType: "category", categoryKind: "field", sortOrder: categoryFolders.length, isExpanded: true };
     CommitHelpers.createFolder({ dispatch, socket, folder });
-  };
-
-  const handleDropOnFolder = (folderId) => {
-    if (!dragFieldId) return;
-    const field = fieldsById?.[dragFieldId];
-    if (field) CommitHelpers.updateField({ dispatch, socket, field: { ...field, folderId: folderId || null } });
-    setDragFieldId(null);
-    setOverColumn(null);
   };
 
   const toggleSelect = (fieldId) =>
@@ -1024,13 +1021,7 @@ export function FieldsTab() {
   };
 
   const renderCategoryColumn = (colKey, label, fields, folderObj) => (
-    <div
-      key={colKey}
-      style={colStyle(overColumn === colKey)}
-      onDragOver={(e) => { e.preventDefault(); setOverColumn(colKey); }}
-      onDragLeave={() => setOverColumn(null)}
-      onDrop={(e) => { e.preventDefault(); handleDropOnFolder(colKey === "uncategorized" ? null : colKey); }}
-    >
+    <DropColumn key={colKey} kind="field" colKey={colKey} style={colStyle(overColumn === colKey)}>
       {/* Column header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
         <CategoryColumnHeader
@@ -1045,13 +1036,14 @@ export function FieldsTab() {
       {/* Field chips — scrollable list, draggable to instance OR between columns */}
       <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
         {fields.map((field) => (
-          <FieldPill
-            key={field.id}
-            field={field}
-            compact
-            selected={selectedFieldId === field.id}
-            onClick={() => toggleSelect(field.id)}
-          />
+          <SortableRow key={field.id} kind="field" colKey={colKey} itemId={field.id} indicator={indicator}>
+            <FieldPill
+              field={field}
+              compact
+              selected={selectedFieldId === field.id}
+              onClick={() => toggleSelect(field.id)}
+            />
+          </SortableRow>
         ))}
         {fields.length === 0 && (
           <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace", fontStyle: "italic" }}>
@@ -1064,7 +1056,7 @@ export function FieldsTab() {
       <button style={addBtnStyle} onClick={() => handleCreate(colKey === "uncategorized" ? null : colKey)}>
         <Plus style={{ width: 8, height: 8 }} /> Field
       </button>
-    </div>
+    </DropColumn>
   );
 
   // Drill-down: if a field is selected, show editor full-pane with back button

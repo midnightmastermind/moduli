@@ -2,7 +2,8 @@
 // OperationsTab + OperationPill + OperationEditor + TriggerDataHint + OpItem + getTriggerVars
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { DropColumn, SortableRow, useCategoryDropMonitor } from "./CategoryColumnDnd";
+import { orderColumn } from "../../helpers/categoryColumnSort";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2, Play } from "lucide-react";
 
@@ -1017,6 +1018,7 @@ export function OperationsTab() {
       const key = op.folderId && groups[op.folderId] !== undefined ? op.folderId : "uncategorized";
       groups[key].push(op);
     }
+    for (const k of Object.keys(groups)) groups[k] = orderColumn(groups[k]);
     return groups;
   }, [actionOps, categoryFolders]);
 
@@ -1048,22 +1050,27 @@ export function OperationsTab() {
   const workingCopyRef = useRef(null);
   const handleWorkingCopy = useCallback((working) => { workingCopyRef.current = working; }, []);
   const selectedOp = selectedOpId ? operationsById?.[selectedOpId] : null;
-  const [dragOpId, setDragOpId] = useState(null);
-  const [overColumn, setOverColumn] = useState(null);
   const [previewOp, setPreviewOp] = useState(null);
   // Sub-tab: Actions (event-triggered ops) vs Schedules (time-triggered ops).
   // Same op records; the only difference is `op.schedule != null`.
   const [subTab, setSubTab] = useState("actions");
 
-  // Track Pragmatic DnD op drags so column HTML5 onDrop can read the dragged op
-  useEffect(() => {
-    return monitorForElements({
-      onDragStart({ source }) {
-        if (source.data?.type === "operation") setDragOpId(source.data.id);
-      },
-      onDrop() { setDragOpId(null); setOverColumn(null); },
-    });
-  }, []);
+  // Reorder within a column / move to another column (CategoryColumnDnd). Only the
+  // display order (`columnOrder`) moves — run order stays priority then sortOrder.
+  const { overColumn, indicator } = useCategoryDropMonitor({
+    kind: "operation",
+    getColumn: (colKey) => opsByFolder[colKey] || [],
+    onMove: (draggedId, colKey, writes) => {
+      const folderId = colKey === "uncategorized" ? null : colKey;
+      for (const { id, columnOrder } of writes) {
+        const op = operationsById?.[id];
+        if (!op) continue;
+        const patch = { ...op, columnOrder };
+        if (id === draggedId) patch.folderId = folderId;
+        CommitHelpers.updateOperation({ dispatch, socket, operation: patch });
+      }
+    },
+  });
 
   const handleCreate = (folderId = null) => {
     const newOp = { id: uid(), gridId, name: "New Operation", description: "", pipeline: { sources: [], steps: [] }, triggerObjects: [{ eventType: "onLoad", subjectType: "grid", targetId: "", priority: DEFAULT_TRIGGER_PRIORITY }], triggerTypes: ["onLoad"], triggerType: "onLoad", enabled: true, sortOrder: gridOperations.length, folderId };
@@ -1091,14 +1098,6 @@ export function OperationsTab() {
     CommitHelpers.createFolder({ dispatch, socket, folder });
   };
 
-  const handleDropOnFolder = (folderId) => {
-    if (!dragOpId) return;
-    const op = operationsById?.[dragOpId];
-    if (op) CommitHelpers.updateOperation({ dispatch, socket, operation: { ...op, folderId: folderId || null } });
-    setDragOpId(null);
-    setOverColumn(null);
-  };
-
   // Run = preview only — shows trigger data + steps structure without executing
   const handleRun = useCallback((op) => {
     if (!op) return;
@@ -1122,13 +1121,7 @@ export function OperationsTab() {
   };
 
   const renderOpColumn = (colKey, label, ops, folderObj = null) => (
-    <div
-      key={colKey}
-      style={colStyle(overColumn === colKey)}
-      onDragOver={(e) => { e.preventDefault(); setOverColumn(colKey); }}
-      onDragLeave={() => setOverColumn(null)}
-      onDrop={(e) => { e.preventDefault(); handleDropOnFolder(colKey === "uncategorized" ? null : colKey); }}
-    >
+    <DropColumn key={colKey} kind="operation" colKey={colKey} style={colStyle(overColumn === colKey)}>
       <div style={{ marginBottom: 2 }}>
         <CategoryColumnHeader
           label={label}
@@ -1140,14 +1133,15 @@ export function OperationsTab() {
       </div>
       <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
         {ops.map((op) => (
-          <OpItem
-            key={op.id}
-            op={op}
-            selected={selectedOpId === op.id}
-            onClick={() => toggleSelect(op.id)}
-            onPreview={() => handleRun(op)}
-            isDuplicate={duplicateOpIds.has(op.id)}
-          />
+          <SortableRow key={op.id} kind="operation" colKey={colKey} itemId={op.id} indicator={indicator}>
+            <OpItem
+              op={op}
+              selected={selectedOpId === op.id}
+              onClick={() => toggleSelect(op.id)}
+              onPreview={() => handleRun(op)}
+              isDuplicate={duplicateOpIds.has(op.id)}
+            />
+          </SortableRow>
         ))}
         {ops.length === 0 && (
           <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace", fontStyle: "italic" }}>
@@ -1158,7 +1152,7 @@ export function OperationsTab() {
       <button style={addBtnStyle} onClick={() => handleCreate(colKey === "uncategorized" ? null : colKey)}>
         <Plus style={{ width: 8, height: 8 }} /> Operation
       </button>
-    </div>
+    </DropColumn>
   );
 
   // Guard: if the operation was deleted while selected, clear selection

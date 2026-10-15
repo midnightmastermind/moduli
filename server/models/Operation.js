@@ -77,6 +77,8 @@ const OperationSchema = new mongoose.Schema(
     sortOrder: { type: Number, default: 0 },
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },
+    // Place within its Command Center category column (display only; ui/commandCenter/CategoryColumnDnd).
+    columnOrder: { type: Number, default: null },
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // Optional shared secret for /api/webhooks/:operationId HMAC

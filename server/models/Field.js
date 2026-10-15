@@ -54,6 +54,8 @@ const FieldSchema = new mongoose.Schema(
 
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },
+    // Place within its Command Center category column (display only; ui/commandCenter/CategoryColumnDnd).
+    columnOrder: { type: Number, default: null },
 
     // Optional metadata (prefix, postfix, increment, select options, placeholder, etc.)
     meta: { type: mongoose.Schema.Types.Mixed, default: {} },

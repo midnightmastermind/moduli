@@ -24,7 +24,7 @@ export default function InstanceLayoutEditor({ occurrence }) {
   const [dragKey, setDragKey] = useState(null);
 
   const fieldIds = useMemo(() => (module?.fieldBindings || [])
-    .filter((b) => b?.fieldId && fieldsById?.[b.fieldId] && b.role !== "media" && b.role !== "files")
+    .filter((b) => b?.fieldId && fieldsById?.[b.fieldId] && !b.hidden && b.role !== "media" && b.role !== "files")
     .map((b) => b.fieldId), [module?.fieldBindings, fieldsById]);
   const hasCover = useMemo(() => (module?.fieldBindings || []).some((b) => b.role === "media" || b.role === "files"), [module?.fieldBindings]);
   const avail = useMemo(() => [L.LABEL, ...(hasCover ? [L.COVER] : []), ...fieldIds.map(L.fieldKey)], [fieldIds, hasCover]);
