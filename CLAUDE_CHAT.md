@@ -3961,3 +3961,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-15 21:02** — *"i also added more books in the moduli uploads folder on the drive"* (link the new files too).
 - **2026-10-16** — on the second Drive folder of books: *"dont do second format unless its better (easier to read) and dont do personal documents"*
   (link a big_books file to a row that already has one only when its format reads better; leave personal documents out).
+- **2026-10-16 08:23** — *"im having trouble copying text from the magic section of the books. id like to highlight and copy the text"*
