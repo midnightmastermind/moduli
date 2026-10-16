@@ -223,6 +223,34 @@ container-filtered-empty only. Tests `server/__tests__/linkDriveBooks.test.js` (
 
 ---
 
+### 2026-10-16 (3) — ROW LAYOUTS ON EVERY GROUPED ROUTINE AND TASK; an uploaded epub was a "note"; the Philosopher's Stone was never longer
+
+User: *"yes dude to the excersise layout and anything that can be reorganized in the same way in my routines and tasks"*.
+- **Apply to all** in the row-layout editor (`instanceLayout.sameShapeTargets` + `layoutFieldIds`,
+  `CommitHelpers.applyInstanceLayout`, one undo step): every OTHER instance with the same name and the same
+  visible field SET gets the layout — each day's copy is its own placement, often a cloned module.
+- Built by clicking (`_layoutbuild.mjs` OCC PG SPEC APPLY — builds any nested layout from a spec of field
+  names, then presses Apply to all; specs from `_shapes.mjs` census): Exercise (Set/Weight and Set/Time
+  pairs), Eat (Meal+Ingredient, Calories/Protein · Carbs/Fats), appointments (Type/Location/People · Date/
+  Weekday · Time Slot/Duration), to-dos (Due/Days Until Due · Date/Weekday · People), Pay Bill. **329 poms
+  rows, 156 rebuild rows.** Rows of 5 or fewer fields left alone. Poms' "Sign up for case manager" is
+  listed by NO container (parent `EOgH5hxjHkQ4` does not list it) — invisible in the app; left, the user's call.
+- **Upload kinds:** `mimeToKind` (client + server) knew no book types, so an uploaded .epub/.mobi/.azw/.azw3
+  was a markdown note and could not be opened (Dungeon Crawler Carl). `ebook` now; `0406` repaired the one
+  misfiled upload on poms.
+- **A chosen cover shows on a pdf/ebook card** (`coverAppliesTo`; Inner Guide Meditation's pick was saved
+  and drawn nowhere). A book's file never earns a viewer browser tile (`spreadBrowser`).
+- **Open in viewer** on a file's page (`modules/pages/PageDisplay`, `helpers/viewerReturn`): reopens the
+  viewer the file left via Open in panel (its owner, e.g. a book row), else the file's own viewer.
+- **Philosopher's Stone "only shows the first 2 steps":** nothing was lost. The Magnum Opus section holds
+  all four steps; the closing walkthrough ("1. Nigredo — The Breakdown Phase", "2. Albedo — The Clarifying
+  Phase") has ended there in every poms snapshot since the grid was made (Jul 26). The older seed template
+  (`seed-snapshot`, Jul 9, another grid) has only an EMPTY "3. Citrinitas — The Embodiment Phase" heading
+  after it — the source note was cut off. **Every other doc page checked** (`server/_pagecheck.mjs`): since
+  the Oct 1 restructure no page lost a heading or any body text.
+
+---
+
 ### 2026-10-16 (2) — OPEN IN PANEL FOR ANY FILE IN THE VIEWER; the book reader no longer saves pages
 
 User: *"we should change save page to open in panel, if i want to save the page, i can drag copy out of magic"* ·
