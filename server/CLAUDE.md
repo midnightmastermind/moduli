@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 (4) — `0405`: a reading is imported under the book's title)
+- The importer names a page after a leading heading and ignores `title` when there is one. 0402's callee now
+  imports `# <title>\n\n<passage>` (`$importMd`, set only when the passage is non-empty). `0405` rewrites the
+  stored callee (board and date read off it with 0403's `readBoardAndDate`). Applied to poms grid.
+
 ## Recent Changes (2026-10-15 (3) — `0404`: the day markers accept a heading and an ordinal)
 - `0402` exports `DAY_LINE_PREFIX` (`^(?:#+\s*)?`), `dayMarker(md)` and the new `NEXT_DAY_MARKER`. A day matches at
   a line start, optionally as a heading, and the day number must not be followed by another digit. No `\b` after

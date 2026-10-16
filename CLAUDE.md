@@ -59,6 +59,17 @@ On poms grid:
 - `0402 --force` with `READING_FILE_OCC` added it to `$readings`, and `0404` was applied.
 - Both were read back from Mongo.
 
+**Watching it on prod found one more problem: the import was named after the day.** The importer names a page after
+the passage's first heading and ignores the `title` it is given. So the e-book passage (which starts with its
+`###` heading) came in labelled "October 15th…" rather than with the book's title. That also defeated the callee's
+"already holds this reading" check, which looks for the title. Daily Reflections never showed this: its day line
+is plain text.
+- The callee now puts `# <title>` above the passage. It does so only when a passage was found
+  (`$importMd`, set inside an IF that holds no wait), so an empty read still imports nothing.
+- `0405` rewrote the stored callee.
+- A/B: always setting `$importMd` fails 4 cases, including "an empty passage imports nothing".
+- Today's mis-named import was deleted through the app and its mark cleared, so the next load re-imports it.
+
 **The rest of `big_books` is NOT linked.** The dry run (only the 509 files whose names Books does not already hold;
 282 are exact duplicates) would:
 - link 336 existing rows, mostly a second format beside the one they have;

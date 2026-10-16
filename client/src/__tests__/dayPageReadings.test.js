@@ -45,8 +45,8 @@ describe("Day Page: Readings (0402)", () => {
       ["/files/c/book", "pdf", dayMarker("October 16"), NEXT_DAY_MARKER],
     ]);
     expect(imports.map((r) => [r.parentId, r.title, r.content, r.shape, r.embed])).toEqual([
-      ["col15", "Morning Words", `${dayMarker("October 15")} passage`, "magic", true],
-      ["col16", "Morning Words", `${dayMarker("October 16")} passage`, "magic", true],
+      ["col15", "Morning Words", `# Morning Words\n\n${dayMarker("October 15")} passage`, "magic", true],
+      ["col16", "Morning Words", `# Morning Words\n\n${dayMarker("October 16")} passage`, "magic", true],
     ]);
     // The mark goes out BEFORE the wait, so a second run on the same load imports nothing.
     const marks = pre.filter((e) => JSON.stringify(e).includes(`readings`));
@@ -124,5 +124,14 @@ describe("Day Page: Readings (0402)", () => {
     expect(rewriteMarkers(steps)).toBe(1);
     expect(call.config.vars.$from).toBe(dayMarker("${$md}"));
     expect(rewriteMarkers(steps)).toBe(0);
+  });
+
+  it("an empty passage imports nothing — no title-only page", async () => {
+    operationsBridge.readFileText = vi.fn(async (req) => { reads.push(req); return { text: "", found: true }; });
+    const { caller, ctx } = world();
+    executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads.length).toBe(1);
+    expect(imports).toEqual([]);
   });
 });

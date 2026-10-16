@@ -96,7 +96,14 @@ export function addReadingPipeline({ boardOccurrenceId, dateFieldId }) {
         act({ type: "SET_VAR", name: "$readRef", expr: "$file" }),
       ]),
       act({ type: "READ_FILE", file: "$readRef", kind: "$kind", from: "$from", to: "$to", resultVar: "$fileText" }),
-      act({ type: "IMPORT_MARKDOWN", markdown: "$fileText.text", parentExpr: "$colId", title: "$title", shape: "magic", embed: true,
+      // The passage goes in under the book's title as its top heading: the importer names the page after a
+      // leading heading and ignores `title` then, so an e-book passage starting "### October 15th…" was
+      // named after the day. No passage → no markdown → nothing imported (an IF cannot hold the wait).
+      act({ type: "INIT_VAR", name: "$importMd", expr: "literal:" }),
+      iff(all(r("$fileText.text", "IS_NOT_EMPTY")), [
+        act({ type: "SET_VAR", name: "$importMd", expr: "# ${$title}\n\n${$fileText.text}" }),
+      ]),
+      act({ type: "IMPORT_MARKDOWN", markdown: "$importMd", parentExpr: "$colId", title: "$title", shape: "magic", embed: true,
         resultVar: "$importResult", onError: "continue" }),
       // A read that found no passage, or an import that failed, takes the mark back off so the next
       // load tries again (the mark went on before the wait). Only when THIS run marked the day.
