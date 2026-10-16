@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-15 (3) — `0404`: the day markers accept a heading and an ordinal)
+- `0402` exports `DAY_LINE_PREFIX` (`^(?:#+\s*)?`), `dayMarker(md)` and the new `NEXT_DAY_MARKER`. A day matches at
+  a line start, optionally as a heading, and the day number must not be followed by another digit. No `\b` after
+  the number, because an e-book heading glues the title straight on ("### October 15thTITLE").
+- `0404` rewrites the stored "Day Page: Readings" caller to these markers (pure `rewriteMarkers`, read back).
+- Applied to poms grid together with a second reading (`0402 --force`, `READING_FILE_OCC`).
+
 ## Recent Changes (2026-10-15 (2) — `0402` day-page readings; import_text `embed`)
 - `import_text` takes `embed` (and `shape`): after the broadcast, `utils/embedRootInDocParent` appends a moduleEmbed
   of the root to a DOC parent's textmap (skips one already there), updates the cache, emits occurrence_updated.

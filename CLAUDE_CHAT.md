@@ -3956,3 +3956,6 @@ per picked date (that is where the items live); Combine hides those and shows on
   must be usable in OPERATIONS — e.g. add Daily Reflections (and other day-by-day reflection books) to the day
   page for that day.
 - **2026-10-15 15:59** — the cover-beside-the-file view is the same for video or anything else: the cover image (if it has one) next to the file(s), all in the viewer; the same for an occurrence with a bunch of images, when you click the cover photo.
+- **2026-10-15 21:00** — *"look through my books and query which ones can be daily devotionals, quotes, reflections. etc"*
+  (find the books that could feed the day page's daily readings).
+- **2026-10-15 21:02** — *"i also added more books in the moduli uploads folder on the drive"* (link the new files too).

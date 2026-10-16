@@ -77,6 +77,8 @@ export function sectionToText(doc) {
   const out = [];
   for (const el of body.querySelectorAll(BLOCKS)) {
     if (el.parentElement?.closest?.(BLOCKS)) continue; // a <p> inside an <li> is read with the <li>
+    // A <br> is a line break, not nothing: textContent would glue "October 15th<br>GIVE…" into one word.
+    for (const br of el.querySelectorAll?.("br") || []) br.replaceWith(" ");
     const t = (el.textContent || "").replace(/\s+/g, " ").trim();
     if (!t) continue;
     const h = /^h([1-6])$/i.exec(el.tagName);

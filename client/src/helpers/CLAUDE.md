@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-15 (5) — bookText: a <br> is a space)
+- `sectionToText` replaces each `<br>` in a block with a space before reading `textContent`. Before, an e-book
+  heading `<h3>October 15th<br/>TITLE</h3>` read as "### October 15thTITLE", and no day marker could find it.
+  Test `bookText.test.js` (A/B'd).
+
 ## Recent Changes (2026-10-15 (4) — bookText.js NEW + READ_FILE; filesOf puts the cover beside the files)
 - `bookText.readFileText({src, kind, from, to, page, maxChars})` → `{text, found}` (pdf via pdf.js page by page,
   e-book via foliate sections; whole text cached per file). `toPattern` ("/re/flags", default `im`, else literal),

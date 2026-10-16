@@ -27,6 +27,49 @@ Tests `dayPageReadings` +3 (not found / import throws / success keeps the mark);
 
 ---
 
+### 2026-10-15 (9) — WHICH BOOKS ARE DAILY READINGS; a second one on the day page; `big_books` waits on you
+
+User (CLAUDE_CHAT 21:00, 21:02): *"look through my books and query which ones can be daily devotionals, quotes,
+reflections. etc"* and *"i also added more books in the moduli uploads folder on the drive"*.
+**Checked by reading the files, not the titles.** The files were scanned on prod, which pulls them from Drive in
+seconds (`_datecheck.mjs` / `_peek.mjs`, deleted after). The local download ran at ~100 KB/s, too slow to use.
+```
+one entry per calendar day   Daily Reflections (pdf, 366 — already a reading)
+                             The Daily Stoic (epub, 366 — now a reading)
+                             Daily Readings from the Buddha's Words (pdf): dated, but its text layer is
+                               scrambled (a font with no real character map), so nothing can find a date in it
+weeks / numbered, not dated  A Handbook for New Stoics (52 weeks), 30 Days to a Better Man, AA 12 Steps
+short passages (random)      Meditations, Tao Te Ching, Analects, Mencius, Letters From a Stoic, Discourses, …
+```
+**The Daily Stoic needed two fixes before it could be a reading.** It heads each day `<h3>October 15th<br/>TITLE</h3>`.
+The reader turns that into `### October 15thTITLE`: the `#` comes from the heading, and the `<br>` disappeared,
+gluing the date to the title. 0402's markers (`^October 15\b`) allowed no `#` in front of the date and needed a
+word boundary after the number, so they matched nothing.
+- `0402` now builds the markers from `dayMarker` / `NEXT_DAY_MARKER`. They allow the heading's `#`s, and they only
+  require that the day number is not followed by another digit, so "1" still never matches "15".
+- `0404` rewrote the stored caller's two markers.
+- `bookText.sectionToText` reads a `<br>` as a space.
+
+Tests: `dayPageReadings` +2, `bookText` +1. A/B: removing the `<br>` fix fails exactly its own test, and the old
+markers miss both "October 15th" spellings.
+
+On poms grid:
+- The epub was linked with `0401` run on a one-file listing. That merged one same-book duplicate row (your earlier
+  "duplicates → merge" rule) and attached the file to "The Daily Stoic" row as `main`.
+- `0402 --force` with `READING_FILE_OCC` added it to `$readings`, and `0404` was applied.
+- Both were read back from Mongo.
+
+**The rest of `big_books` is NOT linked.** The dry run (only the 509 files whose names Books does not already hold;
+282 are exact duplicates) would:
+- link 336 existing rows, mostly a second format beside the one they have;
+- merge 12 same-book pairs;
+- create 127 new rows.
+It would also attach four personal documents (not books) to rows of the same names that poms grid already holds
+as books. Whether to apply it is your call. The plan is in the
+scratchpad (`bigbooks-dry.txt`, `bigbooks-links.json`), outside git.
+
+---
+
 ### 2026-10-15 (7) — A PIECE DRAGGED OUT OF MAGIC IS KEPT, AS A COPY (`1d20b1e7`)
 
 User: *"you can only copy outside of the magic"* (CLAUDE_CHAT 15:07). A Magic view renders a PLANNED tree that no

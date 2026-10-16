@@ -35,7 +35,13 @@ export const CALLER = "Day Page: Readings";
 export const CALLEE = "Day Page: Add Reading";
 export const BUILD_OP = "Day Page: Build";
 const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
-export const NEXT_DAY_MARKER = `/^(${MONTHS}) \\d+\\b/im`;
+// A day starts a line ("OCTOBER 15", "October 15th"), maybe as a heading ("### October 15th…"). The day
+// number must not run on into more digits, and nothing is required after it: an e-book heading can glue
+// the day's title straight on ("October 15thTHE DAY TITLE…"), so a trailing \\b would miss it.
+export const DAY_LINE_PREFIX = "^(?:#+\\s*)?";
+export const NEXT_DAY_MARKER = `/${DAY_LINE_PREFIX}(${MONTHS}) \\d+(?!\\d)/im`;
+/** The `from` marker for one day, given its "Month d" text (an expression the caller interpolates). */
+export const dayMarker = (md) => `/${DAY_LINE_PREFIX}${md}(?!\\d)/im`;
 
 const uid = () => globalThis.crypto.randomUUID();
 const r = (left, comparator, right = "") => ({ id: uid(), left, comparator, right });
@@ -60,7 +66,7 @@ export function readingsPipeline({ readings, gateCondition = null }) {
         loop("$readings", "$rd", [
           act({ type: "RUN_OPERATION", operationName: CALLEE, vars: {
             $day: "$day", $key: "$rd.key", $title: "$rd.title", $file: "$rd.file", $kind: "$rd.kind",
-            $from: "/^${$md}\\b/im", $to: `literal:${NEXT_DAY_MARKER}`,
+            $from: dayMarker("${$md}"), $to: `literal:${NEXT_DAY_MARKER}`,
           } }),
         ]),
       ]),

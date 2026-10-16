@@ -39,4 +39,9 @@ describe("bookText.sectionToText", () => {
       "<body><h2>Step One</h2><p>We admitted.</p><ul><li><p>nested once</p></li></ul><div>loose</div></body>", "text/html");
     expect(sectionToText(doc)).toBe("## Step One\n\nWe admitted.\n\n- nested once");
   });
+
+  it("reads a <br> as a space, so a heading's date does not run into its title", () => {
+    const doc = new DOMParser().parseFromString("<body><h3>October 15th<br/><strong>THE DAY TITLE</strong></h3></body>", "text/html");
+    expect(sectionToText(doc)).toBe("### October 15th THE DAY TITLE");
+  });
 });

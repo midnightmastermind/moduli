@@ -4,7 +4,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { executePipeline } from "../helpers/operationExecutor";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { readingsPipeline, addReadingPipeline, readingEntry, CALLER, CALLEE, NEXT_DAY_MARKER } from "../../../server/migrations/0402-day-page-readings.mjs";
+import { readingsPipeline, addReadingPipeline, readingEntry, CALLER, CALLEE, NEXT_DAY_MARKER, dayMarker } from "../../../server/migrations/0402-day-page-readings.mjs";
+import { rewriteMarkers } from "../../../server/migrations/0404-day-page-reading-markers.mjs";
+import { slicePassage } from "../helpers/bookText";
 
 const BOARD = "board1";
 const DATE = "fDate";
@@ -39,12 +41,12 @@ describe("Day Page: Readings (0402)", () => {
     const pre = executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15", "2026-10-16"], $activePeriodCount: 2 });
     for (let i = 0; i < 6; i++) await flush();
     expect(reads.map((r) => [r.src, r.kind, r.from, r.to])).toEqual([
-      ["/files/c/book", "pdf", "/^October 15\\b/im", NEXT_DAY_MARKER],
-      ["/files/c/book", "pdf", "/^October 16\\b/im", NEXT_DAY_MARKER],
+      ["/files/c/book", "pdf", dayMarker("October 15"), NEXT_DAY_MARKER],
+      ["/files/c/book", "pdf", dayMarker("October 16"), NEXT_DAY_MARKER],
     ]);
     expect(imports.map((r) => [r.parentId, r.title, r.content, r.shape, r.embed])).toEqual([
-      ["col15", "Morning Words", "/^October 15\\b/im passage", "magic", true],
-      ["col16", "Morning Words", "/^October 16\\b/im passage", "magic", true],
+      ["col15", "Morning Words", `${dayMarker("October 15")} passage`, "magic", true],
+      ["col16", "Morning Words", `${dayMarker("October 16")} passage`, "magic", true],
     ]);
     // The mark goes out BEFORE the wait, so a second run on the same load imports nothing.
     const marks = pre.filter((e) => JSON.stringify(e).includes(`readings`));
@@ -103,5 +105,24 @@ describe("Day Page: Readings (0402)", () => {
     executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 14 });
     for (let i = 0; i < 6; i++) await flush();
     expect(reads).toEqual([]);
+  });
+
+  it("a day's marker finds a heading with an ordinal, and stops at the next day", () => {
+    const book = "Intro mentions october 150 things.\n\n### October 15th THE DAY TITLE\n\nText.\n\n### October 16th NEXT\n\nMore.";
+    const r = slicePassage(book, { from: dayMarker("October 15"), to: NEXT_DAY_MARKER });
+    expect(r.found).toBe(true);
+    expect(r.text).toBe("### October 15th THE DAY TITLE\n\nText.");
+    // still the plain upper-case line Daily Reflections uses, and never day 1 inside day 15
+    expect(slicePassage("OCTOBER 15\nA\nOCTOBER 16\nB", { from: dayMarker("October 15"), to: NEXT_DAY_MARKER }).text).toBe("OCTOBER 15\nA");
+    expect(slicePassage("October 15\nA", { from: dayMarker("October 1"), to: NEXT_DAY_MARKER }).found).toBe(false);
+  });
+
+  it("0404 rewrites an old caller's markers once", () => {
+    const steps = JSON.parse(JSON.stringify(readingsPipeline({ readings: [reading] }).steps));
+    const call = JSON.stringify(steps).includes(CALLEE) && steps[1].then[0].body[1].body[0];
+    call.config.vars.$from = "/^${$md}\\b/im";
+    expect(rewriteMarkers(steps)).toBe(1);
+    expect(call.config.vars.$from).toBe(dayMarker("${$md}"));
+    expect(rewriteMarkers(steps)).toBe(0);
   });
 });
