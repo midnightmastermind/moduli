@@ -3975,3 +3975,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-16 13:12** — row layouts: *"Date also should be one of the fields underneath completed, any extra should go under there instead of all the fields on the instance"* (the Completed column holds Completed / Completed On / Last Seen / Date and any field outside the layout's groups).
 - **2026-10-16 13:16** — *"i also added a new ics feed for work events. could you edit the feed to go to a new work shifts container inside the tasks page and then map it to my calendar via the operations like we do holidays"*
 - **2026-10-16 14:25** — *"dont connect two book files of the same book … i want one book file for each"* (a book row carries ONE file: the best format; the rest are detached, Drive keeps them).
+- **2026-10-16 14:55** — *"myth and religion is a book that doesnt have a cover and i cant access the file"*
+- **2026-10-16 14:58** — answers: delete only the 32 Calibre rows with no file; merge duplicates keeping the better file; delete the personal rows from the Books board.

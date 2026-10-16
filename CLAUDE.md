@@ -15,6 +15,22 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-16 (7) — THE BOOKS BOARD CLEANED (`0411`): Calibre rows with no file, personal documents, duplicates
+
+User: *"myth and religion is a book that doesnt have a cover and i cant access the file"* · *"there are a ton of
+duplicate books still"*. Myth and Religion was one of the 08-24 scan's rows from the PC's Calibre list: no file in
+Drive (searched), and its Bing cover link answers 404. Answers (CLAUDE_CHAT 14:58), applied as `0411`:
+```
+deleted   32 Calibre-only rows with no file + 9 personal rows (resume, offer letter, BadgerCare, Portugal emails…)
+merged    15 duplicate groups (16 rows): the better file kept, fields/meta filled, label = the group's cleanest name
+after     Books rows 574 -> 517; 0 dangling child refs, 0 occurrences without a module, 0 dangling file refs
+```
+The remaining look-alike titles are different volumes (Buddha, Assassin's Creed, Jesus Christ, "en: step1/10").
+Not deleted (not asked): c_loose Portuguese textbooks / Customs Process / Stem Cell rows, two hash-named rows with files.
+Test `booksCleanup.test.js` (5).
+
+---
+
 ### 2026-10-16 (6) — ONE FILE PER BOOK (`0410`); the three book folders merged; work shifts feed (`0409`); Date under Completed
 
 - **`0410`:** user: *"i want one book file for each"*. 312 book rows held 2+ book files (0401 upgrades, 0407 epubs);
