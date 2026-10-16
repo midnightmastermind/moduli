@@ -223,6 +223,23 @@ container-filtered-empty only. Tests `server/__tests__/linkDriveBooks.test.js` (
 
 ---
 
+### 2026-10-16 (2) — OPEN IN PANEL FOR ANY FILE IN THE VIEWER; the book reader no longer saves pages
+
+User: *"we should change save page to open in panel, if i want to save the page, i can drag copy out of magic"* ·
+*"which would open up the file in the panel (whether its image, video, etc)"*.
+- Every FILE tile in the viewer (image, video, book, pdf, bookmark) has **Open in panel** beside maximize
+  (`ui/SpreadTileOpenInPanel`): the file opens as its own page (`ensureArtifactPage`) in the panel the viewer came
+  from (the sticky target wins, as everywhere), then the viewer closes. The viewer passes its origin panel + its
+  close down through `SpreadHostContext` (`helpers/spreadDock`). Rows that are not files get no button.
+- The book reader's **Save page is gone**; its header button is the same Open in panel, hidden where the reader
+  already IS that page (`ArtifactContent` passes `inPanelPage`). Keeping a page = dragging a copy out of Magic.
+- `hooks/useOpenArtifactInPanel` is the one gesture; `openBookmarkInPanel` renamed `openArtifactInPanel` (it was
+  never bookmark-only). Tests: `spreadTileOpenInPanel`, `bookReader` (old reader fails). Client 6,195 pass.
+**Watched on prod (rebuild):** Files › Examples › Earthrise opened in the viewer -> Open in panel -> the panel shows
+the picture's page, the viewer closed. Panel put back (`_panelrestore`). Probe `_openpanel.mjs` (PG IDX).
+
+---
+
 ### 2026-10-16 — EXERCISE'S ROW LAID OUT BY DRAGGING; a drop into a later box was silently ignored
 
 Rebuild, Routines bank Exercise (`1791117639520-812frrini`), built in Settings › Style › Layout by dragging
