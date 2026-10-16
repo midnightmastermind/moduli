@@ -3959,3 +3959,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-15 21:00** — *"look through my books and query which ones can be daily devotionals, quotes, reflections. etc"*
   (find the books that could feed the day page's daily readings).
 - **2026-10-15 21:02** — *"i also added more books in the moduli uploads folder on the drive"* (link the new files too).
+- **2026-10-16** — on the second Drive folder of books: *"dont do second format unless its better (easier to read) and dont do personal documents"*
+  (link a big_books file to a row that already has one only when its format reads better; leave personal documents out).

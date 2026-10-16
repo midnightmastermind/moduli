@@ -67,17 +67,32 @@ export function planBookLinks({ files, rows }) {
     const tries = [
       (x) => x.k === norm(full) || x.k === norm(title), (x) => x.t === titleKey(title),
       (x) => mainOf(title).length > 3 && x.m === mainOf(title),
+      // Kindle cuts a file name at ~31 characters ("Everything About Gardening Unde"): the cut title
+      // starts a row's title. Long enough to say something, and only after the exact tries fail.
+      (x) => norm(title).length >= 15 && x.k.length > norm(title).length && x.k.startsWith(norm(title)),
+      // …or the row's title is the start of the file's, at a word boundary ("The Clocks of Old Harbor-Basic").
+      (x) => x.k.length >= 12 && norm(title).startsWith(`${x.k} `),
+      // A row labelled "Author - Title" (or "(Series 3) Author - Title").
+      (x) => !!author && norm(title).length >= 8 && x.k.includes(norm(title)) && x.k.includes(norm(author)),
+      // A name read the wrong way round ("Author - Title-Publisher (year)" parsed as title "Author").
+      (x) => !!author && norm(author).length >= 15 && x.k === norm(author),
+      (x) => !!author && norm(author).length >= 15 && norm(author).startsWith(`${x.k} `),
     ];
+    // Each try in turn; one that matches several different books and cannot be settled by size falls
+    // through to the next (a main title several volumes share must not stop the search).
     let cand = [];
-    for (const t of tries) { cand = keyed.filter(t); if (cand.length) break; }
-    if (cand.length > 1 && new Set(cand.map((c) => c.t)).size === 1) {
-      const keep = cand[0].r.id;
-      mergeGroups.set(keep, new Set([...(mergeGroups.get(keep) || []), ...cand.slice(1).map((c) => c.r.id)]));
-      cand = [cand[0]];
-    } else if (cand.length > 1) {
-      const mib = f.size / 1048576;
-      const bySize = cand.filter((c) => Math.abs(Number(c.r.sizeMiB) - mib) < Math.max(0.15, mib * 0.03));
-      cand = bySize.length === 1 ? bySize : [];
+    for (const t of tries) {
+      cand = keyed.filter(t);
+      if (cand.length > 1 && new Set(cand.map((c) => c.t)).size === 1) {
+        const keep = cand[0].r.id;
+        mergeGroups.set(keep, new Set([...(mergeGroups.get(keep) || []), ...cand.slice(1).map((c) => c.r.id)]));
+        cand = [cand[0]];
+      } else if (cand.length > 1) {
+        const mib = f.size / 1048576;
+        const bySize = cand.filter((c) => Math.abs(Number(c.r.sizeMiB) - mib) < Math.max(0.15, mib * 0.03));
+        cand = bySize.length === 1 ? bySize : [];
+      }
+      if (cand.length) break;
     }
     if (cand.length === 1) {
       const id = cand[0].r.id; if (!rowFiles.has(id)) rowFiles.set(id, []); rowFiles.get(id).push(f);

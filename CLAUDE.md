@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-16 — THE SECOND BOOK FOLDER, LINKED: 240 files, one format per book unless a better one arrived
+
+User: *"dont do second format unless its better (easier to read) and dont do personal documents"* (CLAUDE_CHAT).
+Drive's `/big_books` holds 791 files: 282 duplicate names already in Books, 509 new. Filtered outside git
+(scratchpad `_filter.mjs`, titles stay out of the repo), then 0401 with that listing:
+```
+personal       5 personal pdfs left out + 1 ambiguous volume
+format rule    epub 4 > azw3 3 > mobi/azw 2 > pdf 1 > djvu 0; a row that has a file gets the new one only
+               if it ranks higher (18 upgrades, all to epub); one file per row (the best of its formats)
+applied        240 files -> 239 rows + 1 new row; 10 duplicate-row pairs merged; 219 second formats skipped
+read back      240 artifacts + occurrences, every one attached, `main` in its list on every row, 0 dangling
+```
+**The matcher missed most of them first, and the dry run said so** — 126 "new rows" were existing books:
+Kindle cuts a name at ~31 characters, rows are often labelled "Author - Title", and one name parsed backwards.
+`planBookLinks` (0401) gained a cut-title prefix try, a row-starts-the-file try, an author-and-title try and an
+exact-then-prefix backwards try, and **a try that matches several different books now falls through to the
+next instead of stopping** (a main title several volumes share stopped the search before). Tests
+`linkDriveBooks` 13 -> 17, the fall-through A/B'd. **Left:** a new upgrade keeps the OLD file as the row's
+`main`; one title with a publisher glued on became a new row beside its existing row; one duplicate-row pair
+stays (its only shared file was a second format). DRM of the new azw files not scanned.
+
+---
+
 ### 2026-10-15 (8) — A DAY'S READING THAT FAILED IS TRIED AGAIN (`0403`)
 
 User: *"please continue"*. One of (6)'s open items. "Day Page: Add Reading" marks the day before it waits on the read

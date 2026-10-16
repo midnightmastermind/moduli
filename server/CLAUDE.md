@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-16 — 0401's matcher: cut titles, author-first rows, fall-through)
+- `planBookLinks` tries, in order: exact, title key, main title, **a cut file title (>=15 chars) that starts a
+  row's title**, **a row title (>=12) that starts the file's at a word**, **author and title both inside the row
+  label** ("Author - Title"), **a backwards-parsed name equal to a row, then one that starts with it**. A try whose
+  candidates are several different books (and size settles none) now falls through to the next try. Re-run with
+  the second Drive folder (`BOOKS_DRIVE_PATH`, filtered outside git). Tests `linkDriveBooks.test.js` (17).
+
 ## Recent Changes (2026-10-15 (4) — `0405`: a reading is imported under the book's title)
 - The importer names a page after a leading heading and ignores `title` when there is one. 0402's callee now
   imports `# <title>\n\n<passage>` (`$importMd`, set only when the passage is non-empty). `0405` rewrites the

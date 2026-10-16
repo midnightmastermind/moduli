@@ -67,6 +67,35 @@ describe("0401 planBookLinks", () => {
     expect(p.clones).toEqual([]);
     expect(plan.clones).toEqual([{ fromRowId: "r5", label: "Saga: The Series Vol 2", fileIds: ["e"] }]);
   });
+  it("a title Kindle cut short finds the row it starts", () => {
+    const rows = [{ id: "r", label: "Everything About Gardening Under Glass in One Volume", sizeMiB: 1 },
+      { id: "s", label: "The Clocks of Old Harbor", sizeMiB: 1 }, { id: "t", label: "Short", sizeMiB: 1 }];
+    const p = planBookLinks({ rows, files: [f("a", "Everything About Gardening Unde - Some Press.azw"),
+      f("b", "The Clocks of Old Harbor-Basic Books (1999).epub"), f("c", "Short Stories Again.epub")] });
+    expect(p.links).toEqual([{ rowId: "r", fileIds: ["a"] }, { rowId: "s", fileIds: ["b"] }]);
+    expect(p.creates.map((c) => c.fileIds)).toEqual([["c"]]); // "short" is too short to stand for a row
+  });
+  it("a main title several books share does not stop the search", () => {
+    const rows = [{ id: "v4", label: "Lanterns: Volume 4: The Quiet Valley", sizeMiB: 9 },
+      { id: "v7", label: "Lanterns: Volume 7: The Far Shore", sizeMiB: 9 }];
+    const p = planBookLinks({ rows, files: [f("a", "Lanterns_ Volume 7_ The Far Shor - Ann Writer.azw")] });
+    expect(p.links).toEqual([{ rowId: "v7", fileIds: ["a"] }]);
+  });
+  it("a row labelled with its author first, or a name read backwards, still finds its file", () => {
+    const rows = [{ id: "a", label: "Ann Writer - Paper Boats: Folding the Morning", sizeMiB: 1 },
+      { id: "b", label: "(Tide Series 3) Bo Author - Rivers of Salt", sizeMiB: 1 },
+      { id: "c", label: "How Small Things Grow: A Field Guide to Patient Gardens", sizeMiB: 1 }];
+    const p = planBookLinks({ rows, files: [f("1", "Paper Boats_ Folding the Morning - Ann Writer.epub"),
+      f("2", "Rivers of Salt - Bo Author.epub"),
+      f("3", "Cy Writer - How Small Things Grow_ A Field Guide to Patient Gardens-Green Books (2010).pdf")] });
+    expect(p.links).toEqual([{ rowId: "a", fileIds: ["1"] }, { rowId: "b", fileIds: ["2"] }, { rowId: "c", fileIds: ["3"] }]);
+  });
+  it("a backwards name prefers the row it names exactly over a shorter one it starts with", () => {
+    const rows = [{ id: "x", label: "The Quiet Lighthouse-Harbor (16 Nov 2013)", sizeMiB: 5 },
+      { id: "y", label: "The Quiet Lighthouse", sizeMiB: 5 }];
+    const p = planBookLinks({ rows, files: [f("1", "Dee Writer Phd - The Quiet Lighthouse-Harbor (16 Nov 2013).epub")] });
+    expect(p.links).toEqual([{ rowId: "x", fileIds: ["1"] }]);
+  });
   it("a file no row matches becomes a new row with its author", () => {
     expect(plan.creates).toEqual([{ label: "Something Else Entirely", author: "Bo Author", fileIds: ["z"] }]);
   });
