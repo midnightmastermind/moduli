@@ -115,7 +115,10 @@ export function StorageConnections() {
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, ...mono, color: "var(--text-faint)" }} title={h?.message || c.statusMessage || ""}>
               <span style={{ width: 6, height: 6, borderRadius: 3, background: s.dot }} />{s.text}
             </span>
-            {status === "needs_reconnect" && (
+            {/* Always offered on a Drive connection: a working one may still need to sign in
+                again to grant more access (2026-10-16: the scope widened to full Drive and the
+                button, shown only when broken, never appeared). */}
+            {c.type === "gdrive" && (
               <button onClick={(e) => { e.preventDefault(); connectGoogle(c.id); }} disabled={busy}
                 style={{ ...mono, padding: "1px 7px", borderRadius: 4, cursor: "pointer", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", color: "var(--accent-blue-text)" }}>
                 Reconnect

@@ -42,6 +42,29 @@ describe("StorageConnections", () => {
     expect(calls.some((c) => c.url === "/api/connections/server/health")).toBe(false);
   });
 
+  it("a WORKING Drive still offers Reconnect, which keeps the connection (reconnectId)", async () => {
+    globalThis.fetch.mockImplementation((url, init = {}) => {
+      calls.push({ url, method: init.method || "GET", body: init.body, auth: init.headers?.Authorization });
+      if (url === "/api/v1/connections") return ok(listing());
+      if (url.endsWith("/health")) return ok({ ok: true });
+      if (url === "/api/connections/google/start") return ok({ url: "https://accounts.google.com/x" });
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    });
+    const assign = vi.fn();
+    const orig = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...orig, assign } });
+    try {
+      render(<StorageConnections />);
+      const row = await screen.findByTestId("storage-conn-c1");
+      await waitFor(() => expect(row.textContent).toMatch(/connected/));
+      fireEvent.click(screen.getByText("Reconnect"));
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      const start = calls.find((c) => c.url === "/api/connections/google/start");
+      expect(JSON.parse(start.body)).toEqual({ reconnectId: "c1" });
+      expect(screen.getByTestId("storage-conn-server").textContent).not.toMatch(/Reconnect/);
+    } finally { Object.defineProperty(window, "location", { configurable: true, value: orig }); }
+  });
+
   it("choosing a connection makes it the default for new uploads", async () => {
     render(<StorageConnections />);
     const radio = (await screen.findByTestId("storage-conn-c1")).querySelector("input[type=radio]");
