@@ -5,10 +5,12 @@
 //   completeConnect({ code, state, redirectUri })    -> the Connection created/refreshed
 //   refreshAccessToken(refreshToken)                  -> { accessToken, expiresIn }
 //
-// Scope: drive.file (create and manage what the app uploads) + drive.readonly
-// (read files the user put in Drive themselves — the book library, user
-// 2026-10-15). drive.readonly is a restricted scope: while the Google app is in
-// "Testing" the user sees an "unverified app" screen once at connect time.
+// Scope: full drive. drive.file (what the app uploads) + drive.readonly (files the
+// user put there themselves) was enough to READ the book library (2026-10-15), but
+// not to move or trash those files, which merging the book folders needs (user
+// 2026-10-16). A restricted scope: while the Google app is in "Testing" the user
+// sees an "unverified app" screen once at connect time. Changing it means the user
+// reconnects once (Command Center › Connections); the connection keeps its id.
 // The refresh token is encrypted on the Connection record (models/Connection).
 //
 // Needs GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET in server/.env and SECRETS_KEY
@@ -19,7 +21,7 @@ import jwt from "jsonwebtoken";
 import Connection from "../models/Connection.js";
 import { encryptValue, isSecretsKeyConfigured } from "../models/Secret.js";
 
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
@@ -122,7 +124,7 @@ export async function completeConnect({ code, state, redirectUri, fetchImpl = fe
     ? await Connection.findOne({ id: who.reconnectId, userId: who.userId }).lean()
     : accountEmail ? await Connection.findOne({ userId: who.userId, type: "gdrive", "config.accountEmail": accountEmail }).lean() : null;
 
-  // Reuse the upload folder when it is still there (drive.file can see it: the app made it).
+  // Reuse the upload folder when it is still there.
   let folderId = existing?.config?.folderId || null;
   if (folderId) {
     const r = await fetchImpl(`${DRIVE_API}/files/${encodeURIComponent(folderId)}?fields=id,trashed`, { headers: auth });

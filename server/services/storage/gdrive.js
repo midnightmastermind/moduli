@@ -8,8 +8,9 @@
 // proxy — the file stays private in the user's Drive and the Google token
 // never reaches a browser.
 //
-// Plain REST over fetch (Drive API v3); no Google SDK. Scope is drive.file,
-// so this backend can only ever see files the app itself created.
+// Plain REST over fetch (Drive API v3); no Google SDK. The connection asks for
+// full drive (services/googleOAuth DRIVE_SCOPE); uploads still go only into the
+// app's own "Moduli uploads" folder.
 //
 // Failures that mean "the user must sign in to Google again" (a revoked or
 // expired refresh token) throw a DriveAuthError and report

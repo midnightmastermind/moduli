@@ -193,9 +193,10 @@ describe("the registry never loses an upload (plan decision 1)", () => {
 });
 
 describe("Google connect flow", () => {
-  it("asks for drive.file only, offline, with consent, and a state that names the user", () => {
+  it("asks for full drive, offline, with consent, and a state that names the user", () => {
     const url = new URL(oauth.startUrl("u1", { redirectUri: "https://x/cb" }));
     expect(url.searchParams.get("scope")).toBe(oauth.DRIVE_SCOPE);
+    expect(oauth.DRIVE_SCOPE).toBe("https://www.googleapis.com/auth/drive");
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("prompt")).toBe("consent");
     expect(oauth.readState(url.searchParams.get("state"))).toMatchObject({ userId: "u1" });

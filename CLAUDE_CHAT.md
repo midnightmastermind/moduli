@@ -3968,3 +3968,6 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-16 08:58** — *"i saved more books to the moduli uploads folder too btw"* (link the new Drive books too)
 - **2026-10-16 09:14** — *"why i cant change the cover image of some books, i try to do the inner guide meditation i just uploaded. i set the cover photo and nothing happens. it worked tho with dungeon crawler carl. also i cant access dungeon crawler carls epub either after uploading it."*
 - **2026-10-16 09:15** — *"we also need a way to go back to the file viewer after opening the file in a panel"*
+- **2026-10-16 09:46** — book conversion: *epub, keep the originals*; *"last seen should sit right under completed, not sitting underneath all the fields"* (row layouts: Last Seen goes in Completed's column)
+- **2026-10-16 09:58** — *"after could you reorganize the books too so all three book folders are synced up"* (Drive: Books, big_books, Calibre Library) → 09:59 "merging them i mean": merge the three into one
+- **2026-10-16 10:08** — merge answers: widen Drive to FULL access (reconnect once); one Books folder by author; duplicate copies (same book, same format) → Drive trash; Calibre cover.jpg/metadata.opf → trash.
