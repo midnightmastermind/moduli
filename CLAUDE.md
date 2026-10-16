@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-15 (8) — A DAY'S READING THAT FAILED IS TRIED AGAIN (`0403`)
+
+User: *"please continue"*. One of (6)'s open items. "Day Page: Add Reading" marks the day before it waits on the read
+(so a load's onLoad and filter runs do not both import), and a read that found no passage or an import that failed
+kept that mark, so the day was never tried again. The callee now ends with: if THIS run marked the day (`$readRef`
+set) and (`$fileText.found` is false OR `$importError` is set) → the mark is cleared. 0402's builder carries it;
+`0403` rewrites poms grid's op with it (board + date read off the op's own first FIND), applied, read back, restarted.
+Tests `dayPageReadings` +3 (not found / import throws / success keeps the mark); A/B: inverting the guard fails 3.
+**Watched on prod after the restart:** a load still shows today's one reading, listed, embedded once, marked.
+
+---
+
 ### 2026-10-15 (7) — A PIECE DRAGGED OUT OF MAGIC IS KEPT, AS A COPY (`1d20b1e7`)
 
 User: *"you can only copy outside of the magic"* (CLAUDE_CHAT 15:07). A Magic view renders a PLANNED tree that no
