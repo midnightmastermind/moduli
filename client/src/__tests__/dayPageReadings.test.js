@@ -61,6 +61,36 @@ describe("Day Page: Readings (0402)", () => {
     }
   });
 
+  it("a passage it cannot find takes the day's mark back off, so the next load tries again", async () => {
+    operationsBridge.readFileText = vi.fn(async (req) => { reads.push(req); return { text: "", found: false }; });
+    const { caller, ctx } = world();
+    const pre = executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads.length).toBe(1);
+    expect(imports).toEqual([]);
+    const marks = [...pre, ...applied].filter((e) => JSON.stringify(e).includes("readings"));
+    // marked before the wait, cleared after it
+    expect(marks.length).toBe(2);
+    expect(JSON.stringify(marks[1])).not.toContain("2026-10-15");
+  });
+
+  it("a failed import takes the mark back off too", async () => {
+    operationsBridge.importText = vi.fn(async () => { throw new Error("server down"); });
+    const { caller, ctx } = world();
+    const pre = executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    const marks = [...pre, ...applied].filter((e) => JSON.stringify(e).includes("readings"));
+    expect(marks.length).toBe(2);
+  });
+
+  it("a successful read keeps the mark", async () => {
+    const { caller, ctx } = world();
+    const pre = executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    const marks = [...pre, ...applied].filter((e) => JSON.stringify(e).includes("readings"));
+    expect(marks.length).toBe(1);
+  });
+
   it("a day with no column reads nothing", async () => {
     const { caller, ctx } = world();
     executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-20"], $activePeriodCount: 1 });

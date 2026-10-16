@@ -92,6 +92,14 @@ export function addReadingPipeline({ boardOccurrenceId, dateFieldId }) {
       act({ type: "READ_FILE", file: "$readRef", kind: "$kind", from: "$from", to: "$to", resultVar: "$fileText" }),
       act({ type: "IMPORT_MARKDOWN", markdown: "$fileText.text", parentExpr: "$colId", title: "$title", shape: "magic", embed: true,
         resultVar: "$importResult", onError: "continue" }),
+      // A read that found no passage, or an import that failed, takes the mark back off so the next
+      // load tries again (the mark went on before the wait). Only when THIS run marked the day.
+      iff(all(r("$readRef", "IS_NOT_EMPTY"), {
+        id: uid(), operator: "OR",
+        rules: [r("$fileText.found", "IS", "false"), r("$importError", "IS_NOT_EMPTY")],
+      }), [
+        act({ type: "UPDATE", path: "$col.meta.readings.${$key}", value: "literal:" }),
+      ]),
     ],
   };
 }
