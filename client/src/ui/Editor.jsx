@@ -100,7 +100,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { mintLinkedCopy } from "../helpers/LayoutHelpers";
 import { plannedStateFor, materializePlanned } from "../helpers/plannedDrop";
 import {
-  buildTextClipboardItems, readClipboardText, writeClipboardText,
+  buildTextClipboardItems, readClipboardText, writeClipboardText, domSelectionTextTouching, copyDomSelection,
   plainTextToProseContent,
 } from "../helpers/textClipboard";
 import { classifyIntake } from "../helpers/intake";
@@ -108,7 +108,7 @@ import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
 import { toast } from "sonner";
 import QuickAddMenu from "./QuickAddMenu.jsx";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle, Copy } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
 import { claimTextblockFocus, releaseTextblockFocus, hasTextblockFocus, requestTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { markLoad } from "../helpers/loadDiag";
@@ -1500,6 +1500,9 @@ const Editor = forwardRef(function Editor({
     if (!editor || !editable) return;
     e.preventDefault(); e.stopPropagation();
     const hasSelection = !editor.state.selection.empty;
+    // A highlight that spans several textblocks lives in no single editor, so
+    // this one's own selection is empty — read the browser's (copy only).
+    const domText = hasSelection ? "" : domSelectionTextTouching(editor.view?.dom);
     const { $from, from: selFrom, to: selTo } = editor.state.selection;
     const capturedFrom = selFrom;
     const capturedTo = selTo;
@@ -1553,7 +1556,10 @@ const Editor = forwardRef(function Editor({
     //
     // Cut WRITES BEFORE IT DELETES: removing text we then failed to put on the
     // clipboard would lose it outright.
-    const clipboardItems = buildTextClipboardItems({
+    const clipboardItems = domText ? [
+      { label: "Copy", icon: Copy, onClick: async () => { if (!(await writeClipboardText(domText))) copyDomSelection(); } },
+      { separator: true },
+    ] : buildTextClipboardItems({
       hasSelection,
       onCut: async () => {
         if (!(await writeClipboardText(capturedText))) return;

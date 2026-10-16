@@ -52,6 +52,32 @@ export async function writeClipboardText(text) {
 }
 
 /**
+ * The browser's own selection, when it is a real range that touches `el`.
+ * A ProseMirror editor only knows about a selection inside ITSELF, and a page
+ * of textblocks is one editor per block — so a highlight across two blocks
+ * leaves every one of them with an empty selection while the user plainly has
+ * text selected (user 2026-10-16: highlighting in a book's Magic view offered
+ * Paste and never Copy). Returns "" when there is nothing selected or the
+ * selection lies elsewhere on the page.
+ */
+export function domSelectionTextTouching(el) {
+  try {
+    const sel = typeof window !== "undefined" ? window.getSelection?.() : null;
+    if (!sel || sel.isCollapsed || !sel.rangeCount || !el) return "";
+    const range = sel.getRangeAt(0);
+    if (!range.intersectsNode?.(el)) return "";
+    return String(sel.toString() || "");
+  } catch {
+    return "";
+  }
+}
+
+/** Copy whatever the page has selected right now (the browser's own copy). */
+export function copyDomSelection() {
+  try { return !!document.execCommand?.("copy"); } catch { return false; }
+}
+
+/**
  * Input types that are not text editing. A DENYLIST, not a whitelist —
  * enumerating the text-ish types is how this silently stops working the next
  * time a field renders `type="search"`, and the same reason APPLY_TEMPLATE's
