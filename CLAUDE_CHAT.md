@@ -3962,3 +3962,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-16** — on the second Drive folder of books: *"dont do second format unless its better (easier to read) and dont do personal documents"*
   (link a big_books file to a row that already has one only when its format reads better; leave personal documents out).
 - **2026-10-16 08:23** — *"im having trouble copying text from the magic section of the books. id like to highlight and copy the text"*
+- **2026-10-16 08:33** — *"we should change save page to open in panel, if i want to save the page, i can drag copy out of magic."* (book reader: the Save page button becomes Open in panel; keeping a page = drag a copy out of Magic)

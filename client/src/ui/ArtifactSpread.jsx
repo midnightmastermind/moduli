@@ -30,7 +30,7 @@ import { createPortal } from "react-dom";
 import { Plus, X, LayoutGrid, Move, PictureInPicture2, Maximize2 } from "lucide-react";
 import { isDrawerLayout } from "./MenuSurface";
 import { useClosingGate } from "../helpers/closingGate";
-import { DockRectContext, InSpreadContext, SpreadMaximizeContext, dockVars } from "../helpers/spreadDock";
+import { DockRectContext, InSpreadContext, SpreadMaximizeContext, SpreadHostContext, dockVars } from "../helpers/spreadDock";
 
 // Must match `artifact-spread-out` in index.css. The surface stays mounted for
 // this long so the exit animation has frames to run in — see `closingGate`.
@@ -41,6 +41,9 @@ export default function ArtifactSpread({
   title = "",
   mode = "board",           // "board" (grid) | "canvas" (free)
   originRect = null,
+  // The panel MODULE id the viewer was opened from (`data-panel-id`) — where a tile's
+  // "Open in panel" sends its file. Null when it was opened from no panel.
+  originPanelId = null,
   count = 0,
   // DOCKED — the viewer fills the PANEL it was opened from rather than the
   // screen, so a movie can play beside the work that is still going on
@@ -78,6 +81,7 @@ export default function ArtifactSpread({
   // A maximize is about THIS open, in THIS arrangement. The canvas has no grid
   // for a tile to step out of, and a re-open should start from the grid.
   useEffect(() => { if (!open || mode !== "board") setMaxId(null); }, [open, mode]);
+  const hostCtl = useMemo(() => ({ originPanelModuleId: originPanelId, close: requestClose }), [originPanelId, requestClose]);
   const maxCtl = useMemo(
     () => (mode === "board" ? { maxId, toggle: toggleMax } : null),
     [mode, maxId, toggleMax],
@@ -249,7 +253,9 @@ export default function ArtifactSpread({
         <InSpreadContext.Provider value={true}>
         <DockRectContext.Provider value={isDocked ? dockRect : null}>
         <SpreadMaximizeContext.Provider value={maxCtl}>
+        <SpreadHostContext.Provider value={hostCtl}>
           <div className="artifact-spread-body" data-count={count}>{children}</div>
+        </SpreadHostContext.Provider>
         </SpreadMaximizeContext.Provider>
         </DockRectContext.Provider>
         </InSpreadContext.Provider>

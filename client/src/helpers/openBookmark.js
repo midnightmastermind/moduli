@@ -1,6 +1,6 @@
 // helpers/openBookmark.js
 //
-// Opening a bookmark artifact in a panel.
+// Opening an artifact (a bookmark, an image, a video, a book — any file) in a panel.
 //
 // Two existing pieces do the work; this only decides WHICH panel and joins them:
 //
@@ -26,7 +26,7 @@ import * as CommitHelpers from "./CommitHelpers";
  * `via` is passed through so a caller can say "that panel is gone" and stay
  * silent in the ordinary case.
  */
-export function openBookmarkInPanel({
+export function openArtifactInPanel({
   occId, grid, fromPanelOccId, panelsById = {},
   occurrencesById = {}, modulesById = {}, viewsById = {}, dispatch, socket,
 }) {
@@ -125,7 +125,7 @@ export function openUrlInPanel({
   const common = { grid, fromPanelOccId, panelsById, viewsById, dispatch, socket };
 
   if (mod?.role === "artifact" && mod?.kind === "bookmark") {
-    return openBookmarkInPanel({ occId, occurrencesById, modulesById, ...common });
+    return openArtifactInPanel({ occId, occurrencesById, modulesById, ...common });
   }
 
   const hit = occurrenceUrl(occ, { module: mod, fieldsById });
@@ -163,7 +163,7 @@ export function openUrlInPanel({
     pendingBrowsers.set(occId, { occurrence: bmOcc, module: bmMod });
   }
 
-  return openBookmarkInPanel({
+  return openArtifactInPanel({
     occId: bmOcc.id,
     occurrencesById: { ...occurrencesById, [bmOcc.id]: bmOcc },
     modulesById: { ...modulesById, [bmMod.id]: bmMod },

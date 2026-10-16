@@ -54,14 +54,14 @@ vi.mock("../modules/BookmarkView.jsx", () => ({
   default: (props) => React.createElement("div", { "data-testid": "bookmark-view", "data-occ": props.occurrence?.id }),
 }));
 
-const openBookmarkInPanel = vi.fn(() => ({ ok: true, panelId: "p1", via: "here" }));
+const openArtifactInPanel = vi.fn(() => ({ ok: true, panelId: "p1", via: "here" }));
 // The card routes through `openUrlInPanel` (which delegates a bookmark to
-// `openBookmarkInPanel` internally); the gate `canOpenUrlAsPage` stays REAL so
+// `openArtifactInPanel` internally); the gate `canOpenUrlAsPage` stays REAL so
 // the button's presence is decided by the shipped rule, not by the mock.
 vi.mock("../helpers/openBookmark", async (importOriginal) => ({
   ...(await importOriginal()),
-  openBookmarkInPanel: (...a) => openBookmarkInPanel(...a),
-  openUrlInPanel: (...a) => openBookmarkInPanel(...a),
+  openArtifactInPanel: (...a) => openArtifactInPanel(...a),
+  openUrlInPanel: (...a) => openArtifactInPanel(...a),
 }));
 
 const openArtifactSpread = vi.fn();
@@ -95,7 +95,7 @@ const mount = (module, { inSpread = false, occurrence = OCC } = {}) => {
     : card).container;
 };
 
-beforeEach(() => { openBookmarkInPanel.mockClear(); openArtifactSpread.mockClear(); SOCKET = {}; });
+beforeEach(() => { openArtifactInPanel.mockClear(); openArtifactSpread.mockClear(); SOCKET = {}; });
 
 describe("a bookmark opens inside the spread", () => {
   it("tapping the cover opens the spread — the gesture that was already there", () => {
@@ -255,7 +255,7 @@ describe("a bookmark opens inside the spread", () => {
 
   it("double-click opens it IN A PANEL, not the viewer", () => {
     fireEvent.dblClick(mount(BOOKMARK).querySelector(".artifact-card"));
-    expect(openBookmarkInPanel).toHaveBeenCalledTimes(1);
+    expect(openArtifactInPanel).toHaveBeenCalledTimes(1);
     // THE DISTINCTION the user drew: a panel, never the viewer.
     expect(openArtifactSpread).not.toHaveBeenCalled();
   });
@@ -264,20 +264,20 @@ describe("a bookmark opens inside the spread", () => {
   // so the panel stays where it was — the button "does nothing".
   it("hands the open the panel views, not an empty map", () => {
     fireEvent.dblClick(mount(BOOKMARK).querySelector(".artifact-card"));
-    expect(openBookmarkInPanel.mock.calls[0][0].viewsById).toEqual({ "v-panel": { id: "v-panel" } });
+    expect(openArtifactInPanel.mock.calls[0][0].viewsById).toEqual({ "v-panel": { id: "v-panel" } });
   });
 
   // THE CONTROL. Without it, "a bookmark opens in a panel" is equally satisfied
   // by sending every artifact there — an image has no page to open.
   it("an IMAGE is not sent to a panel on double-click", () => {
     fireEvent.dblClick(mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } }).querySelector(".artifact-card"));
-    expect(openBookmarkInPanel).not.toHaveBeenCalled();
+    expect(openArtifactInPanel).not.toHaveBeenCalled();
   });
 
   // NOTHING IS TAKEN AWAY: the panel path the sticky "Open in <panel>" setting
   // exists to serve still works.
   it("double-click still sends it to a panel", () => {
     fireEvent.dblClick(mount(BOOKMARK).querySelector(".artifact-card"));
-    expect(openBookmarkInPanel).toHaveBeenCalledTimes(1);
+    expect(openArtifactInPanel).toHaveBeenCalledTimes(1);
   });
 });

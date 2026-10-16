@@ -70,6 +70,7 @@ import { useComputedValue } from "../state/computedValuesStore";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import { useBodyOpen } from "../helpers/bodyOpen";
 import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
+import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
 
 // The container a row sits in, as it is NOW. The row's own prop can be an older
 // object (the row skips re-rendering when only the container's child list
@@ -1167,6 +1168,7 @@ function InstanceInner({
               />
             )}
             {/* Renders nothing outside the artifact viewer. */}
+            {renderBody && !overlay && <SpreadTileOpenInPanel occurrenceId={occurrence?.id} isFile={instance?.role === "artifact"} />}
             {renderBody && !overlay && <SpreadTileMaximize occurrenceId={occurrence?.id} />}
         </div>{/* end handle + image group */}
 

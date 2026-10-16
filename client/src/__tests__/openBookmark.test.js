@@ -26,14 +26,14 @@ vi.mock("../helpers/CommitHelpers", () => ({
 }));
 
 import {
-  openBookmarkInPanel, openUrlInPanel, canOpenUrlAsPage, browserForOccurrence, _resetPendingBrowsers,
+  openArtifactInPanel, openUrlInPanel, canOpenUrlAsPage, browserForOccurrence, _resetPendingBrowsers,
 } from "../helpers/openBookmark";
 import { TARGET_PANEL_KEY } from "../helpers/targetPanel";
 
 const occurrencesById = { bm: { id: "bm", moduleId: "m", gridId: "g", userId: "u" } };
 const modulesById = { m: { id: "m", role: "artifact", kind: "bookmark" } };
 const panelsById = { pA: { id: "pA" }, pC: { id: "pC" } };
-const call = (over = {}) => openBookmarkInPanel({
+const call = (over = {}) => openArtifactInPanel({
   occId: "bm", grid: {}, fromPanelOccId: "pA", panelsById,
   occurrencesById, modulesById, viewsById: {}, dispatch: vi.fn(), socket: {}, ...over,
 });
@@ -50,7 +50,7 @@ beforeEach(() => {
   _resetPendingBrowsers();
 });
 
-describe("openBookmarkInPanel", () => {
+describe("openArtifactInPanel", () => {
   it("opens in the panel it was clicked from when nothing is set", () => {
     expect(call()).toMatchObject({ ok: true, panelId: "pA", via: "here" });
     expect(openOccurrenceInPanel).toHaveBeenCalledWith(expect.objectContaining({ occId: "page-1" }));
@@ -77,7 +77,7 @@ describe("openBookmarkInPanel", () => {
   });
 
   it("REFUSES a non-artifact rather than opening something odd", () => {
-    const r = openBookmarkInPanel({
+    const r = openArtifactInPanel({
       occId: "bm", grid: {}, fromPanelOccId: "pA", panelsById,
       occurrencesById, modulesById: { m: { id: "m", role: "instance" } },
       viewsById: {}, dispatch: vi.fn(), socket: {},

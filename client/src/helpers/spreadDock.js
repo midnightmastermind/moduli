@@ -208,3 +208,11 @@ export const useInSpread = () => useContext(InSpreadContext);
 // Shape: `{ maxId: string | null, toggle(id) }`.
 export const SpreadMaximizeContext = createContext(null);
 export const useSpreadMaximize = () => useContext(SpreadMaximizeContext);
+
+// THE VIEWER ITSELF, for a tile that needs to act on it (user, 2026-10-16: "change save page to
+// open in panel … which would open up the file in the panel (whether its image, video, etc)").
+// A tile's "Open in panel" opens its file in the panel the viewer was opened from, then closes the
+// viewer — the panel is under it. `null` outside the viewer, in BOTH arrangements otherwise.
+// Shape: `{ originPanelModuleId: string | null, close() }`.
+export const SpreadHostContext = createContext(null);
+export const useSpreadHost = () => useContext(SpreadHostContext);

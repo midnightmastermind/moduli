@@ -32,7 +32,7 @@ let renders = 0;
 vi.mock("../helpers/fileRef", () => ({ resolveFileRef: (v) => { renders++; return v || null; } }));
 vi.mock("../helpers/openBookmark", async (importOriginal) => ({
   ...(await importOriginal()),
-  openBookmarkInPanel: vi.fn(() => ({ ok: true })),
+  openArtifactInPanel: vi.fn(() => ({ ok: true })),
   openUrlInPanel: vi.fn(() => ({ ok: true })),
 }));
 vi.mock("../ui/ArtifactSpreadHost", () => ({ openArtifactSpread: vi.fn() }));

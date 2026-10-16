@@ -413,6 +413,7 @@ export function ArtifactSpreadHost() {
       // drives the column count — the fifth wrapped onto a second row.
       count={spreadOcc?.occurrences?.length ?? files.length}
       originRect={req.originRect}
+      originPanelId={panelId}
       // `canDock` is the honest answer to "is there a panel to dock into" — a
       // viewer opened from a doc embed or a preview iframe has none, and the
       // switch is hidden there rather than shown doing nothing.

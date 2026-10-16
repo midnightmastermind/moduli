@@ -851,7 +851,7 @@ Tests: `__tests__/sweepParentMapCache.test.js` (7, A/B'd). Prod `_perfaudit.mjs`
 - **`ensureArtifactPage` (NEW) returns `{ id, occurrence, module }`** — the page objects when it had
   to mint them, `null` for both when the page already existed. `ensureArtifactPageOcc` is now a thin
   wrapper, so ManifestTree / PageFolder are unchanged.
-- **Why:** `openBookmarkInPanel` passed only the page id to `openOccurrenceInPanel`, which walks it to a
+- **Why:** `openArtifactInPanel` passed only the page id to `openOccurrenceInPanel`, which walks it to a
   `role:"page"` module the store did not hold yet → no page → `ok:false`, silently ignored. Every
   FIRST click on a row minted a browser + page and left the panel where it was. The just-minted page
   is now merged into the maps handed to the open, and a failed open returns `ok:false` with a reason.
@@ -880,7 +880,7 @@ Tests: `__tests__/sweepParentMapCache.test.js` (7, A/B'd). Prod `_perfaudit.mjs`
   panels fails the ambiguity test.
 
 ## Recent Changes (2026-09-12 (2) — `openBookmark.js`: any row with a url opens as a page)
-- **`openUrlInPanel`** — a bookmark delegates to `openBookmarkInPanel`; any other row whose url
+- **`openUrlInPanel`** — a bookmark delegates to `openArtifactInPanel`; any other row whose url
   comes `from:"field"` gets ONE browser bookmark of its own (`meta.browserFor = rowId`), minted via
   `CommitHelpers.addBookmarkOccurrence({ list:false, meta })` — parented to the row, not listed by
   it, so the row's data is never written. Refuses BEFORE minting when there is no panel. An edited

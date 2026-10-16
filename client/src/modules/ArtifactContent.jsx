@@ -540,12 +540,12 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   }
 
   // A PDF or an e-book opens in the book reader: Book (the file as written) · Magic (the page on
-  // screen as occurrences) · Save page. A PDF's Book mode is the pdf.js viewer it always was.
+  // screen as occurrences). It is already the panel's page here, so no Open in panel. A PDF's Book mode is the pdf.js viewer it always was.
   if ((normalizedArtifactType === "pdf" || normalizedArtifactType === "ebook") && fileRef) {
     return (
       <div style={{ position: "relative", width: "100%", height: "100%" }}>
         <BookReader module={module} occurrence={occurrence} src={resolveFileRef(fileRef)}
-          kind={normalizedArtifactType} dispatch={dispatch} socket={socket} />
+          kind={normalizedArtifactType} inPanelPage dispatch={dispatch} socket={socket} />
       </div>
     );
   }
