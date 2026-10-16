@@ -15,4 +15,11 @@ describe("mimeToKind", () => {
     expect(mimeToKind("text/markdown", "notes.md")).toBe("markdown");
     expect(mimeToKind("text/plain", "notes.txt")).toBe("markdown");
   });
+  it("a book file is an ebook, by mime or by extension (user, 2026-10-16: an .epub became a markdown note)", () => {
+    expect(mimeToKind("application/epub+zip", "Gamelit Adventure -- Anna’s Archive.epub")).toBe("ebook");
+    expect(mimeToKind("", "book.mobi")).toBe("ebook");
+    expect(mimeToKind("application/octet-stream", "book.AZW3")).toBe("ebook");
+    expect(mimeToKind("application/octet-stream", "book.azw")).toBe("ebook");
+    expect(viewFieldsForKind("ebook")).toEqual({ viewType: "display", artifactType: "ebook" });
+  });
 });

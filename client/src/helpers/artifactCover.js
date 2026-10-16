@@ -12,7 +12,11 @@
 // planner (`spreadBrowser`) asks the same question: when a cover stands in for
 // a url-stored file, that url is not what the tile shows, so it is a second
 // thing worth a browser of its own.
+//
+// A BOOK (pdf / ebook) is the exception that proves the rule (user, 2026-10-16: "i set the cover
+// photo and nothing happens"): its own preview is a first page, and a cover the user CHOSE is what
+// a book shows. Opening it still opens the reader — only the card's face changes.
 export function coverAppliesTo(kind, cover) {
   if (!cover) return false;
-  return !["image", "video", "audio", "pdf"].includes(kind);
+  return !["image", "video", "audio"].includes(kind);
 }

@@ -3963,3 +3963,8 @@ per picked date (that is where the items live); Combine hides those and shows on
   (link a big_books file to a row that already has one only when its format reads better; leave personal documents out).
 - **2026-10-16 08:23** — *"im having trouble copying text from the magic section of the books. id like to highlight and copy the text"*
 - **2026-10-16 08:33** — *"we should change save page to open in panel, if i want to save the page, i can drag copy out of magic."* (book reader: the Save page button becomes Open in panel; keeping a page = drag a copy out of Magic)
+- **2026-10-16 08:46** — *"yes dude to the excersise layout and anything that can be reorganized in the same way in my routines and tasks"* (row layouts on every Routines/Tasks shape with grouped fields, both grids; "Apply to all" same-named copies)
+- **2026-10-16 08:53** — *"after you do the field and instance layout stuff, switch to what the other account waws working on"* (account2: convert the books to one format)
+- **2026-10-16 08:58** — *"i saved more books to the moduli uploads folder too btw"* (link the new Drive books too)
+- **2026-10-16 09:14** — *"why i cant change the cover image of some books, i try to do the inner guide meditation i just uploaded. i set the cover photo and nothing happens. it worked tho with dungeon crawler carl. also i cant access dungeon crawler carls epub either after uploading it."*
+- **2026-10-16 09:15** — *"we also need a way to go back to the file viewer after opening the file in a panel"*

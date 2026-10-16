@@ -7,12 +7,17 @@
 
 const CODE_EXTENSIONS = new Set([".js",".jsx",".ts",".tsx",".py",".sh",".bash",".json",".yaml",".yml",".toml",".css",".html",".xml",".sql",".go",".rs",".c",".cpp",".h",".rb",".php",".swift",".kt"]);
 const CALENDAR_EXTENSIONS = new Set([".ics", ".ical", ".ifb", ".vcs"]);
+// A book file opens in the book reader (user, 2026-10-16: an uploaded .epub was classified as a
+// markdown note and could not be opened). Kindle files often arrive with no mime at all.
+export const EBOOK_EXTENSIONS = new Set([".epub", ".mobi", ".azw", ".azw3", ".kf8"]);
+const EBOOK_MIMES = new Set(["application/epub+zip", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook", "application/vnd.amazon.mobi8-ebook"]);
 export function mimeToKind(mime, filename = "") {
   if (mime?.startsWith("image/")) return "image";
   if (mime?.startsWith("video/")) return "video";
   if (mime?.startsWith("audio/")) return "audio";
   if (mime === "application/pdf") return "pdf";
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
+  if (EBOOK_MIMES.has(mime) || EBOOK_EXTENSIONS.has(ext)) return "ebook";
   if (CODE_EXTENSIONS.has(ext)) return "code";
   // A calendar file is data, not a note: as "markdown" it opened in the note
   // editor, which runs its lines together, and saving there would rewrite the
@@ -24,7 +29,7 @@ export function mimeToKind(mime, filename = "") {
 // Keeps the existing artifact-panel path working: drag artifact onto empty grid cell
 // → View is consulted for rendering. In containers, ArtifactCard reads `kind` directly.
 export function viewFieldsForKind(kind) {
-  if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
+  if (["image", "video", "audio", "pdf", "ebook"].includes(kind)) return { viewType: "display", artifactType: kind };
   if (kind === "code") return { viewType: "code", artifactType: null };
   return { viewType: "markdown", artifactType: null };
 }

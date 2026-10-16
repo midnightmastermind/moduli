@@ -15,11 +15,15 @@ describe("coverAppliesTo", () => {
     expect(coverAppliesTo("image", "https://cdn/og.png")).toBe(false);
   });
 
-  it("never replaces a video, audio or pdf — each has a real control", () => {
+  it("never replaces a video or audio — each has a real control", () => {
     // A still frame in place of an <audio> player is a downgrade, not a cover.
     expect(coverAppliesTo("video", "https://cdn/og.png")).toBe(false);
     expect(coverAppliesTo("audio", "https://cdn/og.png")).toBe(false);
-    expect(coverAppliesTo("pdf", "https://cdn/og.png")).toBe(false);
+  });
+
+  it("a book (pdf / ebook) shows the cover the user chose (user, 2026-10-16)", () => {
+    expect(coverAppliesTo("pdf", "https://cdn/cover.jpg")).toBe(true);
+    expect(coverAppliesTo("ebook", "https://cdn/cover.jpg")).toBe(true);
   });
 
   it("is false with no cover, whatever the kind — the control", () => {

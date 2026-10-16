@@ -54,6 +54,15 @@ describe("planSpreadBrowser", () => {
     expect(plan.url).toBe("https://en.wikipedia.org/wiki/Alan_Watts");
   });
 
+  // A BOOK with a cover (2026-10-16): the cover now shows on its card, and its url-stored file is
+  // the BOOK — the reader opens it. It must never earn a browser tile.
+  it("wants nothing for a url-stored BOOK whose card shows a cover", () => {
+    const book = { id: "b1", moduleId: "m5", fields: {}, meta: { cover: "https://cdn/cover.jpg" } };
+    const pdfModule = { id: "m5", role: "artifact", kind: "pdf", fileRef: "https://ex.com/book.pdf" };
+    expect(planSpreadBrowser(ctx({ owner: book, module: pdfModule }))).toBeNull();
+    expect(planSpreadBrowser(ctx({ owner: book, module: { ...pdfModule, kind: "ebook" } }))).toBeNull();
+  });
+
   it("wants nothing for the same artifact with NO cover — its tile is already the page", () => {
     const bare = { ...madeModule, meta: {} };
     expect(planSpreadBrowser(ctx({ owner: made, module: bare }))).toBeNull();
