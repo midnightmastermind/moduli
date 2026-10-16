@@ -38,6 +38,16 @@ stays (its only shared file was a second format). DRM of the new azw files not s
 
 ---
 
+### 2026-10-16 (2) — RIGHT-CLICK COPY FOR A HIGHLIGHT ACROSS TEXTBLOCKS (`5feedfb8`)
+
+User: *"i can highlight but it just gives me the option to paste, not copy"* (a book's Magic view). The doc menu
+offered Copy only when ITS OWN editor held the selection. Each textblock is its own editor, so a highlight across
+blocks left every one empty and the menu showed Paste + Insert field. `textClipboard.domSelectionTextTouching(el)`
+reads the browser's selection when it touches the editor; the menu then offers Copy (clipboard API, else
+`execCommand("copy")`). Test `domSelectionCopy.test.js`. Deployed client-only. **Not watched in a browser.**
+
+---
+
 ### 2026-10-15 (8) — A DAY'S READING THAT FAILED IS TRIED AGAIN (`0403`)
 
 User: *"please continue"*. One of (6)'s open items. "Day Page: Add Reading" marks the day before it waits on the read
