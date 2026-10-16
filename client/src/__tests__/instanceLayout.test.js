@@ -83,3 +83,21 @@ describe("instance layout", () => {
     expect(L.carriedPlacementMeta({})).toEqual({});
   });
 });
+
+// Found building Exercise's layout by dragging (2026-10-16): a chip moved into a box that
+// sits AFTER it in the same parent was dropped silently — removing the chip shifted the
+// box's index, so the path no longer named it.
+describe("moveItem into a later sibling box", () => {
+  const base = { tree: { dir: "col", items: ["label", { dir: "row", items: ["field:a", "field:b", { dir: "row", items: [{ dir: "col", items: [] }] }] }] } };
+  it("lands in the box the path named before the move", async () => {
+    const { moveItem } = await import("../helpers/instanceLayout");
+    const next = moveItem(base, "field:a", [1, 2, 0]);
+    expect(next.tree.items[1].items).toEqual(["field:b", { dir: "row", items: [{ dir: "col", items: ["field:a"] }] }]);
+  });
+  it("an index in the same group counts the slot the chip leaves", async () => {
+    const { moveItem } = await import("../helpers/instanceLayout");
+    const g = { tree: { dir: "row", items: ["field:a", "field:b", "field:c"] } };
+    expect(moveItem(g, "field:a", [], 2).tree.items).toEqual(["field:b", "field:a", "field:c"]);
+    expect(moveItem(g, "field:c", [], 0).tree.items).toEqual(["field:c", "field:a", "field:b"]);
+  });
+});

@@ -81,11 +81,18 @@ function removeKey(g, key) {
 /** Move an item into the group at `path`, at `index` (end when null). */
 export function moveItem(layout, key, path, index = null) {
   const next = clone(layout);
-  removeKey(next.tree, key);
+  // Resolve the destination BEFORE removing the item: taking it out of an earlier slot
+  // in the same parent shifts the indices the path is written in, and the drop would
+  // name a different box (or none).
   const g = groupAt(next.tree, path);
   if (!g) return layout;
-  const at = index == null ? g.items.length : Math.max(0, Math.min(index, g.items.length));
-  g.items.splice(at, 0, key);
+  // `index` is the slot before the item dropped on; leaving an earlier slot in the same
+  // group moves that item one place up.
+  const from = g.items.indexOf(key);
+  removeKey(next.tree, key);
+  let at = index == null ? g.items.length : index;
+  if (index != null && from > -1 && from < index) at -= 1;
+  g.items.splice(Math.max(0, Math.min(at, g.items.length)), 0, key);
   return next;
 }
 
