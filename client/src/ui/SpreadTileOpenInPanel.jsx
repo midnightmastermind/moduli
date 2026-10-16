@@ -8,6 +8,7 @@ import React from "react";
 import { PanelTop } from "lucide-react";
 import { useSpreadHost } from "../helpers/spreadDock";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
+import { rememberViewerOrigin } from "../helpers/viewerReturn";
 
 export default function SpreadTileOpenInPanel({ occurrenceId, isFile }) {
   const host = useSpreadHost();
@@ -23,7 +24,7 @@ export default function SpreadTileOpenInPanel({ occurrenceId, isFile }) {
       onClick={(e) => {
         e.stopPropagation();
         const res = open(occurrenceId, { fromPanelModuleId: host.originPanelModuleId });
-        if (res?.ok) host.close();
+        if (res?.ok) { rememberViewerOrigin(occurrenceId, host.ownerOccurrenceId); host.close(); }
       }}
     >
       <PanelTop style={{ width: 13, height: 13 }} />

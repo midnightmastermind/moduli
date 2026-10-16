@@ -29,6 +29,7 @@ import {
 import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
 import { useSpreadHost } from "../helpers/spreadDock";
+import { rememberViewerOrigin } from "../helpers/viewerReturn";
 import { Spinner } from "@/components/ui/spinner";
 import PdfViewer from "./PdfViewer.jsx";
 
@@ -225,7 +226,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const openHere = () => {
     if (!occurrence?.id) return;
     const res = openInPanel(occurrence.id, { fromPanelModuleId: spreadHost?.originPanelModuleId || null });
-    if (res?.ok) spreadHost?.close();
+    if (res?.ok && spreadHost) { rememberViewerOrigin(occurrence.id, spreadHost.ownerOccurrenceId); spreadHost.close(); }
   };
 
   if (!engine) return <Message>This file is not a book this reader can open.</Message>;

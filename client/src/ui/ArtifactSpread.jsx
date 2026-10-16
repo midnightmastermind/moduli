@@ -44,6 +44,9 @@ export default function ArtifactSpread({
   // The panel MODULE id the viewer was opened from (`data-panel-id`) — where a tile's
   // "Open in panel" sends its file. Null when it was opened from no panel.
   originPanelId = null,
+  // The occurrence the viewer is open for — a tile's "Open in panel" remembers it so the file's
+  // page can reopen this same viewer (helpers/viewerReturn).
+  ownerOccurrenceId = null,
   count = 0,
   // DOCKED — the viewer fills the PANEL it was opened from rather than the
   // screen, so a movie can play beside the work that is still going on
@@ -81,7 +84,7 @@ export default function ArtifactSpread({
   // A maximize is about THIS open, in THIS arrangement. The canvas has no grid
   // for a tile to step out of, and a re-open should start from the grid.
   useEffect(() => { if (!open || mode !== "board") setMaxId(null); }, [open, mode]);
-  const hostCtl = useMemo(() => ({ originPanelModuleId: originPanelId, close: requestClose }), [originPanelId, requestClose]);
+  const hostCtl = useMemo(() => ({ originPanelModuleId: originPanelId, ownerOccurrenceId, close: requestClose }), [originPanelId, ownerOccurrenceId, requestClose]);
   const maxCtl = useMemo(
     () => (mode === "board" ? { maxId, toggle: toggleMax } : null),
     [mode, maxId, toggleMax],

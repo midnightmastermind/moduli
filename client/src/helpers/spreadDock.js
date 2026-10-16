@@ -213,6 +213,7 @@ export const useSpreadMaximize = () => useContext(SpreadMaximizeContext);
 // open in panel … which would open up the file in the panel (whether its image, video, etc)").
 // A tile's "Open in panel" opens its file in the panel the viewer was opened from, then closes the
 // viewer — the panel is under it. `null` outside the viewer, in BOTH arrangements otherwise.
-// Shape: `{ originPanelModuleId: string | null, close() }`.
+// Shape: `{ originPanelModuleId: string | null, ownerOccurrenceId: string | null, close() }` — the
+// owner is what the file's page reopens to get back here (helpers/viewerReturn).
 export const SpreadHostContext = createContext(null);
 export const useSpreadHost = () => useContext(SpreadHostContext);

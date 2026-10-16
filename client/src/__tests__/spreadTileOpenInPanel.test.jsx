@@ -10,17 +10,20 @@ vi.mock("../hooks/useOpenArtifactInPanel", async (orig) => ({ ...(await orig()),
 import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
 import { SpreadHostContext } from "../helpers/spreadDock";
 import { panelOccForModuleId } from "../hooks/useOpenArtifactInPanel";
+import { viewerOwnerFor, _resetViewerOrigins } from "../helpers/viewerReturn";
 
 const inViewer = (ui, host) => render(<SpreadHostContext.Provider value={host}>{ui}</SpreadHostContext.Provider>);
-beforeEach(() => open.mockClear());
+beforeEach(() => { open.mockClear(); _resetViewerOrigins(); });
 
 describe("SpreadTileOpenInPanel", () => {
   it("opens the file in the viewer's own panel, then closes the viewer", () => {
     const close = vi.fn();
-    inViewer(<SpreadTileOpenInPanel occurrenceId="img1" isFile />, { originPanelModuleId: "pm", close });
+    inViewer(<SpreadTileOpenInPanel occurrenceId="img1" isFile />, { originPanelModuleId: "pm", ownerOccurrenceId: "row1", close });
     fireEvent.click(screen.getByRole("button", { name: "Open in panel" }));
     expect(open).toHaveBeenCalledWith("img1", { fromPanelModuleId: "pm" });
     expect(close).toHaveBeenCalledTimes(1);
+    // …and remembers the viewer it left, for the page's "Open in viewer".
+    expect(viewerOwnerFor("img1", { row1: {}, img1: {} })).toBe("row1");
   });
   it("keeps the viewer open when the open fails", () => {
     open.mockReturnValueOnce({ ok: false });

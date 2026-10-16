@@ -414,6 +414,7 @@ export function ArtifactSpreadHost() {
       count={spreadOcc?.occurrences?.length ?? files.length}
       originRect={req.originRect}
       originPanelId={panelId}
+      ownerOccurrenceId={req.occurrenceId}
       // `canDock` is the honest answer to "is there a panel to dock into" — a
       // viewer opened from a doc embed or a preview iframe has none, and the
       // switch is hidden there rather than shown doing nothing.
