@@ -15,6 +15,53 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-16 (5) — THREE NOTES PAGES WERE CUT OFF AT IMPORT (`0408`); the converted epubs are attached (`0407`)
+
+User: *"the philosopher stone doc still looks off … the page finishes with only 2 of the process steps"* ·
+*"make sure the other docs that got imported arent also broken"*; answers: import the rest, nest the steps.
+**Retracts (3)'s "nothing was lost … the source note was cut off":** `docs/philosopherstone.md` has all four steps.
+The seed read every note with `parseSectionsWithInstances(file, …, maxSections)` capped at 8 or 12, and the cap
+fell mid-walkthrough. Checked every note against its source (headings, every line ≥25 chars, tables):
+```
+Philosopher's Stone   morenotes.md stopped after 7️⃣, philosopherstone.md after "2. Albedo"   now 119/129 · 341/354 lines
+AI Specs              stopped after 🔟                                                     now 115/115
+Gospel of Thomas      stopped before "Why This Matters for Thomas 19"                      now 135/138
+Uses · Pragmatic · Bangle Specs   complete already
+```
+(the lines still "missing" are numbered list items: the importer turns `1.` lists into bullet lists, order kept.)
+`0408` builds 74 sections / 95 textblocks in 0379's shape (doc container per heading, a table in a textblock of its
+own, pictures wrapped beside prose). A run of numbered sections after an unnumbered heading nests under it; the
+two walkthroughs with no heading get one (`GROUPS`), and steps 1–2 plus the text that opens them moved into a new
+**The Meta-Map**. 6 pictures looked at and captioned (`PICTURES`); left out: a hotlink-blocked one (403), a
+watermarked decoration, morenotes' bare `image.png`. Test `completeCutOffNotes.test.js` (6; caught levels counted
+from hashes — `#` then `###` is one level down). Applied, read back (0 dangling), pm2 restarted. Not looked at in a
+browser.
+**Epubs:** `0407` applied (292 rows: the epub is `main`, the original stays). The 5 failures: 1 DRM-locked, 4
+Calibre split errors, retried with `--flow-size 0` (`CONVERT_ARGS` on `_convertbooks.mjs`, prod only).
+**Waiting on the user:** the Books / big_books / Calibre Library merge needs the Drive reconnect (full scope).
+
+---
+
+### 2026-10-16 (4) — ROW LAYOUTS RE-RUN; KINDLE BOOKS BECOMING EPUBS; THE THREE BOOK FOLDERS PLANNED INTO ONE
+
+User: *"last seen should sit right under completed"* · *"completed on as well"* · *"epub, keep the originals"* ·
+*"reorganize the books too so all three book folders are synced up"* → *"merging them"*; answers: full Drive access,
+one Books/<Author> folder, duplicate same-format copies to trash, Calibre cover.jpg/metadata.opf to trash.
+- **Layouts:** 25 shapes per grid re-built by clicking (`_layoutbuild.mjs` + Apply to all): the Completed column holds
+  Completed / Completed On / Last Seen, the rest sit inline. Read back: poms 595 rows, rebuild 343 carry a layout.
+- **Epub conversion (running on prod):** Calibre 9.16 installed without root under /home/deploy; the gitignored
+  `server/_convertbooks.mjs` downloads each Kindle-only book (297), converts, and uploads the epub BESIDE the original
+  in Drive. Resumable (`/tmp/convert-results.json`). PDFs are not converted (poor results). `0407-attach-converted-epubs`
+  (written + tested, NOT applied) will attach each epub to its row's Files as `main`, keep the original, add "epub".
+- **Drive scope is full `drive` now** (`services/googleOAuth.DRIVE_SCOPE`): moving and trashing the user's own files
+  needs it. **The user must reconnect once** (Command Center › Connections); the connection keeps its id.
+- **Merge, dry run only** (gitignored `server/_mergeplan.mjs`, plan `/tmp/mergeplan.json` on prod): 1,606 books ->
+  659 kept + moved into Books/<Author> (author from the linked row's Author field, else the file name; 145 Unknown),
+  947 same-format byte-identical copies + 885 Calibre sidecars to trash (~7.8 GB). A file a row links to is never
+  trashed (0 in the plan). Drive keeps file ids on a move, so app links survive. Run after conversion + reconnect.
+
+---
+
 ### 2026-10-16 — THE SECOND BOOK FOLDER, LINKED: 240 files, one format per book unless a better one arrived
 
 User: *"dont do second format unless its better (easier to read) and dont do personal documents"* (CLAUDE_CHAT).
