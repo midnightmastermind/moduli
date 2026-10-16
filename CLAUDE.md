@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-16 (6) — ONE FILE PER BOOK (`0410`); the three book folders merged; work shifts feed (`0409`); Date under Completed
+
+- **`0410`:** user: *"i want one book file for each"*. 312 book rows held 2+ book files (0401 upgrades, 0407 epubs);
+  each keeps the best format (epub > azw3 > mobi/azw > pdf; main breaks a tie — 0401 had left an OLD azw as main
+  on 17 rows) and the 314 others are detached + their artifact records deleted. Drive files untouched. Only rows
+  whose files are ALL book files. Read back: 0 rows with several book files, 0 dangling. Test `oneFilePerBook`.
+- **Drive merge** (gitignored `server/_mergeapply.mjs` on prod, after the full-scope reconnect): 831 filed into
+  Books/<Author> (285; author from the row, Calibre's folder, or a main-title match), 1,836 duplicates + sidecars
+  trashed, 707 emptied folders trashed; 60 author-less books in Books/Unknown; 38 files left in place (big_books'
+  author-less files incl. personal documents). All 822 linked files checked live afterwards: 0 trashed, 0 missing.
+- **`0409`:** the Sling work feed files into Tasks › Work Shifts; the calendar rule types it Employment
+  (`withEmploymentBranch`, after the Holiday branch); the 4 shifts already in Appointments moved + retyped.
+- **Layouts:** genspecs4 (scratchpad) — Date + Time Slot + Tags stack under Completed (generic rows keep their own
+  fields inline); 66/67 shapes re-run by clicking on both grids; 23 Sleep copies Apply to all missed fixed through
+  update_occurrence (`server/_stackfix.mjs`, gitignored).
+- Epub retry with `--flow-size 0`: 2 more converted (294); 2 still fail, 1 DRM.
+
+---
+
 ### 2026-10-16 (5) — THREE NOTES PAGES WERE CUT OFF AT IMPORT (`0408`); the converted epubs are attached (`0407`)
 
 User: *"the philosopher stone doc still looks off … the page finishes with only 2 of the process steps"* ·
