@@ -213,6 +213,19 @@ container-filtered-empty only. Tests `server/__tests__/linkDriveBooks.test.js` (
 
 ---
 
+### 2026-10-16 — EXERCISE'S ROW LAID OUT BY DRAGGING; a drop into a later box was silently ignored
+
+Rebuild, Routines bank Exercise (`1791117639520-812frrini`), built in Settings › Style › Layout by dragging
+(`_exlayout.mjs` OCC PG — dispatches native DragEvents with one DataTransfer):
+`Exercise` / `Completed | Movement | [Set 1/Weight 1] [Set 2/Weight 2] [Set 3/Weight 3] [Set 4/Weight 4]` / the rest.
+Read back from Mongo; a copy dragged out of the bank carries it (the existing 7:00am copies do not).
+**Fix:** `instanceLayout.moveItem` removed the chip before resolving the destination path, so taking it out of an
+earlier slot in the same parent shifted the box's index and the drop named nothing — every drag of a field into a
+box placed after it did nothing. It resolves the box first; a drop on a later chip in the same group counts the slot
+the chip leaves. 2 tests, both fail on the old code; client 6,186 pass; client-only deploy.
+
+---
+
 ### 2026-10-15 (4) — A PLACEMENT LAYS OUT ITS OWN ROW; Command Center columns can be reordered
 
 User (11:42-12:06): instance rows need layout styling — cover/label/fields arranged in nested rows and columns
