@@ -86,6 +86,9 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef }) {
         if (!live) return;
         view.renderer.setAttribute("flow", "paginated");
         view.renderer.setAttribute("max-inline-size", "720px");
+        // One page at a time, at any width (user, 2026-10-16: "just show one page at a time").
+        // foliate-js lays out up to 2 columns in a wide landscape box unless told otherwise.
+        view.renderer.setAttribute("max-column-count", "1");
         view.renderer.setStyles?.("body { line-height: 1.5; }");
         setToc(Array.isArray(view.book?.toc) ? view.book.toc : []);
         await view.init({ lastLocation: startRef.current || undefined });
