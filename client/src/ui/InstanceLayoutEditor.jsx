@@ -17,15 +17,13 @@ const chipBase = { fontSize: 10, padding: "2px 6px", borderRadius: 999, border: 
 const tiny = { fontSize: 9, padding: "0 4px", border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" };
 
 export default function InstanceLayoutEditor({ occurrence }) {
-  const { dispatch, socket, modulesById, fieldsById } = useGridActions() || {};
+  const { dispatch, socket, modulesById, fieldsById, occurrencesById } = useGridActions() || {};
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const stored = occurrence?.meta?.instanceLayout || null;
   const [selected, setSelected] = useState(null);
   const [dragKey, setDragKey] = useState(null);
 
-  const fieldIds = useMemo(() => (module?.fieldBindings || [])
-    .filter((b) => b?.fieldId && fieldsById?.[b.fieldId] && !b.hidden && b.role !== "media" && b.role !== "files")
-    .map((b) => b.fieldId), [module?.fieldBindings, fieldsById]);
+  const fieldIds = useMemo(() => L.layoutFieldIds(module, fieldsById || {}), [module, fieldsById]);
   const hasCover = useMemo(() => (module?.fieldBindings || []).some((b) => b.role === "media" || b.role === "files"), [module?.fieldBindings]);
   const avail = useMemo(() => [L.LABEL, ...(hasCover ? [L.COVER] : []), ...fieldIds.map(L.fieldKey)], [fieldIds, hasCover]);
 
@@ -47,6 +45,13 @@ export default function InstanceLayoutEditor({ occurrence }) {
   }
 
   const layout = { ...stored, tree: L.resolveTree(stored, avail).tree };
+  // Same name, same fields: every day's copy of this routine (often on its own cloned module).
+  const twins = L.sameShapeTargets(occurrence, { occurrencesById: occurrencesById || {}, modulesById: modulesById || {}, fieldsById: fieldsById || {} });
+  const applyAll = () => {
+    const label = occurrence.label || module?.label || "row";
+    if (!window.confirm(`Give all ${twins.length} other "${label}" instances with these fields this layout?`)) return;
+    CommitHelpers.applyInstanceLayout({ dispatch, socket, layout: stored, occurrenceIds: twins, occurrencesById });
+  };
   const nameOf = (key) => key === L.LABEL ? "Label" : key === L.COVER ? "Cover" : (fieldsById?.[L.fieldIdOf(key)]?.name || "Field");
   const drop = (path, index) => (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -106,7 +111,11 @@ export default function InstanceLayoutEditor({ occurrence }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
         <div style={{ fontSize: 11, fontWeight: 600 }}>Row layout</div>
         <span style={{ fontSize: 9, color: "var(--text-muted)" }}>drag items between boxes</span>
-        <button type="button" style={{ ...tiny, marginLeft: "auto" }} onClick={() => write(null)}>Reset</button>
+        {twins.length > 0 && (
+          <button type="button" style={{ ...tiny, marginLeft: "auto" }} onClick={applyAll}
+            title="Every other instance with this name and these fields gets this layout">Apply to all {twins.length}</button>
+        )}
+        <button type="button" style={{ ...tiny, ...(twins.length ? null : { marginLeft: "auto" }) }} onClick={() => write(null)}>Reset</button>
       </div>
       {hasCover && (
         <label style={row}>Cover

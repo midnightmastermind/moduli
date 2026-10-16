@@ -1820,3 +1820,21 @@ export function breakOccurrenceLink({ socket, occurrenceId, emit = true }) {
     if (shouldEmit(emit)) safeEmit(socket, "break_link", { occurrenceId });
   });
 }
+
+/**
+ * Give several placements the same row layout — the layout editor's "Apply to all" (user,
+ * 2026-10-16). Each keeps the rest of its meta; one undo step for the whole set.
+ */
+export function applyInstanceLayout({ dispatch, socket, layout, occurrenceIds = [], occurrencesById = {} }) {
+  if (!layout || !occurrenceIds.length) return 0;
+  let n = 0;
+  withAction(`Applied a row layout to ${occurrenceIds.length}`, () => {
+    for (const id of occurrenceIds) {
+      const occ = occurrencesById[id];
+      if (!occ) continue;
+      updateOccurrence({ dispatch, socket, occurrence: { id, meta: { ...(occ.meta || {}), instanceLayout: JSON.parse(JSON.stringify(layout)) } }, emit: true });
+      n++;
+    }
+  });
+  return n;
+}

@@ -189,3 +189,39 @@ export function fieldWrapStyle(style = {}) {
   if (style.color) { s.background = style.color; s.borderRadius = 999; }
   return s;
 }
+
+/**
+ * The fields a row's layout arranges: the module's visible, non-media bindings, in binding order.
+ * One definition for the editor and for "Apply to all", so the two cannot disagree about a shape.
+ */
+export function layoutFieldIds(module, fieldsById = {}) {
+  return (module?.fieldBindings || [])
+    .filter((b) => b?.fieldId && fieldsById[b.fieldId] && !b.hidden && b.role !== "media" && b.role !== "files")
+    .map((b) => b.fieldId);
+}
+
+/**
+ * Every OTHER placement a layout can be applied to as-is (user, 2026-10-16: "the exercise layout
+ * and anything that can be reorganized in the same way in my routines and tasks"). A layout is
+ * per placement, and every day's copy of a routine is its own placement — often its own module
+ * (a template application clones the module) — so "the same row" is: an instance with the same
+ * name whose layout fields are the same SET. A variant with other fields (Time 1 where this one
+ * has Weight 1) is a different shape and is left alone; drawn with this layout it would append
+ * its odd fields at the end.
+ */
+export function sameShapeTargets(sourceOcc, { occurrencesById = {}, modulesById = {}, fieldsById = {} } = {}) {
+  const srcMod = sourceOcc ? modulesById[sourceOcc.moduleId] : null;
+  if (!srcMod || srcMod.role !== "instance") return [];
+  const label = (sourceOcc.label || srcMod.label || "").trim();
+  const shape = [...layoutFieldIds(srcMod, fieldsById)].sort().join("|");
+  const out = [];
+  for (const o of Object.values(occurrencesById)) {
+    if (!o || o.id === sourceOcc.id || o.meta?.feedSourceId) continue;
+    const m = modulesById[o.moduleId];
+    if (m?.role !== "instance") continue;
+    if ((o.label || m.label || "").trim() !== label) continue;
+    if ([...layoutFieldIds(m, fieldsById)].sort().join("|") !== shape) continue;
+    out.push(o.id);
+  }
+  return out;
+}

@@ -4,10 +4,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const updateOccurrence = vi.fn();
-vi.mock("../helpers/CommitHelpers", () => ({ updateOccurrence: (...a) => updateOccurrence(...a) }));
+const applyInstanceLayout = vi.fn();
+vi.mock("../helpers/CommitHelpers", () => ({ updateOccurrence: (...a) => updateOccurrence(...a), applyInstanceLayout: (...a) => applyInstanceLayout(...a) }));
 const fieldsById = { c: { id: "c", name: "Completed" }, m: { id: "m", name: "Movement" }, s1: { id: "s1", name: "Set 1" } };
 const modulesById = { mod: { id: "mod", role: "instance", fieldBindings: [{ fieldId: "c" }, { fieldId: "m" }, { fieldId: "s1" }] } };
-vi.mock("../GridActionsContext", () => ({ useGridActions: () => ({ dispatch: () => {}, socket: null, modulesById, fieldsById }) }));
+const occurrencesById = { o: { id: "o", moduleId: "mod" }, twin: { id: "twin", moduleId: "mod" } };
+vi.mock("../GridActionsContext", () => ({ useGridActions: () => ({ dispatch: () => {}, socket: null, modulesById, fieldsById, occurrencesById }) }));
 import InstanceLayoutEditor from "../ui/InstanceLayoutEditor";
 
 const lastMeta = () => updateOccurrence.mock.calls.at(-1)[0].occurrence.meta;
@@ -39,5 +41,14 @@ describe("InstanceLayoutEditor", () => {
     render(<InstanceLayoutEditor occurrence={{ id: "o", moduleId: "mod", meta: { instanceLayout: { tree: { dir: "row", items: [] } } } }} />);
     fireEvent.click(screen.getByText("Reset"));
     expect("instanceLayout" in lastMeta()).toBe(false);
+  });
+  it("Apply to all gives the stored layout to every same-shaped instance, after a confirm", () => {
+    const layout = { tree: { dir: "row", items: ["field:c"] } };
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<InstanceLayoutEditor occurrence={{ id: "o", moduleId: "mod", meta: { instanceLayout: layout } }} />);
+    fireEvent.click(screen.getByText("Apply to all 1"));
+    const arg = applyInstanceLayout.mock.calls.at(-1)[0];
+    expect(arg.occurrenceIds).toEqual(["twin"]);
+    expect(arg.layout).toEqual(layout);
   });
 });
