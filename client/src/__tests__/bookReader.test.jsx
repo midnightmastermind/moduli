@@ -70,13 +70,27 @@ describe("BookReader", () => {
 
   // User, 2026-10-16: "change save page to open in panel, if i want to save the page, i can drag
   // copy out of magic." The reader writes nothing of its own any more.
-  it("has no Save page; Open in panel opens the book's page in the viewer's panel and closes the viewer", async () => {
+  it("Save page keeps the page in the current mode's shape and files it in Imports", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save page" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Save page" }));
+    await waitFor(() => expect(createImportsDocPage).toHaveBeenCalled());
+    const save = socket.emits.find((e) => e.event === "import_text");
+    expect(save.payload).toMatchObject({ shape: "reader", title: "Dune — p. 3", content: "Page three text." });
+    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save page" }));
+    await waitFor(() => expect(socket.emits.filter((e) => e.event === "import_text").length).toBe(2));
+    expect(socket.emits.filter((e) => e.event === "import_text")[1].payload.shape).toBe("magic");
+  });
+
+  it("Open in panel opens the book's page in the viewer's panel and closes the viewer", async () => {
     openInPanel.mockClear();
     const close = vi.fn();
     HOST = { originPanelModuleId: "pmod", close };
     const socket = makeSocket();
     mount(socket);
-    expect(screen.queryByRole("button", { name: "Save page" })).toBe(null);
+    expect(screen.getByRole("button", { name: "Save page" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Open in panel" }));
     expect(openInPanel).toHaveBeenCalledWith("o1", { fromPanelModuleId: "pmod" });
     expect(close).toHaveBeenCalledTimes(1);

@@ -11,12 +11,14 @@
 //              planned, never written. Leaving it leaves nothing behind.
 //   Open in panel  the book as its own page in a panel (user, 2026-10-16: "change save page to open
 //              in panel, if i want to save the page, i can drag copy out of magic"). Hidden when the
-//              reader already IS that page. Keeping a page = dragging a copy out of Magic.
+//              reader already IS that page.
+//   Save page  that page kept: `import_text` in the current mode's shape, filed in Imports, opened
+//              (user, 2026-10-16: "put back in the save as page button next to open as panel").
 //
 // A Kindle file bought from Amazon is usually DRM-locked and cannot be opened by anything here; the
 // reader reads its header first and says so instead of showing a blank page.
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { runDerived } from "../helpers/actionScope";
@@ -24,7 +26,7 @@ import {
   bookEngineFor, mobiDrmStatus, pdfTextToMarkdown, rangeToHtml, htmlHasText,
   makeReadingPosition, samePosition, positionLabel,
 } from "../helpers/bookEngine";
-import { usePlannedImport } from "../hooks/usePlannedImport";
+import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
 import { useSpreadHost } from "../helpers/spreadDock";
 import { Spinner } from "@/components/ui/spinner";
@@ -37,7 +39,7 @@ const PagePreviewBody = React.lazy(() =>
 const MODES = [["book", "Book"], ["magic", "Magic"]];
 const TITLES = {
   book: "The book as written",
-  magic: "This page laid out as sections, textblocks and lists — nothing is saved; drag a piece out to keep a copy of it",
+  magic: "This page laid out as sections, textblocks and lists — nothing is saved unless you press Save page or drag a piece out",
 };
 // How long the position must hold still before it is written (page turns come in bursts).
 const POSITION_SAVE_MS = 2000;
@@ -155,11 +157,13 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const engine = bookEngineFor(kind);
   const title = module?.label || module?.meta?.originalName || "Book";
   const [mode, setMode] = useState("book");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null);
   const rootRef = useRef(null);
   const viewRef = useRef(null);
   const pdfCtl = useRef(null);
 
-  // What is on screen: the page's content for Magic, and the position to remember.
+  // What is on screen: the page's content for Magic / Save page, and the position to remember.
   const [page, setPage] = useState({ content: "", format: "markdown", pos: null });
   const saved = module?.meta?.readingPosition || null;
 
@@ -198,12 +202,22 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const isMagic = mode === "magic";
   const label = positionLabel(title, page.pos);
   const { plan, tree } = usePlannedImport({ socket, gridId, content: page.content, format: page.format, shape: "magic", title: label, enabled: isMagic, reqPrefix: "book" });
+  const saveAsPage = useSaveAsPage({ socket, gridId, dispatch, rootRef, occurrence });
   const openInPanel = useOpenArtifactInPanel();
   const spreadHost = useSpreadHost();
 
   const turn = (d) => {
     if (engine === "ebook") { if (d < 0) viewRef.current?.goLeft(); else viewRef.current?.goRight(); }
     else pdfCtl.current?.go(d);
+  };
+  const flash = (text) => { setNote(text); setTimeout(() => setNote(null), 5000); };
+  const savePage = () => {
+    if (!page.content || busy) return;
+    setBusy(true);
+    saveAsPage({ content: page.content, format: page.format, shape: isMagic ? "magic" : "reader", title: label }).then((res) => {
+      setBusy(false);
+      flash(res.ok ? "Saved this page in Imports" : `Could not save the page: ${res.error}`);
+    });
   };
   const openHere = () => {
     if (!occurrence?.id) return;
@@ -235,11 +249,20 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
         )}
         <span style={{ flex: 1, minWidth: 8, fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <button type="button" onClick={savePage} disabled={!page.content || busy} aria-label="Save page"
+          title="Keep this page: it is added to Imports as a page and opened"
+          style={{ ...navBtn, opacity: page.content ? 1 : 0.5 }}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : "Save page"}
+        </button>
         {!inPanelPage && occurrence?.id && (
           <button type="button" onClick={openHere} aria-label="Open in panel" title="Open the book as its own page in a panel"
             style={navBtn}>Open in panel</button>
         )}
       </div>
+      {note && (
+        <div style={{ padding: "3px 8px", flexShrink: 0, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--accent-blue)",
+          background: "var(--accent-blue-bg)", borderBottom: "1px solid var(--border-subtle)" }}>{note}</div>
+      )}
       <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {/* The book stays mounted under Magic, so going back is instant and keeps the place. */}
         <div style={{ position: "absolute", inset: 0, visibility: isMagic ? "hidden" : "visible" }}>
