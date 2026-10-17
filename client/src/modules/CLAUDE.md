@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-10-17 — a FILE occurrence has a body)
+- `FileBody.jsx` (NEW): `fileHasBody(module)` (artifact, not markdown/quote), `FileNotesEditor` (DocContent on the
+  file occurrence's own textmap, in the `.instance-doc-body` pocket), `FileNotesToggle` (NotebookPen button).
+- `ModuleInstance.canHaveBody` = instance OR fileHasBody, so a file ROW gets the chevron + drawer under it. Inside the
+  artifact viewer (`useSpreadHost()`), the row chevron stands down and the tile header carries `FileNotesToggle`; CSS
+  (`.artifact-spread-body .instance-wrap:has(> .instance-doc-body)`) puts the body BESIDE the file, full tile height.
+- `pages/PageDisplay.jsx`: a Notes button beside "Open in viewer" shows the body in `.file-notes-side` next to the file.
+- A FOLDER-PAGE card gets NO body (user 2026-10-17, explicit). Tests `fileBodyBeside.test.jsx`, `canHaveBody.test.js`.
+- Watched on prod (test grid 2, Earthrise): row drawer under the row; viewer Notes → column beside the picture.
+
 ## Recent Changes (2026-10-15 (2) — BookReader.jsx + PdfViewer.jsx NEW: a book file opens to read)
 - `BookReader` — Book (foliate-js `<foliate-view>` for kind `ebook`; `PdfViewer` for `pdf`) · Magic (`import_plan`
   of the page on screen, rendered read-only) · Save page (Imports). Position on the file module
