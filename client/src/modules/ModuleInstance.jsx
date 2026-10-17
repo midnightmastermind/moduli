@@ -71,6 +71,8 @@ import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import { useBodyOpen } from "../helpers/bodyOpen";
 import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
 import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
+import { fileHasBody, FileNotesToggle } from "./FileBody.jsx";
+import { useSpreadHost } from "../helpers/spreadDock";
 
 // The container a row sits in, as it is NOW. The row's own prop can be an older
 // object (the row skips re-rendering when only the container's child list
@@ -172,6 +174,8 @@ function InstanceInner({
   // subscribe to their OWN slices (linked group, ancestor chain, grid,
   // activeId) and read the maps at compute/callback time via the stable
   // non-subscribing getters. Module-derived maps stay whole-map (stable).
+  // Inside the artifact viewer a file's body opens beside it, from the tile header — not the row chevron.
+  const inSpread = !!useSpreadHost();
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
   // READ AT COMPUTE TIME, NOT SUBSCRIBED. `modulesById` is rebuilt on every
@@ -1037,7 +1041,7 @@ function InstanceInner({
           <ExternalLink style={{ width: 12, height: 12 }} />
         </button>
       )}
-      {occurrence && toggleDoc && !overlay && (
+      {occurrence && toggleDoc && !overlay && !inSpread && (
         <button
           type="button"
           className="instance-body-btn"
@@ -1169,6 +1173,10 @@ function InstanceInner({
             )}
             {/* Renders nothing outside the artifact viewer. */}
             {renderBody && !overlay && <SpreadTileOpenInPanel occurrenceId={occurrence?.id} isFile={instance?.role === "artifact"} />}
+            {/* In the viewer the body opens BESIDE the file (index.css), from the tile's header. */}
+            {renderBody && !overlay && inSpread && toggleDoc && (
+              <FileNotesToggle open={showDoc} onToggle={toggleDoc} className="spread-tile-maximize" />
+            )}
             {renderBody && !overlay && <SpreadTileMaximize occurrenceId={occurrence?.id} />}
         </div>{/* end handle + image group */}
 
@@ -1320,7 +1328,9 @@ function InstanceInner({
  * textblock and an artifact something that was never theirs.
  */
 export function canHaveBody(module) {
-  return module?.role === "instance";
+  // A FILE has a body too (user 2026-10-17) — its own notes doc, kept apart from the file. A file whose
+  // text already is its content (markdown, quote) has none, for the textblock's reason (FileBody.jsx).
+  return module?.role === "instance" || fileHasBody(module);
 }
 
 function ModuleInstance({

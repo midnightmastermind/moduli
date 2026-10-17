@@ -3985,6 +3985,7 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-17 08:25** — *"the daily reflection stuff should be built via operations, not hardcoded"* (the Reflections container and its book pages are made by the operations, not by template edits or a migration that builds structure).
 - **2026-10-17 08:31** — *"do we have search and regex functionalities in the ops. those things might help identifying the pages and their pages numbers"*
 - **2026-10-17 08:43** — Terminal skin: one of Mark Passed Slots' reds does not show up well in the terminal theme; and the font sizes in that theme are not scaled (textblock text larger than the doc-container header it sits in). Order: after the other account's tasks, before the further UI testing.
-- **2026-10-17 08:47** — the body drawer does not open on a FOLDER PAGE card, only on an occurrence on a page/board/etc.
+- **2026-10-17 08:47** — the body drawer opens only on an occurrence on a page/board/etc., NOT on a folder-page card (08:56: *"i said no body gets opened on the folder page"* — a folder-page card gets no body).
 - **2026-10-17 08:48** — after the terminal theme fixes: every drawer, the manifest tree, the control center and any menu coming out of them should SLIDE out, not just appear.
 - **2026-10-17 08:49** — with the font-size fix: check font size, font family and text color can be changed in the UI, through the styling cascade.
+- **2026-10-17 08:50** — yes to both op additions (READ_FILE returns the page a passage starts on; a "matches regex" condition) — do them after the slide-out fixes.

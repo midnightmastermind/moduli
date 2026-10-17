@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// A body is an INSTANCE affordance.
+// A body is an INSTANCE affordance — and, since 2026-10-17, a FILE's (not a text file's).
 //
 // `ModuleInstance` is the shared row SHELL, not an instance-only renderer:
 // `ModuleTextblock`'s `card` context composes it, and so does every ArtifactCard
@@ -26,8 +26,15 @@ describe("canHaveBody", () => {
     expect(canHaveBody({ role: "textblock" })).toBe(false);
   });
 
-  it("an ARTIFACT does not — the other role that composes this shell", () => {
-    expect(canHaveBody({ role: "artifact" })).toBe(false);
+  it("a FILE gets one (user 2026-10-17) — its own notes, apart from the file", () => {
+    for (const kind of ["image", "video", "audio", "pdf", "ebook", "bookmark"]) {
+      expect(canHaveBody({ role: "artifact", kind })).toBe(true);
+    }
+  });
+
+  it("a file whose text IS its content does not — markdown, quote", () => {
+    expect(canHaveBody({ role: "artifact", kind: "markdown" })).toBe(false);
+    expect(canHaveBody({ role: "artifact", kind: "quote" })).toBe(false);
   });
 
   it("no other role does either", () => {

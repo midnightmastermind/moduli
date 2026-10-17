@@ -9055,3 +9055,32 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] select {
   background-color: #000 !important;
 }
+
+/* ── A FILE'S BODY BESIDE THE FILE (user, 2026-10-17) ──────────────────────
+   Opened from the Notes button when the file is OPEN — its tile in the viewer,
+   its page in a panel — the body sits NEXT TO the file instead of under it. */
+.artifact-spread-body .instance-wrap:has(> .instance-doc-body) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 6px;
+}
+.artifact-spread-body .instance-wrap:has(> .instance-doc-body) > .instance-row { flex: 1 1 0; min-width: 0; }
+.artifact-spread-body .instance-wrap > .instance-doc-body {
+  flex: 0 0 min(40%, 380px);
+  margin: 0;
+  border-radius: 8px;
+  overflow-y: auto;
+}
+.file-notes-side {
+  flex: 0 0 min(40%, 380px);
+  min-width: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-default);
+}
+.file-notes-side > .instance-doc-body { margin: 0; border-radius: 0; border-top: none; min-height: 100%; }
+.file-notes-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; color: var(--text-primary);
+}
+.file-notes-toggle[aria-pressed="true"] { color: var(--accent-blue-text, rgb(96,165,250)); }
