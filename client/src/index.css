@@ -4202,15 +4202,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   padding: 16px;
   cursor: auto;
 }
-/* An audio tile fills its tile top to bottom: the waveform takes the height,
-   the controls sit under it. Width stays capped so the bars stay readable. */
-.artifact-card--media-open[data-kind="audio"] {
-  align-items: stretch;
-}
-.artifact-card--media-open[data-kind="audio"] > .audio-waveform {
-  height: 100%;
-  margin: 0 auto;
-}
+/* The tile fills the viewer (rules with the bookmark ones below); the waveform
+   inside keeps its own height and sits centred in it (user 2026-10-17). */
 .artifact-media-open-video {
   max-width: 100%;
   max-height: 100%;

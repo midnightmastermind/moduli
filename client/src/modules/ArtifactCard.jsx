@@ -530,7 +530,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   if (inSpread && kind === "audio" && src) {
     return (
       <div className="artifact-card artifact-card--media-open" data-kind="audio" onClick={(e) => e.stopPropagation()}>
-        <AudioWaveform src={src} fill />
+        <AudioWaveform src={src} />
       </div>
     );
   }

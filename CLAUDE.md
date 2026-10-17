@@ -30,10 +30,11 @@ waveform + centering for audio in the viewer · *"is there any way to speed up b
   one background download into `server/cache/drive/` (gitignored); later ranges read the disk copy. LRU past
   `DRIVE_CACHE_MAX_BYTES` (5 GB default), files over 2 GB never cached. Test `diskCache.test.js` (5).
   **Not done:** remuxing a moov-at-end file to faststart (would need ffmpeg + writing a copy).
-- **Follow-up:** the audio tile fills the viewer's height (`AudioWaveform fill`, wavesurfer `height:"auto"`;
-  the spread's fill-the-tile rules now cover `.artifact-card--media-open` as well as an open bookmark). Watched on
-  prod: waveform 793px tall in a 959px viewer; it took ~35s to draw (wavesurfer downloads and decodes the whole
-  29 MB file).
+- **Follow-up (user: *"the containers full screen but the waveform viewer itself should be centered vertically"*):**
+  the tile fills the viewer (the spread's fill rules cover `.artifact-card--media-open`); the waveform keeps its own
+  96px height, centred in it. **A file page whose module has not arrived** (files come in the later half of the load)
+  or whose upload is pending shows a spinner + "Loading file…" instead of "No file attached"
+  (`ArtifactContent`, test `artifactLoading.test.jsx`; A/B: without it 2 of 3 fail).
 
 ---
 

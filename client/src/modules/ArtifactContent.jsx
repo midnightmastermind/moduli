@@ -15,6 +15,7 @@ import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { resolveFileRef } from "../helpers/fileRef.js";
 import ZoomableImage from "../ui/ZoomableImage.jsx";
+import { Spinner } from "../components/ui/spinner";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import ImageOcrViews from "./ImageOcrViews.jsx";
 // The global image picker (search / upload / URL). Its single host is mounted in
@@ -473,6 +474,19 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
           style={{ maxWidth: "100%", maxHeight: "100%" }}
         />
         <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
+      </div>
+    );
+  }
+
+  // The file's record has not arrived yet (files come in the later half of the
+  // load) or its upload is still running: say it is loading, not that it is missing.
+  if (!fileRef && (!module || module?.meta?.uploadStatus === "pending")) {
+    return (
+      <div className="artifact-loading" style={{ display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", gap: 10, height: "100%", minHeight: 160, color: "var(--text-muted)",
+        fontSize: 12, fontFamily: "var(--font-mono)" }}>
+        <Spinner size="lg" />
+        Loading file…
       </div>
     );
   }

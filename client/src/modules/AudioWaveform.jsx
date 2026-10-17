@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // the fallback while the module loads OR if wavesurfer's `create` throws
 // (rare; happens on unsupported codecs). Play/pause toggles the
 // wavesurfer instance directly; seek is built-in on click.
-export default function AudioWaveform({ src, fill = false }) {
+export default function AudioWaveform({ src }) {
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -28,8 +28,7 @@ export default function AudioWaveform({ src, fill = false }) {
           waveColor: "rgba(120,150,180,0.55)",
           progressColor: "rgb(96,165,250)",
           cursorColor: "rgba(255,255,255,0.75)",
-          // fill: the waveform takes the height its box has (the viewer tile).
-          height: fill ? "auto" : 96,
+          height: 96,
           barWidth: 2,
           barGap: 1,
           barRadius: 2,
@@ -50,7 +49,7 @@ export default function AudioWaveform({ src, fill = false }) {
       try { ws?.destroy(); } catch { /* ignore */ }
       wsRef.current = null;
     };
-  }, [src, fill]);
+  }, [src]);
 
   const togglePlay = useCallback(() => {
     const ws = wsRef.current;
@@ -64,7 +63,6 @@ export default function AudioWaveform({ src, fill = false }) {
         ref={containerRef}
         style={{
           width: "100%", minHeight: 96,
-          ...(fill ? { flex: "1 1 auto" } : null),
           background: "rgba(255,255,255,0.03)",
           borderRadius: 6,
           border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
