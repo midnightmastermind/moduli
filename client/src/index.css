@@ -9113,3 +9113,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   cursor: pointer; color: var(--text-primary);
 }
 .file-notes-toggle[aria-pressed="true"] { color: var(--accent-blue-text, rgb(96,165,250)); }
+
+/* A field's own font from the styling cascade (StyleHelpers --cascade-field-font); unset = inherit, as
+   before. Skin rules that set a field's font are more specific and keep theirs. */
+.field-input, .field-display { font-family: var(--cascade-field-font, inherit); }

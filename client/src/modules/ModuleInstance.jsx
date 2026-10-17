@@ -813,7 +813,7 @@ function InstanceInner({
               // MATCHES the rendered label exactly. This is the edit box
               // that REPLACES it on double-click, so any difference makes
               // the text visibly resize the moment you start renaming.
-              fontSize: INSTANCE_LABEL, color: "var(--text-primary)",
+              fontSize: INSTANCE_LABEL, color: "var(--cascade-ink, var(--text-primary))",
               paddingTop: 0, paddingLeft: 2,
               fontFamily: "inherit",
             }}
@@ -876,7 +876,9 @@ function InstanceInner({
               // it went 10-13 -> 14 in the same pass, so the title has to
               // move with them or it stops reading as the title.
               fontSize: INSTANCE_LABEL,
-              color: "var(--text-primary)",
+              // A colour / font chosen in the styling cascade (StyleHelpers --cascade-*) wins over the default.
+              color: "var(--cascade-ink, var(--text-primary))",
+              fontFamily: "var(--cascade-font, inherit)",
               paddingTop: 0,
               paddingLeft: 2,
               cursor: "text",
