@@ -15,6 +15,47 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (6) — TERMINAL TYPE SIZES + REDS; text colour / font / size in the style cascade, fields their own
+
+User: one passed-slot red barely shows in the Terminal skin; text in textblocks was bigger than the doc container
+header it sits in (*"do that … before the further ui testing"*); then *"test if we can do that in ui and change the
+font as well there. text color. this should be in the styling cascade"* · *"the fields should have their own font
+settings as well in the cascade and filters should stay the same size, regardless of the header font size"*.
+- **Reds:** a state wash (alpha ≤ 0.35) over black is black. `TERMINAL_PALETTE.washScale: 2.2` — `remapToPalette`
+  keeps a wash's hue and multiplies its alpha (cap 0.9). Other skins unchanged (no washScale).
+- **Sizes:** VT323 is narrow and thin, so at the same px it reads smaller than Plex. Headers get
+  `font-size-adjust: 0.66`, body 0.48, toolbar none; a header's controls (buttons, inputs, the filter pill —
+  now `.header-filter-pill`) keep `none`, so a filter pill is the same size whatever the header's font.
+- **Cascade (Settings › Style):** `styleToCSS` publishes `--cascade-ink` / `--cascade-font` / `--cascade-font-size`
+  and, new, `--cascade-field-ink/-font/-font-size` (`fieldTextColor` / `fieldFontFamily` / `fieldFontSize` on
+  grid · panel · page · container · instance). Row labels, textblocks and field pills read them (Field.jsx:
+  `FIELD_FONT`, `FIELD_FAMILY`, `FIELD_INK`; Tailwind `text-[12px]` → the variable). The terminal skin's
+  `!important` green/mono yields to a chosen colour/font. Semantic field colours (target met, negative) stay.
+- **Watched on prod by clicking, both skins:** Utilities (Bills) set to Georgia 20px pink + fields Inter 16px amber
+  → label, pill and field name all changed; cleared → defaults back, stored ownStyle all null. Tests
+  `cascadeTextVars`, `skinPalette` (+terminal wash).
+
+### 2026-10-17 (5) — A FILE OCCURRENCE HAS A BODY
+
+User: a body (doc) for file occurrences, a drawer under the file like instances, and a header button that opens it
+beside the file when the file is open. `modules/FileBody.jsx` (`fileHasBody`: artifacts except markdown/quote — their
+text IS the content); `canHaveBody` grants it; row chevron opens the drawer. In the viewer a file tile's header has a
+Notes button (`FileNotesToggle`) and the body sits beside the file at the tile's full height; a file's own page
+(`PageDisplay`) has the same button. **Folder-page cards get none** (user: *"i said no body gets opened on the folder
+page"* — I had added one, reverted). Tests `canHaveBody`, `fileBodyBeside`.
+
+### 2026-10-17 (4) — REFLECTIONS AT THE BOTTOM OF EACH DAY COLUMN, BUILT BY THE OPS (`0413`); a read's mark expires
+
+User (account2's queue): daily readings at the bottom of the day column, inside a **Reflections** container with one
+doc per book, built by operations. `0413` patches `Day Page: Build Day`: find-or-CREATE a `daypage:reflections` doc
+container in the column, keep it LAST in the textmap; `Day Page: Add Reading` imports into it and moves an older
+reading that sat in the column itself. **Found:** Oct 16/17 were marked and never imported — the mark is set before
+the wait and a load ending mid-read never clears it. The mark is a timestamp now; new comparator
+`OLDER_THAN_MINUTES` (10) lets the next load retry. Watched on prod: the section built, today's reading inside it.
+Tests `dayPageReadings` (+7).
+
+---
+
 ### 2026-10-17 (3) — A TERMINAL SKIN: black screen, green monospace lettering on everything
 
 User: *"a theme that looks like a terminal everywhere, just black background with green computer lettering on
