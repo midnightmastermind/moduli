@@ -9057,6 +9057,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] .container-header * { font-size-adjust: 0.66; }
 :root[data-skin="terminal"] .toolbar,
 :root[data-skin="terminal"] .toolbar * { font-size-adjust: none; }
+/* The header's CONTROLS (a filter's date pill, buttons, inputs) are not headings. */
+:root[data-skin="terminal"] :is(.page-header, .container-header) :is(button, button *, input, select, [role="button"], [role="button"] *) {
+  font-size-adjust: none;
+}
 :root[data-skin="terminal"] .page-header,
 :root[data-skin="terminal"] .container-header {
   font-size: 1.12em;
