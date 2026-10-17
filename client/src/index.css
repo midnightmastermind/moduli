@@ -9071,6 +9071,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   margin: 0;
   border-radius: 8px;
   overflow-y: auto;
+  /* The viewer is see-through on purpose, so the body wears a tile's own frame or it reads as empty. */
+  background: rgba(var(--occ-card) / calc(var(--occ-card-a) + 0.3));
+  border: 1px solid var(--border-default);
+  padding: 6px 8px;
 }
 .file-notes-side {
   flex: 0 0 min(40%, 380px);
