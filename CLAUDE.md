@@ -23,9 +23,9 @@
 - **A Sleep in a passed 5am slot showed the slot's red, every skin:** the client's APPLY_TEMPLATE minted clone
   modules without the source's style, so the row was see-through. `operationActions.styleKeysOf` on the clone +
   CREATE_ITEM; `0415` restyled 39 clones on poms.
-- **The idle grey:** shade A of the idle stripe was CLEARED (every other not-yet-past slot had no grey). `0414`
-  wrongly strengthened shade B; `0416` puts B back to 0.12 and paints A 0.24. Note: poms' op already carried a
-  painted `slotStripe-idleA` step — the shape matcher had to accept it.
+- **The idle grey:** another session's `0416-schedule-idle-two-greys` (shade A 0.22, B 0.12) is the fix. This
+  session wrote a DUPLICATE 0416 the same afternoon (A 0.24) without seeing it — removed; `0418` re-runs the
+  real 0416 so poms holds its values. **Check `git log` for the other accounts' commits before a migration.**
 - **`0417`:** every container + item module on Routines and Tasks (and their clones) → `#3f774e`, 216 modules.
   3 Routines containers share a module with Trackers containers, so those are coloured on the Routines PLACEMENT
   (`occurrence.ownStyle`), Trackers untouched. Not applied to the rebuild grid.

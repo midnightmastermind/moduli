@@ -19,7 +19,7 @@
 //
 //   current  green                     (one shade, as asked)
 //   passed   PASSED_A  /  PASSED_B      the existing red and a deeper one
-//   idle     IDLE_A    /  IDLE_B       two slates (A was cleared until 0416)
+//   idle     cleared   /  IDLE_B       the existing "no colour" and a faint slate
 //
 // Shade A is exactly what each slot gets today, so the first slot of every
 // column is unchanged. Both B shades sit under `WASH_ALPHA_MAX` (0.35), so no
@@ -38,7 +38,7 @@ export const PASSED_B = "rgba(248,113,113,0.20)";
 export const IDLE_B = "rgba(148,163,184,0.12)";
 // 2026-10-17: idle shade A is no longer "cleared" — 0416 paints it this grey, so idle
 // slots alternate between two greys the way passed slots alternate between two reds.
-export const IDLE_A = "rgba(148,163,184,0.24)";
+export const IDLE_A = "rgba(148,163,184,0.22)";
 const MARK = "slotStripe";
 const BG = "$slot.ownStyle.bg";
 
@@ -98,7 +98,7 @@ export function stripeSlotPaint(pipeline) {
   if (!slotIf || !passed || !clear) return { pipeline: p, changed: false, reason: "pass 2 not in the expected shape" };
 
   passed.list[passed.i] = byStripe("passed", passed.list[passed.i], paint("passedB", PASSED_B));
-  clear.list[clear.i] = byStripe("idle", paint("idleA", IDLE_A), paint("idleB", IDLE_B));
+  clear.list[clear.i] = byStripe("idle", clear.list[clear.i], paint("idleB", IDLE_B));
   // Flip first, so the first slot of a column is stripe 1 = shade A = today's look.
   slotIf.list[slotIf.i].then.unshift(byStripe("toggle",
     { id: `${MARK}-to0`, type: "action", config: { type: "SET_VAR", name: "$slotStripe", expr: "literal:0" } },
@@ -116,7 +116,7 @@ export async function up({ gridId, models, log, dryRun }) {
   if (!op) { log(`no "${OP_NAME}" op on this grid — nothing to do.`); return; }
   const { pipeline, changed, reason } = stripeSlotPaint(op.pipeline);
   if (!changed) { log(`unchanged: ${reason}.`); return; }
-  log(`${OP_NAME} (${op.id}): will stripe slots — passed ${PASSED_A} / ${PASSED_B}, idle ${IDLE_A} / ${IDLE_B}.`);
+  log(`${OP_NAME} (${op.id}): will stripe slots — passed ${PASSED_A} / ${PASSED_B}, idle cleared / ${IDLE_B}.`);
   if (dryRun) return;
   await Operation.updateOne({ gridId, id: op.id }, { $set: { pipeline } });
   const after = await Operation.findOne({ gridId, id: op.id }).lean();

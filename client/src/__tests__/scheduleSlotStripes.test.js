@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { executePipeline } from "../helpers/operationExecutor";
 import live from "./fixtures/markPassedSlots.pipeline.json";
-import { stripeSlotPaint, PASSED_A, PASSED_B, IDLE_A, IDLE_B } from "../../../server/migrations/0349-schedule-slots-alternate-shades.mjs";
+import { stripeSlotPaint, PASSED_A, PASSED_B, IDLE_B } from "../../../server/migrations/0349-schedule-slots-alternate-shades.mjs";
 
 const GREEN = "rgba(74,222,128,0.16)";
 const PAGE = "llpF10Bda5nu", FMT = "vQ0ELZP_zxnx", DATE = "Eh7oi4HKdbHB", TS = "nSccAtADyUGW";
@@ -55,17 +55,17 @@ describe("0349 — schedule slots alternate shades", () => {
     expect(run(after())).toEqual({
       s800: PASSED_A, s830: PASSED_B, s900: PASSED_A, s930: PASSED_B,
       s1000: GREEN,
-      s1030: IDLE_B, s1100: IDLE_A, s1130: IDLE_B,   // idle shade A is its own grey (0416)
+      s1030: IDLE_B, s1130: IDLE_B,   // s1100 is shade A = cleared, already empty -> no write
     });
   });
 
   it("stays dedup'd: a column already painted correctly writes nothing", () => {
-    const seed = { s800: PASSED_A, s830: PASSED_B, s900: PASSED_A, s930: PASSED_B, s1000: GREEN, s1030: IDLE_B, s1100: IDLE_A, s1130: IDLE_B };
+    const seed = { s800: PASSED_A, s830: PASSED_B, s900: PASSED_A, s930: PASSED_B, s1000: GREEN, s1030: IDLE_B, s1130: IDLE_B };
     expect(run(after(), { seed })).toEqual({});
   });
 
-  it("repaints a stale B shade on an A slot with shade A", () => {
-    expect(run(after(), { seed: { s1100: IDLE_B, s1030: IDLE_B, s1130: IDLE_B } })).toMatchObject({ s1100: IDLE_A });
+  it("clears a stale B shade off an A slot", () => {
+    expect(run(after(), { seed: { s1100: IDLE_B, s1030: IDLE_B, s1130: IDLE_B } })).toMatchObject({ s1100: null });
   });
 
   it("is idempotent", () => {
