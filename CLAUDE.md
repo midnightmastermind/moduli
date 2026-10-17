@@ -30,6 +30,10 @@ waveform + centering for audio in the viewer · *"is there any way to speed up b
   one background download into `server/cache/drive/` (gitignored); later ranges read the disk copy. LRU past
   `DRIVE_CACHE_MAX_BYTES` (5 GB default), files over 2 GB never cached. Test `diskCache.test.js` (5).
   **Not done:** remuxing a moov-at-end file to faststart (would need ffmpeg + writing a copy).
+- **Follow-up:** the audio tile fills the viewer's height (`AudioWaveform fill`, wavesurfer `height:"auto"`;
+  the spread's fill-the-tile rules now cover `.artifact-card--media-open` as well as an open bookmark). Watched on
+  prod: waveform 793px tall in a 959px viewer; it took ~35s to draw (wavesurfer downloads and decodes the whole
+  29 MB file).
 
 ---
 
