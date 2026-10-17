@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (7) — SLIDE-OUTS; a placed item keeps its colour; the idle grey; Routines + Tasks one green
+
+- **Slide, don't appear:** `ui/SlideDrawer` + `hooks/usePresence` (kept mounted for the closing animation, decided
+  during render so there is no unmounted frame). Row body drawer, the panel tree sidebar, the Command Center's FIRST
+  open (it mounted already open), desktop menus/popovers (`menu-pop-in`). Off under reduced motion.
+- **A Sleep in a passed 5am slot showed the slot's red, every skin:** the client's APPLY_TEMPLATE minted clone
+  modules without the source's style, so the row was see-through. `operationActions.styleKeysOf` on the clone +
+  CREATE_ITEM; `0415` restyled 39 clones on poms.
+- **The idle grey:** shade A of the idle stripe was CLEARED (every other not-yet-past slot had no grey). `0414`
+  wrongly strengthened shade B; `0416` puts B back to 0.12 and paints A 0.24. Note: poms' op already carried a
+  painted `slotStripe-idleA` step — the shape matcher had to accept it.
+- **`0417`:** every container + item module on Routines and Tasks (and their clones) → `#3f774e`, 216 modules.
+  3 Routines containers share a module with Trackers containers, so those are coloured on the Routines PLACEMENT
+  (`occurrence.ownStyle`), Trackers untouched. Not applied to the rebuild grid.
+
 ### 2026-10-17 (6) — TERMINAL TYPE SIZES + REDS; text colour / font / size in the style cascade, fields their own
 
 User: one passed-slot red barely shows in the Terminal skin; text in textblocks was bigger than the doc container
