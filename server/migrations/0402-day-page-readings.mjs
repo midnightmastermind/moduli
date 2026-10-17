@@ -116,8 +116,15 @@ export function addReadingPipeline({ boardOccurrenceId, dateFieldId }) {
         act({ type: "SET_VAR", name: "$haveId", expr: "$oldId" }),
       ]),
       act({ type: "INIT_VAR", name: "$readRef", expr: "literal:" }),
-      iff(all(r("$colId", "IS_NOT_EMPTY"), r("$reflId", "IS_NOT_EMPTY"), r("$haveId", "IS_EMPTY"), r("$col.meta.readings.${$key}", "IS_EMPTY")), [
-        act({ type: "UPDATE", path: "$col.meta.readings.${$key}", value: "$day" }),
+      // The mark keeps the two runs of one load (onLoad, then the filter bootstrap) from both importing.
+      // It holds WHEN it was written: a load that ends while the file is still being read never clears
+      // it, and with nothing in the section that day would be skipped forever — so an old mark (10 min)
+      // with no reading behind it is tried again. A mark from before this holds a bare date: old.
+      iff(all(r("$colId", "IS_NOT_EMPTY"), r("$reflId", "IS_NOT_EMPTY"), r("$haveId", "IS_EMPTY"), {
+        id: uid(), operator: "OR",
+        rules: [r("$col.meta.readings.${$key}", "IS_EMPTY"), r("$col.meta.readings.${$key}", "OLDER_THAN_MINUTES", 10)],
+      }), [
+        act({ type: "UPDATE", path: "$col.meta.readings.${$key}", value: "$now" }),
         act({ type: "SET_VAR", name: "$readRef", expr: "$file" }),
       ]),
       act({ type: "READ_FILE", file: "$readRef", kind: "$kind", from: "$from", to: "$to", resultVar: "$fileText" }),

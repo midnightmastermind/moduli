@@ -70,7 +70,7 @@ export async function up({ gridId, models, log, dryRun }) {
 
   const callee = await Operation.findOne({ gridId, name: CALLEE }).lean();
   if (!callee) { log(`no "${CALLEE}" — readings not set up on this grid`); return; }
-  if (JSON.stringify(callee.pipeline).includes(REFLECTIONS_SIG)) { log(`${CALLEE} already imports into the section`); return; }
+  if (JSON.stringify(callee.pipeline).includes("OLDER_THAN_MINUTES")) { log(`${CALLEE} already current`); return; }
   const where = readBoardAndDate(callee);
   if (!where) throw new Error(`0413: could not read the board / date field off "${CALLEE}"`);
   log(`~ ${CALLEE}: imports into the Reflections section`);

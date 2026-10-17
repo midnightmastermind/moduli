@@ -659,6 +659,19 @@ export function evalRule(rule, $vars) {
       if (lk == null || rk == null) return false;
       return comparator === "DATE_BEFORE" ? lk < rk : lk > rk;
     }
+    // A date-time more than N minutes in the past (right = N). Empty or unparseable left -> false;
+    // a bare date counts as its local midnight. For a mark that must expire when the run that
+    // wrote it never finished (Day Page: Add Reading).
+    case "OLDER_THAN_MINUTES": {
+      if (leftVal == null || leftVal === "") return false;
+      const mins = Number(rightVal);
+      if (!Number.isFinite(mins)) return false;
+      const t = typeof leftVal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(leftVal)
+        ? parseLocalDate(leftVal)?.getTime()
+        : new Date(leftVal).getTime();
+      if (!Number.isFinite(t)) return false;
+      return Date.now() - t > mins * 60000;
+    }
     // Same words, ignoring case, accents, punctuation and spacing — how a
     // person's name is "the same". Twin of the server executor's SAME_TEXT.
     case "SAME_TEXT": {

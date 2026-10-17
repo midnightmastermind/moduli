@@ -61,6 +61,7 @@ export const COMPARATOR_CATALOG = [
   { value: "DATE_EQUALS",              label: "date equals",              group: "Dates" },
   { value: "DATE_BEFORE",              label: "before date",              group: "Dates" },
   { value: "DATE_AFTER",               label: "after date",               group: "Dates" },
+  { value: "OLDER_THAN_MINUTES",       label: "older than N minutes",     group: "Dates" },
   { value: "DATE_IS_TODAY",            label: "is today",                 group: "Dates", unary: true },
   { value: "DATE_BEFORE_TODAY",        label: "before today",             group: "Dates", unary: true },
   { value: "DATE_AFTER_TODAY",         label: "after today",              group: "Dates", unary: true },

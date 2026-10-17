@@ -7,17 +7,18 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { readingsPipeline, addReadingPipeline, readingEntry, CALLER, CALLEE, NEXT_DAY_MARKER, dayMarker } from "../../../server/migrations/0402-day-page-readings.mjs";
 import { rewriteMarkers } from "../../../server/migrations/0404-day-page-reading-markers.mjs";
 import { slicePassage } from "../helpers/bookText";
+import { evalRule } from "../helpers/operationActions";
 import { withReflectionsSection } from "../../../server/migrations/0413-day-page-reflections.mjs";
 
 const BOARD = "board1";
 const DATE = "fDate";
 const reading = readingEntry({ title: "Morning Words", fileRef: "gdrive:c:book", kind: "pdf" });
 
-function world({ marked = false, have = false, legacy = false, noRefl = false } = {}) {
+function world({ marked = false, have = false, legacy = false, noRefl = false, markAt = new Date().toISOString() } = {}) {
   const refl = (id, col, kids = []) => noRefl ? {} : { [id]: { id, moduleId: "mRefl", parentId: col, identitySignature: "daypage:reflections", occurrences: kids, textmap: { type: "doc", content: [] } } };
   const occurrencesById = {
     [BOARD]: { id: BOARD, moduleId: "mBoard", occurrences: ["col15", "col16"] },
-    col15: { id: "col15", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-15" } }, meta: (marked || legacy) ? { readings: { [reading.key]: "2026-10-15" } } : {},
+    col15: { id: "col15", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-15" } }, meta: (marked || legacy) ? { readings: { [reading.key]: markAt } } : {},
       occurrences: [...(noRefl ? [] : ["refl15"]), ...(legacy ? ["r0"] : [])],
       textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: "refl15" } }, ...(legacy ? [{ type: "moduleEmbed", attrs: { occurrenceId: "r0" } }] : [])] } },
     col16: { id: "col16", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-16" } }, meta: {}, occurrences: noRefl ? [] : ["refl16"] },
@@ -141,6 +142,30 @@ describe("Day Page: Readings (0402)", () => {
     expect(reads.length).toBe(1);
     expect(imports).toEqual([]);
   });
+  it("an old mark with nothing in the section is tried again (a load that ended mid-read)", async () => {
+    const { caller, ctx } = world({ marked: true, markAt: "2026-10-15" });
+    executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads.length).toBe(1);
+    expect(imports.map((r) => r.parentId)).toEqual(["refl15"]);
+  });
+
+  it("an old mark with the reading already there reads nothing", async () => {
+    const { caller, ctx } = world({ marked: true, have: true, markAt: "2026-10-15" });
+    executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads).toEqual([]);
+  });
+
+  it("OLDER_THAN_MINUTES: a date-time more than N minutes ago", () => {
+    const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
+    expect(evalRule({ left: "$a", comparator: "OLDER_THAN_MINUTES", right: 10 }, { $a: ago(11) })).toBe(true);
+    expect(evalRule({ left: "$a", comparator: "OLDER_THAN_MINUTES", right: 10 }, { $a: ago(2) })).toBe(false);
+    expect(evalRule({ left: "$a", comparator: "OLDER_THAN_MINUTES", right: 10 }, { $a: "2020-01-01" })).toBe(true);
+    expect(evalRule({ left: "$a", comparator: "OLDER_THAN_MINUTES", right: 10 }, { $a: "" })).toBe(false);
+    expect(evalRule({ left: "$a", comparator: "OLDER_THAN_MINUTES", right: 10 }, { $a: "nope" })).toBe(false);
+  });
+
   it("a column with no Reflections section yet reads nothing (Build Day makes it first)", async () => {
     const { caller, ctx } = world({ noRefl: true });
     executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
