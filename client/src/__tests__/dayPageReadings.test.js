@@ -7,19 +7,26 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { readingsPipeline, addReadingPipeline, readingEntry, CALLER, CALLEE, NEXT_DAY_MARKER, dayMarker } from "../../../server/migrations/0402-day-page-readings.mjs";
 import { rewriteMarkers } from "../../../server/migrations/0404-day-page-reading-markers.mjs";
 import { slicePassage } from "../helpers/bookText";
+import { withReflectionsSection } from "../../../server/migrations/0413-day-page-reflections.mjs";
 
 const BOARD = "board1";
 const DATE = "fDate";
 const reading = readingEntry({ title: "Morning Words", fileRef: "gdrive:c:book", kind: "pdf" });
 
-function world({ marked = false, have = false } = {}) {
+function world({ marked = false, have = false, legacy = false, noRefl = false } = {}) {
+  const refl = (id, col, kids = []) => noRefl ? {} : { [id]: { id, moduleId: "mRefl", parentId: col, identitySignature: "daypage:reflections", occurrences: kids, textmap: { type: "doc", content: [] } } };
   const occurrencesById = {
     [BOARD]: { id: BOARD, moduleId: "mBoard", occurrences: ["col15", "col16"] },
-    col15: { id: "col15", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-15" } }, meta: marked ? { readings: { [reading.key]: "2026-10-15" } } : {}, occurrences: have ? ["r1"] : [] },
-    col16: { id: "col16", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-16" } }, meta: {}, occurrences: [] },
-    ...(have ? { r1: { id: "r1", moduleId: "mR", parentId: "col15" } } : {}),
+    col15: { id: "col15", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-15" } }, meta: (marked || legacy) ? { readings: { [reading.key]: "2026-10-15" } } : {},
+      occurrences: [...(noRefl ? [] : ["refl15"]), ...(legacy ? ["r0"] : [])],
+      textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: "refl15" } }, ...(legacy ? [{ type: "moduleEmbed", attrs: { occurrenceId: "r0" } }] : [])] } },
+    col16: { id: "col16", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-16" } }, meta: {}, occurrences: noRefl ? [] : ["refl16"] },
+    ...refl("refl15", "col15", have ? ["r1"] : []),
+    ...refl("refl16", "col16"),
+    ...(have ? { r1: { id: "r1", moduleId: "mR", parentId: "refl15" } } : {}),
+    ...(legacy ? { r0: { id: "r0", moduleId: "mR", parentId: "col15" } } : {}),
   };
-  const modulesById = { mBoard: { id: "mBoard", role: "page" }, mCol: { id: "mCol", role: "container", kind: "doc" }, mR: { id: "mR", role: "container", kind: "doc", label: "Morning Words" } };
+  const modulesById = { mBoard: { id: "mBoard", role: "page" }, mCol: { id: "mCol", role: "container", kind: "doc" }, mRefl: { id: "mRefl", role: "container", kind: "doc", label: "Reflections" }, mR: { id: "mR", role: "container", kind: "doc", label: "Morning Words" } };
   const callee = { id: "opCallee", name: CALLEE, enabled: true, pipeline: addReadingPipeline({ boardOccurrenceId: BOARD, dateFieldId: DATE }) };
   const caller = { id: "opCaller", name: CALLER, enabled: true, pipeline: readingsPipeline({ readings: [reading] }) };
   return { caller, callee, ctx: { state: { modules: Object.values(modulesById) }, fieldsById: {}, occurrencesById, modulesById, operationsById: { opCallee: callee, opCaller: caller } } };
@@ -45,8 +52,8 @@ describe("Day Page: Readings (0402)", () => {
       ["/files/c/book", "pdf", dayMarker("October 16"), NEXT_DAY_MARKER],
     ]);
     expect(imports.map((r) => [r.parentId, r.title, r.content, r.shape, r.embed])).toEqual([
-      ["col15", "Morning Words", `# Morning Words\n\n${dayMarker("October 15")} passage`, "magic", true],
-      ["col16", "Morning Words", `# Morning Words\n\n${dayMarker("October 16")} passage`, "magic", true],
+      ["refl15", "Morning Words", `# Morning Words\n\n${dayMarker("October 15")} passage`, "magic", true],
+      ["refl16", "Morning Words", `# Morning Words\n\n${dayMarker("October 16")} passage`, "magic", true],
     ]);
     // The mark goes out BEFORE the wait, so a second run on the same load imports nothing.
     const marks = pre.filter((e) => JSON.stringify(e).includes(`readings`));
@@ -133,5 +140,66 @@ describe("Day Page: Readings (0402)", () => {
     for (let i = 0; i < 6; i++) await flush();
     expect(reads.length).toBe(1);
     expect(imports).toEqual([]);
+  });
+  it("a column with no Reflections section yet reads nothing (Build Day makes it first)", async () => {
+    const { caller, ctx } = world({ noRefl: true });
+    executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads).toEqual([]);
+  });
+
+  it("a reading imported straight into the column moves into the section, without a new read", async () => {
+    const { caller, ctx } = world({ legacy: true });
+    const pre = executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15"], $activePeriodCount: 1 });
+    for (let i = 0; i < 6; i++) await flush();
+    expect(reads).toEqual([]);
+    expect(imports).toEqual([]);
+    const all = [...pre, ...applied];
+    expect(all).toContainEqual(expect.objectContaining({ _effect: "MOVE_OCCURRENCE", occurrenceId: "r0", toContainerId: "refl15" }));
+    const texts = all.filter((e) => e._effect === "UPDATE_ITEM_TEXTMAP");
+    const reflText = texts.find((e) => e.itemId === "refl15")?.textmap;
+    const colText = texts.find((e) => e.itemId === "col15")?.textmap;
+    expect(reflText.content.map((n) => n.attrs.occurrenceId)).toEqual(["r0"]);
+    expect(colText.content.map((n) => n.attrs.occurrenceId)).toEqual(["refl15"]);
+  });
+});
+
+describe("Day Page: Build Day keeps a Reflections section last (0413)", () => {
+  const buildDay = () => [{ id: "s1", type: "if", condition: { operator: "AND", rules: [{ id: "x", left: "$day", comparator: "IS_NOT_EMPTY", right: "" }] }, else: [], then: [
+    { id: "f", type: "action", config: { type: "FIND", over: "$allOccurrences", predicate: { operator: "AND", rules: [{ id: "y", left: "parentId", comparator: "IS", right: BOARD }, { id: "z", left: `fields.${DATE}.value`, comparator: "SAME_DAY", right: "$day" }] }, itemIdVar: "$colId", itemVar: "$col" } },
+    { id: "b", type: "action", config: { type: "INIT_VAR", name: "$body", expr: "json:[]" } },
+    { id: "l", type: "loop", overExpr: "$col.occurrences", as: "$kidId2", body: [
+      { id: "k", type: "action", config: { type: "INIT_VAR", name: "$kid2", expr: "$allItemsById.${$kidId2}" } },
+      { id: "i", type: "if", condition: { operator: "AND", rules: [{ id: "w", left: "$kid2.role", comparator: "IS_NOT", right: "textblock" }] }, else: [], then: [
+        { id: "p", type: "action", config: { type: "PUSH_TO_ARRAY", name: "$body", value: { type: "moduleEmbed", attrs: { occurrenceId: "$kidId2" } } } },
+      ] },
+    ] },
+    { id: "u", type: "action", config: { type: "UPDATE", path: "$col.textmap", value: { type: "doc", content: "$body" } } },
+  ] }];
+  const run = (occurrencesById) => {
+    const modulesById = { mCol: { id: "mCol", role: "container", kind: "doc" }, mRefl: { id: "mRefl", role: "container", kind: "doc", label: "Reflections" }, mX: { id: "mX", role: "container", kind: "doc", label: "Check In" } };
+    const op = { id: "bd", name: "Day Page: Build Day", enabled: true, pipeline: { sources: [], steps: withReflectionsSection(buildDay()) } };
+    return executePipeline(op, { state: { modules: Object.values(modulesById) }, fieldsById: {}, occurrencesById, modulesById, operationsById: { bd: op } }, null, { $day: "2026-10-15" });
+  };
+  const col = (kids) => ({ [BOARD]: { id: BOARD, moduleId: "mB", occurrences: ["col15"] }, col15: { id: "col15", moduleId: "mCol", parentId: BOARD, fields: { [DATE]: { value: "2026-10-15" } }, occurrences: kids } });
+
+  it("creates the section when the column has none, and embeds it last", () => {
+    const fx = run({ ...col(["x1"]), x1: { id: "x1", moduleId: "mX", parentId: "col15" } });
+    const made = fx.find((e) => e._effect === "CREATE_ITEM");
+    expect(made.instance).toMatchObject({ parentId: "col15", identitySignature: "daypage:reflections" });
+    const text = fx.find((e) => e._effect === "UPDATE_ITEM_TEXTMAP").textmap.content.map((n) => n.attrs.occurrenceId);
+    expect(text).toEqual(["x1", made.instance.id]);
+  });
+
+  it("keeps an existing section last even when something was listed after it, and makes no second one", () => {
+    const fx = run({ ...col(["refl15", "x1"]), x1: { id: "x1", moduleId: "mX", parentId: "col15" },
+      refl15: { id: "refl15", moduleId: "mRefl", parentId: "col15", identitySignature: "daypage:reflections", occurrences: [] } });
+    expect(fx.filter((e) => e._effect === "CREATE_ITEM")).toEqual([]);
+    expect(fx.find((e) => e._effect === "UPDATE_ITEM_TEXTMAP").textmap.content.map((n) => n.attrs.occurrenceId)).toEqual(["x1", "refl15"]);
+  });
+
+  it("patches once", () => {
+    const once = withReflectionsSection(buildDay());
+    expect(withReflectionsSection(once)).toBe(null);
   });
 });

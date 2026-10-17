@@ -81,17 +81,42 @@ export function readingsPipeline({ readings, gateCondition = null }) {
   };
 }
 
-/** PURE. The callee. Top level only around the two waits (see the header). */
+/** The identity of a day column's Reflections section (made by "Day Page: Build Day", 0413). */
+export const REFLECTIONS_SIG = "daypage:reflections";
+
+/** PURE. The callee. Top level only around the two waits (see the header).
+ *  Each book's page goes into the day column's Reflections section (0413). A reading imported before
+ *  that (straight into the column) is moved into the section the first time the day is seen again. */
 export function addReadingPipeline({ boardOccurrenceId, dateFieldId }) {
   return {
     sources: [],
     steps: [
       act({ type: "FIND", over: "$allOccurrences", predicate: all(r("parentId", "IS", boardOccurrenceId), r(`fields.${dateFieldId}.value`, "SAME_DAY", "$day")),
         itemIdVar: "$colId", itemVar: "$col" }),
-      act({ type: "FIND", over: "$allOccurrences", predicate: all(r("parentId", "IS", "$colId"), r("label", "IS", "$title")),
+      act({ type: "FIND", over: "$allOccurrences", predicate: all(r("parentId", "IS", "$colId"), r("identitySignature", "IS", REFLECTIONS_SIG)),
+        itemIdVar: "$reflId", itemVar: "$refl" }),
+      act({ type: "FIND", over: "$allOccurrences", predicate: all(r("parentId", "IS", "$reflId"), r("label", "IS", "$title")),
         itemIdVar: "$haveId", itemVar: "$have" }),
+      act({ type: "FIND", over: "$allOccurrences", predicate: all(r("parentId", "IS", "$colId"), r("label", "IS", "$title")),
+        itemIdVar: "$oldId", itemVar: "$old" }),
+      // A reading that sits straight in the column (imported before the section existed) moves into it:
+      // listed there, embedded at the end of its text, and dropped from the column's text.
+      iff(all(r("$reflId", "IS_NOT_EMPTY"), r("$haveId", "IS_EMPTY"), r("$oldId", "IS_NOT_EMPTY")), [
+        act({ type: "MOVE_OCCURRENCE", occurrenceIdExpr: "$oldId", toContainerIdExpr: "$reflId" }),
+        act({ type: "INIT_VAR", name: "$reflBody", expr: "$refl.textmap.content" }),
+        act({ type: "PUSH_TO_ARRAY", name: "$reflBody", value: { type: "moduleEmbed", attrs: { occurrenceId: "$oldId" } } }),
+        act({ type: "UPDATE", path: "$refl.textmap", value: { type: "doc", content: "$reflBody" } }),
+        act({ type: "INIT_VAR", name: "$colBody", expr: "json:[]" }),
+        loop("$col.textmap.content", "$node", [
+          iff(all(r("$node.attrs.occurrenceId", "IS_NOT", "$oldId")), [
+            act({ type: "PUSH_TO_ARRAY", name: "$colBody", value: "$node" }),
+          ]),
+        ]),
+        act({ type: "UPDATE", path: "$col.textmap", value: { type: "doc", content: "$colBody" } }),
+        act({ type: "SET_VAR", name: "$haveId", expr: "$oldId" }),
+      ]),
       act({ type: "INIT_VAR", name: "$readRef", expr: "literal:" }),
-      iff(all(r("$colId", "IS_NOT_EMPTY"), r("$haveId", "IS_EMPTY"), r("$col.meta.readings.${$key}", "IS_EMPTY")), [
+      iff(all(r("$colId", "IS_NOT_EMPTY"), r("$reflId", "IS_NOT_EMPTY"), r("$haveId", "IS_EMPTY"), r("$col.meta.readings.${$key}", "IS_EMPTY")), [
         act({ type: "UPDATE", path: "$col.meta.readings.${$key}", value: "$day" }),
         act({ type: "SET_VAR", name: "$readRef", expr: "$file" }),
       ]),
@@ -103,7 +128,7 @@ export function addReadingPipeline({ boardOccurrenceId, dateFieldId }) {
       iff(all(r("$fileText.text", "IS_NOT_EMPTY")), [
         act({ type: "SET_VAR", name: "$importMd", expr: "# ${$title}\n\n${$fileText.text}" }),
       ]),
-      act({ type: "IMPORT_MARKDOWN", markdown: "$importMd", parentExpr: "$colId", title: "$title", shape: "magic", embed: true,
+      act({ type: "IMPORT_MARKDOWN", markdown: "$importMd", parentExpr: "$reflId", title: "$title", shape: "magic", embed: true,
         resultVar: "$importResult", onError: "continue" }),
       // A read that found no passage, or an import that failed, takes the mark back off so the next
       // load tries again (the mark went on before the wait). Only when THIS run marked the day.

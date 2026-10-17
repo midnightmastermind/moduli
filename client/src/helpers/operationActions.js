@@ -1901,12 +1901,20 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
       }
 
+      // The identity signature rides on the in-pipeline copies too, so a later
+      // FIND by signature in the same sweep (a builder asking "does this day
+      // already have its section?") sees the row this step just made.
+      const identitySignature = cfg.identitySignature
+        ? (resolveExpr(cfg.identitySignature, $vars) ?? cfg.identitySignature)
+        : null;
+
       const instance = {
         id: instanceId,
         moduleId: templateId,
         parentId,
         fields,
         textmap,
+        ...(identitySignature ? { identitySignature } : {}),
         ...(filterOverride ? { filterOverride } : {}),
         meta: { createdByOperation: true },
         _ancestors: newAncestors,
@@ -1953,6 +1961,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           parentId,
           fields,
           textmap,
+          ...(identitySignature ? { identitySignature } : {}),
           ...(filterOverride ? { filterOverride } : {}),
           meta: { createdByOperation: true },
           occurrences: [],
@@ -2008,10 +2017,6 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // for months.
       //
       // A create that declares nothing is byte-identical to before.
-      const identitySignature = cfg.identitySignature
-        ? (resolveExpr(cfg.identitySignature, $vars) ?? cfg.identitySignature)
-        : null;
-
       updates.push({
         _effect: "CREATE_ITEM",
         template: templateRecord,
