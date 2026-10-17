@@ -4202,6 +4202,15 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   padding: 16px;
   cursor: auto;
 }
+/* An audio tile fills its tile top to bottom: the waveform takes the height,
+   the controls sit under it. Width stays capped so the bars stay readable. */
+.artifact-card--media-open[data-kind="audio"] {
+  align-items: stretch;
+}
+.artifact-card--media-open[data-kind="audio"] > .audio-waveform {
+  height: 100%;
+  margin: 0 auto;
+}
 .artifact-media-open-video {
   max-width: 100%;
   max-height: 100%;
@@ -7256,7 +7265,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 
    `100%` rather than `100vh`: the body is the box this sits in and is already
    the viewport minus the viewer header, so `100vh` overflows it by that header. */
-.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap:has(.artifact-card--bookmark-open) {
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap:has(:is(.artifact-card--bookmark-open, .artifact-card--media-open)) {
   height: 100% !important;
   max-height: none !important;
 }
@@ -7268,7 +7277,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    over. So the shell and the items row are made to fill instead, and only when
    the body actually holds an open bookmark: every other spread is a grid of
    pictures that must keep hugging its content. */
-.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell {
+.artifact-spread-body:has(:is(.artifact-card--bookmark-open, .artifact-card--media-open)) > .container-shell {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -7280,7 +7289,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    tile beside it centred ~6,600px down). `min-height: 0` is the declaration
    that matters: the list is already bounded by the rules below, and a flex
    item's default `min-height: auto` is its content, which is the article. */
-.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell > .container-list > .container-items--wrap {
+.artifact-spread-body:has(:is(.artifact-card--bookmark-open, .artifact-card--media-open)) > .container-shell > .container-list > .container-items--wrap {
   flex: 1 1 auto;
   min-height: 0;
 }
