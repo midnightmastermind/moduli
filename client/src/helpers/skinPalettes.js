@@ -132,6 +132,10 @@ export const TERMINAL_PALETTE = {
   lightRange: [7, 17],
   huePull: 1,
   sourceLightRange: [22, 58],
+  // A state wash (a passed Schedule slot's 10% / 20% red stripes) is a tint over what is beneath it,
+  // and beneath it here is BLACK — 10% red on black is black (user 2026-10-17: "one of the reds
+  // doesnt show up well in terminal theme"). Washes keep their hue and their ratio, only stronger.
+  washScale: 2.2,
 };
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -213,7 +217,12 @@ export function remapToPalette(color, palette) {
   if (!palette) return color;
   const c = parseColor(color);
   if (!c) return color;
-  if (c.a <= WASH_ALPHA_MAX) return color;
+  if (c.a <= WASH_ALPHA_MAX) {
+    // A wash keeps its hue (its meaning). A palette over a dark ground may make it stronger.
+    const k = Number(palette.washScale);
+    if (!(k > 0) || k === 1) return color;
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${Math.round(Math.min(0.9, c.a * k) * 1000) / 1000})`;
+  }
 
   const [h, s, l] = rgbToHsl(c.r, c.g, c.b);
   if (s < 8) return color;

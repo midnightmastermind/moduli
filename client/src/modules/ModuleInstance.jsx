@@ -121,7 +121,7 @@ const INSTANCE_LABEL_PX = 17;
 // Declared in index.css so it shrinks below tablet width (2026-08-26); the
 // number here is the desktop MAX and the var()'s fallback. Inline styles must
 // use the var, not the number — see ui/Field.jsx.
-const INSTANCE_LABEL = `var(--instance-label-px, ${INSTANCE_LABEL_PX}px)`;
+const INSTANCE_LABEL = `var(--cascade-font-size, var(--instance-label-px, ${INSTANCE_LABEL_PX}px))`;
 
 // Stable identity: a fresh {} here would defeat the whole point of not
 // subscribing, re-rendering on every store read instead of every op write.

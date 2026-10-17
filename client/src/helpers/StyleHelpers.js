@@ -566,8 +566,12 @@ export function styleToCSS(style) {
   // deliberate choice is not this function's job. The derived ink only fills
   // the gap where nothing was chosen and the theme's own ink has stopped
   // working against the colour on the row.
+  // A CHOSEN colour / font / size also travels as a custom property, so it reaches text that sets its
+  // own (a textblock's prose sits at the label size) and wins over a skin that paints every element
+  // (Terminal) — the skin reads `var(--cascade-ink, <its own>)`. A derived ink is not a choice.
   if (style.textColor != null) {
     css.color = style.textColor;
+    css["--cascade-ink"] = style.textColor;
   } else if (css.backgroundColor != null) {
     const derived = inkForStoredBg(css.backgroundColor);
     if (derived) css.color = derived;
@@ -578,8 +582,8 @@ export function styleToCSS(style) {
   if (style.borderStyle != null) css.borderStyle = style.borderStyle;
   if (style.borderRadius != null) css.borderRadius = style.borderRadius;
   if (style.opacity != null)    css.opacity = style.opacity;
-  if (style.fontFamily != null) css.fontFamily = style.fontFamily;
-  if (style.fontSize != null)   css.fontSize = style.fontSize;
+  if (style.fontFamily != null) { css.fontFamily = style.fontFamily; css["--cascade-font"] = style.fontFamily; }
+  if (style.fontSize != null)   { css.fontSize = style.fontSize; css["--cascade-font-size"] = style.fontSize; }
   if (style.fontWeight != null) css.fontWeight = style.fontWeight;
   if (style.lineHeight != null) css.lineHeight = style.lineHeight;
   if (style.padding != null)    css.padding = style.padding;

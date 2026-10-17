@@ -228,3 +228,15 @@ describe("two alphas, not one", () => {
     expect(retro.storedColorAlpha).toBe(0.24);
   });
 });
+
+// User 2026-10-17: in the terminal skin one of the Schedule's passed-slot reds (10%) vanished on black.
+import { TERMINAL_PALETTE as __T, STARDEW_PALETTE as __S, remapToPalette as __remap } from "../helpers/skinPalettes";
+describe("terminal: a state wash is strengthened, not re-hued", () => {
+  it("both passed-slot reds keep their hue and ratio and become visible on black", () => {
+    expect(__remap("rgba(248,113,113,0.10)", __T)).toBe("rgba(248, 113, 113, 0.22)");
+    expect(__remap("rgba(248,113,113,0.20)", __T)).toBe("rgba(248, 113, 113, 0.44)");
+  });
+  it("other skins leave a wash exactly as stored", () => {
+    expect(__remap("rgba(248,113,113,0.10)", __S)).toBe("rgba(248,113,113,0.10)");
+  });
+});

@@ -8891,7 +8891,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-textblock-block .doc-editor-content.ProseMirror p,
 .doc-editor-content .instance-textblock-inline,
 .instance-textblock-inline {
-  font-size: var(--instance-label-px, 17px);
+  /* A size chosen in the styling cascade (a container's Style tab) reaches the prose inside it. */
+  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
 }
 
 
@@ -9030,10 +9031,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    (primary) gets black text so it stays readable. */
 :root[data-skin="terminal"] body,
 :root[data-skin="terminal"] body *:not(img):not(video):not(canvas):not(svg *) {
-  color: var(--term-green) !important;
-  font-family: var(--font-mono) !important;
+  color: var(--cascade-ink, var(--term-green)) !important;
+  font-family: var(--cascade-font, var(--font-mono)) !important;
   border-color: var(--term-green-line) !important;
   text-shadow: 0 0 6px rgba(51, 255, 102, 0.35);
+  /* VT323 draws far smaller than IBM Plex Mono at the same px (an 18px header read smaller than the
+     17px prose under it), and Plex draws big. One x-height ratio for every face fixes both. */
+  font-size-adjust: 0.46;
 }
 :root[data-skin="terminal"] .page-header,
 :root[data-skin="terminal"] .page-header *,
@@ -9041,7 +9045,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] .container-header *,
 :root[data-skin="terminal"] .toolbar,
 :root[data-skin="terminal"] .toolbar * {
-  font-family: var(--font-display) !important;
+  font-family: var(--cascade-font, var(--font-display)) !important;
   letter-spacing: 0.02em;
 }
 :root[data-skin="terminal"] .page-header,
