@@ -118,6 +118,22 @@ export const STARDEW_NIGHT_PALETTE = {
   sourceLightRange: [22, 58],
 };
 
+/**
+ * Terminal — one hue. A phosphor screen has a single colour, so every stored
+ * colour is pulled ALL the way to green (`huePull: 1`) and down into a dark
+ * band: on this skin a coloured card is a dim green slab behind green ink, the
+ * way a highlighted line reads on a green-screen terminal. Families stay apart
+ * on lightness and saturation alone.
+ */
+export const TERMINAL_PALETTE = {
+  id: "terminal",
+  hues: [130],
+  satRange: [45, 80],
+  lightRange: [7, 17],
+  huePull: 1,
+  sourceLightRange: [22, 58],
+};
+
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 /** Circular distance between two hues, in degrees (0-180). */

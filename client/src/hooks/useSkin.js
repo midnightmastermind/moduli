@@ -35,6 +35,22 @@ export function writeStoredSkin(id) {
 }
 
 /** Apply a skin to the document. Exported so a preview surface can call it. */
+/**
+ * A skin that names `fonts` (a Google Fonts css2 family query) gets that
+ * stylesheet linked once, the first time it is applied. Loaded only for the
+ * skin that uses it, so no other skin pays for the request.
+ */
+export function loadSkinFonts(skin) {
+  if (!skin?.fonts || typeof document === "undefined") return;
+  const id = `skin-fonts-${skin.id}`;
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?${skin.fonts}&display=swap`;
+  document.head.appendChild(link);
+}
+
 export function applySkin(skin) {
   const el = document.documentElement;
   el.setAttribute("data-skin", skin.id);
@@ -76,6 +92,7 @@ export function applySkin(skin) {
   put("--retro-rainbow", skin.band ?? "none");
   put("--retro-header-scrim", skin.headerScrim ?? 1);
   put("--retro-panel-scrim", skin.panelScrim ?? 1);
+  loadSkinFonts(skin);
   setActiveSkin(skin);
 
   // THE THEME'S INK AND PAGE, READ AFTER `data-theme` IS ON THE ELEMENT.

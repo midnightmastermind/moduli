@@ -3979,3 +3979,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-16 14:58** — answers: delete only the 32 Calibre rows with no file; merge duplicates keeping the better file; delete the personal rows from the Books board.
 - **2026-10-17 07:21** — *"i added a test video file and mp3 file to moduli uploads. could you put them into the app as file occurances so i can test those out"*
 - **2026-10-17 07:32** — *"i needed to click twice when the video was in the viewer for it to play (opens it up in another popup…) … include waveform in the audio viewer like when you view the file in panel and also center it … is there any way to speed up buffering of videos?"*
+- **2026-10-17 07:58** — *"the containers full screen but the waveform viewer itself should be centered vertically, not extend the full height. and we need to have a loading icon for files not brought in yet, right now they say no file attached as it loads"*
+- **2026-10-17 08:00** — *"can you also create a theme after that looks like a terminal everywhere, just black background with green computer lettering on everything"*

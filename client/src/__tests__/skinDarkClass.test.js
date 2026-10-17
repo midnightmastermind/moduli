@@ -23,6 +23,16 @@ describe("applySkin — the dark class", () => {
     expect(isDark()).toBe(true);
   });
 
+  it("Terminal is dark, and loads its own fonts once", () => {
+    applySkin(getSkin("terminal"));
+    expect(document.documentElement.getAttribute("data-theme")).toBe("terminal");
+    expect(isDark()).toBe(true);
+    applySkin(getSkin("terminal"));
+    const links = document.querySelectorAll('link[id="skin-fonts-terminal"]');
+    expect(links.length).toBe(1);
+    expect(links[0].href).toContain("VT323");
+  });
+
   it("day Stardew is still light (the control)", () => {
     document.documentElement.classList.add("dark");
     applySkin(getSkin("stardew"));

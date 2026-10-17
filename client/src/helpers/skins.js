@@ -18,7 +18,7 @@
 // A skin may PIN a theme (`theme`). Without that, a light theme under a dark
 // skin is reachable in two clicks and reads as broken.
 
-import { STARDEW_PALETTE, STARDEW_NIGHT_PALETTE, BLUEPRINT_PALETTE } from "./skinPalettes";
+import { STARDEW_PALETTE, STARDEW_NIGHT_PALETTE, BLUEPRINT_PALETTE, TERMINAL_PALETTE } from "./skinPalettes";
 
 export const DEFAULT_SKIN = "retro-rainbow";
 
@@ -196,6 +196,26 @@ export const SKINS = [
     surfaceAlpha: 0.34,
     storedColorAlpha: 0.40,
     palette: BLUEPRINT_PALETTE,
+  },
+
+  // ── Terminal ─────────────────────────────────────────────────────────────
+  // User, 2026-10-17: "a theme that looks like a terminal everywhere, just
+  // black background with green computer lettering on everything". Its own
+  // theme (black, green tokens) plus skin rules in index.css that put EVERY
+  // piece of text in the green monospace face — a stored colour, a signal
+  // colour or a component's hardcoded colour would otherwise break the look.
+  {
+    id: "terminal",
+    label: "Terminal",
+    description: "Black screen, green monospace lettering",
+    swatches: ["#000000", "#0a2a12", "#33ff66"],
+    theme: "terminal",
+    wallpaper: null,
+    band: null,
+    surfaceAlpha: 1,
+    storedColorAlpha: 0.85,
+    palette: TERMINAL_PALETTE,
+    fonts: "family=VT323&family=IBM+Plex+Mono:wght@400;600",
   },
 ];
 

@@ -8893,3 +8893,165 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-textblock-inline {
   font-size: var(--instance-label-px, 17px);
 }
+
+
+/* =============================================================================
+   SKIN + THEME: Terminal (user, 2026-10-17)
+
+   "a theme that looks like a terminal everywhere, just black background with
+   green computer lettering on everything".
+
+   Two halves. The THEME block below sets every surface token to black and
+   every ink token to phosphor green. The SKIN rules after it are blunter on
+   purpose: components paint text with stored colours, signal colours and a few
+   hardcoded literals, and any one of them breaking the green would break the
+   look the user asked for. So on this skin every element's text is green and
+   every border is a dim green, overriding inline styles (`!important`).
+   Backgrounds are left to the tokens and to the palette remap
+   (TERMINAL_PALETTE), which turns a stored card colour into a dark green slab.
+   ============================================================================= */
+:root[data-skin="terminal"] {
+  --grid-wallpaper: none;
+  --grid-wallpaper-scrim: 1;
+  --grid-surface-a: 1;
+  --retro-rainbow: none;
+  --retro-header-scrim: 1;
+  --retro-panel-scrim: 1;
+  --font-display: "VT323", "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", "VT323", ui-monospace, monospace;
+  --term-green: #33ff66;
+  --term-green-dim: rgba(51, 255, 102, 0.62);
+  --term-green-line: rgba(51, 255, 102, 0.28);
+  --doc-container-tint: transparent;
+  --doc-container-tint-hover: rgba(51, 255, 102, 0.05);
+  --doc-textblock-tint: transparent;
+  --doc-textblock-tint-hover: rgba(51, 255, 102, 0.05);
+}
+
+[data-theme="terminal"] {
+  --scrim: rgba(0, 0, 0, 0.7);
+  --menu-shadow-color: rgba(0, 0, 0, 0.8);
+  --menu-shadow-1: 0 0 0 1px rgba(51, 255, 102, 0.35);
+  --menu-shadow-2: 0 0 0 1px rgba(51, 255, 102, 0.35), 0 0 18px rgba(51, 255, 102, 0.12);
+  --menu-shadow-3: 0 0 0 1px rgba(51, 255, 102, 0.40), 0 0 28px rgba(51, 255, 102, 0.16);
+
+  /* Signals stay green except a loss/warning, which goes amber — the one
+     colour a terminal uses for "look at this", so the meaning survives. */
+  --signal-zero: 51 255 102;
+  --signal-pos: 120 255 150;
+  --signal-neg: 255 176 0;
+  --signal-warn: 255 176 0;
+
+  --occ-card: 51 255 102;
+  --occ-card-a: .04;
+  --occ-card-soft-a: .03;
+  --occ-card-hover-a: .08;
+  --occ-pill: 51 255 102;
+  --occ-pill-text: rgb(51 255 102);
+  --figure-well: 0 0 0;
+
+  --background-0: 0 0% 0%;
+  --background-1: 0 0% 0%;
+  --background-2: 130 30% 3%;
+
+  --surface-0: 0 0% 0%;
+  --surface-1: 0 0% 0%;
+  --surface-2: 130 40% 5%;
+
+  --popover-0: 0 0% 0%;
+  --popover-1: 0 0% 0%;
+  --popover-2: 130 40% 5%;
+  --popover-foreground: 136 100% 60%;
+
+  --input-0: 0 0% 0%;
+  --input-1: 0 0% 0%;
+  --input-2: 130 40% 5%;
+
+  --overlay-0: 0 0% 0%;
+  --overlay-1: 0 0% 0%;
+  --overlay-2: 0 0% 2%;
+
+  --border-0: 136 100% 60% / 0.28;
+  --border-1: 136 100% 60% / 0.28;
+  --border-2: 136 100% 60% / 0.45;
+
+  --foreground-0: 136 100% 55%;
+  --foreground-1: 136 100% 60%;
+  --foreground-2: 136 70% 42%;
+
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 136 100% 60%;
+  --primary-foreground: 0 0% 0%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  --body-bg: #000000;
+  --body-color: #33ff66;
+
+  --grid-cell-border: rgba(51, 255, 102, 0.22);
+  --grid-line: rgba(51, 255, 102, 0.35);
+
+  --text-primary: #33ff66;
+  --text-muted: rgba(51, 255, 102, 0.72);
+  --text-faint: rgba(51, 255, 102, 0.55);
+  --border-default: rgba(51, 255, 102, 0.28);
+  --border-subtle: rgba(51, 255, 102, 0.14);
+  --surface-card: #000000;
+  --surface-overlay: rgba(0, 0, 0, 0.94);
+  --input-bg: rgba(51, 255, 102, 0.05);
+  --input-border: rgba(51, 255, 102, 0.35);
+  --accent-blue: #33ff66;
+  --accent-blue-hover: #66ff8c;
+  --on-accent: #000000;
+  --accent-blue-text: #33ff66;
+  --accent-blue-bg: rgba(51, 255, 102, 0.12);
+  --accent-blue-border: rgba(51, 255, 102, 0.45);
+  --accent-green-text: #33ff66;
+  --accent-green-bg: rgba(51, 255, 102, 0.12);
+  --accent-green-border: rgba(51, 255, 102, 0.45);
+  --accent-purple-text: #33ff66;
+  --accent-purple-bg: rgba(51, 255, 102, 0.10);
+  --accent-purple-border: rgba(51, 255, 102, 0.40);
+  --danger: #ffb000;
+  --danger-bg: rgba(255, 176, 0, 0.12);
+  --danger-border: rgba(255, 176, 0, 0.45);
+  --danger-text: #ffb000;
+}
+
+/* EVERY piece of text is green and monospace, whatever painted it. Media and
+   canvas drawings keep their own pixels. A button that FILLS with green
+   (primary) gets black text so it stays readable. */
+:root[data-skin="terminal"] body,
+:root[data-skin="terminal"] body *:not(img):not(video):not(canvas):not(svg *) {
+  color: var(--term-green) !important;
+  font-family: var(--font-mono) !important;
+  border-color: var(--term-green-line) !important;
+  text-shadow: 0 0 6px rgba(51, 255, 102, 0.35);
+}
+:root[data-skin="terminal"] .page-header,
+:root[data-skin="terminal"] .page-header *,
+:root[data-skin="terminal"] .container-header,
+:root[data-skin="terminal"] .container-header *,
+:root[data-skin="terminal"] .toolbar,
+:root[data-skin="terminal"] .toolbar * {
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.02em;
+}
+:root[data-skin="terminal"] .page-header,
+:root[data-skin="terminal"] .container-header {
+  font-size: 1.12em;
+}
+:root[data-skin="terminal"] svg { color: var(--term-green) !important; }
+:root[data-skin="terminal"] ::selection { background: #33ff66; color: #000; }
+:root[data-skin="terminal"] input,
+:root[data-skin="terminal"] textarea,
+:root[data-skin="terminal"] select {
+  background-color: #000 !important;
+}

@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (3) — A TERMINAL SKIN: black screen, green monospace lettering on everything
+
+User: *"a theme that looks like a terminal everywhere, just black background with green computer lettering on
+everything"*. New skin **Terminal** (Appearance picker): theme `terminal` (every surface token black, every ink
+token #33ff66, signals green except a loss/warning in amber so the meaning survives), `TERMINAL_PALETTE` (one hue,
+`huePull: 1`, dark band — a stored card colour becomes a dim green slab), and skin rules in `index.css` that force
+every element's text green + monospace and every border dim green over inline styles (`!important`; images, video,
+canvas keep their pixels). Headers use VT323, body IBM Plex Mono — loaded from Google Fonts only while the skin is
+on (`skin.fonts` → `useSkin.loadSkinFonts`, one `<link>`). **The Stardew skins' VT323/Silkscreen were never loaded
+by anything** (no link, no @font-face) — they fall back to the system mono; not changed here.
+Checked on the local build against prod, test grid 2 (via `localStorage.moduli-skin`, no grid's saved skin
+written): 0 text nodes in any colour but green, both faces loaded, body black. A caret rule was dropped because it
+re-showed the caret on empty doc lines (`docCaretHidden` caught it). Tests: `skinDarkClass` +1, `contrast` covers
+the theme. Pre-existing, not mine: `sharePending.test.jsx` 5 failures (fail with these changes stashed too).
+
+---
+
 ### 2026-10-17 (2) — VIEWER MEDIA PLAYS ON ONE CLICK; the audio tile is the waveform; Drive media keeps a disk copy
 
 User: *"i needed to click twice when the video was in the viewer for it to play (opens it up in another popup)"* ·
