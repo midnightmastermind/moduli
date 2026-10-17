@@ -3989,3 +3989,5 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-17 08:48** — after the terminal theme fixes: every drawer, the manifest tree, the control center and any menu coming out of them should SLIDE out, not just appear.
 - **2026-10-17 08:49** — with the font-size fix: check font size, font family and text color can be changed in the UI, through the styling cascade.
 - **2026-10-17 08:50** — yes to both op additions (READ_FILE returns the page a passage starts on; a "matches regex" condition) — do them after the slide-out fixes.
+- **2026-10-17 09:45** — scheduled items should keep their original colour; right now they look like the background of the container behind them.
+- **2026-10-17 09:46–09:49** — any theme: a scheduled item (e.g. Sleep in the 5am slot) shows its slot's red instead of its own colour. Also the passed-slot red is not seen enough (past days) and the grey (idle) stripe is not showing well for some slots.

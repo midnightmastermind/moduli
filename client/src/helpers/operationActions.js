@@ -433,6 +433,14 @@ export function resolveExpr(expr, $vars) {
  * and the count in the message is what turns a server-side CastError into
  * something the person building the operation can read.
  */
+/** The module keys that decide how a module LOOKS, copied onto a clone of it. */
+export const CLONE_STYLE_KEYS = ["styleMode", "ownStyle", "childInstanceStyle", "childContainerStyle"];
+export function styleKeysOf(mod) {
+  const out = {};
+  for (const k of CLONE_STYLE_KEYS) if (mod?.[k] != null) out[k] = mod[k];
+  return out;
+}
+
 export function singleOccurrenceId(value, action, expr) {
   if (Array.isArray(value)) {
     throw new Error(`${action}: ${expr} matched ${value.length} records — bind one`);
@@ -3776,6 +3784,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             kind: srcMod.kind,
             meta: newModuleMeta,
             fieldBindings: Array.isArray(srcMod.fieldBindings) ? srcMod.fieldBindings : [],
+            // A clone keeps its source's look (user 2026-10-17: a Sleep placed in a
+            // passed 5am slot showed the slot's red — its clone had no colour, so the
+            // row was see-through). The server's clone already copies the whole module.
+            ...styleKeysOf(srcMod),
           },
           instance: {
             id: cloneOccId,

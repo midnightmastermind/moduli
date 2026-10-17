@@ -10,7 +10,7 @@ import { buildParentMap, allAncestorsOf } from "../helpers/dragHitTesting";
 import { ActionTypes } from "./actions";
 import { dropEmbedsOf } from "../helpers/embedRegistry";
 import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
-import { kindForNewModule } from "../helpers/operationActions";
+import { kindForNewModule, styleKeysOf } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification, upsertGesturePill } from "./notificationStore";
 import { describeSnapshotTransaction } from "../helpers/transactionScope";
@@ -1786,6 +1786,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             gridId,
             fieldBindings: Array.isArray(effect.template.fieldBindings) ? effect.template.fieldBindings : [],
             ...(effect.template.meta && { meta: effect.template.meta }),
+            ...styleKeysOf(effect.template),
           };
           socketDispatch(createModuleAction(newModule));
           // safeEmit, like every other create_module site: it is the chokepoint

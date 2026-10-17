@@ -35,7 +35,10 @@ export const touches = ["operations"];
 const OP_NAME = "Schedule: Mark Passed Slots";
 export const PASSED_A = "rgba(248,113,113,0.10)";
 export const PASSED_B = "rgba(248,113,113,0.20)";
-export const IDLE_B = "rgba(148,163,184,0.12)";
+// The grey was 0.12 until 2026-10-17 (user: the grey on slots not yet past did not
+// show). 0414 rewrites an op already striped with the old value.
+export const IDLE_B_OLD = "rgba(148,163,184,0.12)";
+export const IDLE_B = "rgba(148,163,184,0.22)";
 const MARK = "slotStripe";
 const BG = "$slot.ownStyle.bg";
 
