@@ -9075,6 +9075,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   background: rgba(var(--occ-card) / calc(var(--occ-card-a) + 0.3));
   border: 1px solid var(--border-default);
   padding: 6px 8px;
+  max-height: none; /* the board tile's 160px cap is for a drawer under a tile, not a column beside a file */
 }
 .file-notes-side {
   flex: 0 0 min(40%, 380px);
