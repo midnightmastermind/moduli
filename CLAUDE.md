@@ -15,6 +15,17 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 — DRIVE AUDIO/VIDEO BECOME FILE OCCURRENCES (`0412`)
+
+User: *"i added a test video file and mp3 file to moduli uploads. could you put them into the app as file occurances"*.
+`0412` lists the Drive connection's upload folder (`Connection.config.folderId`, direct children only) and gives
+each audio/video/image file not yet referenced what an upload gets: artifact module (`gdrive:<conn>:<fileId>`,
+kind from the mime), a display View, an occurrence in Files/Audio | Video | Images. Re-runnable (skips referenced
+files). Applied: an mp3 (29 MB) in Files › Audio, an mp4 (201 MB) in Files › Video; prod's `/files/` proxy answers
+206 with the right type for both. **Not watched in a browser.** Test `driveMediaFiles.test.js` (2).
+
+---
+
 ### 2026-10-16 (7) — THE BOOKS BOARD CLEANED (`0411`): Calibre rows with no file, personal documents, duplicates
 
 User: *"myth and religion is a book that doesnt have a cover and i cant access the file"* · *"there are a ton of
