@@ -23,6 +23,7 @@ import { useClosingGate } from "../helpers/closingGate";
 import { useDockRect, useInSpread, dockVars } from "../helpers/spreadDock";
 import BookmarkView from "./BookmarkView.jsx";
 import BookReader from "./BookReader.jsx";
+import AudioWaveform from "./AudioWaveform.jsx";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -510,6 +511,26 @@ export default function ArtifactCard({ module, label, occurrence }) {
     return (
       <div className="artifact-card artifact-card--bookmark-open artifact-card--book-open" data-kind={kind} onClick={(e) => e.stopPropagation()}>
         <BookReader module={module} occurrence={occurrence} src={src} kind={kind} />
+      </div>
+    );
+  }
+
+  // AUDIO AND VIDEO IN THE VIEWER PLAY WHERE THEY ARE (user, 2026-10-17: "i needed to click twice when
+  // the video was in the viewer for it to play (opens it up in another popup)"; the audio should look
+  // like the panel's — the waveform, centered). The tile was a muted thumbnail whose click opened the
+  // full-screen card, which then needed its own click on play. Same rule as the book above: in the
+  // viewer the tile IS the player; the tile header's maximize fills the viewer with it.
+  if (inSpread && kind === "video" && src && !coverSrc) {
+    return (
+      <div className="artifact-card artifact-card--media-open" data-kind="video" onClick={(e) => e.stopPropagation()}>
+        <video className="artifact-media-open-video" src={src} controls playsInline preload="metadata" />
+      </div>
+    );
+  }
+  if (inSpread && kind === "audio" && src) {
+    return (
+      <div className="artifact-card artifact-card--media-open" data-kind="audio" onClick={(e) => e.stopPropagation()}>
+        <AudioWaveform src={src} />
       </div>
     );
   }

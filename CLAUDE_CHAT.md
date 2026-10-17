@@ -3978,3 +3978,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **2026-10-16 14:55** — *"myth and religion is a book that doesnt have a cover and i cant access the file"*
 - **2026-10-16 14:58** — answers: delete only the 32 Calibre rows with no file; merge duplicates keeping the better file; delete the personal rows from the Books board.
 - **2026-10-17 07:21** — *"i added a test video file and mp3 file to moduli uploads. could you put them into the app as file occurances so i can test those out"*
+- **2026-10-17 07:32** — *"i needed to click twice when the video was in the viewer for it to play (opens it up in another popup…) … include waveform in the audio viewer like when you view the file in panel and also center it … is there any way to speed up buffering of videos?"*

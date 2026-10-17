@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (2) — VIEWER MEDIA PLAYS ON ONE CLICK; the audio tile is the waveform; Drive media keeps a disk copy
+
+User: *"i needed to click twice when the video was in the viewer for it to play (opens it up in another popup)"* ·
+waveform + centering for audio in the viewer · *"is there any way to speed up buffering of videos?"*
+- **Viewer tiles (`ArtifactCard`):** in the spread a video tile is a `<video controls>` (it was a muted thumbnail
+  whose click opened the full-screen card, which needed its own click on play) and an audio tile is the panel's
+  waveform, centred (`modules/AudioWaveform.jsx`, moved out of ArtifactContent so both use it). Outside the viewer
+  both stay thumbnails. Test `spreadMediaPlays.test.jsx` (3; A/B: removing the branches fails 2).
+- **Buffering, measured on prod:** Drive answers each byte range ~0.7s late while the transfer runs at ~75 MB/s,
+  and the test mp4 keeps its index (`moov`) at the END behind 200 MB of frames — so the player reads the start,
+  jumps to the end and comes back, paying 0.7s each time. `services/storage/diskCache.js` (`withDiskCache`,
+  wired into the `/files/` proxy): the first open of an audio/video file streams from Drive as before and starts
+  one background download into `server/cache/drive/` (gitignored); later ranges read the disk copy. LRU past
+  `DRIVE_CACHE_MAX_BYTES` (5 GB default), files over 2 GB never cached. Test `diskCache.test.js` (5).
+  **Not done:** remuxing a moov-at-end file to faststart (would need ffmpeg + writing a copy).
+
+---
+
 ### 2026-10-17 — DRIVE AUDIO/VIDEO BECOME FILE OCCURRENCES (`0412`)
 
 User: *"i added a test video file and mp3 file to moduli uploads. could you put them into the app as file occurances"*.

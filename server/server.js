@@ -40,6 +40,7 @@ import { makeStorageRegistry } from "./services/storage/index.js";
 import { getConnection, defaultConnectionId, getConnectionById, storageFactories } from "./services/connections.js";
 import { googleSetupMissing, redirectUriFor, startUrl as googleStartUrl, completeConnect as googleCompleteConnect } from "./services/googleOAuth.js";
 import { serveStoredFile } from "./services/storage/serveFile.js";
+import { withDiskCache } from "./services/storage/diskCache.js";
 import { ARTIFACT_MAX_BYTES, SHARE_MAX_BYTES } from "./config/uploadLimits.js";
 import Operation from "./models/Operation.js";
 
@@ -633,11 +634,15 @@ app.get("/api/connections/:id/health", requireSession, async (req, res) => {
 // A Drive file streams THROUGH the server: the file stays private in the
 // user's Drive and the Google token never reaches a browser. Range is honoured
 // (video seeks); a Drive file id never changes content, so it caches hard.
+const mediaCaches = new WeakMap();   // storage backend -> its disk-cached wrapper
 app.get("/files/:connectionId/:fileId", async (req, res) => {
   try {
     const backend = await storageRegistry.backendForConnectionId(req.params.connectionId);
     if (!backend || backend.type === "server") return res.status(404).json({ error: "not_found", message: "No such storage connection." });
-    await serveStoredFile(req, res, backend, `gdrive:${req.params.connectionId}:${req.params.fileId}`);
+    // Audio/video keep a server-disk copy after the first open (services/storage/diskCache.js): Drive
+    // answers each byte range ~0.7s late, and a player makes many.
+    if (!mediaCaches.has(backend)) mediaCaches.set(backend, withDiskCache(backend, { dir: path.join(__dirname, "cache", "drive"), maxBytes: Number(process.env.DRIVE_CACHE_MAX_BYTES) || 5e9 }));
+    await serveStoredFile(req, res, mediaCaches.get(backend), `gdrive:${req.params.connectionId}:${req.params.fileId}`);
   } catch (e) {
     if (res.headersSent) return res.destroy(e);
     if (e.status === 401) return res.status(502).json({ error: "needs_reconnect", message: "Google Drive needs to be reconnected (Command Center → Connections)." });

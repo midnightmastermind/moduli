@@ -44,3 +44,6 @@ server/share-stage/
 # Built/signed extension packages, and the AMO signing keys (never tracked).
 extension/dist/
 extension/.sign.env
+
+# Server-disk copies of Drive audio/video (server/services/storage/diskCache.js)
+server/cache/
