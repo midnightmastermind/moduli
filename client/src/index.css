@@ -8658,7 +8658,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="stardew-night"] .field-display *,
 :root[data-skin="stardew-night"] .field-input,
 :root[data-skin="stardew-night"] .field-input * {
-  font-size: var(--field-font-px, 13px) !important;
+  font-size: var(--cascade-field-font-size, var(--field-font-px, 13px)) !important;
 }
 
 /* (4) — doc headers and prose go near-black. */
@@ -9057,9 +9057,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] .container-header * { font-size-adjust: 0.66; }
 :root[data-skin="terminal"] .toolbar,
 :root[data-skin="terminal"] .toolbar * { font-size-adjust: none; }
-/* The header's CONTROLS (a filter's date pill, buttons, inputs) are not headings. */
-:root[data-skin="terminal"] :is(.page-header, .container-header) :is(button, button *, input, select, [role="button"], [role="button"] *) {
+/* The header's CONTROLS (a filter's date pill, buttons, inputs) are not headings: a filter keeps
+   one size whatever the header's (user 2026-10-17). */
+:root[data-skin="terminal"] :is(.page-header, .container-header) :is(button, button *, input, select, [role="button"], [role="button"] *, .header-filter-pill, .header-filter-pill *) {
   font-size-adjust: none;
+}
+/* A field's own cascade settings win over the skin's paint, as the label's do. */
+:root[data-skin="terminal"] :is(.field-display, .field-input),
+:root[data-skin="terminal"] :is(.field-display, .field-input) * {
+  color: var(--cascade-field-ink, var(--term-green)) !important;
+  font-family: var(--cascade-field-font, var(--font-mono)) !important;
 }
 :root[data-skin="terminal"] .page-header,
 :root[data-skin="terminal"] .container-header {

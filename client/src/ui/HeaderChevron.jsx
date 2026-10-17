@@ -178,7 +178,7 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null, show
         />
       </button>
       {pillEntries.map(({ fid, label }) => (
-        <span
+        <span className="header-filter-pill"
           key={fid}
           title={`Active filter: ${label}`}
           onClick={onClick}

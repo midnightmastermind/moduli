@@ -27,4 +27,20 @@ describe("cascade text vars", () => {
     expect(src).toMatch(/font-size-adjust: 0\.48/);
     expect(src).toMatch(/\.container-header \* \{ font-size-adjust: 0\.66; \}/);
   });
+  it("a field's own colour / font / size travel separately, and only as properties", () => {
+    const css = styleToCSS({ fieldTextColor: "#00f", fieldFontFamily: "Georgia", fieldFontSize: "15px" });
+    expect(css["--cascade-field-ink"]).toBe("#00f");
+    expect(css["--cascade-field-font"]).toBe("Georgia");
+    expect(css["--cascade-field-font-size"]).toBe("15px");
+    expect(css.color).toBeUndefined();
+    expect(css.fontSize).toBeUndefined();
+  });
+  it("field pills read the field properties first; a header's filter pill keeps its size in Terminal", () => {
+    const field = fs.readFileSync(path.join(__dirname, "../ui/Field.jsx"), "utf8");
+    expect(field).toMatch(/FIELD_FONT = `var\(--cascade-field-font-size, var\(--field-font-px/);
+    expect(field).not.toMatch(/fontFamily: "var\(--font-mono\)"/);
+    const css = fs.readFileSync(path.join(__dirname, "../index.css"), "utf8");
+    expect(css).toMatch(/\.header-filter-pill, \.header-filter-pill \*\) \{\s*font-size-adjust: none;/);
+    expect(css).toMatch(/color: var\(--cascade-field-ink, var\(--term-green\)\) !important/);
+  });
 });

@@ -117,7 +117,11 @@ export const FIELD_FONT_PX = 13;
 // inline style resolves at computed-value time, so it follows the breakpoints;
 // a number cannot. FIELD_FONT_PX stays as the documented desktop maximum and as
 // the var()'s fallback.
-export const FIELD_FONT = `var(--field-font-px, ${FIELD_FONT_PX}px)`;
+// A field's size / font / ink can be set in the styling cascade (fieldFontSize / fieldFontFamily /
+// fieldTextColor, StyleHelpers.styleToCSS) — each part of a pill reads the property before its default.
+export const FIELD_FONT = `var(--cascade-field-font-size, var(--field-font-px, ${FIELD_FONT_PX}px))`;
+const FIELD_FAMILY = "var(--cascade-field-font, var(--font-mono))";
+const FIELD_INK = (fallback) => `var(--cascade-field-ink, var(${fallback}))`;
 
 // The pill + menu for a `when` field. Opens the WhenPicker; Save writes the value, Clear writes null.
 function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
@@ -128,7 +132,7 @@ function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} data-testid="when-pill"
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all cursor-pointer hover:brightness-110 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
-          style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text, fontFamily: "var(--font-mono)" }}
+          style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text, fontFamily: FIELD_FAMILY }}
           title={`${name}: ${text} — Click to change`}>
           {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
           <span>{text}</span>
@@ -270,7 +274,7 @@ function RandomizeSegment({ onClick, disabled, compact }) {
       onClick={onClick}
       className={`inline-flex items-center justify-center px-1.5 flex-shrink-0
         ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
-      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}
+      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: FIELD_INK("--text-faint") }}
     >
       <Shuffle className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
     </button>
@@ -306,7 +310,7 @@ function GoToSegment({ ids, hostOccurrence, compact, labelFor }) {
     <button type="button" title={ids.length === 1 ? `Go to ${labelFor(ids[0])}` : "Go to…"}
       onClick={(e) => { e.stopPropagation(); if (ids.length === 1) go(ids[0]); else setOpen((v) => !v); }}
       className="inline-flex items-center justify-center px-1.5 flex-shrink-0 cursor-pointer hover:bg-muted"
-      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}>
+      style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: FIELD_INK("--text-faint") }}>
       <ArrowUpRight className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
     </button>
   );
@@ -752,7 +756,7 @@ function AffixSegment({ value, options, onPick, side = "postfix", compact = fals
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-white/10"}`}
           style={{
             [side === "prefix" ? "borderRight" : "borderLeft"]: "1px solid rgba(255,255,255,0.18)",
-            color: "var(--text-muted)",
+            color: FIELD_INK("--text-muted"),
             fontSize: FIELD_FONT,
             lineHeight: 1,
             minWidth: compact ? 14 : 18,
@@ -999,7 +1003,7 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
         {crumb && (
-          <div style={{ fontSize: FIELD_FONT, color: "var(--text-faint)", fontFamily: "var(--font-mono)",
+          <div style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint"), fontFamily: FIELD_FAMILY,
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{crumb}</div>
         )}
         {label != null && (
@@ -1008,7 +1012,7 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
         {card?.fieldVals?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
             {card.fieldVals.map((fv, i) => (
-              <span key={i} style={{ fontSize: FIELD_FONT, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+              <span key={i} style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint"), fontFamily: FIELD_FAMILY }}>
                 {fv.name}: {String(fv.value)}
               </span>
             ))}
@@ -1745,7 +1749,7 @@ function Field({
           padding: compact ? "2px 8px" : "3px 10px",
           borderRadius: 999,
           fontSize: FIELD_FONT,
-          fontFamily: "var(--font-mono)",
+          fontFamily: FIELD_FAMILY,
           cursor: enabled ? "pointer" : "not-allowed",
           background: enabled ? "var(--accent-blue-bg)" : "var(--input-bg)",
           border: `1px solid ${enabled ? "var(--accent-blue-border)" : "var(--border-subtle)"}`,
@@ -1949,7 +1953,7 @@ function Field({
           <Switch checked={isOn} disabled={disabled}
             onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
           {!hideName && name && (
-            <span style={{ fontSize: FIELD_FONT, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ fontSize: FIELD_FONT, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: FIELD_FAMILY }}>
               {name}
             </span>
           )}
@@ -2060,8 +2064,8 @@ function Field({
           title={`${name}: ${formatted} — Click to change`}
           onClick={openPicker}
         >
-          {!hideName && name && <span style={{ fontFamily: "var(--font-mono)", opacity: 0.6 }}>{name}:</span>}
-          <span style={{ fontFamily: "var(--font-mono)" }}>{formatted}</span>
+          {!hideName && name && <span style={{ fontFamily: FIELD_FAMILY, opacity: 0.6 }}>{name}:</span>}
+          <span style={{ fontFamily: FIELD_FAMILY }}>{formatted}</span>
           <input ref={inputRef} type="date" value={inputDate} disabled={disabled}
             onChange={e => { handleChange(e.target.value); onCommit?.(e.target.value); }}
             style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
@@ -2075,7 +2079,7 @@ function Field({
       const currentRating = localValue ?? 0;
       return (
         <div className="field-input inline-flex items-center gap-0.5" title={`${name}: ${currentRating}/${maxRating}`}>
-          {!hideName && name && <span style={{ fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginRight: 2 }}>{name}:</span>}
+          {!hideName && name && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginRight: 2 }}>{name}:</span>}
           {Array.from({ length: maxRating }, (_, i) => i + 1).map(star => (
             <button key={star} type="button" disabled={disabled}
               style={{ padding: 1, cursor: disabled ? "not-allowed" : "pointer" }}
@@ -2176,7 +2180,7 @@ function Field({
     }
 
     // Shared label style for full (non-compact) inputs
-    const inputLabelStyle = { fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
+    const inputLabelStyle = { fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginBottom: 2 };
 
     // Full input controls. The flow toggle is ATTACHED to the input (divided
     // leading segment, randomizer-style) and the whole input is tinted by the
@@ -2212,7 +2216,7 @@ function Field({
                   onPick={(v) => onAffixChange("postfix", v)} compact={compact} disabled={disabled} />
               )}
             </div>
-            {showUnit && <span style={{ fontSize: FIELD_FONT, color: "var(--text-faint)" }}>{unit}</span>}
+            {showUnit && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint") }}>{unit}</span>}
           </div>
         </div>
       );
@@ -2276,9 +2280,9 @@ function Field({
               onBlur={handleCommit}
               style={{
                 width: "100%", resize: "vertical", padding: "4px 8px",
-                fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
+                fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
                 background: "var(--input-bg)", border: "1px solid var(--input-border)",
-                borderRadius: 4, color: "var(--text-primary)", outline: "none",
+                borderRadius: 4, color: FIELD_INK("--text-primary"), outline: "none",
                 lineHeight: 1.5, minHeight: 60,
               }}
             />
@@ -2375,9 +2379,9 @@ function Field({
             rows={meta?.rows || 3}
             style={{
               width: "100%", resize: "vertical", padding: "4px 8px",
-              fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
+              fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
               background: "var(--input-bg)", border: "1px solid var(--input-border)",
-              borderRadius: 4, color: "var(--text-primary)", outline: "none",
+              borderRadius: 4, color: FIELD_INK("--text-primary"), outline: "none",
               lineHeight: 1.5, minHeight: compact ? 28 : 60,
             }}
           />
@@ -2393,13 +2397,13 @@ function Field({
             <>
               <Switch checked={!!localValue} disabled={disabled}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
-              {showLabel && <span style={{ fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+              {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
             </>
           ) : (
             <>
               <Checkbox checked={!!localValue} disabled={disabled}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
-              {showLabel && <span style={{ fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+              {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
             </>
           )}
         </div>
@@ -2439,7 +2443,7 @@ function Field({
                   <button type="button" disabled={disabled}
                     className={`inline-flex items-center justify-between gap-1 px-2 bg-transparent
                       ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
-                    style={{ minWidth: 80, border: "none", color: "var(--text-primary)" }}
+                    style={{ minWidth: 80, border: "none", color: FIELD_INK("--text-primary") }}
                   >
                     <span className="truncate">{currentLabel}</span>
                     <ChevronDown className="w-3 h-3 opacity-50 flex-shrink-0" />
@@ -2455,13 +2459,13 @@ function Field({
                       style={{
                         width: "100%", height: 28, fontSize: FIELD_FONT, fontFamily: "monospace",
                         background: "var(--input-bg)", border: "1px solid var(--input-border)",
-                        borderRadius: 5, color: "var(--text-primary)", padding: "0 8px",
+                        borderRadius: 5, color: FIELD_INK("--text-primary"), padding: "0 8px",
                         outline: "none", marginBottom: 6,
                       }}
                     />
                   )}
                   {filteredOpts.length === 0 ? (
-                    <div style={{ fontSize: FIELD_FONT, fontStyle: "italic", color: "var(--text-faint)", padding: 6 }}>
+                    <div style={{ fontSize: FIELD_FONT, fontStyle: "italic", color: FIELD_INK("--text-faint"), padding: 6 }}>
                       No matches — check the field's options source
                     </div>
                   ) : (
@@ -2482,7 +2486,7 @@ function Field({
                   onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }}
                   className={`inline-flex items-center justify-center px-1.5 flex-shrink-0
                     ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted"}`}
-                  style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: "var(--text-faint)" }}
+                  style={{ borderLeft: "1px solid var(--input-border, hsl(var(--border)))", color: FIELD_INK("--text-faint") }}
                 >
                   <Shuffle className="h-3.5 w-3.5" />
                 </button>
@@ -2595,7 +2599,7 @@ function Field({
             <PopoverTrigger asChild>
               <button type="button" disabled={disabled}
                 style={{
-                  minHeight: 28, fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
+                  minHeight: 28, fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
                   background: "transparent", border: "none",
                   color: "var(--occ-pill-text)", padding: "4px 8px", outline: "none",
                   display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer",
@@ -2634,7 +2638,7 @@ function Field({
       );
     }
 
-    return <div style={{ fontSize: FIELD_FONT, color: "var(--text-faint)" }}>Unknown field type: {type}</div>;
+    return <div style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint") }}>Unknown field type: {type}</div>;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -2669,10 +2673,10 @@ function Field({
     border: "1px solid var(--border-default)",
     background: "var(--input-bg)",
     fontSize: FIELD_FONT, color: valueColor,
-    fontFamily: "var(--font-mono)",
+    fontFamily: FIELD_FAMILY,
     flexShrink: 0,
   };
-  const labelStyle = { fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
+  const labelStyle = { fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginBottom: 2 };
 
   if (compact) {
     // Compact display pill color precedence:
@@ -2705,7 +2709,7 @@ function Field({
       padding: "2px 6px", borderRadius: 999,
       border: `1px solid ${pillBorder}`,
       background: pillColor,
-      fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
+      fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
       color: pillText, flexShrink: 0,
     };
 
@@ -2767,19 +2771,19 @@ function Field({
       const gridTemplateColumns = compactColumns.map(c => c.width ? `${c.width}px` : "auto").join(" ");
       return (
         <div className="field-display field-display-compact" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          {!hideName && name && <span style={{ fontSize: FIELD_FONT, opacity: 0.6, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{name}:</span>}
+          {!hideName && name && <span style={{ fontSize: FIELD_FONT, opacity: 0.6, fontFamily: FIELD_FAMILY, color: FIELD_INK("--text-muted") }}>{name}:</span>}
           {/* When the columns overflow the tile, the WHOLE table box marquees
               (AutoMarquee is static when it fits) — width:max-content lets the
               grid take its natural width so the overflow is measurable. */}
           <AutoMarquee>
           <div style={{
             display: "grid", gridTemplateColumns, columnGap: 6,
-            fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
+            fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
             background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
             borderRadius: 4, padding: "3px 6px", width: "max-content",
           }}>
             {compactColumns.map((c, i) => (
-              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: "var(--text-muted)", paddingBottom: 1 }}>
+              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 1 }}>
                 {c.header || c.path}
               </div>
             ))}
@@ -2791,8 +2795,8 @@ function Field({
                   <div
                     key={`${ri}-${ci}`}
                     style={rich
-                      ? { minWidth: 0, color: "var(--text-primary)", display: "flex", alignItems: "center" }
-                      : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}
+                      ? { minWidth: 0, color: FIELD_INK("--text-primary"), display: "flex", alignItems: "center" }
+                      : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: FIELD_INK("--text-primary") }}
                   >
                     <ArrayCell value={cell} maps={occMaps} />
                   </div>
@@ -2824,12 +2828,12 @@ function Field({
         {showLabel && <span style={labelStyle}>{name}</span>}
         <div style={{
           whiteSpace: "pre-wrap", wordBreak: "break-word",
-          fontSize: FIELD_FONT, fontFamily: "var(--font-mono)", lineHeight: 1.6,
-          color: "var(--text-primary)", padding: "4px 8px",
+          fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY, lineHeight: 1.6,
+          color: FIELD_INK("--text-primary"), padding: "4px 8px",
           background: "var(--input-bg)", borderRadius: 4,
           border: "1px solid var(--border-subtle)", minHeight: 36,
         }}>
-          {text || <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>—</span>}
+          {text || <span style={{ color: FIELD_INK("--text-faint"), fontStyle: "italic" }}>—</span>}
         </div>
       </div>
     );
@@ -2850,7 +2854,7 @@ function Field({
     return (
       <div className="field-display" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Switch checked={!!rawDisplayValue} disabled />
-        {showLabel && <span style={{ fontSize: FIELD_FONT, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+        {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
       </div>
     );
   }
@@ -2878,9 +2882,9 @@ function Field({
         {showLabel && <span style={labelStyle}>{name}</span>}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ ...roBox, minWidth: 36, justifyContent: "center" }}>{dh}</div>
-          <span style={{ fontSize: FIELD_FONT, color: "var(--text-faint)" }}>h</span>
+          <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint") }}>h</span>
           <div style={{ ...roBox, minWidth: 36, justifyContent: "center" }}>{dm}</div>
-          <span style={{ fontSize: FIELD_FONT, color: "var(--text-faint)" }}>m</span>
+          <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint") }}>m</span>
         </div>
       </div>
     );
@@ -2903,7 +2907,7 @@ function Field({
           gridTemplateColumns,
           columnGap: 8,
           fontSize: FIELD_FONT,
-          fontFamily: "var(--font-mono)",
+          fontFamily: FIELD_FAMILY,
           background: "var(--input-bg)",
           border: "1px solid var(--border-subtle)",
           borderRadius: 4,
@@ -2911,7 +2915,7 @@ function Field({
           width: "max-content",
         }}>
           {cols.map((c, i) => (
-            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: "var(--text-muted)", paddingBottom: 2 }}>
+            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>
               {c.header || c.path}
             </div>
           ))}
@@ -2923,8 +2927,8 @@ function Field({
                 <div
                   key={`${ri}-${ci}`}
                   style={rich
-                    ? { minWidth: 0, color: "var(--text-primary)", display: "flex", alignItems: "center" }
-                    : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}
+                    ? { minWidth: 0, color: FIELD_INK("--text-primary"), display: "flex", alignItems: "center" }
+                    : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: FIELD_INK("--text-primary") }}
                 >
                   <ArrayCell value={cell} maps={occMaps} />
                 </div>
@@ -2947,7 +2951,7 @@ function Field({
           {ruleDisplayNC ?? valueDisplay}
           {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
         </div>
-        {showUnit && <span style={{ fontSize: FIELD_FONT, color: "var(--text-faint)" }}>{unit}</span>}
+        {showUnit && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint") }}>{unit}</span>}
       </div>
       {targetProgress && (
         <div style={{ marginTop: 3 }}>
@@ -2959,7 +2963,7 @@ function Field({
               transition: "width 0.3s",
             }} />
           </div>
-          <span style={{ fontSize: FIELD_FONT, color: "var(--text-faint)", marginTop: 2, display: "block" }}>
+          <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-faint"), marginTop: 2, display: "block" }}>
             {targetProgress.met ? "✓ target met" : `target: ${targetProgress.target}${unit ? ` ${unit}` : ""}`}
           </span>
         </div>

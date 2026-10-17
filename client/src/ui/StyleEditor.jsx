@@ -317,6 +317,56 @@ export default function StyleEditor({
           </div>
           )}
 
+          {/* A FIELD's own text — separate from the label's (user 2026-10-17). */}
+          {show("fieldTextColor") && (
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Field Text Color</Label>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {TEXT_COLORS.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  aria-label={`Field text ${c.label}`}
+                  className="w-5 h-5 rounded border border-border hover:ring-1 hover:ring-ring transition-all"
+                  style={{
+                    backgroundColor: c.value || "transparent",
+                    outline: style.fieldTextColor === c.value ? "2px solid var(--accent-blue)" : "none",
+                    outlineOffset: 1,
+                  }}
+                  title={c.label}
+                  onClick={() => updateField("fieldTextColor", c.value)}
+                />
+              ))}
+            </div>
+          </div>
+          )}
+          {show("fieldFontFamily") && (
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Field Font</Label>
+            <Select value={style.fieldFontFamily || "__default"} onValueChange={(v) => updateField("fieldFontFamily", v === "__default" ? null : v)}>
+              <SelectTrigger className="h-6 text-[10px]" aria-label="Field Font"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FONT_FAMILIES.map((o) => (
+                  <SelectItem key={o.label} value={o.value || "__default"}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          )}
+          {show("fieldFontSize") && (
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Field Size</Label>
+            <Select value={style.fieldFontSize || "__default"} onValueChange={(v) => updateField("fieldFontSize", v === "__default" ? null : v)}>
+              <SelectTrigger className="h-6 text-[10px]" aria-label="Field Size"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {FONT_SIZES.map((o) => (
+                  <SelectItem key={o.label} value={o.value || "__default"}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          )}
+
           {/* Font Weight */}
           {show("fontWeight") && (
           <div>

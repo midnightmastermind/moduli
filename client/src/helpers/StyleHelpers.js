@@ -31,6 +31,11 @@ export const DEFAULT_ENTITY_STYLE = {
   fontWeight: null,    // 100-900 or "normal" / "bold"
   lineHeight: null,    // e.g. "1.4" or "20px"
   padding: null,       // e.g. "8px"
+  // A FIELD's own text (user 2026-10-17: "the fields should have their own font settings as well in
+  // the cascade"). Separate from the label's, and read only by field pills (ui/Field.jsx).
+  fieldTextColor: null,
+  fieldFontFamily: null,
+  fieldFontSize: null,
 };
 
 /**
@@ -209,11 +214,11 @@ export function buildStyleCascadeContext({ leafOccurrence, occurrencesById, modu
 }
 
 export const STYLE_FIELDS_BY_KIND = {
-  grid:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
-  panel:     ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
-  page:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity"],
-  container: ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity"],
-  instance:  ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity"],
+  grid:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity", "fieldTextColor", "fieldFontFamily", "fieldFontSize"],
+  panel:     ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity", "fieldTextColor", "fieldFontFamily", "fieldFontSize"],
+  page:      ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity", "fieldTextColor", "fieldFontFamily", "fieldFontSize"],
+  container: ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "border", "borderColor", "borderWidth", "borderStyle", "borderRadius", "padding", "opacity", "fieldTextColor", "fieldFontFamily", "fieldFontSize"],
+  instance:  ["bg", "textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "borderColor", "borderRadius", "padding", "opacity", "fieldTextColor", "fieldFontFamily", "fieldFontSize"],
   textblock: ["textColor", "fontFamily", "fontSize", "fontWeight", "lineHeight", "padding", "opacity"],
   artifact:  ["bg", "borderColor", "borderRadius", "padding", "opacity"],
 };
@@ -587,5 +592,9 @@ export function styleToCSS(style) {
   if (style.fontWeight != null) css.fontWeight = style.fontWeight;
   if (style.lineHeight != null) css.lineHeight = style.lineHeight;
   if (style.padding != null)    css.padding = style.padding;
+  // Field text settings only travel as properties: they reach field pills, nothing else.
+  if (style.fieldTextColor != null)  css["--cascade-field-ink"] = style.fieldTextColor;
+  if (style.fieldFontFamily != null) css["--cascade-field-font"] = style.fieldFontFamily;
+  if (style.fieldFontSize != null)   css["--cascade-field-font-size"] = style.fieldFontSize;
   return css;
 }
