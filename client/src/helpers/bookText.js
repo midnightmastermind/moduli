@@ -4,7 +4,7 @@
 // files, reading files, etc. can be used in operations. i want to be able to add daily reflections and
 // other day to day reflection books to the daypage for that day").
 //
-//   readFileText({ src, kind, from, to, page })  ->  { text, found }
+//   readFileText({ src, kind, from, to, page })  ->  { text, found, page, endPage, pages }
 //
 // `kind` "pdf" reads through pdf.js, page by page (helpers/bookEngine.pdfTextToMarkdown); "ebook"
 // (epub / mobi / azw / azw3) through foliate-js, section by section, headings kept as `#` lines. The
@@ -50,7 +50,23 @@ export function slicePassage(text, { from, to, maxChars = 20000 } = {}) {
     const t = (toRe.global ? new RegExp(toRe.source, toRe.flags.replace("g", "")) : toRe).exec(rest);
     if (t) end = Math.min(end, after + t.index);
   }
-  return { text: src.slice(start, end).trim(), found: true };
+  return { text: src.slice(start, end).trim(), found: true, start, end };
+}
+
+/** Where each page begins in `pages.join(sep)` — so an offset can be named by its page. */
+export function pageStarts(pages, sep = "\n\n") {
+  const starts = [];
+  let at = 0;
+  for (const p of pages) { starts.push(at); at += String(p || "").length + sep.length; }
+  return starts;
+}
+
+/** The 1-based page holding character `offset` of the joined text (null when there is none). */
+export function pageAt(starts, offset) {
+  if (!starts.length || !Number.isFinite(offset)) return null;
+  let lo = 0, hi = starts.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= offset) lo = mid; else hi = mid - 1; }
+  return lo + 1;
 }
 
 async function pdfPages(src) {
@@ -114,9 +130,21 @@ export function filePages({ src, kind }) {
 export async function readFileText({ src, kind, from = null, to = null, page = null, maxChars = 20000 }) {
   if (!src) throw new Error("no file to read");
   const pages = await filePages({ src, kind });
+  const total = pages.length;
   if (!from && Number.isFinite(Number(page)) && Number(page) >= 1) {
-    const t = pages[Number(page) - 1] || "";
-    return { text: t.slice(0, maxChars), found: !!t };
+    const n = Number(page);
+    const t = pages[n - 1] || "";
+    return { text: t.slice(0, maxChars), found: !!t, page: t ? n : null, endPage: t ? n : null, pages: total };
   }
-  return slicePassage(pages.join("\n\n"), { from, to, maxChars });
+  // The page a passage starts (and ends) on: a pdf page, or an e-book's section — the
+  // unit the reader turns. Null when nothing was found.
+  const cut = slicePassage(pages.join("\n\n"), { from, to, maxChars });
+  const starts = pageStarts(pages);
+  const found = cut.found && cut.start != null;
+  return {
+    text: cut.text, found: cut.found,
+    page: found ? pageAt(starts, cut.start) : null,
+    endPage: found ? pageAt(starts, Math.max(cut.start, cut.end - 1)) : null,
+    pages: total,
+  };
 }

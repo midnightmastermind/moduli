@@ -459,7 +459,7 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "page", kind: "expr", label: "page", optional: true, placeholder: "used when there is no from" },
       { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$fileText" },
     ],
-    hint: "Reads a PDF or e-book's text — all of it, one page, or the passage from one marker to the next. Binds { text, found }; feed `text` to Import markdown to lay it out like Magic.",
+    hint: "Reads a PDF or e-book's text — all of it, one page, or the passage from one marker to the next. Binds { text, found, page, endPage, pages } (page = where the passage starts; an e-book counts sections); feed `text` to Import markdown to lay it out like Magic.",
   },
   IMPORT_HTML: {
     fields: [

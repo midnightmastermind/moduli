@@ -25,6 +25,7 @@
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
 import { pickReusableModuleId, stampCloneOrigin } from "../../../server/utils/cloneModuleReuse.js";
+import { matchesPattern } from "../../../server/utils/matchesPattern.js";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { slotsCovered } from "./slotSpan";
@@ -612,6 +613,11 @@ export function evalRule(rule, $vars) {
       return Array.isArray(leftVal)
         ? !arrayIncludes(leftVal, rightVal)
         : !String(leftVal).includes(String(rightVal));
+    // A regular expression: `/source/flags`, or plain text as a case-insensitive source
+    // (server/utils/matchesPattern — the server executor shares it). An invalid pattern
+    // matches nothing.
+    case "MATCHES":     return matchesPattern(leftVal, rightVal);
+    case "NOT_MATCHES": return !matchesPattern(leftVal, rightVal);
     // Time-of-day comparators — generic, domain-agnostic. Parse BOTH 12h
     // ("9:00am", "9am", "12:30 PM") and 24h ("14:30", "09:00") forms, plus the
     // time portion of an ISO datetime, to minutes-since-midnight, then compare.

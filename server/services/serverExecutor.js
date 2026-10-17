@@ -27,6 +27,7 @@ import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 import Folder from "../models/Folder.js";
 import { mintOccurrence } from "./occurrenceMint.js";
+import { matchesPattern } from "../utils/matchesPattern.js";
 
 const SCALAR_LITERAL_RE = /^literal:/;
 const NUMBER_LITERAL_RE = /^-?\d+(\.\d+)?$/;
@@ -200,6 +201,8 @@ function evalRule(rule, $vars, record = null) {
     // Same words, ignoring case, accents, punctuation and spacing — how a
     // person's name is "the same" ("Inês O'Neil" / "ines oneil").
     case "SAME_TEXT":      return sameText(left, right);
+    case "MATCHES":        return matchesPattern(left, right);
+    case "NOT_MATCHES":    return !matchesPattern(left, right);
     default:               return left == right; // eslint-disable-line eqeqeq
   }
 }

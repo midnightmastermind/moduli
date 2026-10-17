@@ -40,6 +40,8 @@ export const COMPARATOR_CATALOG = [
   { value: "CONTAINS",      label: "contains",                          group: "Value",  simple: true },
   { value: "NOT_CONTAINS",  label: "does not contain",                  group: "Value" },
   { value: "SAME_TEXT",     label: "same text (ignores case, accents)",  group: "Value",  simple: true },
+  { value: "MATCHES",       label: "matches regex",                     group: "Value" },
+  { value: "NOT_MATCHES",   label: "does not match regex",              group: "Value" },
   { value: "IS_EMPTY",      label: "is empty",                          group: "Value",  simple: true, unary: true },
   { value: "IS_NOT_EMPTY",  label: "not empty",                         group: "Value",  simple: true, unary: true },
 
