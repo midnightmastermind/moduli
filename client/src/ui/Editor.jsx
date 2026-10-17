@@ -100,9 +100,10 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { mintLinkedCopy } from "../helpers/LayoutHelpers";
 import { plannedStateFor, materializePlanned } from "../helpers/plannedDrop";
 import {
-  buildTextClipboardItems, readClipboardText, writeClipboardText, domSelectionTextTouching, copyDomSelection,
+  buildTextActionItems, readClipboardText, writeClipboardText, domSelectionTextTouching, copyDomSelection,
   plainTextToProseContent,
 } from "../helpers/textClipboard";
+import { wordRangeAt } from "../helpers/textLookup";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
@@ -1556,11 +1557,38 @@ const Editor = forwardRef(function Editor({
     //
     // Cut WRITES BEFORE IT DELETES: removing text we then failed to put on the
     // clipboard would lose it outright.
-    const clipboardItems = domText ? [
-      { label: "Copy", icon: Copy, onClick: async () => { if (!(await writeClipboardText(domText))) copyDomSelection(); } },
-      { separator: true },
-    ] : buildTextClipboardItems({
+    // The word under the pointer (no selection), for spelling + lookups. Read
+    // from the click point, not the caret: a right-click does not move the caret.
+    let clickWord = null;
+    if (!hasSelection && !domText) {
+      try {
+        const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+        if (at) {
+          const $p = editor.state.doc.resolve(at.pos);
+          if ($p.parent.isTextblock) {
+            const start = $p.start();
+            // One position per character or inline atom, so offsets map 1:1.
+            const text = editor.state.doc.textBetween(start, $p.end(), "\n", "\ufffc");
+            const r = wordRangeAt(text, at.pos - start);
+            if (r) clickWord = { word: r.word, from: start + r.from, to: start + r.to };
+          }
+        }
+      } catch (_) { /* a click on an atom has no word */ }
+    }
+    const selWord = hasSelection && /^[\p{L}'’-]+$/u.test((capturedText || "").trim()) ? (capturedText || "").trim() : "";
+    const replaceRange = (from, to) => (w) => editor.chain().focus().insertContentAt({ from, to }, w).run();
+    const spell = clickWord ? { word: clickWord.word, onReplace: replaceRange(clickWord.from, clickWord.to) }
+      : selWord ? { word: selWord, onReplace: replaceRange(capturedFrom, capturedTo) } : null;
+
+    const clipboardItems = domText ? buildTextActionItems({
+      hasSelection: true, selectedText: domText,
+      onCopy: async () => { if (!(await writeClipboardText(domText))) copyDomSelection(); },
+    }) : buildTextActionItems({
       hasSelection,
+      selectedText: capturedText,
+      word: clickWord?.word || "",
+      onUndo: editor.can().undo() ? () => editor.chain().focus().undo().run() : null,
+      onRedo: editor.can().redo() ? () => editor.chain().focus().redo().run() : null,
       onCut: async () => {
         if (!(await writeClipboardText(capturedText))) return;
         editor.chain().focus().deleteRange({ from: capturedFrom, to: capturedTo }).run();
@@ -1575,6 +1603,8 @@ const Editor = forwardRef(function Editor({
           .insertContentAt({ from: capturedFrom, to: capturedTo }, plainTextToProseContent(text))
           .run();
       },
+      onDelete: () => editor.chain().focus().deleteRange({ from: capturedFrom, to: capturedTo }).run(),
+      onSelectAll: () => editor.chain().focus().selectAll().run(),
     });
 
     const items = [
@@ -1724,7 +1754,7 @@ const Editor = forwardRef(function Editor({
       inTable && { label: "Delete column", danger: true, onClick: () => editor.chain().focus().deleteColumn().run() },
       { label: "Insert field (@)", icon: AtSign, onClick: () => editor.chain().focus().insertContent("@").run() },
     ].filter(Boolean);
-    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+    setCtxMenu({ x: e.clientX, y: e.clientY, items, spell });
   }, [editor, editable, onConvertListToInstances, dispatch, socket, occurrence]);
 
   // Track recent mousedown on the editor — prevents content sync from resetting
@@ -3276,7 +3306,11 @@ const Editor = forwardRef(function Editor({
           // editor's atom boundary = pos 0/1) and schedule a competing
           // setTextSelection rAF — caretDiag showed 4 selection writes per click.
           const ownsClick = e.target?.closest?.(".doc-editor-wrapper") === e.currentTarget;
-          if (editor && editor.isEditable && ownsClick && e.target !== e.currentTarget) {
+          // LEFT button only: a right-click must leave the selection alone, or the
+          // highlight is collapsed before the context menu reads it (user
+          // 2026-10-17: "the highlight turns off when i right click, so copy
+          // doesnt come up").
+          if (e.button === 0 && editor && editor.isEditable && ownsClick && e.target !== e.currentTarget) {
             const coords = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
             logCaretInterference("editor.posAtCoords-fixup", {
               occId: (occurrence?.id || "").slice(0, 8),

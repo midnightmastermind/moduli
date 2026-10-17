@@ -56,6 +56,31 @@ Tests `dayPageReadings` (+7).
 
 ---
 
+### 2026-10-17 (7) — IDLE SLOTS ALTERNATE TWO GREYS; ONE TERMINAL GREEN; A WINDOWS-STYLE TEXT MENU
+
+- **The grey (`0416`).** `0414` made the WRONG idle stripe stronger: idle slots alternated a CLEARED stripe (black in
+  the terminal skin, "switches off") and a slate one, and 0414 raised the slate. Seen by screenshotting the Schedule in
+  the terminal skin with the probe's own writes blocked. `0416` (`greyIdleStripes`, pure, tested) puts shade B back to
+  0.12 and paints shade A grey 0.22, so idle slots go grey/grey like passed slots go red/red. The seed runs it too;
+  0414's constants are now local to it. Applied to poms grid, read back.
+- **One green.** `TERMINAL_PALETTE` sat/light ranges collapsed to one point, so every stored card colour is rgb(6,55,14)
+  in the terminal skin; `--occ-card` is the same rgb at .85, so an uncoloured row matches. Measured on the local build:
+  Routines 104 rows / Tasks 33 rows, one background value.
+- **Right-click on text.** The highlight vanished because the editor's mousedown caret fix-up (`setTextSelection` from
+  the click point) ran on the RIGHT button too; it runs on button 0 only now, and a lazy textblock goes live on a left
+  press only. Every text menu (doc editor, inputs, and NEW: a highlight on read-only text) is built by
+  `textClipboard.buildTextActionItems`: Undo/Redo · Cut/Copy/Paste/Delete · Select all · Search Wikipedia · Define
+  (dictionaryapi.dev, shown as a toast). `ContextMenu` takes `ctx.spell = {word, onReplace}` and puts spelling
+  suggestions at the top (Datamuse — a page cannot read the browser's own spellcheck) with "Ignore". Watched on the
+  local build: right-clicking "aphrodysiac" offered "aphrodisiac" first; a double-clicked word kept its highlight
+  through the right-click and got Cut/Copy/Delete. Row labels are not text-selectable (the row is a drag handle), so
+  the read-only branch reaches reader text, not labels. Tests `textLookup` (13), `contextMenuSpelling` (2),
+  `scheduleIdleTwoGreys` (4). Client 6,261 pass.
+- **Not done here:** the 08:23 reflections work had already been finished by the other account (`fc61e844`); nothing
+  of mine was kept for it.
+
+---
+
 ### 2026-10-17 (3) — A TERMINAL SKIN: black screen, green monospace lettering on everything
 
 User: *"a theme that looks like a terminal everywhere, just black background with green computer lettering on

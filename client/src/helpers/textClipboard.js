@@ -22,7 +22,9 @@
 // Ref: https://developer.mozilla.org/en-US/docs/Web/API/Clipboard_API
 // ============================================================
 
-import { Scissors, Copy, ClipboardPaste } from "lucide-react";
+import { Scissors, Copy, ClipboardPaste, Undo2, Redo2, Trash2, TextSelect, Search, BookOpen } from "lucide-react";
+import { toast } from "sonner";
+import { lookupTerm, wikipediaSearchUrl, defineWord, dictionaryUrl } from "./textLookup.js";
 
 /**
  * The clipboard's text, or null.
@@ -210,5 +212,58 @@ export function buildTextClipboardItems({ hasSelection, onCut, onCopy, onPaste }
     hasSelection && { label: "Copy", icon: Copy, onClick: onCopy },
     { label: "Paste", icon: ClipboardPaste, onClick: onPaste },
     { separator: true },
+  ].filter(Boolean);
+}
+
+/** Open a Wikipedia search for `term` in a new tab. */
+export function searchWikipedia(term) {
+  if (!term) return;
+  try { window.open(wikipediaSearchUrl(term), "_blank", "noopener"); } catch { /* popup blocked */ }
+}
+
+/**
+ * Show a word's definition (a toast, like Windows' "Define" card), with a link
+ * to the full entry. Offline or unknown → says so and still offers the link.
+ */
+export async function showDefinition(word) {
+  const w = String(word ?? "").trim();
+  if (!w) return;
+  const id = toast.loading(`Looking up "${w}"…`);
+  const lines = await defineWord(w);
+  const open = { label: "More", onClick: () => { try { window.open(dictionaryUrl(w), "_blank", "noopener"); } catch { /* blocked */ } } };
+  if (lines.length) toast.message(w, { id, description: lines.join("\n"), duration: 15000, action: open });
+  else toast.message(`No definition found for "${w}"`, { id, duration: 6000, action: open });
+}
+
+/**
+ * Every text item a right-click on text offers, Windows-style, in one order:
+ * Undo / Redo · Cut / Copy / Paste / Delete · Select all · Search Wikipedia /
+ * Define. A host passes only the actions it can do (a read-only selection has
+ * no Cut, Paste or Delete), and an item whose action is missing is not shown.
+ * Spelling suggestions are not here: they arrive later (a web lookup) and
+ * `ContextMenu` puts them at the top through `ctx.spell`.
+ *
+ * Ends with a separator so a host can append its own items underneath.
+ */
+export function buildTextActionItems({
+  hasSelection, selectedText = "", word = "",
+  onUndo, onRedo, onCut, onCopy, onPaste, onDelete, onSelectAll,
+}) {
+  const term = lookupTerm(selectedText, word);
+  const oneWord = term && !/\s/.test(term) ? term : "";
+  return [
+    onUndo && { label: "Undo", icon: Undo2, onClick: onUndo },
+    onRedo && { label: "Redo", icon: Redo2, onClick: onRedo },
+    (onUndo || onRedo) && { separator: true },
+    hasSelection && onCut && { label: "Cut", icon: Scissors, onClick: onCut },
+    hasSelection && onCopy && { label: "Copy", icon: Copy, onClick: onCopy },
+    onPaste && { label: "Paste", icon: ClipboardPaste, onClick: onPaste },
+    hasSelection && onDelete && { label: "Delete", icon: Trash2, onClick: onDelete },
+    { separator: true },
+    onSelectAll && { label: "Select all", icon: TextSelect, onClick: onSelectAll },
+    onSelectAll && { separator: true },
+    term && { label: `Search Wikipedia for "${term.length > 24 ? term.slice(0, 22) + "…" : term}"`, icon: Search, onClick: () => searchWikipedia(term) },
+    oneWord && { label: `Define "${oneWord.length > 24 ? oneWord.slice(0, 22) + "…" : oneWord}"`, icon: BookOpen, onClick: () => showDefinition(oneWord) },
+    term && { separator: true },
   ].filter(Boolean);
 }

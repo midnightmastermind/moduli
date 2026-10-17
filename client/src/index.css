@@ -8943,10 +8943,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --signal-neg: 255 176 0;
   --signal-warn: 255 176 0;
 
-  --occ-card: 51 255 102;
-  --occ-card-a: .04;
-  --occ-card-soft-a: .03;
-  --occ-card-hover-a: .08;
+  /* The same green TERMINAL_PALETTE paints a stored card colour, so a row with no colour of
+     its own matches one with (user 2026-10-17: Routines and Tasks all one green). */
+  --occ-card: 6 55 14;
+  --occ-card-a: .85;
+  --occ-card-soft-a: .85;
+  --occ-card-hover-a: 1;
   --occ-pill: 51 255 102;
   --occ-pill-text: rgb(51 255 102);
   --figure-well: 0 0 0;

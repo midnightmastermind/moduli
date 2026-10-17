@@ -5,7 +5,10 @@
 // 0.22 now (0349's IDLE_B — what a fresh seed paints). Still under WASH_ALPHA_MAX, so
 // every skin keeps it a tint. This rewrites the stored op; the op repaints the slots on
 // its next run (every 5 minutes, and on load).
-import { IDLE_B, IDLE_B_OLD } from "./0349-schedule-slots-alternate-shades.mjs";
+// Superseded the same day by 0416 (the user meant the OTHER idle shade). Literals kept
+// here so this migration still describes what it did.
+export const IDLE_B_OLD = "rgba(148,163,184,0.12)";
+export const IDLE_B = "rgba(148,163,184,0.22)";
 
 export const id = "0414-schedule-idle-stripe-stronger";
 export const describe = "Schedule: Mark Passed Slots paints the idle grey stripe at 0.22 instead of 0.12. Pipeline only.";

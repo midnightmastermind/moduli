@@ -128,8 +128,11 @@ export const STARDEW_NIGHT_PALETTE = {
 export const TERMINAL_PALETTE = {
   id: "terminal",
   hues: [130],
-  satRange: [45, 80],
-  lightRange: [7, 17],
+  // ONE green for every stored card colour (user 2026-10-17: "give routines and tasks all the
+  // same background green"). A range here turned each Routines dimension colour into its own
+  // shade of green. index.css gives an uncoloured row the same rgb(6, 55, 14).
+  satRange: [80, 80],
+  lightRange: [12, 12],
   huePull: 1,
   sourceLightRange: [22, 58],
   // A state wash (a passed Schedule slot's 10% / 20% red stripes) is a tint over what is beneath it,

@@ -381,7 +381,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     return (
       <div
         ref={lazyRef}
-        onPointerDown={goLive}
+        onPointerDown={(e) => { if (e.button === 0) goLive(); }}
         className={`doc-container flex flex-col flex-1 min-h-0 relative ${LAZY_PLACEHOLDER_CLASS}`}
         style={{ cursor: "text" }}
         title="Click to edit"

@@ -7,8 +7,35 @@
 //   <ContextMenu ctx={ctx} onClose={() => setCtx(null)} />
 // ============================================================
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { SpellCheck } from "lucide-react";
 import MenuSurface, { isDrawerLayout } from "./MenuSurface.jsx";
+import { spellingSuggestions, ignoreSpelling } from "../helpers/textLookup.js";
+
+/**
+ * Spelling suggestions for `ctx.spell = { word, onReplace(w) }`, as menu items for
+ * the TOP of the menu (where Windows puts them). They come from a web lookup, so
+ * the menu opens at once and they appear when the answer lands; a word spelled
+ * right (or an unreachable service) adds nothing.
+ */
+function useSpellItems(spell) {
+  const [res, setRes] = useState(null);
+  const word = spell?.word || "";
+  useEffect(() => {
+    setRes(null);
+    if (!word) return undefined;
+    let live = true;
+    spellingSuggestions(word).then((r) => { if (live) setRes(r); });
+    return () => { live = false; };
+  }, [word]);
+  if (!spell || !res?.misspelled) return [];
+  const sugg = res.suggestions.map((w) => ({ label: w, bold: true, onClick: () => spell.onReplace?.(w) }));
+  return [
+    ...(sugg.length ? sugg : [{ label: "No spelling suggestions", disabled: true }]),
+    { label: `Ignore "${word}"`, icon: SpellCheck, onClick: () => ignoreSpelling(word) },
+    { separator: true },
+  ];
+}
 
 // Callers build item arrays with conditional entries, so a filtered-out item
 // can leave a separator with nothing above/below it (renders as a blank row).
@@ -54,9 +81,10 @@ export default function ContextMenu({ ctx, onClose }) {
     };
   }, [ctx, onClose]);
 
+  const spellItems = useSpellItems(ctx?.spell);
   if (!ctx) return null;
 
-  const items = normalizeMenuItems(ctx.items);
+  const items = normalizeMenuItems([...spellItems, ...(ctx.items || [])]);
 
   // Keep menu inside viewport. Width is content-sized within [168, 240];
   // height caps at 70vh with internal scroll (bulk multi-select menus were
@@ -105,7 +133,7 @@ export default function ContextMenu({ ctx, onClose }) {
         const Icon = item.icon;
         return (
           <button
-            key={item.label}
+            key={`${item.label}-${i}`}
             className="context-menu-item"
             onClick={() => { item.onClick?.(); onClose(); }}
             disabled={item.disabled}
@@ -126,6 +154,7 @@ export default function ContextMenu({ ctx, onClose }) {
               textAlign: "left",
               fontSize: drawer ? 14 : 11,
               fontFamily: "monospace",
+              fontWeight: item.bold ? 700 : undefined,
               transition: "background 0.1s",
             }}
             onMouseEnter={(e) => {

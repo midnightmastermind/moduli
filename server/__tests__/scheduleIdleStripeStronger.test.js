@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { strengthenIdle } from "../migrations/0414-schedule-idle-stripe-stronger.mjs";
-import { IDLE_B, IDLE_B_OLD, PASSED_A } from "../migrations/0349-schedule-slots-alternate-shades.mjs";
+import { strengthenIdle, IDLE_B, IDLE_B_OLD } from "../migrations/0414-schedule-idle-stripe-stronger.mjs";
+import { PASSED_A } from "../migrations/0349-schedule-slots-alternate-shades.mjs";
 
 describe("0414 strengthenIdle", () => {
   const pipe = { steps: [{ type: "if", condition: { rules: [{ right: IDLE_B_OLD }] },

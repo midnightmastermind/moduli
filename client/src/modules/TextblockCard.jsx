@@ -148,7 +148,7 @@ export default function TextblockCard({ occurrence, module, onEmptyBlur = null }
         ref={cardRef}
         className={cls}
         style={Object.keys(cardStyle).length ? cardStyle : undefined}
-        onPointerDown={goLive}
+        onPointerDown={(e) => { if (e.button === 0) goLive(); }}
         title="Click to edit"
       >
         <div className={LAZY_PLACEHOLDER_CLASS} style={{ cursor: "text" }}>
