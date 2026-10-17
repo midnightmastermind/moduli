@@ -9035,9 +9035,9 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   font-family: var(--cascade-font, var(--font-mono)) !important;
   border-color: var(--term-green-line) !important;
   text-shadow: 0 0 6px rgba(51, 255, 102, 0.35);
-  /* VT323 draws far smaller than IBM Plex Mono at the same px (an 18px header read smaller than the
-     17px prose under it), and Plex draws big. One x-height ratio for every face fixes both. */
-  font-size-adjust: 0.46;
+  /* Plex Mono draws big (user 2026-10-17: "too big"): a little smaller everywhere — 0.48 of an
+     x-height ratio of ~0.52, about 93%, so a 13px field still draws at the 12px floor. */
+  font-size-adjust: 0.48;
 }
 :root[data-skin="terminal"] .page-header,
 :root[data-skin="terminal"] .page-header *,
@@ -9048,6 +9048,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   font-family: var(--cascade-font, var(--font-display)) !important;
   letter-spacing: 0.02em;
 }
+/* VT323 is narrow and thin, so at the same px a header read SMALLER than the Plex prose under it
+   (measured: "Introduction" 16px VT323 over 17px Plex). Headers draw ~1.3x their size; the toolbar
+   keeps VT323's own proportions (0.5) so it does not outgrow its row. */
+:root[data-skin="terminal"] .page-header,
+:root[data-skin="terminal"] .page-header *,
+:root[data-skin="terminal"] .container-header,
+:root[data-skin="terminal"] .container-header * { font-size-adjust: 0.66; }
+:root[data-skin="terminal"] .toolbar,
+:root[data-skin="terminal"] .toolbar * { font-size-adjust: none; }
 :root[data-skin="terminal"] .page-header,
 :root[data-skin="terminal"] .container-header {
   font-size: 1.12em;

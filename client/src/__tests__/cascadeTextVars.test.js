@@ -24,6 +24,7 @@ describe("cascade text vars", () => {
     expect(src).toMatch(/font-family: var\(--cascade-font, var\(--font-mono\)\) !important/);
     expect(src).toMatch(/font-family: var\(--cascade-font, var\(--font-display\)\) !important/);
     expect(src).toMatch(/font-size: var\(--cascade-font-size, var\(--instance-label-px, 17px\)\)/);
-    expect(src).toMatch(/font-size-adjust: 0\.46/);
+    expect(src).toMatch(/font-size-adjust: 0\.48/);
+    expect(src).toMatch(/\.container-header \* \{ font-size-adjust: 0\.66; \}/);
   });
 });
