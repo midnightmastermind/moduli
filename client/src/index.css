@@ -7306,6 +7306,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   flex-direction: column;
   justify-content: flex-start;
 }
+/* A playing video / audio tile centres its player in the tile (user 2026-10-17:
+   the waveform "should be centered vertically"); the rule above would pin it up top. */
+.artifact-spread-body .artifact-card.artifact-card--media-open {
+  justify-content: center;
+  align-items: center;
+}
 /* The picture takes the leftover room; `contain` letterboxes rather than
    cropping, so a short image simply sits in a taller box. */
 .artifact-spread-body .artifact-thumb {
