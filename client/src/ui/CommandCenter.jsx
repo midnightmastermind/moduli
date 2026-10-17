@@ -36,6 +36,15 @@ const TABS = [
 export default function CommandCenter({ open, onOpenChange, isMobileLayout, initialTab = null }) {
   const [activeTab, setActiveTab] = useState(initialTab || "fields");
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
+  // `shown` follows `open` one frame late. App mounts this the first time it is
+  // opened, i.e. already open — and a box that mounts open has nothing to
+  // transition FROM, so the first open just appeared (user 2026-10-17: "should
+  // slide out, not just appear"). Starting closed for one frame lets it slide.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setShown(open));
+    return () => cancelAnimationFrame(r);
+  }, [open]);
 
   // Per user request: CC is centered horizontally with no side backdrop,
   // and the max height is fixed (no longer scales with active tab) so it
@@ -51,20 +60,20 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
       style={{
         top: "100%",
         zIndex: 200,
-        maxHeight: open ? CC_MAX_H : 0,
+        maxHeight: shown ? CC_MAX_H : 0,
         overflow: "hidden",
         // Slow glide-from-above feel — translateY pairs with max-height so the
         // contents slide down rather than unroll in place (matches the panel
         // header autohide animation pattern, 2026-05-22 direction).
-        transform: open ? "translateY(0)" : "translateY(-8px)",
-        opacity: open ? 1 : 0,
+        transform: shown ? "translateY(0)" : "translateY(-8px)",
+        opacity: shown ? 1 : 0,
         transition: isMobileLayout
           ? "max-height 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out"
           : "max-height 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.32s ease-out",
         // No outer bg/border so the grid shows through to the sides of the
         // centered card.
         background: "transparent",
-        pointerEvents: open ? "auto" : "none",
+        pointerEvents: shown ? "auto" : "none",
       }}
     >
       <div
@@ -73,10 +82,10 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
           maxWidth: CC_MAX_W,
           width: isMobileLayout ? "100%" : "calc(100% - 32px)",
           background: "var(--body-bg)",
-          border: open ? "1px solid var(--border-default)" : "none",
-          borderRadius: open ? 8 : 0,
-          marginTop: open ? 8 : 0,
-          boxShadow: open ? "0 6px 22px rgba(0,0,0,0.55)" : "none",
+          border: shown ? "1px solid var(--border-default)" : "none",
+          borderRadius: shown ? 8 : 0,
+          marginTop: shown ? 8 : 0,
+          boxShadow: shown ? "0 6px 22px rgba(0,0,0,0.55)" : "none",
           maxHeight: CC_MAX_H,
           display: "flex",
           flexDirection: "column",

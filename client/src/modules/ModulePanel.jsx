@@ -20,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
+import SlideDrawer from "../ui/SlideDrawer";
 import LayoutForm from "../ui/LayoutForm";
 import PastValuesDialog from "../ui/PastValuesDialog";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
@@ -1220,9 +1221,10 @@ function Panel({
                 {/* Root tree sidebar — RIGHT. Pushes the page wherever there is
                     room for it (desktop AND tablet, portrait included); overlays only
                     on a genuinely narrow viewport. See ROOT_TREE_PUSH_MIN_W. */}
-                {rootTreeOpen && (
+                {/* It slides in and out (SlideDrawer), it does not just appear. */}
+                {(
                   !rootTreeCanPush ? (
-                    <div style={{
+                    <SlideDrawer open={rootTreeOpen} axis="y" style={{
                       position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
                       width: "100%", maxHeight: "50%",
                       display: "flex", flexDirection: "column",
@@ -1233,19 +1235,19 @@ function Panel({
                       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
                         {rootTree}
                       </div>
-                    </div>
+                    </SlideDrawer>
                   ) : (
-                    <div style={{
+                    <SlideDrawer open={rootTreeOpen} axis="x" style={{
                       flexShrink: 0, width: ROOT_TREE_W,
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderLeft: "1px solid var(--border-default)",
                       overflow: "hidden",
                     }}>
-                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
+                      <div style={{ flex: 1, minHeight: 0, minWidth: ROOT_TREE_W, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
                         {rootTree}
                       </div>
-                    </div>
+                    </SlideDrawer>
                   )
                 )}
               </div>

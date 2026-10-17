@@ -9117,3 +9117,36 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* A field's own font from the styling cascade (StyleHelpers --cascade-field-font); unset = inherit, as
    before. Skin rules that set a field's font are more specific and keep theirs. */
 .field-input, .field-display { font-family: var(--cascade-field-font, inherit); }
+
+/* ── SLIDE, DON'T APPEAR (user 2026-10-17) ──────────────────────────────────
+   "all the drawers and the manifest tree and the control center, any that open
+   a menu coming out of it, should slide out, not just appear". `ui/SlideDrawer`
+   puts these on the box for the length of the animation only — the opening
+   class carries `overflow: hidden`, which would clip an open drawer's handles. */
+.slide-y-in  { overflow: hidden; animation: slide-y-in  var(--slide-ms, 200ms) cubic-bezier(0.4, 0, 0.2, 1); }
+.slide-y-out { overflow: hidden; pointer-events: none; animation: slide-y-out var(--slide-ms, 200ms) cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes slide-y-in  { from { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; } to { max-height: var(--slide-h, 600px); opacity: 1; } }
+@keyframes slide-y-out { from { max-height: var(--slide-h, 600px); opacity: 1; } to { max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0; } }
+
+.slide-x-in  { overflow: hidden; animation: slide-x-in  var(--slide-ms, 200ms) cubic-bezier(0.4, 0, 0.2, 1); }
+.slide-x-out { overflow: hidden; pointer-events: none; animation: slide-x-out var(--slide-ms, 200ms) cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes slide-x-in  { from { width: 0; min-width: 0; opacity: 0.4; } }
+@keyframes slide-x-out { to   { width: 0; min-width: 0; opacity: 0.4; } }
+
+/* A file's body in the viewer is a COLUMN beside the file, not a drawer under it:
+   it slides in sideways (its flex-basis owns the width, so width cannot animate). */
+.artifact-spread-body .instance-wrap > .instance-doc-body.slide-y-in  { animation-name: slide-side-in; }
+.artifact-spread-body .instance-wrap > .instance-doc-body.slide-y-out { animation-name: slide-side-out; }
+@keyframes slide-side-in  { from { opacity: 0; transform: translateX(24px); } }
+@keyframes slide-side-out { to   { opacity: 0; transform: translateX(24px); } }
+
+/* Menus (desktop) and popovers come down out of what opened them. On mobile a
+   menu is a bottom drawer and already slides up (`menu-surface--drawer`). */
+.menu-surface:not(.menu-surface--drawer),
+[data-radix-popper-content-wrapper] > [data-state="open"] { animation: menu-pop-in 140ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes menu-pop-in { from { opacity: 0; transform: translateY(-6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide-y-in, .slide-y-out, .slide-x-in, .slide-x-out,
+  .menu-surface, [data-radix-popper-content-wrapper] > [data-state="open"] { animation: none !important; }
+}

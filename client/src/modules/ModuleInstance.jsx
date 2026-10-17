@@ -72,6 +72,7 @@ import { useBodyOpen } from "../helpers/bodyOpen";
 import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
 import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
 import { fileHasBody, FileNotesToggle } from "./FileBody.jsx";
+import SlideDrawer from "../ui/SlideDrawer";
 import { useSpreadHost } from "../helpers/spreadDock";
 
 // The container a row sits in, as it is NOW. The row's own prop can be an older
@@ -1803,7 +1804,7 @@ function ModuleInstance({
         renderBody={renderBody}
         floatHandle={floatHandle}
       />
-      {occurrence && showDoc && (() => {
+      {occurrence && (() => {
         const bg = container?.ownStyle?.bg || null;
         return (
           // The body is the same RECESSED POCKET a doc container's child list
@@ -1813,7 +1814,9 @@ function ModuleInstance({
           // (`.instance-doc-body`); only the container's own accent colour is
           // passed through, as a custom property — an inline background would
           // beat the stylesheet and there would be no pocket at all.
-          <div
+          // It slides open and shut (`SlideDrawer`) rather than appearing.
+          <SlideDrawer
+            open={!!showDoc}
             className="instance-doc-body"
             style={{ "--body-accent": hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.10)" }}
           >
@@ -1827,7 +1830,7 @@ function ModuleInstance({
             ) : (
               <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
             )}
-          </div>
+          </SlideDrawer>
         );
       })()}
     </div>
