@@ -29,6 +29,16 @@ User: *"you never finished with the file header toolbar and merging them into on
   Test `spreadImageOcr.test.jsx` (3); `bookmarkCardOpens`' mock gained `useGridActions` (ImageOcrViews reads it).
   **Watched on prod** (rebuild grid, Files › Examples): tile tabs Image|OCR Reader|OCR Magic, OCR Magic ran ("No text
   found" — a photo), full screen shows the same tabs. Panel A put back (`_panelrestore`, the Earthrise page dropped).
+- **Follow-up, user's screenshot (11:57): "i dont see ocr or magic in the header for the image file of the book".** A
+  book row in its viewer is drawn as its COVER (kind `book`, no fileRef), not an image file, so the tabs never showed.
+  The tile branch now takes any picture the tile shows (`tilePicture`: an image file, else a cover per
+  `coverAppliesTo`). The tabs sit on the tile's header row like the book reader's (the `.book-reader-head` overlay
+  rules now also match `.artifact-card--ocr-tile` / `.ocr-views-head`); the views fill the tile width; the active tab
+  is an outline (a filled accent was green on green in Terminal). Tile buttons sit together at the right
+  (`.spread-tile-maximize ~ .spread-tile-maximize { margin-left: 4px }` — each had `margin-left: auto`). **Watched on
+  prod** on "Become What You Are": one row (handle, Image | OCR Reader | OCR Magic, then Open in panel / notes / fill
+  at the right); OCR Reader ran on the cover (the stylised lettering reads as noise — the OCR engine, not the viewer).
+  The Books panel my search moved was put back.
 - **Book audit finished** (account3's `_bookaudit.mjs --open`, on prod): **484 of 485 files open**; the one that does
   not is a `.djvu` (Computers of Star Trek), the row's only file, a format the reader cannot show. 46 take over 5s on a
   first open (Drive's first byte, big files; 5 over 10s, worst a 15 MB epub at 29s). All 485 (4.1 GB) are being
