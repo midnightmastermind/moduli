@@ -1195,7 +1195,7 @@ function ToolResultView({ name, output }) {
   );
 }
 
-function renderToolBody(name, output) {
+export function renderToolBody(name, output) {
   if (output == null) return <div style={{ opacity: 0.6 }}>(no result)</div>;
   if (output.error || output.ok === false) {
     return <div style={{ color: "rgb(230,140,140)" }}>✗ {String(output.error || output.message || "failed")}</div>;
@@ -1284,7 +1284,18 @@ function renderToolBody(name, output) {
   // Template apply / generic ok with counts.
   if (output.ok === true || output.rootOccurrenceId) {
     const n = Array.isArray(output.newOccurrenceIds) ? output.newOccurrenceIds.length : null;
-    return <div>✓ Done{n != null ? ` — ${n} new item${n === 1 ? "" : "s"}` : ""}.</div>;
+    const done = <div>✓ Done{n != null ? ` — ${n} new item${n === 1 ? "" : "s"}` : ""}.</div>;
+    // A lookup (wikipedia_summary) answers with text: show it under Done
+    // rather than only behind "raw".
+    if (typeof output.extract !== "string" || !output.extract) return done;
+    return (
+      <div>
+        {done}
+        {output.title && <div style={{ fontWeight: 600, marginTop: 4 }}>{output.title}</div>}
+        <div style={{ marginTop: 2, whiteSpace: "pre-wrap" }}>{output.extract}</div>
+        {output.url && <a href={output.url} target="_blank" rel="noreferrer" style={{ opacity: 0.6, fontSize: 10 }}>{output.url.replace(/^https?:\/\//, "")}</a>}
+      </div>
+    );
   }
 
   // Fallback — a short summary key if present, else nothing (raw is below).
