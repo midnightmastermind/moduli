@@ -4013,3 +4013,4 @@ per picked date (that is where the items live); Combine hides those and shows on
 ### 2026-10-18 09:00–09:02 CDT (queued after the Jonah notes)
 - Books: check every book and list the ones that don't open or take forever; switch a book to a different version (format) when we have one.
 - *"theres also alot of duplicates in books still. some without a file path. lets get rid of the ones that dont have filepath or are a duplicate still."*
+- **09:40** — the UI sweep is on MOBILE as well: every form, dropdown, menu and drawer on mobile, not just the share window. "The share" means sharing in general and all its menus.
