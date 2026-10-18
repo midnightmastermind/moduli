@@ -36,3 +36,15 @@ describe("Jonah's notes", () => {
     expect(noteToText(next)).toBe("Things.\n2026-10-18 — Coffee is black");
   });
 });
+
+import { notesTopicFor } from "../services/assistantAgent.js";
+describe("which questions read the guide", () => {
+  it("a how-does-Moduli question names its topic", () => {
+    expect(notesTopicFor("how does copy-link work in moduli?")).toBe("copy-link");
+    expect(notesTopicFor("what is a feed?")).toBe("feed");
+  });
+  it("other questions do not", () => {
+    expect(notesTopicFor("look up pomodoro on wikipedia")).toBeNull();
+    expect(notesTopicFor("add a task called Laundry to Tasks")).toBeNull();
+  });
+});

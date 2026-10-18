@@ -835,9 +835,38 @@ export async function warmAssistant({ userId, gridId, baseUrl, apiToken }) {
   return { warmed: false, reason: "failed" };
 }
 
+// A question about how Moduli works gets the matching part of Jonah's guide in
+// that turn's prompt. The small local model rarely picks jonah_notes on its
+// own, and a read only for these questions keeps every other turn as cheap.
+const MODULI_WORDS = /\b(container|instance|occurrence|module|feed|template|operation|trigger|filter|copy.?link|panel|page|field|tracker|schedule|day ?page|command center|radial|share|undo)s?\b/i;
+const NOTE_STOP = new Set("how do does did can could would should i you we it is are a an the in on of to for what whats what's work works working moduli me my this that with".split(" "));
+export function notesTopicFor(text) {
+  const t = String(text || "");
+  const asksHow = /\b(how|what|why|where|explain)\b/i.test(t) && (/\bmoduli\b/i.test(t) || MODULI_WORDS.test(t));
+  if (!asksHow) return null;
+  const words = t.toLowerCase().replace(/[^a-z0-9-]+/g, " ").split(" ").filter((w) => w && !NOTE_STOP.has(w));
+  return words.length ? words.join(" ") : null;
+}
+
+const NOTES_HINT_MAX = 2000;
+async function notesHintFor(messages, { baseUrl, apiToken, gridId }) {
+  const last = [...(messages || [])].reverse().find((m) => m.role === "user" && typeof m.content === "string");
+  const topic = notesTopicFor(last?.content);
+  if (!topic) return "";
+  try {
+    const res = await fetch(`${baseUrl}/api/v1/assistant/notes?gridId=${encodeURIComponent(gridId)}&which=moduli&topic=${encodeURIComponent(topic)}`,
+      { headers: { Authorization: `Bearer ${apiToken}` } });
+    const j = await res.json();
+    if (!j?.text) return "";
+    return `\n\nFROM YOUR NOTES ON HOW MODULI WORKS (answer from this; it is accurate):\n${j.text.slice(0, NOTES_HINT_MAX)}`;
+  } catch { return ""; }
+}
+
 export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
   if (!gridId) throw new Error("gridId required");
-  const { tools, systemPrompt } = await composeChat({ userId, gridId, context, baseUrl, apiToken });
+  const composed = await composeChat({ userId, gridId, context, baseUrl, apiToken });
+  const tools = composed.tools;
+  const systemPrompt = composed.systemPrompt + await notesHintFor(messages, { baseUrl, apiToken, gridId });
   const contextId = context?.id || null;
   const backend = await pickBackend();
   const backendTools = selectToolsForBackend(tools, backend);
