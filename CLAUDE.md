@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 (3) — JONAH'S NOTES: about you, how Moduli works, remembered (`0421`)
+
+User: notes Jonah reads only when needed (*"option 2"*), *"wouldnt it benefit from your knowledge on moduli, just for
+the sake of knowing how the system operates"*.
+- **`0421`** (applied to poms grid + test grid 2): a root **Jonah** folder with three doc pages — *About you*, *How
+  Moduli works* (a user-level guide, one `## ` section per topic: grid/panels, pages, containers/instances, modules vs
+  occurrences, move/copy/copy-link, fields, filters, operations, templates/feeds, Schedule/Day Page/Trackers, sharing,
+  Command Center, undo), *Remembered*. Found by `identitySignature` (`jonah:about|moduli|memory`); a note that exists
+  is never rewritten — they are the user's to edit. Text in `services/jonahNotes.js`.
+- **Tools** `jonah_notes({which, topic})` (a topic reads only its sections, so a read stays under the 6000-char
+  tool-result cap) and `jonah_remember({note})` (appends a dated line). **Routes** `GET /assistant/notes`,
+  `POST /assistant/notes/remember` (Mongo + warm cache + broadcast).
+- **The 3B model would not pick the tool** ("how does copy-link work in moduli?" → `wikipedia_links`, then
+  `get_occurrence` and an invented answer). So `notesTopicFor` spots a how/what question about Moduli and the matching
+  guide sections (≤2000 chars) go at the END of that turn's prompt, **with no tools offered** for that turn, and the
+  hint says to answer only from the notes. The prompt's "NARRATE" rule was reworded — the model printed it literally.
+- **Watched on prod (test grid 2):** copy-link answered from the guide, no tool call; "remember that I drink my coffee
+  black" → `2026-10-18 — You drink your coffee black.` in Remembered (probe line left on test grid 2).
+
+---
+
 ### 2026-10-18 (2) — JONAH ASKS WHICH ONE; a lookup's card shows its text
 
 User: *"if there is something disambuguise, have jonah ask which one it is (like in the pomodoro case), this should be
