@@ -3998,3 +3998,8 @@ per picked date (that is where the items live); Combine hides those and shows on
 ### 2026-10-18 06:49 CDT
 - *"row labels should be highlighted and can you add one of my daoist or buddhist reflection books into my daypage reflections"*
 - *"also can we add in to make files have an autosave place (so video time for videos, books page, audio time, etc)"*
+
+### 2026-10-18 07:56–08:03 CDT
+- *"if there is something disambuguise, have jonah ask which one it is (like in the pomodoro case), this should be in the wikipedia import or anything its unsure about"*
+- *"is it also possible to inject your claude "memory" into jonah"*
+- **At the END of UI testing:** go to every dropdown, every form, every drawer and menu — test them all and make them user friendly: all the buttons, anything missed or changed since it was last tested; layout and CSS make sense for a user-friendly experience; every form works. Includes the **share tool menu**, and it must work on **mobile** too.
