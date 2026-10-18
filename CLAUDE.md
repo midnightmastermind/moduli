@@ -24,8 +24,11 @@ file"* · *"lets get rid of the books that have no file"* · *"remove the previo
   dropped) and plans them through `import_plan` titled with the book; the page arrows / contents / pdf controls hide;
   **Save file** keeps the whole book in Imports. The read is started once per file (a status in the effect's deps
   dropped the answer — test caught it). Tests `bookReader` +2. **Watched on prod:** Maslow's paper 0.6s, two full
-  Alan Watts epubs ~1s, scroll median ~35ms over 72k / 140k px, 0 page errors. **Seen:** a book whose chapters are not
-  `<h1-6>` (Calibre-converted) comes out as ONE section + one long textblock — no chapter split yet.
+  Alan Watts epubs ~1s, scroll median ~35ms over 72k / 140k px, 0 page errors. **Then split by the contents** (user: *"lets do the open for today ones"*):
+  `bookText.fileSections` reads `{ pages, labels }` once — labels from the book's TOC via `resolveHref`, the first
+  entry naming each section — and `wholeFileText(pages, labels)` heads a section with its label unless it opens with
+  its own heading. `filePages` (READ_FILE, the day readings) still returns the bare pages. Watched on prod: *Just So*
+  (Calibre epub, no heading tags) 1 section -> 12 chapter sections, 1.3s, scroll median 36ms.
 - **Books:** after `0422` only two rows were left without a file that opens — *The Way of Zen* (its Files pointed at a
   deleted artifact) and *The Computers of Star Trek* (a `.djvu`). Deleted through `delete_occurrence`, backup
   `server/backups/orphans/2026-10-18-books-no-file.json` on prod. 481 books, every one with a readable file. Two loose
