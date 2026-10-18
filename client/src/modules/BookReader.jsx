@@ -7,8 +7,11 @@
 //   Book       the book as written. e-books (epub / mobi / azw / azw3) through foliate-js, paginated;
 //              PDFs through the existing pdf.js viewer. The place you stop is stored on the file's
 //              module (`meta.readingPosition`) and the book reopens there, on any device.
-//   Magic      the page on screen, laid out as sections / textblocks / lists by `import_plan` —
+//   Magic page the page on screen, laid out as sections / textblocks / lists by `import_plan` —
 //              planned, never written. Leaving it leaves nothing behind.
+//   Magic file the WHOLE file the same way (user, 2026-10-18: "a button next to magic that does the
+//              whole file, not just that one page"): every page / section read as text
+//              (helpers/bookText.filePages, the same reading READ_FILE uses), joined, planned once.
 //   Open in panel  the book as its own page in a panel (user, 2026-10-16: "change save page to open
 //              in panel, if i want to save the page, i can drag copy out of magic"). Hidden when the
 //              reader already IS that page.
@@ -27,6 +30,7 @@ import {
   makeReadingPosition, samePosition, positionLabel,
 } from "../helpers/bookEngine";
 import { stripBookNavLinks } from "../helpers/bookNavLinks";
+import { filePages } from "../helpers/bookText";
 import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
 import { useSpreadHost } from "../helpers/spreadDock";
@@ -38,11 +42,17 @@ const PagePreviewBody = React.lazy(() =>
   import("../PagePreviewApp.jsx").then((m) => ({ default: m.PagePreviewBody })),
 );
 
-const MODES = [["book", "Document"], ["magic", "Magic"]];
+const MODES = [["book", "Document"], ["magic", "Magic page"], ["magicFile", "Magic file"]];
 const TITLES = {
   book: "The book as written",
   magic: "This page laid out as sections, textblocks and lists — nothing is saved unless you press Save page or drag a piece out",
+  magicFile: "The whole file laid out as sections, textblocks and lists — nothing is saved unless you press Save or drag a piece out",
 };
+
+/** The whole file as one markdown text: its pages / sections in order, empty ones dropped. */
+export function wholeFileText(pages) {
+  return (pages || []).map((p) => String(p || "").trim()).filter(Boolean).join("\n\n");
+}
 // How long the position must hold still before it is written (page turns come in bursts).
 const POSITION_SAVE_MS = 2000;
 
@@ -208,9 +218,33 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
     }).catch(() => { if (pdfReq.current === req) setPage({ content: "", format: "markdown", pos }); });
   }, [savePosition]);
 
-  const isMagic = mode === "magic";
+  const isMagicPage = mode === "magic";
+  const isMagicFile = mode === "magicFile";
+  const isMagic = isMagicPage || isMagicFile;
   const label = positionLabel(title, page.pos);
-  const { plan, tree } = usePlannedImport({ socket, gridId, content: page.content, format: page.format, shape: "magic", title: label, enabled: isMagic, reqPrefix: "book" });
+
+  // The whole file's text, read once when Magic file is first opened (filePages caches per file).
+  // Started once per file: the status must not be an effect dependency, or setting "loading" would
+  // run the cleanup and drop the answer.
+  const [whole, setWhole] = useState({ status: "idle", content: "" });
+  const wholeFor = useRef(null);
+  useEffect(() => {
+    if (!isMagicFile || !src || !engine || wholeFor.current === src) return;
+    wholeFor.current = src;
+    let live = true; let settled = false;
+    setWhole({ status: "loading", content: "" });
+    filePages({ src, kind: engine === "pdf" ? "pdf" : "ebook" })
+      .then((pages) => { settled = true; if (live) setWhole({ status: "done", content: wholeFileText(pages) }); })
+      .catch((e) => { settled = true; if (live) { wholeFor.current = null; setWhole({ status: "error", content: "", error: e?.message || String(e) }); } });
+    // Leaving Magic file mid-read drops that read; coming back starts it again (filePages caches it).
+    return () => { live = false; if (!settled && wholeFor.current === src) wholeFor.current = null; };
+  }, [isMagicFile, src, engine]);
+
+  // What Magic lays out (and Save keeps): this page, or the whole file.
+  const shown = isMagicFile
+    ? { content: whole.content, format: "markdown", title }
+    : { content: page.content, format: page.format, title: label };
+  const { plan, tree } = usePlannedImport({ socket, gridId, content: shown.content, format: shown.format, shape: "magic", title: shown.title, enabled: isMagic, reqPrefix: "book" });
   const saveAsPage = useSaveAsPage({ socket, gridId, dispatch, rootRef, occurrence });
   const openInPanel = useOpenArtifactInPanel();
   const spreadHost = useSpreadHost();
@@ -221,11 +255,12 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   };
   const flash = (text) => { setNote(text); setTimeout(() => setNote(null), 5000); };
   const savePage = () => {
-    if (!page.content || busy) return;
+    if (!shown.content || busy) return;
     setBusy(true);
-    saveAsPage({ content: page.content, format: page.format, shape: isMagic ? "magic" : "reader", title: label }).then((res) => {
+    saveAsPage({ content: shown.content, format: shown.format, shape: isMagic ? "magic" : "reader", title: shown.title }).then((res) => {
       setBusy(false);
-      flash(res.ok ? "Saved this page in Imports" : `Could not save the page: ${res.error}`);
+      const what = isMagicFile ? "the whole file" : "this page";
+      flash(res.ok ? `Saved ${what} in Imports` : `Could not save ${what}: ${res.error}`);
     });
   };
   const openHere = () => {
@@ -253,17 +288,20 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
       <div className="book-reader-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {MODES.map(([m, l]) => tabBtn(m, l))}
-        {/* In Magic these turn the book underneath; the new page is laid out as soon as it lands. */}
+        {/* In Magic page these turn the book underneath; the new page is laid out as soon as it lands.
+            Magic file shows every page at once, so there is nothing to turn. */}
+        {!isMagicFile && (<>
         <button type="button" style={navBtn} aria-label="Previous page" title="Previous page" onClick={() => turn(-1)}><ChevronLeft size={14} /></button>
         <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
-        {engine === "ebook" && toc.length > 0 && (
+        </>)}
+        {!isMagicFile && engine === "ebook" && toc.length > 0 && (
           <select aria-label="Contents" defaultValue="" style={{ ...navBtn, maxWidth: 200 }}
             onChange={(e) => { if (e.target.value) viewRef.current?.goTo(e.target.value); e.target.value = ""; }}>
             <option value="">Contents…</option>
             {toc.map((t, i) => <option key={i} value={t.href}>{`${"  ".repeat(t.depth)}${t.label}`}</option>)}
           </select>
         )}
-        {engine === "pdf" && pdfState.totalPages > 0 && (
+        {!isMagicFile && engine === "pdf" && pdfState.totalPages > 0 && (
           <>
             <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
               <input type="number" aria-label="Page" min={1} max={pdfState.totalPages} value={pdfState.pageNum}
@@ -277,11 +315,11 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
           </>
         )}
         <span style={{ flex: 1, minWidth: 8, fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-        <button type="button" onClick={savePage} disabled={!page.content || busy} aria-label="Save page"
-          title="Keep this page: it is added to Imports as a page and opened"
-          style={{ ...navBtn, opacity: page.content ? 1 : 0.5 }}>
-          {busy ? <Loader2 size={12} className="animate-spin" /> : "Save page"}
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMagicFile ? title : label}</span>
+        <button type="button" onClick={savePage} disabled={!shown.content || busy} aria-label={isMagicFile ? "Save file" : "Save page"}
+          title={isMagicFile ? "Keep the whole file: it is added to Imports as a page and opened" : "Keep this page: it is added to Imports as a page and opened"}
+          style={{ ...navBtn, opacity: shown.content ? 1 : 0.5 }}>
+          {busy ? <Loader2 size={12} className="animate-spin" /> : isMagicFile ? "Save file" : "Save page"}
         </button>
         {!inPanelPage && !spreadHost && occurrence?.id && (
           <button type="button" onClick={openHere} aria-label="Open in panel" title="Open the book as its own page in a panel"
@@ -304,8 +342,12 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
         </div>
         {isMagic && (
           <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "var(--panel-bg)", color: "var(--text-primary)" }}>
-            {!page.content ? (
-              <Message>There is no text on this page to lay out.</Message>
+            {isMagicFile && (whole.status === "loading" || whole.status === "idle") ? (
+              <Waiting label="Reading the whole file…" />
+            ) : isMagicFile && whole.status === "error" ? (
+              <Message>The file could not be read: {whole.error}</Message>
+            ) : !shown.content ? (
+              <Message>{isMagicFile ? "There is no text in this file to lay out." : "There is no text on this page to lay out."}</Message>
             ) : tree ? (
               <React.Suspense fallback={<Waiting label="Laying out the page…" />}>
                 <PagePreviewBody parentState={tree.state} occurrenceId={tree.rootOccurrenceId} scroll rootChrome publishComputed={false} />
@@ -313,7 +355,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
             ) : plan?.ok === false ? (
               <Message>The page could not be laid out: {plan.error}</Message>
             ) : (
-              <Waiting label="Laying out the page…" />
+              <Waiting label={isMagicFile ? "Laying out the whole file…" : "Laying out the page…"} />
             )}
           </div>
         )}

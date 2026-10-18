@@ -33,6 +33,8 @@ vi.mock("../modules/PdfViewer.jsx", () => ({
 const openInPanel = vi.fn(() => ({ ok: true }));
 vi.mock("../hooks/useOpenArtifactInPanel", () => ({ useOpenArtifactInPanel: () => openInPanel }));
 let HOST = null;
+const filePages = vi.fn(() => Promise.resolve(["# One\n\nFirst page.", "", "Second page."]));
+vi.mock("../helpers/bookText", () => ({ filePages: (...a) => filePages(...a) }));
 vi.mock("../helpers/spreadDock", () => ({ useSpreadHost: () => HOST }));
 
 import BookReader from "../modules/BookReader.jsx";
@@ -54,7 +56,7 @@ describe("BookReader", () => {
     const socket = makeSocket();
     mount(socket);
     expect(screen.getByTestId("pdf").textContent).toBe("pdf at 3");
-    for (const t of ["Document", "Magic"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    for (const t of ["Document", "Magic page", "Magic file"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Dune — p. 3")).toBeTruthy());
     expect(socket.emits.some((e) => e.event === "import_plan")).toBe(false);
   });
@@ -63,7 +65,7 @@ describe("BookReader", () => {
     const socket = makeSocket();
     mount(socket);
     await waitFor(() => expect(screen.getByText("Dune — p. 3")).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Magic page" }));
     await waitFor(() => expect(screen.getByTestId("preview").textContent).toBe("magic-root"));
     const plan = socket.emits.find((e) => e.event === "import_plan");
     expect(plan.payload).toMatchObject({ content: "Page three text.", format: "markdown", shape: "magic", title: "Dune — p. 3" });
@@ -79,7 +81,7 @@ describe("BookReader", () => {
     await waitFor(() => expect(createImportsDocPage).toHaveBeenCalled());
     const save = socket.emits.find((e) => e.event === "import_text");
     expect(save.payload).toMatchObject({ shape: "reader", title: "Dune — p. 3", content: "Page three text." });
-    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Magic page" }));
     fireEvent.click(screen.getByRole("button", { name: "Save page" }));
     await waitFor(() => expect(socket.emits.filter((e) => e.event === "import_text").length).toBe(2));
     expect(socket.emits.filter((e) => e.event === "import_text")[1].payload.shape).toBe("magic");
@@ -145,10 +147,41 @@ describe("BookReader", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(pdfGo.mock.calls).toEqual([[1]]);
     pdfGo.mockReset();
-    fireEvent.click(screen.getByRole("button", { name: "Magic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Magic page" }));
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
     expect(pdfGo.mock.calls).toEqual([[1], [-1]]);
+  });
+
+  // User, 2026-10-18: "a button next to magic that does the whole file, not just that one page".
+  it("Magic file reads every page once and plans the whole file, titled with the book", async () => {
+    filePages.mockClear();
+    const socket = makeSocket();
+    mount(socket);
+    await waitFor(() => expect(screen.getByText("Dune — p. 3")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Magic file" }));
+    await waitFor(() => expect(screen.getByTestId("preview").textContent).toBe("magic-root"));
+    expect(filePages).toHaveBeenCalledTimes(1);
+    expect(filePages.mock.calls[0][0]).toEqual({ src: "/files/c/f", kind: "pdf" });
+    const plan = socket.emits.filter((e) => e.event === "import_plan").pop();
+    expect(plan.payload).toMatchObject({ content: "# One\n\nFirst page.\n\nSecond page.", format: "markdown", shape: "magic", title: "Dune" });
+    // nothing to turn when every page is on screen
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    // Save keeps the whole file
+    fireEvent.click(screen.getByRole("button", { name: "Save file" }));
+    const saved = socket.emits.filter((e) => e.event === "import_text").pop();
+    expect(saved.payload).toMatchObject({ content: "# One\n\nFirst page.\n\nSecond page.", title: "Dune", shape: "magic" });
+    // going back to the page and to the file again does not read the file twice
+    fireEvent.click(screen.getByRole("button", { name: "Magic page" }));
+    fireEvent.click(screen.getByRole("button", { name: "Magic file" }));
+    expect(filePages).toHaveBeenCalledTimes(1);
+  });
+
+  it("Magic file says so when the file cannot be read", async () => {
+    filePages.mockImplementationOnce(() => Promise.reject(new Error("the file could not be fetched (404)")));
+    mount(makeSocket());
+    fireEvent.click(screen.getByRole("button", { name: "Magic file" }));
+    await waitFor(() => expect(screen.getByText(/could not be read: the file could not be fetched/)).toBeTruthy());
   });
 
   it("says plainly when a file is not a book it can open", () => {
