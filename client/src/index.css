@@ -7328,6 +7328,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread-body .artifact-card.artifact-card--ocr-tile {
   padding: 0;
   cursor: auto;
+  width: 100%;           /* the tab row spans the tile, so the tile's buttons can share it */
+  align-self: stretch;
 }
 .artifact-ocr-tile-picture {
   height: 100%;

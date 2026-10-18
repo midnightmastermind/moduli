@@ -114,9 +114,12 @@ export default function ImageOcrViews({ occurrence, module, imgSrc, children, di
   const tabBtn = (m, label) => (
     <button key={m} type="button" onClick={() => setMode(m)} title={TITLES[m]} aria-pressed={mode === m}
       style={{ padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4,
-        border: "1px solid var(--border-default)",
-        background: mode === m ? "var(--accent-blue)" : "var(--input-bg)",
-        color: mode === m ? "var(--on-accent)" : "var(--text-primary)" }}>{label}</button>
+        // The active tab is an outline, like the book reader's (a filled accent read green on green in Terminal).
+        border: mode === m ? "1px solid var(--accent-blue)" : "1px solid var(--border-default)",
+        boxShadow: mode === m ? "inset 0 0 0 1px var(--accent-blue)" : "none",
+        fontWeight: mode === m ? 700 : 400,
+        background: mode === m ? "var(--accent-blue-bg)" : "var(--input-bg)",
+        color: "var(--text-primary)" }}>{label}</button>
   );
   const actBtn = { padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4,
     border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" };
