@@ -2243,6 +2243,19 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // ASSISTANT — Jarvis chat endpoint. See docs/assistant-guide.md.
   // ====================================================================
 
+  // Warm the local model when the drawer opens (see warmAssistant). Answers at
+  // once; the warm-up runs on its own.
+  router.post("/assistant/warm", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    const { warmAssistant } = await import("../services/assistantAgent.js");
+    warmAssistant({
+      userId: req.userId,
+      gridId: req.body?.gridId,
+      baseUrl: SELF_BASE_URL,
+      apiToken: req.headers.authorization?.replace(/^Bearer /, ""),
+    }).catch(() => {});
+    res.json({ ok: true });
+  });
+
   router.post("/assistant/chat", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { assistantChat } = await import("../services/assistantAgent.js");

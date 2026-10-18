@@ -456,6 +456,25 @@ export function buildOllamaRequestBody({
 // multi-minute wait). Parses Ollama's NDJSON stream, accumulates the full
 // content + any tool_calls, and returns them once `done`. Tool-calling models
 // emit tool_calls in the stream (usually the final frame); we collect them all.
+// A gateway in front of Ollama (Cloudflare) answers an error with a whole HTML
+// page. Keep its <title> (or the first line of plain text) so a failure reads as
+// one sentence in the chat instead of a page of markup.
+export function summarizeHttpError(body) {
+  const text = String(body || "");
+  const title = /<title[^>]*>([^<]*)<\/title>/i.exec(text)?.[1]?.trim();
+  if (title) return title;
+  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return plain.length > 200 ? plain.slice(0, 200) + "…" : plain;
+}
+
+// The gateway gave up waiting before Ollama sent anything. With tools attached,
+// Ollama sends nothing until the reply is done, and reading a long prompt on a
+// CPU box can take longer than Cloudflare's 100s. Ollama keeps the prompt it
+// read, so the same request again is quick (measured: 125s 524, then 18s, 3.5s).
+export function isGatewayTimeout(err) {
+  return [502, 503, 504, 524].includes(Number(err?.status));
+}
+
 async function streamOllamaChat({ url, body, signal, onToken }) {
   const res = await fetch(url, {
     method: "POST",
@@ -463,7 +482,11 @@ async function streamOllamaChat({ url, body, signal, onToken }) {
     body: JSON.stringify(body),
     signal,
   });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const err = new Error(`Ollama ${res.status}: ${summarizeHttpError(await res.text())}`);
+    err.status = res.status;
+    throw err;
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = "", content = "", toolCalls = [];
@@ -516,12 +539,20 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
     try {
       // Stream so the user sees the model narrate live (each delta → onProgress
       // token) instead of a silent 60-100s wait.
-      streamed = await streamOllamaChat({
+      const send = () => streamOllamaChat({
         url: `${OLLAMA_URL}/api/chat`,
         body: buildOllamaRequestBody({ model: OLLAMA_MODEL, messages: apiMessages, tools, stream: true }),
         signal: ctrl.signal,
         onToken: (delta) => onProgress({ phase: "token", delta }),
       });
+      for (let attempt = 0; ; attempt++) {
+        try { streamed = await send(); break; }
+        catch (e) {
+          // See isGatewayTimeout: the prompt is read by now, so asking again is fast.
+          if (!isGatewayTimeout(e) || attempt >= 2 || deadline - Date.now() < 20000) throw e;
+          onProgress({ phase: "retry", attempt: attempt + 1 });
+        }
+      }
     } catch (e) {
       if (e?.name === "AbortError") throw new Error(`Ollama timed out (>${Math.round(Math.min(OLLAMA_TIMEOUT_MS, remaining) / 1000)}s)`);
       throw e;
@@ -603,11 +634,17 @@ async function pickBackend() {
 // "current location" line so the model can resolve "here" / "this folder"
 // to a real id without the user spelling out the id.
 export function buildSystemPrompt(context) {
-  if (!context || !context.id) return SYSTEM_PROMPT;
+  return SYSTEM_PROMPT + buildLocationHint(context);
+}
+
+// The "where the user is" line on its own, so the chat can put it LAST in the
+// prompt: it changes with every page, and Ollama only reuses the part of a prompt
+// that matches the previous one from the start.
+export function buildLocationHint(context) {
+  if (!context || !context.id) return "";
   const label = context.label || context.id;
   const isFolder = context.type === "folder";
-  return SYSTEM_PROMPT +
-    `\n\nCURRENT LOCATION — the user is looking at "${label}" (${isFolder ? "folder" : "page/occurrence"} id: ${context.id}). ` +
+  return `\n\nCURRENT LOCATION — the user is looking at "${label}" (${isFolder ? "folder" : "page/occurrence"} id: ${context.id}). ` +
     `When the user says "here", "this folder", "this page", or asks to create/import/place something WITHOUT naming a destination, use ${context.id} as the parentId.`;
 }
 
@@ -694,15 +731,56 @@ async function fetchDestinations({ baseUrl, apiToken, gridId }) {
   }
 }
 
-export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
-  if (!gridId) throw new Error("gridId required");
+// The tools and system prompt a chat sends. Shared with warmAssistant so the
+// warm-up reads exactly the prompt the next chat will start with.
+async function composeChat({ userId, gridId, context, baseUrl, apiToken }) {
   const tools = buildTools({ baseUrl, apiToken, userId, gridId });
   // Resolve named places (folders/pages/containers) up front so the model can
   // create/move into any of them without a read round-trip.
   const destinations = await fetchDestinations({ baseUrl, apiToken, gridId });
   const today = new Date();
   const dateHint = `\n\nTODAY is ${today.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${today.toISOString().slice(0, 10)}). Use this for "today"/"tonight" and for any date field.`;
-  const systemPrompt = buildSystemPrompt(context) + buildDestinationsHint(destinations) + dateHint;
+  // Fixed parts first, the per-page location last (see buildLocationHint).
+  const systemPrompt = SYSTEM_PROMPT + buildDestinationsHint(destinations) + dateHint + buildLocationHint(context);
+  return { tools, systemPrompt };
+}
+
+// Have the local model read the fixed part of the prompt before the user asks
+// anything (called when the drawer opens). The first question then skips the
+// long read that otherwise runs past Cloudflare's 100s. Fire-and-forget; one
+// warm-up per grid per WARM_EVERY_MS.
+const WARM_EVERY_MS = 10 * 60 * 1000;
+const lastWarm = new Map();
+export async function warmAssistant({ userId, gridId, baseUrl, apiToken }) {
+  if (!gridId) return { warmed: false, reason: "no_grid" };
+  if (await pickBackend() !== "ollama") return { warmed: false, reason: "not_ollama" };
+  const now = Date.now();
+  if (now - (lastWarm.get(gridId) || 0) < WARM_EVERY_MS) return { warmed: false, reason: "recent" };
+  lastWarm.set(gridId, now);
+  const { tools, systemPrompt } = await composeChat({ userId, gridId, context: null, baseUrl, apiToken });
+  const body = buildOllamaRequestBody({
+    model: OLLAMA_MODEL,
+    messages: [{ role: "system", content: systemPrompt }, { role: "user", content: "hi" }],
+    tools: selectToolsForBackend(tools, "ollama"),
+    numPredict: 1,
+  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: "POST", headers: ollamaHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body),
+      });
+      await res.text();
+      if (res.ok) return { warmed: true };
+      if (!isGatewayTimeout({ status: res.status })) break;
+    } catch { break; }
+  }
+  lastWarm.delete(gridId);
+  return { warmed: false, reason: "failed" };
+}
+
+export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
+  if (!gridId) throw new Error("gridId required");
+  const { tools, systemPrompt } = await composeChat({ userId, gridId, context, baseUrl, apiToken });
   const contextId = context?.id || null;
   const backend = await pickBackend();
   const backendTools = selectToolsForBackend(tools, backend);

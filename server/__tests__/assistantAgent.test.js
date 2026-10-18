@@ -9,6 +9,9 @@
 //  - buildSystemPrompt       — location injection
 import { describe, it, expect } from "vitest";
 import {
+  assistantChat,
+  summarizeHttpError,
+  buildLocationHint,
   buildOllamaRequestBody,
   buildDestinationsHint,
   extractDestinations,
@@ -304,5 +307,71 @@ describe("assistantConfirm (a confirmed import never runs as a dry run)", () => 
     } finally {
       global.fetch = realFetch;
     }
+  });
+});
+
+// Cloudflare cuts a request off at ~100s when Ollama has not answered, and with
+// tools attached Ollama answers nothing until it is done. Measured on prod: the
+// real chat 524'd at 125s, the same request again took 18s (Ollama had kept the
+// prompt it read). So a gateway timeout is retried, and its HTML error page is
+// reported as one line, never pasted into the chat.
+describe("a gateway timeout in front of Ollama", () => {
+  const CF_PAGE = `<!DOCTYPE html><html><head><title>viafluere.com | 524: A timeout occurred</title></head><body><h1>Error code 524</h1>${"x".repeat(5000)}</body></html>`;
+  const okStream = JSON.stringify({ message: { content: "Here are a few." }, done: true }) + "\n";
+
+  async function chatWith(chatResponses) {
+    const realFetch = global.fetch;
+    const prevBackend = process.env.ASSISTANT_BACKEND;
+    process.env.ASSISTANT_BACKEND = "ollama";
+    let chatCalls = 0;
+    global.fetch = async (url) => {
+      if (String(url).includes("/api/chat")) {
+        const r = chatResponses[Math.min(chatCalls++, chatResponses.length - 1)];
+        return new Response(r.body, { status: r.status });
+      }
+      return new Response(JSON.stringify({ modules: [], occurrences: [], folders: [] }), { status: 200 });
+    };
+    try {
+      const out = await assistantChat({ messages: [{ role: "user", content: "hi" }], gridId: "g1", baseUrl: "http://x", apiToken: "t" });
+      return { out, chatCalls };
+    } finally {
+      global.fetch = realFetch;
+      if (prevBackend === undefined) delete process.env.ASSISTANT_BACKEND; else process.env.ASSISTANT_BACKEND = prevBackend;
+    }
+  }
+
+  it("asks again after a 524 and returns the answer", async () => {
+    const { out, chatCalls } = await chatWith([{ status: 524, body: CF_PAGE }, { status: 200, body: okStream }]);
+    expect(chatCalls).toBe(2);
+    expect(out.mode).toBe("ollama");
+    expect(out.transcript.at(-1).content).toBe("Here are a few.");
+  });
+
+  it("reports a gateway that keeps failing in one line, without the page", async () => {
+    const { out } = await chatWith([{ status: 524, body: CF_PAGE }]);
+    expect(out.mode).toBe("ollama-error");
+    const text = out.transcript[0].content;
+    expect(text).toContain("524: A timeout occurred");
+    expect(text).not.toContain("<");
+    expect(text.length).toBeLessThan(400);
+  });
+
+  it("does not retry an error that is not a timeout", async () => {
+    const { out, chatCalls } = await chatWith([{ status: 400, body: "model not found" }]);
+    expect(chatCalls).toBe(1);
+    expect(out.transcript[0].content).toContain("model not found");
+  });
+
+  it("summarizeHttpError reads a page's title and trims plain text", () => {
+    expect(summarizeHttpError(CF_PAGE)).toBe("viafluere.com | 524: A timeout occurred");
+    expect(summarizeHttpError("plain failure")).toBe("plain failure");
+    expect(summarizeHttpError("y".repeat(500)).length).toBeLessThanOrEqual(201);
+  });
+});
+
+describe("the per-page location goes last in the prompt", () => {
+  it("buildLocationHint is empty without a location and names it with one", () => {
+    expect(buildLocationHint(null)).toBe("");
+    expect(buildLocationHint({ id: "p1", label: "Tasks" })).toContain('"Tasks"');
   });
 });

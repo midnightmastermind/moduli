@@ -98,6 +98,18 @@ export default function AssistantDrawer() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
   const [streamingText, setStreamingText] = useState("");
+
+  // When the drawer opens, have the local model read the fixed part of the prompt
+  // now, so the first question does not wait (or time out) on that read. The
+  // server does nothing when Jonah is not on Ollama or was warmed recently.
+  useEffect(() => {
+    if (!open || !token || !gridId) return;
+    fetch("/api/v1/assistant/warm", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ gridId }),
+    }).catch(() => {});
+  }, [open, token, gridId]);
   const [showSettings, setShowSettings] = useState(false);
   const [location, setLocation] = useState(() => getCurrentLocation());
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -1330,6 +1342,7 @@ function formatProgress(p) {
   if (p.phase === "thinking") {
     return p.iteration > 1 ? `… thinking (step ${p.iteration})` : "… thinking";
   }
+  if (p.phase === "retry") return "… the local model is still reading — asking again";
   return "… thinking";
 }
 
