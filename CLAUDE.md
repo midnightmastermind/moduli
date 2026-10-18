@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (8) — OPS: "matches regex", READ_FILE's page; the rebuild census after today
+
+- **`MATCHES` / `NOT_MATCHES`** (`server/utils/matchesPattern.js`, shared by the client `evalRule` and
+  `serverExecutor`): `/source/flags` or plain text as a case-insensitive pattern, compiled once, an invalid
+  pattern matches nothing, an array left matches if any member does. In the comparator catalog (Value group).
+- **READ_FILE** binds `page` / `endPage` / `pages` (`bookText.pageStarts` / `pageAt`): the pdf page, or the
+  e-book section, a passage starts and ends on. Test `matchesAndPages.test.js`.
+- **`_gridcmp` after today's work:** apart from bulk content, the rebuild differs from poms on: Tasks' Work
+  Shifts (poms' real Sling feed), Trackers' account totals (poms: one Accounts tile; rebuild: a total on each
+  account tile — a known layout difference), past day columns. And **poms had regressed**: 21 Schedule
+  Layout slots bound Last Seen visibly again since the 10-13 Combine migrations — `0419` unbinds it.
+- **Routines + Tasks green on the rebuild, by clicking** (`_stylebatch.mjs` over a TODO built from the
+  rebuild's own pages — 179 modules), then `0415` / `0417` there for the clones (bug fallout, not styling).
+
 ### 2026-10-17 (7) — SLIDE-OUTS; a placed item keeps its colour; the idle grey; Routines + Tasks one green
 
 - **Slide, don't appear:** `ui/SlideDrawer` + `hooks/usePresence` (kept mounted for the closing animation, decided
