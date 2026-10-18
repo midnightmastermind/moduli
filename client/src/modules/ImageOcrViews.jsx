@@ -125,7 +125,7 @@ export default function ImageOcrViews({ occurrence, module, imgSrc, children, di
     border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)" };
 
   return (
-    <div ref={rootRef} data-testid="image-ocr-views" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div ref={rootRef} data-testid="image-ocr-views" style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
       {/* In the viewer the tile's handle + buttons sit on this row too (index.css .ocr-views-head). */}
       <div className="ocr-views-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>

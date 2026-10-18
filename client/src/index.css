@@ -7336,6 +7336,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
   cursor: pointer;
 }
 /* The picture takes the leftover room; `contain` letterboxes rather than
