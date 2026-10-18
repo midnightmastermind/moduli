@@ -865,8 +865,11 @@ async function notesHintFor(messages, { baseUrl, apiToken, gridId }) {
 export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
   if (!gridId) throw new Error("gridId required");
   const composed = await composeChat({ userId, gridId, context, baseUrl, apiToken });
-  const tools = composed.tools;
-  const systemPrompt = composed.systemPrompt + await notesHintFor(messages, { baseUrl, apiToken, gridId });
+  const notesHint = await notesHintFor(messages, { baseUrl, apiToken, gridId });
+  // An explanation needs no tools; offered them, the small model calls one
+  // and answers from that instead of the notes it was just given.
+  const tools = notesHint ? [] : composed.tools;
+  const systemPrompt = composed.systemPrompt + notesHint;
   const contextId = context?.id || null;
   const backend = await pickBackend();
   const backendTools = selectToolsForBackend(tools, backend);
