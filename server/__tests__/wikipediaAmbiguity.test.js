@@ -50,3 +50,10 @@ describe("summary of an ambiguous title", () => {
     expect(r.extract).toBe("A method.");
   });
 });
+
+describe("ordering without positions", () => {
+  it("falls back to alphabetical", () => {
+    const j = { query: { pages: [{ ns: 0, title: "Tomato" }, { ns: 0, title: "Arnaldo Pomodoro" }, { ns: 0, title: "Pomodoro Technique" }] } };
+    expect(optionsFromLinksResponse(j).map((o) => o.title)).toEqual(["Arnaldo Pomodoro", "Pomodoro Technique", "Tomato"]);
+  });
+});

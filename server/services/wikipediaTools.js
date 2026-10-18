@@ -450,13 +450,14 @@ export async function search(query, { limit = 5 } = {}) {
 }
 
 // The choices a disambiguation page lists, from the action API's links
-// generator: [{ title, description }], in the page's own order, without
+// generator: [{ title, description }], in the page's order when the API gives it
+// (it usually does not), else by title, without
 // other disambiguation pages (a choice that is itself ambiguous answers nothing).
 export function optionsFromLinksResponse(json, limit = 20) {
   const pages = json?.query?.pages || [];
   return pages
     .filter((p) => p && !p.missing && p.ns === 0 && !(p.pageprops && "disambiguation" in p.pageprops))
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .sort((a, b) => ((a.index ?? Infinity) - (b.index ?? Infinity)) || a.title.localeCompare(b.title))
     .slice(0, limit)
     .map((p) => ({ title: p.title, description: p.description || null }));
 }
