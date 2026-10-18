@@ -1641,6 +1641,15 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       $vars[cfg.name] = divVal !== 0 ? Math.round(((Number($vars[cfg.name]) || 0) / divVal) * 100) / 100 : 0;
       break;
     }
+    // Remainder, always 0..by-1 (a negative value wraps), so a day number can pick
+    // one of N items in turn: ((day - 1) % N) + 1. by 0 leaves the var alone.
+    case "MOD_VAR": {
+      const modBy = Number(resolveExpr(cfg.by, $vars));
+      if (!Number.isFinite(modBy) || modBy === 0) break;
+      const v = Number($vars[cfg.name]) || 0;
+      $vars[cfg.name] = ((v % modBy) + modBy) % modBy;
+      break;
+    }
 
     // ============================================================
     // Four CRUD verbs: FIND, CREATE, UPDATE, DELETE
@@ -3180,6 +3189,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         { tok: /d/g,    val: String(d.getDate()) },
         { tok: /EEEE/g, val: WEEKDAYS_LONG[d.getDay()] },
         { tok: /EEE/g,  val: WEEKDAYS_SHORT[d.getDay()] },
+        // Day of the year, 1..366 (date-fns "D").
+        { tok: /D/g,    val: String(Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(d.getFullYear(), 0, 1)) / 86400000) + 1) },
       ];
       // Pass 1: replace each token with a sentinel-wrapped index.
       let out = format;

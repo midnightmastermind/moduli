@@ -947,6 +947,14 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
         </div>
       );
 
+    case "MOD_VAR":
+      return (
+        <div style={rowStyle}>
+          {fl("$")} {varNameInput("name")} {fl("%=")}
+          <ExprOrPath value={cfg.by || ""} onChange={v => setCfg({ by: v })} placeholder="81" width={150} {...exprProps} />
+        </div>
+      );
+
     case "INCREMENT_VAR":
       return (
         <div style={rowStyle}>

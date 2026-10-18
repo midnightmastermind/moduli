@@ -57,6 +57,20 @@ export function readingEntry({ title, fileRef, kind }) {
   return { key, title: String(title), file: String(fileRef), kind: kind === "ebook" ? "ebook" : "pdf" };
 }
 
+/**
+ * PURE. Start markers for a book whose chapters are headed by their bare number and open on
+ * "1 . " (its first verse): one /regex/ per chapter 1..count. Scanned books read a 1 as "l" or
+ * "I" and split digits ("1 0"), so each digit tolerates that.
+ */
+export function chapterMarkers(count) {
+  const out = [];
+  for (let n = 1; n <= count; n++) {
+    const num = String(n).split("").map((d) => (d === "1" ? "[1lI]" : d)).join(" ?");
+    out.push(`/(?<![0-9A-Za-z])${num}\\s*\\n\\n1 \\.\\s/`);
+  }
+  return out;
+}
+
 /** PURE. The caller: every shown day × every reading → the callee. */
 export function readingsPipeline({ readings, gateCondition = null }) {
   const body = [
@@ -64,10 +78,24 @@ export function readingsPipeline({ readings, gateCondition = null }) {
       loop("$activePeriodDates", "$day", [
         act({ type: "DATE_FORMAT", date: "$day", format: "MMMM d", to: "$md" }),
         loop("$readings", "$rd", [
-          act({ type: "RUN_OPERATION", operationName: CALLEE, vars: {
-            $day: "$day", $key: "$rd.key", $title: "$rd.title", $file: "$rd.file", $kind: "$rd.kind",
-            $from: dayMarker("${$md}"), $to: `literal:${NEXT_DAY_MARKER}`,
-          } }),
+          // A book read in turn (a chapter a day) carries `cycle`: one start marker per chapter, and
+          // `to`. The day of the year picks one: (day - 1) % chapters. Any other book is dated.
+          iff(all(r("$rd.cycle", "IS_NOT_EMPTY")), [
+            act({ type: "INIT_VAR", name: "$cycle", expr: "$rd.cycle" }),
+            act({ type: "ARRAY_LENGTH", name: "$cycle", to: "$cycleLen" }),
+            act({ type: "DATE_FORMAT", date: "$day", format: "D", to: "$cycleAt" }),
+            act({ type: "DECREMENT_VAR", name: "$cycleAt", by: "1" }),
+            act({ type: "MOD_VAR", name: "$cycleAt", by: "$cycleLen" }),
+            act({ type: "RUN_OPERATION", operationName: CALLEE, vars: {
+              $day: "$day", $key: "$rd.key", $title: "$rd.title", $file: "$rd.file", $kind: "$rd.kind",
+              $from: "$cycle.${$cycleAt}", $to: "$rd.to",
+            } }),
+          ], [
+            act({ type: "RUN_OPERATION", operationName: CALLEE, vars: {
+              $day: "$day", $key: "$rd.key", $title: "$rd.title", $file: "$rd.file", $kind: "$rd.kind",
+              $from: dayMarker("${$md}"), $to: `literal:${NEXT_DAY_MARKER}`,
+            } }),
+          ]),
         ]),
       ]),
     ]),

@@ -5,6 +5,7 @@
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
 import AudioWaveform from "./AudioWaveform.jsx";
+import PlaceMedia from "../ui/PlaceMedia.jsx";
 import { flashElement } from "../helpers/jumpToOccurrence";
 import BookmarkView from "./BookmarkView.jsx";
 import BookReader from "./BookReader.jsx";
@@ -459,7 +460,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   if (normalizedArtifactType === "audio" && fileRef) {
     return (
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 24 }}>
-        <AudioWaveform src={resolveFileRef(fileRef)} />
+        <AudioWaveform src={resolveFileRef(fileRef)} moduleId={module?.id} />
         <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
       </div>
     );
@@ -468,7 +469,9 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   if (normalizedArtifactType === "video" && fileRef) {
     return (
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: "100%", overflow: "hidden", padding: 16 }}>
-        <video
+        <PlaceMedia
+          as="video"
+          moduleId={module?.id}
           src={resolveFileRef(fileRef)}
           controls
           style={{ maxWidth: "100%", maxHeight: "100%" }}

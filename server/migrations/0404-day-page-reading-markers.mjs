@@ -19,7 +19,8 @@ export function rewriteMarkers(steps) {
   const walk = (list) => {
     for (const s of list || []) {
       const c = s.config;
-      if (s.type === "action" && c?.type === "RUN_OPERATION" && c.operationName === CALLEE && c.vars) {
+      // A chapter-a-day call (0420) reads its markers from the entry; it is not a dated call.
+      if (s.type === "action" && c?.type === "RUN_OPERATION" && c.operationName === CALLEE && c.vars && c.vars.$to !== "$rd.to") {
         const from = dayMarker("${$md}"), to = `literal:${NEXT_DAY_MARKER}`;
         if (c.vars.$from !== from || c.vars.$to !== to) { c.vars.$from = from; c.vars.$to = to; n++; }
       }

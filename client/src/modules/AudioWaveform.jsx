@@ -6,7 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // the fallback while the module loads OR if wavesurfer's `create` throws
 // (rare; happens on unsupported codecs). Play/pause toggles the
 // wavesurfer instance directly; seek is built-in on click.
-export default function AudioWaveform({ src }) {
+import useMediaPlace from "../hooks/useMediaPlace";
+export default function AudioWaveform({ src, moduleId = null }) {
+  // Both players remember the file's place (hooks/useMediaPlace).
+  const placeWs = useMediaPlace(moduleId);
+  const placeNative = useMediaPlace(moduleId);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -34,7 +38,7 @@ export default function AudioWaveform({ src }) {
           barRadius: 2,
           url: src,
         });
-        ws.on("ready", () => { if (mounted) setReady(true); });
+        ws.on("ready", () => { if (mounted) { setReady(true); try { placeWs(ws.getMediaElement?.()); } catch { /* no media element */ } } });
         ws.on("play",  () => { if (mounted) setPlaying(true); });
         ws.on("pause", () => { if (mounted) setPlaying(false); });
         ws.on("finish", () => { if (mounted) setPlaying(false); });
@@ -90,7 +94,7 @@ export default function AudioWaveform({ src }) {
             the user wants the browser's right-click → save audio /
             playback speed controls. Doesn't fight with wavesurfer because
             each owns its own MediaElement. */}
-        <audio src={src} controls style={{ height: 28 }} />
+        <audio ref={placeNative} src={src} controls style={{ height: 28 }} />
       </div>
     </div>
   );

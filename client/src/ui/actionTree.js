@@ -59,6 +59,7 @@ export const ACTION_TREE = [
           { value: "SUBTRACT_FROM_VAR", title: "-= subtract",   sub: "$x -= expr",       description: "Subtract from a numeric var" },
           { value: "MULTIPLY_VAR",      title: "*= multiply",   sub: "$x *= expr",       description: "Multiply a numeric var" },
           { value: "DIV_VAR",           title: "/= divide",     sub: "$x /= expr",       description: "Divide a numeric var (rounded to 2 decimals)" },
+          { value: "MOD_VAR",           title: "%= remainder",  sub: "$x %= expr",       description: "Remainder after dividing (0 up to the divisor - 1)" },
           { value: "INCREMENT_VAR",     title: "++ increment",  sub: "$x += N (default 1)", description: "Bump a counter" },
           { value: "DECREMENT_VAR",     title: "-- decrement",  sub: "$x -= N (default 1)", description: "Decrement a counter" },
         ],

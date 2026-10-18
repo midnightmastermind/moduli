@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { executePipeline } from "../helpers/operationExecutor";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { readingsPipeline, addReadingPipeline, readingEntry, CALLER, CALLEE, NEXT_DAY_MARKER, dayMarker } from "../../../server/migrations/0402-day-page-readings.mjs";
+import { readingsPipeline, addReadingPipeline, readingEntry, chapterMarkers, CALLER, CALLEE, NEXT_DAY_MARKER, dayMarker } from "../../../server/migrations/0402-day-page-readings.mjs";
 import { rewriteMarkers } from "../../../server/migrations/0404-day-page-reading-markers.mjs";
 import { slicePassage } from "../helpers/bookText";
 import { evalRule } from "../helpers/operationActions";
@@ -14,7 +14,7 @@ const BOARD = "board1";
 const DATE = "fDate";
 const reading = readingEntry({ title: "Morning Words", fileRef: "gdrive:c:book", kind: "pdf" });
 
-function world({ marked = false, have = false, legacy = false, noRefl = false, markAt = new Date().toISOString() } = {}) {
+function world({ marked = false, have = false, legacy = false, noRefl = false, markAt = new Date().toISOString(), readings = [reading] } = {}) {
   const refl = (id, col, kids = []) => noRefl ? {} : { [id]: { id, moduleId: "mRefl", parentId: col, identitySignature: "daypage:reflections", occurrences: kids, textmap: { type: "doc", content: [] } } };
   const occurrencesById = {
     [BOARD]: { id: BOARD, moduleId: "mBoard", occurrences: ["col15", "col16"] },
@@ -29,7 +29,7 @@ function world({ marked = false, have = false, legacy = false, noRefl = false, m
   };
   const modulesById = { mBoard: { id: "mBoard", role: "page" }, mCol: { id: "mCol", role: "container", kind: "doc" }, mRefl: { id: "mRefl", role: "container", kind: "doc", label: "Reflections" }, mR: { id: "mR", role: "container", kind: "doc", label: "Morning Words" } };
   const callee = { id: "opCallee", name: CALLEE, enabled: true, pipeline: addReadingPipeline({ boardOccurrenceId: BOARD, dateFieldId: DATE }) };
-  const caller = { id: "opCaller", name: CALLER, enabled: true, pipeline: readingsPipeline({ readings: [reading] }) };
+  const caller = { id: "opCaller", name: CALLER, enabled: true, pipeline: readingsPipeline({ readings }) };
   return { caller, callee, ctx: { state: { modules: Object.values(modulesById) }, fieldsById: {}, occurrencesById, modulesById, operationsById: { opCallee: callee, opCaller: caller } } };
 }
 
@@ -59,6 +59,30 @@ describe("Day Page: Readings (0402)", () => {
     // The mark goes out BEFORE the wait, so a second run on the same load imports nothing.
     const marks = pre.filter((e) => JSON.stringify(e).includes(`readings`));
     expect(marks.length).toBe(2);
+  });
+
+  it("a chapter-a-day book reads the chapter the day of the year picks (0420)", async () => {
+    const markers = chapterMarkers(81);
+    const ttc = { ...readingEntry({ title: "Way Book", fileRef: "gdrive:c:way", kind: "ebook" }), cycle: markers, to: "/General Comment/" };
+    const { caller, ctx } = world({ readings: [ttc] });
+    executePipeline(caller, ctx, null, { $activePeriodDates: ["2026-10-15", "2026-10-16"], $activePeriodCount: 2 });
+    for (let i = 0; i < 6; i++) await flush();
+    // Oct 15 2026 is day 288: (288 - 1) % 81 = 44 -> chapter 45; Oct 16 -> chapter 46.
+    expect(reads.map((r) => [r.src, r.kind, r.from, r.to])).toEqual([
+      ["/files/c/way", "ebook", markers[44], "/General Comment/"],
+      ["/files/c/way", "ebook", markers[45], "/General Comment/"],
+    ]);
+    expect(imports.map((r) => r.title)).toEqual(["Way Book", "Way Book"]);
+  });
+
+  it("chapter markers find a scanned chapter heading and stop at its comment", () => {
+    const m = chapterMarkers(81);
+    const text = "page 7 of the intro\n\nl\n\n1 . First verse.\n\nGeneral Comment\n\nnotes\n\n1 0\n\n1 . Tenth verse,\n\n2. more\n\nGeneral Comment\n\n-66\n\n1 . Rivers.\n\nGeneral Comment";
+    expect(slicePassage(text, { from: m[0], to: "/General Comment/" }).text).toBe("l\n\n1 . First verse.");
+    expect(slicePassage(text, { from: m[9], to: "/General Comment/" }).text).toBe("1 0\n\n1 . Tenth verse,\n\n2. more");
+    expect(slicePassage(text, { from: m[65], to: "/General Comment/" }).text).toBe("66\n\n1 . Rivers.");
+    // "7" inside a sentence is not chapter 7.
+    expect(slicePassage(text, { from: m[6] }).found).toBe(false);
   });
 
   it.each([["marked", { marked: true }], ["holding it", { have: true }]])("a day already %s reads nothing", async (_n, opts) => {
@@ -127,11 +151,13 @@ describe("Day Page: Readings (0402)", () => {
 
   it("0404 rewrites an old caller's markers once", () => {
     const steps = JSON.parse(JSON.stringify(readingsPipeline({ readings: [reading] }).steps));
-    const call = JSON.stringify(steps).includes(CALLEE) && steps[1].then[0].body[1].body[0];
+    const call = JSON.stringify(steps).includes(CALLEE) && steps[1].then[0].body[1].body[0].else[0];
     call.config.vars.$from = "/^${$md}\\b/im";
     expect(rewriteMarkers(steps)).toBe(1);
     expect(call.config.vars.$from).toBe(dayMarker("${$md}"));
     expect(rewriteMarkers(steps)).toBe(0);
+    // the chapter-a-day call is left alone
+    expect(steps[1].then[0].body[1].body[0].then.at(-1).config.vars.$from).toBe("$cycle.${$cycleAt}");
   });
 
   it("an empty passage imports nothing — no title-only page", async () => {

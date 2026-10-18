@@ -315,7 +315,7 @@ const _SNAPSHOT_SKIP = new Set([
 // snapshot to surface what got assigned.
 const _VAR_TARGET_ACTIONS = new Set([
   "INIT_VAR", "SET_VAR",
-  "ADD_TO_VAR", "SUBTRACT_FROM_VAR", "MULTIPLY_VAR", "DIV_VAR",
+  "ADD_TO_VAR", "SUBTRACT_FROM_VAR", "MULTIPLY_VAR", "DIV_VAR", "MOD_VAR",
   "INCREMENT_VAR", "DECREMENT_VAR", "PUSH_TO_VAR",
 ]);
 function snapshotVars($vars) {

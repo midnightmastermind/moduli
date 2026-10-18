@@ -24,6 +24,7 @@ import { useDockRect, useInSpread, dockVars } from "../helpers/spreadDock";
 import BookmarkView from "./BookmarkView.jsx";
 import BookReader from "./BookReader.jsx";
 import AudioWaveform from "./AudioWaveform.jsx";
+import PlaceMedia from "../ui/PlaceMedia.jsx";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -523,14 +524,14 @@ export default function ArtifactCard({ module, label, occurrence }) {
   if (inSpread && kind === "video" && src && !coverSrc) {
     return (
       <div className="artifact-card artifact-card--media-open" data-kind="video" onClick={(e) => e.stopPropagation()}>
-        <video className="artifact-media-open-video" src={src} controls playsInline preload="metadata" />
+        <PlaceMedia as="video" moduleId={module?.id} className="artifact-media-open-video" src={src} controls playsInline preload="metadata" />
       </div>
     );
   }
   if (inSpread && kind === "audio" && src) {
     return (
       <div className="artifact-card artifact-card--media-open" data-kind="audio" onClick={(e) => e.stopPropagation()}>
-        <AudioWaveform src={src} />
+        <AudioWaveform src={src} moduleId={module?.id} />
       </div>
     );
   }
@@ -673,7 +674,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
       )}
-      {renderThumbnail(kind, src, label, thumb256Src, coverSrc)}
+      {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id)}
       {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
           `openViewer`), so a corner control would be a second way to do the one
           thing the picture already does — and the two spent a day disagreeing.
@@ -715,7 +716,7 @@ export function ArtifactThumbnail({ module, occurrence = null }) {
   return renderThumbnail(module?.kind, src, module?.label, imgSrc, cover);
 }
 
-function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
+function renderThumbnail(kind, src, label, imgSrc = src, cover = null, moduleId = null) {
   if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   // A DEAD COVER FALLS BACK TO THE KIND'S OWN THUMBNAIL, not to a broken-image
   // glyph. Measured on the live board before this existed: ~28% of the 1,467
@@ -736,7 +737,7 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
       <span style={{ fontSize: 16 }} aria-hidden="true">🎵</span>
-      <audio src={src} controls preload="metadata" style={{ width: "100%", height: 32 }} />
+      <PlaceMedia as="audio" moduleId={moduleId} src={src} controls preload="metadata" style={{ width: "100%", height: 32 }} />
     </div>
   );
   if (kind === "pdf") return (
@@ -786,10 +787,10 @@ function renderExpanded(kind, src, label, imgSrc = src, cover = null, ctx = {}) 
         fallback={renderExpanded(kind, src, label, imgSrc, null, ctx)}
       />
     );
-  if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
+  if (kind === "video") return <PlaceMedia as="video" moduleId={ctx.module?.id} className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">
-      <audio src={src} controls autoPlay style={{ width: "100%" }} />
+      <PlaceMedia as="audio" moduleId={ctx.module?.id} src={src} controls autoPlay style={{ width: "100%" }} />
       <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{label}</span>
     </div>
   );

@@ -65,6 +65,7 @@ import {
 } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor, mediaSignature } from "../helpers/occurrenceMedia";
+import PlaceMedia from "../ui/PlaceMedia.jsx";
 import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
@@ -883,6 +884,13 @@ function InstanceInner({
               paddingTop: 0,
               paddingLeft: 2,
               cursor: "text",
+              // The row is `user-select: none` (a press on it must not start a
+              // text selection); the label opts back in so it can be
+              // highlighted and copied (user, 2026-10-18). Drag starts only from
+              // the handle and the row is not `draggable` at rest
+              // (disarmDraggableUntilHandle), so Firefox allows this too.
+              WebkitUserSelect: "text",
+              userSelect: "text",
             }}
             title="Double-click to rename"
           >
@@ -928,10 +936,10 @@ function InstanceInner({
           <img className="instance-media-el" src={src} alt={mediaBinding?.field?.name || label || "media"} />
         )}
         {src && mediaTag === "video" && (
-          <video className="instance-media-el" src={src} controls playsInline preload="metadata" />
+          <PlaceMedia as="video" moduleId={primaryMedia?.module?.id} className="instance-media-el" src={src} controls playsInline preload="metadata" />
         )}
         {src && mediaTag === "audio" && (
-          <audio className="instance-media-el" src={src} controls style={{ width: "100%" }} />
+          <PlaceMedia as="audio" moduleId={primaryMedia?.module?.id} className="instance-media-el" src={src} controls style={{ width: "100%" }} />
         )}
         {!src && (
           <span className="instance-media-placeholder">Drop media here</span>
