@@ -26,6 +26,7 @@ import {
   bookEngineFor, mobiDrmStatus, pdfTextToMarkdown, rangeToHtml, htmlHasText,
   makeReadingPosition, samePosition, positionLabel,
 } from "../helpers/bookEngine";
+import { stripBookNavLinks } from "../helpers/bookNavLinks";
 import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
 import { useSpreadHost } from "../helpers/spreadDock";
@@ -83,6 +84,8 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
         hostRef.current.appendChild(view);
         viewRef.current = view;
         view.addEventListener("relocate", (e) => onRelocateRef.current?.(e.detail));
+        // The book's own "Previous | Next" links come out as each section loads (the file is untouched).
+        view.addEventListener("load", (e) => { try { stripBookNavLinks(e.detail?.doc); } catch { /* a page we cannot read is left as is */ } });
         await view.open(new File([blob], title || "book", { type: blob.type || "application/octet-stream" }));
         if (!live) return;
         view.renderer.setAttribute("flow", "paginated");

@@ -4018,3 +4018,8 @@ per picked date (that is where the items live); Combine hides those and shows on
 ### 2026-10-18 09:56–09:58 CDT
 - *"you never finished with the file header toolbar and merging them into one"* (a book's own page in a panel and the full-screen card still stacked a header above the reader's row).
 - *"images need magic mode as well (ocr) put that in the viewer"*
+
+### 2026-10-18 12:29 — e-book prev/next links; notes close is slow
+User: *"is it possible to go through each book too and remove the previous and next buttons embeded in the epub and also if i close the notes next to file and close it again. the file takes forever to go back to full width"*
+- 12:29 *"if i open the notes and close it. the notes area is gone but the file doesnt go full length is what i meant"*
+- 12:31 *"also we should have a button next to magic that does the whole file, not just that one page. so we have magic page, magic entire file"*
