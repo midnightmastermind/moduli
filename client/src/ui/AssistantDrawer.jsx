@@ -207,13 +207,14 @@ export default function AssistantDrawer() {
     localStorage.setItem(SEED_KEY, seedId);
   }, [seedId]);
 
-  async function send() {
-    const text = input.trim();
+  // `asked` sends that text instead of the input box (a choice button).
+  async function send(asked) {
+    const text = (typeof asked === "string" ? asked : input).trim();
     if (!text || busy) return;
     if (!token) { setShowSettings(true); return; }
     const nextHistory = [...messages, { role: "user", content: text }];
     setMessages(nextHistory);
-    setInput("");
+    if (typeof asked !== "string") setInput("");
     setBusy(true);
     setProgress(null);
     setStreamingText("");
@@ -536,6 +537,7 @@ export default function AssistantDrawer() {
                 key={i}
                 msg={m}
                 busy={busy}
+                onAsk={busy ? undefined : (text) => send(text)}
                 onResolveConfirm={m.role === "confirm" ? (approve, editedInput) => resolveConfirm(i, approve, editedInput) : undefined}
               />
             ))}
@@ -582,7 +584,7 @@ export default function AssistantDrawer() {
   );
 }
 
-function MessageBubble({ msg, busy = false, onResolveConfirm }) {
+function MessageBubble({ msg, busy = false, onResolveConfirm, onAsk }) {
   if (msg.role === "confirm") {
     return <ConfirmCard msg={msg} busy={busy} onResolve={onResolveConfirm} />;
   }
@@ -594,7 +596,7 @@ function MessageBubble({ msg, busy = false, onResolveConfirm }) {
     );
   }
   if (msg.role === "tool") {
-    return <ToolResultView name={msg.name} output={msg.output} />;
+    return <ToolResultView name={msg.name} output={msg.output} onAsk={onAsk} />;
   }
   if (msg.role === "panel_pick") {
     return <PanelPickCard occId={msg.occId} />;
@@ -721,7 +723,7 @@ function ConfirmCard({ msg, busy, onResolve }) {
   const batchTitles = useMemo(
     () => (Array.isArray(msg.input?.titles) ? msg.input.titles.filter(Boolean) : []), [msg.input?.titles]);
   const [picked, setPicked] = useState(() => new Set(batchTitles));
-  const wikiTitle = msg.input?.title || msg.input?.query || "";
+  const [wikiTitle, setWikiTitle] = useState(msg.input?.title || msg.input?.query || "");
   const { options, labelOf } = useLocations();
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
   const [parentId, setParentId] = useState(() => (isCreate ? bestGuessLocation(msg.input, options, labelOf, msg.userText)
@@ -740,6 +742,7 @@ function ConfirmCard({ msg, busy, onResolve }) {
   useEffect(() => {
     if (!isWiki || !pending || !wikiTitle) return;
     let cancelled = false;
+    setWiki(null); setWikiErr(false);
     (async () => {
       try {
         const tok = localStorage.getItem(STORAGE_KEY) || "";
@@ -762,6 +765,7 @@ function ConfirmCard({ msg, busy, onResolve }) {
     : isCreatePage ? { ...msg.input, kind: pageKind }
     : isCreateField ? { ...msg.input, name: fieldName.trim(), type: fieldType, unit: fieldUnit.trim() || undefined }
     : isImportBatch ? { ...msg.input, titles: batchTitles.filter(t => picked.has(t)) }
+    : isWiki ? { ...msg.input, title: wikiTitle }
     : msg.input);
 
   return (
@@ -802,7 +806,9 @@ function ConfirmCard({ msg, busy, onResolve }) {
         </div>
       ) : isWiki ? (
         <div style={{ marginBottom: 6 }}>
-          {wiki ? (
+          {wiki?.ambiguous ? (
+            <AmbiguousChoices title={wiki.title} options={wiki.options} onPick={(o) => setWikiTitle(o.title)} />
+          ) : wiki ? (
             <div style={{ display: "flex", gap: 8 }}>
               {wiki.thumbnail && (
                 <img src={wiki.thumbnail} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
@@ -954,8 +960,8 @@ function ConfirmCard({ msg, busy, onResolve }) {
         <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={approve}
-            disabled={busy || (needsLocation && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)}
-            title={needsLocation && !parentId ? "Pick a location first"
+            disabled={busy || (needsLocation && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0) || (isWiki && wiki?.ambiguous)}
+            title={isWiki && wiki?.ambiguous ? "Pick which article first" : needsLocation && !parentId ? "Pick a location first"
               : isCreateField && !fieldName.trim() ? "Name the field first"
               : isImportBatch && picked.size === 0 ? "Select at least one page" : ""}
             style={{
@@ -1172,9 +1178,12 @@ function PanelPickCard({ occId }) {
 // Friendly per-tool result card. Detects the common result shapes the grid
 // tools return (search hits, import stats, lists, created entities, grid/filter
 // changes) and renders a readable summary; raw JSON stays one click away.
-function ToolResultView({ name, output }) {
+function ToolResultView({ name, output, onAsk }) {
   const prettyName = String(name || "tool").replace(/_/g, " ");
-  const body = renderToolBody(name, output);
+  const body = output?.ambiguous
+    ? <AmbiguousChoices title={output.title} options={output.options}
+        onPick={onAsk ? (o) => onAsk(`I mean "${o.title}"`) : null} />
+    : renderToolBody(name, output);
   return (
     <div style={{
       alignSelf: "flex-start", maxWidth: "92%", fontSize: 11,
@@ -1191,6 +1200,32 @@ function ToolResultView({ name, output }) {
           {safeJson(output)}
         </pre>
       </details>
+    </div>
+  );
+}
+
+// "Which one did you mean?" — the choices a lookup found instead of an answer.
+// A pick asks again with that exact name (onPick); without one it only lists them.
+export function AmbiguousChoices({ title, options, onPick }) {
+  const list = Array.isArray(options) ? options : [];
+  return (
+    <div>
+      <div style={{ marginBottom: 4 }}>
+        “{title}” could mean several things. Which one did you mean?
+      </div>
+      {list.length === 0 && <div style={{ opacity: 0.6 }}>(no choices found — try a more exact name)</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {list.map((o) => (
+          <button key={o.title} type="button" disabled={!onPick} onClick={() => onPick?.(o)}
+            style={{
+              textAlign: "left", fontSize: 11, padding: "3px 6px", borderRadius: 4,
+              border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)",
+              color: "inherit", cursor: onPick ? "pointer" : "default",
+            }}>
+            <b>{o.title}</b>{o.description ? <span style={{ opacity: 0.65 }}> — {o.description}</span> : null}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -191,6 +191,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
           try {
             const r = await call("POST", `/research/wikipedia/import`, { gridId, title, parentId });
             if (r.body?.rootOccurrenceId) imported.push({ title, rootOccurrenceId: r.body.rootOccurrenceId });
+            else if (r.body?.ambiguous) failed.push({ title, ambiguous: true, options: r.body.options, error: "several articles match — ask which one" });
             else failed.push({ title, error: r.body?.error || "no root occurrence returned" });
           } catch (e) {
             failed.push({ title, error: String(e?.message || e) });

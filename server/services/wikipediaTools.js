@@ -449,8 +449,36 @@ export async function search(query, { limit = 5 } = {}) {
   }));
 }
 
+// The choices a disambiguation page lists, from the action API's links
+// generator: [{ title, description }], in the page's own order, without
+// other disambiguation pages (a choice that is itself ambiguous answers nothing).
+export function optionsFromLinksResponse(json, limit = 20) {
+  const pages = json?.query?.pages || [];
+  return pages
+    .filter((p) => p && !p.missing && p.ns === 0 && !(p.pageprops && "disambiguation" in p.pageprops))
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .slice(0, limit)
+    .map((p) => ({ title: p.title, description: p.description || null }));
+}
+
+export async function disambiguationOptions(title, { limit = 20 } = {}) {
+  const api = `https://en.wikipedia.org/w/api.php?action=query&generator=links&titles=${encodeURIComponent(title)}`
+    + `&gplnamespace=0&gpllimit=50&prop=description|pageprops&ppprop=disambiguation&format=json&formatversion=2&redirects=1`;
+  const res = await fetch(api, { headers: ua() });
+  if (!res.ok) throw new Error(`Wikipedia links ${res.status}`);
+  return optionsFromLinksResponse(await res.json(), limit);
+}
+
+// What a caller gets instead of an answer when a title names several articles:
+// it must ASK which one, never pick for the user.
+export async function ambiguity(title) {
+  return { ambiguous: true, title, options: await disambiguationOptions(title),
+    note: "Several Wikipedia articles match. Do not pick one: ask the user which they mean, then use that exact title." };
+}
+
 // Lede summary (extract + thumbnail + description). Uses the REST API.
-// Returns: { title, description, extract, url, thumbnail? }
+// Returns: { title, description, extract, url, thumbnail? }, or
+// { ambiguous: true, title, options } when the title is a disambiguation page.
 export async function summary(title) {
   if (!title) throw new Error("title required");
   const url = `${REST_BASE}/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`;
@@ -460,6 +488,7 @@ export async function summary(title) {
     throw new Error(`Wikipedia summary ${res.status}`);
   }
   const j = await res.json();
+  if (j.type === "disambiguation") return ambiguity(j.title || title);
   return {
     title: j.title,
     description: j.description || null,

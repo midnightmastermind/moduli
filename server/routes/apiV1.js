@@ -2143,7 +2143,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // import. Returns { rootOccurrenceId, stats, source: { title, url } }.
   router.post("/research/wikipedia/import", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
-      const { search, fullMarkdown } = await import("../services/wikipediaTools.js");
+      const { search, fullMarkdown, summary } = await import("../services/wikipediaTools.js");
       const { markdownToModuli } = await import("../services/markdownImporter.js");
       const { gridId, parentId = null, query, title: explicitTitle, dryRun = false } = req.body || {};
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
@@ -2157,6 +2157,14 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         if (!hits.length) return err(res, 404, "not_found", "No Wikipedia matches for that query");
         searchHit = hits[0];
         pickedTitle = searchHit.title;
+      }
+
+      // A title that names several articles is a question for the user, not a
+      // pick for us: return the choices and import nothing.
+      const lede = await summary(pickedTitle).catch(() => null);
+      if (lede?.ambiguous) {
+        return res.json({ ok: false, ambiguous: true, title: lede.title, options: lede.options,
+          note: "Several Wikipedia articles match. Ask the user which one, then import that exact title." });
       }
 
       const full = await fullMarkdown(pickedTitle);
