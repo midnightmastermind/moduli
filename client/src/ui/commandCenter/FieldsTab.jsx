@@ -1034,7 +1034,7 @@ export function FieldsTab() {
       </div>
 
       {/* Field chips — scrollable list, draggable to instance OR between columns */}
-      <div style={{ maxHeight: "min(560px, 55vh)", overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ maxHeight: "calc(100vh - 220px)", overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
         {fields.map((field) => (
           <SortableRow key={field.id} kind="field" colKey={colKey} itemId={field.id} indicator={indicator}>
             <FieldPill

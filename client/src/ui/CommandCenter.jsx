@@ -51,7 +51,9 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
   // matches the longest tab (Shortcuts). Outer wrapper has no background —
   // only the inner centered card does — so the area to either side of the
   // CC stays transparent and the grid remains visible behind it.
-  const CC_MAX_H = isMobileLayout ? "70vh" : "560px"; // 560px ≈ Shortcuts tab full height
+  // Desktop: the screen below the toolbar (was a fixed 560px, which left most of a tall
+  // screen empty and cut the Fields/Operations columns off).
+  const CC_MAX_H = isMobileLayout ? "70vh" : "calc(100vh - 64px)";
   const CC_MAX_W = "900px";
   return (
     <div

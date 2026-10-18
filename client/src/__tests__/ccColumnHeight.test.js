@@ -9,7 +9,7 @@ describe("Command Center column lists use the screen", () => {
   for (const file of ["ui/commandCenter/FieldsTab.jsx", "ui/commandCenter/OperationsTab.jsx"]) {
     it(`${file} does not cap its column at 180px`, () => {
       const src = read(file);
-      expect(src).toContain('maxHeight: "min(560px, 55vh)"');
+      expect(src).toContain('maxHeight: "calc(100vh - 220px)"');
       expect(src).not.toMatch(/maxHeight:\s*180\b/);
     });
   }
