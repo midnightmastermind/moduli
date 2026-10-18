@@ -1800,3 +1800,8 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
   viewer; the full-screen card's size / Download / close). Non-book files keep their own row.
 - `ArtifactCard`: in the spread, an image tile (not expanded) is `ImageOcrViews` around the picture + name; full screen
   (`renderExpanded` image) is wrapped too. Test `spreadImageOcr.test.jsx`.
+
+## Recent Changes (2026-10-18 (6) — BookReader: Magic file; e-book nav bars stripped)
+- Modes `book` / `magic` ("Magic page") / `magicFile` ("Magic file"). `wholeFileText(pages)` (exported) joins
+  `bookText.filePages` output; `shown` = what Magic lays out and Save keeps (page or whole file). Test `bookReader`.
+- EbookView strips each loaded section's own Previous/Next link bars (`helpers/bookNavLinks`, test `bookNavLinks`).

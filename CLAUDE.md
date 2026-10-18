@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 (6) — MAGIC FILE: THE WHOLE BOOK LAID OUT; the last book rows without a working file deleted; e-book nav bars
+
+User: *"a button next to magic that does the whole file, not just that one page. so we have magic page, magic entire
+file"* · *"lets get rid of the books that have no file"* · *"remove the previous and next buttons embeded in the epub"*.
+- **Reader header: Document · Magic page · Magic file.** Magic file reads every page / section once
+  (`bookText.filePages`, the reading READ_FILE uses, cached per file), joins them (`wholeFileText`, empty pages
+  dropped) and plans them through `import_plan` titled with the book; the page arrows / contents / pdf controls hide;
+  **Save file** keeps the whole book in Imports. The read is started once per file (a status in the effect's deps
+  dropped the answer — test caught it). Tests `bookReader` +2. **Watched on prod:** Maslow's paper 0.6s, two full
+  Alan Watts epubs ~1s, scroll median ~35ms over 72k / 140k px, 0 page errors. **Seen:** a book whose chapters are not
+  `<h1-6>` (Calibre-converted) comes out as ONE section + one long textblock — no chapter split yet.
+- **Books:** after `0422` only two rows were left without a file that opens — *The Way of Zen* (its Files pointed at a
+  deleted artifact) and *The Computers of Star Trek* (a `.djvu`). Deleted through `delete_occurrence`, backup
+  `server/backups/orphans/2026-10-18-books-no-file.json` on prod. 481 books, every one with a readable file. Two loose
+  files sit directly on the Books board (Inner Guide Meditation pdf, Gamelit epub) — left.
+- **E-book Previous/Next bars:** `helpers/bookNavLinks.stripBookNavLinks` runs on each loaded section (foliate `load`):
+  a block holding only page-turn links + separators goes; prose, contents pages and external links stay. A scan of the
+  408 cached epubs found NO such bars, so it changes nothing yet — the user is asked which book shows them.
+- Book pre-load into the disk cache finished: 481 of 485 cached, 0 failed. Notes-close slow width: not reproduced.
+
+---
+
 ### 2026-10-18 (5) — ONE HEADER ROW EVERYWHERE A BOOK OPENS; PICTURES GET OCR READER / OCR MAGIC IN THE VIEWER; every book checked
 
 User: *"you never finished with the file header toolbar and merging them into one"* · *"images need magic mode as well
