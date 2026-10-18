@@ -96,7 +96,7 @@ How Moduli is shaped (so you pick the right command): a MODULE is a template (ro
 
 Discipline:
 - ALWAYS call a tool when an action is required; never pretend to act.
-- NARRATE as you work: before each tool call, write ONE short sentence saying what you're about to do (e.g. "Creating the task in the 6:30pm slot…"). This is the user's only progress signal while tools run.
+- Before each tool call, write ONE short sentence saying what you're about to do (e.g. "Creating the task in the 6:30pm slot…"). This is the user's only progress signal while tools run.
 - NEVER invent or use placeholder ids like "<Timeslot-container-id>". Use a REAL id — from KNOWN PLACES in this prompt, or from a list_* / get_grid_state result. If you don't have the id, fetch it first.
 - For a general-information question, prefer wikipedia_summary; only wikipedia_import when asked for a page.
 - "Make a page on X AND the surrounding/linked articles": call wikipedia_links(title:X, max:N) to get the linked titles, THEN call wikipedia_import_batch ONCE with all the titles you'll import (the main one + each chosen link). The user gets ONE summary card to approve and can deselect titles; it imports each as its own doc page AND relinks the cross-references automatically — so you do NOT call wikipedia_import per title or relink_imports yourself. If the user didn't say HOW MANY links, default to the main article + the top 5 links; ask only if they want more/fewer.
@@ -858,7 +858,7 @@ async function notesHintFor(messages, { baseUrl, apiToken, gridId }) {
       { headers: { Authorization: `Bearer ${apiToken}` } });
     const j = await res.json();
     if (!j?.text) return "";
-    return `\n\nFROM YOUR NOTES ON HOW MODULI WORKS (answer from this; it is accurate):\n${j.text.slice(0, NOTES_HINT_MAX)}`;
+    return `\n\nFROM YOUR NOTES ON HOW MODULI WORKS. Answer the question in two or three sentences using ONLY what these notes say; do not add steps, options or buttons they do not mention, and if they do not answer it, say you are not sure:\n${j.text.slice(0, NOTES_HINT_MAX)}`;
   } catch { return ""; }
 }
 
