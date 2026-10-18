@@ -4009,3 +4009,7 @@ per picked date (that is where the items live); Combine hides those and shows on
 - **After the Jonah notes, BEFORE the UI sweep** (see the latest screenshot): the book/file viewer's two header rows merge into ONE header row — open-as-panel / full screen / etc. go on the same row as Book / Magic / Save page. The background when switching pages is black too. The "Book" button is renamed "Document". Documents get a white margin (books have none): keep the black background, give the book page itself a white margin so it looks bigger.
 - The UI sweep covers **every form and menu in the app, including the radial wheel buttons**.
 - *"finsih what you are working on now though"* · *"this stuff i just said comes after"*.
+
+### 2026-10-18 09:00–09:02 CDT (queued after the Jonah notes)
+- Books: check every book and list the ones that don't open or take forever; switch a book to a different version (format) when we have one.
+- *"theres also alot of duplicates in books still. some without a file path. lets get rid of the ones that dont have filepath or are a duplicate still."*
