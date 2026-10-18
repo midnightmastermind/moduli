@@ -1131,7 +1131,7 @@ export function OperationsTab() {
           count={ops.length}
         />
       </div>
-      <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ maxHeight: "min(560px, 55vh)", overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
         {ops.map((op) => (
           <SortableRow key={op.id} kind="operation" colKey={colKey} itemId={op.id} indicator={indicator}>
             <OpItem
