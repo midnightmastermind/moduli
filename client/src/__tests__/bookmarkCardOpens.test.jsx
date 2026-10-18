@@ -44,6 +44,7 @@ const STATE = {
   getViewMap: () => ({ "v-panel": { id: "v-panel" } }),
 };
 vi.mock("../GridActionsContext.js", () => ({
+  useGridActions: () => STATE,
   useGridActionsSelector: (sel) => sel(STATE),
   useGridActionsSelectorShallow: (sel) => sel(STATE),
 }));

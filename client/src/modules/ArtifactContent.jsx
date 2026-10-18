@@ -162,7 +162,7 @@ function CodeViewer({ fileRef, label, originalName, size }) {
 }
 
 
-export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight }) {
+export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight, headerExtra = null }) {
   const { modulesById, occurrencesById, gridId, userId } = useGridActions();
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const fileRef = module?.fileRef;
@@ -452,7 +452,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     return (
       <div style={{ position: "relative", width: "100%", height: "100%" }}>
         <BookReader module={module} occurrence={occurrence} src={resolveFileRef(fileRef)}
-          kind={normalizedArtifactType} inPanelPage dispatch={dispatch} socket={socket} />
+          kind={normalizedArtifactType} inPanelPage dispatch={dispatch} socket={socket} headerExtra={headerExtra} />
       </div>
     );
   }

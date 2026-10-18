@@ -22,21 +22,26 @@ export default function PageDisplay({ occurrence, pageView, dispatch, socket }) 
     if (!occurrence?.id) return;
     openArtifactSpread(viewerOwnerFor(occurrence.id, getOccMap?.() || null), e.currentTarget);
   };
+  // A book reader has its own header row; the page's buttons join it there instead of sitting on a
+  // row of their own above it (user, 2026-10-18: "merging them into one").
+  const isBook = (fileModule?.kind === "pdf" || fileModule?.kind === "ebook") && !!fileModule?.fileRef;
+  const btn = { padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border-default)", background: "var(--input-bg)" };
+  const controls = occurrence?.id ? (
+    <>
+      {hasBody && (
+        <FileNotesToggle open={notesOpen} onToggle={() => setNotesOpen((v) => !v)} style={btn} />
+      )}
+      <button type="button" onClick={openViewer} aria-label="Open in viewer" title="Back to the file viewer"
+        style={{ ...btn, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12,
+          fontFamily: "var(--font-mono)", cursor: "pointer", color: "var(--text-primary)" }}>
+        <LayoutGrid size={12} /> Open in viewer
+      </button>
+    </>
+  ) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
-      {occurrence?.id && (
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "2px 6px", flexShrink: 0 }}>
-          {hasBody && (
-            <FileNotesToggle open={notesOpen} onToggle={() => setNotesOpen((v) => !v)}
-              style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border-default)", background: "var(--input-bg)" }} />
-          )}
-          <button type="button" onClick={openViewer} aria-label="Open in viewer" title="Back to the file viewer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", fontSize: 12,
-              fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4, border: "1px solid var(--border-default)",
-              background: "var(--input-bg)", color: "var(--text-primary)" }}>
-            <LayoutGrid size={12} /> Open in viewer
-          </button>
-        </div>
+      {controls && !isBook && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "2px 6px", flexShrink: 0 }}>{controls}</div>
       )}
       <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
         <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
@@ -47,6 +52,7 @@ export default function PageDisplay({ occurrence, pageView, dispatch, socket }) 
           dispatch={dispatch}
           socket={socket}
           view={pageView}
+          headerExtra={isBook ? controls : null}
         />
         </div>
         {hasBody && notesOpen && (

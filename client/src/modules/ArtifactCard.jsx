@@ -23,6 +23,7 @@ import { useClosingGate } from "../helpers/closingGate";
 import { useDockRect, useInSpread, dockVars } from "../helpers/spreadDock";
 import BookmarkView from "./BookmarkView.jsx";
 import BookReader from "./BookReader.jsx";
+import ImageOcrViews from "./ImageOcrViews.jsx";
 import AudioWaveform from "./AudioWaveform.jsx";
 import PlaceMedia from "../ui/PlaceMedia.jsx";
 
@@ -536,6 +537,29 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // A PICTURE IN THE VIEWER CAN BE READ (user, 2026-10-18: "images need magic mode as well (ocr) put
+  // that in the viewer"). The tile carries the same Image / OCR Reader / OCR Magic tabs an image's own
+  // page has (ImageOcrViews); the Image tab is the tile as it was, and clicking the picture still
+  // opens it full screen. OCR runs only when a text tab is picked.
+  if (inSpread && kind === "image" && src && !expanded) {
+    const tileName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || null;
+    return (
+      <div className="artifact-card artifact-card--ocr-tile" data-kind="image" onClick={(e) => e.stopPropagation()}>
+        <ImageOcrViews occurrence={occurrence} module={module} imgSrc={src} dispatch={dispatch} socket={socket}>
+          <div className="artifact-ocr-tile-picture" onClick={openViewer} role="button" tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}>
+            <LoadingImage className="artifact-thumb" src={thumb1024Src} alt={label || "image"} />
+            {tileName && (
+              <div className="artifact-thumb-info">
+                <span className="artifact-thumb-info-name" title={tileName}>{tileName}</span>
+              </div>
+            )}
+          </div>
+        </ImageOcrViews>
+      </div>
+    );
+  }
+
   if (!src && !coverSrc) {
     // Nothing to draw. This used to be the title and nothing else, so an
     // instance that arrived without a picture (a shared IMDb link) could not be
@@ -590,6 +614,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // stored filename is timestamp-randomized).
     const sizeLabel = formatBytes(module?.meta?.uploadSize);
     const originalName = module?.meta?.originalName || label || module?.label;
+    const isBookKind = (kind === "ebook" || kind === "pdf") && !!src;
     // FULL SCREEN, NOT "fills its tile" (user 2026-08-17: "make that artifact full
     // screen"). It used to render inline, so inside the spread viewer the button
     // grew the artifact to the size of its own small tile — the icon is a
@@ -612,11 +637,28 @@ export default function ArtifactCard({ module, label, occurrence }) {
         onClick={(e) => { if (e.target === e.currentTarget) toggle(e); }}
       >
       <div className="artifact-card artifact-card--expanded" data-kind={kind}>
-        <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
-          <X size={14} />
-        </button>
-        {renderExpanded(kind, src, label, thumb1024Src, coverSrc, { module, occurrence })}
-        <div className="artifact-expanded-meta">
+        {/* A book's reader has its own header row: the size, Download and close join it there
+            (user, 2026-10-18: one header row, not three). */}
+        {!isBookKind && (
+          <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
+            <X size={14} />
+          </button>
+        )}
+        {renderExpanded(kind, src, label, thumb1024Src, coverSrc, { module, occurrence, headerExtra: isBookKind ? (
+          <>
+            {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
+            {src && (
+              <a href={src} download={originalName || undefined} className="artifact-expanded-download"
+                onClick={(e) => e.stopPropagation()} title="Download original">Download</a>
+            )}
+            <button type="button" onClick={toggle} aria-label="Collapse" title="Close"
+              style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid var(--border-default)",
+                background: "var(--input-bg)", color: "var(--text-primary)", cursor: "pointer", display: "inline-flex" }}>
+              <X size={14} />
+            </button>
+          </>
+        ) : null })}
+        {!isBookKind && <div className="artifact-expanded-meta">
           {originalName && <span className="artifact-expanded-name" title={originalName}>{originalName}</span>}
           {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
           {/* A bookmark's `src` is a WEB PAGE — "Download" on it would save
@@ -633,7 +675,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
               Download
             </a>
           )}
-        </div>
+        </div>}
       </div>
       </div>,
       document.body
@@ -772,12 +814,21 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null, moduleId 
 }
 
 function renderExpanded(kind, src, label, imgSrc = src, cover = null, ctx = {}) {
-  if (kind === "image") return <LoadingImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
+  // Full screen, a picture has the OCR tabs too (user, 2026-10-18).
+  if (kind === "image") return (
+    <div className="artifact-expanded-ocr" onClick={(e) => e.stopPropagation()}>
+      <ImageOcrViews occurrence={ctx.occurrence} module={ctx.module} imgSrc={src}>
+        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <LoadingImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />
+        </div>
+      </ImageOcrViews>
+    </div>
+  );
   // A book file opens in the reader, never behind its cover: the cover is what the card shows, the
   // book is what opening it is for.
   if (kind === "ebook" || kind === "pdf") return (
     <div className="artifact-expanded-book" onClick={(e) => e.stopPropagation()}>
-      <BookReader module={ctx.module} occurrence={ctx.occurrence} src={src} kind={kind} />
+      <BookReader module={ctx.module} occurrence={ctx.occurrence} src={src} kind={kind} headerExtra={ctx.headerExtra || null} />
     </div>
   );
   if (coverAppliesTo(kind, cover))

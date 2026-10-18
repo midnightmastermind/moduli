@@ -152,7 +152,7 @@ const navBtn = { padding: "2px 6px", fontSize: 12, fontFamily: "var(--font-mono)
   border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)",
   display: "inline-flex", alignItems: "center" };
 
-export default function BookReader({ module, occurrence, src, kind, inPanelPage = false, dispatch: dispatchProp, socket: socketProp, gridId: gridIdProp }) {
+export default function BookReader({ module, occurrence, src, kind, inPanelPage = false, headerExtra = null, dispatch: dispatchProp, socket: socketProp, gridId: gridIdProp }) {
   const ctx = useGridActions() || {};
   const dispatch = dispatchProp || ctx.dispatch;
   const socket = socketProp || ctx.socket;
@@ -284,6 +284,9 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
           <button type="button" onClick={openHere} aria-label="Open in panel" title="Open the book as its own page in a panel"
             style={navBtn}>Open in panel</button>
         )}
+        {/* The surface around the reader (a file page, the full-screen card) puts its own buttons
+            here, so a book has one header row wherever it opens (user, 2026-10-18). */}
+        {headerExtra}
       </div>
       {note && (
         <div style={{ padding: "3px 8px", flexShrink: 0, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--accent-blue)",

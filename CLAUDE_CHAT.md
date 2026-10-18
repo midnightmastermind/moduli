@@ -4014,3 +4014,7 @@ per picked date (that is where the items live); Combine hides those and shows on
 - Books: check every book and list the ones that don't open or take forever; switch a book to a different version (format) when we have one.
 - *"theres also alot of duplicates in books still. some without a file path. lets get rid of the ones that dont have filepath or are a duplicate still."*
 - **09:40** — the UI sweep is on MOBILE as well: every form, dropdown, menu and drawer on mobile, not just the share window. "The share" means sharing in general and all its menus.
+
+### 2026-10-18 09:56–09:58 CDT
+- *"you never finished with the file header toolbar and merging them into one"* (a book's own page in a panel and the full-screen card still stacked a header above the reader's row).
+- *"images need magic mode as well (ocr) put that in the viewer"*

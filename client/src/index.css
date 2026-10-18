@@ -6917,6 +6917,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   max-height: 100%;
   object-fit: contain;
 }
+/* A PICTURE expanded carries the OCR tabs (ImageOcrViews, 2026-10-18): the tab bar on top, the
+   picture centred in what is left, or the read text scrolling there. */
+.artifact-expanded-ocr {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100% - 40px);
+  border-radius: 6px;
+  overflow: hidden;
+}
 /* A BOOK expanded is the reader (BookReader), which needs a definite box to paginate into: it
    fills the card, leaving room for the close button and the meta bar beneath. */
 .artifact-expanded-book {
@@ -7311,6 +7321,20 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread-body .artifact-card.artifact-card--media-open {
   justify-content: center;
   align-items: center;
+}
+/* A picture tile in the viewer with its OCR tabs (ArtifactCard, 2026-10-18): the tabs sit on
+   top; under them the picture fills the rest of the tile with its name pinned to the bottom, as
+   every other tile does. Clicking the picture opens it full screen. */
+.artifact-spread-body .artifact-card.artifact-card--ocr-tile {
+  padding: 0;
+  cursor: auto;
+}
+.artifact-ocr-tile-picture {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
 }
 /* The picture takes the leftover room; `contain` letterboxes rather than
    cropping, so a short image simply sits in a taller box. */

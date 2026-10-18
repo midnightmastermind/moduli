@@ -109,6 +109,14 @@ describe("BookReader", () => {
     expect(pdfZoom).toHaveBeenCalledWith(0.2);
   });
 
+  it("the surrounding page's buttons sit on the reader's one header row", () => {
+    render(<BookReader module={MOD} occurrence={{ id: "o1" }} src="/files/c/f" kind="pdf" inPanelPage socket={makeSocket()} dispatch={vi.fn()} gridId="g"
+      headerExtra={<button type="button">Open in viewer</button>} />);
+    const head = document.querySelector(".book-reader-head");
+    expect(head.contains(screen.getByRole("button", { name: "Open in viewer" }))).toBe(true);
+    expect(head.contains(screen.getByRole("button", { name: "Document" }))).toBe(true);
+  });
+
   it("does not offer Open in panel where it already is the panel's page", () => {
     render(<BookReader module={MOD} occurrence={{ id: "o1" }} src="/files/c/f" kind="pdf" inPanelPage socket={makeSocket()} dispatch={vi.fn()} gridId="g" />);
     expect(screen.queryByRole("button", { name: "Open in panel" })).toBe(null);
