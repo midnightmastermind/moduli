@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-17 (9) — JONAH ANSWERS AGAIN: Cloudflare cut it off, and one tool result was 329k characters
+
+Testing Jonah's UI (queued: *"i havent been using him so we need to really test the ui of it"*). The first chat on
+test grid 2 replied with Cloudflare's whole HTML error page. Measured from prod:
+```
+the real chat                 524 after 125s   (Cloudflare gives up at 100s with nothing sent)
+with tools, time to 1st byte  7.6s vs 0.6s without — Ollama sends nothing until a tool reply is done
+prompt                        ~22k chars (system 6k · tools 10k · places 6k) ≈ 6k tokens on a CPU box
+same request again            18s, then 3.5s — Ollama keeps the prompt it already read
+```
+- `services/assistantAgent.js`: a 502/503/504/524 is retried up to twice (each attempt its own timer — the first
+  fix shared one 180s timer and cut the retry off); an HTTP error is reported as its page `<title>`
+  (`summarizeHttpError`); the per-page location line moved to the END of the prompt (`buildLocationHint`) so the
+  fixed part is reused; `warmAssistant` + `POST /assistant/warm` read the fixed part when the drawer opens.
+- **Then the answer was "The".** `list_operations` returned 329k characters of pipelines into the model's next
+  prompt (~195s to read). `toolResultForModel`: a result over 6000 chars keeps each record's identifying keys,
+  and is cut with a note if still too long; the drawer's transcript keeps the whole result.
+- Watched on prod after deploy: "list a few of my operations" → five named, 57s; in the drawer (browser): the
+  reply renders under "called: list_operations"; "add a task called Probe Jonah to the Tasks page" → the
+  confirm card "Create 'Probe Jonah' in: Tasks" with the location picker → Decline → 0 modules written.
+  Tests `assistantAgent.test.js` +11 (A/B: no retry fails exactly the retry case).
+- **Not tested:** a cold first message right after a deploy without the drawer's warm-up (it should go
+  524 → retry), streaming tokens on screen, and Approve. The probe `_jonah.mjs` reads no drawer text (its parent
+  walk misses); screenshots were read instead.
+
+---
+
 ### 2026-10-17 (8) — OPS: "matches regex", READ_FILE's page; the rebuild census after today
 
 - **`MATCHES` / `NOT_MATCHES`** (`server/utils/matchesPattern.js`, shared by the client `evalRule` and
