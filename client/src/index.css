@@ -9181,14 +9181,20 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    full screen, etc. to all go on the same row as the book/magic and save page"). The tile's handle +
    Open in panel / notes / full screen are lifted onto the reader's header row: handle at its left,
    buttons at its right, and the reader's row makes room for them. Layout only — every button keeps
-   its own handler. */
-.instance-row:has(.artifact-card--book-open) > .instance-content { position: relative; }
-.instance-row:has(.artifact-card--book-open) .instance-handle-group {
+   its own handler.
+   A PICTURE TILE (its OCR tabs, ImageOcrViews) takes the same one row (user, 2026-10-18). */
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) > .instance-content { position: relative; }
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group {
   position: absolute; top: 4px; left: 4px; right: 6px; z-index: 3;
   display: flex; align-items: center; gap: 4px; pointer-events: none;
 }
-.instance-row:has(.artifact-card--book-open) .instance-handle-group > * { pointer-events: auto; }
-.instance-row:has(.artifact-card--book-open) .instance-handle-group > .spread-tile-maximize { margin-left: 0; }
-.instance-row:has(.artifact-card--book-open) .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
-.instance-row:has(.artifact-card--book-open) .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
-.instance-row:has(.artifact-card--book-open) .book-reader-head { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > * { pointer-events: auto; }
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize { margin-left: 0; }
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
+.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) :is(.book-reader-head, .ocr-views-head) { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
+
+/* THE TILE'S BUTTONS SIT TOGETHER AT THE RIGHT (user, 2026-10-18: "those buttons should be all the way on
+   the right"). Each one carries margin-left:auto so a lone button reaches the right edge; with two or three,
+   that spread them across the header. Only the first keeps it. */
+.instance-handle-group > .spread-tile-maximize ~ .spread-tile-maximize { margin-left: 4px; }

@@ -123,7 +123,8 @@ export default function ImageOcrViews({ occurrence, module, imgSrc, children, di
 
   return (
     <div ref={rootRef} data-testid="image-ocr-views" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
+      {/* In the viewer the tile's handle + buttons sit on this row too (index.css .ocr-views-head). */}
+      <div className="ocr-views-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {OCR_MODES.map(([m, l]) => tabBtn(m, l))}
         <span style={{ flex: 1 }} />

@@ -41,6 +41,13 @@ describe("a picture in the viewer", () => {
     expect(full.querySelector("[data-testid='image-ocr-views']")).toBeTruthy();
   });
 
+  it("a book row drawn as its cover has the tabs too, reading the cover", () => {
+    const book = { id: "m-b", role: "artifact", kind: "book", label: "Become What You Are", fileRef: "", meta: { cover: "https://img.example/cover.jpg" } };
+    const { container } = inSpread(<ArtifactCard module={book} occurrence={{ id: "o-b", moduleId: "m-b" }} />);
+    expect(screen.getByRole("button", { name: "OCR Magic" })).toBeTruthy();
+    expect(container.querySelector(".artifact-ocr-tile-picture img").getAttribute("src")).toContain("cover.jpg");
+  });
+
   it("outside the viewer it stays a thumbnail with no tabs", () => {
     render(<ArtifactCard module={image} occurrence={occ} />);
     expect(screen.queryByRole("button", { name: "OCR Magic" })).toBeNull();

@@ -213,7 +213,8 @@ describe("a bookmark opens inside the spread", () => {
         </div>
       </InSpreadContext.Provider>
     );
-    fireEvent.click(container.querySelector(".artifact-card"));
+    // The tile carries the OCR tabs (2026-10-18); the picture under them is what opens full screen.
+    fireEvent.click(container.querySelector(".artifact-ocr-tile-picture"));
     // The lightbox is portalled to <body>.
     const media = document.body.querySelector(".artifact-card--expanded .artifact-expanded-media");
     expect(media, "the cover did not expand").toBeTruthy();

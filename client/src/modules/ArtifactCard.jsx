@@ -541,14 +541,17 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // that in the viewer"). The tile carries the same Image / OCR Reader / OCR Magic tabs an image's own
   // page has (ImageOcrViews); the Image tab is the tile as it was, and clicking the picture still
   // opens it full screen. OCR runs only when a text tab is picked.
-  if (inSpread && kind === "image" && src && !expanded) {
+  // The picture a tile shows: an image file, or the cover a row / bookmark / video is drawn as (a book row in its
+  // viewer is its cover — user, 2026-10-18: the OCR tabs belong on that one too).
+  const tilePicture = kind === "image" && src ? src : (coverAppliesTo(kind, coverSrc) ? coverSrc : null);
+  if (inSpread && tilePicture && !expanded) {
     const tileName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || null;
     return (
       <div className="artifact-card artifact-card--ocr-tile" data-kind="image" onClick={(e) => e.stopPropagation()}>
-        <ImageOcrViews occurrence={occurrence} module={module} imgSrc={src} dispatch={dispatch} socket={socket}>
+        <ImageOcrViews occurrence={occurrence} module={module} imgSrc={tilePicture} dispatch={dispatch} socket={socket}>
           <div className="artifact-ocr-tile-picture" onClick={openViewer} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}>
-            <LoadingImage className="artifact-thumb" src={thumb1024Src} alt={label || "image"} />
+            <LoadingImage className="artifact-thumb" src={kind === "image" ? thumb1024Src : tilePicture} alt={label || "image"} />
             {tileName && (
               <div className="artifact-thumb-info">
                 <span className="artifact-thumb-info-name" title={tileName}>{tileName}</span>
