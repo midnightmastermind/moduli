@@ -54,7 +54,7 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
   // Desktop: the screen below the toolbar (was a fixed 560px, which left most of a tall
   // screen empty and cut the Fields/Operations columns off).
   const CC_MAX_H = isMobileLayout ? "70vh" : "calc(100vh - 64px)";
-  const CC_MAX_W = "900px";
+  const CC_MAX_W = "1400px"; // was 900px: the Fields/Operations columns ran off the right edge
   return (
     <div
       data-testid="command-center"
