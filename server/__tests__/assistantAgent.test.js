@@ -12,6 +12,7 @@ import {
   assistantChat,
   summarizeHttpError,
   buildLocationHint,
+  toolResultForModel,
   buildOllamaRequestBody,
   buildDestinationsHint,
   extractDestinations,
@@ -373,5 +374,24 @@ describe("the per-page location goes last in the prompt", () => {
   it("buildLocationHint is empty without a location and names it with one", () => {
     expect(buildLocationHint(null)).toBe("");
     expect(buildLocationHint({ id: "p1", label: "Tasks" })).toContain('"Tasks"');
+  });
+});
+
+describe("toolResultForModel — what the model is shown of a tool result", () => {
+  const op = (i) => ({ id: `op${i}`, name: `Op ${i}`, enabled: true, pipeline: { steps: Array(40).fill({ type: "action", config: { type: "FIND", predicate: { rules: [{ left: "id", right: "x".repeat(40) }] } } }) } });
+  it("passes a small result through unchanged", () => {
+    expect(toolResultForModel({ ok: true, id: "a" })).toBe('{"ok":true,"id":"a"}');
+  });
+  it("keeps each record's identifying keys when a list is long", () => {
+    const text = toolResultForModel({ operations: Array.from({ length: 30 }, (_, i) => op(i)) });
+    expect(text.length).toBeLessThanOrEqual(6000);
+    const parsed = JSON.parse(text);
+    expect(parsed.operations).toHaveLength(30);
+    expect(parsed.operations[3]).toEqual({ id: "op3", name: "Op 3", enabled: true });
+  });
+  it("cuts what is still too long and says so", () => {
+    const text = toolResultForModel({ operations: Array.from({ length: 400 }, (_, i) => op(i)) });
+    expect(text.length).toBeLessThan(6200);
+    expect(text).toMatch(/cut: the full result is \d+ characters/);
   });
 });

@@ -218,7 +218,7 @@ async function llmLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT }) {
       toolResults.push({
         type: "tool_result",
         tool_use_id: tu.id,
-        content: JSON.stringify(resultPayload),
+        content: toolResultForModel(resultPayload),
       });
       transcript.push({
         role: "tool",
@@ -456,6 +456,36 @@ export function buildOllamaRequestBody({
 // multi-minute wait). Parses Ollama's NDJSON stream, accumulates the full
 // content + any tool_calls, and returns them once `done`. Tool-calling models
 // emit tool_calls in the stream (usually the final frame); we collect them all.
+// What the MODEL is shown of a tool's result. The drawer still gets the whole
+// result (the transcript); the model only needs enough to answer or to pick an
+// id. Measured: list_operations returned 329k characters of pipelines, which on
+// the local model took ~195s to read and left it answering "The". A long list
+// keeps each record's identifying keys; anything still too long is cut.
+export const TOOL_RESULT_MAX_CHARS = 6000;
+const RECORD_KEYS = ["id", "name", "label", "role", "kind", "type", "enabled", "parentId", "moduleId", "description", "triggerType", "unit"];
+function slimRecord(r) {
+  if (!r || typeof r !== "object" || Array.isArray(r)) return r;
+  const out = {};
+  for (const k of RECORD_KEYS) {
+    if (r[k] == null || r[k] === "") continue;
+    out[k] = typeof r[k] === "string" && r[k].length > 120 ? r[k].slice(0, 120) + "…" : r[k];
+  }
+  return Object.keys(out).length ? out : r;
+}
+export function toolResultForModel(result, max = TOOL_RESULT_MAX_CHARS) {
+  const whole = JSON.stringify(result ?? null);
+  if (whole.length <= max) return whole;
+  let slim = result;
+  if (Array.isArray(result)) slim = result.map(slimRecord);
+  else if (result && typeof result === "object") {
+    slim = {};
+    for (const [k, v] of Object.entries(result)) slim[k] = Array.isArray(v) ? v.map(slimRecord) : v;
+  }
+  const text = JSON.stringify(slim);
+  if (text.length <= max) return text;
+  return text.slice(0, max) + ` …(cut: the full result is ${whole.length} characters; ask for fewer, or filter)`;
+}
+
 // A gateway in front of Ollama (Cloudflare) answers an error with a whole HTML
 // page. Keep its <title> (or the first line of plain text) so a failure reads as
 // one sentence in the chat instead of a page of markup.
@@ -603,7 +633,7 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
         catch (e) { result = { error: String(e?.message || e) }; }
         onProgress({ phase: "tool_done", tool: name });
       }
-      apiMessages.push({ role: "tool", content: JSON.stringify(result) });
+      apiMessages.push({ role: "tool", content: toolResultForModel(result) });
       transcript.push({ role: "tool", name, input, output: result });
     }
     if (pending.length) {
