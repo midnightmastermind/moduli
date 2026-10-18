@@ -792,10 +792,22 @@ export function useDragDrop({
   // first effect run (conditional render of the handle, e.g. page-panel
   // header rendered only once pagesList loads) leaves Pragmatic DnD
   // registered without dragHandle — making the entire panel draggable.
+  //
+  // COMPARE BEFORE SETTING. This effect runs after EVERY render of every row. A functional
+  // setState that returns `prev` still QUEUES an update whenever the fiber has other work
+  // pending, and each queued update in a layout effect is a synchronous re-render. A board of
+  // hundreds of rows re-rendering during a search jump passed React's 50-nested-update limit
+  // and crashed the panel (React #185, 2026-10-18: Bookmarks opened by search). Reading a ref
+  // means an unchanged handle never calls setState at all.
   const [handleNode, setHandleNode] = useState(() => dragHandleRef?.current ?? null);
+  const handleNodeRef = useRef(handleNode);
+  handleNodeRef.current = handleNode;
   useLayoutEffect(() => {
     const current = dragHandleRef?.current ?? null;
-    setHandleNode(prev => (prev === current ? prev : current));
+    if (current !== handleNodeRef.current) {
+      handleNodeRef.current = current;
+      setHandleNode(current);
+    }
   });
 
   useEffect(() => {
