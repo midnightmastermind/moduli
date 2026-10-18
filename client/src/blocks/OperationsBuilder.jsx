@@ -4,6 +4,7 @@
 // Inspired by Snap!/Scratch
 // ============================================================
 
+import LiteralName from "../ui/LiteralName.jsx";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { BlockDragProvider } from "./useBlockDnD";
 import BlockPalette, { MiniPalette } from "./BlockPalette";
@@ -677,7 +678,10 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         />
       )}
       {mode === "text" && (
-        <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />
+        <>
+          <ExprInput value={value} onChange={onChange} placeholder={placeholder} width={width} />
+          <LiteralName value={value} maps={{ occurrencesById, modulesById, fieldsById, foldersById }} />
+        </>
       )}
       {mode === "array" && (
         <textarea

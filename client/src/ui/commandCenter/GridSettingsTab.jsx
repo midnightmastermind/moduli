@@ -225,7 +225,7 @@ export function GridSettingsTab() {
   }
 
   return (
-    <div className="p-4 flex flex-col gap-0 font-mono max-w-sm">
+    <div className="p-4 flex flex-col gap-0 font-mono max-w-xl">
       <div className="mb-3">
         <h4 className="text-sm font-semibold text-foreground">Grid settings</h4>
         <p className="text-[11px] pt-0.5 text-foregroundScale-2">

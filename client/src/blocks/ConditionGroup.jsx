@@ -1,5 +1,6 @@
 // blocks/ConditionGroup.jsx
 // Recursive condition builder supporting nested AND/OR groups.
+import LiteralName from "../ui/LiteralName.jsx";
 import React, { useMemo } from "react";
 import DrilldownPicker from "../ui/DrilldownPicker";
 import { PIPELINE_COMPARATOR_GROUPS, UNARY_COMPARATORS } from "../helpers/comparators";
@@ -159,6 +160,9 @@ function RuleRow({ rule, onChange, onRemove, pickerCtx, leftConfig }) {
               placeholder="value or $var"
               style={{ ...inputSt, width: 140 }}
             />
+          )}
+          {rightMode !== "path" && (
+            <LiteralName value={rule.right} maps={pickerCtx} />
           )}
         </>
       )}

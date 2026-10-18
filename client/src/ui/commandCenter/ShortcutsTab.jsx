@@ -12,8 +12,7 @@ const SHORTCUT_GROUPS = [
     group: "Global",
     items: [
       { keys: ["Ctrl+Z"],       action: "Undo" },
-      { keys: ["Ctrl+Y"],       action: "Redo" },
-      { keys: ["Ctrl+Shift+Z"], action: "Redo (alt)" },
+      // Redo is switched off (hooks/useUndoRedo REDO_ENABLED), so it is not listed.
       { keys: ["Esc"],          action: "Close Command Center / dropdown / dialog" },
     ],
   },

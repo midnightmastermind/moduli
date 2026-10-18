@@ -156,7 +156,8 @@ function SkinPicker() {
   }, [grid, gridId, dispatch, socket]);
 
   return (
-    <div className="flex gap-2 flex-wrap">
+    // Equal cards in a grid (they were sized to their text, so every row wrapped differently).
+    <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
       {SKINS.map(sk => {
         const active = activeId === sk.id;
         return (
@@ -167,7 +168,6 @@ function SkinPicker() {
             className={`flex flex-col gap-1 p-2 rounded border text-left transition-colors ${
               active ? "border-accent-blue bg-accent" : "border-border-subtle hover:bg-accent/50"
             }`}
-            style={{ minWidth: 128 }}
           >
             <span className="flex gap-1">
               {sk.swatches.map(c => (
@@ -271,7 +271,7 @@ export function AppearanceTab() {
   }, []);
 
   return (
-    <div className="p-4 flex flex-col gap-4 font-mono max-w-sm">
+    <div className="p-4 flex flex-col gap-4 font-mono max-w-3xl">
       {/* Theme */}
       <div>
         <h4 className="text-sm font-semibold text-foreground mb-0.5">Skin</h4>
