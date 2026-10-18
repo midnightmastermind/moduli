@@ -17,7 +17,9 @@ import path from "path";
 import crypto from "crypto";
 import { pipeline } from "stream/promises";
 
-const MEDIA = /^(video|audio)\//;
+// Books too (2026-10-18): a pdf is read by range requests like a video, and an e-book is fetched whole
+// on every open — from Drive each answer is ~0.7s late. Images stay out (small, and thumbnails exist).
+const MEDIA = /^(video|audio)\/|^application\/(pdf|epub\+zip|x-mobipocket-ebook|vnd\.amazon\.(ebook|mobi8-ebook))$/;
 export const cacheKey = (ref) => crypto.createHash("sha1").update(String(ref)).digest("hex");
 
 /** PURE. Which cached entries to delete so the total fits `maxBytes` (oldest access first). */

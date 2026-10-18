@@ -38,8 +38,20 @@ describe("withDiskCache", () => {
     expect(b.calls.length).toBe(callsAfterFill);          // disk, not Drive
   });
 
-  it("does not cache images or books", async () => {
-    const b = fakeBackend({ p: { body: "abc", mime: "application/pdf" } });
+  it("caches books: a second open of a pdf or epub reads the disk", async () => {
+    for (const mime of ["application/pdf", "application/epub+zip"]) {
+      const b = fakeBackend({ p: { body: "abc", mime } });
+      const c = withDiskCache(b, { dir: tmp() });
+      await read((await c.open("p")).stream);
+      await Promise.all([...c._filling.values()]);
+      const n = b.calls.length;
+      expect(await read((await c.open("p")).stream)).toBe("abc");
+      expect(b.calls.length).toBe(n);
+    }
+  });
+
+  it("does not cache images", async () => {
+    const b = fakeBackend({ p: { body: "abc", mime: "image/jpeg" } });
     const c = withDiskCache(b, { dir: tmp() });
     await read((await c.open("p")).stream);
     expect(c._filling.size).toBe(0);
