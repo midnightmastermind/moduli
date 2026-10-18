@@ -532,32 +532,33 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
     onProgress({ phase: "thinking", iteration: toolIterations + 1 });
     // Bound each generation: abort if Ollama doesn't respond within the cap so
     // a wedged call surfaces as an error (→ graceful fallback) instead of an
-    // infinite "… thinking". Never run past the total budget.
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), Math.min(OLLAMA_TIMEOUT_MS, remaining));
+    // infinite "… thinking". Never run past the total budget. Each attempt gets
+    // its own timer — a retry after a gateway timeout must not inherit the time
+    // the first attempt already spent.
     let streamed;
-    try {
-      // Stream so the user sees the model narrate live (each delta → onProgress
-      // token) instead of a silent 60-100s wait.
-      const send = () => streamOllamaChat({
-        url: `${OLLAMA_URL}/api/chat`,
-        body: buildOllamaRequestBody({ model: OLLAMA_MODEL, messages: apiMessages, tools, stream: true }),
-        signal: ctrl.signal,
-        onToken: (delta) => onProgress({ phase: "token", delta }),
-      });
-      for (let attempt = 0; ; attempt++) {
-        try { streamed = await send(); break; }
-        catch (e) {
-          // See isGatewayTimeout: the prompt is read by now, so asking again is fast.
-          if (!isGatewayTimeout(e) || attempt >= 2 || deadline - Date.now() < 20000) throw e;
-          onProgress({ phase: "retry", attempt: attempt + 1 });
-        }
+    for (let attempt = 0; ; attempt++) {
+      const left = deadline - Date.now();
+      const capMs = Math.min(OLLAMA_TIMEOUT_MS, left);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), capMs);
+      try {
+        // Stream so the user sees the model narrate live (each delta → onProgress
+        // token) instead of a silent 60-100s wait.
+        streamed = await streamOllamaChat({
+          url: `${OLLAMA_URL}/api/chat`,
+          body: buildOllamaRequestBody({ model: OLLAMA_MODEL, messages: apiMessages, tools, stream: true }),
+          signal: ctrl.signal,
+          onToken: (delta) => onProgress({ phase: "token", delta }),
+        });
+        break;
+      } catch (e) {
+        if (e?.name === "AbortError") throw new Error(`Ollama timed out (>${Math.round(capMs / 1000)}s)`);
+        // See isGatewayTimeout: the prompt is read by now, so asking again is fast.
+        if (!isGatewayTimeout(e) || attempt >= 2 || deadline - Date.now() < 20000) throw e;
+        onProgress({ phase: "retry", attempt: attempt + 1 });
+      } finally {
+        clearTimeout(timer);
       }
-    } catch (e) {
-      if (e?.name === "AbortError") throw new Error(`Ollama timed out (>${Math.round(Math.min(OLLAMA_TIMEOUT_MS, remaining) / 1000)}s)`);
-      throw e;
-    } finally {
-      clearTimeout(timer);
     }
     const msg = { content: streamed.content, tool_calls: streamed.toolCalls };
     const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
