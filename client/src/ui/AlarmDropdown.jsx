@@ -110,7 +110,7 @@ export function AlarmRow({ op, onPatch, onDelete, autoFocusName = false }) {
   );
 }
 
-export default function AlarmDropdown() {
+export default function AlarmDropdown({ showLabel = false }) {
   const { state, dispatch, socket, operationsById, occurrencesById, fieldsById } = useGridActions();
   const gridId = state?.gridId;
   const userId = state?.userId;
@@ -197,14 +197,17 @@ export default function AlarmDropdown() {
         onClick={() => setOpen((v) => !v)}
         title={ringing ? `${ringing.label} is ringing` : "Alarms & reminders"}
         style={{
-          display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
-          width: 26, height: 26, borderRadius: 5, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: showLabel ? "flex-start" : "center", position: "relative",
+          // In the phone menu it is a row like "Hide Toolbar", so it names itself.
+          ...(showLabel ? { gap: 8, padding: "6px 4px", fontSize: 12 } : { width: 26 }),
+          height: 26, borderRadius: 5, cursor: "pointer",
           background: open ? "var(--border-subtle)" : "transparent",
           color: ringing ? "rgb(var(--signal-neg))" : "var(--text-primary)",
           border: "none",
         }}
       >
         <AlarmClock className="w-4 h-4" style={ringing ? { animation: "alarm-shake 0.5s ease-in-out infinite" } : undefined} />
+        {showLabel && <span>Alarms &amp; reminders</span>}
         {ringing && <span style={{ position: "absolute", top: 2, right: 2, width: 6, height: 6, borderRadius: "50%", background: "rgb(var(--signal-neg))", boxShadow: "0 0 6px rgba(var(--signal-neg) / 0.9)" }} />}
       </button>
 

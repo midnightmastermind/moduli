@@ -525,7 +525,7 @@ const gridOptions = useMemo(
 
             {/* Pomodoro */}
             <PomodoroTimer />
-            <AlarmDropdown />
+            <AlarmDropdown showLabel />
 
             <div style={{ height: 1, background: "var(--border-default)" }} />
 

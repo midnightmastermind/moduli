@@ -558,6 +558,9 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
     if (open && allItems.length === 0) setOpen(false);
   }, [open, allItems.length]);
 
+  // The overflow dropdown is 420 wide, but never wider than the screen less an 8px
+  // gutter each side: a phone is 390 wide, and at a fixed 420 the cards ran off the edge.
+  const overflowW = typeof window === "undefined" ? 420 : Math.min(420, window.innerWidth - 16);
   return (
     <>
       <button
@@ -595,9 +598,9 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
           style={{
             position: "fixed",
             top: anchorRect.bottom + 6,
-            left: Math.max(8, Math.min(window.innerWidth - 428, anchorRect.right - 420)),
+            left: Math.max(8, Math.min(window.innerWidth - overflowW - 8, anchorRect.right - overflowW)),
             zIndex: 10000,
-            width: 420,
+            width: overflowW,
             maxHeight: 440,
             overflowY: "auto",
             padding: 8,

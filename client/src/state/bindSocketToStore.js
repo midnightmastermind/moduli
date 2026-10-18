@@ -35,7 +35,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit, peekOfflineQueue } from "../helpers/offlineQueue";
 import { applyQueuedEditsToPayload } from "../helpers/queuedEdits.js";
-import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
+import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived, getActionId } from "../helpers/actionScope";
 import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
@@ -2379,7 +2379,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // so legitimate A→B cross-trigger chains still fire.
     const batchOpIds = [...new Set(effects.map(e => e._sourceOpId).filter(Boolean))];
     for (const sid of batchOpIds) setOpApplyingEffects(sid, true);
-    try {
+    // ── AN OP'S WRITES BELONG TO THE GESTURE THAT CAUSED THEM, OR TO NOBODY ──
+    // With a user action open (a tick, a drop) the effects join it, so one
+    // Ctrl+Z takes the gesture and its consequences back together. With NONE
+    // open — a toolbar date step, a scheduler tick, another tab's echo — every
+    // write helper opened an action of its own: stepping the date once put each
+    // relabelled tracker tile on the undo stack as "Updated item" and stamped
+    // the page `meta.userTouched` (measured on prod, 2026-10-18). Those writes
+    // are the app's bookkeeping, so they are derived.
+    const applyAll = () => {
       // Same per-effect guard as the full_state path above, and for the same
       // reason: a throw here used to discard every remaining effect in the batch.
       for (const eff of effects) {
@@ -2389,6 +2397,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           console.error(`[fireOperations] effect ${eff?._effect} threw — continuing`, err, eff);
         }
       }
+    };
+    try {
+      if (getActionId()) applyAll(); else runDerived(applyAll);
     } finally {
       for (const sid of batchOpIds) setOpApplyingEffects(sid, false);
     }
