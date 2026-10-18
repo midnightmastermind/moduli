@@ -33,11 +33,11 @@ vi.mock("../modules/PdfViewer.jsx", () => ({
 const openInPanel = vi.fn(() => ({ ok: true }));
 vi.mock("../hooks/useOpenArtifactInPanel", () => ({ useOpenArtifactInPanel: () => openInPanel }));
 let HOST = null;
-const filePages = vi.fn(() => Promise.resolve(["# One\n\nFirst page.", "", "Second page."]));
-vi.mock("../helpers/bookText", () => ({ filePages: (...a) => filePages(...a) }));
+const filePages = vi.fn(() => Promise.resolve({ pages: ["# One\n\nFirst page.", "", "Second page."], labels: ["One", null, null] }));
+vi.mock("../helpers/bookText", () => ({ fileSections: (...a) => filePages(...a) }));
 vi.mock("../helpers/spreadDock", () => ({ useSpreadHost: () => HOST }));
 
-import BookReader from "../modules/BookReader.jsx";
+import BookReader, { wholeFileText } from "../modules/BookReader.jsx";
 
 function makeSocket() {
   const emits = [];
@@ -182,6 +182,11 @@ describe("BookReader", () => {
     mount(makeSocket());
     fireEvent.click(screen.getByRole("button", { name: "Magic file" }));
     await waitFor(() => expect(screen.getByText(/could not be read: the file could not be fetched/)).toBeTruthy());
+  });
+
+  it("a section the contents names is headed by it unless it opens with its own heading", () => {
+    expect(wholeFileText(["Plain chapter text.", "# Own heading\n\nMore.", "", "No label."], ["Chapter 1", "Chapter 2", "Chapter 3", null]))
+      .toBe("# Chapter 1\n\nPlain chapter text.\n\n# Own heading\n\nMore.\n\nNo label.");
   });
 
   it("says plainly when a file is not a book it can open", () => {

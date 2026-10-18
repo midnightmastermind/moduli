@@ -19,7 +19,7 @@
 // sweep's worker never takes an operation that uses it (helpers/opSweepCore).
 import { pdfTextToMarkdown } from "./bookEngine";
 
-const cache = new Map(); // `${kind}|${src}` -> Promise<string[]> (one entry per page / section)
+const cache = new Map(); // `${kind}|${src}` -> Promise<{ pages: string[], labels: (string|null)[] }>
 
 export function __resetBookTextCache() { cache.clear(); }
 
@@ -103,28 +103,58 @@ export function sectionToText(doc) {
   return out.join("\n\n");
 }
 
+/** The book's contents, flattened: [{ label, href }] in reading order (subitems after their parent). */
+function flattenToc(items, out = []) {
+  for (const it of items || []) { if (it?.href) out.push({ label: String(it.label || "").trim(), href: it.href }); flattenToc(it?.subitems, out); }
+  return out;
+}
+
+/** labels[i] = the contents entry that STARTS section i (the first one naming it), or null. */
+async function sectionLabels(book) {
+  const labels = new Array((book.sections || []).length).fill(null);
+  if (typeof book.resolveHref !== "function") return labels;
+  for (const { label, href } of flattenToc(book.toc)) {
+    if (!label) continue;
+    try {
+      const r = await Promise.resolve(book.resolveHref(href));
+      if (Number.isInteger(r?.index) && r.index >= 0 && r.index < labels.length && labels[r.index] == null) labels[r.index] = label;
+    } catch { /* an entry that does not resolve names no section */ }
+  }
+  return labels;
+}
+
 async function ebookSections(src) {
   const res = await fetch(src, { credentials: "include" });
   if (!res.ok) throw new Error(`the file could not be fetched (${res.status})`);
   const blob = await res.blob();
   const { makeBook } = await import("foliate-js/view.js");
   const book = await makeBook(new File([blob], "book"));
-  const out = [];
+  const pages = [];
   for (const section of book.sections || []) {
-    if (typeof section.createDocument !== "function") { out.push(""); continue; }
-    try { out.push(sectionToText(await section.createDocument())); } catch { out.push(""); }
+    if (typeof section.createDocument !== "function") { pages.push(""); continue; }
+    try { pages.push(sectionToText(await section.createDocument())); } catch { pages.push(""); }
   }
-  return out;
+  let labels = [];
+  try { labels = await sectionLabels(book); } catch { labels = []; }
+  return { pages, labels };
 }
 
-export function filePages({ src, kind }) {
+/** The file read once per session: { pages, labels } (labels: the contents entry per page/section, or null). */
+export function fileSections({ src, kind }) {
   const key = `${kind}|${src}`;
   if (!cache.has(key)) {
-    const p = kind === "pdf" ? pdfPages(src) : kind === "ebook" ? ebookSections(src) : Promise.reject(new Error(`cannot read a ${kind || "file"} as text`));
+    const p = kind === "pdf" ? pdfPages(src).then((pages) => ({ pages, labels: [] }))
+      : kind === "ebook" ? ebookSections(src)
+      : Promise.reject(new Error(`cannot read a ${kind || "file"} as text`));
     p.catch(() => cache.delete(key));
     cache.set(key, p);
   }
   return cache.get(key);
+}
+
+/** The text of every page / section — what READ_FILE reads. Unchanged by the contents labels. */
+export function filePages({ src, kind }) {
+  return fileSections({ src, kind }).then((r) => r.pages);
 }
 
 export async function readFileText({ src, kind, from = null, to = null, page = null, maxChars = 20000 }) {

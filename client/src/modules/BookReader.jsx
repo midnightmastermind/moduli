@@ -11,7 +11,8 @@
 //              planned, never written. Leaving it leaves nothing behind.
 //   Magic file the WHOLE file the same way (user, 2026-10-18: "a button next to magic that does the
 //              whole file, not just that one page"): every page / section read as text
-//              (helpers/bookText.filePages, the same reading READ_FILE uses), joined, planned once.
+//              (helpers/bookText.fileSections, the same reading READ_FILE uses), each chapter headed by the
+//              book's contents entry when it has no heading of its own, joined, planned once.
 //   Open in panel  the book as its own page in a panel (user, 2026-10-16: "change save page to open
 //              in panel, if i want to save the page, i can drag copy out of magic"). Hidden when the
 //              reader already IS that page.
@@ -30,7 +31,7 @@ import {
   makeReadingPosition, samePosition, positionLabel,
 } from "../helpers/bookEngine";
 import { stripBookNavLinks } from "../helpers/bookNavLinks";
-import { filePages } from "../helpers/bookText";
+import { fileSections } from "../helpers/bookText";
 import { usePlannedImport, useSaveAsPage } from "../hooks/usePlannedImport";
 import { useOpenArtifactInPanel } from "../hooks/useOpenArtifactInPanel";
 import { useSpreadHost } from "../helpers/spreadDock";
@@ -49,9 +50,20 @@ const TITLES = {
   magicFile: "The whole file laid out as sections, textblocks and lists — nothing is saved unless you press Save or drag a piece out",
 };
 
-/** The whole file as one markdown text: its pages / sections in order, empty ones dropped. */
-export function wholeFileText(pages) {
-  return (pages || []).map((p) => String(p || "").trim()).filter(Boolean).join("\n\n");
+/**
+ * The whole file as one markdown text: its pages / sections in order, empty ones dropped. A section the
+ * book's contents names gets that name as a `#` heading when it does not open with a heading of its own,
+ * so a book whose chapters are plain paragraphs (Calibre conversions) still splits chapter by chapter.
+ */
+export function wholeFileText(pages, labels = []) {
+  const out = [];
+  (pages || []).forEach((p, i) => {
+    const text = String(p || "").trim();
+    const label = String(labels?.[i] || "").trim();
+    if (!text) return;
+    out.push(label && !/^#{1,6}\s/.test(text) ? `# ${label}\n\n${text}` : text);
+  });
+  return out.join("\n\n");
 }
 // How long the position must hold still before it is written (page turns come in bursts).
 const POSITION_SAVE_MS = 2000;
@@ -223,7 +235,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const isMagic = isMagicPage || isMagicFile;
   const label = positionLabel(title, page.pos);
 
-  // The whole file's text, read once when Magic file is first opened (filePages caches per file).
+  // The whole file's text, read once when Magic file is first opened (fileSections caches per file).
   // Started once per file: the status must not be an effect dependency, or setting "loading" would
   // run the cleanup and drop the answer.
   const [whole, setWhole] = useState({ status: "idle", content: "" });
@@ -233,10 +245,10 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
     wholeFor.current = src;
     let live = true; let settled = false;
     setWhole({ status: "loading", content: "" });
-    filePages({ src, kind: engine === "pdf" ? "pdf" : "ebook" })
-      .then((pages) => { settled = true; if (live) setWhole({ status: "done", content: wholeFileText(pages) }); })
+    fileSections({ src, kind: engine === "pdf" ? "pdf" : "ebook" })
+      .then(({ pages, labels }) => { settled = true; if (live) setWhole({ status: "done", content: wholeFileText(pages, labels) }); })
       .catch((e) => { settled = true; if (live) { wholeFor.current = null; setWhole({ status: "error", content: "", error: e?.message || String(e) }); } });
-    // Leaving Magic file mid-read drops that read; coming back starts it again (filePages caches it).
+    // Leaving Magic file mid-read drops that read; coming back starts it again (fileSections caches it).
     return () => { live = false; if (!settled && wholeFor.current === src) wholeFor.current = null; };
   }, [isMagicFile, src, engine]);
 
