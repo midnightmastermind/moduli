@@ -50,6 +50,30 @@ describe("withDiskCache", () => {
     }
   });
 
+  it("fills when the whole-file download reports no size (Drive sends no content-length)", async () => {
+    const files = { b: { body: "0123456789", mime: "application/epub+zip" } };
+    const inner = fakeBackend(files);
+    const b = { ...inner, async open(ref, o = {}) { const f = await inner.open(ref, o); return o.start == null ? { ...f, size: 0, length: null } : f; } };
+    const c = withDiskCache(b, { dir: tmp() });
+    await read((await c.open("b", { start: 0, end: 3 })).stream);
+    await Promise.all([...c._filling.values()]);
+    const n = inner.calls.length;
+    expect(await read((await c.open("b", { start: 4, end: 9 })).stream)).toBe("456789");
+    expect(inner.calls.length).toBe(n);
+  });
+
+  it("a whole-file first open with no size still leaves a disk copy", async () => {
+    const files = { w: { body: "abcdef", mime: "application/epub+zip" } };
+    const inner = fakeBackend(files);
+    const b = { ...inner, async open(ref, o = {}) { const f = await inner.open(ref, o); return o.start == null ? { ...f, size: 0, length: null } : f; } };
+    const c = withDiskCache(b, { dir: tmp() });
+    expect(await read((await c.open("w")).stream)).toBe("abcdef");
+    await Promise.all([...c._filling.values()]);
+    const n = inner.calls.length;
+    expect(await read((await c.open("w")).stream)).toBe("abcdef");
+    expect(inner.calls.length).toBe(n);
+  });
+
   it("does not cache images", async () => {
     const b = fakeBackend({ p: { body: "abc", mime: "image/jpeg" } });
     const c = withDiskCache(b, { dir: tmp() });

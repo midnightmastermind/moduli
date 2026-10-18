@@ -55,7 +55,9 @@ export function withDiskCache(backend, { dir, maxBytes = 5e9, maxFileBytes = 2e9
     }
   }
 
-  function fill(ref, key, mime) {
+  // `expected`: the size the request that started this fill reported. A whole-file download from Drive
+  // carries no content-length (its size reads 0), so the check uses the size a range answer gave.
+  function fill(ref, key, mime, expected) {
     if (filling.has(key)) return filling.get(key);
     const part = path.join(dir, `${key}.part`);
     const p = (async () => {
@@ -63,7 +65,9 @@ export function withDiskCache(backend, { dir, maxBytes = 5e9, maxFileBytes = 2e9
       if (!file?.stream) return;
       await pipeline(file.stream, fs.createWriteStream(part));
       const size = fs.statSync(part).size;
-      if (file.size != null && size !== file.size) throw new Error(`short download ${size}/${file.size}`);
+      const want = expected || (file.size > 0 ? file.size : null);
+      if (want && size !== want) throw new Error(`short download ${size}/${want}`);
+      if (size > maxFileBytes) { fs.unlinkSync(part); return; }
       fs.renameSync(part, fileOf(key));
       fs.writeFileSync(metaOf(key), JSON.stringify({ ref, size, mime, atime: now() }));
       evict();
@@ -93,7 +97,8 @@ export function withDiskCache(backend, { dir, maxBytes = 5e9, maxFileBytes = 2e9
         };
       }
       const file = await backend.open(ref, { start, end });
-      if (file && MEDIA.test(file.mime || "") && file.size && file.size <= maxFileBytes) fill(ref, key, file.mime);
+      // An unknown size (a whole-file Drive answer) still fills; the size limit is then checked on disk.
+      if (file && MEDIA.test(file.mime || "") && (!file.size || file.size <= maxFileBytes)) fill(ref, key, file.mime, file.size || null);
       return file;
     },
   };
