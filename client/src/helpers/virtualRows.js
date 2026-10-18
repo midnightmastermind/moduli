@@ -34,6 +34,21 @@ import { useVirtualizer, defaultRangeExtractor } from "@tanstack/react-virtual";
 import { RENDER_ALL_EVENT } from "./renderWindow";
 
 // Rows rendered beyond the viewport on each side.
+
+// How many grid line-measure passes may run back to back (see the grid measure effect).
+export const GRID_MEASURES_PER_BURST = 12;
+
+/** A measured line height replaces the known one only when it moved by a whole pixel. */
+export function lineNeedsResize(known, measured) {
+  return measured > 0 && (known == null || Math.abs(known - measured) >= 1);
+}
+
+/** Counts a grid measure pass; false once more than GRID_MEASURES_PER_BURST ran within 50ms. */
+export function takeMeasurePass(burst, now) {
+  if (now - burst.at > 50) { burst.at = now; burst.n = 0; }
+  burst.n += 1;
+  return burst.n <= GRID_MEASURES_PER_BURST;
+}
 export const VIRTUAL_OVERSCAN = 10;
 // The estimate for a row nobody has measured yet. It is replaced by the running
 // average of measured rows as soon as any exist; this is only the first guess.
@@ -236,8 +251,26 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
 
   // GRID: measure each rendered line from its tiles, and correct `columns` when
   // the browser wrapped differently than the width arithmetic said.
+  //
+  // A LINE IS RESIZED ONLY WHEN ITS HEIGHT REALLY CHANGED (>= 1px), and at most
+  // GRID_MEASURES_PER_BURST passes run back to back. Every resize re-renders the list, which
+  // runs this effect again; a height that wobbled by a fraction of a pixel (or a column count
+  // that flipped) never settled, and on a Bookmarks board during a search jump the chain passed
+  // React's nested-update limit and crashed the panel (React #185, 2026-10-18).
+  const burstRef = useRef({ at: 0, n: 0, retry: false });
+  const [, setRemeasure] = useState(0);
   useLayoutEffect(() => {
     if (!active || !isGrid || !listRef.current) return;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const burst = burstRef.current;
+    if (!takeMeasurePass(burst, now)) {
+      // Over the cap: measure again on a later frame instead of now, so the lines still settle.
+      if (!burst.retry) {
+        burst.retry = true;
+        setTimeout(() => { burst.retry = false; setRemeasure((t) => t + 1); }, 60);
+      }
+      return;
+    }
     const list = listRef.current;
     const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(v)) : String(v));
     // Tiles are found by their occurrence id among the list's DIRECT children.
@@ -263,7 +296,8 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     }
     for (const [line, { top, bottom }] of byLine) {
       const h = bottom - top + lineGap;
-      if (h > 0) {
+      const known = v.measurementsCache?.[line]?.size;
+      if (lineNeedsResize(known, h)) {
         v.resizeItem(line, h);
         avgRef.current.total += h; avgRef.current.n += 1;
       }
