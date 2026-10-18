@@ -37,6 +37,14 @@ Built by account2 (session limit mid-run), finished and deployed here (`80402160
 - **Runner trap:** `--only` takes the full id (`0420-day-page-chapter-a-day-reading`); `--only 0420` matches nothing and
   prints "Nothing pending", which reads like "already applied".
 - Client 6,274 pass. Pre-existing, not touched: lint `setComputedValuesAction` unused (present with the changes stashed).
+- **Jonah, the three items 10-17 (9) left untested, on test grid 2 in the drawer:** a first message right after this
+  deploy's restarts sat at "thinking" 120s, the drawer then read *"the local model is still reading — asking again"*
+  (the 524 retry) and the confirm card arrived at 151s; **Approve** created `Probe Jonah Approve` as a real instance,
+  parented to and listed by Tasks (deleted afterwards through `delete_occurrence`, 0 modules left); a no-tool question
+  **streamed** (the `▋` cursor seen 6 times) and answered in 15s warm. **Model limits, not app defects:** llama3.2:3b
+  called `wikipedia_summary` after being told not to, and answered "a time management technique and Italian soup dish".
+  The tool card reads only "Done." — the summary is behind "raw". `_jonah.mjs` now reads the drawer root (the first
+  ancestor of the textarea taller than 500px); its 8-parent walk missed the transcript.
 
 ---
 
