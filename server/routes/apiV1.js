@@ -2106,8 +2106,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
 
   router.get("/research/wikipedia/search", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
-      const { search } = await import("../services/wikipediaTools.js");
+      const { search, summary } = await import("../services/wikipediaTools.js");
       const hits = await search(req.query.q, { limit: Math.min(20, Number(req.query.limit) || 5) });
+      // The query itself naming a disambiguation page means the hits are a
+      // guess: say so, so the caller asks rather than taking the first one.
+      const exact = await summary(req.query.q).catch(() => null);
+      if (exact?.ambiguous) return res.json({ ok: true, query: req.query.q, hits, ...exact });
       res.json({ ok: true, query: req.query.q, hits });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });

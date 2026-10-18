@@ -45,3 +45,12 @@ describe("Jonah asks which one", () => {
     expect([...container.querySelectorAll("button")].every((b) => b.disabled)).toBe(true);
   });
 });
+
+describe("search results", () => {
+  it("lists the hits instead of only Done", () => {
+    const t = text(renderToolBody("wikipedia_search", { ok: true, query: "x", hits: [{ title: "Pomodoro Technique" }, { title: "Tomato" }] }));
+    expect(t).toContain("Pomodoro Technique");
+    expect(t).toContain("Tomato");
+    expect(t).not.toContain("Done");
+  });
+});

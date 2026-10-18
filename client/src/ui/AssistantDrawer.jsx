@@ -1288,7 +1288,9 @@ export function renderToolBody(name, output) {
   }
 
   // Plain list (list_operations / list_occurrences / list_folders / list_views …).
-  const list = Array.isArray(output) ? output : (Array.isArray(output.items) ? output.items : null);
+  const list = Array.isArray(output) ? output
+    : Array.isArray(output.items) ? output.items
+    : Array.isArray(output.hits) ? output.hits : null;
   if (list) {
     if (list.length === 0) return <div style={{ opacity: 0.6 }}>Empty.</div>;
     return (
