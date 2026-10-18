@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 — ROW LABELS CAN BE HIGHLIGHTED; VIDEO/AUDIO REOPEN WHERE YOU STOPPED; THE TAO TE CHING, A CHAPTER A DAY (`0420`)
+
+User (06:49): *"row labels should be highlighted and can you add one of my daoist or buddhist reflection books into my
+daypage reflections"* · *"make files have an autosave place (so video time for videos, books page, audio time, etc)"*.
+Built by account2 (session limit mid-run), finished and deployed here (`80402160`).
+- **Row labels** take `user-select: text` (`ModuleInstance` `.instance-label`), so a highlight + right-click Copy works.
+  Checked on the local build in Chromium and Firefox (account2); not re-clicked on prod.
+- **Saved place:** `hooks/useMediaPlace` + `ui/PlaceMedia` on every video/audio element (ArtifactCard spread / expanded /
+  thumbnail, ArtifactContent, AudioWaveform, a row's media block). Writes `module.meta.playbackPosition {time,
+  duration, at}` as a DERIVED write (not an undo step) every 5s of play and on pause / seek / end / hide; restores on
+  `loadedmetadata` unless under 3s or within 5s of the end (`helpers/mediaPlace`). Books already kept
+  `meta.readingPosition`. **Watched on prod:** the 0412 test mp4, seek 33s + pause -> Mongo `{time:33, duration:129.3}`
+  -> a fresh browser opens it at 33s. Probe place cleared afterwards, panel put back (`_panelrestore`).
+- **Tao Te Ching:** the Buddha pdf's text layer is scrambled, so the Daoist one. It is not dated, so the readings op
+  picks a chapter by day of year: two generic op features — `MOD_VAR` (`%=` remainder, editor + action tree) and the
+  DATE_FORMAT token `D` — and a `cycle` of chapter markers on a reading (`0402.chapterMarkers`: tolerant of the epub's
+  OCR, "1 0" for 10 and "l" for 1; all 81 found in order). `0404` leaves the cycle call alone. **`0420` applied** (file
+  occurrence via `READING_FILE_OCC`, `READING_CYCLE=81`). **Watched on prod:** a load imported chapter **48** into today's
+  Reflections beside Daily Reflections + The Daily Stoic — (291 − 1) % 81 = 47, the 48th.
+- **Runner trap:** `--only` takes the full id (`0420-day-page-chapter-a-day-reading`); `--only 0420` matches nothing and
+  prints "Nothing pending", which reads like "already applied".
+- Client 6,274 pass. Pre-existing, not touched: lint `setComputedValuesAction` unused (present with the changes stashed).
+
+---
+
 ### 2026-10-17 (9) — JONAH ANSWERS AGAIN: Cloudflare cut it off, and one tool result was 329k characters
 
 Testing Jonah's UI (queued: *"i havent been using him so we need to really test the ui of it"*). The first chat on

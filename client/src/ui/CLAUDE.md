@@ -2409,3 +2409,6 @@ registered them). See client/src/CLAUDE.md.
   other), not a flex column per member. Test: `__tests__/wrapOffTwoColumns.test.js`.
 - **`FieldRenderer.handleFlowChange`** fires the field's change (triggerField); **`FieldsTab`** has a
   "Default flow" select (meta.flow) beside "Flow toggle button" (2026-10-03).
+- **`PlaceMedia.jsx`** (2026-10-18): `<PlaceMedia as="video|audio" moduleId …/>`, a media element that keeps its
+  place (`hooks/useMediaPlace`). Every video/audio in ArtifactCard / ArtifactContent / ModuleInstance uses it;
+  AudioWaveform attaches the same hook to wavesurfer's media element.

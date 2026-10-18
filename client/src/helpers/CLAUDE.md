@@ -3325,3 +3325,6 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   PINS the target line (`rangeWithPin`) so a search finds the row without mounting what is above it.
   `renderWindow.useRenderWindow` stays for layouts that are not virtualized (its `enabled` is off otherwise, so
   the two never both claim a request). Tests `__tests__/virtualRows.test.js`.
+- **`mediaPlace.js`** (2026-10-18): `makePlaybackPosition`, `resumeTimeFor(saved, duration)` (null under 3s or within
+  5s of the end), `movedEnough`. Used by `hooks/useMediaPlace` (a callback ref that restores on `loadedmetadata` and
+  saves `module.meta.playbackPosition` as a derived write). `operationActions`: `MOD_VAR` and DATE_FORMAT `D` (day of year).
