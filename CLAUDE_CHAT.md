@@ -4003,3 +4003,9 @@ per picked date (that is where the items live); Combine hides those and shows on
 - *"if there is something disambuguise, have jonah ask which one it is (like in the pomodoro case), this should be in the wikipedia import or anything its unsure about"*
 - *"is it also possible to inject your claude "memory" into jonah"*
 - **At the END of UI testing:** go to every dropdown, every form, every drawer and menu — test them all and make them user friendly: all the buttons, anything missed or changed since it was last tested; layout and CSS make sense for a user-friendly experience; every form works. Includes the **share tool menu**, and it must work on **mobile** too.
+
+### 2026-10-18 08:28–08:45 CDT
+- Jonah notes: *"go with option 2 but wouldnt it benefit from your knowledge on moduli, just for the sake of knowing how the system operates"* — notes looked up when needed, including a how-Moduli-works guide.
+- **After the Jonah notes, BEFORE the UI sweep** (see the latest screenshot): the book/file viewer's two header rows merge into ONE header row — open-as-panel / full screen / etc. go on the same row as Book / Magic / Save page. The background when switching pages is black too. The "Book" button is renamed "Document". Documents get a white margin (books have none): keep the black background, give the book page itself a white margin so it looks bigger.
+- The UI sweep covers **every form and menu in the app, including the radial wheel buttons**.
+- *"finsih what you are working on now though"* · *"this stuff i just said comes after"*.
