@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 (4) — THE BOOK READER HAS ONE HEADER ROW; "Document"; black stage, white page margin
+
+User (screenshot 08:18): merge the reader's rows into one header row (open in panel, full screen on the row with
+Book / Magic / Save page), black background, rename Book → Document, a white margin around the page.
+- In the viewer a book tile stacked THREE rows: the tile's (handle + Open in panel / notes / full screen, spread out
+  because each `.spread-tile-maximize` has `margin-left:auto`), BookReader's, and EbookView's ◀ ▶ Contents (a PDF had
+  PdfViewer's page/zoom row instead). Now BookReader owns ONE row (`.book-reader-head`): Document · Magic · ◀ ▶ ·
+  Contents (from EbookView via `onToc`) or Page n/N + zoom (PdfViewer `onState` + `controlRef {go, jump, zoomBy}`) ·
+  title · Save page. In the viewer the tile's handle and buttons are laid over the row's two ends (index.css, layout
+  only — each keeps its handler) and the reader's own Open in panel is not drawn (the tile's does the same).
+- Both engines: black stage, the page on a white sheet with a margin (`.book-sheet`; foliate `margin` 24px, `gap` 4%).
+- The active mode is an outline + bold — it was white-on-accent, which the Terminal skin turned green-on-green.
+- **Watched on prod (viewer, Terminal skin):** one row, Document readable, a text page on a white sheet with margins.
+  **Not looked at:** a PDF on screen (unit-tested). **Probe slip, repaired:** turning pages saved a reading position on
+  two poms books; both put back from the transaction snapshots (one to its Oct 16 place, one to none).
+
+---
+
 ### 2026-10-18 (3) — JONAH'S NOTES: about you, how Moduli works, remembered (`0421`)
 
 User: notes Jonah reads only when needed (*"option 2"*), *"wouldnt it benefit from your knowledge on moduli, just for
