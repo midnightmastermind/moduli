@@ -231,6 +231,11 @@ async function llmLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT }) {
     if (pending.length) {
       return { ok: true, mode: "llm", model: ANTHROPIC_MODEL, transcript, pendingConfirmations: pending };
     }
+    const askLlm = ambiguityQuestion(transcript.filter((m) => m.role === "tool").slice(-toolResults.length).map((m) => m.output));
+    if (askLlm) {
+      transcript.push({ role: "assistant", content: askLlm });
+      return { ok: true, mode: "llm", model: ANTHROPIC_MODEL, transcript };
+    }
     apiMessages.push({ role: "user", content: toolResults });
     toolIterations++;
     if (resp.stop_reason !== "tool_use") break;
@@ -473,6 +478,16 @@ function slimRecord(r) {
   }
   return Object.keys(out).length ? out : r;
 }
+// A tool that found several matches answers { ambiguous: true, title, options }.
+// The turn then ENDS on a question: a guess from the model here is a guess the
+// user never asked for, and the drawer shows the options as buttons to pick.
+export function ambiguityQuestion(results) {
+  const amb = (results || []).find((r) => r && r.ambiguous);
+  if (!amb) return null;
+  const names = (amb.options || []).map((o) => o.title).filter(Boolean);
+  return `“${amb.title}” could mean several things${names.length ? ` (${names.slice(0, 6).join(", ")}${names.length > 6 ? ", …" : ""})` : ""}. Which one did you mean?`;
+}
+
 export function toolResultForModel(result, max = TOOL_RESULT_MAX_CHARS) {
   const whole = JSON.stringify(result ?? null);
   if (whole.length <= max) return whole;
@@ -618,6 +633,7 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
 
     // requires_confirm tools are held for user Approve/Decline (see llmLoop).
     const pending = [];
+    const stepResults = [];
     for (const tc of toolCalls) {
       const name = tc.function?.name;
       const input = parseToolArgs(tc.function?.arguments);
@@ -636,9 +652,15 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
       }
       apiMessages.push({ role: "tool", content: toolResultForModel(result) });
       transcript.push({ role: "tool", name, input, output: result });
+      stepResults.push(result);
     }
     if (pending.length) {
       return { ok: true, mode: "ollama", model: OLLAMA_MODEL, transcript, pendingConfirmations: pending };
+    }
+    const ask = ambiguityQuestion(stepResults);
+    if (ask) {
+      transcript.push({ role: "assistant", content: ask });
+      return { ok: true, mode: "ollama", model: OLLAMA_MODEL, transcript };
     }
     toolIterations++;
   }

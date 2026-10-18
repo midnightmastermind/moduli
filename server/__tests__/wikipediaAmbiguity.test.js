@@ -57,3 +57,15 @@ describe("ordering without positions", () => {
     expect(optionsFromLinksResponse(j).map((o) => o.title)).toEqual(["Arnaldo Pomodoro", "Pomodoro Technique", "Tomato"]);
   });
 });
+
+import { ambiguityQuestion } from "../services/assistantAgent.js";
+describe("the turn ends on a question", () => {
+  it("asks which one, naming the choices", () => {
+    const q = ambiguityQuestion([{ ok: true }, { ambiguous: true, title: "Pomodoro", options: [{ title: "Pomodoro Technique" }, { title: "Tomato" }] }]);
+    expect(q).toBe("“Pomodoro” could mean several things (Pomodoro Technique, Tomato). Which one did you mean?");
+  });
+  it("no ambiguous result, no question", () => {
+    expect(ambiguityQuestion([{ ok: true, title: "Pomodoro Technique" }])).toBeNull();
+    expect(ambiguityQuestion([])).toBeNull();
+  });
+});
