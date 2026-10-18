@@ -21,10 +21,11 @@ const fakeDoc = {
   ] }) }),
 };
 const pdfGo = vi.fn();
+const pdfZoom = vi.fn();
 vi.mock("../modules/PdfViewer.jsx", () => ({
-  default: ({ onPage, initialPage, controlRef }) => {
-    if (controlRef) controlRef.current = { go: (d) => pdfGo(d) };
-    React.useEffect(() => { onPage?.(initialPage, fakeDoc); }, []);
+  default: ({ onPage, initialPage, controlRef, onState }) => {
+    if (controlRef) controlRef.current = { go: (d) => pdfGo(d), jump: () => {}, zoomBy: (d) => pdfZoom(d) };
+    React.useEffect(() => { onPage?.(initialPage, fakeDoc); onState?.({ pageNum: initialPage, totalPages: 10, zoom: 1.2 }); }, []);
     return <div data-testid="pdf">pdf at {initialPage}</div>;
   },
 }));
@@ -53,7 +54,7 @@ describe("BookReader", () => {
     const socket = makeSocket();
     mount(socket);
     expect(screen.getByTestId("pdf").textContent).toBe("pdf at 3");
-    for (const t of ["Book", "Magic"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    for (const t of ["Document", "Magic"]) expect(screen.getByRole("button", { name: t })).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Dune — p. 3")).toBeTruthy());
     expect(socket.emits.some((e) => e.event === "import_plan")).toBe(false);
   });
@@ -84,18 +85,28 @@ describe("BookReader", () => {
     expect(socket.emits.filter((e) => e.event === "import_text")[1].payload.shape).toBe("magic");
   });
 
-  it("Open in panel opens the book's page in the viewer's panel and closes the viewer", async () => {
+  it("Open in panel opens the book's page in a panel (outside the viewer)", async () => {
     openInPanel.mockClear();
-    const close = vi.fn();
-    HOST = { originPanelModuleId: "pmod", close };
-    const socket = makeSocket();
-    mount(socket);
-    expect(screen.getByRole("button", { name: "Save page" })).toBeTruthy();
+    mount(makeSocket());
     fireEvent.click(screen.getByRole("button", { name: "Open in panel" }));
-    expect(openInPanel).toHaveBeenCalledWith("o1", { fromPanelModuleId: "pmod" });
-    expect(close).toHaveBeenCalledTimes(1);
-    expect(socket.emits.some((e) => e.event === "import_text")).toBe(false);
+    expect(openInPanel).toHaveBeenCalledWith("o1", { fromPanelModuleId: null });
+  });
+
+  it("in the viewer the tile's own Open in panel is used, on the same row (no second button)", () => {
+    HOST = { originPanelModuleId: "pmod", close: vi.fn() };
+    mount(makeSocket());
+    expect(screen.getByRole("button", { name: "Save page" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open in panel" })).toBe(null);
     HOST = null;
+  });
+
+  it("one header row carries the PDF's page and zoom", async () => {
+    pdfZoom.mockReset();
+    const { container } = mount(makeSocket());
+    expect(container.querySelectorAll(".book-reader-head")).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Page" }).value).toBe("3"));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(pdfZoom).toHaveBeenCalledWith(0.2);
   });
 
   it("does not offer Open in panel where it already is the panel's page", () => {
@@ -120,10 +131,12 @@ describe("BookReader", () => {
     expect(written.meta.readingPosition.page).toBe(1);
   });
 
-  it("Magic has previous / next, which turn the book underneath", async () => {
+  it("previous / next sit in the header in both modes and turn the book", async () => {
     pdfGo.mockReset();
     mount(makeSocket());
-    expect(screen.queryByRole("button", { name: "Next page" })).toBe(null);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(pdfGo.mock.calls).toEqual([[1]]);
+    pdfGo.mockReset();
     fireEvent.click(screen.getByRole("button", { name: "Magic" }));
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous page" }));

@@ -37,7 +37,7 @@ const PagePreviewBody = React.lazy(() =>
   import("../PagePreviewApp.jsx").then((m) => ({ default: m.PagePreviewBody })),
 );
 
-const MODES = [["book", "Book"], ["magic", "Magic"]];
+const MODES = [["book", "Document"], ["magic", "Magic"]];
 const TITLES = {
   book: "The book as written",
   magic: "This page laid out as sections, textblocks and lists — nothing is saved unless you press Save page or drag a piece out",
@@ -57,7 +57,7 @@ const Message = ({ children }) => (
 );
 
 /** The e-book half: fetch the file, refuse a DRM-locked one, mount <foliate-view>, report each page. */
-function EbookView({ src, title, startCfi, onRelocate, viewRef }) {
+function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
   const hostRef = useRef(null);
   const [status, setStatus] = useState({ state: "loading" });
   const [toc, setToc] = useState([]);
@@ -92,6 +92,9 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef }) {
         view.renderer.setAttribute("max-column-count", "1");
         view.renderer.setStyles?.("body { line-height: 1.5; }");
         setToc(Array.isArray(view.book?.toc) ? view.book.toc : []);
+        // The white sheet around the page is the margin; foliate's own is small inside it.
+        view.renderer.setAttribute("margin", "24px");
+        view.renderer.setAttribute("gap", "4%");
         await view.init({ lastLocation: startRef.current || undefined });
         if (live) setStatus({ state: "ready" });
       } catch (e) {
@@ -117,34 +120,30 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [status.state, viewRef]);
 
-  const flatToc = [];
-  const walk = (items, depth) => (items || []).forEach((it) => { flatToc.push({ label: it.label, href: it.href, depth }); walk(it.subitems, depth + 1); });
-  walk(toc, 0);
+  // The contents list goes to the reader's header row (one row, user 2026-10-18).
+  const onTocRef = useRef(onToc);
+  onTocRef.current = onToc;
+  useEffect(() => {
+    const flat = [];
+    const walk = (items, depth) => (items || []).forEach((it) => { flat.push({ label: it.label, href: it.href, depth }); walk(it.subitems, depth + 1); });
+    walk(toc, 0);
+    onTocRef.current?.(status.state === "ready" ? flat : []);
+  }, [toc, status.state]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {status.state === "ready" && (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0,
-          borderBottom: "1px solid var(--border-subtle)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
-          <button type="button" style={navBtn} aria-label="Previous page" title="Previous page" onClick={() => viewRef.current?.goLeft()}><ChevronLeft size={14} /></button>
-          <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => viewRef.current?.goRight()}><ChevronRight size={14} /></button>
-          {flatToc.length > 0 && (
-            <select aria-label="Contents" defaultValue="" style={{ ...navBtn, maxWidth: 260 }}
-              onChange={(e) => { if (e.target.value) viewRef.current?.goTo(e.target.value); e.target.value = ""; }}>
-              <option value="">Contents…</option>
-              {flatToc.map((t, i) => <option key={i} value={t.href}>{`${"  ".repeat(t.depth)}${t.label}`}</option>)}
-            </select>
-          )}
+      {/* Black around the book, the page on a white sheet with a margin of its own (user, 2026-10-18). */}
+      <div style={{ flex: 1, minHeight: 0, position: "relative", background: "#000", padding: 16, boxSizing: "border-box" }}>
+        <div className="book-sheet" style={{ position: "relative", height: "100%", maxWidth: 820, margin: "0 auto", background: "#fff",
+          padding: "8px 20px", boxSizing: "border-box", visibility: status.state === "ready" ? "visible" : "hidden" }}>
+          <div ref={hostRef} style={{ position: "absolute", inset: "8px 20px" }} />
         </div>
-      )}
-      <div style={{ flex: 1, minHeight: 0, position: "relative", background: "var(--panel-bg)" }}>
-        <div ref={hostRef} style={{ position: "absolute", inset: 0, visibility: status.state === "ready" ? "visible" : "hidden" }} />
         {status.state === "loading" && <div style={{ position: "absolute", inset: 0 }}><Waiting label="Opening the book…" /></div>}
         {status.state === "drm" && (
-          <Message>This book is locked with DRM (it came from the Kindle store), so it cannot be opened here.
-            The file is still linked to its row.</Message>
+          <div style={{ position: "absolute", inset: 0 }}><Message>This book is locked with DRM (it came from the Kindle store), so it cannot be opened here.
+            The file is still linked to its row.</Message></div>
         )}
-        {status.state === "error" && <Message>The book could not be opened: {status.error}</Message>}
+        {status.state === "error" && <div style={{ position: "absolute", inset: 0 }}><Message>The book could not be opened: {status.error}</Message></div>}
       </div>
     </div>
   );
@@ -166,6 +165,9 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const rootRef = useRef(null);
   const viewRef = useRef(null);
   const pdfCtl = useRef(null);
+  // The inner viewers' controls live in this header (one row): the e-book's contents, the PDF's page + zoom.
+  const [toc, setToc] = useState([]);
+  const [pdfState, setPdfState] = useState({ pageNum: 1, totalPages: 0, zoom: 1.2 });
 
   // What is on screen: the page's content for Magic / Save page, and the position to remember.
   const [page, setPage] = useState({ content: "", format: "markdown", pos: null });
@@ -234,21 +236,41 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
   const tabBtn = (m, l) => (
     <button key={m} type="button" onClick={() => setMode(m)} title={TITLES[m]} aria-pressed={mode === m}
       style={{ padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4,
-        border: "1px solid var(--border-default)",
-        background: mode === m ? "var(--accent-blue)" : "var(--input-bg)",
-        color: mode === m ? "var(--on-accent)" : "var(--text-primary)" }}>{l}</button>
+        border: mode === m ? "1px solid var(--accent-blue)" : "1px solid var(--border-default)",
+        boxShadow: mode === m ? "inset 0 0 0 1px var(--accent-blue)" : "none",
+        fontWeight: mode === m ? 700 : 400,
+        background: mode === m ? "var(--accent-blue-bg)" : "var(--input-bg)",
+        color: "var(--text-primary)" }}>{l}</button>
   );
 
   return (
     <div ref={rootRef} data-testid="book-reader" style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
+      {/* ONE header row (user, 2026-10-18): modes, page controls, title, actions. In the viewer the
+          tile's own handle + buttons sit on this row too (index.css .book-reader-head). */}
+      <div className="book-reader-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {MODES.map(([m, l]) => tabBtn(m, l))}
-        {isMagic && (
+        {/* In Magic these turn the book underneath; the new page is laid out as soon as it lands. */}
+        <button type="button" style={navBtn} aria-label="Previous page" title="Previous page" onClick={() => turn(-1)}><ChevronLeft size={14} /></button>
+        <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
+        {engine === "ebook" && toc.length > 0 && (
+          <select aria-label="Contents" defaultValue="" style={{ ...navBtn, maxWidth: 200 }}
+            onChange={(e) => { if (e.target.value) viewRef.current?.goTo(e.target.value); e.target.value = ""; }}>
+            <option value="">Contents…</option>
+            {toc.map((t, i) => <option key={i} value={t.href}>{`${"  ".repeat(t.depth)}${t.label}`}</option>)}
+          </select>
+        )}
+        {engine === "pdf" && pdfState.totalPages > 0 && (
           <>
-            {/* Turns the book underneath; the new page is laid out as soon as it lands. */}
-            <button type="button" style={navBtn} aria-label="Previous page" title="Previous page" onClick={() => turn(-1)}><ChevronLeft size={14} /></button>
-            <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
+            <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <input type="number" aria-label="Page" min={1} max={pdfState.totalPages} value={pdfState.pageNum}
+                onChange={(e) => pdfCtl.current?.jump(e.target.value)}
+                style={{ ...navBtn, width: 52, textAlign: "center" }} />
+              / {pdfState.totalPages}
+            </span>
+            <button type="button" style={navBtn} aria-label="Zoom out" title="Zoom out" onClick={() => pdfCtl.current?.zoomBy(-0.2)}>−</button>
+            <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)", minWidth: 36, textAlign: "center" }}>{Math.round(pdfState.zoom * 100)}%</span>
+            <button type="button" style={navBtn} aria-label="Zoom in" title="Zoom in" onClick={() => pdfCtl.current?.zoomBy(0.2)}>+</button>
           </>
         )}
         <span style={{ flex: 1, minWidth: 8, fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
@@ -258,7 +280,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
           style={{ ...navBtn, opacity: page.content ? 1 : 0.5 }}>
           {busy ? <Loader2 size={12} className="animate-spin" /> : "Save page"}
         </button>
-        {!inPanelPage && occurrence?.id && (
+        {!inPanelPage && !spreadHost && occurrence?.id && (
           <button type="button" onClick={openHere} aria-label="Open in panel" title="Open the book as its own page in a panel"
             style={navBtn}>Open in panel</button>
         )}
@@ -271,8 +293,8 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
         {/* The book stays mounted under Magic, so going back is instant and keeps the place. */}
         <div style={{ position: "absolute", inset: 0, visibility: isMagic ? "hidden" : "visible" }}>
           {engine === "ebook"
-            ? <EbookView src={src} title={title} startCfi={saved?.cfi || null} onRelocate={onRelocate} viewRef={viewRef} />
-            : <PdfViewer src={src} title={title} initialPage={saved?.page || 1} onPage={onPdfPage} controlRef={pdfCtl} />}
+            ? <EbookView src={src} title={title} startCfi={saved?.cfi || null} onRelocate={onRelocate} viewRef={viewRef} onToc={setToc} />
+            : <PdfViewer src={src} title={title} initialPage={saved?.page || 1} onPage={onPdfPage} controlRef={pdfCtl} onState={setPdfState} />}
         </div>
         {isMagic && (
           <div style={{ position: "absolute", inset: 0, overflowY: "auto", background: "var(--panel-bg)", color: "var(--text-primary)" }}>

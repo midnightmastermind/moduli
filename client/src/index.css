@@ -9152,3 +9152,19 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   .slide-y-in, .slide-y-out, .slide-x-in, .slide-x-out,
   .menu-surface, [data-radix-popper-content-wrapper] > [data-state="open"] { animation: none !important; }
 }
+
+/* A BOOK TILE IN THE VIEWER HAS ONE HEADER ROW (user, 2026-10-18: "the row with the open as panel,
+   full screen, etc. to all go on the same row as the book/magic and save page"). The tile's handle +
+   Open in panel / notes / full screen are lifted onto the reader's header row: handle at its left,
+   buttons at its right, and the reader's row makes room for them. Layout only — every button keeps
+   its own handler. */
+.instance-row:has(.artifact-card--book-open) > .instance-content { position: relative; }
+.instance-row:has(.artifact-card--book-open) .instance-handle-group {
+  position: absolute; top: 4px; left: 4px; right: 6px; z-index: 3;
+  display: flex; align-items: center; gap: 4px; pointer-events: none;
+}
+.instance-row:has(.artifact-card--book-open) .instance-handle-group > * { pointer-events: auto; }
+.instance-row:has(.artifact-card--book-open) .instance-handle-group > .spread-tile-maximize { margin-left: 0; }
+.instance-row:has(.artifact-card--book-open) .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
+.instance-row:has(.artifact-card--book-open) .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
+.instance-row:has(.artifact-card--book-open) .book-reader-head { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }

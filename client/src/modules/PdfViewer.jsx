@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 // each page on demand into a canvas; navigation via prev/next buttons +
 // page-number input. Falls back to a plain `<iframe>` while the module
 // loads OR if pdfjs throws — better to show *something* than a blank.
-export default function PdfViewer({ src, title, initialPage = 1, onPage = null, controlRef = null }) {
+export default function PdfViewer({ src, title, initialPage = 1, onPage = null, controlRef = null, onState = null }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const pdfDocRef = useRef(null);
@@ -29,6 +29,9 @@ export default function PdfViewer({ src, title, initialPage = 1, onPage = null, 
     const doc = pdfDocRef.current;
     if (doc && totalPages > 0) onPageRef.current?.(pageNum, doc);
   }, [pageNum, totalPages]);
+  const onStateRef = useRef(onState);
+  onStateRef.current = onState;
+  useEffect(() => { onStateRef.current?.({ pageNum, totalPages, zoom }); }, [pageNum, totalPages, zoom]);
 
   // Lazy-load pdfjs once per component lifecycle.
   useEffect(() => {
@@ -104,61 +107,27 @@ export default function PdfViewer({ src, title, initialPage = 1, onPage = null, 
   }
 
   const go = (delta) => setPageNum((n) => Math.max(1, Math.min(totalPages || 1, n + delta)));
-  // The book reader turns pages from its Magic view, where this viewer is mounted but hidden.
-  if (controlRef) controlRef.current = { go };
   const jump = (raw) => {
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 1) return;
     setPageNum(Math.min(totalPages || 1, Math.floor(n)));
   };
+  const zoomBy = (d) => setZoom((z) => Math.min(3, Math.max(0.4, +(z + d).toFixed(2))));
+  // The book reader draws this viewer's controls in its own header row (one row, user 2026-10-18).
+  if (controlRef) controlRef.current = { go, jump, zoomBy };
 
   return (
-    <div ref={containerRef} style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--surface-low, #1a1a1a)" }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-        background: "rgba(0,0,0,0.45)", color: "var(--text-muted, rgba(255,255,255,0.7))",
-        fontFamily: "var(--font-mono)", fontSize: 12, flexShrink: 0,
-        borderBottom: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
-      }}>
-        <button type="button" onClick={() => go(-1)} disabled={pageNum <= 1} style={pdfNavBtn}>←</button>
-        <span>
-          Page&nbsp;
-          <input
-            type="number"
-            min={1}
-            max={totalPages || 1}
-            value={pageNum}
-            onChange={(e) => jump(e.target.value)}
-            style={{
-              width: 48, padding: "1px 4px", textAlign: "center",
-              background: "rgba(255,255,255,0.06)", color: "inherit",
-              border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4,
-              fontFamily: "inherit", fontSize: 12,
-            }}
-          />
-          &nbsp;/&nbsp;{totalPages || "?"}
-        </span>
-        <button type="button" onClick={() => go(1)} disabled={pageNum >= totalPages} style={pdfNavBtn}>→</button>
-        <span style={{ flex: 1 }} />
-        <button type="button" onClick={() => setZoom((z) => Math.max(0.4, +(z - 0.2).toFixed(2)))} style={pdfNavBtn}>−</button>
-        <span style={{ minWidth: 44, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
-        <button type="button" onClick={() => setZoom((z) => Math.min(3, +(z + 0.2).toFixed(2)))} style={pdfNavBtn}>+</button>
-      </div>
-      <div style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: 16 }}>
-        {pdfjs && totalPages > 0 ? (
-          <canvas ref={canvasRef} style={{ background: "white", boxShadow: "var(--menu-shadow-1)" }} />
-        ) : (
-          <div style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 12, padding: 32 }}>
-            Loading PDF…
-          </div>
-        )}
-      </div>
+    <div ref={containerRef} style={{ width: "100%", height: "100%", overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: 16, background: "#000", boxSizing: "border-box" }}>
+      {pdfjs && totalPages > 0 ? (
+        // The page on a white sheet with a margin of its own (user, 2026-10-18).
+        <div className="book-sheet" style={{ background: "#fff", padding: 24, boxShadow: "var(--menu-shadow-1)", lineHeight: 0 }}>
+          <canvas ref={canvasRef} style={{ background: "white" }} />
+        </div>
+      ) : (
+        <div style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 12, padding: 32 }}>
+          Loading PDF…
+        </div>
+      )}
     </div>
   );
 }
-const pdfNavBtn = {
-  padding: "2px 8px", borderRadius: 4,
-  background: "rgba(255,255,255,0.06)", color: "inherit",
-  border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer",
-  fontFamily: "inherit", fontSize: 12,
-};
