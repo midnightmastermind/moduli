@@ -1794,3 +1794,9 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
   you cannot scroll past on a phone — the wheel is meant to sit on a day page, not own it.
 - **`ModuleContainer` + `ModulePage` mount `<GraphSection>`** beside `<FeedSection>` in their
   HeaderDropdowns (see ui/CLAUDE.md).
+
+## Recent Changes (2026-10-18 (5) — one reader header row; OCR tabs on viewer pictures)
+- `BookReader` `headerExtra` — the surrounding surface's buttons go on the reader's row (`PageDisplay` Notes + Open in
+  viewer; the full-screen card's size / Download / close). Non-book files keep their own row.
+- `ArtifactCard`: in the spread, an image tile (not expanded) is `ImageOcrViews` around the picture + name; full screen
+  (`renderExpanded` image) is wrapped too. Test `spreadImageOcr.test.jsx`.

@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 (5) — ONE HEADER ROW EVERYWHERE A BOOK OPENS; PICTURES GET OCR READER / OCR MAGIC IN THE VIEWER; every book checked
+
+User: *"you never finished with the file header toolbar and merging them into one"* · *"images need magic mode as well
+(ocr) put that in the viewer"*. Account3 had the header half written (its session limit hit); finished here (`8126b8af`).
+- **Header:** `BookReader` takes `headerExtra`, drawn at the end of its own header row. `PageDisplay` (a book's own page:
+  Notes + Open in viewer) and the full-screen card (`ArtifactCard` expanded: size, Download, close) pass their buttons
+  there instead of stacking a row above the reader. Non-book files keep their old row. Test `bookReader` +1.
+- **OCR in the viewer:** a picture tile in the spread is wrapped in `ImageOcrViews` (Image / OCR Reader / OCR Magic,
+  the image page's own tabs); the Image tab is the tile as before (picture + name), clicking it opens full screen, and
+  full screen (`renderExpanded` image) carries the tabs too. `!expanded` on the tile branch, since the expanded card
+  replaces the tile. Classes `.artifact-card--ocr-tile`, `.artifact-ocr-tile-picture`, `.artifact-expanded-ocr`.
+  Test `spreadImageOcr.test.jsx` (3); `bookmarkCardOpens`' mock gained `useGridActions` (ImageOcrViews reads it).
+  **Watched on prod** (rebuild grid, Files › Examples): tile tabs Image|OCR Reader|OCR Magic, OCR Magic ran ("No text
+  found" — a photo), full screen shows the same tabs. Panel A put back (`_panelrestore`, the Earthrise page dropped).
+- **Book audit finished** (account3's `_bookaudit.mjs --open`, on prod): **484 of 485 files open**; the one that does
+  not is a `.djvu` (Computers of Star Trek), the row's only file, a format the reader cannot show. 46 take over 5s on a
+  first open (Drive's first byte, big files; 5 over 10s, worst a 15 MB epub at 29s). All 485 (4.1 GB) are being
+  pre-loaded into the server's disk cache (`server/_bookwarm.mjs` on prod, gitignored: byte 0 starts the cache's own
+  fill, then waits for it), so first opens are disk reads. Fits the 5 GB `DRIVE_CACHE_MAX_BYTES`; no restart.
+
+---
+
 ### 2026-10-18 (4) — THE BOOK READER HAS ONE HEADER ROW; "Document"; black stage, white page margin
 
 User (screenshot 08:18): merge the reader's rows into one header row (open in panel, full screen on the row with
