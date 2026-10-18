@@ -84,6 +84,36 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
 
   return [
     {
+      name: "jonah_notes",
+      description: "Read your notes. which: \"moduli\" = how Moduli works (pages, containers, instances, fields, filters, operations, templates, feeds, copy/move, the Schedule…); \"about\" = who the user is and how they like things; \"memory\" = things you were asked to remember. Pass `topic` to read one part (e.g. topic:\"feeds\"). Read this when unsure how something in Moduli works or what the user prefers.",
+      input_schema: {
+        type: "object",
+        properties: {
+          which: { type: "string", enum: ["moduli", "about", "memory"], default: "moduli" },
+          topic: { type: "string", description: "A word or two naming the part you need" },
+        },
+      },
+      destructive: false,
+      run: async ({ which = "moduli", topic = "" }) => {
+        const r = await call("GET", `/assistant/notes?gridId=${encodeURIComponent(gridId)}&which=${encodeURIComponent(which)}&topic=${encodeURIComponent(topic)}`);
+        return r.body;
+      },
+    },
+    {
+      name: "jonah_remember",
+      description: "Save one short fact to your Remembered note so you know it next time (use when the user says 'remember…' or tells you a lasting preference). One sentence.",
+      input_schema: {
+        type: "object",
+        properties: { note: { type: "string" } },
+        required: ["note"],
+      },
+      destructive: false,
+      run: async ({ note }) => {
+        const r = await call("POST", `/assistant/notes/remember`, { gridId, note });
+        return r.body;
+      },
+    },
+    {
       name: "wikipedia_search",
       description: "Search Wikipedia for matches; returns title + snippet + URL per hit. Read-only.",
       input_schema: {

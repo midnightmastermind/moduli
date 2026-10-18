@@ -27,6 +27,7 @@ import crypto from "crypto";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
+import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
 import Field from "../models/Field.js";
 import Operation from "../models/Operation.js";
 import Secret, { encryptValue, isSecretsKeyConfigured } from "../models/Secret.js";
@@ -2369,6 +2370,48 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // Execute a single tool the user approved on a confirmation card. The chat
   // endpoint returns pendingConfirmations for destructive tools instead of
   // running them; the client posts the approved one here.
+  // Jonah's notes (services/jonahNotes.js): doc pages in the grid's Jonah folder,
+  // found by identitySignature. Read: one note, or one topic of it.
+  const findNote = async (userId, gridId, which) => {
+    const { NOTE_SIGNATURES } = await import("../services/jonahNotes.js");
+    const sig = NOTE_SIGNATURES[which];
+    if (!sig) return { error: `unknown note "${which}" (about, moduli, memory)` };
+    const uc = await getUserCache(userId, gridId);
+    const occ = Object.values(uc?.occurrencesById || {}).find((o) => o?.identitySignature === sig);
+    if (!occ) return { error: `this grid has no "${which}" note yet` };
+    return { occ, uc };
+  };
+
+  router.get("/assistant/notes", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { noteToText, readNote } = await import("../services/jonahNotes.js");
+      const { gridId, which = "moduli", topic = "" } = req.query;
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const found = await findNote(req.userId, gridId, which);
+      if (found.error) return res.json({ ok: false, error: found.error });
+      const text = noteToText(decompressTextmap(found.occ.textmap));
+      res.json({ ok: true, which, ...readNote(text, { topic }) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.post("/assistant/notes/remember", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { appendRemembered } = await import("../services/jonahNotes.js");
+      const { gridId, note } = req.body || {};
+      if (!gridId || !String(note || "").trim()) return err(res, 400, "validation_error", "gridId and note required");
+      const found = await findNote(req.userId, gridId, "memory");
+      if (found.error) return res.json({ ok: false, error: found.error });
+      const textmap = appendRemembered(decompressTextmap(found.occ.textmap), note);
+      const updatedAt = new Date();
+      await Occurrence.updateOne({ id: found.occ.id, userId: req.userId },
+        { $set: { textmap: compressTextmap(textmap), updatedAt } });
+      const next = { ...found.occ, textmap, updatedAt };
+      if (found.uc?.occurrencesById) found.uc.occurrencesById[next.id] = next;
+      io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: next });
+      res.json({ ok: true, remembered: String(note).trim() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   router.post("/assistant/confirm", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { assistantConfirm } = await import("../services/assistantAgent.js");
