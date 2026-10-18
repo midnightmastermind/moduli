@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-18 (2) — JONAH ASKS WHICH ONE; a lookup's card shows its text
+
+User: *"if there is something disambuguise, have jonah ask which one it is (like in the pomodoro case), this should be
+in the wikipedia import or anything its unsure about"* · *"put the summary after done"*.
+- **Wikipedia:** "Pomodoro" is a disambiguation page, and Jonah answered "a time management technique and Italian soup
+  dish" from its text. `wikipediaTools.summary` now returns `{ambiguous, title, options:[{title, description}]}` for one
+  (`disambiguationOptions`: the links generator with descriptions, other disambiguation pages dropped, by title — the
+  API gives no page order). The search route adds the same when the QUERY names one; the import route returns it and
+  imports nothing; a batch reports it per title.
+- **The turn ends on a question** (`assistantAgent.ambiguityQuestion`, both loops): the 3B model saw the choices and
+  still answered with its own pick, so the agent stops on the first ambiguous result and replies *"“Pomodoro” could
+  mean several things (…). Which one did you mean?"*. The prompt also says to ask, not guess, whenever things can't be
+  told apart.
+- **Drawer:** `AmbiguousChoices` — one button per choice; on a tool card a pick sends `I mean "<title>"`; on the import
+  confirm card it switches the previewed article and Approve waits for a pick. A summary's card shows title, text and
+  link under "✓ Done."; a search card lists its hits (they were under `hits`, which the card never read).
+- **Watched on prod (test grid 2):** "look up pomodoro on wikipedia" → 8 choice buttons + the question, no guess;
+  clicking "Pomodoro Technique" → that article's summary. Tests `wikipediaAmbiguity` (8), `assistantToolCard` (6).
+- **Probe trap:** the system prompt is a template literal — a line with bare backticks broke the whole module and
+  showed up only as a Rolldown "parse failure" in two unrelated test files.
+
+---
+
 ### 2026-10-18 — ROW LABELS CAN BE HIGHLIGHTED; VIDEO/AUDIO REOPEN WHERE YOU STOPPED; THE TAO TE CHING, A CHAPTER A DAY (`0420`)
 
 User (06:49): *"row labels should be highlighted and can you add one of my daoist or buddhist reflection books into my
