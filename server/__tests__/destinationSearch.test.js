@@ -55,6 +55,8 @@ vi.mock("../models/Occurrence.js", () => ({ default: {
     // Two shapes: by module (the hits) and by id (the crumb walk, one level
     // at a time). A mock that ignored the second would hide a full-grid scan.
     if (q.id?.$in) return findChain(occurrences.filter((o) => q.id.$in.includes(o.id)));
+    // The lister lookup: who LISTS these ids (a row with no parentId still has a place).
+    if (q.occurrences?.$in) return findChain(occurrences.filter((o) => (o.occurrences || []).some((id) => q.occurrences.$in.includes(id))));
     const ids = q.moduleId?.$in || null;
     return findChain(occurrences.filter((o) => (!ids || ids.includes(o.moduleId))));
   },
@@ -95,6 +97,27 @@ describe("searchDestinations", () => {
   it("carries a crumb so two same-named containers can be told apart", async () => {
     const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "movies" });
     expect(out[0].crumb).toBe("Boards › Media");
+  });
+
+  it("a container its page LISTS but does not parent still gets the page as its crumb", async () => {
+    // Three boards called "Library" on test grid 2 read identically: the walk followed parentId
+    // only, and a container a page lists without parenting has none.
+    modules.push(mod("m-lib", "Library"), mod("m-lib2", "Library"), mod("m-libpage", "Reading", "page", "board"));
+    occurrences.push(occ("o-libpage", "m-libpage", "o-boards", ["o-lib"]), occ("o-lib", "m-lib", null), occ("o-lib2", "m-lib2", "o-media"));
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "library" });
+    expect(out.find((d) => d.id === "o-lib").crumb).toBe("Reading");
+  });
+
+  it("a unique name with no crumb asks nothing more", async () => {
+    modules.push(mod("m-solo", "Solo"));
+    occurrences.push(occ("o-solo", "m-solo", null));
+    const seen = [];
+    const Occurrence = (await import("../models/Occurrence.js")).default;
+    const real = Occurrence.find;
+    Occurrence.find = (q) => { seen.push(q); return real(q); };
+    await searchDestinations({ userId: "u1", gridId: "g1", q: "solo" });
+    Occurrence.find = real;
+    expect(seen.some((q) => q.occurrences)).toBe(false);
   });
 
   it("reports the child count — 'like its 993 rows' needs a number", async () => {

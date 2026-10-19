@@ -136,7 +136,44 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
       shape: shapeOf(o),
     });
   }
+  await crumbFromListers({ userId, gridId, out, hits });
   return out;
+}
+
+// SAME NAME, NO CRUMB. The walk above follows `parentId`, and a container a page LISTS without
+// parenting has none — so three boards called "Library" on test grid 2 read identically
+// (UI sweep 2026-10-19). Only when a name repeats and a crumb is empty is the lister looked up:
+// one query scoped to the grid's containers and pages by module id (the guard test forbids an
+// unscoped one, and `occurrences` has no index — measured 175ms over 27k rows on poms vs ~110ms
+// over the ~3.7k container/page rows). The module list is cached per grid for a minute.
+const LISTER_MODS_TTL_MS = 60_000;
+const listerModsCache = new Map(); // `${userId}:${gridId}` -> { at, ids }
+async function listerModuleIds(userId, gridId) {
+  const key = `${userId}:${gridId}`;
+  const hit = listerModsCache.get(key);
+  if (hit && Date.now() - hit.at < LISTER_MODS_TTL_MS) return hit.ids;
+  const mods = await Module.find({ userId, gridId, role: { $in: ["container", "page", "panel"] } }).lean();
+  const ids = mods.map((m) => m.id);
+  listerModsCache.set(key, { at: Date.now(), ids, labels: new Map(mods.map((m) => [m.id, m.label])) });
+  return ids;
+}
+async function crumbFromListers({ userId, gridId, out, hits }) {
+  const count = new Map();
+  for (const d of out) count.set(d.label, (count.get(d.label) || 0) + 1);
+  const hitById = new Map(hits.map((h) => [h.id, h]));
+  const need = out.filter((d) => !d.crumb && count.get(d.label) > 1 && !hitById.get(d.id)?.parentId);
+  if (!need.length) return;
+  const modIds = await listerModuleIds(userId, gridId);
+  if (!modIds.length) return;
+  const ids = need.map((d) => d.id);
+  const listers = await Occurrence.find({ userId, gridId, moduleId: { $in: modIds }, occurrences: { $in: ids } })
+    .limit(ids.length * 4).lean();
+  const labels = listerModsCache.get(`${userId}:${gridId}`)?.labels || new Map();
+  for (const d of need) {
+    const l = listers.find((x) => (x.occurrences || []).includes(d.id) && x.id !== d.id);
+    const name = l ? (l.label || labels.get(l.moduleId) || null) : null;
+    if (name) d.crumb = name;
+  }
 }
 
 // Rows sampled per destination to decide which values are "the board's".

@@ -84,6 +84,8 @@ export default function SharePlace() {
   const [presetId, setPresetId] = useState("");
   const [q, setQ] = useState("");
   const [dests, setDests] = useState([]);
+  // The query the shown results answer — so "nothing matches" is said only for a search that ran.
+  const [searchedQ, setSearchedQ] = useState(null);
   const [destination, setDestination] = useState(null);
   const [siblingShape, setSiblingShape] = useState(null);
   const [kindOverride, setKindOverride] = useState("");
@@ -168,7 +170,7 @@ export default function SharePlace() {
     const seq = ++searchSeq.current;
     const t = setTimeout(async () => {
       const b = await getJson(`/destinations?gridId=${enc(gridId)}&q=${enc(q)}&limit=30`);
-      if (seq === searchSeq.current) setDests(b?.destinations || []);
+      if (seq === searchSeq.current) { setDests(b?.destinations || []); setSearchedQ(q); }
     }, 200);
     return () => clearTimeout(t);
   }, [q, gridId, token, destination, mode, getJson]);
@@ -407,11 +409,16 @@ export default function SharePlace() {
             <>
               <input placeholder="search containers and pages" value={q} onChange={(e) => setQ(e.target.value)} style={inputSt} autoFocus />
               <div style={{ maxHeight: 170, overflowY: "auto", marginTop: 2 }}>
+                {dests.length === 0 && q.trim() && searchedQ === q && (
+                  <div data-testid="no-dest" style={{ fontSize: 11, color: "var(--text-muted, #aaa)", padding: "4px 2px" }}>
+                    No board, page or container on this grid matches “{q.trim()}”.
+                  </div>
+                )}
                 {dests.map((d) => (
                   <button type="button" key={d.id} onClick={() => pickDestination(d)} style={destRowSt}>
                     <span>{d.label}</span>
                     <span style={{ color: "var(--text-faint, #888)", fontSize: 10 }}>
-                      {[d.crumb, d.childCount ? `${d.childCount} rows` : null].filter(Boolean).join(" · ")}
+                      {[d.crumb, d.childCount ? `${d.childCount} ${d.childCount === 1 ? "row" : "rows"}` : null].filter(Boolean).join(" · ")}
                     </span>
                   </button>
                 ))}
