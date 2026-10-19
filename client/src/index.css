@@ -9240,3 +9240,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    the right"). Each one carries margin-left:auto so a lone button reaches the right edge; with two or three,
    that spread them across the header. Only the first keeps it. */
 .instance-handle-group > .spread-tile-maximize ~ .spread-tile-maximize { margin-left: 4px; }
+
+/* A book / PDF reader fills its tile's height. A CANVAS card has no height of its own, so the
+   reader collapsed to its header strip and the page was not drawn at all (viewer canvas
+   arrangement, UI sweep 2026-10-19). On a canvas it gets a page-sized height. */
+.canvas-surface [data-testid="book-reader"] { height: 480px; }
