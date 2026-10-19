@@ -94,6 +94,12 @@ export default function ArtifactSpread({
     if (!open) return undefined;
     const onKey = (e) => {
       if (e.key === "Escape") {
+        // A control inside the viewer that already USED the key (the bookmark
+        // address bar restores its text, a rename cancels) marks it handled;
+        // closing the whole viewer on the same press would undo what the user
+        // was in the middle of. Measured on prod: Escape in the address bar
+        // restored the address and then shut the viewer.
+        if (e.defaultPrevented) return;
         e.stopPropagation();
         if (maxIdRef.current) { setMaxId(null); return; }
         requestClose();

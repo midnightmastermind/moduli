@@ -59,6 +59,27 @@ describe("ArtifactSpread shell", () => {
     vi.useRealTimers();
   });
 
+  // UI sweep 53: Escape in the bookmark address bar restored the address AND
+  // shut the viewer. A control that already used the key marks it handled.
+  it("stays open when a control inside already handled Escape", () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+    render(
+      <ArtifactSpread open title="t" mode="board" count={1} onClose={onClose} onAdd={vi.fn()} onModeChange={vi.fn()}>
+        <input data-testid="addr" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); }} />
+      </ArtifactSpread>
+    );
+    fireEvent.keyDown(screen.getByTestId("addr"), { key: "Escape" });
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector(".artifact-spread--closing")).toBeNull();
+    // control: the same key with nothing handling it still closes
+    fireEvent.keyDown(document, { key: "Escape" });
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
   it("closes on a backdrop click but NOT on a click inside the surface", () => {
     vi.useFakeTimers();
     const onClose = vi.fn();

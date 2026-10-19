@@ -659,7 +659,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     // to Reader on should not pay for a tree nobody looks at.
     if (!isTextMode || !md || !socket) return;
     const shape = mode;
-    const key = `${shape} ${md}`;
+    const key = `${shape}\u0000${md}`;
     if (planForRef.current === key) return;
     planForRef.current = key;
     // Bumped on EVERY switch, cached or not, so a slow reply for the shape just
