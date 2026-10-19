@@ -10,6 +10,7 @@ import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { clampToViewport } from "../helpers/clampToViewport.js";
 import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon, ExternalLink, FilePlus, Pin } from "lucide-react";
+import { buildRenameItem } from "./pageCardRename";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -995,7 +996,7 @@ function FolderNodeImpl({ folder, depth, foldersById, occurrencesById, modulesBy
             { label: "Open folder page", icon: Layout, onClick: handleFolderClick },
             { separator: true },
             { label: "Rename", icon: Pencil, onClick: () => { setRenameValue(folder.name); setIsRenaming(true); } },
-            { label: "Set cover…", icon: ImageIcon, onClick: () => setCoverEditor({ x: ctxMenu.x, y: ctxMenu.y }) },
+            { label: "Set cover image…", icon: ImageIcon, onClick: () => setCoverEditor({ x: ctxMenu.x, y: ctxMenu.y }) },
             ...(folder.meta?.cover ? [{ label: "Clear cover", icon: X, onClick: () => CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, meta: { ...(folder.meta || {}), cover: null } }, emit: true }) }] : []),
             ...(isProtectedFolder(folder) ? [] : [
               { separator: true },
@@ -1207,6 +1208,12 @@ function PageTreeNodeImpl({ pageOccId, activeOccId, onOpenPage, onClosePage, occ
             { label: "Open", icon: ExternalLink, onClick: () => onOpenPage?.(pageOccId) },
             ...(parentFolder ? [{ label: "New page here…", icon: FilePlus, onClick: () => setAddTrigger(n => n + 1) }] : []),
             ...(onClosePage ? [{ label: "Close page", icon: X, onClick: () => onClosePage(pageOccId) }] : []),
+            // A folder renames from its row; a page could only rename from its card (UI sweep
+            // 2026-10-19). Same helper and prompt the card uses.
+            { ...buildRenameItem({ module: pageMod, dispatch, socket, onStart: (mod, commit) => {
+                const next = window.prompt("Rename page", mod.label ?? "");
+                if (next != null) commit(next);
+              } }), icon: Pencil },
             { separator: true },
             { label: "Delete page", icon: Trash2, danger: true, onClick: () => confirmDeleteOccurrence({ occurrence: pageOcc, module: pageMod, dispatch, socket }) },
           ] }}
