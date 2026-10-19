@@ -1274,7 +1274,11 @@ function Container({
       data-occ-id={containerOccurrence?.id}
       data-testid="container-shell"
       className={(() => {
-        const base = `container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}`;
+        const base = `container-shell bg-background2 rounded-md border border-border shadow-inner mod-${module.id}`
+          // A doc container says so on its own shell, so a style can target it without
+          // `:has(.container-doc)` — that rule made the browser restyle every span in a container
+          // each time a row was added inside it (Books scroll, 2026-10-19).
+          + (isDocContainer ? " container-shell--doc" : "");
         const occId = containerOccurrence?.id;
         const sel = occId && selection.isSelected(occId) ? " is-selected" : "";
         const clipMode = selection.clipboard?.mode;

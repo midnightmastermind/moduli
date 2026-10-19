@@ -8708,8 +8708,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="stardew"] .doc-editor-content p,
 :root[data-skin="stardew"] .textblock-card,
 :root[data-skin="stardew"] .container-doc,
-:root[data-skin="stardew"] .container-shell:has(.container-doc) > .container-header,
-:root[data-skin="stardew"] .container-shell:has(.container-doc) > .container-header span {
+:root[data-skin="stardew"] .container-shell--doc > .container-header,
+:root[data-skin="stardew"] .container-shell--doc > .container-header span {
   color: var(--stardew-ink);
 }
 
