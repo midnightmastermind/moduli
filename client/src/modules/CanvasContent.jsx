@@ -163,6 +163,13 @@ export const CanvasContent = React.memo(function CanvasContent({
     return "default";
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  // Escape closes the layers popout (UI sweep 2026-10-19: only a click outside did).
+  useEffect(() => {
+    if (!layersOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setLayersOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [layersOpen]);
   // Linked shapes (#5 spec — linked-rect / linked-circle). Each entry:
   //   { id, kind: "rect"|"circle", x1, y1, x2, y2 }
   // Persisted on containerOccurrence.meta.linkedShapes. Children are
