@@ -53,6 +53,10 @@ export const VIRTUAL_OVERSCAN = 10;
 // The estimate for a row nobody has measured yet. It is replaced by the running
 // average of measured rows as soon as any exist; this is only the first guess.
 export const VIRTUAL_ESTIMATE = 48;
+// A GRID's items are whole LINES of tiles, several hundred px tall each (Books: ~450px), so the row
+// overscan above would keep ~4,500px of tiles built off screen on each side. Three lines is still
+// more than a fast flick covers in one frame.
+export const VIRTUAL_GRID_OVERSCAN = 3;
 // How long a jump target stays pinned. It needs to outlast the jump's own
 // look-until-mounted loop and the scroll that follows, and no more.
 export const PIN_MS = 6000;
@@ -97,6 +101,21 @@ export function planRows(virtualItems, totalSize, lineGap = 0) {
   const tail = totalSize - cursor;
   if (tail > 0.5) plan.push({ spacer: Math.max(0, tail - lineGap) });
   return plan;
+}
+
+/**
+ * The list's direct children by occurrence id, read in ONE pass. Each tile used to be found with
+ * its own `:scope > [data-occurrence-id=…]` query — one scan of the list per tile, on every
+ * commit and every measure (~220ms over one Books scroll, 2026-10-19).
+ */
+export function childrenById(list) {
+  const map = new Map();
+  if (!list) return map;
+  for (const el of list.children) {
+    const id = el.getAttribute?.("data-occurrence-id");
+    if (id != null && !map.has(id)) map.set(id, el);
+  }
+  return map;
 }
 
 /** PURE: how many tiles fit on one line of a wrapping grid. */
@@ -168,7 +187,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       const a = avgRef.current;
       return a.n > 0 ? a.total / a.n : VIRTUAL_ESTIMATE;
     },
-    overscan: VIRTUAL_OVERSCAN,
+    overscan: isGrid ? VIRTUAL_GRID_OVERSCAN : VIRTUAL_OVERSCAN,
     getItemKey: (i) => (isGrid ? `line-${i}` : (keyOfRef.current?.(i) ?? i)),
     rangeExtractor: (range) => rangeWithPin(range, pinIndex),
     // The list's own position inside the scroller, read LIVE.
@@ -286,13 +305,13 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       return;
     }
     const list = listRef.current;
-    const esc = (v) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(v)) : String(v));
     // Tiles are found by their occurrence id among the list's DIRECT children.
+    const byId = childrenById(list);
     const tiles = [];
     for (const p of plan) {
       if (p.line == null) continue;
       const id = keyOfRef.current?.(p.index);
-      const el = id && list.querySelector(`:scope > [data-occurrence-id="${esc(id)}"]`);
+      const el = id && byId.get(String(id));
       if (el) tiles.push({ el, line: p.line, r: el.getBoundingClientRect() });
     }
     if (!tiles.length) return;
@@ -331,13 +350,12 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     const ro = gridRoRef.current;
     // No ResizeObserver (old engines, jsdom): measure here as before.
     if (!ro) { measureGridRef.current?.(); return; }
-    const list = listRef.current;
-    const esc = (x) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(x)) : String(x));
+    const byId = childrenById(listRef.current);
     const now = new Set();
     for (const p of plan) {
       if (p.line == null) continue;
       const id = keyOfRef.current?.(p.index);
-      const el = id && list.querySelector(`:scope > [data-occurrence-id="${esc(id)}"]`);
+      const el = id && byId.get(String(id));
       if (!el) continue;
       now.add(el);
       if (!observedRef.current.has(el)) ro.observe(el); // a new tile: its first callback measures its line

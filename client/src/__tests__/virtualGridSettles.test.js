@@ -20,3 +20,16 @@ describe("virtual grid line measuring settles", () => {
     expect(takeMeasurePass(b, 1200)).toBe(true);
   });
 });
+
+describe("childrenById", () => {
+  it("maps the list's direct children by occurrence id, first one winning", async () => {
+    const { childrenById } = await import("../helpers/virtualRows");
+    const mk = (id) => ({ getAttribute: (k) => (k === "data-occurrence-id" ? id : null) });
+    const a = mk("a"), b = mk("b"), a2 = mk("a"), spacer = mk(null);
+    const m = childrenById({ children: [a, spacer, b, a2] });
+    expect(m.get("a")).toBe(a);
+    expect(m.get("b")).toBe(b);
+    expect(m.size).toBe(2);
+    expect(childrenById(null).size).toBe(0);
+  });
+});
