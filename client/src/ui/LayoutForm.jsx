@@ -334,7 +334,7 @@ export default function LayoutForm({
   const lockEnabled = !!v?.lock?.enabled;
 
   return (
-    <div className="font-mono flex flex-col text-xs w-80">
+    <div className="font-mono flex flex-col text-xs w-full sm:w-80">
       {/* Header */}
       <div className="px-3 pt-2 pb-1.5 border-b border-border shrink-0">
         <h4 className="text-sm font-semibold text-foreground">Panel Settings</h4>

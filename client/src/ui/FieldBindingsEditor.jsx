@@ -222,11 +222,13 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
   return (
     <div className="border border-border rounded-md overflow-hidden">
       <div className={`w-full flex items-center justify-between px-2 py-1.5 ${binding.hidden ? "bg-muted/10" : "bg-muted/30"}`}>
-        <div className="flex items-center gap-2 flex-1">
-          <span className={`px-2 py-0.5 text-[10px] rounded-full border ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
+        {/* min-w-0 + a truncating pill: a long name (Ingredient, Completed On) used to push the
+            buttons on the right out of the 290px form, so × fell outside it (2026-10-18 sweep). */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span title={field.name || field.type} className={`px-2 py-0.5 text-[10px] rounded-full border whitespace-nowrap overflow-hidden text-ellipsis min-w-0 ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
             {field.name || field.type}
           </span>
-          <span className="text-[10px] text-muted-foreground">{field.type}</span>
+          <span className="text-[10px] text-muted-foreground shrink-0">{field.type}</span>
           {/* The binding's ROLE (FieldRenderer / occurrenceMedia read it): input =
               editable, display = read-only value, media = the row's picture,
               files = its attached artifacts. It had no editor, so only seeds
@@ -236,7 +238,7 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
             value={binding.role || "input"}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => onUpdateBinding({ role: e.target.value })}
-            className="ml-auto text-[10px] bg-transparent border border-border rounded px-1 py-0 text-muted-foreground"
+            className="ml-auto shrink-0 text-[10px] bg-transparent border border-border rounded px-1 py-0 text-muted-foreground"
           >
             {BINDING_ROLES.map((r) => <option key={r.value} value={r.value} title={r.hint}>{r.label}</option>)}
           </select>
@@ -249,7 +251,7 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
           type="button"
           title={isFirst ? "Already first" : "Move up"}
           disabled={isFirst}
-          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
+          className="ml-1 shrink-0 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
           onClick={(e) => { e.stopPropagation(); onMove?.(-1); }}
         >
           <ChevronUp className="h-3 w-3" />
@@ -258,7 +260,7 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
           type="button"
           title={isLast ? "Already last" : "Move down"}
           disabled={isLast}
-          className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
+          className="shrink-0 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
           onClick={(e) => { e.stopPropagation(); onMove?.(1); }}
         >
           <ChevronDown className="h-3 w-3" />
@@ -266,7 +268,7 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
         <button
           type="button"
           title={binding.hidden ? "Show field" : "Hide field"}
-          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+          className="ml-1 shrink-0 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
           onClick={(e) => { e.stopPropagation(); onUpdateBinding({ hidden: !binding.hidden }); }}
         >
           {binding.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -274,7 +276,7 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
         <button
           type="button"
           title="Unbind field"
-          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+          className="ml-1 shrink-0 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
         >
           <X className="h-3 w-3" />

@@ -82,7 +82,7 @@ export default function InstanceForm({
   const allFields = Object.values(fieldsById || {});
 
   return (
-    <div className="font-mono flex flex-col w-72">
+    <div className="font-mono flex flex-col w-full sm:w-72">
       {/* Header */}
       <div className="px-3 pt-2 pb-1.5 border-b border-border shrink-0">
         <h4 className="text-sm font-semibold text-foreground">Instance settings</h4>

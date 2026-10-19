@@ -121,7 +121,7 @@ export default function ContainerForm({
   );
 
   return (
-    <div className="font-mono flex flex-col w-72">
+    <div className="font-mono flex flex-col w-full sm:w-72">
       {/* Header */}
       <div className="px-3 pt-2 pb-1.5 border-b border-border shrink-0">
         <h4 className="text-sm font-semibold text-foreground">Container settings</h4>
@@ -472,14 +472,14 @@ export default function ContainerForm({
           className="w-full text-xs"
           onClick={() => {
             const ok = window.confirm(
-              `Remove this container from the grid? The module will remain in the Command Center.`
+              `Remove this container from where it sits? The module will remain in the Command Center.`
             );
             if (!ok) return;
             onDeleteContainer?.();
           }}
           disabled={!onDeleteContainer}
         >
-          Remove from grid
+          Remove container
         </Button>
       </div>
     </div>
