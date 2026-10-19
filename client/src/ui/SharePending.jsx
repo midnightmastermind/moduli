@@ -50,9 +50,21 @@ async function receiveShare({ location = window.location, launchQueue = window.l
 }
 
 export async function fileShare({ fetchImpl = fetch, token = readToken(), ...where } = {}) {
+  // SIGNED OUT: say so BEFORE taking the share out of storage. Reading the stash deletes it, so
+  // checking the session afterwards threw the share away and the user had to share it again
+  // after signing in (UI sweep 2026-10-19). Left in place, the sign-in link brings them back here
+  // and the same ?id files it.
+  const loc = where.location || window.location;
+  const hasError = new URLSearchParams(loc.search).get("error");
+  if (!token && !hasError) {
+    return {
+      ok: false, needsSignIn: true,
+      message: "Sign in to Moduli on this device — your share is kept and opens again once you are signed in.",
+      next: loc.pathname + loc.search,
+    };
+  }
   const got = await receiveShare(where);
   if (got.error) return { ok: false, message: got.error };
-  if (!token) return { ok: false, message: "Sign in to Moduli on this device, then share again.", needsSignIn: true };
   // Only used when no share grid is set (the server's order: explicit →
   // share grid → this) — the grid this device last had open.
   const lastGrid = (() => { try { return localStorage.getItem(AUTH_KEYS.gridId); } catch { return null; } })();
@@ -116,8 +128,10 @@ export default function SharePending() {
         {state.status === "working" && <p>Filing your share…</p>}
         {state.status === "error" && (
           <>
-            <p role="alert" style={{ color: "var(--danger, #f87171)" }}>Couldn’t file that: {state.message}</p>
-            {state.needsSignIn && <p><a href="/login">Sign in</a></p>}
+            {state.needsSignIn
+              ? <p role="alert">{state.message}</p>
+              : <p role="alert" style={{ color: "var(--danger, #f87171)" }}>Couldn’t file that: {state.message}</p>}
+            {state.needsSignIn && <p><a href={`/login${state.next ? `?next=${encodeURIComponent(state.next)}` : ""}`}>Sign in</a></p>}
           </>
         )}
         {state.status === "done" && (

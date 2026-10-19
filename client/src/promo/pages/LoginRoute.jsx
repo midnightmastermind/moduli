@@ -18,6 +18,16 @@ function useSocket() {
   return socket;
 }
 
+/**
+ * Where to go after signing in: `?next=` when it is a path on THIS site (a share waiting on
+ * /share-pending sends its own address), else the grid. Only a single leading "/" passes — "//host"
+ * and "https://…" would make the login page an open redirect.
+ */
+export function safeNext(search = "") {
+  const next = new URLSearchParams(search).get("next") || "";
+  return /^\/(?!\/)/.test(next) && !/[\\\s]/.test(next) ? next : "/";
+}
+
 export default function LoginRoute() {
   const socket = useSocket();
   const [email, setEmail] = useState("");
@@ -43,7 +53,7 @@ export default function LoginRoute() {
       // main.jsx reads the token synchronously at startup, so reloading is what
       // hands the visitor to the grid. Swapping the app in underneath the
       // router would need the whole store bootstrapped here.
-      window.location.assign("/");
+      window.location.assign(safeNext(window.location.search));
     };
     const onError = (msg) => {
       setError(msg || "Login failed");

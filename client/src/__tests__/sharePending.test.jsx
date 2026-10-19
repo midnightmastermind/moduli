@@ -13,6 +13,11 @@ function fakeCaches() {
     put: async (k, r) => m.set(k, r), match: async (k) => m.get(k)?.clone(), delete: async (k) => m.delete(k),
   }) };
 }
+// What the service worker stores is a Response built from the form. Under jsdom, `new
+// Response(formData)` gets jsdom's FormData, which Node's Response cannot encode — it becomes text,
+// and `.formData()` throws "Content-Type was not one of multipart/form-data". These four tests had
+// failed on that since they were written; the page itself was never the problem.
+const formResponse = (fd) => ({ clone() { return this; }, formData: async () => fd });
 const loc = (path) => { const u = new URL(`https://viafluere.com${path}`); return { pathname: u.pathname, search: u.search }; };
 const landed = { label: "x", ran: [{ ruleName: "Share: anything else", ok: true, created: [{ occurrenceId: "o", status: "created" }] }] };
 const okFetch = () => vi.fn(async () => ({ status: 201, json: async () => landed }));
@@ -28,7 +33,7 @@ describe("fileShare", () => {
   // window runs those same rules.
   it("stages a stashed link with the session as Bearer, and redirects to the placement window", async () => {
     const fd = new FormData(); fd.append("url", "https://x.test/a"); fd.append("title", "A");
-    await (await caches.open(SHARE_CACHE)).put(stashUrl("s1"), new Response(fd));
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s1"), formResponse(fd));
     const fetchImpl = stageFetch();
     const r = await fileShare({ fetchImpl, token: "session-jwt", location: loc("/share-pending?id=s1") });
     expect(r).toEqual({ ok: true, redirect: "/share-place?stage=st1&k=key1" });
@@ -40,7 +45,7 @@ describe("fileShare", () => {
 
   it("the page follows the redirect", async () => {
     const fd = new FormData(); fd.append("url", "https://x.test/b");
-    await (await caches.open(SHARE_CACHE)).put(stashUrl("s5"), new Response(fd));
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s5"), formResponse(fd));
     localStorage.setItem("moduli-token", "t");
     global.fetch = stageFetch();
     const assign = vi.fn();
@@ -56,7 +61,7 @@ describe("fileShare", () => {
 
   it("signed out: says to sign in, and posts nothing", async () => {
     const fd = new FormData(); fd.append("text", "hi");
-    await (await caches.open(SHARE_CACHE)).put(stashUrl("s2"), new Response(fd));
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s2"), formResponse(fd));
     const fetchImpl = okFetch();
     const r = await fileShare({ fetchImpl, token: null, location: loc("/share-pending?id=s2") });
     expect(r).toMatchObject({ ok: false, needsSignIn: true });
@@ -107,7 +112,7 @@ describe("fileShare", () => {
   it("sends the grid this device last had open as the fallback", async () => {
     localStorage.setItem("moduli-gridId", "g-last");
     const fd = new FormData(); fd.append("text", "x");
-    await (await caches.open(SHARE_CACHE)).put(stashUrl("s4"), new Response(fd));
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s4"), formResponse(fd));
     const fetchImpl = stageFetch();
     await fileShare({ fetchImpl, token: "t", location: loc("/share-pending?id=s4") });
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body).fallbackGridId).toBe("g-last");
@@ -116,9 +121,23 @@ describe("fileShare", () => {
 
   it("a failed stage is reported, not dressed up as done", async () => {
     const fd = new FormData(); fd.append("text", "x");
-    await (await caches.open(SHARE_CACHE)).put(stashUrl("s3"), new Response(fd));
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s3"), formResponse(fd));
     const fetchImpl = vi.fn(async () => ({ status: 409, json: async () => ({ error: "no_destination", message: "this grid has no Files folder" }) }));
     const r = await fileShare({ fetchImpl, token: "t", location: loc("/share-pending?id=s3") });
     expect(r).toMatchObject({ ok: false, message: "this grid has no Files folder" });
+  });
+});
+
+describe("signed out, the share is KEPT for after sign-in", () => {
+  it("does not take the share out of storage, and the sign-in link comes back to it", async () => {
+    const fd = new FormData(); fd.append("url", "https://x.test/kept");
+    await (await caches.open(SHARE_CACHE)).put(stashUrl("s9"), formResponse(fd));
+    const r = await fileShare({ fetchImpl: okFetch(), token: null, location: loc("/share-pending?id=s9") });
+    expect(r).toMatchObject({ ok: false, needsSignIn: true, next: "/share-pending?id=s9" });
+    expect(await (await caches.open(SHARE_CACHE)).match(stashUrl("s9"))).toBeTruthy();
+    // ...and once signed in, the same address files it.
+    const fetchImpl = stageFetch();
+    const r2 = await fileShare({ fetchImpl, token: "t", location: loc("/share-pending?id=s9") });
+    expect(r2).toEqual({ ok: true, redirect: "/share-place?stage=st1&k=key1" });
   });
 });
