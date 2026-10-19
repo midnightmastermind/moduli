@@ -1089,9 +1089,23 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
         setFieldPickerCol(null);
       }
     };
+    // Escape closes it too (UI sweep 2026-10-19: only an outside click did). A sub-picker open
+    // inside the menu (Show field / Field visibility / Add filter) steps back to the menu first.
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (fieldPickerCol != null || filterPickerCol != null || fieldVisibilityPickerCol != null) {
+        setFieldPickerCol(null); setFilterPickerCol(null); setFieldVisibilityPickerCol(null);
+      } else {
+        setKebabOpen(null);
+      }
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [kebabOpen]);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [kebabOpen, fieldPickerCol, filterPickerCol, fieldVisibilityPickerCol]);
 
   // Compute effective column widths (accounting for live resize)
   // Track scroll-container width so columns can flex to fill it. Without
