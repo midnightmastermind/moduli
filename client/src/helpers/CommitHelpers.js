@@ -152,6 +152,26 @@ export function renameLeaf({ dispatch, socket, module, label }) {
 }
 
 /**
+ * Rename a FILE as its card shows it (the name under the picture). The card reads
+ * `meta.originalName` (an upload's own file name), then the placement's own label, then the
+ * module's — so the rename goes to whichever of those is showing. A placement label must win over
+ * renaming the module: 993 movies share ONE module called "Movie", and renaming that module would
+ * rename every film (helpers/occurrenceLabel).
+ */
+export function renameFileTile({ dispatch, socket, module, occurrence, label }) {
+  const next = (label ?? "").trim();
+  if (!next || !module?.id) return;
+  if (module.meta?.originalName != null) return renameLeaf({ dispatch, socket, module, label: next });
+  const own = typeof occurrence?.label === "string" ? occurrence.label.trim() : "";
+  if (own && occurrence?.id) {
+    if (own === next) return;
+    updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: next }, emit: true });
+    return;
+  }
+  renameLeaf({ dispatch, socket, module, label: next });
+}
+
+/**
  * Rename a container — ONE undo step. Its header shows `occurrence.label ??
  * module.label`, and a per-placement label (written by an operation:
  * Date-Prefix Labels' "Today's …") WINS, so writing only the module label made

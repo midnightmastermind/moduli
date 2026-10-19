@@ -71,6 +71,52 @@ function bareUrlParts(chunk, anchor, keyBase) {
     /^https?:\/\//.test(part) ? anchor(part, part, `${keyBase}-${i}`) : part);
 }
 
+/**
+ * The name under a file's picture, renamed in place (user 2026-10-19: "change the label of file
+ * occurances via click and type"): click the name, type, Enter or click away saves, Escape cancels.
+ * The picture still opens the file; only the name is the rename target.
+ */
+function FileName({ name, module, occurrence, dispatch, socket }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name || "");
+  useEffect(() => { if (!editing) setDraft(name || ""); }, [name, editing]);
+  const stop = (e) => e.stopPropagation();
+  const commit = () => {
+    setEditing(false);
+    if ((draft || "").trim() && draft.trim() !== (name || "")) {
+      CommitHelpers.renameFileTile({ dispatch, socket, module, occurrence, label: draft });
+    }
+  };
+  if (editing) {
+    return (
+      <input
+        className="artifact-thumb-info-name artifact-thumb-info-name--editing"
+        value={draft}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") { e.preventDefault(); setDraft(name || ""); setEditing(false); }
+        }}
+        onClick={stop} onDoubleClick={stop} onPointerDown={stop} onMouseDown={stop}
+        aria-label="File name"
+      />
+    );
+  }
+  return (
+    <span
+      className="artifact-thumb-info-name artifact-thumb-info-name--editable"
+      title={`${name} — click to rename`}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setEditing(true); }}
+      onDoubleClick={stop}
+      onPointerDown={stop}
+    >{name}</span>
+  );
+}
+
 export default function ArtifactCard({ module, label, occurrence }) {
   const [expanded, setExpanded] = useState(false);
   // A file expanded from inside a DOCKED viewer fills that PANEL, not the
@@ -568,7 +614,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
             <LoadingImage className="artifact-thumb" src={kind === "image" ? thumb1024Src : tilePicture} alt={label || "image"} />
             {tileName && (
               <div className="artifact-thumb-info">
-                <span className="artifact-thumb-info-name" title={tileName}>{tileName}</span>
+                <FileName name={tileName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />
               </div>
             )}
           </div>
@@ -728,7 +774,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     >
       {showInfo && (
         <div className="artifact-thumb-info">
-          {fileName && <span className="artifact-thumb-info-name" title={fileName}>{fileName}</span>}
+          {fileName && <FileName name={fileName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />}
           {fileDims && <span className="artifact-thumb-info-dim">{fileDims}</span>}
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
