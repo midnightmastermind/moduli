@@ -5,7 +5,7 @@
 // reverts, or a frame that renders where it should not.
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import BookmarkView, { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
 
 // Mounting the real surface needs the grid store. The destination picker reads
@@ -335,6 +335,22 @@ describe("saving the current address as a bookmark", () => {
     expect(screen.getByText("Save to")).toBeTruthy();
     // "Where" is the question being asked; saving without an answer defeats it.
     expect(screen.getByRole("button", { name: "Save" }).disabled).toBe(true);
+  });
+
+  // UI sweep 53: Escape went past the open row and closed the whole viewer.
+  it("Escape closes the save row, and a key already handled is left alone", () => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
+      socket={socket} />);
+    fireEvent.click(screen.getByLabelText("Save as bookmark"));
+    const pre = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    pre.preventDefault();
+    document.dispatchEvent(pre);
+    expect(screen.getByText("Save to")).toBeTruthy();
+    const ev = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    act(() => { document.dispatchEvent(ev); });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(screen.queryByText("Save to")).toBeNull();
   });
 
   // THE CONTROL FOR THE SUBSCRIPTION GATE. The occurrence + module maps are only

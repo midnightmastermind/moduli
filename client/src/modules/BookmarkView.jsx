@@ -333,6 +333,21 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // list rather than growing a second answer to it. `picker` names which action
   // the chosen destination belongs to; null means it is closed.
   const [picker, setPicker] = useState(null);   // null | "bookmark" | "page"
+  // Escape closes the open save / add-page row before anything else. Bound on
+  // the document in CAPTURE so it runs ahead of the viewer's own Escape (which
+  // closes the whole viewer and skips a key already marked handled). A
+  // destination dropdown open inside the row closes itself first.
+  useEffect(() => {
+    if (!picker) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (document.querySelector("[data-radix-popper-content-wrapper]")) return;
+      e.preventDefault();
+      setPicker(null);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [picker]);
   const saving = picker !== null;
   const [savedTo, setSavedTo] = useState(null);
   const [adding, setAdding] = useState(false);  // an import is in flight
