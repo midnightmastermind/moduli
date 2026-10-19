@@ -416,6 +416,7 @@ export default function AssistantDrawer() {
       {/* Floating launcher button — bottom-right of viewport */}
       {!open && (
         <button
+          className="assistant-fab"
           onClick={() => setOpen(true)}
           title="Jonah — at your service"
           style={{

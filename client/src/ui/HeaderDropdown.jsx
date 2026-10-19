@@ -94,6 +94,7 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
     <MenuSurface
       surfaceRef={ref}
       className="header-dropdown"
+      fixedDrawerHeight
       position={{ top: pos.top, left: pos.left }}
       zIndex={1000}
       onClose={onClose}

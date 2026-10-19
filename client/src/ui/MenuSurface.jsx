@@ -80,6 +80,9 @@ export default function MenuSurface({
   onClick,
   onContextMenu,
   onMouseDown,
+  // A TABBED menu (the header dropdown) keeps ONE height as a drawer, so its tab row does not move
+  // under the finger when a shorter tab is picked (2026-10-18 sweep).
+  fixedDrawerHeight = false,
   children,
 }) {
   const drawer = isDrawerLayout();
@@ -92,7 +95,7 @@ export default function MenuSurface({
         ...style,
         zIndex,
         ...(drawer
-          ? { ...DRAWER_STYLE, maxHeight: drawerMaxHeight() }
+          ? { ...DRAWER_STYLE, maxHeight: drawerMaxHeight(), ...(fixedDrawerHeight ? { height: drawerMaxHeight() } : {}) }
           : { position: "fixed", top: position?.top, left: position?.left }),
       }}
       onClick={onClick}

@@ -303,7 +303,7 @@ export default function FieldVisibilitySection({ occurrence, grid = null, gridId
                 {/* The value editor writes to THIS occurrence's fields. The
                     grid root has no occurrence, so there is no value to edit —
                     only which fields the grid hides by default. */}
-                <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", justifyContent: "safe flex-end" }}>
                   {!isGrid && (
                     <FieldRenderer
                       field={f}

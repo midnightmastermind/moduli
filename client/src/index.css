@@ -3268,6 +3268,10 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    rule would silently lose to them (the inline-style trap, recorded five times
    in CLAUDE.md). What lives HERE is only what inline styles cannot do: the
    backdrop, the entrance animation, and the grab handle. */
+/* Jonah's floating button sits on top of everything (z 9000) and covered a bottom sheet's controls on
+   a phone (the sort-direction button, the feed limit box). It steps aside while a sheet is open. */
+body:has(.menu-surface--drawer) .assistant-fab { display: none; }
+
 .menu-surface-backdrop {
   position: fixed;
   inset: 0;
