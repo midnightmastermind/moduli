@@ -90,6 +90,14 @@ export default function AssistantDrawer() {
   const ctx = useGridActions();
   const gridId = ctx?.state?.grid?._id || ctx?.state?.grid?.id;
   const [open, setOpen] = useState(false);
+  // Escape closes the drawer like every other dialog (UI sweep 2026-10-19). Bubble phase, and a
+  // key something else already handled (a picker inside, a menu on top) is left alone.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape" && !e.defaultPrevented) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [messages, setMessages] = useState(() => {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
