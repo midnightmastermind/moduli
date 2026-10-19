@@ -8032,6 +8032,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
 
+/* Terminal skin: SOLID tiles. Green text over green grid text read as noise through the 60%
+   tint (user, 2026-10-19: "make it solid backgrounds on terminal skin"). The gaps between
+   tiles stay see-through; other skins keep the tint. */
+:root[data-skin="terminal"] .artifact-spread-body .instance-wrap > .instance-row {
+  background: #000 !important;
+}
+
 /* The card INSIDE the tile stays bare — it is the picture, not a second frame.
    An EXPANDED card is excluded: that is the lightbox and owns its own surface. */
 .artifact-spread-body .artifact-card:not(.artifact-card--expanded) {
