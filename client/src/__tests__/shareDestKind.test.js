@@ -9,3 +9,11 @@ describe("destKind — what each search result is", () => {
     expect(destKind({ role: "container" })).toBe("container");
   });
 });
+
+import { withArticle } from "../ui/SharePlace.jsx";
+describe("withArticle", () => {
+  it("an image, a bookmark", () => {
+    expect(withArticle("image")).toBe("an image");
+    expect(withArticle("bookmark")).toBe("a bookmark");
+  });
+});

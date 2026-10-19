@@ -437,14 +437,14 @@ export default function SharePlace() {
             <div style={{ fontSize: 11, color: "var(--text-muted, #aaa)", margin: "6px 0", display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <span data-testid="shape">
                 Saved as {kindOverride
-                  ? `a ${CLIP_KINDS.find((k) => k.value === kindOverride)?.label.toLowerCase()}`
+                  ? withArticle(CLIP_KINDS.find((k) => k.value === kindOverride)?.label.toLowerCase())
                   : likeRows != null
                     ? `${aKind(shape)}, like the ${likeRows} already there`
                     : aKind(shape)}
               </span>
               <select aria-label="make it a" value={kindOverride} onChange={(e) => changeKind(e.target.value)} style={{ ...miniSelSt }}>
                 <option value="">{siblingShape?.bindingsLike ? "same as the others there" : "a plain item"}</option>
-                {CLIP_KINDS.map((k) => <option key={k.value} value={k.value}>make it a {k.label.toLowerCase()}</option>)}
+                {CLIP_KINDS.map((k) => <option key={k.value} value={k.value}>make it {withArticle(k.label.toLowerCase())}</option>)}
               </select>
             </div>
           )}
@@ -567,9 +567,13 @@ function MappingRow({ name, mapping, clip, onChange, onRemove }) {
 const SOURCE_WORDS = { none: "nothing — I'll type it", literal: "what I type" };
 
 // "an image", "a movie", "an item" — a destination's row shape in words.
+/** "an image", "a bookmark" — a kind named in a sentence. */
+export function withArticle(word = "") {
+  return `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
+}
+
 function aKind(shape) {
-  const k = shape?.kind || (shape?.role === "artifact" ? "file" : shape?.role === "textblock" ? "text block" : "item");
-  return `${/^[aeiou]/i.test(k) ? "an" : "a"} ${k}`;
+  return withArticle(shape?.kind || (shape?.role === "artifact" ? "file" : shape?.role === "textblock" ? "text block" : "item"));
 }
 
 const hintSt = { fontSize: 11, color: "var(--text-faint, #888)" };
