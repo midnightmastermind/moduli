@@ -1038,7 +1038,9 @@ export function copyContainerToList({ dispatch, socket, gridId, userId, sourceOc
       occurrences: [],
       ...(sourceOccurrence.label ? { label: sourceOccurrence.label } : {}),
     };
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit });
+    // The server's create links the child into its parent itself and APPENDS unless told the
+    // index — so a copy meant to sit right after its source landed last (UI sweep 2026-10-19).
+    CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, insertAtIndex: toIndex });
     const list = toListOcc.occurrences || [];
     const next = toIndex == null ? ensureId(list, occurrence.id) : insertAt(list, toIndex, occurrence.id);
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: toListOcc.id, occurrences: next }, emit, occurrencesBase: list });

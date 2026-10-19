@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 const calls = [];
 vi.mock("../helpers/CommitHelpers", () => ({
-  createOccurrence: (a) => calls.push(["create", a.occurrence]),
+  createOccurrence: (a) => calls.push(["create", a.occurrence, a.insertAtIndex]),
   updateOccurrence: (a) => calls.push(["update", a.occurrence, a.occurrencesBase]),
 }));
 const actions = [];
@@ -27,6 +27,12 @@ describe("copyContainerToList", () => {
     const upd = calls.find(c => c[0] === "update");
     expect(upd[1].occurrences).toEqual(["a", created.id, "b"]);
     expect(upd[2]).toEqual(["a", "b"]);
+  });
+  // The server's create links the child itself and APPENDS unless given the index, so the
+  // list write's order lost (the copy landed last, UI sweep 2026-10-19).
+  it("tells the create the index, so the server places it there too", () => {
+    copyContainerToList({ dispatch: vi.fn(), socket: {}, gridId: "g", userId: "u", sourceOccurrence: src, toListOcc: list, toIndex: 1 });
+    expect(calls.find(c => c[0] === "create")[2]).toBe(1);
   });
   it("appends when no index, in one undo step", () => {
     copyContainerToList({ dispatch: vi.fn(), socket: {}, gridId: "g", userId: "u", sourceOccurrence: src, toListOcc: list, toIndex: null });
