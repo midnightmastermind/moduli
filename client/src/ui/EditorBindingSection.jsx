@@ -8,6 +8,7 @@
 //   - "module"      → caller writes to module.meta.<slot>Link (template-wide)
 //   - "occurrence"  → caller writes to occurrence.meta.<slot>Link (placement-only)
 // The toggle only renders when onScopeChange is provided.
+import FieldSelect from "./FieldSelect.jsx";
 import React, { useState, useEffect } from "react";
 
 export default function EditorBindingSection({
@@ -60,40 +61,32 @@ export default function EditorBindingSection({
 
       <label style={{ fontSize: 11, display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ opacity: 0.75 }}>Self field (the field this editor IS)</span>
-        <select
-          aria-label="Self field"
-          value={selfField}
-          onChange={(e) => {
-            const v = e.target.value;
+        <FieldSelect
+          ariaLabel="Self field"
+          fields={fields}
+          value={selfField || null}
+          noneLabel="— pick —"
+          onChange={(picked) => {
+            const v = picked || "";
             setSelfField(v);
             commit(v, link);
           }}
-          style={{ fontSize: 12, padding: "3px 6px", background: "var(--input-bg, #1a1c20)", color: "inherit", border: "1px solid var(--input-border, #333)", borderRadius: 4 }}
-        >
-          <option value="">— pick —</option>
-          {fields.map((f) => (
-            <option key={f.id} value={f.id}>{f.name}{f.type ? ` · ${f.type}` : ""}</option>
-          ))}
-        </select>
+        />
       </label>
 
       <label style={{ fontSize: 11, display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ opacity: 0.75 }}>Link field (JOIN — sync siblings sharing this value)</span>
-        <select
-          aria-label="Link field"
-          value={link}
-          onChange={(e) => {
-            const v = e.target.value;
+        <FieldSelect
+          ariaLabel="Link field"
+          fields={fields}
+          value={link || null}
+          noneLabel="— pick —"
+          onChange={(picked) => {
+            const v = picked || "";
             setLink(v);
             commit(selfField, v);
           }}
-          style={{ fontSize: 12, padding: "3px 6px", background: "var(--input-bg, #1a1c20)", color: "inherit", border: "1px solid var(--input-border, #333)", borderRadius: 4 }}
-        >
-          <option value="">— pick —</option>
-          {fields.map((f) => (
-            <option key={f.id} value={f.id}>{f.name}{f.type ? ` · ${f.type}` : ""}</option>
-          ))}
-        </select>
+        />
       </label>
 
       {onScopeChange && (

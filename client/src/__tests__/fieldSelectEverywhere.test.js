@@ -42,6 +42,13 @@ const FIELD_OPTION_MAP =
 const FIELD_BUTTON_MAP =
   /(?:fields|allFields|ourFields|sorted|fieldsList|gridFields)\s*\.map\(\s*\(?\s*(\w+)\s*\)?\s*=>\s*\(?\s*<button[\s\S]{0,700}?\{\s*\1(?:\.label\s*\|\|\s*\1)?\.name\s*\}\s*<\/button>/;
 
+// TWO MORE SHAPES the patterns above walked past (UI sweep 2026-10-19 found eight native field
+// <select>s still standing): an option list mapped out of ANY "…fields" array, filtered or not
+// (`boolFields.map(f => <option …>`, `fields.filter(…).map(…)`), and a HELPER that builds the
+// <option> for a field (`const opt = (f) => (<option key={f.id} value={f.id}>{f.name …`).
+const FIELDS_ARRAY_OPTIONS = /\b\w*[fF]ields\b(?:\.filter\([^)]*\))?\s*\.map\(\s*\(?\s*\w+\s*\)?\s*=>\s*\(?\s*<option/;
+const FIELD_OPTION_HELPER = /=\s*\(\s*(\w+)\s*\)\s*=>\s*\(?\s*<option key=\{\1\.id\} value=\{\1\.id\}>\s*\{\1\.name/;
+
 const SOURCES = walk(ROOT).filter((p) => !p.endsWith("FieldSelect.jsx"));
 
 describe("the field picker is the one picker", () => {
@@ -50,6 +57,12 @@ describe("the field picker is the one picker", () => {
       .map((p) => path.relative(ROOT, p));
     expect(offenders, `use <FieldSelect> instead of a native <select>: ${offenders.join(", ")}`)
       .toEqual([]);
+  });
+
+  it("no option list is mapped out of a fields array, and no helper builds a field <option>", () => {
+    const offenders = SOURCES.filter((p) => { const src = fs.readFileSync(p, "utf8"); return FIELDS_ARRAY_OPTIONS.test(src) || FIELD_OPTION_HELPER.test(src); })
+      .map((p) => path.relative(ROOT, p));
+    expect(offenders, `use <FieldSelect>: ${offenders.join(", ")}`).toEqual([]);
   });
 
   it("no component hand-rolls a button list out of the field list", () => {

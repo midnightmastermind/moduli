@@ -1256,10 +1256,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("source field:")}
-          <select value={cfg.fieldId || ""} onChange={e => setCfg({ fieldId: e.target.value })} style={selectSt}>
-            <option value="">All fields...</option>
-            {fields.map(f => <option key={f.id} value={f.id}>{f.name || f.type}</option>)}
-          </select>
+          <FieldPicker value={cfg.fieldId} onChange={v => setCfg({ fieldId: v })} fields={fields} placeholder="All fields..." />
           <select value={cfg.aggregation || "sum"} onChange={e => setCfg({ aggregation: e.target.value })} style={selectSt}>
             {AGGREGATION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
@@ -1314,10 +1311,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("completed field:")}
-          <select value={cfg.completedFieldId || ""} onChange={e => setCfg({ completedFieldId: e.target.value })} style={selectSt}>
-            <option value="">Pick boolean field...</option>
-            {fields.filter(f => f.type === "boolean").map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          <FieldPicker value={cfg.completedFieldId} onChange={v => setCfg({ completedFieldId: v })} fields={fields.filter(f => f.type === "boolean")} placeholder="Pick boolean field..." />
           <label style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "var(--text-muted)", cursor: "pointer" }}>
             <input type="checkbox" checked={cfg.markValue !== false} onChange={e => setCfg({ markValue: e.target.checked })} />
             set checked
@@ -1698,15 +1692,9 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
           {fl("completion field:")}
-          <select value={cfg.completionFieldId || ""} onChange={e => setCfg({ completionFieldId: e.target.value })} style={selectSt}>
-            <option value="">Pick boolean field...</option>
-            {boolFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          <FieldPicker value={cfg.completionFieldId} onChange={v => setCfg({ completionFieldId: v })} fields={boolFields} placeholder="Pick boolean field..." />
           {fl("due date field:")}
-          <select value={cfg.dueDateFieldId || ""} onChange={e => setCfg({ dueDateFieldId: e.target.value })} style={selectSt}>
-            <option value="">Pick date field...</option>
-            {dateFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          <FieldPicker value={cfg.dueDateFieldId} onChange={v => setCfg({ dueDateFieldId: v })} fields={dateFields} placeholder="Pick date field..." />
           {fl("recur every:")}
           <input value={cfg.recurrenceDays ?? 365} onChange={e => setCfg({ recurrenceDays: Number(e.target.value) })} style={{ ...inputSt, width: 50 }} type="number" min={1} />
           {fl("days")}
@@ -2038,12 +2026,14 @@ export function OptionRowsEditor({ value, onChange, label = "options" }) {
 }
 
 // ---- Field Picker Helper ----
+// The searchable field picker — every step's "which field?" (UI sweep 2026-10-19: these were the
+// last native field <select>s in the editor). The empty choice keeps its old label and value "".
 function FieldPicker({ value, onChange, fields, placeholder = "Pick field..." }) {
   return (
-    <select value={value || ""} onChange={e => onChange(e.target.value)} style={selectSt}>
-      <option value="">{placeholder}</option>
-      {fields.map(f => <option key={f.id} value={f.id}>{f.name || f.type}</option>)}
-    </select>
+    <span style={{ display: "inline-block", minWidth: 160 }}>
+      <FieldSelect fields={fields} value={value || null} onChange={(v) => onChange(v || "")}
+        noneLabel={placeholder} placeholder={placeholder} ariaLabel={placeholder} />
+    </span>
   );
 }
 

@@ -1,5 +1,18 @@
 // Tests for EditorBindingSection — the picker UI for editor↔field bindings.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// FieldSelect is a Radix popover (ui/FieldSelect -> DestinationPicker), which jsdom drives badly; these
+// cases are about what this component WRITES, so it stands in as a plain <select> with the same
+// contract (the field list in, a field id or null out) — the FeedSection tests' stand-in.
+vi.mock("../ui/FieldSelect.jsx", () => ({
+  default: ({ fields, value, onChange, noneLabel, extraOptions = [], ariaLabel }) => (
+    <select aria-label={ariaLabel} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+      {noneLabel != null && <option value="">{noneLabel}</option>}
+      {extraOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      {fields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+    </select>
+  ),
+}));
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import EditorBindingSection from "../ui/EditorBindingSection.jsx";

@@ -44,14 +44,22 @@ export default function FieldSelect({
   disabled = false,
   style = null,
   ariaLabel = "Choose field",
+  // Optional Map(fieldId -> how many rows carry it). Those fields come FIRST and say so in their
+  // hint ("select · on 128 rows") — the chart editor's "Protein · 12" grouping, kept when its
+  // native <select> moved here (UI sweep 2026-10-19).
+  counts = null,
 }) {
   const options = useMemo(() => {
     const rows = [
       ...extraOptions.map((o) => ({ id: o.value, label: o.label, hint: o.hint || "" })),
       ...fields
         .filter((f) => f && !f.trashed)
-        .map((f) => ({ id: f.id, label: nameOf(f), hint: f.type || "" }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
+        .map((f) => {
+          const n = counts?.get?.(f.id);
+          return { id: f.id, label: nameOf(f), hint: [f.type, n ? `on ${n} ${n === 1 ? "row" : "rows"}` : null].filter(Boolean).join(" · "), n: n || 0 };
+        })
+        .sort((a, b) => (b.n > 0) - (a.n > 0) || a.label.localeCompare(b.label))
+        .map(({ n, ...row }) => row),
     ];
     // A value nothing offers still has to READ as itself. A picker that shows
     // an empty trigger over a stored id is the same defect as a `<select>`
@@ -60,7 +68,7 @@ export default function FieldSelect({
       rows.push({ id: value, label: value, hint: "not on this grid" });
     }
     return rows;
-  }, [fields, extraOptions, value]);
+  }, [fields, extraOptions, value, counts]);
 
   return (
     <DestinationPicker

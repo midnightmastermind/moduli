@@ -18,6 +18,7 @@
 // roots, how many rows reached, how deep, and every warning BOTH halves raise —
 // the data build AND the chart build. That is the same data the chart is drawing
 // from, not a re-derivation.
+import FieldSelect from "./FieldSelect.jsx";
 import React, { useCallback, useMemo } from "react";
 import { BarChart3, Plus, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
@@ -81,31 +82,20 @@ export function splitFieldsByPresence(fields, rows) {
 // one of these (label / tally / no split / flat), so the empty option is
 // labelled with what it MEANS rather than left blank.
 function EncodingRow({ label, hint, value, options, onChange, emptyLabel, rows }) {
-  const { onRows, others, counts } = useMemo(
+  const { onRows, counts } = useMemo(
     () => splitFieldsByPresence(options, rows),
     [options, rows],
   );
-  // The count is the whole point of the grouping: "Protein · 12" says this
-  // encoding will reach 12 rows before you pick it, not after.
-  const opt = (f) => (
-    <option key={f.id} value={f.id}>
-      {f.name || f.id.slice(0, 8)}{counts.has(f.id) ? ` · ${counts.get(f.id)}` : ""}
-    </option>
-  );
+  // The searchable field picker (user, 2026-09-28: "any place that selects a field should be using
+  // that one"). The counts are the whole point of this row: "on 12 rows" says this encoding will
+  // reach 12 rows before you pick it, not after — so fields on the rows come first and say so.
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <div style={{ ...labelStyle, flex: "0 0 74px" }} title={hint}>{label}</div>
-      <select value={value || ""} onChange={(e) => onChange(e.target.value || null)} style={{ ...inputStyle, flex: 1 }}>
-        <option value="">{emptyLabel}</option>
-        {/* Ungrouped when nothing is pulled yet — an empty "on these rows"
-            heading above every field would read as a claim that none match. */}
-        {onRows.length === 0
-          ? others.map(opt)
-          : <>
-              <optgroup label={`on these rows (${onRows.length})`}>{onRows.map(opt)}</optgroup>
-              {others.length > 0 && <optgroup label="every other field">{others.map(opt)}</optgroup>}
-            </>}
-      </select>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <FieldSelect fields={options} value={value || null} onChange={(v) => onChange(v || null)}
+          noneLabel={emptyLabel} counts={onRows.length ? counts : null} ariaLabel={label} />
+      </div>
     </div>
   );
 }
