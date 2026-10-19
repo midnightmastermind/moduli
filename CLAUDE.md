@@ -35,6 +35,14 @@ need an add panel button somewhere for the mosaic layout (in the grid header too
   create links the child itself and APPENDS without it, so a copy (and a copy-drag) landed last. Tiles named as the
   + menu; "Remove container". **Tree:** a page row gained Rename… (the card's `buildRenameItem`).
 - Client 6,341 pass. Not driven: long-press (headless has no touch), the touch footer (unit-tested only).
+- **41 — every toast from `sonner` was invisible.** Nothing mounts sonner's `<Toaster>`, and 8 files imported
+  `toast` from it (Define, upload/paste/import errors, Open-in-panel errors, op-log run messages). All use
+  `state/notificationStore`'s sonner-compatible toast now (`noSonnerImport.test.js`). Define opens
+  `ui/DefinitionCard` at the click; the lookup retries the singular and says when the dictionary is unreachable
+  (dictionaryapi.dev answered 530 to every word during the check — a browser sees that as a network error).
+- **42 — shift-select then right-click opened the TEXT menu**: the shift-click left a text range across the labels.
+  A shift-press on a row no longer extends a selection (`helpers/shiftSelect.shiftPressKeepsText`) and the toggle
+  clears it; the bulk menu is back.
 
 ---
 
