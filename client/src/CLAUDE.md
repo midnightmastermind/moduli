@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-27. Check this file before re-reading source._
 
+## Recent Changes (2026-10-19 — Books scroll: one `:has()` rule was most of it; a grid fills its row)
+- **`.container-shell:has(.container-doc) > .container-header span`** (a Stardew-only rule) made the browser
+  restyle every span in a container each time a row mounted inside it — 126,800 restyles in one Books scroll,
+  even with another skin on. Doc shells carry `container-shell--doc` now (`noBroadHasRule.test.js`).
+  Long-frame total 3.6s -> 2.4s scrolling down. **To find the next one:** trace with
+  `disabled-by-default-devtools.timeline.invalidationTracking` and count `StyleInvalidatorInvalidationTracking`
+  by selector (scratchpad `bsel.mjs`).
+- **Ruled out by A/B, so nobody repeats them:** hiding the tiles' FIELDS made it worse (shorter tiles, more tiles
+  mounted per scroll), hiding the COVERS and async image decoding changed nothing. Lazy-loading fields would not help.
+- `helpers/virtualRows`: a grid overscans `VIRTUAL_GRID_OVERSCAN` (3) lines, not 10 (a Books line is ~450px), and
+  finds its tiles with one `childrenById` pass instead of a `querySelector` per tile. Down: median 33 -> 17ms,
+  long frames 2.2s -> 0.8s on prod. Routines/Tasks unchanged at 17ms.
+- **`childFill`** (Layout › Fill the row, wrap mode): tiles grow to share the row, the square size is their minimum,
+  `--wrap-cols` measured by `helpers/wrapFill`. On for poms' Books container.
+
 ## Recent Changes (2026-09-27 — the operations editor: comparators, ancestor scope, and Run now APPLIES)
 Four gaps of one shape, all found building poms' Coffee tracker by clicking. Full numbers in
 `helpers/CLAUDE.md`; what matters at this level is which surfaces changed.
