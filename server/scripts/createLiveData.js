@@ -936,7 +936,7 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true,
       displayEnabled: false,
       meta: {
-        optionsSource: { mode: "manual", options: ["timeslot", "shortened"] },
+        optionsSource: { mode: "manual", values: ["slot", "day-col", "flat", "combined"] },
       },
       folderId: fieldCategoryIds.scheduling,
     },
@@ -955,7 +955,7 @@ export async function createLiveData(userId, options = {}) {
       meta: {
         optionsSource: {
           mode: "manual",
-          options: ["weekly", "biweekly", "monthly", "quarterly", "yearly", "every-n-days"],
+          values: ["weekly", "biweekly", "monthly", "quarterly", "yearly", "every-n-days"],
         },
       },
       folderId: fieldCategoryIds.bills,
