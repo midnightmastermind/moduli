@@ -400,8 +400,11 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
       if (!popRef.current) return;
       if (!popRef.current.contains(e.target)) onClose?.();
     };
+    // Escape closes it too, like every other popup (UI sweep 2026-10-19).
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); onClose?.(); } };
     document.addEventListener("mousedown", onDocDown);
-    return () => document.removeEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => { document.removeEventListener("mousedown", onDocDown); document.removeEventListener("keydown", onKey, true); };
   }, [onClose]);
 
   const setCover = useCallback((cover) => {
