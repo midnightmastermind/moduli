@@ -162,6 +162,33 @@ function CodeViewer({ fileRef, label, originalName, size }) {
 }
 
 
+// THE IMAGE FITS THE PANEL, NOT THE WINDOW (UI sweep 52). The cap was
+// `min(70vh, 800px)`: in a half-height panel the picture ran past the fold and its
+// zoom controls (bottom-left of the frame) could only be reached by scrolling.
+// The pane's own height, less the media row's 16px padding top and bottom, is the
+// cap once measured; the old cap stands until then.
+export function imageFrameCap(paneH) {
+  return paneH > 0 ? `${Math.max(160, Math.min(800, paneH - 32))}px` : "min(70vh, 800px)";
+}
+
+function ImagePane({ children }) {
+  const ref = useRef(null);
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => setH(el.clientHeight));
+    ro.observe(el);
+    setH(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", overflow: "auto" }}>
+      {children(h)}
+    </div>
+  );
+}
+
 export default function ArtifactContent({ occurrence, viewType, artifactType, embedded = false, dispatch, socket, view, onScrollHighlight, headerExtra = null }) {
   const { modulesById, occurrencesById, gridId, userId } = useGridActions();
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
@@ -361,7 +388,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
     return (
       <ImageOcrViews occurrence={occurrence} module={module} imgSrc={imgSrc}
         dispatch={dispatch} socket={socket} gridId={gridId} userId={userId}>
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", overflow: "auto" }}>
+      <ImagePane>{(paneH) => (<>
         {/* Media — flex:0 so it sizes to its natural height; child textblocks
             stack underneath instead of being pushed off-screen. */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, flex: "0 0 auto" }}>
@@ -381,8 +408,8 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
           <ZoomableImage
             frameStyle={
               natW > 0 && natH > 0
-                ? { display: "block", aspectRatio: `${natW} / ${natH}`, width: "100%", maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
-                : { display: "block", width: "100%", minHeight: 160, height: "min(70vh, 800px)", maxWidth: "100%" }
+                ? { display: "block", aspectRatio: `${natW} / ${natH}`, width: "100%", maxWidth: "100%", maxHeight: imageFrameCap(paneH) }
+                : { display: "block", width: "100%", minHeight: 160, height: imageFrameCap(paneH), maxWidth: "100%" }
             }
           >
             <LoadingImage
@@ -441,7 +468,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
             ))}
           </div>
         )}
-      </div>
+      </>)}</ImagePane>
       </ImageOcrViews>
     );
   }
