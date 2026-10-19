@@ -9095,6 +9095,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] :is(.page-header, .container-header) :is(button, button *, input, select, [role="button"], [role="button"] *, .header-filter-pill, .header-filter-pill *) {
   font-size-adjust: none;
 }
+/* A FIELD in a header is not a heading either: it keeps the body's size, not the header's 0.66 boost
+   (user 2026-10-19: a container's field pills drew as big as its label — they are set separately,
+   through --cascade-field-font-size). */
+:root[data-skin="terminal"] :is(.page-header, .container-header) :is(.field-display, .field-input),
+:root[data-skin="terminal"] :is(.page-header, .container-header) :is(.field-display, .field-input) * {
+  font-size-adjust: 0.48;
+}
 /* A field's own cascade settings win over the skin's paint, as the label's do. */
 :root[data-skin="terminal"] :is(.field-display, .field-input),
 :root[data-skin="terminal"] :is(.field-display, .field-input) * {
