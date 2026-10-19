@@ -3268,6 +3268,10 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    rule would silently lose to them (the inline-style trap, recorded five times
    in CLAUDE.md). What lives HERE is only what inline styles cannot do: the
    backdrop, the entrance animation, and the grab handle. */
+/* Scrolling labels stop while their area scrolls and restart when it settles (helpers/scrollFlag.js —
+   each running label is an animated layer, and with them on a scroll ran at half the frame rate). */
+:root[data-scrolling] .auto-marquee-inner--moving { animation: none !important; }
+
 /* Jonah's floating button sits on top of everything (z 9000) and covered a bottom sheet's controls on
    a phone (the sort-direction button, the feed limit box). It steps aside while a sheet is open. */
 body:has(.menu-surface--drawer) .assistant-fab { display: none !important; }
@@ -9197,16 +9201,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    buttons at its right, and the reader's row makes room for them. Layout only — every button keeps
    its own handler.
    A PICTURE TILE (its OCR tabs, ImageOcrViews) takes the same one row (user, 2026-10-18). */
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) > .instance-content { position: relative; }
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group {
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) > .instance-content { position: relative; }
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group {
   position: absolute; top: 4px; left: 4px; right: 6px; z-index: 3;
   display: flex; align-items: center; gap: 4px; pointer-events: none;
 }
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > * { pointer-events: auto; }
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize { margin-left: 0; }
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
-.instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) :is(.book-reader-head, .ocr-views-head) { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > * { pointer-events: auto; }
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize { margin-left: 0; }
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
+.artifact-spread .instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile)) :is(.book-reader-head, .ocr-views-head) { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
 
 /* THE TILE'S BUTTONS SIT TOGETHER AT THE RIGHT (user, 2026-10-18: "those buttons should be all the way on
    the right"). Each one carries margin-left:auto so a lone button reaches the right edge; with two or three,

@@ -20,6 +20,7 @@ import "@fontsource/vt323/latin-400.css";
 
 import "./index.css";
 import reportWebVitals from './reportWebVitals';
+import { installScrollFlag } from "./helpers/scrollFlag.js";
 import { hasSession } from "./helpers/authStorage.js";
 import { PROMO_PATHS } from "./promo/promoPaths.js";
 import { operationsBridge } from "./state/bindSocketToStore";
@@ -43,6 +44,7 @@ if (globalThis.crypto && typeof globalThis.crypto.randomUUID !== "function") {
   };
 }
 
+installScrollFlag();
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 // Check for preview mode — iframe thumbnails pass ?previewOcc=<occId>

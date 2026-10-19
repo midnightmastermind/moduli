@@ -175,23 +175,30 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     observeElementOffset: (instance, cb) => {
       const el = instance.scrollElement;
       if (!el) return undefined;
-      const read = () => {
+      // The list's top inside the scroller's CONTENT. A scroll event used to measure both rects,
+      // forcing a layout on every event while the page was mid-render; the offset is scrollTop minus
+      // this, re-measured only when things can have moved (layout changes, and once the scroll
+      // settles — content above the list can change height without a resize we observe).
+      let listTop = 0;
+      const measureTop = () => {
         const list = listRef.current;
-        if (!list) return 0;
-        return el.getBoundingClientRect().top - list.getBoundingClientRect().top;
+        if (!list) return;
+        listTop = list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
       };
+      const read = () => el.scrollTop - listTop;
       let timer = null;
       const onScroll = () => {
         cb(read(), true);
         clearTimeout(timer);
-        timer = setTimeout(() => cb(read(), false), 150);
+        timer = setTimeout(() => { measureTop(); cb(read(), false); }, 150);
       };
+      measureTop();
       cb(read(), false);
       el.addEventListener("scroll", onScroll, { passive: true });
       // Content above the list changing height moves the list without a scroll.
       let ro = null;
       if (typeof ResizeObserver !== "undefined") {
-        ro = new ResizeObserver(() => cb(read(), false));
+        ro = new ResizeObserver(() => { measureTop(); cb(read(), false); });
         ro.observe(el);
         if (listRef.current) ro.observe(listRef.current);
       }
@@ -257,9 +264,16 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
   // runs this effect again; a height that wobbled by a fraction of a pixel (or a column count
   // that flipped) never settled, and on a Bookmarks board during a search jump the chain passed
   // React's nested-update limit and crashed the panel (React #185, 2026-10-18).
+  //
+  // MEASURED FROM A ResizeObserver, NOT IN A LAYOUT EFFECT. Reading a tile's rect during the commit
+  // forced the browser to lay the page out right then; every resize re-rendered and forced another,
+  // so each scrolled frame of a long grid paid several full layouts (profiled 2026-10-19 on Books:
+  // 10.3s of getBoundingClientRect in a 2.5s scroll). A ResizeObserver callback runs after the
+  // browser's own layout, so the same reads cost nothing extra, and a tile that did not change
+  // size does not fire at all. The commit only tells the observer which tiles exist.
   const burstRef = useRef({ at: 0, n: 0, retry: false });
-  const [, setRemeasure] = useState(0);
-  useLayoutEffect(() => {
+  const measureGridRef = useRef(null);
+  measureGridRef.current = () => {
     if (!active || !isGrid || !listRef.current) return;
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     const burst = burstRef.current;
@@ -267,7 +281,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       // Over the cap: measure again on a later frame instead of now, so the lines still settle.
       if (!burst.retry) {
         burst.retry = true;
-        setTimeout(() => { burst.retry = false; setRemeasure((t) => t + 1); }, 60);
+        setTimeout(() => { burst.retry = false; measureGridRef.current?.(); }, 60);
       }
       return;
     }
@@ -302,7 +316,35 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
         avgRef.current.total += h; avgRef.current.n += 1;
       }
     }
-  });
+  };
+  const gridRoRef = useRef(null);
+  const observedRef = useRef(new Set());
+  useEffect(() => {
+    if (!active || !isGrid || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => measureGridRef.current?.());
+    gridRoRef.current = ro;
+    if (listRef.current) ro.observe(listRef.current);
+    return () => { ro.disconnect(); gridRoRef.current = null; observedRef.current = new Set(); };
+  }, [active, isGrid, listRef]);
+  useLayoutEffect(() => {
+    if (!active || !isGrid || !listRef.current) return;
+    const ro = gridRoRef.current;
+    // No ResizeObserver (old engines, jsdom): measure here as before.
+    if (!ro) { measureGridRef.current?.(); return; }
+    const list = listRef.current;
+    const esc = (x) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(x)) : String(x));
+    const now = new Set();
+    for (const p of plan) {
+      if (p.line == null) continue;
+      const id = keyOfRef.current?.(p.index);
+      const el = id && list.querySelector(`:scope > [data-occurrence-id="${esc(id)}"]`);
+      if (!el) continue;
+      now.add(el);
+      if (!observedRef.current.has(el)) ro.observe(el); // a new tile: its first callback measures its line
+    }
+    for (const el of observedRef.current) if (!now.has(el)) ro.unobserve(el);
+    observedRef.current = now;
+  }, [plan, active, isGrid, cols, listRef]);
 
   // Measure a rendered row, and fold its height into the running estimate.
   const measureRef = useCallback((node) => {

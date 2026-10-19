@@ -144,7 +144,9 @@ export default function AutoMarquee({ children, className = "" }) {
     >
       <span
         ref={innerRef}
-        className="auto-marquee-inner"
+        // `--moving` names the labels that animate, so the scroll pause (index.css, helpers/scrollFlag)
+        // restyles those few rather than every label on the page.
+        className={activeShift > 0 ? "auto-marquee-inner auto-marquee-inner--moving" : "auto-marquee-inner"}
         style={
           activeShift > 0
             ? {
