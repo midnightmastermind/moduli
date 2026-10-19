@@ -35,6 +35,17 @@ describe("MenuSurface", () => {
     expect(document.querySelector(".menu-surface-grab")).toBeNull();
   });
 
+  // A list opened by a fetch has no anchor; a fixed box with no top/left sat
+  // below the page (the link-follow list at y=1001 in a 1000px window).
+  it("desktop with no position: centred on the screen", () => {
+    setLayout("desktop");
+    render(<MenuSurface>hi</MenuSurface>);
+    const el = surface();
+    expect(el.style.top).toBe("50%");
+    expect(el.style.left).toBe("50%");
+    expect(el.style.transform).toBe("translate(-50%, -50%)");
+  });
+
   it("mobile: pinned to the bottom edge, full width, and the anchor is IGNORED", () => {
     setLayout("mobile");
     render(<MenuSurface position={{ top: 120, left: 300 }} style={{ width: 260, maxWidth: 300 }}>hi</MenuSurface>);

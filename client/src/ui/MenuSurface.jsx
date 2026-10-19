@@ -96,7 +96,13 @@ export default function MenuSurface({
         zIndex,
         ...(drawer
           ? { ...DRAWER_STYLE, maxHeight: drawerMaxHeight(), ...(fixedDrawerHeight ? { height: drawerMaxHeight() } : {}) }
-          : { position: "fixed", top: position?.top, left: position?.left }),
+          : position
+            ? { position: "fixed", top: position.top, left: position.left }
+            // No anchor (a list opened by a fetch, not a click — "Import which pages?") centres on
+            // the screen. Without this a fixed box with no top/left sits at its static place, which
+            // for a portal on <body> is BELOW the page: the link-follow list opened at y=1001 in a
+            // 1000px window, its Cancel/Import unreachable (UI sweep 2026-10-19).
+            : { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", maxHeight: "90vh", overflowY: "auto" }),
       }}
       onClick={onClick}
       onContextMenu={onContextMenu}
