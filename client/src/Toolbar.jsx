@@ -60,6 +60,7 @@ export default function Toolbar({
   userId,
   userEmail,
   onLogout,
+  onUserSettings,
   // Mobile grid navigation
   isMobileLayout,
 }) {
@@ -445,7 +446,7 @@ const gridOptions = useMemo(
                     </button>
                     <button
                       className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-accent w-full text-left"
-                      onClick={() => { setAccountOpen(false); onCommandCenter?.(); }}
+                      onClick={() => { setAccountOpen(false); (onUserSettings || onCommandCenter)?.(); }}
                     >
                       <UserCog className="h-3.5 w-3.5 opacity-70" />
                       User settings
@@ -593,7 +594,7 @@ const gridOptions = useMemo(
                 Add new grid
               </button>
               <button
-                onClick={() => { setDrawerOpen(false); onCommandCenter?.(); }}
+                onClick={() => { setDrawerOpen(false); (onUserSettings || onCommandCenter)?.(); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
                   background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",

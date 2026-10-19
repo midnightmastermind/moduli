@@ -34,8 +34,11 @@ const TABS = [
 // MAIN COMPONENT
 // ============================================================
 export default function CommandCenter({ open, onOpenChange, isMobileLayout, initialTab = null }) {
-  const [activeTab, setActiveTab] = useState(initialTab || "fields");
-  useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
+  // `initialTab` is a tab id, or `{ id }` — a fresh object per request, so asking for the SAME tab
+  // twice switches back to it after the user has moved to another (a string would not re-fire).
+  const requestedTab = typeof initialTab === "string" ? initialTab : initialTab?.id || null;
+  const [activeTab, setActiveTab] = useState(requestedTab || "fields");
+  useEffect(() => { if (requestedTab) setActiveTab(requestedTab); }, [initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
   // `shown` follows `open` one frame late. App mounts this the first time it is
   // opened, i.e. already open — and a box that mounts open has nothing to
   // transition FROM, so the first open just appeared (user 2026-10-17: "should

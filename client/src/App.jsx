@@ -1123,6 +1123,9 @@ export default function App() {
           canUndo={canUndo}
           undoBusy={isProcessing}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
+          // The account menu's "User settings" OPENS the Settings tab — it was the toolbar toggle,
+          // so it closed an open Command Center and otherwise showed the last tab used.
+          onUserSettings={() => { setCommandCenterTab({ id: "settings" }); setCommandCenterOpen(true); }}
           commandCenterOpen={commandCenterOpen}
           userId={state.userId}
           userEmail={state.userEmail}
