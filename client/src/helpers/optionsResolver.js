@@ -149,13 +149,24 @@ function buildCollection(over, ctx) {
   return slice;
 }
 
+/**
+ * A manual option list. The editor writes `values`; five older fields (seeded) keep the list under
+ * `options`, which nothing read — their dropdowns opened EMPTY (poms' Schedule Format, test grids'
+ * Cadence; found 2026-10-19 sweep). Every reader goes through here.
+ */
+export function manualValues(src) {
+  if (Array.isArray(src?.values) && src.values.length) return src.values;
+  if (Array.isArray(src?.options) && src.options.length) return src.options;
+  return Array.isArray(src?.values) ? src.values : [];
+}
+
 export function resolveOptions(field, ctx, ownerOccurrence = null) {
   if (field?.type !== "select" && field?.type !== "occurrence") return { options: [], totalMatched: 0 };
   const src = field.meta?.optionsSource;
   if (!src?.mode) return { options: [], totalMatched: 0 };
 
   if (src.mode === "manual") {
-    const values = Array.isArray(src.values) ? src.values : [];
+    const values = manualValues(src);
     const options = values.map(v => {
       if (v && typeof v === "object" && "value" in v) {
         return { value: v.value, label: String(v.label ?? v.value) };

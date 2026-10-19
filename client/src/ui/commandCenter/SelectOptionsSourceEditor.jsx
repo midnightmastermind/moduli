@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { manualValues } from "../../helpers/optionsResolver.js";
 import { providerKeysFromSamples } from "../../helpers/providerFieldMap.js";
 import DrilldownPicker from "../DrilldownPicker";
 import FieldSelect from "../FieldSelect.jsx";
@@ -310,7 +311,7 @@ export function addManualOption(values, draft) {
 }
 
 function ManualBody({ source, onChange }) {
-  const values = Array.isArray(source?.values) ? source.values : [];
+  const values = manualValues(source);
   const [draft, setDraft] = useState("");
   const [dupNote, setDupNote] = useState(null);
 
@@ -318,12 +319,12 @@ function ManualBody({ source, onChange }) {
     const { values: next, duplicate } = addManualOption(values, draft);
     if (duplicate) { setDupNote(`"${duplicate}" is already an option`); return; }
     if (next === values) return;
-    onChange({ ...source, mode: "manual", values: next });
+    onChange({ ...source, mode: "manual", values: next, options: undefined });
     setDraft("");
     setDupNote(null);
   }
   function remove(i) {
-    onChange({ ...source, mode: "manual", values: values.filter((_, j) => j !== i) });
+    onChange({ ...source, mode: "manual", values: values.filter((_, j) => j !== i), options: undefined });
   }
 
   return (

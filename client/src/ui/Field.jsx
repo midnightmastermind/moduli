@@ -11,6 +11,7 @@
 // - compact=false → full input controls (was FieldInput)
 // ============================================================
 
+import { manualValues } from "../helpers/optionsResolver.js";
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
 import { applyManualOpUpdates } from "../helpers/manualOpRun";
 import { useProviderSearch } from "../hooks/useProviderSearch";
@@ -1503,9 +1504,9 @@ function Field({
     const opt = { value: newValue, label: newLabel || newValue };
     let nextMeta;
     if (meta.optionsSource?.mode === "manual") {
-      const values = Array.isArray(meta.optionsSource.values) ? meta.optionsSource.values : [];
+      const values = manualValues(meta.optionsSource);
       if (values.some(v => (v?.value ?? v) === newValue)) return;
-      nextMeta = { ...meta, optionsSource: { ...meta.optionsSource, values: [...values, opt] } };
+      nextMeta = { ...meta, optionsSource: { ...meta.optionsSource, values: [...values, opt], options: undefined } };
     } else {
       const opts = Array.isArray(meta.options) ? meta.options : [];
       if (opts.some(v => (v?.value ?? v) === newValue)) return;

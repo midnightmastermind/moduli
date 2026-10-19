@@ -4025,3 +4025,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 12:31 *"also we should have a button next to magic that does the whole file, not just that one page. so we have magic page, magic entire file"*
 - **2026-10-18 12:55** — *"lets get rid of the books that have no file, and yes continue with the second magic button"*
 - **2026-10-18 13:17** — *"lets do the open for today ones and then move on to the rest of the ui testing"* (Magic file chapter split by the book's contents, then the UI sweep)
+
+### 2026-10-19 06:44–07:09 CDT
+- *"the field font size is way too big on containers on the terminal theme … right now it matches the font size of the header label, which it should always be seperate from"* (fixed same morning).
+- **After the UI sweep:** *"really look into the whole scrolling diff containers and pages and try to minimize the choppiness. its especially chopy when i scroll down but when i scroll up, its less choppy but still chopy nonetheless. id like it to flow"* · *"even a short list of occurances seem choppy to scroll through"* · *"this was on desktop btw"*.
