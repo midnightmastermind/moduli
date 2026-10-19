@@ -23,7 +23,7 @@ import { PipelineEditor } from "../../blocks";
 import { AUTH_KEYS } from "../../helpers/authStorage";
 import { pickPanelOccurrence } from "../../helpers/lastPanel";
 import { openOccurrenceInPanel } from "../../helpers/openOccurrenceInPanel";
-import { toast } from "sonner";
+import { toast } from "../../state/notificationStore";
 import DestinationPicker from "../DestinationPicker";
 import { buildContainerCrumbOptions } from "../../helpers/containerCrumbs";
 import {

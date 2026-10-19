@@ -23,8 +23,8 @@
 // ============================================================
 
 import { Scissors, Copy, ClipboardPaste, Undo2, Redo2, Trash2, TextSelect, Search, BookOpen } from "lucide-react";
-import { toast } from "sonner";
-import { lookupTerm, wikipediaSearchUrl, defineWord, dictionaryUrl } from "./textLookup.js";
+import { lookupTerm, wikipediaSearchUrl, dictionaryUrl } from "./textLookup.js";
+import { openDefinition } from "../ui/DefinitionCard.jsx";
 
 /**
  * The clipboard's text, or null.
@@ -222,17 +222,15 @@ export function searchWikipedia(term) {
 }
 
 /**
- * Show a word's definition (a toast, like Windows' "Define" card), with a link
- * to the full entry. Offline or unknown → says so and still offers the link.
+ * Show a word's definition in a card where you right-clicked (ui/DefinitionCard).
+ * It was a sonner toast, which nothing mounts — Define showed nothing (2026-10-19).
  */
-export async function showDefinition(word) {
+export function showDefinition(word) {
   const w = String(word ?? "").trim();
   if (!w) return;
-  const id = toast.loading(`Looking up "${w}"…`);
-  const lines = await defineWord(w);
-  const open = { label: "More", onClick: () => { try { window.open(dictionaryUrl(w), "_blank", "noopener"); } catch { /* blocked */ } } };
-  if (lines.length) toast.message(w, { id, description: lines.join("\n"), duration: 15000, action: open });
-  else toast.message(`No definition found for "${w}"`, { id, duration: 6000, action: open });
+  if (!openDefinition(w)) {
+    try { window.open(dictionaryUrl(w), "_blank", "noopener"); } catch { /* blocked */ }
+  }
 }
 
 /**

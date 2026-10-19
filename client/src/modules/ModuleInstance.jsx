@@ -32,7 +32,7 @@ import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/drag
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { openCoverPicker, setCover } from "../helpers/coverPick";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";

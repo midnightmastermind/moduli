@@ -27,7 +27,7 @@
 // ProseMirror's own paste handling by design: it understands its own schema, and
 // routing it through intake would be a second, drifting copy of that.
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import { useGridActions } from "../GridActionsContext";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";

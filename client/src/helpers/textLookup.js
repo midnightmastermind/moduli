@@ -126,15 +126,32 @@ export function readDefinitions(entries, max = 3) {
   return lines;
 }
 
-/** Definition lines for a word ([] when none / offline). */
+/**
+ * PURE: forms to try after `word` itself, singular first — the dictionary has no
+ * plurals ("religions" is a 404, "religion" is not).
+ */
+export function singularCandidates(word) {
+  const w = String(word ?? "").toLowerCase();
+  const out = [];
+  if (/ies$/.test(w) && w.length > 4) out.push(w.slice(0, -3) + "y");
+  if (/(s|x|z|ch|sh)es$/.test(w)) out.push(w.slice(0, -2));
+  if (/s$/.test(w) && !/ss$/.test(w) && w.length > 3) out.push(w.slice(0, -1));
+  return [...new Set(out)].filter((c) => c && c !== w);
+}
+
+/** Definition lines for a word ([] when none / offline); tries its singular too. */
 export async function defineWord(word, fetchImpl = globalThis.fetch) {
   const w = String(word ?? "").trim();
   if (!w || /\s/.test(w)) return [];
-  try {
-    const res = await fetchImpl(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w.toLowerCase())}`);
-    if (!res.ok) return [];
-    return readDefinitions(await res.json());
-  } catch {
-    return [];
+  for (const form of [w.toLowerCase(), ...singularCandidates(w)]) {
+    try {
+      const res = await fetchImpl(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(form)}`);
+      if (!res.ok) continue;
+      const lines = readDefinitions(await res.json());
+      if (lines.length) return lines;
+    } catch {
+      return [];
+    }
   }
+  return [];
 }

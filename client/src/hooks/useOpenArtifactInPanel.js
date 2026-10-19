@@ -12,7 +12,7 @@
 // The maps are read at CLICK time through the non-subscribing getters, so a viewer of many tiles
 // does not re-render on every write.
 import { useCallback } from "react";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { openArtifactInPanel } from "../helpers/openBookmark";
 import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPanel";

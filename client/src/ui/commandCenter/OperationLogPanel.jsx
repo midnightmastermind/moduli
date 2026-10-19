@@ -19,7 +19,7 @@ import {
 import { labelForId } from "../../helpers/labelHelpers";
 import { applyManualOpUpdates } from "../../helpers/manualOpRun";
 import { summarizeOpResults } from "../../helpers/opResultSummary";
-import { toast } from "sonner";
+import { toast } from "../../state/notificationStore";
 
 // ─── Formatters ─────────────────────────────────────────────────────────
 

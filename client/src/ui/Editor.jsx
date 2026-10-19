@@ -107,7 +107,7 @@ import { wordRangeAt } from "../helpers/textLookup";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle, Copy } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";

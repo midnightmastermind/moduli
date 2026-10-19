@@ -13,7 +13,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { openCoverPicker } from "../helpers/coverPick";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { coverAppliesTo } from "../helpers/artifactCover";
 import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
