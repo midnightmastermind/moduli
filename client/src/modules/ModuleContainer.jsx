@@ -29,6 +29,7 @@ import {
   copyContainerToList,
 } from "../helpers/LayoutHelpers";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
+import { canvasFallbackPosition } from "../helpers/canvasFallback";
 import {
   useDragDrop,
   useDroppable,
@@ -1010,8 +1011,8 @@ function Container({
         key={occ.id}
         style={{
           position: "absolute",
-          left: occ?.meta?.x ?? 20,
-          top: occ?.meta?.y ?? 20,
+          left: occ?.meta?.x ?? canvasFallbackPosition((containerOccurrence?.occurrences || []).indexOf(occ.id)).x,
+          top: occ?.meta?.y ?? canvasFallbackPosition((containerOccurrence?.occurrences || []).indexOf(occ.id)).y,
           minWidth: 160,
           maxWidth: 300,
         }}

@@ -6,6 +6,7 @@
 import React, { useMemo, useCallback } from "react";
 import { useGridActions } from "../../GridActionsContext";
 import { CanvasDrawSection } from "../CanvasContent.jsx";
+import { canvasFallbackPosition } from "../../helpers/canvasFallback";
 import ModuleInstance from "../ModuleInstance.jsx";
 import Container from "../ModuleContainer.jsx";
 import ModuleTextblock from "../ModuleTextblock.jsx";
@@ -81,8 +82,7 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       const childIdx = Math.max(0, (occurrence?.occurrences || []).indexOf(occ.id));
       // Wrap into columns (8 per column, 260px apart, 110px row step) so tall
       // cards don't bury each other in one overlapping stack.
-      const fallbackX = 1760 + Math.floor(childIdx / 8) * 260;
-      const fallbackY = 1850 + (childIdx % 8) * 110;
+      const { x: fallbackX, y: fallbackY } = canvasFallbackPosition(childIdx);
       return (
         <CanvasSlot key={occ.id} x={occ?.meta?.x ?? fallbackX} y={occ?.meta?.y ?? fallbackY}>
           {mod.role === "container" ? (
