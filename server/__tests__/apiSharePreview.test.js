@@ -11,6 +11,11 @@ import express from "express";
 
 vi.mock("../models/Grid.js", () => ({ default: {
   exists: async (q) => (q._id === "g1" && q.userId === "u1" ? { _id: "g1" } : null),
+  findOne: (q) => {
+    const hit = q._id === "g1" && q.userId === "u1" ? { _id: "g1", name: "Test Grid 2" } : null;
+    const chain = { select: () => chain, lean: async () => hit };
+    return chain;
+  },
 }}));
 // The extension stages its GESTURE as `shape` ("page" for a page clip) — not
 // the share type. The type comes from the url, as prepareShare decides it.
@@ -79,6 +84,10 @@ describe("GET /share/stage/:id/preview", () => {
     const body = await (await preview("k=k1&gridId=g1")).json();
     expect(body).toMatchObject({ type: "text", ruleId: "r-text" });
     expect(body.lands).toBeNull(); // a $var destination is not guessed at
+  });
+
+  it("names the grid, so a signed-out window says where the clip goes rather than 'your share grid'", async () => {
+    expect((await (await preview("k=k1&gridId=g1")).json()).gridName).toBe("Test Grid 2");
   });
 
   it("404s on a wrong key, like every other stage read", async () => {

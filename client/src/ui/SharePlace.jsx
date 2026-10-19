@@ -340,7 +340,7 @@ export default function SharePlace() {
           {grids.map((g) => <option key={g.id} value={g.id}>{g.name || "(unnamed grid)"}</option>)}
         </select>
       ) : (
-        <div id="share-grid" style={{ ...inputSt, opacity: 0.8 }}>your share grid</div>
+        <div id="share-grid" style={{ ...inputSt, opacity: 0.8 }}>{preview?.gridName || "your share grid"}</div>
       )}
 
       <fieldset style={{ border: 0, padding: 0, margin: "12px 0 4px" }}>

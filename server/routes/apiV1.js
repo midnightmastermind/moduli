@@ -1345,7 +1345,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         gridId = user?.meta?.share?.gridId || opened.payload?.fallbackGridId || null;
       }
       if (!gridId) return err(res, 400, "validation_error", "gridId required — no share grid is configured");
-      const owned = await Grid.exists({ _id: gridId, userId: opened.userId }).catch(() => null);
+      // The grid's NAME rides along: a signed-out window cannot list grids, and it used to say
+      // "your share grid" even when the clip named a grid of its own (the extension's per-device
+      // override, UI sweep 2026-10-19).
+      const owned = await Grid.findOne({ _id: gridId, userId: opened.userId }).select("name").lean().catch(() => null);
       if (!owned) return err(res, 404, "not_found", `grid ${gridId} not found`);
       const { default: Operation } = await import("../models/Operation.js");
       const { selectShareRules, shareTypeOfPayload, createTargetsOf } = await import("../services/shareRules.js");
@@ -1374,7 +1377,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const FILE_HOME = { image: "Files › Images", video: "Files › Video", audio: "Files › Audio", pdf: "Files › Documents", file: "Files › Documents" };
       if (!lands && FILE_HOME[type]) lands = FILE_HOME[type];
       res.json({
-        type, gridId: String(gridId), ruleId: first?.id || null, ruleName: first?.name || null, lands,
+        type, gridId: String(gridId), gridName: owned.name || null, ruleId: first?.id || null, ruleName: first?.name || null, lands,
         then: rules.slice(1).map((r) => r.name),
       });
     } catch (e) { err(res, 500, "internal_error", e.message); }
