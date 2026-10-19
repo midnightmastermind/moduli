@@ -147,6 +147,20 @@ export default function ImagePickerMenu({
     }
   }
 
+  // Escape closes, like every other dialog (UI sweep 2026-10-19: it had no key
+  // handler). Capture + stop so the Escape does not also reach a menu or editor
+  // underneath the scrim.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose?.();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const surface = {
@@ -169,7 +183,9 @@ export default function ImagePickerMenu({
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
-      <div style={{ ...surface, width: 560, maxWidth: "94vw", maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
+      {/* One height on every tab: Upload and URL are short, and a dialog that
+          shrank on switching moved the tab row under the finger (UI sweep). */}
+      <div style={{ ...surface, width: 560, maxWidth: "94vw", height: "min(82vh, 820px)", display: "flex", flexDirection: "column" }}>
         {/* header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid hsl(var(--border, 0 0% 25%))" }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
@@ -199,7 +215,7 @@ export default function ImagePickerMenu({
         </div>
 
         {/* body */}
-        <div style={{ padding: 14, overflowY: "auto", minHeight: 180 }}>
+        <div style={{ padding: 14, overflowY: "auto", minHeight: 180, flex: 1 }}>
           {tab === "suggested" && (
             <div data-testid="picker-suggestions" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
               {suggestions.map((s, i) => (

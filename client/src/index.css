@@ -3280,7 +3280,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 
 /* Jonah's floating button sits on top of everything (z 9000) and covered a bottom sheet's controls on
    a phone (the sort-direction button, the feed limit box). It steps aside while a sheet is open. */
-body:has(.menu-surface--drawer) .assistant-fab { display: none !important; }
+/* …and while the image picker dialog is open (its scrim sat under the button). */
+body:has(.menu-surface--drawer) .assistant-fab,
+body:has([data-image-picker]) .assistant-fab { display: none !important; }
 
 .menu-surface-backdrop {
   position: fixed;
