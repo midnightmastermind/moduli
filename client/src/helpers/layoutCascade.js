@@ -61,6 +61,8 @@ export const SURFACE_SHAPE_KEYS = Object.freeze([
   // key, so it does NOT cascade — a container states it for its own children,
   // and a grandparent has no business reaching past that.
   "childContentDirection",
+  // A wrap grid whose tiles grow to share the whole row (no gap left at the right edge).
+  "childFill",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */

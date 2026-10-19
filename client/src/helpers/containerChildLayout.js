@@ -53,7 +53,7 @@ const num = (v, min = 0) => (Number.isFinite(v) && v > min ? v : null);
 export function resolveContainerChildLayout(resolved) {
   const mode = resolved?.mode;
   const d = CHILD_LAYOUT_DEFAULTS[mode];
-  if (!d) return { mode: "stack", className: "", vars: null };
+  if (!d) return { mode: "stack", fill: false, className: "", vars: null };
 
   const minW = num(resolved?.childMinWidth) ?? d.minW;
   // A wrap tile with no configured max is capped at 100% rather than a pixel
@@ -65,12 +65,17 @@ export function resolveContainerChildLayout(resolved) {
   const gap = Number.isFinite(resolved?.childGap) && resolved.childGap >= 0 ? resolved.childGap : d.gap;
   const maxH = num(resolved?.childMaxHeight) ?? d.maxH;
 
+  // FILL (wrap only): the tiles grow so each line uses the whole width. The square size is then
+  // the SMALLEST a tile may be, and the max width is ignored — a capped tile would leave the gap
+  // back at the right edge. How many fit per line is measured by ModuleContainer (`--wrap-cols`).
+  const fill = mode === "wrap" && resolved?.childFill === true;
   return {
     mode,
-    className: CLASS_BY_MODE[mode],
+    fill,
+    className: CLASS_BY_MODE[mode] + (fill ? " container-items--fill" : ""),
     vars: {
       "--child-w": `${minW}px`,
-      "--child-max-w": maxW,
+      "--child-max-w": fill ? "none" : maxW,
       "--child-h": `${maxH}px`,
       "--child-gap": `${gap}px`,
     },

@@ -48,6 +48,7 @@ import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
 import { resolveContainerChildLayout } from "../helpers/containerChildLayout";
+import { useWrapFillColumns } from "../helpers/wrapFill";
 import { nextDragMode } from "../helpers/dragModes";
 
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
@@ -922,6 +923,11 @@ function Container({
     tileW: parseFloat(childLayout.vars?.["--child-w"]) || 132,
     gap: parseFloat(childLayout.vars?.["--child-gap"]) || 0,
   } : null), [isWrapGrid, childLayout.vars]);
+  useWrapFillColumns(itemsListRef, {
+    enabled: !!childLayout.fill,
+    minW: parseFloat(childLayout.vars?.["--child-w"]) || 132,
+    gap: parseFloat(childLayout.vars?.["--child-gap"]) || 0,
+  });
   const virtualKeyOf = useCallback((i) => itemsWithOccurrences[i]?.occurrence?.id, [itemsWithOccurrences]);
   const virtualRows = useVirtualRows({
     count: itemsWithOccurrences.length,

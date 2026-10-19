@@ -6170,6 +6170,13 @@ body:has(.menu-surface--drawer) .assistant-fab { display: none !important; }
   max-width: 100% !important;
 }
 
+/* FILL (`childFill`): the tiles share the whole line, so no gap is left at the right edge.
+   `--wrap-cols` is how many tiles of the square size fit, measured by helpers/wrapFill.js. */
+.container-items--wrap.container-items--fill > .instance-wrap {
+  width: calc((100% - (var(--wrap-cols, 1) - 1) * var(--child-gap, 8px)) / var(--wrap-cols, 1)) !important;
+  max-width: none !important;
+}
+
 .container-items--wrap > .instance-wrap {
   width: var(--child-w, 160px);
   /* …but never wider than the room it has. `--child-max-w` comes from the

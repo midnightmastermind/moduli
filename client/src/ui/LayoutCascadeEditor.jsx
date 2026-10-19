@@ -196,6 +196,11 @@ export default function LayoutCascadeEditor({
             <RuleNumber label="Max width" value={cur.childMaxWidth ?? null}
               onChange={(v) => setKey("childMaxWidth", v)} min={80} max={1600} />
           ) : null}
+          {cur.mode === "wrap" ? (
+            <RuleSwitch label="Fill the row" value={cur.childFill ?? null}
+              onChange={(v) => setKey("childFill", v)}
+              tooltip="Tiles grow to share the full width, so no gap is left at the right. The square size becomes the smallest a tile can be." />
+          ) : null}
           {cur.mode === "grid" ? (
             <RuleNumber
               label="Grid columns"
