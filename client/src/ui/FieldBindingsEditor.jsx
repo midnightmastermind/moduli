@@ -225,10 +225,10 @@ function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBind
         {/* min-w-0 + a truncating pill: a long name (Ingredient, Completed On) used to push the
             buttons on the right out of the 290px form, so × fell outside it (2026-10-18 sweep). */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span title={field.name || field.type} className={`px-2 py-0.5 text-[10px] rounded-full border whitespace-nowrap overflow-hidden text-ellipsis min-w-0 ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
+          <span title={field.name || field.type} className={`px-2 py-0.5 text-[10px] rounded-full border whitespace-nowrap overflow-hidden text-ellipsis shrink-0 max-w-[120px] ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
             {field.name || field.type}
           </span>
-          <span className="text-[10px] text-muted-foreground shrink-0">{field.type}</span>
+          <span className="text-[10px] text-muted-foreground min-w-0 truncate">{field.type}</span>
           {/* The binding's ROLE (FieldRenderer / occurrenceMedia read it): input =
               editable, display = read-only value, media = the row's picture,
               files = its attached artifacts. It had no editor, so only seeds
