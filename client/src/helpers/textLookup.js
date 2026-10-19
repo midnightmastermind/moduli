@@ -150,7 +150,9 @@ export async function defineWord(word, fetchImpl = globalThis.fetch) {
       const lines = readDefinitions(await res.json());
       if (lines.length) return lines;
     } catch {
-      return [];
+      // A browser reports the dictionary's 404 as a network error (no CORS header on it),
+      // so an error moves on to the next form rather than giving up.
+      continue;
     }
   }
   return [];

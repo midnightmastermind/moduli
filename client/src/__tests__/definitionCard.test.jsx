@@ -16,6 +16,10 @@ describe("defineWord", () => {
     expect(await defineWord("religions", fetchImpl)).toEqual(["(noun) A system of faith"]);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+  it("moves on when the plural's lookup throws (a browser's CORS-less 404)", async () => {
+    const fetchImpl = vi.fn(async (url) => { if (url.endsWith("/religions")) throw new TypeError("NetworkError"); return ok(["A system of faith"]); });
+    expect(await defineWord("religions", fetchImpl)).toEqual(["(noun) A system of faith"]);
+  });
   it("singular forms", () => {
     expect(singularCandidates("stories")).toContain("story");
     expect(singularCandidates("boxes")).toContain("box");
