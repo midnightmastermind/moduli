@@ -26,6 +26,7 @@ import { convertContainerKind, CONVERTIBLE_CONTAINER_KINDS } from "../helpers/co
 import {
   getContainerItems,
   getContainerItemsWithOccurrences,
+  copyContainerToList,
 } from "../helpers/LayoutHelpers";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
 import {
@@ -127,7 +128,7 @@ import ArtifactCard from "./ArtifactCard.jsx";
 import ModuleTextblock from "./ModuleTextblock.jsx";
 import BoundHeader from "./BoundHeader.jsx";
 import HeadingLevelPicker, { parseHeadingPrefix } from "../ui/HeadingLevelPicker.jsx";
-import QuickAddMenu, { KIND_TILE, tileKindsForRole } from "../ui/QuickAddMenu.jsx";
+import QuickAddMenu, { tileMeta, tileKindsForRole } from "../ui/QuickAddMenu.jsx";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 
 // The kinds the container context menu can mint DIRECTLY. Artifact and image
@@ -1149,7 +1150,9 @@ function Container({
         // the file dialog / image picker the QuickAddMenu owns; the row below
         // opens it for them rather than duplicating that machinery.
         ...CONTEXT_ADD_KINDS.map((kind) => {
-          const meta = KIND_TILE[kind] || { label: kind };
+          // Named as the header "+" names them from a container ("Board container", not "Board"
+          // beside "Board page") — two menus that add the same things read the same (UI sweep).
+          const meta = tileMeta(kind, "instance");
           const tileRole = kind === "instance" ? "instance" : kind === "textblock" ? "textblock" : "container";
           const { Icon } = getModuleTypeBadge({
             role: tileRole,
@@ -1181,10 +1184,20 @@ function Container({
           },
         },
         { separator: true },
+        // A copy is a second PLACEMENT right after this one — what a copy-drag makes. It minted a
+        // bare module with no occurrence, so nothing appeared and the module was orphaned (UI sweep
+        // 2026-10-19).
         {
           label: "Copy container", icon: Copy, onClick: () => {
-            const newM = { ...module, id: crypto.randomUUID(), label: `${module.label} (Copy)` };
-            CommitHelpers.createModule({ dispatch, socket, module: newM, emit: true });
+            const parentId = getParentId(containerOccurrence?.id);
+            const parentOcc = parentId ? getOccMap()[parentId] : null;
+            if (!parentOcc) { toast.error("Can't copy: this container isn't in a list"); return; }
+            const at = (parentOcc.occurrences || []).indexOf(containerOccurrence.id);
+            copyContainerToList({
+              dispatch, socket, gridId: ctxGridId, userId: ctxUserId,
+              sourceOccurrence: containerOccurrence, toListOcc: parentOcc,
+              toIndex: at >= 0 ? at + 1 : null,
+            });
           }
         },
         containerOccurrence?.linkedGroupId && {
@@ -1203,7 +1216,9 @@ function Container({
             }))
           : []),
         { separator: true },
-        { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
+        // A container sits in a page or another container, not on the grid (the Settings form
+        // says "Remove container" too).
+        { label: "Remove container", icon: Trash2, danger: true, onClick: removeMe },
       ].filter(Boolean),
     });
   };
