@@ -22,7 +22,9 @@ describe("scroll flag", () => {
   });
   it("the CSS stops only the moving labels, keyed on the page flag", () => {
     const css = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
-    expect(css).toContain(":root[data-scrolling] .auto-marquee-inner--moving { animation: none !important; }");
+    expect(css).toContain(":root[data-scrolling] :is(.auto-marquee-inner--moving, .tx-marquee-track) { animation: none !important; }");
+    // The viewer tile's header rules key on a marked row, not a `:has()` re-checked on every hover.
+    expect(css).not.toContain(".instance-row:has(:is(.artifact-card--book-open, .artifact-card--ocr-tile))");
     const mq = readFileSync(resolve(process.cwd(), "src/ui/AutoMarquee.jsx"), "utf8");
     expect(mq).toContain('"auto-marquee-inner auto-marquee-inner--moving"');
   });

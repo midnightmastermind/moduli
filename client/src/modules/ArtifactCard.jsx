@@ -176,6 +176,20 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // from the card's own rect at the moment of expand — once expanded the card is
   // gone from the layout, so measuring later would find nothing.
   const cardRef = useRef(null);
+  // A viewer tile whose header row carries the reader's / OCR tabs (index.css, `[data-tile-header]`).
+  // The row is MARKED rather than found with `.instance-row:has(...)`: that selector made Chrome
+  // re-check every row in the app on each hover change, which slowed scrolling in other panels
+  // (measured 2026-10-19).
+  const tileRowRef = useRef(null);
+  const markTileRow = useCallback((el) => {
+    if (el) {
+      const row = el.closest(".instance-row");
+      if (row && row !== tileRowRef.current) { tileRowRef.current?.removeAttribute("data-tile-header"); row.setAttribute("data-tile-header", ""); tileRowRef.current = row; }
+    } else {
+      tileRowRef.current?.removeAttribute("data-tile-header");
+      tileRowRef.current = null;
+    }
+  }, []);
   const [originVars, setOriginVars] = useState(null);
 
   const expand = useCallback((e) => {
@@ -511,7 +525,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // 280 books) it stays a thumbnail — only a spread mounts a reader.
   if (inSpread && (kind === "ebook" || kind === "pdf") && src) {
     return (
-      <div className="artifact-card artifact-card--bookmark-open artifact-card--book-open" data-kind={kind} onClick={(e) => e.stopPropagation()}>
+      <div ref={markTileRow} className="artifact-card artifact-card--bookmark-open artifact-card--book-open" data-kind={kind} onClick={(e) => e.stopPropagation()}>
         <BookReader module={module} occurrence={occurrence} src={src} kind={kind} />
       </div>
     );
@@ -547,7 +561,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   if (inSpread && tilePicture && !expanded) {
     const tileName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || null;
     return (
-      <div className="artifact-card artifact-card--ocr-tile" data-kind="image" onClick={(e) => e.stopPropagation()}>
+      <div ref={markTileRow} className="artifact-card artifact-card--ocr-tile" data-kind="image" onClick={(e) => e.stopPropagation()}>
         <ImageOcrViews occurrence={occurrence} module={module} imgSrc={tilePicture} dispatch={dispatch} socket={socket}>
           <div className="artifact-ocr-tile-picture" onClick={openViewer} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}>

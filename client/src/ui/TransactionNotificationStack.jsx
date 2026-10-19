@@ -202,6 +202,7 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
             }}
           >
             <div
+              className="tx-marquee-track"
               style={{
                 display: "inline-flex",
                 animation: animate ? `tx-marquee ${durationSec}s linear infinite` : "none",
