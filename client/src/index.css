@@ -9244,4 +9244,4 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* A book / PDF reader fills its tile's height. A CANVAS card has no height of its own, so the
    reader collapsed to its header strip and the page was not drawn at all (viewer canvas
    arrangement, UI sweep 2026-10-19). On a canvas it gets a page-sized height. */
-.canvas-surface [data-testid="book-reader"] { height: 480px; }
+.canvas-surface [data-testid="book-reader"] { height: 480px !important; } /* !important: the reader sets height:100% inline */
