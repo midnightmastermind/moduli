@@ -4035,3 +4035,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-10-19 15:33 CDT (answers)
 - Viewer tiles in Terminal: leave see-through. Jonah button: hide while the viewer is open. Book/PDF cards on a canvas: widen to ~520px.
+- 15:35 *"actually make it solid backgrounds on terminal skin"* (done: Terminal viewer tiles solid black).
+- 15:39 *"after all the tasks i gave you, really test out the ui for canvas, table, and graphs, make sure everything works there. i need it to be easy to add new occurances to as well (utilize the quick add menu)"* — after sweep items 49–43.
