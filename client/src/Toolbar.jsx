@@ -85,7 +85,11 @@ export default function Toolbar({
   // Grab the slices FilterNavWidget needs from context — same surface the
   // occurrence-header FiltersSection consumes, so the toolbar's date nav is
   // literally the same component with the same widget cascade.
-  const { dispatch, socket, fieldsById, occurrencesById, modulesById, foldersById } = useGridActions();
+  const { dispatch, socket, fieldsById, occurrencesById, modulesById, foldersById, addNewPanel } = useGridActions();
+  // A MOSAIC grid (grid.meta.layoutTree) has no empty cells to tap, so the
+  // toolbar carries "Add panel" for it (user 2026-10-19: "currently there is no
+  // way to add new panel"). GridMosaic adds a panel the tree lacks by splitting.
+  const canAddPanel = !!grid?.meta?.layoutTree && !!addNewPanel;
 
   const activeFilter = useMemo(
     () => (grid?.namedFilters || []).find(f => f.id === grid?.activeFilterId) || null,
@@ -340,6 +344,18 @@ const gridOptions = useMemo(
           {!isMobileLayout && (
             <>
               <div className="w-px h-4 bg-border-default mx-0.5" />
+              {canAddPanel && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => addNewPanel("board")}
+                  title="Add panel"
+                  aria-label="Add panel"
+                  style={{ height: 26, width: 26, padding: 0 }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <PomodoroTimer />
               <AlarmDropdown />
               <div className="w-px h-4 bg-border-default mx-0.5" />
@@ -528,6 +544,20 @@ const gridOptions = useMemo(
             <AlarmDropdown showLabel />
 
             <div style={{ height: 1, background: "var(--border-default)" }} />
+
+            {canAddPanel && (
+              <button
+                onClick={() => { setDrawerOpen(false); addNewPanel("board"); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
+                  background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
+                  fontSize: 12, fontFamily: "var(--font-mono)",
+                }}
+              >
+                <Plus size={14} style={{ opacity: 0.7 }} />
+                Add panel
+              </button>
+            )}
 
             {/* Hide toolbar */}
             <button
