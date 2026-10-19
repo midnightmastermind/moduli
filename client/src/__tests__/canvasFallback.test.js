@@ -7,10 +7,10 @@ import path from "node:path";
 import { canvasFallbackPosition } from "../helpers/canvasFallback";
 
 describe("canvasFallbackPosition", () => {
-  it("near the center, one row step apart, 8 per column", () => {
+  it("near the center, side by side, 4 per row", () => {
     expect(canvasFallbackPosition(0)).toEqual({ x: 1760, y: 1850 });
-    expect(canvasFallbackPosition(1)).toEqual({ x: 1760, y: 1960 });
-    expect(canvasFallbackPosition(8)).toEqual({ x: 2020, y: 1850 });
+    expect(canvasFallbackPosition(1)).toEqual({ x: 2080, y: 1850 });
+    expect(canvasFallbackPosition(4)).toEqual({ x: 1760, y: 2230 });
     expect(canvasFallbackPosition(-1)).toEqual({ x: 1760, y: 1850 });
   });
   it("both canvases use it; neither keeps a corner default", () => {
