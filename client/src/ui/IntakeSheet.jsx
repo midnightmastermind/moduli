@@ -170,6 +170,16 @@ const tileSt = {
  *                                   for shapes that declared a `followUp`.
  * @param {Function} onCancel        () => void — Escape / backdrop / Cancel. Writes nothing.
  */
+// The footer names the keys on a keyboard and the gestures on a touch screen:
+// a phone has no ↑↓ or Esc, and the sheet there has no Cancel button — tapping
+// outside is the way out (UI sweep 2026-10-19).
+export function intakeFooterHint({ followUp = false, coarse = false } = {}) {
+  if (coarse) return followUp ? "Tap one · ‹ to go back" : "Tap one · tap outside to cancel";
+  return followUp ? "Pick one · ↑↓ to move · Esc to go back" : "Pick one · ↑↓ to move · Esc to cancel";
+}
+const isCoarsePointer = () =>
+  typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)")?.matches;
+
 export default function IntakeSheet({ classification, position = null, onPick, onCancel, zIndex = 1200 }) {
   const allShapes = classification?.shapes || [];
   const surfaceRef = useRef(null);
@@ -324,7 +334,7 @@ export default function IntakeSheet({ classification, position = null, onPick, o
         </div>
 
         <div style={footSt}>
-          {followUp ? "Pick one · ↑↓ to move · Esc to go back" : "Pick one · ↑↓ to move · Esc to cancel"}
+          {intakeFooterHint({ followUp: !!followUp, coarse: isCoarsePointer() })}
         </div>
       </div>
     </MenuSurface>
