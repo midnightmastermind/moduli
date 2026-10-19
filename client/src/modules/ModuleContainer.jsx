@@ -29,7 +29,7 @@ import {
   copyContainerToList,
 } from "../helpers/LayoutHelpers";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
-import { canvasFallbackPosition } from "../helpers/canvasFallback";
+import { canvasFallbackPosition, canvasCardWidth } from "../helpers/canvasFallback";
 import {
   useDragDrop,
   useDroppable,
@@ -1006,15 +1006,18 @@ function Container({
     if (mod.role === "artifact") {
       renderBody = () => <ArtifactCard module={mod} label={mod.label} occurrence={occ} />;
     }
+    const kids = containerOccurrence?.occurrences || [];
+    const occMap = getOccMap();
+    const fallback = canvasFallbackPosition(kids.indexOf(occ.id), kids.map((id) => canvasCardWidth(modulesById?.[occMap[id]?.moduleId])));
+    const fixedW = canvasCardWidth(mod);
     return (
       <div
         key={occ.id}
         style={{
           position: "absolute",
-          left: occ?.meta?.x ?? canvasFallbackPosition((containerOccurrence?.occurrences || []).indexOf(occ.id)).x,
-          top: occ?.meta?.y ?? canvasFallbackPosition((containerOccurrence?.occurrences || []).indexOf(occ.id)).y,
-          minWidth: 160,
-          maxWidth: 300,
+          left: occ?.meta?.x ?? fallback.x,
+          top: occ?.meta?.y ?? fallback.y,
+          ...(fixedW ? { width: fixedW } : { minWidth: 160, maxWidth: 300 }),
         }}
       >
         {mod.role === "container" ? (
@@ -1061,7 +1064,7 @@ function Container({
         )}
       </div>
     );
-  }, [dispatch, socket, containerOccurrence, addInstanceToContainer]);
+  }, [dispatch, socket, containerOccurrence, addInstanceToContainer, getOccMap, modulesById]);
 
 
   // Per-occurrence view-mode handling. Default is Actual (full container

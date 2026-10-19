@@ -6,7 +6,7 @@
 import React, { useMemo, useCallback } from "react";
 import { useGridActions } from "../../GridActionsContext";
 import { CanvasDrawSection } from "../CanvasContent.jsx";
-import { canvasFallbackPosition } from "../../helpers/canvasFallback";
+import { canvasFallbackPosition, canvasCardWidth } from "../../helpers/canvasFallback";
 import ModuleInstance from "../ModuleInstance.jsx";
 import Container from "../ModuleContainer.jsx";
 import ModuleTextblock from "../ModuleTextblock.jsx";
@@ -16,15 +16,14 @@ import { useDroppable, DropAccepts } from "../../helpers/dragSystem";
 
 // Absolute-positioning shell — pure layout, no drag wiring of its own.
 // The inner ModuleInstance/Container handles its own drag via useDragDrop.
-function CanvasSlot({ x, y, children }) {
+function CanvasSlot({ x, y, width = null, children }) {
   return (
     <div
       style={{
         position: "absolute",
         left: x ?? 20,
         top: y ?? 20,
-        minWidth: 160,
-        maxWidth: 300,
+        ...(width ? { width } : { minWidth: 160, maxWidth: 300 }),
       }}
     >
       {children}
@@ -80,9 +79,10 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       // old Canvas: Build op stamped ~1760/1850 for the same reason).
       // First drag persists a real meta.x/y and takes over.
       const childIdx = Math.max(0, (occurrence?.occurrences || []).indexOf(occ.id));
-      const { x: fallbackX, y: fallbackY } = canvasFallbackPosition(childIdx);
+      const kids = occurrence?.occurrences || [];
+      const { x: fallbackX, y: fallbackY } = canvasFallbackPosition(childIdx, kids.map((id) => canvasCardWidth(modulesById?.[occurrencesById?.[id]?.moduleId])));
       return (
-        <CanvasSlot key={occ.id} x={occ?.meta?.x ?? fallbackX} y={occ?.meta?.y ?? fallbackY}>
+        <CanvasSlot key={occ.id} x={occ?.meta?.x ?? fallbackX} y={occ?.meta?.y ?? fallbackY} width={canvasCardWidth(mod)}>
           {mod.role === "container" ? (
             <Container
               module={mod}
@@ -124,7 +124,7 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
         </CanvasSlot>
       );
     },
-    [dispatch, socket, occurrence]
+    [dispatch, socket, occurrence, occurrencesById, modulesById]
   );
 
   const handleDoubleClick = useCallback(

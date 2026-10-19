@@ -4032,3 +4032,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-10-19 09:59 CDT
 - *"we also need an add panel button somewhere for the mosaic layout (in the grid header toolbar). currently there is no way to add new panel."*
+
+### 2026-10-19 15:33 CDT (answers)
+- Viewer tiles in Terminal: leave see-through. Jonah button: hide while the viewer is open. Book/PDF cards on a canvas: widen to ~520px.

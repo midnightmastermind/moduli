@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { canvasFallbackPosition } from "../helpers/canvasFallback";
+import { canvasFallbackPosition, canvasCardWidth } from "../helpers/canvasFallback";
 
 describe("canvasFallbackPosition", () => {
   it("near the center, side by side, 4 per row", () => {
@@ -12,6 +12,13 @@ describe("canvasFallbackPosition", () => {
     expect(canvasFallbackPosition(1)).toEqual({ x: 2080, y: 1850 });
     expect(canvasFallbackPosition(4)).toEqual({ x: 1760, y: 2230 });
     expect(canvasFallbackPosition(-1)).toEqual({ x: 1760, y: 1850 });
+  });
+  it("a 520px reader pushes its row along and makes its row taller", () => {
+    const widths = [520, null, null, null, null];
+    expect(canvasFallbackPosition(1, widths)).toEqual({ x: 1760 + 540, y: 1850 });
+    expect(canvasFallbackPosition(4, widths)).toEqual({ x: 1760, y: 1850 + 560 });
+    expect(canvasCardWidth({ role: "artifact", kind: "ebook" })).toBe(520);
+    expect(canvasCardWidth({ role: "artifact", kind: "image" })).toBeNull();
   });
   it("both canvases use it; neither keeps a corner default", () => {
     const read = (f) => fs.readFileSync(path.resolve(__dirname, "..", f), "utf8");

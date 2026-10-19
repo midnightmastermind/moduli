@@ -3282,7 +3282,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    a phone (the sort-direction button, the feed limit box). It steps aside while a sheet is open. */
 /* …and while the image picker dialog is open (its scrim sat under the button). */
 body:has(.menu-surface--drawer) .assistant-fab,
-body:has([data-image-picker]) .assistant-fab { display: none !important; }
+body:has([data-image-picker]) .assistant-fab,
+/* …and while the artifact viewer is open: it covered the book page's corner (user, 2026-10-19). */
+body:has(.artifact-spread) .assistant-fab { display: none !important; }
 
 .menu-surface-backdrop {
   position: fixed;
