@@ -175,7 +175,7 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
 }
 const navBtn = { padding: "2px 6px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4,
   border: "1px solid var(--border-default)", background: "var(--input-bg)", color: "var(--text-primary)",
-  display: "inline-flex", alignItems: "center" };
+  display: "inline-flex", alignItems: "center", flexShrink: 0, whiteSpace: "nowrap" };
 
 export default function BookReader({ module, occurrence, src, kind, inPanelPage = false, headerExtra = null, dispatch: dispatchProp, socket: socketProp, gridId: gridIdProp }) {
   const ctx = useGridActions() || {};
@@ -285,7 +285,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
 
   const tabBtn = (m, l) => (
     <button key={m} type="button" onClick={() => setMode(m)} title={TITLES[m]} aria-pressed={mode === m}
-      style={{ padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4,
+      style={{ padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", borderRadius: 4, flexShrink: 0, whiteSpace: "nowrap",
         border: mode === m ? "1px solid var(--accent-blue)" : "1px solid var(--border-default)",
         boxShadow: mode === m ? "inset 0 0 0 1px var(--accent-blue)" : "none",
         fontWeight: mode === m ? 700 : 400,
@@ -297,7 +297,10 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
     <div ref={rootRef} data-testid="book-reader" style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
       {/* ONE header row (user, 2026-10-18): modes, page controls, title, actions. In the viewer the
           tile's own handle + buttons sit on this row too (index.css .book-reader-head). */}
-      <div className="book-reader-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
+      {/* nowrap: the row WRAPPED in a viewer tile ("Save page" fell to a second line — the Contents
+          dropdown is as wide as its longest chapter). The dropdown and the title shrink first; a
+          panel too narrow for the buttons scrolls the row sideways rather than breaking it. */}
+      <div className="book-reader-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {MODES.map(([m, l]) => tabBtn(m, l))}
         {/* In Magic page these turn the book underneath; the new page is laid out as soon as it lands.
@@ -307,7 +310,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
         <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
         </>)}
         {!isMagicFile && engine === "ebook" && toc.length > 0 && (
-          <select aria-label="Contents" defaultValue="" style={{ ...navBtn, maxWidth: 200 }}
+          <select aria-label="Contents" defaultValue="" style={{ ...navBtn, flex: "0 1 200px", minWidth: 72, maxWidth: 200, flexShrink: 1 }}
             onChange={(e) => { if (e.target.value) viewRef.current?.goTo(e.target.value); e.target.value = ""; }}>
             <option value="">Contents…</option>
             {toc.map((t, i) => <option key={i} value={t.href}>{`${"  ".repeat(t.depth)}${t.label}`}</option>)}
