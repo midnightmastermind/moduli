@@ -11,6 +11,7 @@
 // fetch only the occurrences that point at them.
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
+import Folder from "../models/Folder.js";
 
 const DEST_ROLES = ["container", "page"];
 const escapeRx = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -137,6 +138,7 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
     });
   }
   await crumbFromListers({ userId, gridId, out, hits });
+  await crumbFromFolders({ userId, out, hits });
   return out;
 }
 
@@ -208,4 +210,31 @@ export function commonValues(rows, fieldIds) {
     if (vals.every((v) => JSON.stringify(v) === first)) out[fid] = vals[0];
   }
   return out;
+}
+
+// A PAGE is parented to a FOLDER, which is not an occurrence, so the walk above stops at once and
+// every page read with no location ("Library" the page vs "Library" the folder page, 2026-10-19).
+// The folder path is the page's crumb — one `$in` query per level, at most CRUMB_DEPTH.
+async function crumbFromFolders({ userId, out, hits }) {
+  const hitById = new Map(hits.map((h) => [h.id, h]));
+  const need = out.filter((d) => !d.crumb && hitById.get(d.id)?.parentId);
+  if (!need.length) return;
+  const folders = new Map();
+  let frontier = [...new Set(need.map((d) => hitById.get(d.id).parentId))];
+  for (let depth = 0; depth < CRUMB_DEPTH && frontier.length; depth++) {
+    const rows = await Folder.find({ userId, id: { $in: frontier } }).lean();
+    for (const f of rows) folders.set(f.id, f);
+    frontier = [...new Set(rows.map((f) => f.parentId).filter((id) => id && !folders.has(id)))];
+  }
+  for (const d of need) {
+    const names = [];
+    let f = folders.get(hitById.get(d.id).parentId);
+    const seen = new Set();
+    for (let i = 0; i < CRUMB_DEPTH && f && !seen.has(f.id); i++) {
+      seen.add(f.id);
+      if (f.parentId && f.name) names.unshift(f.name); // the root folder ("Root") says nothing
+      f = folders.get(f.parentId);
+    }
+    if (names.length) d.crumb = names.join(" › ");
+  }
 }

@@ -62,6 +62,10 @@ vi.mock("../models/Occurrence.js", () => ({ default: {
   },
 }}));
 
+vi.mock("../models/Folder.js", () => ({ default: {
+  find: (q) => findChain(folders.filter((f) => q.id.$in.includes(f.id))),
+}}));
+let folders = [];
 const { searchDestinations, commonValues } = await import("../services/destinationSearch.js");
 
 const mod = (id, label, role = "container", kind = "board") => ({ id, label, role, kind, gridId: "g1", userId: "u1" });
@@ -106,6 +110,15 @@ describe("searchDestinations", () => {
     occurrences.push(occ("o-libpage", "m-libpage", "o-boards", ["o-lib"]), occ("o-lib", "m-lib", null), occ("o-lib2", "m-lib2", "o-media"));
     const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "library" });
     expect(out.find((d) => d.id === "o-lib").crumb).toBe("Reading");
+  });
+
+  it("a page parented to a FOLDER shows the folder path (the root folder says nothing)", async () => {
+    folders = [{ id: "f-root", name: "Root", parentId: null }, { id: "f-lib", name: "Library", parentId: "f-root" }];
+    modules.push(mod("m-libpg", "Library", "page", "board"));
+    occurrences.push(occ("o-libpg", "m-libpg", "f-lib"));
+    const out = await searchDestinations({ userId: "u1", gridId: "g1", q: "library" });
+    expect(out.find((d) => d.id === "o-libpg").crumb).toBe("Library");
+    folders = [];
   });
 
   it("a unique name with no crumb asks nothing more", async () => {

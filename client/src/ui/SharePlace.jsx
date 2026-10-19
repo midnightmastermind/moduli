@@ -48,6 +48,13 @@ const DEFAULT_LABEL = { source: "title", transform: "stripSuffix" };
 // A textblock's body: what you selected, else the page title.
 const defaultBody = (clip) => ({ source: clip?.selection ? "selection" : "title" });
 
+/** What a destination IS — two places can share a name ("Library" the board, the page, the folder page). */
+export function destKind(d) {
+  if (d?.role === "page") return d.kind === "folder" ? "folder page" : "page";
+  if (d?.role === "container") return d.kind && d.kind !== "list" ? d.kind : "container";
+  return null;
+}
+
 export default function SharePlace() {
   const stageId = useMemo(() => param("stage"), []);
   const stageKey = useMemo(() => param("k"), []);
@@ -418,7 +425,7 @@ export default function SharePlace() {
                   <button type="button" key={d.id} onClick={() => pickDestination(d)} style={destRowSt}>
                     <span>{d.label}</span>
                     <span style={{ color: "var(--text-faint, #888)", fontSize: 10 }}>
-                      {[d.crumb, d.childCount ? `${d.childCount} ${d.childCount === 1 ? "row" : "rows"}` : null].filter(Boolean).join(" · ")}
+                      {[destKind(d), d.crumb, d.childCount ? `${d.childCount} ${d.childCount === 1 ? "row" : "rows"}` : null].filter(Boolean).join(" · ")}
                     </span>
                   </button>
                 ))}
