@@ -40,8 +40,8 @@ export function definitionCardPosition(x, y, vw, vh, { w = CARD_W, h = 220 } = {
 
 export function DefinitionHost() {
   const [req, setReq] = useState(null);
-  const [lines, setLines] = useState(null); // null = looking up
-  useEffect(() => { _host = (r) => { setLines(null); setReq(r); }; return () => { _host = null; }; }, []);
+  const [lines, setLines] = useState(undefined); // undefined = looking up, null = unreachable
+  useEffect(() => { _host = (r) => { setLines(undefined); setReq(r); }; return () => { _host = null; }; }, []);
 
   useEffect(() => {
     if (!req) return undefined;
@@ -70,7 +70,10 @@ export function DefinitionHost() {
     >
       <div role="dialog" aria-label={`Definition of ${req.word}`} data-testid="definition-card">
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{req.word}</div>
-        {lines === null && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Looking up…</div>}
+        {lines === undefined && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Looking up…</div>}
+        {lines === null && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Couldn't reach the dictionary — try the link below.</div>
+        )}
         {lines && lines.length === 0 && (
           <div style={{ fontSize: 12, color: "var(--text-muted)" }}>No definition found.</div>
         )}

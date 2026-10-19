@@ -139,21 +139,28 @@ export function singularCandidates(word) {
   return [...new Set(out)].filter((c) => c && c !== w);
 }
 
-/** Definition lines for a word ([] when none / offline); tries its singular too. */
+/**
+ * Definition lines for a word, trying its singular too. `[]` = the dictionary has no
+ * entry; `null` = the dictionary could not be reached for any form (offline, or the
+ * service is down — it answers 530 when its origin is), so the card can say which.
+ */
 export async function defineWord(word, fetchImpl = globalThis.fetch) {
   const w = String(word ?? "").trim();
   if (!w || /\s/.test(w)) return [];
+  let answered = false;
   for (const form of [w.toLowerCase(), ...singularCandidates(w)]) {
     try {
       const res = await fetchImpl(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(form)}`);
+      if (res.status === 404) { answered = true; continue; }
       if (!res.ok) continue;
+      answered = true;
       const lines = readDefinitions(await res.json());
       if (lines.length) return lines;
     } catch {
-      // A browser reports the dictionary's 404 as a network error (no CORS header on it),
-      // so an error moves on to the next form rather than giving up.
+      // A browser reports a failed lookup (no CORS header on the error page) as a
+      // network error, so an error moves on to the next form rather than giving up.
       continue;
     }
   }
-  return [];
+  return answered ? [] : null;
 }

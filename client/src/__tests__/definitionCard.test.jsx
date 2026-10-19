@@ -8,7 +8,8 @@ import { defineWord, singularCandidates } from "../helpers/textLookup.js";
 import { DefinitionHost, openDefinition, definitionCardPosition } from "../ui/DefinitionCard.jsx";
 
 const ok = (defs) => ({ ok: true, json: async () => [{ meanings: [{ partOfSpeech: "noun", definitions: defs.map((d) => ({ definition: d })) }] }] });
-const miss = { ok: false, json: async () => ({}) };
+const miss = { ok: false, status: 404, json: async () => ({}) };
+const down = { ok: false, status: 530, json: async () => ({}) };
 
 describe("defineWord", () => {
   it("tries the singular when the plural has no entry", async () => {
@@ -41,6 +42,12 @@ describe("DefinitionCard", () => {
     render(<DefinitionHost />);
     act(() => { openDefinition("zxqv"); });
     expect(await screen.findByText("No definition found.")).toBeInTheDocument();
+  });
+  it("says the dictionary could not be reached when every lookup failed", async () => {
+    globalThis.fetch = vi.fn(async () => down);
+    render(<DefinitionHost />);
+    act(() => { openDefinition("tree"); });
+    expect(await screen.findByText(/Couldn't reach the dictionary/)).toBeInTheDocument();
   });
   it("keeps the card on screen near the click", () => {
     expect(definitionCardPosition(1580, 950, 1600, 1000)).toEqual({ top: 730, left: 1272 });
