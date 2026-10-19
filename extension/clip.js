@@ -2,10 +2,11 @@
 //
 // What a right-click becomes.
 //
-// PURE, and that is not a style choice: an MV3 extension cannot be loaded in
-// this environment (established by trying — headless Chrome refuses to install
-// one), so the plumbing around this file is genuinely unverifiable here. The
-// DECISIONS are not, and they are where the mistakes live: which shape a
+// PURE, so the decisions are tested. (This used to say the extension cannot be
+// loaded here at all. It can: Playwright's `channel: "chromium"` installs an MV3
+// extension headless — repo-root `_ext.mjs`, UI sweep item 61, 2026-10-19 — so the
+// plumbing is now exercised by hand too.) The DECISIONS are where the mistakes
+// live: which shape a
 // context produces, what identity it carries, and what happens to a clip of
 // something already clipped.
 //
