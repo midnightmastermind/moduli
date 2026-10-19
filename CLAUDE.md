@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-19 — UI SWEEP 35–40; an Add panel button for mosaic grids; a list that opened below the screen
+
+User: *"continue with what my other claude account was working on. we are back to ui testing"* · mid-run: *"we also
+need an add panel button somewhere for the mosaic layout (in the grid header toolbar)"*. Each item watched on prod
+(test grid 2), desktop + phone; per-item notes in `docs/ui-sweep-2026-10-18.md`.
+- **Add panel** (+) in the toolbar and an "Add panel" row in the phone menu, mosaic grids only (`grid.meta.layoutTree`;
+  rows×cols grids keep their empty cells). Watched: 5 → 6 panels split into the largest pane, then removed.
+- **Image picker:** Escape did nothing (no key handler); one height on every tab (the phone dialog shrank 692→~280px
+  on Upload/URL and the tab row jumped); Jonah's button steps aside while it is open.
+- **Destination picker** worked; its "Schedule › Todo ×4" was debris: 4 module-less Schedule columns (224 rows,
+  0 ticked/touched) left on test grid 2 by probes 2026-10-18 12:13–12:28 CDT — swept via `delete_occurrence`
+  (backup `server/backups/orphans/2026-10-19-tg2-moduleless-cols.json`). poms + rebuild: 0 module-less rows.
+- **`MenuSurface` with no position centres.** The link-follow "Import which pages?" list passes none, and a fixed box
+  with no top/left sat at its static place below the page — y=1001 in a 1000px window, Cancel/Import unreachable.
+- **Intake sheet footer** names taps on a touch screen (it said "↑↓ · Esc" on a phone with no Cancel button).
+- **Container menu:** Copy container minted a bare MODULE (no placement, nothing shown, an orphan) — it now places a
+  copy after itself through `copyContainerToList`, which also passes `insertAtIndex` to the create: the server's
+  create links the child itself and APPENDS without it, so a copy (and a copy-drag) landed last. Tiles named as the
+  + menu; "Remove container". **Tree:** a page row gained Rename… (the card's `buildRenameItem`).
+- Client 6,341 pass. Not driven: long-press (headless has no touch), the touch footer (unit-tested only).
+
+---
+
 ### 2026-10-18 (6) — MAGIC FILE: THE WHOLE BOOK LAID OUT; the last book rows without a working file deleted; e-book nav bars
 
 User: *"a button next to magic that does the whole file, not just that one page. so we have magic page, magic entire
