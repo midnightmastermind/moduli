@@ -727,16 +727,20 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     <button
       onClick={() => pick(m)}
       title={BTN_TITLES[m]}
+      aria-pressed={mode === m}
       style={{
         padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
-        borderRadius: 4, border: "1px solid var(--border-default)",
-        background: mode === m ? "var(--accent-blue)" : "var(--input-bg)",
-        // The FILL carries "selected"; the ink does not have to. Muted ink on a
-        // muted fill made the unselected modes a guess rather than a choice —
-        // and which mode you are NOT in is the thing you are reading them to
-        // find out. Same call as the 2026-08-19 pill work: keep the hue, take
-        // the contrast.
-        color: mode === m ? "var(--on-accent)" : "var(--text-primary)",
+        borderRadius: 4,
+        // OUTLINE + BOLD, not a solid fill (the book reader's call, 2026-10-18):
+        // the Terminal skin forces every label green, so a solid accent fill
+        // made the selected mode a blank green box (UI sweep 53).
+        border: mode === m ? "1px solid var(--accent-blue)" : "1px solid var(--border-default)",
+        boxShadow: mode === m ? "inset 0 0 0 1px var(--accent-blue)" : "none",
+        fontWeight: mode === m ? 700 : 400,
+        background: mode === m ? "var(--accent-blue-bg)" : "var(--input-bg)",
+        // Full-contrast ink on every mode: which mode you are NOT in is the thing
+        // you read them to find out (the 2026-08-19 pill call).
+        color: "var(--text-primary)",
       }}
     >{label}</button>
   );

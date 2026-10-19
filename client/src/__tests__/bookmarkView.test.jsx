@@ -337,6 +337,20 @@ describe("saving the current address as a bookmark", () => {
     expect(screen.getByRole("button", { name: "Save" }).disabled).toBe(true);
   });
 
+  // UI sweep 53: a solid accent fill was a blank box in the Terminal skin (all
+  // ink forced green). The selected mode is an outline + bold now.
+  it("marks the selected mode with an outline, never a solid accent fill", () => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
+      socket={socket} />);
+    fireEvent.click(screen.getByText("Web"));
+    const web = screen.getByText("Web");
+    expect(web.getAttribute("aria-pressed")).toBe("true");
+    expect(web.style.background).not.toBe("var(--accent-blue)");
+    expect(web.style.fontWeight).toBe("700");
+    expect(screen.getByText("Magic").getAttribute("aria-pressed")).toBe("false");
+  });
+
   // UI sweep 53: Escape went past the open row and closed the whole viewer.
   it("Escape closes the save row, and a key already handled is left alone", () => {
     render(<BookmarkView occurrence={withUrl}
