@@ -76,3 +76,15 @@ describe("who owns a shift+click", () => {
     expect(ROW_SELECTOR).toBe(".instance-wrap");
   });
 });
+
+// A shift+press on a row must not extend a text selection (labels are selectable),
+// or the right-click after a shift-select opens the text menu instead of the bulk one.
+import { shiftPressKeepsText } from "../helpers/shiftSelect";
+describe("shiftPressKeepsText", () => {
+  it("a row label is not a text gesture; inputs and editors are", () => {
+    document.body.innerHTML = `<div class="instance-wrap"><span id="lbl">Netflix</span><input id="in"/><div contenteditable="true"><p id="ed">x</p></div></div>`;
+    expect(shiftPressKeepsText(document.getElementById("lbl"))).toBe(false);
+    expect(shiftPressKeepsText(document.getElementById("in"))).toBe(true);
+    expect(shiftPressKeepsText(document.getElementById("ed"))).toBe(true);
+  });
+});

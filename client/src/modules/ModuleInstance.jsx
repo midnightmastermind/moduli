@@ -33,6 +33,7 @@ import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccur
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "../state/notificationStore";
+import { shiftPressKeepsText } from "../helpers/shiftSelect";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { openCoverPicker, setCover } from "../helpers/coverPick";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
@@ -1465,8 +1466,20 @@ function ModuleInstance({
       e.preventDefault();
       e.stopPropagation();
       selection.toggle(occId);
+      // A shift+click is a ROW gesture: drop any text range it left behind (labels are
+      // selectable since 2026-10-18), or the right-click that follows opens the text menu
+      // ("Copy", "Search Wikipedia for …") instead of "Copy N selected" (UI sweep 2026-10-19).
+      try { window.getSelection?.()?.removeAllRanges(); } catch { /* no selection API */ }
     }
   }, [occId, selection]);
+
+  // …and the press itself must not extend a text selection across the rows. Inside an
+  // input or an editor, shift+press keeps its normal meaning.
+  const handleWrapperMouseDown = useCallback((e) => {
+    if (!e.shiftKey || !occId) return;
+    if (shiftPressKeepsText(e.target)) return;
+    e.preventDefault();
+  }, [occId]);
 
   const handleContextMenu = useCallback((e) => {
     e.preventDefault();
@@ -1770,6 +1783,7 @@ function ModuleInstance({
       }}
       {...props}
       onClickCapture={handleWrapperClick}
+      onMouseDownCapture={handleWrapperMouseDown}
       onContextMenu={handleContextMenu}
       {...instanceLongPress}
     >

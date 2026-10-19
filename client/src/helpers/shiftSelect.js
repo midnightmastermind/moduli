@@ -26,3 +26,12 @@ export function containerClaimsShiftClick(target) {
   if (!target?.closest) return true;
   return !target.closest(ROW_SELECTOR);
 }
+
+/**
+ * True when a shift+press on `target` is a TEXT gesture (extend a selection inside an
+ * input or an editor), so a row must not turn it into a row selection's preventDefault.
+ */
+export function shiftPressKeepsText(target) {
+  if (!target?.closest) return false;
+  return !!target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+}
