@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import React from "react";
 
 const mocks = vi.hoisted(() => ({
@@ -31,8 +31,18 @@ describe("InsertGap", () => {
     mocks.createLeafInstanceAtIndex.mockClear();
   });
 
+  it("does not build the + menu until the gap is hovered (a menu per row cost every long board)", () => {
+    mocks.qam.props = null;
+    const { container } = render(<InsertGap parentOccurrence={{ id: "occ-parent", moduleId: "m-parent" }} index={1} />);
+    expect(mocks.qam.props).toBeFalsy();
+    fireEvent.pointerEnter(container.querySelector(".insert-gap"));
+    expect(mocks.qam.props).toBeTruthy();
+  });
+
   it("picking an EXISTING module splices it at the gap index (regression: unimported createLeafInstanceAtIndex threw)", () => {
-    render(<InsertGap parentOccurrence={{ id: "occ-parent", moduleId: "m-parent" }} index={2} />);
+    const { container } = render(<InsertGap parentOccurrence={{ id: "occ-parent", moduleId: "m-parent" }} index={2} />);
+    // The + menu is built on first hover (it is hidden until then).
+    fireEvent.pointerEnter(container.querySelector(".insert-gap"));
     expect(mocks.qam.props).toBeTruthy();
     // This threw `ReferenceError: createLeafInstanceAtIndex is not defined` before the fix.
     mocks.qam.props.onSelect({ id: "mod-1" });

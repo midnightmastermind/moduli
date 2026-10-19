@@ -44,6 +44,11 @@ export default function InsertGap({
   // corrected when the layout shifts under a stationary pointer, which is what
   // left these highlights stuck.
   const [hot, setHot] = useState(false);
+  // THE + MENU MOUNTS ON FIRST HOVER, then stays. It is hidden until then anyway (index.css shows
+  // `.insert-gap-btn` only when hot/open), and a QuickAddMenu per row was a large share of what a long
+  // board renders as rows scroll into view (profiled 2026-10-19 on Books, desktop).
+  const [armed, setArmed] = useState(false);
+  if ((hot || menuOpen) && !armed) setArmed(true);
   const rootRef = useRef(null);
   // `[gap]` diagnostics — every open/close is logged with this gap's identity so
   // a stuck line can be traced to an OPEN with no matching CLOSE. Also reports
@@ -102,7 +107,7 @@ export default function InsertGap({
       {!emptyBody && <div className="insert-gap-line" />}
       <div className="insert-gap-btn">
         {emptyBody && <span className="insert-gap-empty-label">Add new item</span>}
-        <QuickAddMenu
+        {(armed || emptyBody) && <QuickAddMenu
           targetRole={targetRole}
           onSelect={insertExisting}
           onCreateNew={insertNew}
@@ -111,7 +116,7 @@ export default function InsertGap({
             setMenuOpen(v);
             (v ? gapOpened : gapClosed)({ containerLabel, index });
           }}
-        />
+        />}
       </div>
     </div>
   );
