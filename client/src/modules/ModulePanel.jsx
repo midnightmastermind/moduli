@@ -878,7 +878,10 @@ function Panel({
       // click makes — then find the hit inside it (helpers/openOccurrenceInPanel.folderHomeOf).
       const home = folderHomeOf(occId, { occurrencesById });
       if (!home) { toast("That item isn't on a page yet"); return; }
-      openPage(home.folderPageOccId, { drilldownTarget: home.rootOccId });
+      // Not openPage's `drilldownTarget`: that pins the target as a panel PAGE, and a card is not
+      // one (the panel fell back to its first page). The folder page drills in on mount itself.
+      openPage(home.folderPageOccId);
+      setPendingDrilldown(home.rootOccId);
       if (occId !== home.rootOccId) {
         jumpToOccurrence(occId, {
           root: () => document.querySelector(`[data-panel-id="${CSS.escape(String(panelOccurrence?.moduleId || ""))}"]`),

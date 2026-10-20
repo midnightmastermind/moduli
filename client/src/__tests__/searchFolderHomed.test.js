@@ -58,6 +58,6 @@ describe("panel search pick", () => {
     const at = src.indexOf("const handleSearchPick");
     const body = src.slice(at, src.indexOf("}, [", at));
     expect(body).toMatch(/folderHomeOf\(occId/);
-    expect(body).toMatch(/openPage\(home\.folderPageOccId, \{ drilldownTarget: home\.rootOccId \}\)/);
+    expect(body).toMatch(/openPage\(home\.folderPageOccId\);\s*setPendingDrilldown\(home\.rootOccId\);/);
   });
 });
