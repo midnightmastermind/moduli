@@ -43,6 +43,13 @@ need an add panel button somewhere for the mosaic layout (in the grid header too
 - **42 — shift-select then right-click opened the TEXT menu**: the shift-click left a text range across the labels.
   A shift-press on a row no longer extends a selection (`helpers/shiftSelect.shiftPressKeepsText`) and the toggle
   clears it; the bulk menu is back.
+- **43 — the "/" palette and the "@" picker, five defects.** `/` opened at the window's top-left (an empty
+  line's caret rect is all zeros → `coordsAtPos`), searched for its own `/`, was painted over by the next row
+  (each `.instance-wrap`/`.container-shell` is a stacking context → `helpers/editorPopupLift` lifts the hosts
+  via `data-editor-popup`; a class was wiped by React, and the shell's inline zIndex needs `!important`), and
+  Enter applied the pick AND split the line (leaving `/h` behind) → the editor leaves list keys to an open
+  pick-list. **`@` never stayed open**: the picker focused its own input, so the editor's blur closed it (and
+  vanished an empty textblock); it keeps the caret now. Watched on prod: `/hea`+Enter → H1; `@cal`+Enter → pill.
 
 ---
 
