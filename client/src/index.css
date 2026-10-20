@@ -8176,6 +8176,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   max-height: none;
   overflow: visible;
 }
+/* …and the CARD stops filling the tile. `.instance-row { height: 100% }` (below/above) is what gives a
+   capped tile's fields a box to scroll in; with the notes open it made the card as tall as the whole
+   tile, so the notes were laid out BELOW the tile's box and the next row of tiles and the container
+   header painted over them (user 2026-10-20: a book's radial › Toggle doc — "the expanded note
+   section hides behind the other siblings"; measured on prod: tile 91–593, notes 593–659). */
+.container-items--wrap > .instance-wrap:has(> .instance-doc-body) > .instance-row {
+  height: auto;
+  max-height: none;
+}
 /* …but BOUNDED, or one tile with a long note becomes ten times its neighbours
    and the whole wrapping line grows with it. The note scrolls inside the
    pocket instead — which is the "scrolling downward" that was missing. Only in
