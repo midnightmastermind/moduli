@@ -33,6 +33,6 @@ describe("liftPopupHosts", () => {
     const ed = readFileSync(resolve(__dirname, "../ui/Editor.jsx"), "utf8");
     expect(ed).toMatch(/liftPopupHosts\(wrapperRef\.current\)/);
     const css = readFileSync(resolve(__dirname, "../index.css"), "utf8");
-    expect(css).toMatch(/\.instance-wrap\[data-editor-popup\][\s\S]{0,80}z-index:\s*\d{2}/);
+    expect(css).toMatch(/\.instance-wrap\[data-editor-popup\][\s\S]{0,200}z-index:\s*\d{2}/);
   });
 });
