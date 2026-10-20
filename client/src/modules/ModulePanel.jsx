@@ -76,7 +76,8 @@ import FiltersSection from "../ui/FiltersSection";
 import MenuTabs from "../ui/MenuTabs";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
-import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
+import { openOccurrenceInPanel, folderHomeOf } from "../helpers/openOccurrenceInPanel";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { toast } from "../state/notificationStore";
 import SortSection from "../ui/SortSection";
 import { nextDragMode } from "../helpers/dragModes";
@@ -872,9 +873,23 @@ function Panel({
       // helper polls for the target inside THIS panel and gives up eventually.
       onMissing: () => toast("Found it, but it's hidden by the current filter"),
     });
-    if (!res.ok) toast("That item isn't on a page yet");
-    else if (res.found === false) toast("Found it, but it's hidden by the current filter");
-  }, [panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket]);
+    if (!res.ok) {
+      // Homed in a folder: open the folder page drilled into its card — the gesture a tree
+      // click makes — then find the hit inside it (helpers/openOccurrenceInPanel.folderHomeOf).
+      const home = folderHomeOf(occId, { occurrencesById });
+      if (!home) { toast("That item isn't on a page yet"); return; }
+      openPage(home.folderPageOccId, { drilldownTarget: home.rootOccId });
+      if (occId !== home.rootOccId) {
+        jumpToOccurrence(occId, {
+          root: () => document.querySelector(`[data-panel-id="${CSS.escape(String(panelOccurrence?.moduleId || ""))}"]`),
+          retries: 24, retryMs: 150,
+          onMissing: () => toast("Found it, but it's hidden by the current filter"),
+        });
+      }
+      return;
+    }
+    if (res.found === false) toast("Found it, but it's hidden by the current filter");
+  }, [panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket, openPage]);
 
   // THE PAGE THIS PANEL STARTS ON goes into its back history (2026-09-15). History
   // only hears CHANGES, so without this the page you land on after a reload is

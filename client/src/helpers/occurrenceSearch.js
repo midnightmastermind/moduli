@@ -9,6 +9,7 @@
 // indexed because it is a date, a field value because it is a field value. If a
 // behavior seems to need "but only for X", the answer is a field or an
 // operation, not a branch in here.
+import { folderPageIndex } from "./folderPages";
 import { buildParentMap } from "./dragHitTesting";
 import { plainText } from "./textmapText";
 
@@ -140,6 +141,10 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     dateBits.push(...datesForOcc(anc, fieldsById));
     cursor = parentOf(cursor);
   }
+  // The chain ended at a FOLDER (cursor names no occurrence): it is reachable through that
+  // folder's page, where its top shows as a card — the opener drills into it
+  // (openOccurrenceInPanel.folderHomeOf). It was listed as "not on a page" and opened nothing.
+  if (!pageOccId && cursor && !occurrencesById[cursor]) pageOccId = folderPageIndex(occurrencesById).get(cursor) || null;
 
   // Fields: names + values, and the pairs a result row shows as "why it matched".
   const fieldPairs = [];

@@ -10,6 +10,7 @@
 import * as CommitHelpers from "./CommitHelpers";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { buildParentMap } from "./dragHitTesting";
+import { folderPageIndex } from "./folderPages";
 
 /** Nearest role:"page" ancestor, inclusive of the occurrence itself. */
 export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {} }) {
@@ -22,6 +23,30 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
     const mod = modulesById[occ.moduleId];
     if (mod?.role === "page") return cursor;
     cursor = parentBy[cursor] ?? occ.parentId ?? null;
+  }
+  return null;
+}
+
+/**
+ * AN OCCURRENCE HOMED IN A FOLDER has no page above it — it is shown as a CARD on that folder's
+ * page (a Wikipedia import filed into Library/Reading is one). The answer is the top of its chain
+ * (the card) and the folder page that shows it, or null when the chain ends anywhere else.
+ * Search opened nothing for these and said "isn't on a page yet" (UI sweep 2026-10-19).
+ */
+export function folderHomeOf(occId, { occurrencesById = {} } = {}) {
+  const parentBy = buildParentMap(occurrencesById);
+  let cursor = occId;
+  let guard = 0;
+  while (cursor && guard++ < 64) {
+    const occ = occurrencesById[cursor];
+    if (!occ) return null;
+    const next = parentBy[cursor] ?? occ.parentId ?? null;
+    if (!next) return null;
+    if (!occurrencesById[next]) {
+      const folderPageOccId = folderPageIndex(occurrencesById).get(next) || null;
+      return folderPageOccId && folderPageOccId !== cursor ? { rootOccId: cursor, folderPageOccId } : null;
+    }
+    cursor = next;
   }
   return null;
 }
