@@ -501,23 +501,37 @@ const Editor = forwardRef(function Editor({
   }, [availableFields, exprQuery]);
 
   // ── cursor position helper ───────────────────────────────────
+  const editorInstanceRef = useRef(null); // set below, once useEditor has run
   const getCursorPosition = useCallback(() => {
     const sel = window.getSelection();
-    if (sel?.rangeCount > 0) {
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      const wrap = wrapperRef.current?.getBoundingClientRect();
-      if (wrap) return { top: rect.bottom - wrap.top + 4, left: rect.left - wrap.left };
+    const wrap = wrapperRef.current?.getBoundingClientRect();
+    if (sel?.rangeCount > 0 && wrap) {
+      let rect = sel.getRangeAt(0).getBoundingClientRect();
+      // A collapsed caret on an EMPTY line reports an all-zero rect, which put the "/" palette
+      // at the window's top-left corner — and "/" only opens at a line start, so that was the
+      // common case (UI sweep 2026-10-19). Ask the editor for the caret's coordinates instead.
+      if (!rect.top && !rect.bottom && !rect.left && editorInstanceRef.current?.view) {
+        try {
+          const c = editorInstanceRef.current.view.coordsAtPos(editorInstanceRef.current.state.selection.from);
+          rect = { top: c.top, bottom: c.bottom, left: c.left };
+        } catch { /* keep the zero rect */ }
+      }
+      return { top: rect.bottom - wrap.top + 4, left: rect.left - wrap.left };
     }
     return { top: 0, left: 0 };
   }, []);
 
   // ── key handlers ─────────────────────────────────────────────
   const handleAtKey = useCallback(() => {
-    if (!showSuggestion) { setSuggestionPos(getCursorPosition()); setShowSuggestion(true); setSuggestionQuery(""); }
+    if (!showSuggestion) { skipTriggerCharRef.current = "@"; setSuggestionPos(getCursorPosition()); setShowSuggestion(true); setSuggestionQuery(""); }
   }, [showSuggestion, getCursorPosition]);
 
+  // The key that opens a popup is ALSO typed into the doc right after, and handleTextInput
+  // appended it to the popup's search: "/" searched for "/" and listed nothing (UI sweep
+  // 2026-10-19). The opening character is skipped once.
+  const skipTriggerCharRef = useRef(null);
   const handleSlashKey = useCallback(() => {
-    if (!showCommandPalette) { setCommandPos(getCursorPosition()); setShowCommandPalette(true); setCommandQuery(""); }
+    if (!showCommandPalette) { skipTriggerCharRef.current = "/"; setCommandPos(getCursorPosition()); setShowCommandPalette(true); setCommandQuery(""); }
   }, [showCommandPalette, getCursorPosition]);
 
   const handleDocLinkTrigger = useCallback(() => {
@@ -1407,6 +1421,8 @@ const Editor = forwardRef(function Editor({
         // A block is selected, not a caret placed: swallow the character rather
         // than let it replace the block (helpers/strictBlockSweep.js).
         if (typingWouldReplaceBlock(view.state.selection)) return true;
+        if (skipTriggerCharRef.current && text === skipTriggerCharRef.current) { skipTriggerCharRef.current = null; return false; }
+        skipTriggerCharRef.current = null;
         if (showSuggestion) setSuggestionQuery(p => p + text);
         if (showCommandPalette) setCommandQuery(p => p + text);
         if (showDocLink) setDocLinkQuery(p => p + text);
@@ -1416,6 +1432,7 @@ const Editor = forwardRef(function Editor({
       },
     },
   });
+  editorInstanceRef.current = editor;
 
   // The selection [from, to) becomes a MINI TEXTBLOCK holding its text — one
   // undo step. The right-click "Make inline textblock" and the doc toolbar's
