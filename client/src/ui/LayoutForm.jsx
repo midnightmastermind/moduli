@@ -343,11 +343,11 @@ export default function LayoutForm({
       {/* Tabs */}
       <Tabs defaultValue="basic">
         <TabsList className="grid grid-cols-5 mx-2 mt-1.5 h-7">
-          <TabsTrigger value="basic" className="text-[10px]">Basic</TabsTrigger>
-          <TabsTrigger value="layout" className="text-[10px]">Layout</TabsTrigger>
-          <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
-          <TabsTrigger value="actions" className="text-[10px]">Actions</TabsTrigger>
-          <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
+          <TabsTrigger value="basic" className="text-[12px]">Basic</TabsTrigger>
+          <TabsTrigger value="layout" className="text-[12px]">Layout</TabsTrigger>
+          <TabsTrigger value="style" className="text-[12px]">Style</TabsTrigger>
+          <TabsTrigger value="actions" className="text-[12px]">Actions</TabsTrigger>
+          <TabsTrigger value="fields" className="text-[12px]">Fields</TabsTrigger>
         </TabsList>
 
         {/* BASIC TAB: Name, ViewType, DragBehavior, Iteration, Persistence, BehaviorToggle */}
@@ -376,7 +376,7 @@ export default function LayoutForm({
           {/* View Type */}
           {onViewTypeChange && (
             <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground font-semibold uppercase">View Type</label>
+              <label className="text-[12px] text-muted-foreground font-semibold uppercase">View Type</label>
               <select
                 value={currentViewType || "board"}
                 onChange={onViewTypeChange}
@@ -415,7 +415,7 @@ export default function LayoutForm({
           <div className="pt-1">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold text-foregroundScale-2">Iteration</h4>
-              <span className="text-[10px] opacity-70">Time-based filtering</span>
+              <span className="text-[12px] opacity-70">Time-based filtering</span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <FormInput
@@ -444,7 +444,7 @@ export default function LayoutForm({
               )}
             </div>
             {iter.mode === "inherit" && (
-              <p className="mt-2 text-[10px] text-foregroundScale-2/80">
+              <p className="mt-2 text-[12px] text-foregroundScale-2/80">
                 This panel inherits iteration settings from the grid.
               </p>
             )}
@@ -464,7 +464,7 @@ export default function LayoutForm({
                   checked={(panel?.behaviorMode || "inherit") === "own"}
                   onChange={(e) => onPanelStyleUpdate?.({ behaviorMode: e.target.checked ? "own" : "inherit" })}
                 />
-                <span className="text-[10px] text-foregroundScale-2">Own settings</span>
+                <span className="text-[12px] text-foregroundScale-2">Own settings</span>
               </label>
             </div>
             {(panel?.behaviorMode === "own") ? (
@@ -482,13 +482,13 @@ export default function LayoutForm({
                         behavior: { ...(panel?.behavior || {}), [key]: e.target.checked }
                       })}
                     />
-                    <span className="text-[10px] text-foreground">{label}</span>
-                    <span className="text-[10px] text-muted-foreground">— {desc}</span>
+                    <span className="text-[12px] text-foreground">{label}</span>
+                    <span className="text-[12px] text-muted-foreground">— {desc}</span>
                   </label>
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-muted-foreground">Children inherit default behavior.</p>
+              <p className="text-[12px] text-muted-foreground">Children inherit default behavior.</p>
             )}
           </div>
         </TabsContent>
@@ -499,7 +499,7 @@ export default function LayoutForm({
           <div className="pt-1">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold text-foregroundScale-2">Presets</h4>
-              <span className="text-[10px] opacity-70">Tap to autofill</span>
+              <span className="text-[12px] opacity-70">Tap to autofill</span>
             </div>
             <TooltipProvider>
               <div className="mt-2 grid grid-cols-3 gap-1">
@@ -522,14 +522,14 @@ export default function LayoutForm({
                           }}
                         >
                           <Icon className="h-4 w-4" />
-                          <span className="text-[9px] leading-none">{p.label}</span>
+                          <span className="text-[12px] leading-none">{p.label}</span>
                         </Button>
                         <TooltipHelp size="sm">
                           <div className="space-y-1">
-                            <div className="text-[11px] font-semibold">{p.label}</div>
-                            {p.hint && <div className="text-[10px] text-muted-foreground">{p.hint}</div>}
-                            {p.description && <div className="text-[11px] leading-snug">{p.description}</div>}
-                            <div className="pt-1 text-[10px] text-muted-foreground">
+                            <div className="text-[13px] font-semibold">{p.label}</div>
+                            {p.hint && <div className="text-[12px] text-muted-foreground">{p.hint}</div>}
+                            {p.description && <div className="text-[13px] leading-snug">{p.description}</div>}
+                            <div className="pt-1 text-[12px] text-muted-foreground">
                               Auto-fill: <span className="text-foreground">{p.autoFill ? "Yes" : "No"}</span>
                             </div>
                           </div>
@@ -540,7 +540,7 @@ export default function LayoutForm({
                 })}
               </div>
             </TooltipProvider>
-            <p className="mt-2 text-[11px] text-foregroundScale-2">
+            <p className="mt-2 text-[13px] text-foregroundScale-2">
               Presets set a "known-good" combo. Everything below still works as overrides.
             </p>
           </div>
@@ -904,7 +904,7 @@ export default function LayoutForm({
           <div className="pt-1">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold text-foregroundScale-2">Lock</h4>
-              <span className="text-[10px] opacity-70">Drag/drop permissions</span>
+              <span className="text-[12px] opacity-70">Drag/drop permissions</span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <FormInput
@@ -915,7 +915,7 @@ export default function LayoutForm({
                 value={{ __lockEnabled: lockEnabled }}
                 onChange={(next) => setLock({ enabled: !!next?.__lockEnabled })}
               />
-              <div className="text-[10px] leading-snug text-foregroundScale-2/80 border border-borderScale-0/40 rounded-md p-2">
+              <div className="text-[12px] leading-snug text-foregroundScale-2/80 border border-borderScale-0/40 rounded-md p-2">
                 Tip: you can "freeze" a panel by turning off drag/drop for both Containers and Instances.
               </div>
             </div>
@@ -955,22 +955,22 @@ export default function LayoutForm({
                 <h4 className="text-xs font-semibold text-foregroundScale-2">Panel Actions</h4>
                 <div className="flex flex-wrap gap-1 pt-1">
                   {onCopyPanel && (
-                    <Button type="button" size="sm" variant="outline" className="text-[10px] h-6 gap-1" onClick={onCopyPanel}>
+                    <Button type="button" size="sm" variant="outline" className="text-[12px] h-6 gap-1" onClick={onCopyPanel}>
                       <Copy className="h-3 w-3" /> Copy
                     </Button>
                   )}
                   {onCopylinkPanel && (
-                    <Button type="button" size="sm" variant="outline" className="text-[10px] h-6 gap-1" onClick={onCopylinkPanel}>
+                    <Button type="button" size="sm" variant="outline" className="text-[12px] h-6 gap-1" onClick={onCopylinkPanel}>
                       <Link2 className="h-3 w-3" /> Link
                     </Button>
                   )}
                   {onSplitPanel && !isSplit && (
-                    <Button type="button" size="sm" variant="outline" className="text-[10px] h-6 gap-1" onClick={onSplitPanel}>
+                    <Button type="button" size="sm" variant="outline" className="text-[12px] h-6 gap-1" onClick={onSplitPanel}>
                       <SplitSquareHorizontal className="h-3 w-3" /> Split
                     </Button>
                   )}
                   {onUnsplitPanel && isSplit && (
-                    <Button type="button" size="sm" variant="secondary" className="text-[10px] h-6 gap-1" onClick={onUnsplitPanel}>
+                    <Button type="button" size="sm" variant="secondary" className="text-[12px] h-6 gap-1" onClick={onUnsplitPanel}>
                       <Merge className="h-3 w-3" /> Merge
                     </Button>
                   )}

@@ -91,9 +91,9 @@ export default function InstanceForm({
       {/* Tabs */}
       <Tabs defaultValue="settings">
         <TabsList className="grid grid-cols-3 mx-2 mt-1.5 h-7">
-          <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
-          <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
-          <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
+          <TabsTrigger value="settings" className="text-[12px]">Settings</TabsTrigger>
+          <TabsTrigger value="style" className="text-[12px]">Style</TabsTrigger>
+          <TabsTrigger value="fields" className="text-[12px]">Fields</TabsTrigger>
         </TabsList>
 
         {/* SETTINGS TAB */}
@@ -123,7 +123,7 @@ export default function InstanceForm({
               Only an operation could set it before 2026-10-14 and nothing could
               clear it; its container's Settings lists hidden rows to show again. */}
           {occurrence && (
-            <label className="flex items-center gap-2 py-2 text-[11px] cursor-pointer">
+            <label className="flex items-center gap-2 py-2 text-[13px] cursor-pointer">
               <input
                 type="checkbox"
                 aria-label="Hide this row"
@@ -140,7 +140,7 @@ export default function InstanceForm({
 
           {/* Picture inline with the label — `meta.mediaInline`, read by
               ModuleInstance. Seed-only until 2026-10-14 (187 poms rows carry it). */}
-          <label className="flex items-center gap-2 py-2 text-[11px] cursor-pointer">
+          <label className="flex items-center gap-2 py-2 text-[13px] cursor-pointer">
             <input
               type="checkbox"
               aria-label="Picture inline with label"
@@ -213,7 +213,7 @@ export default function InstanceForm({
           <div className="flex items-center justify-between gap-2 py-1 px-1">
             <div>
               <Label className="text-xs">Disabled</Label>
-              <p className="text-[10px] text-muted-foreground/70">Hide all field inputs — read-only display only</p>
+              <p className="text-[12px] text-muted-foreground/70">Hide all field inputs — read-only display only</p>
             </div>
             <Switch
               checked={!!instance?.meta?.disabled}
@@ -257,7 +257,7 @@ export default function InstanceForm({
                     if (instance) CommitHelpers.updateModule({ dispatch, socket, module: { id: instance.id, behaviorMode: e.target.checked ? "own" : "inherit" }, emit: true });
                   }}
                 />
-                <span className="text-[10px] text-foregroundScale-2">Own settings</span>
+                <span className="text-[12px] text-foregroundScale-2">Own settings</span>
               </label>
             </div>
             {instance?.behaviorMode === "own" ? (
@@ -270,11 +270,11 @@ export default function InstanceForm({
                     if (instance) CommitHelpers.updateModule({ dispatch, socket, module: { id: instance.id, behavior: { ...(instance.behavior || {}), draggable: e.target.checked } }, emit: true });
                   }}
                 />
-                <span className="text-[10px] text-foreground">Draggable</span>
-                <span className="text-[10px] text-muted-foreground">— can be dragged from its container</span>
+                <span className="text-[12px] text-foreground">Draggable</span>
+                <span className="text-[12px] text-muted-foreground">— can be dragged from its container</span>
               </label>
             ) : (
-              <p className="text-[10px] text-muted-foreground">Inheriting drag behavior from parent container.</p>
+              <p className="text-[12px] text-muted-foreground">Inheriting drag behavior from parent container.</p>
             )}
           </div>
 
@@ -500,7 +500,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
   return (
     <div className="py-2">
       <h4 className="text-xs font-semibold text-foreground/70 mb-2">Sibling Links</h4>
-      <p className="text-[10px] text-muted-foreground/60 mb-2">
+      <p className="text-[12px] text-muted-foreground/60 mb-2">
         Linked instances appear together in the focused view (e.g. Q↔A pairs).
       </p>
 
@@ -511,7 +511,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
             return (
               <span
                 key={linkId}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-primary/10 text-primary/80 border border-primary/20"
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[12px] rounded-full bg-primary/10 text-primary/80 border border-primary/20"
               >
                 {linked?.label || linkId.slice(0, 10) + "…"}
                 <button
@@ -540,7 +540,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
           />
           <div className="max-h-36 overflow-y-auto">
             {candidates.length === 0 ? (
-              <div className="px-2 py-2 text-[10px] text-muted-foreground/50 italic">No matches</div>
+              <div className="px-2 py-2 text-[12px] text-muted-foreground/50 italic">No matches</div>
             ) : candidates.map(inst => (
               <button
                 key={inst.id}
@@ -548,7 +548,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
                 onClick={() => handleAdd(inst.id)}
                 className="w-full text-left px-2 py-1 text-xs hover:bg-muted/30 transition-colors flex items-center gap-1"
               >
-                <span className="text-muted-foreground/50 font-mono text-[9px]">↗</span>
+                <span className="text-muted-foreground/50 font-mono text-[12px]">↗</span>
                 {inst.label || "(unlabeled)"}
               </button>
             ))}
@@ -559,7 +559,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
           type="button"
           variant="outline"
           size="sm"
-          className="h-6 text-[10px] px-2 gap-1"
+          className="h-6 text-[12px] px-2 gap-1"
           onClick={() => setShowPicker(true)}
         >
           <Plus className="h-3 w-3" /> Link sibling
@@ -585,7 +585,7 @@ function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById 
         <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({placements.length})</h4>
         <div className="space-y-1">
           {placements.map(({ occurrence: occ, parentLabel }) => (
-            <div key={occ.id} className="flex items-center gap-2 text-[10px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
+            <div key={occ.id} className="flex items-center gap-2 text-[12px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
               <span className="text-muted-foreground/50">&#x2192;</span>
               <span className="truncate">{parentLabel}</span>
             </div>
@@ -648,7 +648,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
         else if (m === "url") setLink({ kind: "url", url: link?.url || "" });
         else setLink({ kind: "occurrence", occId: targetId || "" });
       }}
-      className={`text-[10px] px-2 py-0.5 rounded border ${mode === m ? "bg-accent-blue/20 border-accent-blue text-foreground" : "border-border text-muted-foreground"}`}
+      className={`text-[12px] px-2 py-0.5 rounded border ${mode === m ? "bg-accent-blue/20 border-accent-blue text-foreground" : "border-border text-muted-foreground"}`}
     >{txt}</button>
   );
 
@@ -664,20 +664,20 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
             value={link?.url || ""}
             onChange={(e) => setLink({ kind: "url", url: e.target.value })}
             placeholder="https://…"
-            className="h-7 text-[11px]"
+            className="h-7 text-[13px]"
           />
         )}
 
         {mode === "internal" && (
           <div className="space-y-1">
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-[12px] text-muted-foreground">
               Target: {targetLabel ? <span className="text-foreground">{targetLabel}</span> : <span className="opacity-60">— pick one —</span>}
             </div>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="search pages / containers / items…"
-              className="h-7 text-[11px]"
+              className="h-7 text-[13px]"
             />
             {matches.length > 0 && (
               <div className="max-h-32 overflow-y-auto space-y-0.5">
@@ -686,7 +686,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
                     key={o.id}
                     type="button"
                     onClick={() => { setLink({ kind: "occurrence", occId: o.id }); setSearch(""); }}
-                    className={`w-full text-left text-[10px] px-2 py-0.5 rounded border ${o.id === targetId ? "bg-accent-blue/20 border-accent-blue" : "border-border bg-muted/20"}`}
+                    className={`w-full text-left text-[12px] px-2 py-0.5 rounded border ${o.id === targetId ? "bg-accent-blue/20 border-accent-blue" : "border-border bg-muted/20"}`}
                   >
                     {o.label} <span className="opacity-45">{o.role}</span>
                   </button>
@@ -695,7 +695,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
             )}
           </div>
         )}
-        <p className="text-[10px] text-muted-foreground/70">
+        <p className="text-[12px] text-muted-foreground/70">
           {mode === "url" ? "Opens in a new tab when clicked."
             : mode === "internal" ? "Navigates to + highlights the item when clicked."
             : "This textblock renders as normal editable text."}

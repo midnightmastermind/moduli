@@ -132,10 +132,10 @@ export default function ContainerForm({
         {/* CHART is a fourth tab only on a graph, so the row stays 3-up for
             every other container and nothing shifts for them. */}
         <TabsList className={`grid ${isGraph ? "grid-cols-4" : "grid-cols-3"} mx-2 mt-1.5 h-7`}>
-          <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
-          <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
-          <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
-          {isGraph && <TabsTrigger value="chart" className="text-[10px]">Chart</TabsTrigger>}
+          <TabsTrigger value="settings" className="text-[12px]">Settings</TabsTrigger>
+          <TabsTrigger value="style" className="text-[12px]">Style</TabsTrigger>
+          <TabsTrigger value="fields" className="text-[12px]">Fields</TabsTrigger>
+          {isGraph && <TabsTrigger value="chart" className="text-[12px]">Chart</TabsTrigger>}
         </TabsList>
 
         {/* SETTINGS TAB */}
@@ -164,7 +164,7 @@ export default function ContainerForm({
               containers) and `meta.cardChrome` frames a NESTED container as a
               card (ModuleContainer reads both). Unticking removes the key. */}
           <div className="py-2 flex flex-col gap-1">
-            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+            <label className="flex items-center gap-2 text-[13px] cursor-pointer">
               <input
                 type="checkbox"
                 aria-label="Header band"
@@ -176,7 +176,7 @@ export default function ContainerForm({
               />
               Header band
             </label>
-            <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+            <label className="flex items-center gap-2 text-[13px] cursor-pointer">
               <input
                 type="checkbox"
                 aria-label="Card frame when nested"
@@ -194,14 +194,14 @@ export default function ContainerForm({
               where they come back. Hidden from a row's own Settings. */}
           {hiddenRows.length > 0 && (
             <div className="py-2">
-              <span className="text-[10px] text-muted-foreground font-semibold block mb-1">Hidden rows</span>
+              <span className="text-[12px] text-muted-foreground font-semibold block mb-1">Hidden rows</span>
               {hiddenRows.map((r) => (
-                <div key={r.id} className="flex items-center justify-between gap-2 text-[11px]">
+                <div key={r.id} className="flex items-center justify-between gap-2 text-[13px]">
                   <span className="truncate">{r.name}</span>
                   <button
                     type="button"
                     aria-label={`Show ${r.name}`}
-                    className="text-[10px] px-2 py-0.5 rounded border border-[var(--border-subtle)]"
+                    className="text-[12px] px-2 py-0.5 rounded border border-[var(--border-subtle)]"
                     onClick={() => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: r.id, hidden: false }, emit: true })}
                   >Show</button>
                 </div>
@@ -212,9 +212,9 @@ export default function ContainerForm({
           {/* Header label overflow (per-occurrence) */}
           {occurrence && (
             <div className="py-2">
-              <span className="text-[10px] text-muted-foreground font-semibold block mb-1">Header label overflow</span>
+              <span className="text-[12px] text-muted-foreground font-semibold block mb-1">Header label overflow</span>
               <select
-                className="h-7 w-full text-[11px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none cursor-pointer"
+                className="h-7 w-full text-[13px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none cursor-pointer"
                 value={occurrence?.meta?.labelOverflow ?? "marquee"}
                 onChange={(e) => onOccurrenceUpdate?.({ meta: { ...(occurrence?.meta || {}), labelOverflow: e.target.value } })}
               >
@@ -231,7 +231,7 @@ export default function ContainerForm({
               <Separator />
               <div className="py-2">
                 <h4 className="text-xs font-semibold text-foregroundScale-2 mb-2">Attached Fields</h4>
-                <p className="text-[10px] text-muted-foreground mb-2">
+                <p className="text-[12px] text-muted-foreground mb-2">
                   Fields whose content becomes the header or body of this container. All fields in each slot share the same value.
                 </p>
                 {[
@@ -239,14 +239,14 @@ export default function ContainerForm({
                   { label: "Body fields",   key: "body",   current: attachedBody   },
                 ].map(({ label, key, current }) => (
                   <div key={key} className="mb-2">
-                    <span className="text-[10px] text-muted-foreground font-semibold">{label}</span>
+                    <span className="text-[12px] text-muted-foreground font-semibold">{label}</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {current.map(fId => {
                         const fname = fieldsById?.[fId]?.name || fId;
                         return (
                           <span key={fId} style={{
                             display: "inline-flex", alignItems: "center", gap: 3,
-                            padding: "1px 6px", borderRadius: 999, fontSize: 10,
+                            padding: "1px 6px", borderRadius: 999, fontSize: 13,
                             background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)",
                             color: "var(--accent-blue-text)", fontFamily: "var(--font-mono)",
                           }}>
@@ -262,7 +262,7 @@ export default function ContainerForm({
                         );
                       })}
                       <select
-                        className="text-[10px] h-5 px-1 rounded border border-border bg-input text-foreground"
+                        className="text-[12px] h-5 px-1 rounded border border-border bg-input text-foreground"
                         value=""
                         onChange={e => {
                           const fId = e.target.value;
@@ -313,7 +313,7 @@ export default function ContainerForm({
                   checked={(container?.behaviorMode || "inherit") === "own"}
                   onChange={(e) => onContainerUpdate?.({ behaviorMode: e.target.checked ? "own" : "inherit" })}
                 />
-                <span className="text-[10px] text-foregroundScale-2">Own settings</span>
+                <span className="text-[12px] text-foregroundScale-2">Own settings</span>
               </label>
             </div>
             {(container?.behaviorMode === "own") ? (
@@ -332,13 +332,13 @@ export default function ContainerForm({
                         behavior: { ...(container?.behavior || {}), [key]: e.target.checked }
                       })}
                     />
-                    <span className="text-[10px] text-foreground">{label}</span>
-                    <span className="text-[10px] text-muted-foreground">— {desc}</span>
+                    <span className="text-[12px] text-foreground">{label}</span>
+                    <span className="text-[12px] text-muted-foreground">— {desc}</span>
                   </label>
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-muted-foreground">Inheriting behavior from parent panel.</p>
+              <p className="text-[12px] text-muted-foreground">Inheriting behavior from parent panel.</p>
             )}
           </div>
 
@@ -363,7 +363,7 @@ export default function ContainerForm({
                 <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({otherPlacements.length})</h4>
                 <div className="space-y-1">
                   {otherPlacements.map(({ occurrence: occ, parentLabel }) => (
-                    <div key={occ.id} className="flex items-center gap-2 text-[10px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
+                    <div key={occ.id} className="flex items-center gap-2 text-[12px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
                       <span className="text-muted-foreground/50">&#x2192;</span>
                       <span className="truncate">{parentLabel}</span>
                     </div>

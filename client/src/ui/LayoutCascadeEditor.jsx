@@ -91,7 +91,7 @@ export default function LayoutCascadeEditor({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-muted)", fontWeight: 600 }}>
+        <span style={{ fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--text-muted)", fontWeight: 600 }}>
           {label}
         </span>
         <button
@@ -102,7 +102,7 @@ export default function LayoutCascadeEditor({
             background: mode === "own" ? "var(--accent-blue-bg)" : "var(--input-bg)",
             border: `1px solid ${mode === "own" ? "var(--accent-blue-text)" : "var(--border-subtle)"}`,
             color: mode === "own" ? "var(--accent-blue-text)" : "var(--text-muted)",
-            fontSize: 9, fontFamily: "var(--font-mono)", cursor: "pointer",
+            fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
           }}
         >
           {mode === "own" ? "Own (clear to inherit)" : `Inherit (${inheritLabel})`}
@@ -116,7 +116,7 @@ export default function LayoutCascadeEditor({
           background: "var(--surface-overlay)",
           border: "1px solid var(--border-subtle)",
           display: "flex", flexDirection: "column", gap: 3,
-          fontSize: 9, fontFamily: "var(--font-mono)",
+          fontSize: 12, fontFamily: "var(--font-mono)",
         }}>
           <div style={{ color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Inherited cascade
@@ -304,7 +304,7 @@ export default function LayoutCascadeEditor({
 function RuleRadio({ label, value, onChange, options }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <div style={{ display: "inline-flex", gap: 2 }}>
         {options.map(opt => {
           const active = (opt.value ?? null) === (value ?? null);
@@ -318,7 +318,7 @@ function RuleRadio({ label, value, onChange, options }) {
                 background: active ? "var(--accent-blue-bg)" : "var(--input-bg)",
                 border: `1px solid ${active ? "var(--accent-blue-text)" : "var(--border-subtle)"}`,
                 color: active ? "var(--accent-blue-text)" : "var(--text-muted)",
-                fontSize: 9, fontFamily: "var(--font-mono)", cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
               }}
             >
               {opt.label}
@@ -347,7 +347,7 @@ function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <input
         type="number"
         min={min}
@@ -360,7 +360,7 @@ function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
         style={{
           width: 56, padding: "1px 5px", borderRadius: 3,
           background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
-          color: "var(--text-primary)", fontSize: 9, fontFamily: "var(--font-mono)",
+          color: "var(--text-primary)", fontSize: 12, fontFamily: "var(--font-mono)",
         }}
       />
     </div>
@@ -370,14 +370,14 @@ function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
 function RuleSelect({ label, value, onChange, options }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <select
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
         style={{
           flex: 1, minWidth: 0, padding: "1px 4px", borderRadius: 3,
           background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
-          color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)",
+          color: "var(--text-muted)", fontSize: 12, fontFamily: "var(--font-mono)",
         }}
       >
         {options.map(o => (
@@ -394,7 +394,7 @@ function RuleSelect({ label, value, onChange, options }) {
 function RuleFieldSelect({ label, value, onChange, fieldsList, noneLabel, extraOptions }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <FieldSelect
           fields={fieldsList}
@@ -402,7 +402,7 @@ function RuleFieldSelect({ label, value, onChange, fieldsList, noneLabel, extraO
           onChange={onChange}
           noneLabel={noneLabel}
           extraOptions={extraOptions}
-          style={{ padding: "1px 4px", borderRadius: 3, border: "1px solid var(--border-subtle)", fontSize: 9, fontFamily: "var(--font-mono)" }}
+          style={{ padding: "1px 4px", borderRadius: 3, border: "1px solid var(--border-subtle)", fontSize: 12, fontFamily: "var(--font-mono)" }}
         />
       </div>
     </div>
@@ -413,7 +413,7 @@ function RuleCheckboxes({ label, values, onChange, options }) {
   const set = new Set(values || []);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <div style={{ display: "inline-flex", gap: 2 }}>
         {options.map(opt => {
           const active = set.has(opt.value);
@@ -432,7 +432,7 @@ function RuleCheckboxes({ label, values, onChange, options }) {
                 background: active ? "var(--accent-blue-bg)" : "var(--input-bg)",
                 border: `1px solid ${active ? "var(--accent-blue-text)" : "var(--border-subtle)"}`,
                 color: active ? "var(--accent-blue-text)" : "var(--text-muted)",
-                fontSize: 9, fontFamily: "var(--font-mono)", cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
               }}
             >
               {opt.label}
@@ -448,7 +448,7 @@ function RuleSwitch({ label, value, onChange, tooltip }) {
   // Tri-state: null (unset) / true / false. Cycle on click.
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }} title={tooltip || undefined}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <button
         type="button"
         onClick={() => {
@@ -461,7 +461,7 @@ function RuleSwitch({ label, value, onChange, tooltip }) {
           background: value === true ? "var(--accent-blue-bg)" : value === false ? "rgba(248,113,113,0.12)" : "var(--input-bg)",
           border: `1px solid ${value === true ? "var(--accent-blue-text)" : value === false ? "rgba(248,113,113,0.4)" : "var(--border-subtle)"}`,
           color: value === true ? "var(--accent-blue-text)" : value === false ? "rgb(248,113,113)" : "var(--text-muted)",
-          fontSize: 9, fontFamily: "var(--font-mono)", cursor: "pointer", minWidth: 38,
+          fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer", minWidth: 38,
         }}
       >
         {value === true ? "On" : value === false ? "Off" : "—"}
@@ -475,7 +475,7 @@ function RuleFieldList({ label, value, onChange, fieldsList }) {
   const opts = (fieldsList || []).slice(0, 40);
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 5 }}>
-      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78, marginTop: 2 }}>{label}</span>
+      <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78, marginTop: 2 }}>{label}</span>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 2, flex: 1 }}>
         {opts.map(f => {
           const active = set.has(f.id);
@@ -494,7 +494,7 @@ function RuleFieldList({ label, value, onChange, fieldsList }) {
                 background: active ? "var(--accent-blue-bg)" : "var(--input-bg)",
                 border: `1px solid ${active ? "var(--accent-blue-text)" : "var(--border-subtle)"}`,
                 color: active ? "var(--accent-blue-text)" : "var(--text-muted)",
-                fontSize: 9, fontFamily: "var(--font-mono)", cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
               }}
             >
               {f.name}
@@ -502,7 +502,7 @@ function RuleFieldList({ label, value, onChange, fieldsList }) {
           );
         })}
         {opts.length === 0 ? (
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontStyle: "italic" }}>(no fields on grid)</span>
+          <span style={{ fontSize: 12, color: "var(--text-faint)", fontStyle: "italic" }}>(no fields on grid)</span>
         ) : null}
       </div>
     </div>

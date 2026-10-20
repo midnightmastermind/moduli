@@ -101,3 +101,40 @@ describe("moveItem into a later sibling box", () => {
     expect(moveItem(g, "field:c", [], 0).tree.items).toEqual(["field:c", "field:a", "field:b"]);
   });
 });
+
+import { stepItem } from "../helpers/instanceLayout";
+describe("stepItem (the editor's arrows)", () => {
+  const L0 = () => ({ tree: { dir: "col", items: ["label", "f:a", { dir: "row", items: ["f:b", "f:c"] }, "f:d"] } });
+  it("swaps with an ordinary neighbour", () => {
+    expect(stepItem(L0(), [], 1, -1).tree.items.slice(0, 2)).toEqual(["f:a", "label"]);
+  });
+  it("can bring a field all the way to the top", () => {
+    let l = L0();
+    l = stepItem(l, [], 3, -1);                   // f:d steps into the box (its bottom)
+    expect(l.tree.items[2].items).toEqual(["f:b", "f:c", "f:d"]);
+    for (let i = 2; i > 0; i--) l = stepItem(l, [2], i, -1); // up to the box's top
+    l = stepItem(l, [2], 0, -1);                  // out of the box, above it
+    l = stepItem(l, [], 2, -1); l = stepItem(l, [], 1, -1);
+    expect(l.tree.items[0]).toBe("f:d");
+  });
+  it("a field next to a box steps into it: its top going down, its bottom going up", () => {
+    expect(stepItem(L0(), [], 1, +1).tree.items[1].items).toEqual(["f:a", "f:b", "f:c"]);
+    expect(stepItem(L0(), [], 3, -1).tree.items[2].items).toEqual(["f:b", "f:c", "f:d"]);
+  });
+  it("at a box's end a field steps out into the parent, next to the box", () => {
+    const up = stepItem(L0(), [2], 0, -1).tree.items;
+    expect(up.slice(1, 3)).toEqual(["f:a", "f:b"]);
+    const down = stepItem(L0(), [2], 1, +1).tree.items;
+    expect(down.slice(2, 4)).toEqual([{ dir: "row", items: ["f:b"] }, "f:c"]);
+  });
+  it("a box swaps with a box (never nests) and moves past fields", () => {
+    const l = { tree: { dir: "col", items: [{ dir: "row", items: ["f:a"] }, { dir: "row", items: ["f:b"] }] } };
+    expect(stepItem(l, [], 1, -1).tree.items.map((g) => g.items[0])).toEqual(["f:b", "f:a"]);
+    expect(stepItem(L0(), [], 2, -1).tree.items.slice(1, 3)).toEqual([{ dir: "row", items: ["f:b", "f:c"] }, "f:a"]);
+  });
+  it("returns the same layout when there is nowhere to go", () => {
+    const l = L0();
+    expect(stepItem(l, [], 0, -1)).toBe(l);
+    expect(stepItem(l, [], 3, +1)).toBe(l);
+  });
+});

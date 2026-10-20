@@ -96,6 +96,41 @@ export function moveItem(layout, key, path, index = null) {
   return next;
 }
 
+/**
+ * Step the item at `index` of the group at `path` one place up (dir -1) or down (dir +1) — the
+ * arrows in the row-layout editor (user, 2026-10-20: drag-and-drop could not put anything at the
+ * top, and boxes could not be reordered at all). Every place stays reachable with arrows alone:
+ *   - next to an ordinary item: the two swap;
+ *   - a FIELD next to a box: it steps INTO that box (its top going down, its bottom going up);
+ *   - a BOX next to a box: they swap (a box is never nested by an arrow);
+ *   - at either end of a box: the item steps OUT into the parent box, just before/after it.
+ * Returns the same layout object when there is nowhere to go (the first item of the root, up).
+ */
+export function stepItem(layout, path, index, dir) {
+  const next = clone(layout);
+  const g = groupAt(next.tree, path);
+  if (!g || index < 0 || index >= g.items.length || (dir !== -1 && dir !== 1)) return layout;
+  const item = g.items[index];
+  const to = index + dir;
+  if (to < 0 || to >= g.items.length) {
+    if (!path.length) return layout;
+    const parent = groupAt(next.tree, path.slice(0, -1));
+    const at = path[path.length - 1];
+    g.items.splice(index, 1);
+    parent.items.splice(dir < 0 ? at : at + 1, 0, item);
+    return next;
+  }
+  const neighbour = g.items[to];
+  if (isGroup(neighbour) && !isGroup(item)) {
+    g.items.splice(index, 1);
+    if (dir > 0) neighbour.items.unshift(item); else neighbour.items.push(item);
+    return next;
+  }
+  g.items[index] = neighbour;
+  g.items[to] = item;
+  return next;
+}
+
 /** Add an empty group inside the group at `path`; it runs the other way to its parent. */
 export function addGroup(layout, path) {
   const next = clone(layout);
