@@ -29,6 +29,13 @@ UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, open
   off the edge. It wraps; the box has a 160px base (`BookmarkView`).
 - **Image page (row 52):** Replace was pinned at `right: 290px`, a guess at the Download badge's width — off the left
   edge on a phone. Both share one top-right row now, the file name shrinks first (`ArtifactContent`).
+- **Editor popups (row 43):** on a phone the "/" palette ran 26px past the right edge. The one anchor all five popups
+  share (`Editor.getCursorPosition` → `editorPopupAnchor`) keeps a 300px popup on screen and opens above the caret
+  when there is no room below. Test `editorPopupAnchor.test.js` (4).
+- **Long-press menus (rows 40/41/45) stay off on a phone** — the user switched them off 2026-07-17 (`useLongPress`
+  DISABLED); confirmed with real touch events that a held press opens nothing. Marked "by design".
+- **Row "+" field menu on a phone:** a bottom drawer; its search box no longer auto-focuses there (the keyboard
+  covered the drawer).
 - Test `spreadPhoneOneColumn.test.js` (7). Client-only deploys.
 
 ---

@@ -433,6 +433,24 @@ let _editorInstSeq = 0;
 // Top/bottom band of a block where a drop inserts above/below instead of wrapping beside it.
 export const EDGE_INSERT_PX = 12;
 
+/**
+ * Where an editor popup ("/" palette, "@" picker, doc link, "=", embed) opens, relative to the
+ * editor wrapper: under the caret, but kept on screen — on a phone the "/" palette opened
+ * 280px wide at x=136 and ran 26px past the right edge (UI sweep 2026-10-20). With no room below
+ * the caret it opens above it.
+ */
+export const EDITOR_POPUP_W = 300;
+export const EDITOR_POPUP_H = 330;
+export function editorPopupAnchor(rect, wrap, vw, vh) {
+  const maxLeft = Math.max(8, vw - EDITOR_POPUP_W - 8);
+  const left = Math.min(Math.max(rect.left, 8), maxLeft);
+  const below = rect.bottom + 4;
+  const top = below + EDITOR_POPUP_H > vh && rect.top - 4 - EDITOR_POPUP_H >= 0
+    ? rect.top - 4 - EDITOR_POPUP_H
+    : below;
+  return { top: top - wrap.top, left: left - wrap.left };
+}
+
 const Editor = forwardRef(function Editor({
   content = null,
   onChange,
@@ -627,7 +645,7 @@ const Editor = forwardRef(function Editor({
           rect = { top: c.top, bottom: c.bottom, left: c.left };
         } catch { /* keep the zero rect */ }
       }
-      return { top: rect.bottom - wrap.top + 4, left: rect.left - wrap.left };
+      return editorPopupAnchor(rect, wrap, window.innerWidth, window.innerHeight);
     }
     return { top: 0, left: 0 };
   }, []);
