@@ -904,6 +904,20 @@ function Panel({
     if (currentView?.id && startPageId) seedHistory(currentView.id, startPageId);
   }, [currentView?.id, startPageId]);
 
+  // A CARD DRILLED INTO on a folder page: the folder page drills by pointing the view at the card
+  // (PageFolder.handleNavigate), and a card is not a page — so the panel fell back to its FIRST page
+  // and the folder (and the card) vanished (UI sweep 2026-10-19). The page that shows it is the
+  // folder page it is homed in, which keeps its own drill state. Above the early return (a hook).
+  const activeViewOccId = currentView?.activeOccurrenceId;
+  const drilledFolderPage = useMemo(() => {
+    const occ = activeViewOccId ? occurrencesById[activeViewOccId] : null;
+    if (!occ || modulesById[occ.moduleId]?.role === "page") return null;
+    const home = folderHomeOf(activeViewOccId, { occurrencesById });
+    const fpOcc = home && occurrencesById[home.folderPageOccId];
+    const fpMod = fpOcc && modulesById[fpOcc.moduleId];
+    return fpOcc && fpMod?.role === "page" ? { occurrence: fpOcc, page: fpMod } : null;
+  }, [activeViewOccId, occurrencesById, modulesById]);
+
   if (hidden && !forceFullscreen) return null;
 
   const cellWidth = liveSize.w !== null ? liveSize.w : (module.width || 1);
@@ -922,6 +936,7 @@ function Panel({
       const occ = occurrencesById[activeId];
       const mod = occ ? modulesById[occ.moduleId] : null;
       if (occ && mod && mod.role === "page") return { occurrence: occ, page: mod };
+      if (drilledFolderPage) return pagesList.find(p => p.occurrence.id === drilledFolderPage.occurrence.id) || drilledFolderPage;
     }
     return pagesList[0] || null;
   })();

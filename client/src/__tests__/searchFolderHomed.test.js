@@ -61,3 +61,16 @@ describe("panel search pick", () => {
     expect(body).toMatch(/openPage\(home\.folderPageOccId\);\s*setPendingDrilldown\(home\.rootOccId\);/);
   });
 });
+
+describe("panel active page", () => {
+  it("a drilled-into folder card resolves to its folder page, not the panel's first page", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../modules/ModulePanel.jsx"), "utf8");
+    const memo = src.indexOf("const drilledFolderPage = useMemo(");
+    const early = src.indexOf("if (hidden && !forceFullscreen) return null;");
+    expect(memo).toBeGreaterThan(-1);
+    expect(memo).toBeLessThan(early); // a hook, so above the early return
+    const at = src.indexOf("const activePageEntry");
+    const body = src.slice(at, src.indexOf("})();", at));
+    expect(body.indexOf("drilledFolderPage")).toBeLessThan(body.lastIndexOf("return pagesList[0]"));
+  });
+});
