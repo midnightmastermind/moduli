@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (6) — THE PEOPLE TABLE OPENS IN 0.8s (was an 11.6s freeze with no loading sign)
+
+User (10:33): *"the people table takes way too long to open and theres no indicator that its loading"*.
+- **Cause, from a CPU profile of a FRESH open:** the virtualizer only finds its scroller in an effect AFTER mount,
+  so on the first render it is not active and `ContainerTable` rendered **all 1,181 rows** (9 cells each) — ~6s of
+  React, then 4.0s of layout forced by the table's own `clientWidth` read — before dropping to the ~14 on screen.
+  Boards (`WINDOW_INITIAL`) and the tree (`FOLDER_VIRTUAL_MIN`) already render a short slice in that frame; the
+  table never got the same guard. It renders `TABLE_INITIAL_ROWS` (40) now. Test `tableVirtualRows` (+1).
+- Measured, Panel A's Root tree → People Table, poms, 1600x1000, old/new back to back: freeze **11,579ms → 906ms**
+  (local build), **819ms on prod** after the deploy. Panel A put back on Routines after each run (`_pplrestore.sh`).
+  With the freeze gone the header and rows paint together inside a second, so no spinner was added.
+- Client 6,474 pass; client-only deploy.
+
+---
+
 ### 2026-10-20 (5) — THE ROW-LAYOUT EDITOR MOVES THINGS WITH ↑/↓; bigger type in the settings menus
 
 User: *"i cant reorganize the col and row container elements … i cant put anything at the top. we should change

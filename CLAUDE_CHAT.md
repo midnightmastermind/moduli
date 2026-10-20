@@ -4064,3 +4064,4 @@ User: *"is it possible to go through each book too and remove the previous and n
   time** (rAF gap from the click, then header + rows paint together — hence no loading sign). Already open = 66ms.
   Probe `_ppltime.mjs` (+ `_pplrestore.sh` puts Panel A back on Routines). Next: run it with the CDP profile against
   a FRESH open (the saved `ppl.cpuprofile` was of an already-open run, so it shows nothing).
+- **Fixed 11:55:** the table rendered every row on its first frame; now 40. Fresh open 11.6s → 0.8s on prod.
