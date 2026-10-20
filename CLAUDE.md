@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (2) — DELETING A CONTAINER ASKS ABOUT ITS ITEMS; cover in the radial; a reload no longer flashes the old page
+
+Picked up the other account's three unshipped items (CLAUDE_CHAT 08:21 / 08:28 / 08:39).
+- **Keep or delete children** (`CommitHelpers.removeContainerKeepChildren`, `ui/ChoiceDialog` — `askChoice`, mounted
+  once in App): a container holding items asks "Keep them, move up a level" / "Delete all N too". Keep puts the items
+  where the container was, in order, re-parents the ones it owned (the server's delete cascade follows `parentId`),
+  empties its list, then deletes it — one undo step. No parent → only "Delete" is offered. An empty container
+  deletes without asking. Test `removeContainerKeepChildren` (6).
+- **Cover in the radial** (`ModuleInstance.coverRadialItems`): an artifact row's radial has Set / Change cover and
+  Clear cover, grouped as "Cover" — the same picker as the right-click items. Viewer tiles are rows, so it reaches them.
+- **Reload switched pages a second later** (`helpers/bootViewOverlay`): the boot snapshot is saved ~20s after a load,
+  so a page opened later was drawn from the snapshot's OLD page and the real state switched it. Every page change
+  (local `updateView` and `view_updated` echoes) writes `moduli-boot-views:<grid>` in localStorage; the snapshot's
+  views take those pages when drawn (only pages the snapshot holds). Test `bootViewOverlay` (4).
+- Client 6,452 pass. **Not watched in a browser:** the dialog, the radial items, the reload.
+
+---
+
 ### 2026-10-20 — BOOKS FAILED TO OPEN AFTER A DEPLOY; a cut-off spread in a panel; the "+" strip sat on the first line
 
 User: *"continue what my other claude account was working"* + *"the book could not be opened: Failed to fetch dynamically

@@ -4,6 +4,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
 import { dropEmbedsOf } from "./embedRegistry";
 import { recordActive } from "./panelHistory";
+import { recordViewPage } from "./bootViewOverlay";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend";
 import { buildParentMap } from "./dragHitTesting";
@@ -883,6 +884,9 @@ export function updateView({ dispatch, socket, view, emit = true }) {
   // `panelHistory` ignores a no-op and ignores the write its OWN Back causes,
   // so this is safe to call unconditionally.
   if (view.activeOccurrenceId) recordActive(view.id, view.activeOccurrenceId);
+  if (view.activeOccurrenceId) {
+    try { recordViewPage(localStorage.getItem("moduli-gridId"), view.id, view.activeOccurrenceId); } catch { /* no storage */ }
+  }
   dispatch?.(updateViewAction(view));
   if (shouldEmit(emit)) safeEmit(socket, "update_view", { view });
 }
@@ -1142,6 +1146,35 @@ export function createInlineTextblock({ dispatch, socket, userId, gridId, parent
 export function createOccurrenceInContainer({ socket, instanceId, containerId, fields }) {
   if (!instanceId || !containerId) return;
   safeEmit(socket, "create_occurrence_in_container", { instanceId, containerId, fields });
+}
+
+// DELETE A CONTAINER, KEEP WHAT IT HOLDS (user, 2026-10-20: "if i delete a container that has
+// children inside of it, the system should ask if i'd like the children kept and moved up a level
+// or just delete the children too"). The items take the container's place in its parent's list, in
+// order, and are re-parented there — the server's delete cascade follows `parentId`, so a child
+// still parented to the container would go with it. The container's own list is emptied first for
+// the same reason. One undo step. Returns false (and writes nothing) when the container has no
+// parent to move them into.
+export function removeContainerKeepChildren({ dispatch, socket, containerOccurrence, parentOccurrence, getOccurrence = null }) {
+  if (!containerOccurrence?.id || !parentOccurrence?.id) return false;
+  const cid = containerOccurrence.id;
+  const kids = (containerOccurrence.occurrences || []).filter(Boolean);
+  return withAction("Removed container, kept its items", () => {
+    const base = Array.isArray(parentOccurrence.occurrences) ? parentOccurrence.occurrences : [];
+    const moving = kids.filter((k) => k !== parentOccurrence.id && !base.includes(k));
+    const at = base.indexOf(cid);
+    const next = base.filter((id) => id !== cid);
+    next.splice(at < 0 ? next.length : at, 0, ...moving);
+    updateOccurrence({ dispatch, socket, occurrence: { id: parentOccurrence.id, occurrences: next }, occurrencesBase: base, emit: true });
+    for (const kid of kids) {
+      const occ = getOccurrence?.(kid);
+      if (occ && occ.parentId !== cid) continue;
+      updateOccurrence({ dispatch, socket, occurrence: { id: kid, parentId: parentOccurrence.id }, emit: true });
+    }
+    updateOccurrence({ dispatch, socket, occurrence: { id: cid, occurrences: [] }, occurrencesBase: containerOccurrence.occurrences || [], emit: true });
+    _removeOccurrence({ dispatch, socket, occurrenceId: cid, occurrence: { ...containerOccurrence, occurrences: [] }, parentOccurrence: { ...parentOccurrence, occurrences: next }, emit: true });
+    return true;
+  });
 }
 
 // Creates a role:"textblock" module + occurrence and appends it to a container.

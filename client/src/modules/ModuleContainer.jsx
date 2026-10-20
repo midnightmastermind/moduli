@@ -4,6 +4,7 @@
 // Handles doc containers, focused instance view, list view, sorting.
 
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
+import { askChoice } from "../ui/ChoiceDialog";
 import { createPortal } from "react-dom";
 import { isAwaitingChildren } from "../helpers/awaitingChildren";
 import { placeCaretAtPoint } from "../helpers/caretFromPoint";
@@ -568,8 +569,25 @@ function Container({
     // callback time through the non-subscribing getters. #24 perf.
     const parentId = getParentId(containerOccurrence.id);
     const parentOcc = parentId ? getOccMap()[parentId] : null;
-    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, occurrence: containerOccurrence, parentOccurrence: parentOcc || null, emit: true });
-  }, [containerOccurrence, getOccMap, getParentId, dispatch, socket]);
+    const removeAll = () => CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: containerOccurrence.id, occurrence: containerOccurrence, parentOccurrence: parentOcc || null, emit: true });
+    // A container that holds things asks what happens to them (user, 2026-10-20): keep them
+    // (they move up into this container's place) or delete them with it.
+    const kids = (containerOccurrence.occurrences || []).filter((k) => getOccMap()[k]);
+    if (!kids.length) { removeAll(); return; }
+    const name = containerOccurrence.label || module?.label || "this container";
+    const choices = [
+      parentOcc && { value: "keep", label: `Keep ${kids.length === 1 ? "it" : "them"}, move up a level` },
+      { value: "all", label: `Delete ${kids.length === 1 ? "it" : `all ${kids.length}`} too`, danger: true },
+    ].filter(Boolean);
+    askChoice({
+      title: `Delete "${name}"?`,
+      message: `It holds ${kids.length} item${kids.length === 1 ? "" : "s"}.`,
+      choices,
+    }).then((pick) => {
+      if (pick === "all") removeAll();
+      else if (pick === "keep") CommitHelpers.removeContainerKeepChildren({ dispatch, socket, containerOccurrence, parentOccurrence: parentOcc, getOccurrence: (id) => getOccMap()[id] });
+    });
+  }, [containerOccurrence, module?.label, getOccMap, getParentId, dispatch, socket]);
 
   // Quick-add: create an occurrence of an existing instance module in this container
   const handleQuickAddInstance = useCallback((instanceModule) => {

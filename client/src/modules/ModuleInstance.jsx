@@ -686,6 +686,25 @@ function InstanceInner({
   );
 
   // Build radial menu items - include Break Link when occurrence is linked
+  // The cover in the RADIAL menu too (user, 2026-10-20: "no way to change the cover photo in the
+  // viewer or the instance itself … it should be in the right click for it and in the radial
+  // menu"). The viewer's tiles are rows like this one, so this reaches them as well. Same picker
+  // as the right-click item below. Two items share `group`, so with a cover they fold into one
+  // "Cover" submenu and the arc stays inside its capacity.
+  const coverRadialItems = useMemo(() => {
+    if (instance?.role !== "artifact" || !occurrence?.id) return [];
+    const getOcc = () => getOccMap?.()?.[occurrence.id] || occurrence;
+    const hasCover = !!occurrence?.meta?.cover;
+    return [
+      { icon: ImageIcon, label: hasCover ? "Change cover" : "Set cover", group: "Cover",
+        color: "bg-slate-700 hover:bg-slate-600",
+        onClick: () => openCoverPicker({ getOccurrence: getOcc, module: instance, dispatch, socket }) },
+      hasCover && { icon: X, label: "Clear cover", group: "Cover",
+        color: "bg-slate-700 hover:bg-slate-600",
+        onClick: () => setCover({ getOccurrence: getOcc, dispatch, socket }, null) },
+    ].filter(Boolean);
+  }, [instance, occurrence, getOccMap, dispatch, socket]);
+
   // Convert-role button(s) for the RADIAL menu (touch-accessible; right-click is
   // desktop-only now). textblock ↔ instance, each with the target's own icon.
   const convertLeafItems = useMemo(() => {
@@ -1135,7 +1154,7 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), emit: true });
                   })}
-                  extraItems={[...(embedRadialItems || []), ...convertLeafItems]}
+                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems]}
                 />
               </div>
             </PopoverAnchor>

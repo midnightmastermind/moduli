@@ -37,6 +37,7 @@ import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
+import { ChoiceDialogHost } from "./ui/ChoiceDialog";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { DefinitionHost } from "./ui/DefinitionCard.jsx";
 import { AddressPickerHost } from "./ui/AddressPickerMenu";
@@ -1217,6 +1218,7 @@ export default function App() {
         {/* GET_USER_INPUT modal — only mounts when an op pipeline suspends
             via operationsBridge.requestUserInput. Chained questions render
             sequentially from the queue. */}
+        <ChoiceDialogHost />
         <UserInputModal
           request={currentInput?.request}
           onSubmit={handleInputSubmit}

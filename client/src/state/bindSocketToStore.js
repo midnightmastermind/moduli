@@ -49,6 +49,7 @@ import { analyzeAllOperations } from "../helpers/operationIntrospection";
 import { persistAuth, clearAuth } from "../helpers/authStorage.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 import { loadBootSnapshot, saveBootSnapshot } from "../helpers/bootSnapshot.js";
+import { applyViewOverlay, recordViewPage } from "../helpers/bootViewOverlay";
 import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
 
 /**
@@ -794,7 +795,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       loadBootSnapshot(snapUser, snapGrid).then((snap) => {
         if (!snap || realFullStateSeen || unbound) return;
         setSnapshotMode(true);
-        try { onFullState({ ...snap, __fromSnapshot: true }); }
+        try { onFullState({ ...applyViewOverlay(snap), __fromSnapshot: true }); }
         catch (e) { console.warn("[bootSnapshot] could not draw:", e); setSnapshotMode(false); }
       });
     }
@@ -1322,7 +1323,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onFolderDeleted(p = {}) { const folderId = p.folderId || p.id; if (folderId) socketDispatch({ type: ActionTypes.DELETE_FOLDER, payload: { folderId } }); }
 
   function onViewCreated(p = {}) { const view = p.view || p; if (view?.id) socketDispatch({ type: ActionTypes.CREATE_VIEW, payload: { view } }); }
-  function onViewUpdated(p = {}) { const view = p.view || p; if (view?.id) socketDispatch({ type: ActionTypes.UPDATE_VIEW, payload: { view } }); }
+  function onViewUpdated(p = {}) {
+    const view = p.view || p;
+    if (!view?.id) return;
+    if (view.activeOccurrenceId) recordViewPage(localStorage.getItem("moduli-gridId"), view.id, view.activeOccurrenceId);
+    socketDispatch({ type: ActionTypes.UPDATE_VIEW, payload: { view } });
+  }
   function onViewDeleted(p = {}) { const viewId = p.viewId || p.id; if (viewId) socketDispatch({ type: ActionTypes.DELETE_VIEW, payload: { viewId } }); }
 
   function onManifestCreated(p = {}) { const manifest = p.manifest || p; if (manifest?.id) socketDispatch({ type: ActionTypes.CREATE_MANIFEST, payload: { manifest } }); }
