@@ -32,6 +32,10 @@ import { useVirtualRows } from "../../helpers/virtualRows";
 
 // Child rows past this many are virtualized (the same rule long boards follow).
 export const VIRTUAL_TABLE_MIN = 60;
+// Long, but the scroller is not known yet (the virtualizer finds it after mount): a short slice. Rendering
+// every row on that first frame froze poms' People Table ~11s on open (1,181 rows mounted, laid out, then
+// dropped to the ~14 on screen) — measured 2026-10-20. Boards and the tree do the same.
+export const TABLE_INITIAL_ROWS = 40;
 import ModuleContainer from "../ModuleContainer.jsx";
 import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
 import AutoMarquee from "../../ui/AutoMarquee.jsx";
@@ -1895,7 +1899,8 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
             ? childVirtual.plan.map((p, k) => (p.spacer != null
               ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer }} />
               : renderChildRow(childRowOccs[p.index], { "data-index": p.index, ref: childVirtual.measureRef })))
-            : childRowOccs.map((childOcc) => renderChildRow(childOcc))}
+            : childRowOccs.slice(0, childRowOccs.length > VIRTUAL_TABLE_MIN ? TABLE_INITIAL_ROWS : childRowOccs.length)
+              .map((childOcc) => renderChildRow(childOcc))}
         </div>
 
       {/* +Row strip — mirrors the +Column strip at the right edge of the

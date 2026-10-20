@@ -16,7 +16,11 @@ describe("table child rows", () => {
     expect(src).toMatch(/childVirtual\.plan\.map/);
     expect(src).toMatch(/ref: childVirtual\.measureRef/);
     expect(src).toMatch(/className="virtual-spacer"/);
-    expect(src).toMatch(/: childRowOccs\.map\(\(childOcc\) => renderChildRow\(childOcc\)\)/);
+    expect(src).toMatch(/: childRowOccs\.slice\(0, childRowOccs\.length > VIRTUAL_TABLE_MIN \? TABLE_INITIAL_ROWS : childRowOccs\.length\)/);
+  });
+  it("a long table's first frame (scroller not found yet) renders a short slice, not every row", () => {
+    expect(src).toMatch(/export const TABLE_INITIAL_ROWS = 40;/);
+    expect(src).not.toMatch(/: childRowOccs\.map\(\(childOcc\) => renderChildRow\(childOcc\)\)\}/);
   });
   it("the measured element is the row itself (its props land on the row div)", () => {
     expect(src).toMatch(/key=\{`child-row-\$\{childOcc\.id\}`\}\s*\n\s*\{\.\.\.rowProps\}\s*\n\s*className="table-row table-child-row"/);
