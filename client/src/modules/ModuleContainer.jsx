@@ -826,11 +826,13 @@ function Container({
   const childContentDir = layoutCascade?.resolved?.childContentDirection || null;
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
-  // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
-  // role:"container" children are not filtered out (leafModulesById only contains instance/artifact/
-  // textblock). The render loop below then branches by child role to mount <Container> vs <ModuleInstance>.
-  const allowChildContainers = !!module?.meta?.allowChildContainers;
-  const childModuleLookup = allowChildContainers ? modulesById : leafModulesById;
+  // A child CONTAINER this container lists is drawn as a container — always. It used to be drawn only when
+  // the module carried `meta.allowChildContainers`, and that gate hid real data three times: the kanban's
+  // own columns (0278), an imported article in a board (2026-09-22), and a template applied with Copy
+  // (2026-10-20). Measured on poms, the rebuild and test grid 2 before removing it: the gate was hiding
+  // nothing else, so drawing what is listed changes no existing screen. The creators still set the flag;
+  // nothing reads it for rendering.
+  const childModuleLookup = modulesById;
   // The nearest ancestor's sort, as a string so this re-renders only when THAT
   // changes. Walked only when this container sets no sort of its own.
   const inheritedSortKey = useGridActionsSelector((st) => {
@@ -2025,12 +2027,11 @@ function Container({
             {(() => {
             const renderRow = ({ instance, occurrence }, idx) => {
               const role = instance?.role;
-              // Container-in-container: when the parent has allowChildContainers,
-              // a role:"container" child mounts its own <Container> instead of a
+              // Container-in-container: a role:"container" child mounts its own <Container> instead of a
               // <ModuleInstance>. occurrenceOverride pins the child to the
               // specific occurrence this parent links (multi-parent-safe).
               let node;
-              if (role === "container" && allowChildContainers) {
+              if (role === "container") {
                 node = (
                   <Container
                     module={instance}
