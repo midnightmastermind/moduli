@@ -39,6 +39,8 @@ UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, open
   DISABLED); confirmed with real touch events that a held press opens nothing. Marked "by design".
 - **Row "+" field menu on a phone:** a bottom drawer; its search box no longer auto-focuses there (the keyboard
   covered the drawer).
+- **Templates section (row 31) on a phone:** opens as a bottom drawer and works; its text was 11px (missed by the
+  morning's menu-size pass) — 12px like the other header-dropdown sections.
 - Test `spreadPhoneOneColumn.test.js` (7). Client-only deploys.
 
 ---

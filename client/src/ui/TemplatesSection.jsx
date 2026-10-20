@@ -92,14 +92,14 @@ export default function TemplatesSection({ occurrence }) {
 
   return (
     <section style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--panel-border, #374151)" }}>
-      <header style={{ fontSize: 11, opacity: 0.85, marginBottom: 6 }}>Templates</header>
+      <header style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>Templates</header>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
         {!root && (
-          <div style={{ fontSize: 11, opacity: 0.5 }}>No Templates folder on this grid yet.</div>
+          <div style={{ fontSize: 12, opacity: 0.5 }}>No Templates folder on this grid yet.</div>
         )}
         {root && templates.length === 0 && (
-          <div style={{ fontSize: 11, opacity: 0.5 }}>No templates for this kind yet.</div>
+          <div style={{ fontSize: 12, opacity: 0.5 }}>No templates for this kind yet.</div>
         )}
         {templates.map(t => (
           <label key={t.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer" }}>
@@ -120,7 +120,7 @@ export default function TemplatesSection({ occurrence }) {
             onClick={apply}
             disabled={!selectedId}
             style={{
-              fontSize: 11,
+              fontSize: 12,
               padding: "3px 10px", borderRadius: 4,
               border: "1px solid var(--panel-border, #374151)",
               background: "transparent", color: "inherit",
@@ -153,7 +153,7 @@ export default function TemplatesSection({ occurrence }) {
           onChange={(e) => setSaveName(e.target.value)}
           placeholder="Save as new template..."
           style={{
-            flex: 1, fontSize: 11,
+            flex: 1, fontSize: 12,
             background: "transparent", color: "inherit",
             border: "1px solid var(--panel-border, #374151)",
             borderRadius: 4, padding: "2px 6px",
@@ -163,7 +163,7 @@ export default function TemplatesSection({ occurrence }) {
           onClick={saveNew}
           disabled={!saveName.trim() || !root}
           style={{
-            fontSize: 11,
+            fontSize: 12,
             padding: "2px 10px", borderRadius: 4,
             border: "1px solid var(--panel-border, #374151)",
             background: "transparent", color: "inherit",
@@ -177,7 +177,7 @@ export default function TemplatesSection({ occurrence }) {
         <button
           onClick={saveOver}
           style={{
-            fontSize: 11, marginTop: 6,
+            fontSize: 12, marginTop: 6,
             padding: "3px 10px", borderRadius: 4,
             border: "1px solid var(--panel-border, #374151)",
             background: "transparent", color: "inherit", cursor: "pointer",
