@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (10) — THE PHONE COLUMN: canvas, table and graph; a Day Page column ran off the screen
+
+UI sweep rows 54–56 at 390x844 (touch), each page put in the phone's shown panel and put back afterwards
+(`_panelrestore`). **Grid names:** the scratch grid used today for the canvas is **contrast scratch**
+(`6a8ba52d…`), not test grid 2 (`6a9f14ad…`) — today's earlier entries said "test grid 2".
+- **Canvas (contrast scratch, Canvas Test):** the tools dropdown opens with all 28 tools on screen; a finger stroke
+  (CDP touch events) saves a pen stroke and Undo removes it; the page "+" sheet offers Item/Textblock/…; a
+  quick-added card lands on screen (151,484). Probe card deleted.
+- **Table (rebuild, Schedule Table page):** fits the panel (no sideways scroll), the column menu opens fully on
+  screen. Pills in the narrow columns run the overflow marquee.
+- **Graph (rebuild, Day Page › Emotions Wheel): cut in half.** The Day Page lays its day columns out 420–560px, and
+  on a 344px phone panel one column ran past the screen. `PageBoard`: a flex-row column's min/max width is
+  `min(<px>, 100cqw)` with the column scroller as the query container — a column is never wider than the board's
+  visible width. Desktop measured identical before/after (560/420/420/420); phone: the wheel 531px → 303px, whole.
+  Test `pageBoardColumnCap`. Client-only deploy.
+
+---
+
 ### 2026-10-20 (9) — TEMPLATES BY CLICKING: a Copy apply drew nothing, and Save over orphaned the copy
 
 UI sweep row 31 (the Templates section — radial › Apply Template on a container, page or panel) had never been
@@ -49,7 +67,7 @@ same router a container's "+" uses; an Item opens its name editor. Board and doc
 - **Found trying it:** the new card had no position, so it fell back to the middle of the 4000px world — off screen
   (2424,1961 in a 1600px window). On a canvas it is placed at the middle of the visible part (`visibleCanvasSpot`,
   nudged 24px per existing card), in the same undo step as the create.
-- Watched on prod, test grid 2's Canvas Test: "+" → Item → named → card on screen at 758,610. Probe cards deleted
+- Watched on prod, contrast scratch's Canvas Test (`6a8ba52d…`; earlier entries today called it "test grid 2" — test grid 2 is `6a9f14ad…`): "+" → Item → named → card on screen at 758,610. Probe cards deleted
   through `delete_occurrence` (0 left, page lists its 2 cards). **Not watched:** a table page (every one is a feed
   table on another grid); same code path. Test `canvasPageQuickAdd` (4). Client 6,487 pass; client-only deploy.
 
@@ -58,7 +76,7 @@ same router a container's "+" uses; an Item opens its name editor. Board and doc
 ### 2026-10-20 (7) — A LINKED RECTANGLE DRAGS THE CARDS INSIDE IT (it moved alone, or took the wrong card)
 
 Parked from the other account's canvas deep test: *"dragging a linked rectangle with Select moved a card that was
-outside the rectangle"*. Reproduced on test grid 2's Canvas Test (`_canvasGrp2.mjs DX DY`, logs the socket writes):
+outside the rectangle"*. Reproduced on contrast scratch's Canvas Test (`_canvasGrp2.mjs DX DY`, logs the socket writes):
 with card A inside the rectangle, a drag sent ONE write — the shape — and A stayed put.
 - A shape's children were computed DURING RENDER from `cardCenterFor` (screen rects relative to the world). Rendered
   while a scale animation ran (page enter / full screen) the centres were shrunk toward the origin, and nothing
