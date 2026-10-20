@@ -47,3 +47,4 @@ extension/.sign.env
 
 # Server-disk copies of Drive audio/video (server/services/storage/diskCache.js)
 server/cache/
+.prev-assets/

@@ -6598,6 +6598,19 @@ input.artifact-thumb-info-name--editing {
 .field-input-select-multi .rounded-full button svg { width: 10px; height: 10px; }
 
 .table-cell-static { width: 100%; min-width: 0; }
+/* A CHILD ROW draws the same occurrence in every column, so its row chrome — drag handle, open-link
+   and notes buttons, the copy-link marker — was repeated in all of them. In a column squeezed to
+   fit the panel (Name 180 -> 65px) that chrome took ~40px and the value itself was clipped under
+   the next cell (UI sweep 2026-10-19, People Table). The first column keeps the row's chrome; the
+   rest show only their field. Cells that EMBED different occurrences (not child rows) keep theirs. */
+.table-child-row > .table-td:not(:first-child) .table-cell-static :is(.instance-handle-group, .instance-url-btn, .instance-body-btn),
+.table-child-row > .table-td:not(:first-child) .table-cell-static .instance-wrap > svg.lucide-link-2 {
+  display: none !important;
+}
+.table-child-row > .table-td:not(:first-child) .table-cell-static .instance-content {
+  padding-left: 0;
+  padding-right: 0;
+}
 .table-td .instance-wrap { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
 /* Drop-active highlight: shown while an external drop is hovering the cell.
    Inset ring (box-shadow, not border) avoids shifting cell content. */

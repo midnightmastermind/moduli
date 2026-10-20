@@ -24,6 +24,7 @@ import { installScrollFlag } from "./helpers/scrollFlag.js";
 import { hasSession } from "./helpers/authStorage.js";
 import { PROMO_PATHS } from "./promo/promoPaths.js";
 import { operationsBridge } from "./state/bindSocketToStore";
+import { installStaleChunkReload } from "./helpers/staleChunkReload.js";
 
 // READ_FILE (operations) reads a pdf / e-book's text in the page. Wired here, not in the executor,
 // so pdf.js and foliate stay out of the load-sweep worker's bundle.
@@ -45,6 +46,7 @@ if (globalThis.crypto && typeof globalThis.crypto.randomUUID !== "function") {
 }
 
 installScrollFlag();
+installStaleChunkReload();
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 // Check for preview mode — iframe thumbnails pass ?previewOcc=<occId>

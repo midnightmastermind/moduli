@@ -80,9 +80,19 @@ ssh "$REMOTE_HOST" bash -s -- "$REMOTE_DIR" "${DEPLOY_RESTART:-}" <<'REMOTE'
   # for the same reason rather than because it is known to.
   echo '  → Installing server deps...'
   npm install --prefix server < /dev/null 2>&1 | tail -3
+  # KEEP THE PREVIOUS BUILDS' CHUNKS. `vite build` empties client/dist, so a tab
+  # opened before this deploy asked for a lazy chunk (the book reader's
+  # view-<hash>.js) that no longer existed: "Failed to fetch dynamically imported
+  # module" (2026-10-20). Old hashed files are parked in .prev-assets (untracked,
+  # survives the reset), put back beside the new build without overwriting it,
+  # and dropped 7 days after they were built.
+  mkdir -p .prev-assets
+  [ -d client/dist/assets ] && cp -an client/dist/assets/. .prev-assets/ 2>/dev/null || true
+  find .prev-assets -type f -mtime +7 -delete 2>/dev/null || true
   echo '  → Building client...'
   cd client && npm install < /dev/null 2>&1 | tail -3 && npm run build < /dev/null
   cd ..
+  cp -an .prev-assets/. client/dist/assets/ 2>/dev/null || true
 
   # ============================================================
   # RESTART ONLY IF THE SERVER CHANGED.
