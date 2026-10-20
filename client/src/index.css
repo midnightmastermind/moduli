@@ -1432,7 +1432,8 @@ select:disabled { cursor: not-allowed; }
    (helpers/editorPopupLift.js — each row is its own z-index stacking context). */
 .instance-wrap[data-editor-popup],
 .container-shell[data-editor-popup] {
-  z-index: 45;
+  /* !important: ModuleContainer sets the shell's zIndex inline. */
+  z-index: 45 !important;
 }
 
 .instance-wrap.is-dragging {
