@@ -9,7 +9,7 @@
 // its content (a markdown note, a quote card) has no body: it would show the same text twice — the
 // same reason a textblock has none.
 import React from "react";
-import { NotebookPen } from "lucide-react";
+import { NotebookPen, X } from "lucide-react";
 import { DocContent } from "./DocContent.jsx";
 
 const TEXT_KINDS = new Set(["markdown", "quote"]);
@@ -20,10 +20,30 @@ export function fileHasBody(module) {
 }
 
 /** The body itself, in the same recessed pocket an instance's open body sits in. */
-export function FileNotesEditor({ occurrence, dispatch, socket, className = "" }) {
+/** The × in a notes section's corner: closes it, the same as pressing its toggle again
+ *  (user 2026-10-20: "we need an x button on that notes section so it closes the drawer"). */
+export function NotesCloseButton({ onClose }) {
+  if (!onClose) return null;
+  return (
+    <button
+      type="button"
+      className="notes-close-btn"
+      aria-label="Close notes"
+      title="Close notes"
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+    >
+      <X style={{ width: 12, height: 12 }} />
+    </button>
+  );
+}
+
+export function FileNotesEditor({ occurrence, dispatch, socket, className = "", onClose = null }) {
   if (!occurrence) return null;
   return (
     <div className={`instance-doc-body file-notes-body ${className}`.trim()} data-testid="file-notes-body">
+      <NotesCloseButton onClose={onClose} />
       <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
     </div>
   );

@@ -57,7 +57,7 @@ export default function PageDisplay({ occurrence, pageView, dispatch, socket }) 
         </div>
         {hasBody && notesOpen && (
           <div className="file-notes-side">
-            <FileNotesEditor occurrence={occurrence} dispatch={dispatch} socket={socket} />
+            <FileNotesEditor occurrence={occurrence} dispatch={dispatch} socket={socket} onClose={() => setNotesOpen(false)} />
           </div>
         )}
       </div>

@@ -9220,6 +9220,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border-left: 1px solid var(--border-default);
 }
 .file-notes-side > .instance-doc-body { margin: 0; border-radius: 0; border-top: none; min-height: 100%; }
+/* The × that closes a notes section, in its top-right corner. The body is the positioned box. */
+.instance-doc-body { position: relative; }
+.instance-doc-body:has(> .notes-close-btn) { padding-right: 24px; }
+.notes-close-btn {
+  position: absolute; top: 3px; right: 3px; z-index: 2;
+  width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 4px; background: transparent; color: var(--text-faint); cursor: pointer;
+  opacity: 0.7;
+}
+.notes-close-btn:hover { opacity: 1; color: var(--text-primary); background: var(--input-bg); }
 .file-notes-toggle {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   cursor: pointer; color: var(--text-primary);

@@ -73,7 +73,7 @@ import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import { useBodyOpen } from "../helpers/bodyOpen";
 import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
 import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
-import { fileHasBody, FileNotesToggle } from "./FileBody.jsx";
+import { fileHasBody, FileNotesToggle, NotesCloseButton } from "./FileBody.jsx";
 import SlideDrawer from "../ui/SlideDrawer";
 import { useSpreadHost } from "../helpers/spreadDock";
 
@@ -1842,6 +1842,7 @@ function ModuleInstance({
             className="instance-doc-body"
             style={{ "--body-accent": hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.10)" }}
           >
+            {toggleDoc && <NotesCloseButton onClose={toggleDoc} />}
             {/* BoundBody falls back to `children` when the bound field cannot
                 be resolved, so a grid default naming a deleted field degrades
                 to today's textmap body rather than an empty pocket. */}

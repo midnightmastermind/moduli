@@ -4047,3 +4047,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 - **06:55** — *"also look at the latest screenshot. opening up a book inside the panel instead of the viewer, changes it back to 2 page mode and cuts off the text"*
 
 - **07:10–07:29** — notes beside a book: a fresh textblock shows its first space highlighted, says "Saving" and disappears; the cause is accidentally clicking the quick-add "+" first (its strip sits on the first line, and the next one in the middle of the line — "the margins arent big enough"). Quick add in the viewer opens behind it. Needs an x button on the notes section. A laid-out row's open notes hide behind its siblings — on a fresh page, no wrap layout.
+- **07:31** — *"after this, we need to look into vertical quick add buttons to get next to the occurances in docs and boards especially (so i can insert right or left, and switches to wrap mode in doc)"*
