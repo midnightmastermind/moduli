@@ -15,6 +15,22 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (8) — A CANVAS OR TABLE PAGE'S "+" ADDS ITEMS; a quick-added card lands where you are looking
+
+The deep-test ask (10-19 15:39): *"make sure it can quickly add occurrences to them (utilize the quick add menu)"*.
+A canvas page's "+" used the container palette — Board / Doc / Canvas / Table and templates only — although a canvas
+page holds cards (items, textblocks, files). `ModulePage`: a canvas or table page (`leafHostPage`) gets the
+container's full palette (`targetRole="instance"`) and creates through `CommitHelpers.createChildInContainer`, the
+same router a container's "+" uses; an Item opens its name editor. Board and doc pages keep the container palette.
+- **Found trying it:** the new card had no position, so it fell back to the middle of the 4000px world — off screen
+  (2424,1961 in a 1600px window). On a canvas it is placed at the middle of the visible part (`visibleCanvasSpot`,
+  nudged 24px per existing card), in the same undo step as the create.
+- Watched on prod, test grid 2's Canvas Test: "+" → Item → named → card on screen at 758,610. Probe cards deleted
+  through `delete_occurrence` (0 left, page lists its 2 cards). **Not watched:** a table page (every one is a feed
+  table on another grid); same code path. Test `canvasPageQuickAdd` (4). Client 6,487 pass; client-only deploy.
+
+---
+
 ### 2026-10-20 (7) — A LINKED RECTANGLE DRAGS THE CARDS INSIDE IT (it moved alone, or took the wrong card)
 
 Parked from the other account's canvas deep test: *"dragging a linked rectangle with Select moved a card that was
