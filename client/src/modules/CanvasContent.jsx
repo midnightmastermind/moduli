@@ -15,6 +15,7 @@ import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useMe
 import { MousePointer2, Hand, Pencil, Highlighter, PaintBucket, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2, Type } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useMobileDetect } from "../hooks/useMobileDetect";
+import { requestTextblockFocus } from "../helpers/pendingTextblockFocus";
 
 // World size — large enough to feel expansive but small enough that canvas
 // rendering and scroll math stay snappy.
@@ -47,6 +48,13 @@ const TRAILING_TOOLS = [
 const DRAW_COLORS = ["#e2e8f0", "#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#818cf8", "#e879f9"];
 const DRAW_SIZES = [2, 4, 8, 16];
 
+/** The canvas background a fill stroke sets: the LAST fill among the strokes drawn, or null. */
+export function canvasBackgroundFill(strokes) {
+  let color = null;
+  for (const s of strokes || []) if (s?.tool === "fill" && s.color) color = s.color;
+  return color;
+}
+
 function renderStrokes(ctx, strokes) {
   const prev = ctx.globalCompositeOperation;
   const prevAlpha = ctx.globalAlpha;
@@ -67,12 +75,11 @@ function renderStrokes(ctx, strokes) {
     } else {
       ctx.globalCompositeOperation = "source-over";
     }
-    if (s.tool === "fill") {
-      // Fill stroke is a full-canvas color wash committed at fire time.
-      ctx.fillStyle = s.color;
-      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      continue;
-    }
+    // A fill is the canvas BACKGROUND (canvasBackgroundFill → the world's own colour), not paint on
+    // this layer. Painted here it was an opaque wash over the whole drawing layer, which sits ABOVE
+    // the cards while a drawing tool is active: every card and every earlier stroke vanished
+    // (UI sweep 2026-10-19).
+    if (s.tool === "fill") continue;
     if (s.tool === "pen" || s.tool === "marker" || s.tool === "eraser") {
       if (!s.points || s.points.length < 1) continue;
       ctx.beginPath();
@@ -383,6 +390,7 @@ export const CanvasContent = React.memo(function CanvasContent({
   const visibleStrokes = useMemo(() => {
     return strokes.filter(s => !s.layerId || visibleLayerIds.has(s.layerId));
   }, [strokes, visibleLayerIds]);
+  const backgroundFill = useMemo(() => canvasBackgroundFill(visibleStrokes), [visibleStrokes]);
 
   // Size the drawing canvas to the world size once on mount.
   useEffect(() => {
@@ -1372,6 +1380,9 @@ export const CanvasContent = React.memo(function CanvasContent({
           // Stamp meta.x/y near the canvas viewport center so the
           // textblock lands somewhere visible.
           if (res?.occurrenceId) {
+            // …and put the cursor in it: typing straight after the click went nowhere
+            // (UI sweep 2026-10-19). The editor claims this when it mounts.
+            requestTextblockFocus(res.occurrenceId);
             const surface = surfaceRef.current;
             const cx = surface ? (surface.scrollLeft + surface.clientWidth / 2) : CANVAS_WORLD_SIZE / 2;
             const cy = surface ? (surface.scrollTop + surface.clientHeight / 2) : CANVAS_WORLD_SIZE / 2;
@@ -1608,6 +1619,7 @@ export const CanvasContent = React.memo(function CanvasContent({
             height: CANVAS_WORLD_SIZE,
             backgroundImage: "radial-gradient(circle, var(--border-subtle) 1px, transparent 1px)",
             backgroundSize: "24px 24px",
+            backgroundColor: backgroundFill || undefined,
           }}
           onDoubleClick={(e) => { if (drawTool === "select") onDoubleClickBackground?.(e); }}
           onPointerDown={onWorldPointerDown}
