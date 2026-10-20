@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 — BOOKS FAILED TO OPEN AFTER A DEPLOY; a cut-off spread in a panel; the "+" strip sat on the first line
+
+User: *"continue what my other claude account was working"* + *"the book could not be opened: Failed to fetch dynamically
+imported module …/view-D1w7Gi5R.js"*, then notes / quick-add / layout reports through the morning (CLAUDE_CHAT 06:46–07:31).
+- **Stale chunks.** `vite build` on prod empties `client/dist`, so a tab opened before a deploy asked for a lazy chunk
+  (the book reader's `view-<hash>.js`) that no longer existed. `deploy.sh` now parks old hashed files in
+  `.prev-assets/` (untracked) and puts them back beside each new build for 7 days; `helpers/staleChunkReload`
+  reloads once a minute at most on `vite:preloadError`. Verified: the previous build's `view-` chunk still serves 200.
+- **Book in a panel = cut-off two-page spread.** foliate measures with `getBoundingClientRect`, which the page-enter /
+  drilldown SCALE animations shrink; laid out mid-animation the columns were narrower than the page (466px in a
+  ~590px page). `BookReader` waits until its box is unscaled after any ancestor animation and renders again (542px,
+  one page). Watched in a short panel on prod data.
+- **Notes beside a book "lose" a fresh textblock** — not reproduced headless in either engine; the user's diagnosis:
+  the doc insert "+" strip (14px, 20px button, centred on the boundary) sat over half the first line, so a click meant
+  for the line opened the add menu. `nearestDocBoundary` (exported) returns the gutter's height and the strip is
+  drawn inside it — above the first line it now fills the 8px padding exactly (97–105, line at 105). The quick-add
+  menu was z 1100 under the viewer (1301) — now 1320. Tests `docGapGutter`.
+- **× on every notes section** (`FileBody.NotesCloseButton`): a file's page notes, a row's drawer, viewer tiles.
+- **Probe harness:** `_build.mjs` LOCALBUILD runs now block the service worker (Firefox kept running the deployed
+  bundle while the routes claimed to serve the local one).
+- **Open:** a laid-out row's open notes hiding behind its siblings (not reproduced: a laid-out row in Routines opens
+  fine; the user's case is a fresh page, not a wrap layout). Queued: vertical "+" beside occurrences in docs/boards
+  (insert left/right; in a doc it forms a wrap). The user's book notes (The Ask and the Answer) hold 8 empty lines
+  left by the failed attempts.
+
+---
+
 ### 2026-10-19 — UI SWEEP 35–40; an Add panel button for mosaic grids; a list that opened below the screen
 
 User: *"continue with what my other claude account was working on. we are back to ui testing"* · mid-run: *"we also
