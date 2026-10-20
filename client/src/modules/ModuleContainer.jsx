@@ -486,8 +486,15 @@ function Container({
     if (n == null) delete meta.headingLevel; else meta.headingLevel = n;
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, meta }, emit: true });
   }, [module, dispatch, socket]);
-  const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || 20;
-  const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || 700;
+  // With no heading level, a DOC section keeps the 20px heading it has always
+  // had. A BOARD drawn with card chrome (a tracker group nested in another,
+  // e.g. "Today's Workout" inside "Today's Physical") is not a heading: at 20px
+  // it was bigger than the board around it (user 2026-10-20). It gets one step
+  // below a board header, so a nested group never outsizes its parent.
+  const levelless = !module?.meta?.headingLevel;
+  const nestedBoardCard = levelless && module?.kind !== "doc" && module?.meta?.cardChrome === true;
+  const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || (nestedBoardCard ? CONTAINER_HEADER_PX.other : 20);
+  const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || (nestedBoardCard ? 600 : 700);
   // Per-occurrence header label overflow: marquee (default) | wrap | none.
   const labelOverflow = containerOccurrence?.meta?.labelOverflow ?? module?.meta?.labelOverflow ?? "marquee";
   // A BOUND header is a control, not prose: marqueeing it scrolls the picker
