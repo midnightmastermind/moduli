@@ -2645,6 +2645,11 @@ body[data-drag-kind] .insert-gap-btn { pointer-events: none; }
 .doc-insert-gap .insert-gap-line { opacity: 1; }
 .doc-insert-gap .insert-gap-btn { opacity: 1; pointer-events: auto; }
 .doc-insert-gap .quick-add-btn { opacity: 1 !important; }
+/* The strip is only as tall as the gutter between two lines (inline height), so the "+" button
+   fills exactly that and no more: its glyph may draw past the strip, but only the strip clicks. */
+.doc-insert-gap .insert-gap-btn,
+.doc-insert-gap .quick-add-btn { height: 100% !important; min-height: 0 !important; overflow: visible; }
+.doc-insert-gap .quick-add-btn svg { pointer-events: none; }
 
 /* Drag variant — same blue line, bolder + glowing so the drop spot is obvious
    while dragging a block to reorder (no finicky guessing). No "+" button. */

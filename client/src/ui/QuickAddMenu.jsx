@@ -533,7 +533,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         <MenuSurface
           surfaceRef={menuRef}
           position={{ top: pos.top, left: pos.left }}
-          zIndex={1100}
+          // Above the file viewer (1301) and its full-screen card (1310): a "+" inside a viewer
+          // tile's notes opened the menu UNDERNEATH the viewer (user, 2026-10-20).
+          zIndex={1320}
           onClose={() => setOpen(false)}
           onClick={(e) => e.stopPropagation()}
           style={{

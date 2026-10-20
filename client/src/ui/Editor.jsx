@@ -242,22 +242,33 @@ function concatInline(a, b) {
 // returns null), so the hover affordance + drag indicator don't vanish in the
 // very gap the user is aiming at — and the actual drop reuses it, so the block
 // lands exactly where the indicator showed.
-function nearestDocBoundary(view, doc, wrapEl, clientY) {
+export function nearestDocBoundary(view, doc, wrapEl, clientY) {
   if (!view || !doc || !wrapEl || doc.childCount === 0) return null;
-  const wrapTop = wrapEl.getBoundingClientRect().top;
-  let best = null, bestDist = Infinity;
-  const cand = (pos, y) => {
-    const d = Math.abs(y - clientY);
-    if (d < bestDist) { bestDist = d; best = { pos, top: y - wrapTop }; }
-  };
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const blocks = [];
   doc.forEach((node, off) => {
     let dom = null;
     try { dom = view.nodeDOM(off); } catch (_) { /* */ }
     const rect = dom?.getBoundingClientRect?.();
-    if (!rect) return;
-    cand(off, rect.top);                    // gap before this block
-    cand(off + node.nodeSize, rect.bottom); // gap after this block
+    if (rect) blocks.push({ off, end: off + node.nodeSize, top: rect.top, bottom: rect.bottom });
   });
+  if (!blocks.length) return null;
+  // Each boundary owns the GUTTER around it: the editor's padding above the first block, the
+  // space between two blocks, the padding below the last. The "+" strip is drawn inside that
+  // gutter and no taller, so it never covers a line (user 2026-10-20: the strip sat on the first
+  // line and in the middle of the next, so a click meant for a line opened the add menu).
+  const gutters = [{ pos: blocks[0].off, lo: Math.min(wrapRect.top, blocks[0].top), hi: blocks[0].top }];
+  for (let i = 0; i < blocks.length - 1; i++) {
+    gutters.push({ pos: blocks[i].end, lo: blocks[i].bottom, hi: Math.max(blocks[i].bottom, blocks[i + 1].top) });
+  }
+  const last = blocks[blocks.length - 1];
+  gutters.push({ pos: last.end, lo: last.bottom, hi: Math.max(last.bottom, wrapRect.bottom) });
+  let best = null, bestDist = Infinity;
+  for (const g of gutters) {
+    const mid = (g.lo + g.hi) / 2;
+    const d = clientY >= g.lo && clientY <= g.hi ? 0 : Math.abs(clientY - mid);
+    if (d < bestDist) { bestDist = d; best = { pos: g.pos, top: mid - wrapRect.top, height: g.hi - g.lo }; }
+  }
   return best;
 }
 
@@ -3393,7 +3404,8 @@ const Editor = forwardRef(function Editor({
       {docGap && (
         <div
           className="doc-insert-gap"
-          style={{ top: docGap.top }}
+          // as tall as the gutter it sits in (min 4px so it can still be hit), never over a line
+          style={{ top: docGap.top, height: Math.max(4, Math.min(14, docGap.height ?? 14)) }}
           onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) clearDocGapUnlessPinned(); }}
         >
           <div className="insert-gap-line" />
