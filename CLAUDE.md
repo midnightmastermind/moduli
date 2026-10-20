@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (9) — TEMPLATES BY CLICKING: a Copy apply drew nothing, and Save over orphaned the copy
+
+UI sweep row 31 (the Templates section — radial › Apply Template on a container, page or panel) had never been
+driven. On test grid 2, by clicking: Save a container as a template → offered on another container → **Merge**
+applied its 3 rows. Two defects in the other two buttons:
+- **Copy drew nothing.** It places a copy of the template's wrapper container, and `ModuleContainer` drew a child
+  CONTAINER only when the parent module carried `meta.allowChildContainers` — the gate that already hid the kanban's
+  columns (`0278`) and an imported article (09-22). Measured on poms, the rebuild and test grid 2 before removing
+  it: the gate hid nothing else (no other unflagged container lists a container, page or panel), so a container now
+  draws every child container it lists. The flag is still written; nothing reads it for rendering. Test
+  `childContainersAlwaysDrawn`.
+- **Save over left the copy pointing at a deleted template.** It clones the copy into a NEW template root and
+  deletes the old one; the copy's `meta.appliedFromTemplateId` (and any operation naming the template by id) kept
+  the old id, so the next Save over answered "Template not found" — and an op applying that template would apply
+  nothing. `utils/templateRepoint.planTemplateRepoint` (pure, whole-token match: "old" inside "older" is not a
+  reference) repoints copies + operation pipelines; the new template drops the copied pointer to itself; and the
+  clone signs each node from the copy (`stampSignatures`, root unsigned) so a later Merge still recognises rows
+  applied from the old template. Test `templateRepoint` (6). Server restart (deploy did it).
+- **Watched on prod:** Copy → the wrapper draws with its 3 rows and offers "Save over"; Save over → the copy points at
+  the new template (exists), template carries no self pointer, its nodes carry `auto:<…>` signatures. All probe rows
+  deleted through `delete_occurrence` (0 left; the Templates folder back to its 2). Client 6,489 / server 3,185.
+
+---
+
 ### 2026-10-20 (8) — A CANVAS OR TABLE PAGE'S "+" ADDS ITEMS; a quick-added card lands where you are looking
 
 The deep-test ask (10-19 15:39): *"make sure it can quickly add occurrences to them (utilize the quick add menu)"*.
