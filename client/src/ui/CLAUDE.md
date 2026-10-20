@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-20 — FieldAddMenu.jsx NEW: the row "+" field menu)
+- A hover "+" on every row (`ModuleInstance` `.instance-field-add-btn`, bottom-right beside the notes/link
+  buttons) opens `FieldAddMenu` (lazy — it imports `FieldDetail`): this grid's fields in the Fields tab's
+  category groups, search, a "+ Field" per category and `Create "<typed>"`. A pick binds the field on the
+  row's MODULE (shows a hidden binding); creating binds it in the same undo step and drills into
+  `FieldDetail` with "‹ Fields" back. Escape steps back, then closes. Test `fieldAddMenu.test.jsx` (7).
+- `commandCenter/FieldsTab` groups via `helpers/fieldCategories` (shared with the menu).
+
 ## Recent Changes (2026-10-15 — InstanceLayoutEditor; Command Center columns are Pragmatic drop targets)
 - `InstanceLayoutEditor.jsx` (NEW) — the row-layout editor, mounted by `LayoutCascadeSection` for an instance's
   placement override (InstanceForm › Style). Hidden bindings are not offered (the row does not draw them).

@@ -6675,7 +6675,7 @@ input.artifact-thumb-info-name--editing {
    fit the panel (Name 180 -> 65px) that chrome took ~40px and the value itself was clipped under
    the next cell (UI sweep 2026-10-19, People Table). The first column keeps the row's chrome; the
    rest show only their field. Cells that EMBED different occurrences (not child rows) keep theirs. */
-.table-child-row > .table-td:not(:first-child) .table-cell-static :is(.instance-handle-group, .instance-url-btn, .instance-body-btn),
+.table-child-row > .table-td:not(:first-child) .table-cell-static :is(.instance-handle-group, .instance-url-btn, .instance-body-btn, .instance-field-add-btn),
 .table-child-row > .table-td:not(:first-child) .table-cell-static .instance-wrap > svg.lucide-link-2 {
   display: none !important;
 }
@@ -8038,6 +8038,35 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* Coarse pointers have no hover, so it is always visible and thumb-sized. */
 @media (pointer: coarse) {
   .instance-body-btn { opacity: 1; width: 26px; height: 26px; }
+}
+
+/* ── Add a field to this row ───────────────────────────────────────────────
+   Bottom-right with the notes/link buttons, revealed on row hover the same way
+   (it costs no layout). Its `right` is set inline from which of those two the
+   row has, so the three never overlap. Opens ui/FieldAddMenu.               */
+.instance-field-add-btn {
+  position: absolute;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+  cursor: pointer;
+  z-index: 3;
+}
+.instance-wrap:hover .instance-field-add-btn,
+.instance-field-add-btn[aria-expanded="true"] { opacity: 1; }
+.instance-field-add-btn:hover { color: var(--text-primary); background: var(--input-bg); }
+@media (pointer: coarse) {
+  .instance-field-add-btn { opacity: 1; width: 22px; height: 22px; }
 }
 
 /* ── Open this row's link as a page, in this panel ─────────────────────────

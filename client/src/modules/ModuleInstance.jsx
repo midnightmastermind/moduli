@@ -27,7 +27,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink, Image as ImageIcon } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
 import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
@@ -76,6 +76,9 @@ import SpreadTileOpenInPanel from "../ui/SpreadTileOpenInPanel";
 import { fileHasBody, FileNotesToggle, NotesCloseButton } from "./FileBody.jsx";
 import SlideDrawer from "../ui/SlideDrawer";
 import { useSpreadHost } from "../helpers/spreadDock";
+// The row "+" field menu is lazy: it carries the Command Center's FieldDetail,
+// and nothing on a row needs that until the "+" is pressed.
+const FieldAddMenu = React.lazy(() => import("../ui/FieldAddMenu"));
 
 // The container a row sits in, as it is NOW. The row's own prop can be an older
 // object (the row skips re-rendering when only the container's child list
@@ -179,6 +182,8 @@ function InstanceInner({
   // non-subscribing getters. Module-derived maps stay whole-map (stable).
   // Inside the artifact viewer a file's body opens beside it, from the tile header — not the row chevron.
   const inSpread = !!useSpreadHost();
+  // The hover "+" that adds a field to this row: the anchor rect while its menu is open.
+  const [fieldMenuRect, setFieldMenuRect] = useState(null);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
   // READ AT COMPUTE TIME, NOT SUBSCRIBED. `modulesById` is rebuilt on every
@@ -1086,6 +1091,37 @@ function InstanceInner({
         >
           <ChevronDown style={{ width: 12, height: 12 }} />
         </button>
+      )}
+      {/* Add a field to this row — the Command Center's field menu (choose one or
+          create one) on the row itself. Revealed on hover like the notes button,
+          and sits to its left (and left of the link button when there is one). */}
+      {occurrence && instance?.id && !overlay && !inSpread && (
+        <button
+          type="button"
+          className="instance-field-add-btn"
+          data-testid="instance-field-add-btn"
+          aria-label="Add a field"
+          title="Add a field"
+          aria-expanded={!!fieldMenuRect}
+          style={{
+            right: 4
+              + (toggleDoc ? 20 : 0)
+              + (urlButtonPlacement(occurrence, instance) === "row" ? 20 : 0),
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            const r = e.currentTarget.getBoundingClientRect();
+            setFieldMenuRect((open) => (open ? null : { top: r.top, bottom: r.bottom, left: r.left, right: r.right }));
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Plus style={{ width: 12, height: 12 }} />
+        </button>
+      )}
+      {fieldMenuRect && (
+        <React.Suspense fallback={null}>
+          <FieldAddMenu module={instance} anchorRect={fieldMenuRect} onClose={() => setFieldMenuRect(null)} />
+        </React.Suspense>
       )}
 
       {/* Content: [radial + label] inline with fields; fields wrap to a new row below the label when the row is too narrow.

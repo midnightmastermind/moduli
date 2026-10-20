@@ -19,6 +19,11 @@ describe.each([["FieldsTab.jsx", "field"], ["OperationsTab.jsx", "operation"]])(
     expect(src).not.toMatch(/onDrop=\{\(e\)/);
   });
   it("orders each column by its stored columnOrder", () => {
-    expect(src).toMatch(/orderColumn\(groups\[k\]\)/);
+    // The Fields tab groups through helpers/fieldCategories (shared with the row "+"
+    // field menu), so the ordering lives there.
+    const grouped = /groupFieldsByCategory\(/.test(src)
+      ? fs.readFileSync(path.join(__dirname, "../helpers/fieldCategories.js"), "utf8")
+      : src;
+    expect(grouped).toMatch(/orderColumn\(groups\[k\]\)/);
   });
 });

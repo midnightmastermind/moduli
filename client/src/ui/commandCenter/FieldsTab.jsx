@@ -6,7 +6,6 @@ import { FIELD_TYPES } from "../../helpers/fieldTypes.js";
 import { derivationOf } from "../../helpers/derivedDisplayConfig";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DropColumn, SortableRow, useCategoryDropMonitor } from "./CategoryColumnDnd";
-import { orderColumn } from "../../helpers/categoryColumnSort";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
 
 import { useGridActions } from "../../GridActionsContext";
@@ -16,6 +15,7 @@ import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
 import PrefillEditor from "./PrefillEditor";
 import FieldSelect from "../FieldSelect.jsx";
 import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
+import { fieldCategoryFolders, groupFieldsByCategory, uniqueFieldName } from "../../helpers/fieldCategories";
 
 // Shared style helpers
 const labelStyle = {
@@ -935,28 +935,16 @@ export function FieldsTab() {
   // inference: a folder holding ops but no fields is an op category → not a
   // field column (before this, every op category — Trackers, Alarms, … —
   // rendered here as an empty column).
-  const categoryFolders = useMemo(() => {
-    const fieldFolderIds = new Set(Object.values(fieldsById || {}).map((f) => f?.folderId).filter(Boolean));
-    const opFolderIds = new Set(Object.values(ctx?.operationsById || {}).map((o) => o?.folderId).filter(Boolean));
-    return Object.values(foldersById || {})
-      .filter((f) => f.gridId === gridId && f.folderType === "category")
-      .filter((f) => f.categoryKind
-        ? f.categoryKind === "field"
-        : (fieldFolderIds.has(f.id) || !opFolderIds.has(f.id)))
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  }, [foldersById, gridId, fieldsById, ctx?.operationsById]);
+  const categoryFolders = useMemo(
+    () => fieldCategoryFolders({ foldersById, fieldsById, operationsById: ctx?.operationsById, gridId }),
+    [foldersById, gridId, fieldsById, ctx?.operationsById]
+  );
 
-  // Group fields by folderId
-  const fieldsByFolder = useMemo(() => {
-    const groups = { uncategorized: [] };
-    for (const f of categoryFolders) groups[f.id] = [];
-    for (const field of gridFields) {
-      const key = field.folderId && groups[field.folderId] !== undefined ? field.folderId : "uncategorized";
-      groups[key].push(field);
-    }
-    for (const k of Object.keys(groups)) groups[k] = orderColumn(groups[k]);
-    return groups;
-  }, [gridFields, categoryFolders]);
+  // Group fields by folderId (shared with ui/FieldAddMenu, the row "+").
+  const fieldsByFolder = useMemo(
+    () => groupFieldsByCategory(gridFields, categoryFolders),
+    [gridFields, categoryFolders]
+  );
 
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const selectedField = selectedFieldId ? fieldsById?.[selectedFieldId] : null;
@@ -979,10 +967,7 @@ export function FieldsTab() {
   const handleCreate = (folderId = null) => {
     // Unique default name — two quick "+ Field" clicks must not mint two
     // "New Field"s (field names are unique, 2026-07-14 rule).
-    const taken = new Set(Object.values(fieldsById || {})
-      .map((f) => (f?.name || "").trim().toLowerCase()));
-    let name = "New Field";
-    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New Field ${n}`;
+    const name = uniqueFieldName(fieldsById);
     const newField = { id: uid(), gridId, name, type: "number", inputEnabled: true, displayEnabled: false, folderId, meta: {} };
     CommitHelpers.createField({ dispatch, socket, field: newField });
     setSelectedFieldId(newField.id);

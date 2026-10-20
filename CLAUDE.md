@@ -15,6 +15,22 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (11) — A "+" ON EVERY ROW ADDS A FIELD: the Command Center's field menu, on the row
+
+User (14:58): *"add in a plus button for adding new fields that shows when an occurance is hovered there should be a
+field creation menu there exactly like the command center one. choose a fields or create a new one"*.
+- **`ui/FieldAddMenu`** (lazy): the grid's fields in the Fields tab's category groups (`helpers/fieldCategories`,
+  now shared with FieldsTab), search, "+ Field" per category, `Create "<typed>"`. Picking binds the field on the
+  row's MODULE (the same write as Settings › Fields, so every placement of that module shows it; a hidden binding
+  is shown). Creating binds it in one undo step and opens the Command Center's own `FieldDetail` editor.
+- The "+" sits bottom-right with the notes/link buttons, revealed on hover (always on touch); hidden in a table
+  child row's other columns and in the artifact viewer.
+- **Watched on prod data (rebuild grid, local build):** hover → "+" on the Daily Answer row → menu with 15
+  categories / 305 fields → Create "zz probe plus" → editor opens, the pill appears on the row, Undo pill offered
+  → Delete through the editor; Mongo: 0 fields, 0 bindings left. 0 page errors. Client 6,505 pass; client-only.
+
+---
+
 ### 2026-10-20 (10) — THE PHONE COLUMN: canvas, table and graph; a Day Page column ran off the screen
 
 UI sweep rows 54–56 at 390x844 (touch), each page put in the phone's shown panel and put back afterwards

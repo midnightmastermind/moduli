@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-20 — fieldCategories.js NEW)
+- `fieldCategoryFolders`, `groupFieldsByCategory`, `uniqueFieldName` (moved out of FieldsTab) and
+  `appendFieldBinding(bindings, fieldId)` (append visible after the highest order, show a hidden one, null
+  when already showing). Used by FieldsTab and `ui/FieldAddMenu`. Test `fieldCategories.test.js`.
+
 ## Recent Changes (2026-10-15 (5) — bookText: a <br> is a space)
 - `sectionToText` replaces each `<br>` in a block with a space before reading `textContent`. Before, an e-book
   heading `<h3>October 15th<br/>TITLE</h3>` read as "### October 15thTITLE", and no day marker could find it.
