@@ -494,7 +494,7 @@ function Container({
   const levelless = !module?.meta?.headingLevel;
   const nestedBoardCard = levelless && module?.kind !== "doc" && module?.meta?.cardChrome === true;
   const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || (nestedBoardCard ? CONTAINER_HEADER_PX.other : 20);
-  const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || (nestedBoardCard ? 600 : 700);
+  const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || (nestedBoardCard ? 500 : 700);
   // Per-occurrence header label overflow: marquee (default) | wrap | none.
   const labelOverflow = containerOccurrence?.meta?.labelOverflow ?? module?.meta?.labelOverflow ?? "marquee";
   // A BOUND header is a control, not prose: marqueeing it scrolls the picker
