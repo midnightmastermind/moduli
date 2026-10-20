@@ -41,7 +41,6 @@ export default function FieldSuggestion({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [localQuery, setLocalQuery] = useState(query);
   const [activeCategory, setActiveCategory] = useState("all");
-  const inputRef = useRef(null);
   const listRef = useRef(null);
 
   const ctx = useGridActions() || {};
@@ -136,7 +135,6 @@ export default function FieldSuggestion({
     return items;
   }, [allItems, localQuery, activeCategory]);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setLocalQuery(query); }, [query]);
   useEffect(() => { setSelectedIndex(0); }, [filteredItems.length]);
 
@@ -191,6 +189,15 @@ export default function FieldSuggestion({
     [filteredItems, selectedIndex, handleSelect, onClose]
   );
 
+  // THE CARET STAYS IN THE DOCUMENT. The query is what the user types after "@" in the editor
+  // (it arrives as `query`), and a pick deletes that "@query" text. Focusing the search box blurred
+  // the editor, whose blur closes this list 200ms later — and on a freshly made empty textblock the
+  // blur removed the block itself (UI sweep 2026-10-19). Keys are read on window, like the "/" palette.
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   const categories = [
     { key: "all", label: "All" },
     { key: "field", label: "Fields" },
@@ -203,20 +210,20 @@ export default function FieldSuggestion({
     <div
       className="field-suggestion absolute z-50 bg-background border border-border rounded-lg shadow-xl overflow-hidden"
       style={{ top: position.top, left: position.left, minWidth: 300, maxWidth: 380 }}
-      onKeyDown={handleKeyDown}
+      // A press inside the list must not take focus from the editor (its blur closes the list).
+      onMouseDown={(e) => e.preventDefault()}
     >
       {/* Search */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/50">
         <Search className="w-4 h-4 text-muted-foreground shrink-0" />
         <input
-          ref={inputRef}
           type="text"
           value={localQuery}
-          onChange={(e) => { setLocalQuery(e.target.value); setSelectedIndex(0); }}
           placeholder="Search fields, instances, containers..."
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           autoComplete="off"
-          autoFocus
+          readOnly
+          tabIndex={-1}
         />
         <span className="text-xs text-muted-foreground">{filteredItems.length}</span>
       </div>

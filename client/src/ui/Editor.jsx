@@ -91,7 +91,7 @@ import { ExprPill } from "../docs/ExprPillExtension";
 import { CellEmbedContext } from "../docs/CellEmbedContext";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
 import CommandPalette from "../docs/suggestions/CommandPalette";
-import { liftPopupHosts } from "../helpers/editorPopupLift";
+import { liftPopupHosts, popupOwnsKey } from "../helpers/editorPopupLift";
 import { slashOpensPalette } from "../docs/suggestions/slashTrigger.js";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
 import DocToolbar from "../docs/DocToolbar";
@@ -1233,6 +1233,15 @@ const Editor = forwardRef(function Editor({
           return false;
         },
         keydown: (_view, event) => {
+          // A PICK-LIST IS OPEN: its keys are the list's, not the document's. The lists listen on
+          // window, which runs AFTER ProseMirror, so Enter used to apply the pick AND split the
+          // line (and the "/query" delete then measured across the split and left "/h" behind),
+          // and the arrows moved the caret (UI sweep 2026-10-19, item 43).
+          if ((showSuggestion || showCommandPalette || showDocLink || showExprSuggestion || showEmbedPicker)
+            && popupOwnsKey(event)) {
+            event.preventDefault();
+            return true;
+          }
           // Shift+Enter inside a textblock sub-editor:
           //   - empty sub-editor → collapse the textblock back to a paragraph
           //   - cursor on the last position of the doc → exit (handleExitBlock

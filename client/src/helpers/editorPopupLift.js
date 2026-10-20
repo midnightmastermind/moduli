@@ -14,3 +14,10 @@ export function liftPopupHosts(el) {
   }
   return () => lifted.forEach((e) => e.removeAttribute(POPUP_LIFT_ATTR));
 }
+
+// The keys an open pick-list (the "/" palette, the @ picker, [[ links, = expressions, @: embeds)
+// navigates and picks with. The editor leaves them to the list while one is open.
+const POPUP_KEYS = new Set(["ArrowUp", "ArrowDown", "Enter", "Tab"]);
+export function popupOwnsKey(event) {
+  return POPUP_KEYS.has(event?.key) && !event.altKey && !event.ctrlKey && !event.metaKey;
+}

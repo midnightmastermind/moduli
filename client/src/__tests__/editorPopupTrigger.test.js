@@ -31,3 +31,13 @@ describe("Editor popup triggers", () => {
     expect(pos).toMatch(/!rect\.top && !rect\.bottom && !rect\.left/);
   });
 });
+
+describe("Editor hands the list keys to an open popup", () => {
+  it("the DOM keydown consumes them before any document keymap", () => {
+    const at = src.indexOf("keydown: (_view, event) => {");
+    const guard = src.indexOf("popupOwnsKey(event)", at);
+    const shiftEnter = src.indexOf('event.key === "Enter" && event.shiftKey', at);
+    expect(guard).toBeGreaterThan(at);
+    expect(shiftEnter).toBeGreaterThan(guard);
+  });
+});
