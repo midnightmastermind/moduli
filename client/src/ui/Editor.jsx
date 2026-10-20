@@ -3427,6 +3427,16 @@ const Editor = forwardRef(function Editor({
           // as tall as the gutter it sits in (min 4px so it can still be hit), never over a line
           style={{ top: docGap.top, height: Math.max(4, Math.min(14, docGap.height ?? 14)) }}
           onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) clearDocGapUnlessPinned(); }}
+          // The strip OUTSIDE the "+" is a click on that spot of the page: an empty line is put there
+          // with the caret in it, and the caret-entry mint makes it a textblock — the same thing a
+          // click on an empty line does (user 2026-10-20: "if i click on the margin (that isnt the
+          // actual quick add button but in the same horizontal position), nothing happens").
+          onClick={(e) => {
+            if (e.target.closest?.(".quick-add-btn, .insert-gap-btn") || !editor || !editor.isEditable) return;
+            const at = Math.max(0, Math.min(docGap.pos, editor.state.doc.content.size));
+            setDocGap(null);
+            editor.chain().focus().insertContentAt(at, { type: "paragraph" }).setTextSelection(at + 1).run();
+          }}
         >
           <div className="insert-gap-line" />
           <div className="insert-gap-btn">

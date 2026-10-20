@@ -2665,6 +2665,11 @@ body[data-drag-kind] .insert-gap-btn { pointer-events: none; }
    fills exactly that and no more: its glyph may draw past the strip, but only the strip clicks. */
 .doc-insert-gap .insert-gap-btn,
 .doc-insert-gap .quick-add-btn { height: 100% !important; min-height: 0 !important; overflow: visible; }
+/* In a doc only the "+" opens the add menu; the rest of the strip is a click on the page at that
+   spot (Editor puts a line there and the empty-line mint makes it a textblock). */
+.doc-insert-gap:not(.doc-insert-gap--drag) { pointer-events: auto; cursor: text; }
+.doc-insert-gap .insert-gap-btn { width: auto !important; flex: 0 0 auto; }
+.doc-insert-gap .quick-add-btn { width: 20px !important; }
 .doc-insert-gap .quick-add-btn svg { pointer-events: none; }
 
 /* Drag variant — same blue line, bolder + glowing so the drop spot is obvious
