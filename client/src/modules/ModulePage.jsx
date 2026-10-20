@@ -52,6 +52,8 @@ const EMPTY_ARR = [];
 import { GridLiveContext } from "../GridLiveContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { withAction } from "../helpers/actionScope";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "../helpers/docEmbedAppend";
 import {
   applyLocalSort,
@@ -72,6 +74,18 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterCon
 import { KIND_ICONS as SHARED_KIND_ICONS } from "../helpers/moduleIcons";
 const KIND_ICONS = SHARED_KIND_ICONS;
 
+
+// The middle of the part of a canvas page you can see, in world units, nudged per existing card so
+// quick adds in a row do not stack exactly. null when the canvas is not mounted.
+export function visibleCanvasSpot(root, n = 0) {
+  const surface = root?.querySelector?.(".canvas-surface");
+  if (!surface) return null;
+  const step = (n % 6) * 24;
+  return {
+    x: Math.round(surface.scrollLeft + surface.clientWidth / 2 - 90 + step),
+    y: Math.round(surface.scrollTop + surface.clientHeight / 2 - 30 + step),
+  };
+}
 
 function Page({
   occurrence,
@@ -498,6 +512,38 @@ function Page({
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
   }, [occurrence, pageModule, dispatch, socket]);
 
+  // A CANVAS or TABLE page holds what a container holds (cards / rows: items, textblocks, files, nested
+  // containers), so its "+" offers the container's full palette and creates through the same router.
+  // Board and doc pages keep the container-only palette.
+  const leafHostPage = kind === "canvas" || kind === "table";
+  const handleQuickCreateLeaf = useCallback((payload = {}) => {
+    if (!occurrence?.id || !ctxUserId || !ctxGridId) return;
+    const { kind: k = "instance", fieldIds = [], fieldBindings = null, initialFields = null, file, url, folderId = null } = payload;
+    const made = withAction("Created item", () => {
+      const m = CommitHelpers.createChildInContainer({
+        dispatch, socket, gridId: ctxGridId, userId: ctxUserId,
+        containerOccurrence: occurrence, containerModule: pageModule,
+        kind: k, fieldIds, fieldBindings, initialFields, file, url, folderId, index: null,
+        panelId, containerLabel: pageModule?.label || "",
+      });
+      // On a canvas the new card goes where you are looking. Without a position it fell back to the
+      // middle of the 4000px world — off screen (measured at 2424,1961 in a 1600px window).
+      const at = kind === "canvas" ? visibleCanvasSpot(dragRef.current, (occurrence.occurrences || []).length) : null;
+      if (at && m?.occurrenceId) {
+        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: m.occurrenceId, meta: { ...(getOccMap?.()?.[m.occurrenceId]?.meta || {}), x: at.x, y: at.y } }, emit: true });
+      }
+      return m;
+    });
+    if (k === "instance" && made?.moduleId) requestLabelEdit(made.moduleId);
+  }, [occurrence, pageModule, kind, getOccMap, ctxUserId, ctxGridId, dispatch, socket, panelId]);
+  const handleQuickAddExisting = useCallback((mod) => {
+    if (!occurrence?.id || !mod?.id || !ctxUserId || !ctxGridId) return;
+    CommitHelpers.createLeafInstanceAtIndex({
+      dispatch, socket, gridId: ctxGridId, userId: ctxUserId, parentOccurrence: occurrence,
+      existingModuleId: mod.id, panelId, containerLabel: pageModule?.label || "",
+    });
+  }, [occurrence, pageModule, ctxUserId, ctxGridId, dispatch, socket, panelId]);
+
   if (!pageModule || !occurrence) return null;
 
   const KindIcon = KIND_ICONS[kind] || FileText;
@@ -825,6 +871,16 @@ function Page({
 
             {/* Add (QuickAddMenu) moved here, after the label. */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
+              {leafHostPage ? (
+              <QuickAddMenu
+                targetRole="instance"
+                onSelect={handleQuickAddExisting}
+                onCreateNew={handleQuickCreateLeaf}
+                createLabel="New item"
+                hostOccurrence={occurrence}
+                openTrigger={pageQuickAddTrigger}
+              />
+              ) : (
               <QuickAddMenu
                 targetRole="container"
                 onSelect={handleQuickAddContainer}
@@ -870,6 +926,7 @@ function Page({
                 hostOccurrence={occurrence}
                 openTrigger={pageQuickAddTrigger}
               />
+              )}
             </div>
           </div>
         )}
