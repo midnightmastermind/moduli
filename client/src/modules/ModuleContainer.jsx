@@ -1997,10 +1997,11 @@ function Container({
               // layout) and the drag handle has to stop consuming a row.
               + (childContentDir === "column" ? " container-items--content-column" : "")}
             style={{
-              // Board containers get +2px top + bottom over the list default —
+              // Board containers get +4px at the bottom over the list default —
               // the kanban-style column rows were too squished against the
-              // container chrome.
-              padding: module.kind === "board" ? "7px 5px 9px 5px" : "3px 5px 5px 5px",
+              // container chrome. The top was +4 too and is +1 now (user,
+              // 2026-10-20: "drop the upper padding a bit", seen on Routines).
+              padding: module.kind === "board" ? "4px 5px 9px 5px" : "3px 5px 5px 5px",
               flex: 1, display: "flex", flexDirection: "column",
               // Wrap mode ("i want to see them as squares instead of rectangles
               // stacked") is driven by the SAME layout cascade the board page

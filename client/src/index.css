@@ -9260,6 +9260,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="terminal"] .container-header {
   font-size: 1.12em;
 }
+/* The row pocket's 5px ring is a TRANSPARENT BORDER (it is the container's drop area — see
+   .container-list), and the rule above paints every border green, so in this skin it drew a thick
+   green frame inside every container (user 2026-10-20: "shrink the containers inner light green
+   border"). The ring stays (and stays droppable) but clear; a 1px line just inside it outlines the
+   pocket. Inset box-shadows paint inside the border, so the line sits where the old ring ended. */
+:root[data-skin="terminal"] .container-list {
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 1px var(--term-green-line) !important;
+}
 :root[data-skin="terminal"] svg { color: var(--term-green) !important; }
 :root[data-skin="terminal"] ::selection { background: #33ff66; color: #000; }
 :root[data-skin="terminal"] input,
