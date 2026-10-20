@@ -1164,6 +1164,9 @@ function Panel({
                   <Folder size={11} style={{ opacity: 0.8 }} />
                 </button>
                 {(() => {
+                  // A mosaic grid gives every panel its own pane, so there are no
+                  // stacks to cycle (user 2026-10-20).
+                  if (mosaic) return null;
                   const stack = dragCtx.getStackForPanel?.(module) || [];
                   if (stack.length <= 1) return null;
                   return (
@@ -1286,7 +1289,7 @@ function Panel({
                       borderLeft: "1px solid var(--border-default)",
                       overflow: "hidden",
                     }}>
-                      <div style={{ flex: 1, minHeight: 0, minWidth: ROOT_TREE_W, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
+                      <div style={{ flex: 1, minHeight: 0, minWidth: ROOT_TREE_W - 1, overflowY: "auto", overflowX: "hidden", scrollbarGutter: "stable", WebkitOverflowScrolling: "touch", padding: "4px 2px", background: "var(--surface-card)" /* opaque: composited scrolling, see ManifestTree */ }}>
                         {rootTree}
                       </div>
                     </SlideDrawer>

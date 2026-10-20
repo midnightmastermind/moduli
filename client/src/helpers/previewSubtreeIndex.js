@@ -106,7 +106,7 @@ export function occurrenceIndexFor(allOccurrences) {
  * @param {string[]} [args.folderIds] folder ids whose direct children seed the walk
  * @returns {Set<string>}
  */
-export function collectSubtreeIds({ rootOccurrenceId, index, folderIds = [] }) {
+export function collectSubtreeIds({ rootOccurrenceId, index, folderIds = [], shallowFolders = false }) {
   const { byId, childIdsByParentId } = index;
   const seen = new Set();
 
@@ -125,10 +125,15 @@ export function collectSubtreeIds({ rootOccurrenceId, index, folderIds = [] }) {
     for (const cid of listed) if (!seen.has(cid)) listQueue.push(cid);
   }
 
-  // Phase 2 — the folder's own contents, which no list can reach.
-  for (const fid of folderIds) {
-    for (const cid of childIdsByParentId.get(fid) || []) seen.add(cid);
-  }
+  // Phase 2 — the folder's own contents, which no list can reach. With
+  // `shallowFolders` they are added AFTER the closure below, so only the cards
+  // themselves come in, not everything inside each card.
+  const addFolderContents = () => {
+    for (const fid of folderIds) {
+      for (const cid of childIdsByParentId.get(fid) || []) seen.add(cid);
+    }
+  };
+  if (!shallowFolders) addFolderContents();
 
   // Phase 3 — close over `parentId`. This is the fixpoint the old code ran as
   // a repeated full-grid scan; walking the reverse index reaches the identical
@@ -140,6 +145,7 @@ export function collectSubtreeIds({ rootOccurrenceId, index, folderIds = [] }) {
     }
   }
 
+  if (shallowFolders) addFolderContents();
   return seen;
 }
 

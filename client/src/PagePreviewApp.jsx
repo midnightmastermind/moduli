@@ -13,6 +13,7 @@ import { buildLookup } from "./helpers/LayoutHelpers";
 import { occurrenceIndexFor, collectSubtreeIds } from "./helpers/previewSubtreeIndex";
 import { useTheme } from "./helpers/useTheme";
 import { StaticTextContext } from "./ui/AutoMarquee.jsx";
+import { PreviewNestingContext } from "./helpers/previewNesting.js";
 
 import Page from "./modules/ModulePage.jsx";
 import Container from "./modules/ModuleContainer.jsx";
@@ -84,20 +85,35 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
   // can never reach them (2026-07-25: "if i click on mind, its filled with
   // boards but doesnt show it in the preview"). Seed the folder's own
   // contents, plus any CHILD folder's, so nested folders show as cards too.
+  // Only a FOLDER page draws its folder's contents. A board or doc page that
+  // merely sits in a folder used to seed the whole folder too — so every card
+  // on a folder page built a subtree of all its siblings and everything under
+  // them. And because the cards a folder preview draws never render previews
+  // of their own (helpers/previewNesting.js), their contents are not needed:
+  // the folder's direct children and each sub-folder's page are enough.
+  const rootIsFolderPage = useMemo(() => {
+    const mid = occIndex.byId[occurrenceId]?.moduleId;
+    if (!mid) return false;
+    const m = allModules.find(x => x.id === mid);
+    return m?.role === "page" && m?.kind === "folder";
+  }, [occIndex, occurrenceId, allModules]);
+
   const seedFolderIds = useMemo(() => {
+    if (!rootIsFolderPage) return [];
     const rootFolderId = occIndex.byId[occurrenceId]?.parentId;
     if (!rootFolderId) return [];
     const kids = (parentState?.folders || [])
       .filter(f => f.parentId === rootFolderId && f.folderType !== "category")
       .map(f => f.id);
     return [rootFolderId, ...kids];
-  }, [occIndex, occurrenceId, parentState?.folders]);
+  }, [rootIsFolderPage, occIndex, occurrenceId, parentState?.folders]);
 
   const subtreeOccurrenceIds = useMemo(() => {
     const seen = collectSubtreeIds({
       rootOccurrenceId: occurrenceId,
       index: occIndex,
       folderIds: seedFolderIds,
+      shallowFolders: true,
     });
     // A DOC DRAWS ITS TEXTMAP, and the nodes in it reference other occurrences
     // by id — a THIRD reachability path beside `occurrences[]` and `parentId`.
@@ -328,6 +344,7 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
             ui/AutoMarquee. One provider covers every label, pill, cell and
             header in the subtree, so no call site has to remember. */}
         <StaticTextContext.Provider value={true}>
+        <PreviewNestingContext.Provider value={true}>
           <div style={{
             width: "100%", height: "100%",
             // A preview CARD is a fixed-size thumbnail and must not scroll; a
@@ -370,6 +387,7 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
               />
             )}
           </div>
+        </PreviewNestingContext.Provider>
         </StaticTextContext.Provider>
         </GridLiveContext.Provider>
       </GridDataContext.Provider>

@@ -25,8 +25,13 @@
 // 222, so the column clipped the tree's right 58px — its header's New folder /
 // New page buttons sat past the panel edge, unclickable (found 2026-10-05).
 // The column holds the tree plus its 2px side padding and 1px left border.
-export const TREE_WIDTH = 280;
-export const ROOT_TREE_W = TREE_WIDTH + 2 * 2 + 1;
+// It also holds the VERTICAL SCROLLBAR: with the column exactly the tree's
+// width, a long tree's scrollbar took ~15px of it and the tree scrolled
+// sideways (user, 2026-10-20). The scroller reserves the gutter
+// (`scrollbar-gutter: stable`) and the column counts it.
+export const TREE_WIDTH = 284;
+export const TREE_SCROLLBAR_W = 16;
+export const ROOT_TREE_W = TREE_WIDTH + 2 * 2 + 1 + TREE_SCROLLBAR_W;
 // The page keeps at least 1.5x the column, so the minimum viewport is 2.5x it.
 // It was 3x a 222px column (666px); at the column's true width that would be
 // 855px and iPad portrait (768) — the case this file exists for — would overlay

@@ -352,7 +352,7 @@ const gridOptions = useMemo(
                   onClick={() => addNewPanel("board")}
                   title="Add panel"
                   aria-label="Add panel"
-                  style={{ height: 26, width: 26, padding: 0 }}
+                  style={{ height: 26, width: 26, padding: 0, cursor: "pointer" }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>

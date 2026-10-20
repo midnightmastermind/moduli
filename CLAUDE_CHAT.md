@@ -4069,3 +4069,8 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-10-20 14:58 CDT
 - *"add in a plus button for adding new fields that shows when an occurance is hovered there should be a field creation menu there exactly like the command center one. choose a fields or create a new one"*
+
+### 2026-10-20 17:56 CDT
+- *"for the folder preview tile, its taking super long for all of the folders to reconcile their previews … folders within folder specifically … it slows down the entire app"*
+- *"also the add panel button should be a pointer icon, the panels shouldnt have stacks in mosaic mode, and also if im dragging to the top and we get that layout helper, we need it to match the amount of panels we have on the screen, right now we just have one for a four panel layout. we need to add more and gear it to how many are currently on the page"*
+- *"also the side tree manifest needs to be wider so we dont have a horizontal scrollbar"*

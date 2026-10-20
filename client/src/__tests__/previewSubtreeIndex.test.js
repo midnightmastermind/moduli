@@ -119,6 +119,25 @@ describe("collectSubtreeIds", () => {
     expect(seen.has("kid")).toBe(true);
   });
 
+  it("shallowFolders: the folder's cards come in, not what is inside them", () => {
+    // A folder preview's cards never render previews of their own
+    // (helpers/previewNesting.js), so their contents are dead weight.
+    const all = [
+      occ("page", { parentId: "folder1" }),
+      occ("sibling", { parentId: "folder1" }),
+      occ("kid", { parentId: "sibling" }),
+      occ("subPage", { parentId: "sub1" }),
+      occ("subKid", { parentId: "subPage" }),
+    ];
+    const seen = collectSubtreeIds({
+      rootOccurrenceId: "page",
+      index: occurrenceIndexFor(all),
+      folderIds: ["folder1", "sub1"],
+      shallowFolders: true,
+    });
+    expect([...seen].sort()).toEqual(["page", "sibling", "subPage"]);
+  });
+
   it("keeps a DANGLING child ref instead of truncating the walk", () => {
     // The id is added before the lookup, so a parent that lists a missing
     // child still has its remaining children walked. The occurrence build

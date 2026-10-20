@@ -294,6 +294,69 @@ export const SNAP_LAYOUTS = [
   { id: "two-thirds-right", zones: [C("left", THIRD), C("right", 2 * THIRD)] },
 ];
 
+// ── LAYOUTS FOR THE PANELS ON SCREEN ──────────────────────────────────────
+// User 2026-10-20: *"we need it to match the amount of panels we have on the
+// screen, right now we just have one for a four panel layout."* The bar offers
+// the layouts with exactly as many zones as the grid has panels; these are
+// generated, so every count from 2 to 8 has several. A generated zone carries
+// `region: null` — a pick applies the whole layout through `treeFromZones`, so
+// it never needs a region name.
+const G = (x, y, w, h) => ({ region: null, x, y, w, h });
+const cols = (n, x = 0, y = 0, w = 1, h = 1) => Array.from({ length: n }, (_, i) => G(x + (w * i) / n, y, w / n, h));
+const rows = (n, x = 0, y = 0, w = 1, h = 1) => Array.from({ length: n }, (_, i) => G(x, y + (h * i) / n, w, h / n));
+
+function generatedLayouts(n) {
+  const out = [];
+  if (n < 2) return out;
+  out.push({ id: `cols-${n}`, zones: cols(n) });
+  out.push({ id: `rows-${n}`, zones: rows(n) });
+  // A grid of r rows x c columns.
+  for (let r = 2; r <= n / 2; r++) {
+    if (n % r) continue;
+    const c = n / r;
+    out.push({ id: `grid-${r}x${c}`, zones: Array.from({ length: r }, (_, i) => cols(c, 0, i / r, 1, 1 / r)).flat() });
+  }
+  if (n >= 3) {
+    const k = n - 1;
+    out.push({ id: `big-left-${n}`, zones: [G(0, 0, 0.5, 1), ...rows(k, 0.5, 0, 0.5, 1)] });
+    out.push({ id: `big-right-${n}`, zones: [...rows(k, 0, 0, 0.5, 1), G(0.5, 0, 0.5, 1)] });
+    out.push({ id: `big-top-${n}`, zones: [G(0, 0, 1, 0.5), ...cols(k, 0, 0.5, 1, 0.5)] });
+    out.push({ id: `big-bottom-${n}`, zones: [...cols(k, 0, 0, 1, 0.5), G(0, 0.5, 1, 0.5)] });
+    // Two rows of unequal counts, e.g. 2 over 3.
+    const a = Math.floor(n / 2), b = n - a;
+    if (a !== b) {
+      out.push({ id: `split-${a}-${b}`, zones: [...cols(a, 0, 0, 1, 0.5), ...cols(b, 0, 0.5, 1, 0.5)] });
+      out.push({ id: `split-${b}-${a}`, zones: [...cols(b, 0, 0, 1, 0.5), ...cols(a, 0, 0.5, 1, 0.5)] });
+    }
+    // Columns of unequal counts, e.g. 2 beside 3.
+    if (a !== b) out.push({ id: `colsplit-${a}-${b}`, zones: [...rows(a, 0, 0, 0.5, 1), ...rows(b, 0.5, 0, 0.5, 1)] });
+  }
+  return out;
+}
+
+const zoneKey = (z) => [z.x, z.y, z.w, z.h].map((v) => v.toFixed(4)).join(",");
+const pictureKey = (l) => l.zones.map(zoneKey).sort().join("|");
+
+/**
+ * The layouts the bar offers for a grid holding `count` panels: every layout
+ * with exactly that many zones, the hand-drawn ones first, duplicates dropped.
+ * With no panel count (or no layout of that size) it falls back to the
+ * hand-drawn set. PURE.
+ */
+export function layoutsForCount(count) {
+  const n = Math.max(0, Math.floor(count || 0));
+  const seen = new Set();
+  const out = [];
+  for (const l of [...SNAP_LAYOUTS, ...generatedLayouts(Math.min(n, 8))]) {
+    if (l.zones.length !== n) continue;
+    const k = pictureKey(l);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(l);
+  }
+  return out.length ? out : SNAP_LAYOUTS;
+}
+
 /**
  * Does a perimeter zone open the layout bar? The TOP side's middle third —
  * where Windows puts it. The top corners keep snapping straight to a quadrant,

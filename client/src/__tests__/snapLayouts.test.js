@@ -127,3 +127,42 @@ describe("a layout pick applies the whole layout", () => {
     expect(planSnapLayout(plan.tree, "A", L("thirds"), 2)).toBeNull();
   });
 });
+
+import { layoutsForCount } from "../helpers/mosaicSnap";
+describe("snap layouts sized to the panels on screen", () => {
+  it("offers several layouts for every count from 2 to 8, each with exactly that many zones", () => {
+    for (let n = 2; n <= 8; n++) {
+      const ls = layoutsForCount(n);
+      expect(ls.length).toBeGreaterThanOrEqual(n === 2 ? 2 : 3);
+      for (const l of ls) {
+        expect(l.zones.length).toBe(n);
+        expect(l.zones.reduce((a, z) => a + z.w * z.h, 0)).toBeCloseTo(1);
+      }
+    }
+  });
+
+  it("four panels get more than the one quadrants picture", () => {
+    expect(layoutsForCount(4).length).toBeGreaterThan(1);
+    expect(layoutsForCount(4).map((l) => l.id)).toContain("quadrants");
+  });
+
+  it("every generated layout builds a tree whose panes sit where the picture draws them", () => {
+    for (let n = 2; n <= 8; n++) for (const l of layoutsForCount(n)) {
+      const ids = l.zones.map((_, i) => `p${i}`);
+      const t = treeFromZones(l.zones, ids);
+      expect(t).not.toBeNull();
+      l.zones.forEach((z, i) => {
+        const f = paneFraction(t, ids[i]);
+        expect(f.x).toBeCloseTo(z.x); expect(f.y).toBeCloseTo(z.y);
+        expect(f.w).toBeCloseTo(z.w); expect(f.h).toBeCloseTo(z.h);
+      });
+    }
+  });
+
+  it("no duplicate pictures", () => {
+    for (let n = 2; n <= 8; n++) {
+      const keys = layoutsForCount(n).map((l) => l.zones.map((z) => [z.x, z.y, z.w, z.h].map((v) => v.toFixed(3)).join()).sort().join("|"));
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+});

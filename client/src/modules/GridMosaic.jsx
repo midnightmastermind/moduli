@@ -20,7 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
-import { fillNewPanels, opensSnapLayouts, paneFraction, planSnapLayout, regionForZone, snapLeafToRegion, SNAP_LAYOUTS, zoneAt } from "../helpers/mosaicSnap";
+import { fillNewPanels, opensSnapLayouts, paneFraction, planSnapLayout, regionForZone, snapLeafToRegion, layoutsForCount, zoneAt } from "../helpers/mosaicSnap";
 import { useGridActionsSelector } from "../GridActionsContext";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
@@ -402,7 +402,7 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onLayoutDrop }) 
       ))}
       {preview && <div className="mosaic-snap-zone" style={{ ...preview, zIndex: 45 }} />}
       {layoutsOpen && (
-        <SnapLayoutsBar onHover={setLayoutPick} onClose={closeLayouts} onPick={pickLayout} />
+        <SnapLayoutsBar onHover={setLayoutPick} onClose={closeLayouts} onPick={pickLayout} panelCount={tree ? allPanelOccIds(tree).length : 0} />
       )}
     </>
   );
@@ -443,7 +443,7 @@ function SnapStrip({ style, rootRef, size, onZone, onSnapDrop }) {
 // BAR is a drop target too, so its own drag-leave is what closes it — a zone
 // inside it keeps the bar in the drop-target stack, so moving between zones
 // does not.
-function SnapLayoutsBar({ onHover, onClose, onPick }) {
+function SnapLayoutsBar({ onHover, onClose, onPick, panelCount }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
@@ -456,7 +456,7 @@ function SnapLayoutsBar({ onHover, onClose, onPick }) {
   }, [onClose]);
   return (
     <div ref={ref} className="mosaic-snap-layouts" data-testid="snap-layouts">
-      {SNAP_LAYOUTS.map((l) => (
+      {layoutsForCount(panelCount).map((l) => (
         <div key={l.id} className="mosaic-snap-layout" data-layout={l.id}>
           {l.zones.map((z, i) => (
             <SnapLayoutZone key={i} layout={l} zoneIndex={i} onHover={onHover} onPick={onPick} />
@@ -487,7 +487,7 @@ function SnapLayoutZone({ layout, zoneIndex, onHover, onPick }) {
     <div
       ref={ref}
       className={`mosaic-snap-layout-zone${over ? " is-over" : ""}`}
-      data-region={`${zone.region.col}-${zone.region.row}${zone.region.span ? `-${Math.round(zone.region.span * 3)}of3` : ""}`}
+      data-region={zone.region ? `${zone.region.col}-${zone.region.row}${zone.region.span ? `-${Math.round(zone.region.span * 3)}of3` : ""}` : undefined}
       style={{ left: pct(zone.x), top: pct(zone.y), width: pct(zone.w), height: pct(zone.h) }}
     />
   );

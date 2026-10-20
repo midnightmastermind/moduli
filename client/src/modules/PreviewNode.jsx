@@ -17,7 +17,7 @@
 // 11 cards on screen. The legacy `/?previewOcc=X` iframe entry point in
 // main.jsx still works for any outstanding iframe consumers.
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useContext } from "react";
 import { File, Image as ImageIcon, X, Trash2, Pencil } from "lucide-react";
 import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
 import RadialMenu from "../ui/RadialMenu";
@@ -34,6 +34,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildRenameItem } from "./pageCardRename";
 import { PagePreviewBody } from "../PagePreviewApp.jsx";
 import { requestPreviewSlot } from "../helpers/previewAdmission.js";
+import { PreviewNestingContext } from "../helpers/previewNesting.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 import { ArtifactThumbnail } from "./ArtifactCard.jsx";
 import { openCoverPicker, setCover } from "../helpers/coverPick";
@@ -132,6 +133,10 @@ export default function PreviewNode({
   extraMenuItems = null,
 }) {
   const ref = useRef(null);
+  // A card drawn INSIDE another card's preview never mounts a live preview of
+  // its own (helpers/previewNesting.js): it is a few pixels wide, and for a
+  // sub-folder that render recursed through every folder below it.
+  const nested = useContext(PreviewNestingContext);
   const Icon = getModuleTypeIcon(module);
   const color = getModuleTypeColor(module);
   const label = module?.label || "Untitled";
@@ -169,7 +174,7 @@ export default function PreviewNode({
   // doesn't tear down the iframe.
   const [hasBeenVisible, setHasBeenVisible] = useState(false);
   useEffect(() => {
-    if (!ref.current || hasBeenVisible) return;
+    if (nested || !ref.current || hasBeenVisible) return;
     if (typeof IntersectionObserver === "undefined") { setHasBeenVisible(true); return; }
     const io = new IntersectionObserver((entries) => {
       for (const entry of entries) {
@@ -178,7 +183,7 @@ export default function PreviewNode({
     }, { rootMargin: "200px 0px" });
     io.observe(ref.current);
     return () => io.disconnect();
-  }, [hasBeenVisible]);
+  }, [hasBeenVisible, nested]);
 
   // ── AND THEN WAIT FOR A TURN ───────────────────────────────────────────────
   // Visibility alone is not enough, and that is the whole reason this second
@@ -191,12 +196,12 @@ export default function PreviewNode({
   // this point; only the preview BODY waits.
   const [hasSlot, setHasSlot] = useState(false);
   useEffect(() => {
-    if (!hasBeenVisible || hasSlot) return;
+    if (nested || !hasBeenVisible || hasSlot) return;
     // `loadIndex` orders the queue (reading order), it does not time it —
     // see helpers/previewAdmission.js. Cancelling on unmount matters: a card
     // scrolled away must give up its turn or it delays one that is visible.
     return requestPreviewSlot(loadIndex, () => setHasSlot(true));
-  }, [hasBeenVisible, hasSlot, loadIndex]);
+  }, [hasBeenVisible, hasSlot, loadIndex, nested]);
 
   // Drag setup
   useEffect(() => {
@@ -225,7 +230,7 @@ export default function PreviewNode({
   const isPageableContainer = role === "container" && PAGEABLE_CONTAINER_KINDS.has(kind) && typeof onDrillDown === "function";
   const canDrillDown = role === "page" || kind === "folder" || isArtifact || isPageableContainer;
   const isLandscape = kind === "folder";
-  const shouldLoadIframe = loadPreview && hasBeenVisible && hasSlot;
+  const shouldLoadIframe = !nested && loadPreview && hasBeenVisible && hasSlot;
 
   // F2 — per-card cover override. When `occurrence.meta.cover` is set
   // (URL or fileRef string), render it INSTEAD of the iframe preview.
@@ -400,6 +405,10 @@ export default function PreviewNode({
           ? <div className="preview-node-artifact"><ArtifactThumbnail module={module} occurrence={occurrence} /></div>
           : shouldLoadIframe
           ? <InlinePreview occurrenceId={occurrence?.id} landscape={isLandscape} />
+          : nested
+          ? <div className="preview-node-nested-face" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon size={72} style={{ color, opacity: 0.55 }} />
+            </div>
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <File size={20} style={{ color: "var(--text-faint)", opacity: 0.3 }} />
             </div>
