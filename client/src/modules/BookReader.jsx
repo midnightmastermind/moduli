@@ -91,6 +91,9 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
   useEffect(() => {
     let live = true;
     let view = null;
+    let onAncestorAnimationEnd = null;
+    let settleRef = null;
+    let stopSettle = null;
     (async () => {
       try {
         const res = await fetch(src, { credentials: "include" });
@@ -105,6 +108,41 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
         view.style.height = "100%";
         hostRef.current.appendChild(view);
         viewRef.current = view;
+        // foliate measures its page with getBoundingClientRect, which a CSS TRANSFORM shrinks — and
+        // opening a page in a panel plays a scale animation (page-enter 0.6 -> 1, drilldown 0.15 -> 1).
+        // Laid out mid-animation, the columns came out narrower than the page they are shown in, so
+        // the next one showed through: a cut-off two-page spread (user, 2026-10-20). A transform
+        // ending fires no resize, so re-lay the page out when an animation around it ends.
+        {
+          const host = hostRef.current;
+          // Untransformed, the box's on-screen width equals its layout width (offsetWidth). Wait
+          // for that, a couple of frames in a row, then lay the page out once more.
+          let frame = 0;
+          const settle = () => {
+            cancelAnimationFrame(frame);
+            let steady = 0, tries = 0;
+            const tick = () => {
+              if (!live) return;
+              const onScreen = host.getBoundingClientRect().width;
+              steady = Math.abs(onScreen - host.offsetWidth) < 1 ? steady + 1 : 0;
+              if (steady >= 2 || ++tries > 180) {
+                try { view.renderer?.render?.(); } catch { /* a view closing as it settles */ }
+                return;
+              }
+              frame = requestAnimationFrame(tick);
+            };
+            frame = requestAnimationFrame(tick);
+          };
+          onAncestorAnimationEnd = (e) => {
+            if (!(e.target instanceof Element) || !e.target.contains(host)) return;
+            // a colour fading on hover is no reason to re-paginate; a size or transform change is
+            if (e.type.startsWith("transition") && !/transform|scale|width|height|flex|inset/.test(e.propertyName || "")) return;
+            settle();
+          };
+          settleRef = settle;
+          stopSettle = () => cancelAnimationFrame(frame);
+          for (const t of ["animationstart", "animationend", "transitionend"]) document.addEventListener(t, onAncestorAnimationEnd, true);
+        }
         view.addEventListener("relocate", (e) => onRelocateRef.current?.(e.detail));
         // The book's own "Previous | Next" links come out as each section loads (the file is untouched).
         view.addEventListener("load", (e) => { try { stripBookNavLinks(e.detail?.doc); } catch { /* a page we cannot read is left as is */ } });
@@ -122,12 +160,19 @@ function EbookView({ src, title, startCfi, onRelocate, viewRef, onToc }) {
         view.renderer.setAttribute("gap", "4%");
         await view.init({ lastLocation: startRef.current || undefined });
         if (live) setStatus({ state: "ready" });
+        settleRef?.(); // laid out while still scaled? measure again once it is not
       } catch (e) {
         if (live) setStatus({ state: "error", error: e?.message || String(e) });
       }
     })();
     return () => {
       live = false;
+      if (onAncestorAnimationEnd) {
+        for (const t of ["animationstart", "animationend", "transitionend"]) document.removeEventListener(t, onAncestorAnimationEnd, true);
+      }
+      if (stopSettle) {
+        stopSettle();
+      }
       try { view?.close?.(); } catch { /* ignore */ }
       view?.remove();
       if (viewRef.current === view) viewRef.current = null;
