@@ -56,11 +56,14 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
   // CC stays transparent and the grid remains visible behind it.
   // Desktop: the screen below the toolbar (was a fixed 560px, which left most of a tall
   // screen empty and cut the Fields/Operations columns off).
-  const CC_MAX_H = isMobileLayout ? "70vh" : "calc(100vh - 64px)";
+  // Phone too (UI sweep 2026-10-19): it was 70vh, so the grid showed below it and an editor's Save
+  // sat off-screen. dvh, so the phone's browser bars are not counted as screen.
+  const CC_MAX_H = isMobileLayout ? "calc(100dvh - 48px)" : "calc(100vh - 64px)";
   const CC_MAX_W = "1400px"; // was 900px: the Fields/Operations columns ran off the right edge
   return (
     <div
       data-testid="command-center"
+      data-cc-open={shown ? "" : undefined}
       className="absolute left-0 right-0 font-mono"
       style={{
         top: "100%",

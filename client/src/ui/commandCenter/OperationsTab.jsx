@@ -759,7 +759,9 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                     value={targetId}
                     title="Specific module (optional)"
                     onChange={e => updateTriggerObject(idx, { targetId: e.target.value })}
-                    style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
+                    // Capped: a native select is as wide as its longest option (every instance's label),
+                    // which pushed the priority and × onto lines of their own (UI sweep 2026-10-19).
+                    style={{ ...inputStyle, width: "auto", minWidth: 110, maxWidth: 220, fontSize: 10 }}
                   >
                     <option value="">Any {subjectRole || "module"}</option>
                     {entitiesForSubject.map(m => <option key={m.id} value={m.id}>{m.label || m.id}</option>)}
@@ -774,11 +776,13 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                     Today moves the date at 0 so Build Schedule reads it at 1.
                     The options come from priorityOptions, so a stored value the
                     catalog lacks still renders as itself. */}
+                {/* Priority + remove stay together at the row's right end — they wrapped apart. */}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", whiteSpace: "nowrap" }}>
                 <select
                   value={trigObj.priority ?? DEFAULT_TRIGGER_PRIORITY}
                   title="Priority for this trigger — lower runs first"
                   onChange={e => updateTriggerObject(idx, { priority: Number(e.target.value) })}
-                  style={{ ...inputStyle, width: "auto", minWidth: 44, fontSize: 10, marginLeft: "auto" }}
+                  style={{ ...inputStyle, width: "auto", minWidth: 44, fontSize: 10 }}
                 >
                   {priorityOptions(trigObj.priority).map(n => <option key={n} value={n}>P{n}</option>)}
                 </select>
@@ -788,6 +792,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", fontSize: 13, padding: "0 2px", lineHeight: 1 }}
                   title="Remove trigger"
                 >×</button>
+                </span>
                 {/* $trigger var hints */}
                 <TriggerDataHint eventType={eventType} subjectType={subjectType} />
                 {/* Schedule time picker — onSchedule semantics still live in triggerConfig (no subject/target) */}
@@ -1191,8 +1196,11 @@ export function OperationsTab() {
         {/* Editor + Log panel side-by-side. Alarm-managed ops (op.alarm set)
             are READ-ONLY here — the Alarms tab is their only editor, so the
             alarm UI and the operation can never drift apart. */}
-        <div style={{ padding: "10px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
-          <div style={{ flex: "1 1 60%", minWidth: 0 }}>
+        {/* They WRAP: on a phone the log's 280px floor left the editor ~90px and the log was laid
+            over it (UI sweep 2026-10-19). The editor keeps 420px (or the whole row), so the log
+            drops below it on a narrow screen. */}
+        <div style={{ padding: "10px 14px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ flex: "1 1 60%", minWidth: "min(100%, 420px)" }}>
             {selectedOp.alarm ? (
               <div style={{ padding: "18px 16px", borderRadius: 8, border: "1px solid rgba(252,211,77,0.3)", background: "rgba(252,211,77,0.06)", fontFamily: "monospace" }}>
                 <div style={{ fontSize: 12, color: "rgb(252,211,77)", fontWeight: 600, marginBottom: 6 }}>
