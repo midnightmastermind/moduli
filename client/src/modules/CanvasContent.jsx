@@ -14,6 +14,7 @@
 import React, { useRef, useState, useCallback, useEffect, useLayoutEffect, useMemo } from "react";
 import { MousePointer2, Hand, Pencil, Highlighter, PaintBucket, Square, Circle, Minus, Eraser, Undo2, Redo2, ChevronUp, ChevronDown, Crosshair, Link2, Type } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { withAction } from "../helpers/actionScope";
 import { useMobileDetect } from "../hooks/useMobileDetect";
 import { requestTextblockFocus } from "../helpers/pendingTextblockFocus";
 
@@ -49,6 +50,35 @@ const DRAW_COLORS = ["#e2e8f0", "#f87171", "#fb923c", "#facc15", "#4ade80", "#38
 const DRAW_SIZES = [2, 4, 8, 16];
 
 /** The canvas background a fill stroke sets: the LAST fill among the strokes drawn, or null. */
+// The world's on-screen scale: its drawn width over its layout width (1 when nothing scales it).
+export function worldCssScale(worldEl, wRect = worldEl.getBoundingClientRect()) {
+  const layoutW = worldEl.offsetWidth;
+  if (!layoutW || !wRect?.width) return 1;
+  const k = wRect.width / layoutW;
+  return Number.isFinite(k) && k > 0 ? k : 1;
+}
+
+// Which cards a linked shape holds: the ones whose CENTER sits inside it (an ellipse by its equation).
+// `centerOf(occId)` returns a world point or null. Pure, so the render and the drag start agree.
+export function linkedShapeChildren(sh, occIds, centerOf) {
+  const sx = Math.min(sh.x1, sh.x2), sy = Math.min(sh.y1, sh.y2);
+  const sw = Math.abs(sh.x2 - sh.x1), shh = Math.abs(sh.y2 - sh.y1);
+  const cx = sx + sw / 2, cy = sy + shh / 2;
+  const out = [];
+  for (const id of occIds) {
+    const c = id ? centerOf(id) : null;
+    if (!c) continue;
+    if (sh.kind === "circle") {
+      const rx = sw / 2, ry = shh / 2;
+      if (rx === 0 || ry === 0) continue;
+      const nx = (c.x - cx) / rx, ny = (c.y - cy) / ry;
+      if (nx * nx + ny * ny > 1) continue;
+    } else if (c.x < sx || c.x > sx + sw || c.y < sy || c.y > sy + shh) continue;
+    out.push({ occId: id, center: c });
+  }
+  return out;
+}
+
 export function canvasBackgroundFill(strokes) {
   let color = null;
   for (const s of strokes || []) if (s?.tool === "fill" && s.color) color = s.color;
@@ -822,7 +852,7 @@ export const CanvasContent = React.memo(function CanvasContent({
     if (shapeDragMove) {
       try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
       const { shapeId, dx, dy, children } = shapeDragMove;
-      if (dx !== 0 || dy !== 0) {
+      if (dx !== 0 || dy !== 0) withAction("Moved group", () => {
         const nextShapes = linkedShapes.map(s => s.id === shapeId
           ? { ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy }
           : s
@@ -846,7 +876,7 @@ export const CanvasContent = React.memo(function CanvasContent({
             emit: true,
           });
         }
-      }
+      });
       setShapeDragMove(null);
       return;
     }
@@ -1430,9 +1460,13 @@ export const CanvasContent = React.memo(function CanvasContent({
       if (cardEl) {
         const wRect = worldEl.getBoundingClientRect();
         const cRect = cardEl.getBoundingClientRect();
+        // Screen rects shrink while an ancestor runs a scale animation (a page opening, full screen).
+        // Divide by the world's on-screen scale so the result is in WORLD units either way — measured
+        // mid-animation, a linked shape counted the wrong cards as its children (2026-10-20).
+        const scale = worldCssScale(worldEl, wRect);
         return {
-          x: cRect.left - wRect.left + cRect.width / 2,
-          y: cRect.top - wRect.top + cRect.height / 2,
+          x: (cRect.left - wRect.left + cRect.width / 2) / scale,
+          y: (cRect.top - wRect.top + cRect.height / 2) / scale,
         };
       }
     }
@@ -1658,19 +1692,12 @@ export const CanvasContent = React.memo(function CanvasContent({
               const cx = sx + sw / 2;
               const cy = sy + sh2 / 2;
               // Find child occurrences whose card center is inside the bbox.
-              const children = itemsWithOccurrences.map(({ occurrence: occ }) => {
-                const c = cardCenterFor(occ?.id);
-                if (!c) return null;
-                if (sh.kind === "circle") {
-                  const rx = sw / 2, ry = sh2 / 2;
-                  if (rx === 0 || ry === 0) return null;
-                  const nx = (c.x - cx) / rx, ny = (c.y - cy) / ry;
-                  if (nx * nx + ny * ny > 1) return null;
-                } else {
-                  if (c.x < sx || c.x > sx + sw || c.y < sy || c.y > sy + sh2) return null;
-                }
-                return { occId: occ.id, center: c };
-              }).filter(Boolean);
+              const occIds = itemsWithOccurrences.map(({ occurrence: occ }) => occ?.id);
+              const children = linkedShapeChildren(sh, occIds, cardCenterFor);
+              // The drag takes its children from a FRESH measurement at the press: this render may have
+              // measured mid-animation, and nothing re-renders the shape once the animation ends.
+              const childrenNow = () => linkedShapeChildren(sh, occIds, cardCenterFor)
+                .map(c => ({ occId: c.occId, x: c.center.x, y: c.center.y }));
               const isHot = drawTool === "select";
               const drag = shapeDragMove?.shapeId === sh.id ? shapeDragMove : null;
               return (
@@ -1691,7 +1718,7 @@ export const CanvasContent = React.memo(function CanvasContent({
                           shapeId: sh.id,
                           startX: pos.x, startY: pos.y,
                           dx: 0, dy: 0,
-                          children: children.map(c => ({ occId: c.occId, x: c.center.x, y: c.center.y })),
+                          children: childrenNow(),
                         });
                       }}
                       onDoubleClick={(e) => {
@@ -1717,7 +1744,7 @@ export const CanvasContent = React.memo(function CanvasContent({
                           shapeId: sh.id,
                           startX: pos.x, startY: pos.y,
                           dx: 0, dy: 0,
-                          children: children.map(c => ({ occId: c.occId, x: c.center.x, y: c.center.y })),
+                          children: childrenNow(),
                         });
                       }}
                       onDoubleClick={(e) => {
