@@ -32,6 +32,10 @@ imported module …/view-D1w7Gi5R.js"*, then notes / quick-add / layout reports 
   for the line opened the add menu. `nearestDocBoundary` (exported) returns the gutter's height and the strip is
   drawn inside it — above the first line it now fills the 8px padding exactly (97–105, line at 105). The quick-add
   menu was z 1100 under the viewer (1301) — now 1320. Tests `docGapGutter`.
+- **A doc line is the size of a textblock** (`index.css`, `.doc-editor--mints … > p`): an empty 19px line became a
+  44px textblock on click and pushed everything down, so the next click hit another line. Lines take the
+  textblock's 17px text, 1.6 line and spacing; measured both engines, lines at 105/152/198/245 before AND after a
+  click. Kept out of a textblock's own body with `:not(.doc-container:not(.doc-editor--mints) *)`.
 - **× on every notes section** (`FileBody.NotesCloseButton`): a file's page notes, a row's drawer, viewer tiles.
 - **Probe harness:** `_build.mjs` LOCALBUILD runs now block the service worker (Firefox kept running the deployed
   bundle while the routes claimed to serve the local one).
