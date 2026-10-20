@@ -61,6 +61,20 @@ field creation menu there exactly like the command center one. choose a fields o
 
 ---
 
+### 2026-10-20 (11) — AN IMPORTED ARTICLE SHOWED ITS LEAD PICTURE TWICE
+
+UI sweep row 22a on a phone: the Bonsai article opened, with the same photo stacked twice at the top.
+`fullMarkdown` adds the REST summary's picture as the lead unless the markdown already holds that URL — and
+the summary serves `…/3840px-X.jpg?utm_campaign=api` while the article's own first figure is
+`…/960px-X.jpg?utm_campaign=parser`: the same file, two URLs. `wikipediaTools.wikimediaFileKey` names the file
+(thumb path, size prefix and query dropped) and `markdownHasImage` compares on it. Checked live: Bonsai, Eminem
+(whose lead is an infobox photo the body lacks, so it still gets one) and Tokyo import with 0 duplicate files.
+Test `wikiLeadImageDedup` (6; the old string check fails 4). **Not repaired:** articles already imported keep
+their second picture — 28 groups of the same external image sit side by side across the grids; removing them is
+the user's call. Server restart.
+
+---
+
 ### 2026-10-20 (10) — THE PHONE COLUMN: canvas, table and graph; a Day Page column ran off the screen
 
 UI sweep rows 54–56 at 390x844 (touch), each page put in the phone's shown panel and put back afterwards

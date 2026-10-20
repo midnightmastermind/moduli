@@ -237,6 +237,34 @@ export function leadImageFromHtml(html) {
   return best.src.startsWith("//") ? `https:${best.src}` : best.src;
 }
 
+// The Wikimedia FILE a picture URL shows, whatever size or query it was served at.
+// The summary's lead picture and the article's first figure are often the same file
+// under two URLs (".../thumb/9/94/X.jpg/3840px-X.jpg?utm_campaign=api" vs
+// ".../960px-X.jpg?utm_campaign=parser"), so an exact-string check let the import
+// show it twice. Null for a URL that is not a Wikimedia upload.
+export function wikimediaFileKey(url) {
+  if (typeof url !== "string" || !/wikimedia\.org\//i.test(url)) return null;
+  let path = url.split(/[?#]/)[0];
+  try { path = decodeURIComponent(path); } catch { /* keep as is */ }
+  const parts = path.split("/").filter(Boolean);
+  const t = parts.indexOf("thumb");
+  // .../thumb/<a>/<ab>/<File>/<size>px-<File>  ->  <File>
+  const file = t >= 0 && parts.length > t + 3 ? parts[t + 3] : parts[parts.length - 1];
+  return file ? file.replace(/^\d+px-/, "").toLowerCase() : null;
+}
+
+/** True when the markdown already shows the picture at `url` (same file, any size). */
+export function markdownHasImage(md, url) {
+  if (!url) return false;
+  if (md.includes(url)) return true;
+  const key = wikimediaFileKey(url);
+  if (!key) return false;
+  const rx = /!\[[^\]]*\]\(([^\s()]+(?:\([^)]*\)[^\s()]*)*)\)/g;
+  let m;
+  while ((m = rx.exec(md))) if (wikimediaFileKey(m[1]) === key) return true;
+  return false;
+}
+
 // Put lead blocks at the head of an article's markdown: after the H1 when there
 // is one, else at the very top. Shared by the reader and the import so the two
 // cannot disagree about where an article's picture goes — the twin drift that
@@ -546,7 +574,7 @@ export async function fullMarkdown(title) {
       ? ["| | |", "| --- | --- |", ...info.map((r) => `| ${esc(r.label)} | ${esc(r.value)} |`)].join("\n")
       : "";
     const parts = [];
-    if (lead && !md.includes(lead)) parts.push(`![${resolved}](${lead})`);
+    if (lead && !markdownHasImage(md, lead)) parts.push(`![${resolved}](${lead})`);
     if (infoTable) parts.push(infoTable);
     // Shared with the reader, so the two paths cannot disagree about where an
     // article's picture goes — the drift that caused the reader to lose it.
