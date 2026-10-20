@@ -4056,3 +4056,11 @@ User: *"is it possible to go through each book too and remove the previous and n
 - **08:28** — *"there is no way to change the cover photo in the viewer or the instance itself, when trying to change a photo. it should be in the right click for it and in the radial menu"*
 - **08:23** — *"keep going please"* (→ the vertical "+" first)
 - **08:39** — *"i think the books get stuck on reload. i switch to daypage after coming from a book and on reload, the book opens but than switches to daypage a second later"*
+
+### 2026-10-20 10:33 CDT
+- *"also the people table takes way too long to open and theres no indicator that its loading. i clicked on it from the root manifest sidebar tree"*
+- (parked from the canvas deep test: dragging a linked rectangle with Select moved a card that was outside the rectangle)
+- **Measured (not fixed yet):** opening People Table from Panel A's Root tree on poms freezes the page **~11.3s, every
+  time** (rAF gap from the click, then header + rows paint together — hence no loading sign). Already open = 66ms.
+  Probe `_ppltime.mjs` (+ `_pplrestore.sh` puts Panel A back on Routines). Next: run it with the CDP profile against
+  a FRESH open (the saved `ppl.cpuprofile` was of an already-open run, so it shows nothing).
