@@ -24,7 +24,10 @@ They have Spotify Premium.
 1. **Connect Spotify once**, in Command Center › Connections, beside Google Drive (the user:
    *"put spotify in the connections tab … or wherever drive connection lives"*). Same shape as the
    Drive connection: a Connect button, an OAuth sign-in, a status (ok / needs reconnect), and a
-   Disconnect.
+   Disconnect. **Only the connection lives there.** Everything about what the sync does — the
+   destination, Sync now, the last run's result, the backfill count — lives in **Command Center ›
+   Imports**, in its own Spotify section beside Feeds (the user, 17:29: *"put the spotify settings
+   (other than initial connection stuff) in the imports section"*).
 2. **A Spotify track opens in the viewer as an audio tile**, not as Spotify's embed. Clicking a song
    row opens the viewer as today; the tile is Moduli's audio player, driven by Spotify's Web Playback
    SDK: play/pause, a seek bar, elapsed/total time, volume. It should look like the existing audio
@@ -93,7 +96,7 @@ They have Spotify Premium.
 - Transcribe is a generic audio button; for Spotify tracks it opens Genius's page; it will later do
   real speech-to-text for files. It is not called "Lyrics".
 - The 5,484 rows are the whole library; new likes/saves should keep arriving automatically.
-- Spotify's connection lives where Drive's does (Command Center › Connections).
+- Spotify's connection lives where Drive's does (Command Center › Connections); its sync settings live in Command Center › Imports.
 - **What the sync brings in (user, 17:27):** every **liked song**, and **every track of every saved
   album**. That includes a one-time **backfill** of the tracks of the albums already saved (the
   08-24 import made those Album rows without their tracks), then, from then on, each newly liked
@@ -112,7 +115,8 @@ They have Spotify Premium.
   second tile pauses the first. Starting a song in another tab moves playback there, as Spotify does.
 - Unliking a song or unsaving an album on Spotify does **not** delete rows (a row may carry the
   user's own fields/notes); they are left alone. Followed artists add Artist rows only.
-- **Sync cadence:** on connect, then every 30 minutes and on a "Sync now" button in Connections.
+- **Sync cadence:** on connect, then every 30 minutes and on a "Sync now" button in the Imports tab's
+  Spotify section, which also shows the last run (when, how many rows added, any error).
   The first run reconciles liked songs by id and performs the saved-album backfill.
 - **Where new rows go:** the same Songs / Artists / Albums containers the 08-24 import used, found by
   what the existing rows sit in, not by name.
@@ -124,8 +128,8 @@ They have Spotify Premium.
   sweep over the ~4,000 existing rows).
 - **Saved place is not shared by copies.** Each placement keeps its own `playbackPosition`; a copy or
   copy-link starts at the beginning.
-- **Which grid the sync writes to:** the Spotify connection belongs to the user (like Drive), and its
-  Connections card has a **"Songs go to"** picker naming a grid + Songs board (and the Artists/Albums
+- **Which grid the sync writes to:** the Spotify connection belongs to the user (like Drive), and the
+  Imports tab's Spotify section has a **"Songs go to"** picker naming a grid + Songs board (and the Artists/Albums
   boards next to it). Set to poms' Songs board after the rehearsal on test grid 2. Nothing is synced
   until a destination is chosen.
 - **The tile's look:** the song's cover, then the same controls row as the audio tile (play/pause,
