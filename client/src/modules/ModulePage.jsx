@@ -514,8 +514,10 @@ function Page({
 
   // A CANVAS or TABLE page holds what a container holds (cards / rows: items, textblocks, files, nested
   // containers), so its "+" offers the container's full palette and creates through the same router.
-  // Board and doc pages keep the container-only palette.
-  const leafHostPage = kind === "canvas" || kind === "table";
+  // A BOARD page too (user 2026-10-20: "we should be able to add other occurances at the top level of a
+  // board page, not just containers") — PageBoard already draws a leaf child as itself
+  // (pageChildRenderer). Doc pages keep the container-only palette: their "+" adds a section.
+  const leafHostPage = kind === "canvas" || kind === "table" || kind === "board";
   const handleQuickCreateLeaf = useCallback((payload = {}) => {
     if (!occurrence?.id || !ctxUserId || !ctxGridId) return;
     const { kind: k = "instance", fieldIds = [], fieldBindings = null, initialFields = null, file, url, folderId = null } = payload;

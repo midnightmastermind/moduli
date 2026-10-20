@@ -8,8 +8,8 @@ import { resolve } from "node:path";
 const src = readFileSync(resolve(process.cwd(), "src/modules/ModulePage.jsx"), "utf8");
 
 describe("canvas / table page quick add", () => {
-  it("a canvas or table page is a leaf host", () => {
-    expect(src).toMatch(/const leafHostPage = kind === "canvas" \|\| kind === "table";/);
+  it("a canvas, table or board page is a leaf host (doc pages are not)", () => {
+    expect(src).toMatch(/const leafHostPage = kind === "canvas" \|\| kind === "table" \|\| kind === "board";/);
   });
   it("its + uses the instance palette and the container router", () => {
     expect(src).toMatch(/\{leafHostPage \? \(\s*<QuickAddMenu\s*targetRole="instance"\s*onSelect=\{handleQuickAddExisting\}\s*onCreateNew=\{handleQuickCreateLeaf\}/);

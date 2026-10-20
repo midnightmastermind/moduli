@@ -4078,3 +4078,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 ### 2026-10-20 18:09 CDT
 - *"also the nested containers inside trackers like todays workout are much bigger than the fontsize of its parent."*
 - 18:13 *"take off the bold too"* (nested tracker group headers)
+- 18:15 *"also we should be able to add other occurances at the top level of a board page, not just containers"*
