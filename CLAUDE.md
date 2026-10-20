@@ -39,8 +39,16 @@ imported module …/view-D1w7Gi5R.js"*, then notes / quick-add / layout reports 
 - **× on every notes section** (`FileBody.NotesCloseButton`): a file's page notes, a row's drawer, viewer tiles.
 - **Probe harness:** `_build.mjs` LOCALBUILD runs now block the service worker (Firefox kept running the deployed
   bundle while the routes claimed to serve the local one).
-- **Open:** a laid-out row's open notes hiding behind its siblings (not reproduced: a laid-out row in Routines opens
-  fine; the user's case is a fresh page, not a wrap layout). Queued: vertical "+" beside occurrences in docs/boards
+- **The vanishing fresh textblock (viewer notes), found from the user's video:** the mint ran on MOUSEDOWN and the
+  new block took the caret; on RELEASE the page editor finished its own click and took focus back, so the block
+  blurred empty and vanished ("Saving…" = the collapse). Headless clicks are instant, which is why nothing
+  reproduced until the probe held the button 100ms. The mint now waits for pointerup
+  (`userInputWindow.whenButtonReleased`); the mousedown caret fix-up also skips a position measured on a doc that
+  has since changed. Watched both engines: quick and held clicks keep the block; typing lands in it.
+- **The insert strip outside the "+"** is now a click on the page: it puts a line there and the mint makes it a
+  textblock before any typing. Only the 20px "+" opens the add menu.
+- **A tile's notes hid under the next row** (book/movie radial › Toggle doc): `.instance-row { height:100% }` in a
+  wrap tile pushed the notes below the tile's box. While notes are open the card takes its natural height. Queued: vertical "+" beside occurrences in docs/boards
   (insert left/right; in a doc it forms a wrap). The user's book notes (The Ask and the Answer) hold 8 empty lines
   left by the failed attempts.
 
