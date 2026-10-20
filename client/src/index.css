@@ -7661,6 +7661,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   height: 100dvh;
   padding-bottom: env(safe-area-inset-bottom);
 }
+/* ...and the one column the comment above promised but no rule set (UI sweep 2026-10-20, phone):
+   two files opened as two 172px tiles side by side, the image tile's tabs stacked three high
+   and the tile buttons sat on top of the tabs and the reader's header. (0,3,0) beats the
+   `[data-count]` column rules. */
+.artifact-spread--mobile .artifact-spread-body[data-count] { --spread-cols: 1; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GRAPH CONTAINER — a chart, and beside it the SOURCE BOARD of the occurrences
@@ -9327,6 +9332,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   padding: 6px 8px;
   max-height: none; /* the board tile's 160px cap is for a drawer under a tile, not a column beside a file */
 }
+/* On a phone there is no room beside the file (it was squeezed to ~90px), so the notes go UNDER it. */
+.artifact-spread--mobile .artifact-spread-body .instance-wrap:has(> .instance-doc-body) { flex-direction: column; }
+.artifact-spread--mobile .artifact-spread-body .instance-wrap:has(> .instance-doc-body) > .instance-row { flex: 1 1 auto; min-height: 0; }
+.artifact-spread--mobile .artifact-spread-body .instance-wrap > .instance-doc-body { flex: 0 0 auto; min-height: 160px; max-height: 45%; }
 .file-notes-side {
   flex: 0 0 min(40%, 380px);
   min-width: 0;
@@ -9403,6 +9412,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread .instance-row[data-tile-header] .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
 .artifact-spread .instance-row[data-tile-header] .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
 .artifact-spread .instance-row[data-tile-header] :is(.book-reader-head, .ocr-views-head) { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
+/* A NARROW tile wraps the reader's row instead of scrolling it sideways (UI sweep 2026-10-20, phone): the
+   row was 635px of controls in a 342px tile — the tile's buttons sat on "Magic file" and the page arrows,
+   Contents and Save page were off to the right. Wrapping makes the padding above reserve the buttons'
+   corner on every line; a wide tile still fits it all on one row. !important: the reader sets nowrap inline. */
+.artifact-spread .instance-row[data-tile-header] .book-reader-head { flex-wrap: wrap !important; overflow-x: visible !important; row-gap: 4px; }
 
 /* THE TILE'S BUTTONS SIT TOGETHER AT THE RIGHT (user, 2026-10-18: "those buttons should be all the way on
    the right"). Each one carries margin-left:auto so a lone button reaches the right edge; with two or three,

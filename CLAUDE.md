@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (12) — THE VIEWER ON A PHONE: one column, notes under the file, the book header wraps
+
+UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, opened through search; all writes blocked).
+- **Two files opened as two 172px tiles side by side** — the `.artifact-spread--mobile` comment said "one column" and
+  no rule set it. `--spread-cols: 1` on a phone (beats the `[data-count]` rules). Tiles 354px.
+- **Notes beside a file squeezed it to ~90px** — on a phone the body goes under the file (min 160px, max 45%).
+- **The book tile's header was 635px in a 342px tile**: the tile's buttons sat on "Magic file", the arrows / Contents /
+  Save page were off to the right. Its 86px right padding only sat at the end of a sideways-scrolling row; in a tile
+  the row WRAPS now so the padding keeps the buttons' corner clear on every line. The Contents select starts at 72px
+  (`flex: 1 1 72px`) so a wide desktop tile still fits one row — measured 715px, one 33px row.
+- Test `spreadPhoneOneColumn.test.js` (5). Client-only deploy.
+
+---
+
 ### 2026-10-20 (11) — A "+" ON EVERY ROW ADDS A FIELD: the Command Center's field menu, on the row
 
 User (14:58): *"add in a plus button for adding new fields that shows when an occurance is hovered there should be a

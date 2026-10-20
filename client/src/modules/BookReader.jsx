@@ -355,7 +355,7 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
         <button type="button" style={navBtn} aria-label="Next page" title="Next page" onClick={() => turn(1)}><ChevronRight size={14} /></button>
         </>)}
         {!isMagicFile && engine === "ebook" && toc.length > 0 && (
-          <select aria-label="Contents" defaultValue="" style={{ ...navBtn, flex: "0 1 200px", minWidth: 72, maxWidth: 200, flexShrink: 1 }}
+          <select aria-label="Contents" defaultValue="" style={{ ...navBtn, flex: "1 1 72px", minWidth: 72, maxWidth: 200 }}
             onChange={(e) => { if (e.target.value) viewRef.current?.goTo(e.target.value); e.target.value = ""; }}>
             <option value="">Contents…</option>
             {toc.map((t, i) => <option key={i} value={t.href}>{`${"  ".repeat(t.depth)}${t.label}`}</option>)}
