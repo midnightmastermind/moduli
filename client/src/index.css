@@ -3292,7 +3292,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 body:has(.menu-surface--drawer) .assistant-fab,
 body:has([data-image-picker]) .assistant-fab,
 /* …and while the artifact viewer is open: it covered the book page's corner (user, 2026-10-19). */
-body:has(.artifact-spread) .assistant-fab { display: none !important; }
+body:has(.artifact-spread) .assistant-fab,
+/* …and while the phone's toolbar menu is open: it sat on User Settings / Log out (UI sweep row 1). */
+body:has([data-toolbar-drawer]) .assistant-fab { display: none !important; }
 
 .menu-surface-backdrop {
   position: fixed;

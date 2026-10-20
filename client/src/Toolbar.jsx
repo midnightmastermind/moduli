@@ -499,6 +499,7 @@ const gridOptions = useMemo(
           />
           {/* Drawer panel */}
           <div
+            data-toolbar-drawer
             style={{
               position: "fixed", top: 0, right: 0, bottom: 0, width: 220,
               background: "var(--bg-primary, hsl(var(--background)))",

@@ -187,8 +187,12 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
       const inPopover = popoverRef.current && popoverRef.current.contains(e.target);
       if (!inTrigger && !inPopover) setOpen(false);
     };
+    // Escape closes it too, like every other popup (UI sweep 2026-10-19). On WINDOW in the capture
+    // phase so it runs before a dropdown this picker sits inside, which then stays open.
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => { document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey, true); };
   }, [open]);
 
   // Day list carried by the incoming persisted shape (multi → dates[];
