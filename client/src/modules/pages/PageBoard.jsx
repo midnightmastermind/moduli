@@ -176,7 +176,10 @@ export default function PageBoard({
   const colMaxW = Number.isFinite(layout?.childMaxWidth) && layout.childMaxWidth > 0 ? layout.childMaxWidth : 360;
   const childWrapperStyle =
     soloColumn ? { flex: "1 1 auto", minWidth: 0, maxWidth: "none", width: "100%", ...capStyle }
-      : mode === "flex-row" ? { flex: "0 0 auto", minWidth: colMinW, maxWidth: colMaxW, ...capStyle }
+      // A column is never wider than the board's visible width (100cqw — the scroller below is the query
+      // container). The rebuild's Day Page columns are 420-560px; on a 390px phone one column ran past the
+      // screen and its Emotions Wheel was cut off (2026-10-20). On a desktop panel the cap rarely bites.
+      : mode === "flex-row" ? { flex: "0 0 auto", minWidth: `min(${colMinW}px, 100cqw)`, maxWidth: `min(${colMaxW}px, 100cqw)`, ...capStyle }
       : mode === "grid" ? { minWidth: 0, minHeight: 100, ...capStyle }
       // STACK (the default, and what a page falls to when its mode is one this
       // renderer does not implement — e.g. "wrap", which is a CHILD-arrangement
@@ -195,6 +198,9 @@ export default function PageBoard({
         flex: 1, minHeight: 0,
         overflowY: "auto",
         overflowX: mode === "flex-row" ? "auto" : undefined,
+        // The columns size against this box's width (cqw). Its width comes from the panel, never from its
+        // content, so inline-size containment changes nothing else here.
+        containerType: mode === "flex-row" ? "inline-size" : undefined,
         WebkitOverflowScrolling: "touch",
         overscrollBehavior: "contain",
         padding: isMobileLayout ? "6px 6px 80px 6px" : "0px 5px 80px 5px",
