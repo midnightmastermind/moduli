@@ -47,6 +47,12 @@ imported module …/view-D1w7Gi5R.js"*, then notes / quick-add / layout reports 
   has since changed. Watched both engines: quick and held clicks keep the block; typing lands in it.
 - **The insert strip outside the "+"** is now a click on the page: it puts a line there and the mint makes it a
   textblock before any typing. Only the 20px "+" opens the add menu.
+- **The viewer comes back after a reload** (`helpers/spreadRestore`: owner, docked panel, maximized tile, per grid,
+  localStorage); forgotten on close or when its item is gone (30s after load). Watched: reload reopens it maximized.
+- **Shift in the viewer** armed drag-out (fades the viewer) even while typing in its notes; `isTypingTarget` skips it.
+- **The doc "+" is the whole blue bar** (middle half of the strip); outside the bar = start a textblock there.
+- **Queued (user):** vertical "+" beside items in docs/boards; deleting a container with children asks keep (move up
+  a level) or delete; then a package-update pass with the full suite.
 - **A tile's notes hid under the next row** (book/movie radial › Toggle doc): `.instance-row { height:100% }` in a
   wrap tile pushed the notes below the tile's box. While notes are open the card takes its natural height. Queued: vertical "+" beside occurrences in docs/boards
   (insert left/right; in a doc it forms a wrap). The user's book notes (The Ask and the Answer) hold 8 empty lines
