@@ -5,8 +5,8 @@ import { sideEdgeAt } from "../ui/Editor.jsx";
 // One embed from x 100..500, y 200..300, then a paragraph (which cannot take a side "+").
 function setup() {
   const nodes = [
-    { type: { name: "moduleEmbed" }, nodeSize: 1, rect: { left: 100, right: 500, top: 200, bottom: 300, width: 400 } },
-    { type: { name: "paragraph" }, nodeSize: 2, rect: { left: 100, right: 500, top: 300, bottom: 320, width: 400 } },
+    { type: { name: "moduleEmbed" }, nodeSize: 1, rect: { left: 100, right: 500, top: 200, bottom: 300, width: 400, height: 100 } },
+    { type: { name: "paragraph" }, nodeSize: 2, rect: { left: 100, right: 500, top: 300, bottom: 320, width: 400, height: 20 } },
   ];
   const offs = [0, 1];
   const doc = { forEach: (fn) => nodes.forEach((n, i) => fn(n, offs[i])) };
