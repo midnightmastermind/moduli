@@ -4055,3 +4055,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 - **08:21** — separate ask: *"if i delete a container that has children inside of it. the system should ask if it like the children kept and moved up a level or just delete the children too"*
 - **08:28** — *"there is no way to change the cover photo in the viewer or the instance itself, when trying to change a photo. it should be in the right click for it and in the radial menu"*
 - **08:23** — *"keep going please"* (→ the vertical "+" first)
+- **08:39** — *"i think the books get stuck on reload. i switch to daypage after coming from a book and on reload, the book opens but than switches to daypage a second later"*

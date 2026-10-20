@@ -6590,11 +6590,36 @@ input.artifact-thumb-info-name--editing {
   align-content: flex-start;
   justify-content: flex-start !important;
 }
-/* The between-item insert gaps are a VERTICAL affordance — a full-width strip
-   that says "put one here". In a wrapping row they become flex items of their
-   own and break the grid, so they are hidden in this mode; the header "+" is
-   still the way to add. */
-.container-items--wrap > .insert-gap { display: none; }
+/* In a TILE layout (wrap / row) the between-item gaps stand UPRIGHT between two tiles — "insert
+   right or left" (user 2026-10-20). Index semantics are unchanged: the gap before tile N is the
+   spot right of tile N-1. Each gap fills exactly the gutter: it is the gutter's width with a
+   negative margin of the same, so with the flex gap on both sides it adds nothing and the grid
+   does not shift. The blue bar is the middle half of the tile's height and is the "+". */
+.container-items--wrap > .insert-gap:not(.insert-gap--empty),
+.container-items--row > .insert-gap:not(.insert-gap--empty) {
+  display: flex;
+  align-self: stretch;
+  flex: 0 0 auto;
+  width: var(--child-gap, 8px);
+  min-width: var(--child-gap, 8px);
+  height: auto;
+  margin: 0 calc(-1 * var(--child-gap, 8px));
+}
+.container-items--wrap > .insert-gap .insert-gap-line,
+.container-items--row > .insert-gap .insert-gap-line {
+  left: 50%; right: auto; width: 3px; height: auto; top: 25%; bottom: 25%;
+  transform: translateX(-50%);
+}
+.container-items--wrap > .insert-gap .insert-gap-btn,
+.container-items--row > .insert-gap .insert-gap-btn { width: 100% !important; height: 50%; }
+.container-items--wrap > .insert-gap .quick-add-btn,
+.container-items--row > .insert-gap .quick-add-btn { height: 100% !important; }
+/* The viewer's tile grid stays a viewer. */
+.artifact-spread-body .container-items--wrap > .insert-gap { display: none; }
+/* A long board is virtualized: a bar right after the spacer would sit on the spacer's line and
+   stretch to its whole height. */
+.container-items--wrap > .virtual-spacer + .insert-gap,
+.container-items--row > .virtual-spacer + .insert-gap { display: none; }
 
 /* ── An occurrence's OWN fields (ui/OccurrenceFields.jsx) ──────────────────
    `--corner` is for occurrences with no heading to sit under (textblocks,
