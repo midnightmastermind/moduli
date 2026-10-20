@@ -58,6 +58,9 @@ need an add panel button somewhere for the mosaic layout (in the grid header too
   rebuild Library/Reading): its card was not clickable, a drill showed the panel's first page, search said "not
   on a page". `helpers/folderPages` + `openOccurrenceInPanel.folderHomeOf`; the panel renders such a card as
   its page (`ModulePanel.drilledFolderPage`, above the early return — it is a hook).
+- **Viewer background is user-editable**: tokens `--viewer-bg` / `--viewer-tile-bg` / `--viewer-fullscreen-bg`
+  (black in Terminal) in Appearance › Token overrides. `helpers/tokenOverrides` is the one writer (boot + Apply
+  were two copies) and writes `!important` — a skin's `:root[data-skin]` beat a bare `:root` override.
 
 ---
 
