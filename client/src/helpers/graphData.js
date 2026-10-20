@@ -1,3 +1,4 @@
+import { occurrenceDisplayLabel } from "./occurrenceLabel";
 // helpers/graphData.js
 // ============================================================
 // PURE. Turns a graph occurrence into chart data. No React, no charting
@@ -49,6 +50,21 @@
 // Guards a pathological tree (and the cycle test) from recursing forever.
 const MAX_DEPTH = 12;
 
+function groupByName(nodes) {
+  const byKey = new Map();
+  const out = [];
+  for (const n of nodes) {
+    const key = `${n.name}\u0000${n.series ?? ""}`;
+    const g = byKey.get(key);
+    if (!g) { const first = { ...n, occurrenceIds: [n.occurrenceId] }; byKey.set(key, first); out.push(first); continue; }
+    g.value = (Number(g.value) || 0) + (Number(n.value) || 0);
+    g.occurrenceIds.push(n.occurrenceId);
+    g.occurrenceId = null;
+    g.id = `group:${key}`;
+  }
+  return out;
+}
+
 function graphSpec(occ) {
   const g = occ?.meta?.graph;
   return g && typeof g === "object" ? g : null;
@@ -66,6 +82,24 @@ function fieldValue(occ, fieldId) {
 
 function labelOf(occ, ctx) {
   return occ?.label || ctx?.modulesById?.[occ?.moduleId]?.label || "";
+}
+
+// A FIELD'S VALUE AS THE TEXT A CHART SHOWS. The raw value was String()-ed, so an occurrence field
+// (Author, Location, …) named every slice by an id — "p4sq3tf2ghse" for 412 of poms' 474 books —
+// and a multi-select by its array (UI sweep 2026-10-19). A reference reads as the row it names.
+function fieldText(occ, fieldId, ctx) {
+  const raw = fieldValue(occ, fieldId);
+  if (raw == null || raw === "") return null;
+  const parts = Array.isArray(raw) ? raw : [raw];
+  if (ctx?.fieldsById?.[fieldId]?.type === "occurrence") {
+    const names = parts.map((id) => {
+      const ref = ctx?.occurrencesById?.[id];
+      return ref ? occurrenceDisplayLabel(ref, ctx?.modulesById?.[ref.moduleId]) : null;
+    }).filter(Boolean);
+    return names.length ? names.join(", ") : null;
+  }
+  const text = parts.map((v) => String(v)).filter((v) => v !== "").join(", ");
+  return text || null;
 }
 
 /**
@@ -183,15 +217,15 @@ export function buildGraphData(graphOcc, ctx) {
       : (nest && Array.isArray(occ.occurrences) ? occ.occurrences : []);
     const children = childIds.map((cid) => build(cid, depth + 1)).filter(Boolean);
 
-    const nameFromField = category ? fieldValue(occ, category) : null;
+    const nameFromField = category ? fieldText(occ, category, ctx) : null;
     return {
       id: occ.id,
       occurrenceId: occ.id,
-      name: (nameFromField ?? null) != null && nameFromField !== "" ? String(nameFromField) : labelOf(occ, ctx),
+      name: nameFromField ?? labelOf(occ, ctx),
       // A parent in a nested chart is sized by its children; only ask for a
       // value where there is nothing underneath.
       value: children.length ? undefined : valueFor(occ),
-      series: series ? (fieldValue(occ, series) ?? null) : null,
+      series: series ? fieldText(occ, series, ctx) : null,
       // The row's own declared ring, when a level field is configured. Reported
       // rather than used: `depth` is derived from the tree and is what a chart
       // renders, so a level field is for validation and for editors — a
@@ -216,7 +250,15 @@ export function buildGraphData(graphOcc, ctx) {
       })
     : memberIds;
 
-  const nodes = rootIds.map((cid) => build(cid, 0)).filter(Boolean);
+  const built = rootIds.map((cid) => build(cid, 0)).filter(Boolean);
+
+  // A CATEGORY FIELD GROUPS. Naming rows by a field means rows sharing a value ARE one category —
+  // "books per author", "minutes per time slot". Each row was drawn on its own: a pie of 474 "book"
+  // slices, and a bar chart kept the first "book" and dropped 471 (UI sweep 2026-10-19). Rows with
+  // the same name (and series) become one node: the SUM of their values, or their COUNT when no
+  // value field is set (a row counts 1). A combined node opens no single row (`occurrenceId` null,
+  // like a literal); `occurrenceIds` lists what it holds. Trees (parent / nested) are left alone.
+  const nodes = category && !parent && !nest ? groupByName(built) : built;
 
   // A parent-field graph whose rows ALL name a parent is a cycle or a broken
   // config; surface it rather than rendering an empty chart with no explanation.

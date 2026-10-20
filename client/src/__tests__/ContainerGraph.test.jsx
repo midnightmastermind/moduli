@@ -148,11 +148,12 @@ describe("the chart says what it could not draw", () => {
     // discarded by `alignedData`'s first-row-wins rule, which warns. The chart
     // destructured only `option` from `buildEChartsOption`, so the warning
     // never reached the chip and the drop was invisible.
+    // (2026-10-19: rows sharing a category value are COMBINED now, so that case no longer drops
+    // anything. An encoding the chart type ignores is the chart layer's other warning.)
     const { view } = setup({
-      graph: { type: "bar", encoding: { category: "f-cat", value: F_VALUE } },
+      graph: { type: "pie", encoding: { category: "f-cat", value: F_VALUE, series: "f-cat" } },
       childIds: ["a", "b"],
     });
-    // Both rows carry the SAME category value, so one of them cannot be drawn.
     expect(view.container.querySelector(".container-graph-warnings"), "the chart went silent about a dropped row").toBeTruthy();
     expect(view.container.querySelector(".container-graph-warnings").textContent).toMatch(/chart issue/);
   });
