@@ -37,6 +37,7 @@ import { requestPreviewSlot } from "../helpers/previewAdmission.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 import { ArtifactThumbnail } from "./ArtifactCard.jsx";
 import { openCoverPicker, setCover } from "../helpers/coverPick";
+import { PAGEABLE_CONTAINER_KINDS } from "../helpers/folderPages";
 
 // Inline preview — mounts PagePreviewBody directly in the parent React tree.
 // Scaled to fit the card via CSS transform; pointer-events:none keeps it
@@ -217,7 +218,12 @@ export default function PreviewNode({
   // into a full-screen artifact page (ensureArtifactPageOcc). Gating this on
   // page/folder alone left every file in Files/Images unclickable.
   const isArtifact = role === "artifact";
-  const canDrillDown = role === "page" || kind === "folder" || isArtifact;
+  // A doc/board/canvas/table CONTAINER filed straight into a folder opens too — the panel shows it
+  // as a page (ModulePanel.drilledFolderPage). Only a folder page passes onDrillDown, so only its
+  // cards (the folder's own children) qualify. The Wikipedia importer files its articles this way,
+  // and those cards opened nothing (UI sweep 2026-10-19).
+  const isPageableContainer = role === "container" && PAGEABLE_CONTAINER_KINDS.has(kind) && typeof onDrillDown === "function";
+  const canDrillDown = role === "page" || kind === "folder" || isArtifact || isPageableContainer;
   const isLandscape = kind === "folder";
   const shouldLoadIframe = loadPreview && hasBeenVisible && hasSlot;
 

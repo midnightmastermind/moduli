@@ -13,3 +13,7 @@ export function folderPageIndex(occurrencesById = {}) {
   }
   return idx;
 }
+
+// Container kinds a panel can show AS a page (ModulePage routes by kind). A card of one of these
+// kinds filed straight into a folder opens like a page card (ModulePanel.drilledFolderPage).
+export const PAGEABLE_CONTAINER_KINDS = new Set(["doc", "board", "canvas", "table"]);

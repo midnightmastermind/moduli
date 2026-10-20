@@ -87,6 +87,7 @@ import TemplatesSection from "../ui/TemplatesSection";
 import { openPanelOnRootFolderPage } from "../helpers/importsFolder";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W } from "../helpers/rootTreeLayout";
+import { PAGEABLE_CONTAINER_KINDS } from "../helpers/folderPages";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -913,7 +914,15 @@ function Panel({
     const occ = activeViewOccId ? occurrencesById[activeViewOccId] : null;
     if (!occ || modulesById[occ.moduleId]?.role === "page") return null;
     const home = folderHomeOf(activeViewOccId, { occurrencesById });
-    const fpOcc = home && occurrencesById[home.folderPageOccId];
+    if (!home) return null;
+    // The card ITSELF, when it is a container a page can host (a doc container filed into a folder
+    // — the Wikipedia importer's shape): ModulePage renders by kind, so a doc container reads as a
+    // doc page. Anything deeper in the card, or another kind, shows its folder page.
+    const mod = modulesById[occ.moduleId];
+    if (home.rootOccId === activeViewOccId && mod?.role === "container" && PAGEABLE_CONTAINER_KINDS.has(mod.kind)) {
+      return { occurrence: occ, page: mod };
+    }
+    const fpOcc = occurrencesById[home.folderPageOccId];
     const fpMod = fpOcc && modulesById[fpOcc.moduleId];
     return fpOcc && fpMod?.role === "page" ? { occurrence: fpOcc, page: fpMod } : null;
   }, [activeViewOccId, occurrencesById, modulesById]);
