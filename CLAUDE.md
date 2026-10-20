@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (3) — PACKAGES UPDATED WITHIN THEIR RANGES; nothing broke
+
+User (07:45): *"make sure our app is updated with all the updated packages and make sure nothing breaks"*.
+- **Every in-range (minor/patch) update applied, client + server**: tiptap 3.20 -> 3.32, react/react-dom 19.2 -> 19.3,
+  radix (dialog/popover/select/slider/tooltip ...), @tanstack/react-virtual 3.13 -> 3.14 (virtual-core 3.19),
+  pragmatic-dnd 1.7 -> 1.8, pdfjs 5.6 -> 5.7, tailwind 4.2 -> 4.3, vite 7.3.7; mongoose 9.2 -> 9.11, express 5.3,
+  multer 2.4, socket.io 4.8.4. `npm update` crashes (`Cannot read properties of null (reading 'edgesOut')`, an
+  arborist bug); install each at its "wanted" version instead. **vitest stays 4.1.8** — the same crash, triggered by
+  its optional `@vitest/browser-playwright` peer resolving to 5.x.
+- **Client 6,452 / server 3,179 pass; build clean.** The one server failure was PRE-EXISTING (fails on the old code):
+  `childFill` (10-19) was added to the client's `SURFACE_SHAPE_KEYS` and not to migration 0068's twin — added.
+- **Behaviour changes worth knowing:** pragmatic-dnd 1.8 draws native drag previews in the browser TOP LAYER
+  (`popover="manual"`), so they are no longer under z-index games with the viewer/fullscreen overlays. tiptap 3.29:
+  `getPos()` returns `undefined` instead of throwing (our callers are in event handlers; same outcome). tiptap 3.27
+  rewrote Placeholder (no flicker on big docs), 3.30.6/3.31 cut React node-view overhead and fixed mobile Enter in
+  node views; virtual-core 3.19.5 holds scroll corrections during iOS flings.
+- **NOT applied (majors, each its own pass):** pragmatic-dnd 4 (+ hitbox 3, flourish 3, auto-scroll 3), vite 8,
+  vitest 5, @vitejs/plugin-react 6, lucide-react 1, eslint 10, jsdom 29, @tanstack/react-table 9, pdfjs 6,
+  wavesurfer 8, web-vitals 6, jest-dom 7; server @anthropic-ai/sdk 0.135, dotenv 18, nanoid 6, sharp 0.35.
+
+---
+
 ### 2026-10-20 (2) — DELETING A CONTAINER ASKS ABOUT ITS ITEMS; cover in the radial; a reload no longer flashes the old page
 
 Picked up the other account's three unshipped items (CLAUDE_CHAT 08:21 / 08:28 / 08:39).
