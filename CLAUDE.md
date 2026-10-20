@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (13) — THE LAST "NOT DRIVEN" ROW: a table page's "+" works; every chart type re-run on live data
+
+Picked up the other account (session limit at 16:17). Its last step was a scratch run of all 9 chart types over six
+live poms datasets (rendered to SVG through `buildGraphData` → `buildEChartsOption`): 54 of 54 draw, 0 throws; the
+only warnings are the designed ones (a label-named chart keeps the first of 94 rows named "Eat" and says so). Then the
+one gap the sweep still listed: a table PAGE's "+" had never been clicked (only feed tables existed). On contrast
+scratch: tree › New page… › Table page → "+" › Item → named → listed by the page, parented to it, drawn as a row,
+0 page errors (`_tblpageadd.mjs`). Probe row and page deleted through `delete_occurrence`, Panel A put back on Daily
+Toolkit (read from the view's transaction). No code changed.
+
+---
+
 ### 2026-10-20 (12) — THE VIEWER ON A PHONE: one column, notes under the file, the book header wraps
 
 UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, opened through search; all writes blocked).
