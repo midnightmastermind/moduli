@@ -36,11 +36,23 @@ import { DockRectContext, InSpreadContext, SpreadMaximizeContext, SpreadHostCont
 // this long so the exit animation has frames to run in — see `closingGate`.
 export const SPREAD_CLOSE_MS = 200;
 
+/** True when a key lands in something you type into: an input, a textarea, editable text. */
+export function isTypingTarget(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT") return !/^(button|checkbox|radio|submit|reset|range|color|file|image)$/i.test(el.type || "");
+  return !!el.closest?.('[contenteditable="true"], [contenteditable=""]');
+}
+
 export default function ArtifactSpread({
   open,
   title = "",
   mode = "board",           // "board" (grid) | "canvas" (free)
   originRect = null,
+  initialMaxId = null,      // a maximized tile remembered across a reload (helpers/spreadRestore)
+  onMaxChange = null,
   // The panel MODULE id the viewer was opened from (`data-panel-id`) — where a tile's
   // "Open in panel" sends its file. Null when it was opened from no panel.
   originPanelId = null,
@@ -77,7 +89,10 @@ export default function ArtifactSpread({
   // because this shell owns Escape, and Escape has to undo the maximize before
   // it closes the whole viewer: pressing it to get back to the grid and losing
   // every file you had open would be the worst possible reading of the key.
-  const [maxId, setMaxId] = useState(null);
+  const [maxId, setMaxId] = useState(initialMaxId);
+  const onMaxChangeRef = useRef(onMaxChange);
+  onMaxChangeRef.current = onMaxChange;
+  useEffect(() => { onMaxChangeRef.current?.(maxId); }, [maxId]);
   const maxIdRef = useRef(null);
   maxIdRef.current = maxId;
   const toggleMax = useCallback((id) => setMaxId((cur) => (cur === id ? null : id)), []);
@@ -105,7 +120,10 @@ export default function ArtifactSpread({
         requestClose();
         return;
       }
-      if (e.key === "Shift") setShiftHeld(true);
+      // Not while typing: Shift is a capital letter in the notes beside a file, and arming here
+      // faded the whole viewer away mid-word (user 2026-10-20: "i try to shift type in the books
+      // notes section and the entire viewer hides away").
+      if (e.key === "Shift" && !isTypingTarget(e.target)) setShiftHeld(true);
     };
     const onKeyUp = (e) => { if (e.key === "Shift") setShiftHeld(false); };
     // A drag can carry focus out of the window entirely; without this the

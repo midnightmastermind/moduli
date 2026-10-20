@@ -41,6 +41,7 @@ import { Spinner } from "../components/ui/spinner.jsx";
 import {
   panelIdForElement, observePanelRect, readDockPreference, writeDockPreference,
 } from "../helpers/spreadDock";
+import { readOpenSpread, saveOpenSpread, clearOpenSpread } from "../helpers/spreadRestore";
 
 function makeUUID() {
   return (typeof crypto !== "undefined" && crypto.randomUUID)
@@ -206,6 +207,38 @@ export function ArtifactSpreadHost() {
   const mode = spreadModule?.kind === "canvas" ? "canvas" : "board";
 
   const close = useCallback(() => setReq(null), []);
+
+  // ── REOPEN AFTER A RELOAD (helpers/spreadRestore) ──────────────────────────
+  // Restored once per grid, as soon as the grid id is known. Nothing renders until the owner's
+  // data has arrived (see the early return below), so restoring before the load finishes is safe.
+  // Saving waits until this grid's restore has run, or the initial empty state would erase it.
+  const restoredForRef = useRef(null);
+  useEffect(() => {
+    if (!gridId || restoredForRef.current === gridId) return;
+    restoredForRef.current = gridId;
+    const saved = readOpenSpread(gridId);
+    setReq(saved ? { occurrenceId: saved.occurrenceId, panelId: saved.panelId || null, originRect: null, maxId: saved.maxId || null } : null);
+  }, [gridId]);
+  const maxIdRef = useRef(null);
+  useEffect(() => {
+    if (!gridId || restoredForRef.current !== gridId) return;
+    if (req?.occurrenceId) {
+      maxIdRef.current = req.maxId ?? null;
+      saveOpenSpread(gridId, { occurrenceId: req.occurrenceId, panelId: req.panelId || null, maxId: maxIdRef.current });
+    } else clearOpenSpread(gridId);
+  }, [gridId, req]);
+  const handleMaxChange = useCallback((maxId) => {
+    maxIdRef.current = maxId;
+    if (gridId && req?.occurrenceId) saveOpenSpread(gridId, { occurrenceId: req.occurrenceId, panelId: req.panelId || null, maxId });
+  }, [gridId, req]);
+  // A remembered viewer whose item no longer exists (deleted, or on another grid) is forgotten once
+  // the grid has had time to load, rather than waiting invisibly forever.
+  const ownerMissing = !!req?.occurrenceId && !ownerOcc;
+  useEffect(() => {
+    if (!ownerMissing) return undefined;
+    const t = setTimeout(() => setReq((cur) => (cur && !occurrencesById?.[cur.occurrenceId] ? null : cur)), 30000);
+    return () => clearTimeout(t);
+  }, [ownerMissing, occurrencesById]);
 
   // Mint the overlay page on first open, then keep it listing whatever the
   // owner has. Guarded per owner so a re-render inside the same open cannot
@@ -423,6 +456,8 @@ export function ArtifactSpreadHost() {
       dockRect={dockRect}
       onDockChange={changeDock}
       onClose={close}
+      initialMaxId={req.maxId || null}
+      onMaxChange={handleMaxChange}
       onAdd={handleAdd}
       onModeChange={handleModeChange}
     >
