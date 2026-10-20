@@ -34,3 +34,11 @@ describe("the bookmark strip", () => {
     expect(src).toMatch(/flex: "1 1 160px", minWidth: 0, background: "var\(--panel-bg\)"/);
   });
 });
+
+describe("an image page's Replace + Download", () => {
+  const src = fs.readFileSync(path.join(__dirname, "../modules/ArtifactContent.jsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  it("share one top-right row instead of Replace sitting at a guessed offset", () => {
+    expect(src).not.toMatch(/right: 290/);
+    expect(src).toMatch(/style=\{\{ position: "static", minWidth: 0 \}\}/);
+  });
+});

@@ -65,7 +65,7 @@ function ArtifactDownloadBadge({ fileRef, originalName, size, style }) {
       }}
     >
       <Download size={12} />
-      <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span style={{ maxWidth: 200, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {originalName || "Download"}
       </span>
       {sizeLabel && <span style={{ opacity: 0.7 }}>· {sizeLabel}</span>}
@@ -420,7 +420,10 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
               frameStyle={{ position: "relative", display: "block", width: "100%", height: "100%" }}
             />
           </ZoomableImage>
-          <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
+          {/* Replace + Download share ONE top-right row (UI sweep 2026-10-20, phone): Replace was pinned at
+              `right: 290px` — a guess at the badge's width — so on a phone it hung off the left edge and on a
+              wide pane with a short name it floated far from the badge. The file name shrinks first. */}
+          <div style={{ position: "absolute", top: 10, right: 10, zIndex: 5, display: "flex", gap: 6, maxWidth: "calc(100% - 20px)" }}>
           {/* Replace image — search / upload / URL via the global picker.
               The pick rewrites module.fileRef, so every placement of this
               artifact updates. */}
@@ -437,7 +440,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
             }}
             title="Replace this image (search the web, upload, or paste a URL)"
             style={{
-              position: "absolute", top: 10, right: 290, zIndex: 5,
+              flexShrink: 0,
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "4px 10px", borderRadius: 14,
               background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
@@ -451,6 +454,8 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
             <ImagePlus size={12} />
             <span>Replace</span>
           </button>
+          <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} style={{ position: "static", minWidth: 0 }} />
+          </div>
         </div>
         {/* OCR result(s) — one editable textblock per OCR run. */}
         {childTextblocks.length > 0 && (

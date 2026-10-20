@@ -27,7 +27,9 @@ UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, open
   (`flex: 1 1 72px`) so a wide desktop tile still fits one row — measured 715px, one 33px row.
 - **Bookmark page strip (row 53):** one row that never wrapped — on a phone the address box was ~12px and Archive ran
   off the edge. It wraps; the box has a 160px base (`BookmarkView`).
-- Test `spreadPhoneOneColumn.test.js` (6). Client-only deploys.
+- **Image page (row 52):** Replace was pinned at `right: 290px`, a guess at the Download badge's width — off the left
+  edge on a phone. Both share one top-right row now, the file name shrinks first (`ArtifactContent`).
+- Test `spreadPhoneOneColumn.test.js` (7). Client-only deploys.
 
 ---
 
