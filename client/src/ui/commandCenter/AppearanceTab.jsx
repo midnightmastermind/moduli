@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Trash2, RotateCcw, ChevronRight } from "lucide-react";
 import StyleEditor from "../StyleEditor";
 import { typeKeyFor } from "../../helpers/StyleHelpers";
+import { applyTokenOverrides, TOKEN_OVERRIDES_KEY } from "../../helpers/tokenOverrides";
 
 const PRESET_TOKENS = [
   { name: "--text-primary", description: "Primary text" },
@@ -20,28 +21,17 @@ const PRESET_TOKENS = [
   { name: "--accent-green", description: "Accent green" },
   { name: "--border-default", description: "Default border" },
   { name: "--input-bg", description: "Input background" },
+  { name: "--viewer-bg", description: "Artifact viewer background" },
+  { name: "--viewer-tile-bg", description: "Artifact viewer tiles" },
+  { name: "--viewer-fullscreen-bg", description: "Artifact full-screen background" },
 ];
 
-const STORAGE_KEY = "moduli-token-overrides";
+const STORAGE_KEY = TOKEN_OVERRIDES_KEY;
 
 function getComputedTokenValue(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function applyTokenOverrides(overrides) {
-  let tag = document.getElementById("moduli-token-overrides");
-  if (!tag) {
-    tag = document.createElement("style");
-    tag.id = "moduli-token-overrides";
-    document.head.appendChild(tag);
-  }
-  const entries = Object.entries(overrides).filter(([, v]) => v.trim());
-  if (entries.length === 0) {
-    tag.textContent = "";
-    return;
-  }
-  tag.textContent = `:root { ${entries.map(([k, v]) => `${k}: ${v};`).join(" ")} }`;
-}
 
 // ── STYLE BY OCCURRENCE TYPE ───────────────────────────────────────────────
 // User, 2026-08-19: *"maybe by occurance type … so i can change the lettering
@@ -266,8 +256,7 @@ export function AppearanceTab() {
     setCustomRows([]);
     setOverrides({});
     localStorage.removeItem(STORAGE_KEY);
-    const tag = document.getElementById("moduli-token-overrides");
-    if (tag) tag.textContent = "";
+    applyTokenOverrides({});
   }, []);
 
   return (

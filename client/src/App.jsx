@@ -72,6 +72,7 @@ import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
 
 import { normalizeFieldBindings } from "./helpers/siblingFieldBindings.js";
 import { installFastWheel } from "./helpers/wheelScroll.js";
+import { applyTokenOverrides, loadTokenOverrides } from "./helpers/tokenOverrides";
 function findNextOpenPosition(panels = [], rows = 1, cols = 1) {
   const taken = new Set(panels.map((p) => `${p.row}-${p.col}`));
   for (let r = 0; r < rows; r++) {
@@ -491,14 +492,8 @@ export default function App() {
 
   // CS6b — Load persisted CSS token overrides on mount
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("moduli-token-overrides") || "{}");
-      const entries = Object.entries(saved).filter(([, v]) => v?.trim());
-      if (entries.length === 0) return;
-      let tag = document.getElementById("moduli-token-overrides");
-      if (!tag) { tag = document.createElement("style"); tag.id = "moduli-token-overrides"; document.head.appendChild(tag); }
-      tag.textContent = `:root { ${entries.map(([k, v]) => `${k}: ${v};`).join(" ")} }`;
-    } catch {}
+    const saved = loadTokenOverrides();
+    if (Object.keys(saved).length) applyTokenOverrides(saved);
   }, []);
 
   // onUndoAnimation: called by useUndoRedo when undo_result arrives with move_back ops

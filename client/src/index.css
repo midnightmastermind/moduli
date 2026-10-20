@@ -34,6 +34,12 @@
 
 /* Shared font tokens + brand (always present) */
 :root {
+  /* The artifact viewer's surfaces (UI sweep 2026-10-19: "make sure the artifact viewer is a solid
+     black background in the terminal skin and make sure the css for that is editable by the user").
+     Skins set them; Command Center › Appearance › Token overrides lists them for the user. */
+  --viewer-bg: rgba(0, 0, 0, 0.28);
+  --viewer-tile-bg: rgba(0, 0, 0, 0.6);
+  --viewer-fullscreen-bg: rgba(0, 0, 0, 0.72);
   /* FIELD CAPTION — the small field-NAME text inside a value pill.
      It was a hardcoded 0.7 in two places, compounding with a pill-text colour
      that already carries alpha. Measured 2026-08-23 across all four skins with
@@ -6946,7 +6952,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--viewer-fullscreen-bg);
 }
 /* The card inside takes the whole surface; its media rule already caps to the
    box, so a small image is centred rather than stretched. */
@@ -7024,7 +7030,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      are: a coloured wash over the whole screen shifts every photo on it.
      The drop shadow stays gone — a shadow on a full-screen box is a dark band
      over the grid and nothing else. */
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--viewer-bg);
   /* Opens out of the thumbnail that was clicked. The origin is handed in as
      custom properties because it is the only part that varies per open —
      the keyframe itself stays here rather than being rebuilt inline.
@@ -8038,18 +8044,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    darkens. So the tint is theme-independent here on purpose, which is the
    opposite of the usual rule in this file and is the whole point. */
 .artifact-spread-body .instance-wrap > .instance-row {
-  background: rgba(0, 0, 0, 0.6) !important;
+  background: var(--viewer-tile-bg) !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
 
-/* Terminal skin: SOLID tiles. Green text over green grid text read as noise through the 60%
-   tint (user, 2026-10-19: "make it solid backgrounds on terminal skin"). The gaps between
-   tiles stay see-through; other skins keep the tint. */
-:root[data-skin="terminal"] .artifact-spread-body .instance-wrap > .instance-row {
-  background: #000 !important;
-}
 
 /* The card INSIDE the tile stays bare — it is the picture, not a second frame.
    An EXPANDED card is excluded: that is the lightbox and owns its own surface. */
@@ -9007,6 +9007,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --doc-container-tint-hover: rgba(51, 255, 102, 0.05);
   --doc-textblock-tint: transparent;
   --doc-textblock-tint-hover: rgba(51, 255, 102, 0.05);
+  /* The viewer is SOLID black here — backdrop, tiles and the full-screen card (user, 2026-10-19:
+     "make it solid backgrounds on terminal skin"; green over green read as noise through a tint). */
+  --viewer-bg: #000;
+  --viewer-tile-bg: #000;
+  --viewer-fullscreen-bg: #000;
 }
 
 [data-theme="terminal"] {
