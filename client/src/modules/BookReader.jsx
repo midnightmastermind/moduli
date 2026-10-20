@@ -342,10 +342,12 @@ export default function BookReader({ module, occurrence, src, kind, inPanelPage 
     <div ref={rootRef} data-testid="book-reader" style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%" }}>
       {/* ONE header row (user, 2026-10-18): modes, page controls, title, actions. In the viewer the
           tile's own handle + buttons sit on this row too (index.css .book-reader-head). */}
-      {/* nowrap: the row WRAPPED in a viewer tile ("Save page" fell to a second line — the Contents
-          dropdown is as wide as its longest chapter). The dropdown and the title shrink first; a
-          panel too narrow for the buttons scrolls the row sideways rather than breaking it. */}
-      <div className="book-reader-head" style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "nowrap", overflowX: "auto", scrollbarWidth: "none",
+      {/* ONE row where it fits: the Contents dropdown starts at 72px and the title shrinks first, so a
+          wide pane or tile keeps everything on one line (it once wrapped because the dropdown was as
+          wide as its longest chapter). Where it CANNOT fit — a phone, a 300px canvas card — it WRAPS:
+          the earlier sideways scroll had no scrollbar, so Notes / Open in viewer / page / zoom were
+          simply out of sight (UI sweep 2026-10-20, phone). */}
+      <div className="book-reader-head" style={{ display: "flex", gap: 6, rowGap: 4, alignItems: "center", padding: "4px 8px", flexShrink: 0, flexWrap: "wrap",
         borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)" }}>
         {MODES.map(([m, l]) => tabBtn(m, l))}
         {/* In Magic page these turn the book underneath; the new page is laid out as soon as it lands.

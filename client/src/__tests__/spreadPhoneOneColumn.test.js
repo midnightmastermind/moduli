@@ -18,8 +18,10 @@ describe("artifact viewer on a phone", () => {
 });
 
 describe("a book tile's header in the viewer", () => {
-  it("wraps instead of scrolling sideways, so the tile buttons' corner stays clear", () => {
-    expect(css).toMatch(/\.artifact-spread \.instance-row\[data-tile-header\] \.book-reader-head \{ flex-wrap: wrap !important; overflow-x: visible !important;/);
+  it("wraps instead of scrolling sideways (the scroll had no scrollbar, so controls were out of sight)", () => {
+    const src = fs.readFileSync(path.join(__dirname, "../modules/BookReader.jsx"), "utf8");
+    expect(src).toMatch(/className="book-reader-head" style=\{\{[^}]*flexWrap: "wrap"/);
+    expect(src).not.toMatch(/className="book-reader-head"[^\n]*overflowX: "auto"/);
   });
   it("the Contents select starts small, so a tile wide enough keeps one row", () => {
     const src = fs.readFileSync(path.join(__dirname, "../modules/BookReader.jsx"), "utf8");

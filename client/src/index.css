@@ -9412,11 +9412,6 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread .instance-row[data-tile-header] .instance-handle-group > .module-drag-handle + .spread-tile-maximize,
 .artifact-spread .instance-row[data-tile-header] .instance-handle-group > .spread-tile-maximize:first-of-type { margin-left: auto; }
 .artifact-spread .instance-row[data-tile-header] :is(.book-reader-head, .ocr-views-head) { padding-left: 44px !important; padding-right: 86px !important; min-height: 30px; }
-/* A NARROW tile wraps the reader's row instead of scrolling it sideways (UI sweep 2026-10-20, phone): the
-   row was 635px of controls in a 342px tile — the tile's buttons sat on "Magic file" and the page arrows,
-   Contents and Save page were off to the right. Wrapping makes the padding above reserve the buttons'
-   corner on every line; a wide tile still fits it all on one row. !important: the reader sets nowrap inline. */
-.artifact-spread .instance-row[data-tile-header] .book-reader-head { flex-wrap: wrap !important; overflow-x: visible !important; row-gap: 4px; }
 
 /* THE TILE'S BUTTONS SIT TOGETHER AT THE RIGHT (user, 2026-10-18: "those buttons should be all the way on
    the right"). Each one carries margin-left:auto so a lone button reaches the right edge; with two or three,

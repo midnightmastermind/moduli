@@ -25,6 +25,9 @@ UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, open
   Save page were off to the right. Its 86px right padding only sat at the end of a sideways-scrolling row; in a tile
   the row WRAPS now so the padding keeps the buttons' corner clear on every line. The Contents select starts at 72px
   (`flex: 1 1 72px`) so a wide desktop tile still fits one row — measured 715px, one 33px row.
+  Then the same row on a PDF's own PAGE on a phone (test grid 2, W3C dummy.pdf): Notes, Open in viewer, page and zoom
+  were off the right of a sideways-scrolling row with no scrollbar. The reader's header now wraps everywhere
+  (`BookReader`, the tile-only CSS rule removed); a wide pane still holds one row.
 - **Bookmark page strip (row 53):** one row that never wrapped — on a phone the address box was ~12px and Archive ran
   off the edge. It wraps; the box has a 160px base (`BookmarkView`).
 - **Image page (row 52):** Replace was pinned at `right: 290px`, a guess at the Download badge's width — off the left
