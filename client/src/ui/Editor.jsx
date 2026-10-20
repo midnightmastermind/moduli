@@ -247,6 +247,94 @@ function concatInline(a, b) {
 // returns null), so the hover affordance + drag indicator don't vanish in the
 // very gap the user is aiming at — and the actual drop reuses it, so the block
 // lands exactly where the indicator showed.
+function insertIntoTextSide(tr, groupPos, insertAt, embed) {
+  const g = tr.doc.nodeAt(groupPos);
+  if (!g || g.type.name !== "wrapGroup") return false;
+  const fc = floatCountOf(g.attrs, g.childCount);
+  const at = Math.max(fc, Math.min(insertAt, g.childCount));
+  let pos = groupPos + 1;
+  for (let i = 0; i < at; i++) pos += g.child(i).nodeSize;
+  tr.insert(pos, embed);
+  tr.setNodeMarkup(groupPos, undefined, { ...g.attrs, floatCount: fc });
+  return true;
+}
+// A wrapGroup holds moduleEmbeds; a typed-in textblock joins one as an
+// embed of the SAME occurrence (how every wrap host has been stored).
+function asWrapMemberIn(editor, node) {
+  return node.type.name === "instanceTextblock"
+  ? editor.schema.nodes.moduleEmbed.create({ occurrenceId: node.attrs.occurrenceId })
+  : node;
+}
+// Fold `neighborOccId` into a wrap beside the top-level block at `sideHost.hostPos` (or add it to
+// that block's existing group). Shared by a drop beside a block and the side "+" (2026-10-20).
+export function wrapHostWithNeighborIn(editor, neighborOccId, sideHost) {
+  const WLOG = (...a) => { if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[wrapHost]", ...a); };
+  if (!editor || !sideHost || !neighborOccId) return WLOG("bail: missing editor/sideHost/neighbor") ?? false;
+  const groupType = editor.schema.nodes.wrapGroup;
+  const embedType = editor.schema.nodes.moduleEmbed;
+  if (!groupType || !embedType) return WLOG("bail: schema types missing") ?? false;
+  if (sideHost.textSide) {
+    const embed = embedType.create({ occurrenceId: neighborOccId });
+    const ran = editor.chain().focus().command(({ tr }) => insertIntoTextSide(tr, sideHost.hostPos, sideHost.insertAt, embed)).run();
+    WLOG("text-side insert ran →", ran, { groupPos: sideHost.hostPos, at: sideHost.insertAt });
+    return ran;
+  }
+  // hostPos is a TOP-LEVEL position from detectSideHost. Resolve via
+  // childAfter (top level only) — nodeAt() descends into a wrapGroup's
+  // children at its boundary, which mis-targeted the group's first
+  // neighbor and nested a group inside a group.
+  const { node: host, offset: hostOffset } = editor.state.doc.childAfter(sideHost.hostPos);
+  if (!host || hostOffset !== sideHost.hostPos) return WLOG("bail: hostPos not a top-level node start", { hostPos: sideHost.hostPos }) ?? false;
+  // Host already wrapped (e.g. the seeded logo⇄description group) → ADD
+  // the dropped occurrence as another stacked neighbor (schema allows
+  // moduleEmbed{2,}; WrapGroupNode stacks children 0..N-2 down the side).
+  if (host.type.name === "wrapGroup") {
+    let already = false;
+    host.forEach((c) => { if (c.attrs?.occurrenceId === neighborOccId) already = true; });
+    if (already) return WLOG("bail: occurrence already a group member") ?? false;
+    const neighbor = embedType.create({ occurrenceId: neighborOccId });
+    const ran = editor.chain().focus().command(({ tr }) => {
+      tr.insert(sideHost.hostPos + 1, neighbor);
+      // A group with leads stores its float count — one more float now.
+      const fc = afterAddingFloat(host.attrs, host.childCount);
+      if (fc != null) tr.setNodeMarkup(sideHost.hostPos, undefined, { ...host.attrs, floatCount: fc });
+      return true;
+    }).run();
+    WLOG("group-add neighbor ran →", ran, { groupPos: sideHost.hostPos });
+    return ran;
+  }
+  if (host.type.name !== "moduleEmbed" && host.type.name !== "instanceTextblock") return WLOG("bail: host at pos not moduleEmbed", { hostPos: sideHost.hostPos, type: host?.type?.name }) ?? false;
+  if (host.attrs?.occurrenceId === neighborOccId) return WLOG("bail: self-wrap") ?? false;
+  const neighbor = embedType.create({ occurrenceId: neighborOccId });
+  // Neighbor FIRST so it floats and the host's prose wraps around it (L).
+  // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
+  const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, asWrapMemberIn(editor, host)]);
+  const from = sideHost.hostPos;
+  const to = sideHost.hostPos + host.nodeSize;
+  const ran = editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
+  WLOG("replaceWith ran →", ran, { from, to });
+  return ran;
+}
+
+// The side "+": is the pointer on the left or right EDGE of a top-level block that can take a wrap
+// (an embedded occurrence, a textblock, an existing wrap)? Returns which side, where to draw the bar
+// (client coords) and a point just inside that edge for detectSideHost.
+const SIDE_EDGE_PX = 16;
+export function sideEdgeAt(view, doc, clientX, clientY) {
+  if (!view || !doc) return null;
+  let hit = null;
+  doc.forEach((node, off) => {
+    if (hit || !["moduleEmbed", "instanceTextblock", "wrapGroup"].includes(node.type.name)) return;
+    let dom = null;
+    try { dom = view.nodeDOM(off); } catch (_) { /* not rendered */ }
+    const r = dom?.getBoundingClientRect?.();
+    if (!r || !r.width || clientY < r.top || clientY > r.bottom) return;
+    if (clientX >= r.left - 4 && clientX <= r.left + SIDE_EDGE_PX) hit = { side: "left", x: r.left, probeX: r.left + 4, top: r.top, height: r.height };
+    else if (clientX >= r.right - SIDE_EDGE_PX && clientX <= r.right + 4) hit = { side: "right", x: r.right, probeX: r.right - 4, top: r.top, height: r.height };
+  });
+  return hit;
+}
+
 export function nearestDocBoundary(view, doc, wrapEl, clientY) {
   if (!view || !doc || !wrapEl || doc.childCount === 0) return null;
   const wrapRect = wrapEl.getBoundingClientRect();
@@ -440,6 +528,10 @@ const Editor = forwardRef(function Editor({
   // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
   // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
   const [docGap, setDocGap] = useState(null);
+  // The SIDE "+" (user 2026-10-20: "vertical quick add buttons to get next to the occurances in docs
+  // … so i can insert right or left, and switches to wrap mode in doc"): a vertical bar on the left
+  // or right edge of a hovered block; what is added there is wrapped beside that block.
+  const [sideGap, setSideGap] = useState(null);
   const docGapElRef = useRef(null);
   // A menu-opened ("pinned") gap must survive the hover machinery — every
   // gap clear/move site funnels through these two so the pinned rule can't be
@@ -2528,70 +2620,8 @@ const Editor = forwardRef(function Editor({
         // TEXT side. The float count is stored explicitly from now on: with a
         // block after the floats that is not the last, "every child but the
         // last floats" (the null default) would float the new lead too.
-        const insertIntoTextSide = (tr, groupPos, insertAt, embed) => {
-          const g = tr.doc.nodeAt(groupPos);
-          if (!g || g.type.name !== "wrapGroup") return false;
-          const fc = floatCountOf(g.attrs, g.childCount);
-          const at = Math.max(fc, Math.min(insertAt, g.childCount));
-          let pos = groupPos + 1;
-          for (let i = 0; i < at; i++) pos += g.child(i).nodeSize;
-          tr.insert(pos, embed);
-          tr.setNodeMarkup(groupPos, undefined, { ...g.attrs, floatCount: fc });
-          return true;
-        };
-        // A wrapGroup holds moduleEmbeds; a typed-in textblock joins one as an
-        // embed of the SAME occurrence (how every wrap host has been stored).
-        const asWrapMember = (node) => node.type.name === "instanceTextblock"
-          ? editor.schema.nodes.moduleEmbed.create({ occurrenceId: node.attrs.occurrenceId })
-          : node;
-        const wrapHostWithNeighbor = (neighborOccId, sideHost) => {
-          const WLOG = (...a) => { if (typeof window !== "undefined" && window.__dragDiag === true) console.log("[wrapHost]", ...a); };
-          if (!editor || !sideHost || !neighborOccId) return WLOG("bail: missing editor/sideHost/neighbor") ?? false;
-          const groupType = editor.schema.nodes.wrapGroup;
-          const embedType = editor.schema.nodes.moduleEmbed;
-          if (!groupType || !embedType) return WLOG("bail: schema types missing") ?? false;
-          if (sideHost.textSide) {
-            const embed = embedType.create({ occurrenceId: neighborOccId });
-            const ran = editor.chain().focus().command(({ tr }) => insertIntoTextSide(tr, sideHost.hostPos, sideHost.insertAt, embed)).run();
-            WLOG("text-side insert ran →", ran, { groupPos: sideHost.hostPos, at: sideHost.insertAt });
-            return ran;
-          }
-          // hostPos is a TOP-LEVEL position from detectSideHost. Resolve via
-          // childAfter (top level only) — nodeAt() descends into a wrapGroup's
-          // children at its boundary, which mis-targeted the group's first
-          // neighbor and nested a group inside a group.
-          const { node: host, offset: hostOffset } = editor.state.doc.childAfter(sideHost.hostPos);
-          if (!host || hostOffset !== sideHost.hostPos) return WLOG("bail: hostPos not a top-level node start", { hostPos: sideHost.hostPos }) ?? false;
-          // Host already wrapped (e.g. the seeded logo⇄description group) → ADD
-          // the dropped occurrence as another stacked neighbor (schema allows
-          // moduleEmbed{2,}; WrapGroupNode stacks children 0..N-2 down the side).
-          if (host.type.name === "wrapGroup") {
-            let already = false;
-            host.forEach((c) => { if (c.attrs?.occurrenceId === neighborOccId) already = true; });
-            if (already) return WLOG("bail: occurrence already a group member") ?? false;
-            const neighbor = embedType.create({ occurrenceId: neighborOccId });
-            const ran = editor.chain().focus().command(({ tr }) => {
-              tr.insert(sideHost.hostPos + 1, neighbor);
-              // A group with leads stores its float count — one more float now.
-              const fc = afterAddingFloat(host.attrs, host.childCount);
-              if (fc != null) tr.setNodeMarkup(sideHost.hostPos, undefined, { ...host.attrs, floatCount: fc });
-              return true;
-            }).run();
-            WLOG("group-add neighbor ran →", ran, { groupPos: sideHost.hostPos });
-            return ran;
-          }
-          if (host.type.name !== "moduleEmbed" && host.type.name !== "instanceTextblock") return WLOG("bail: host at pos not moduleEmbed", { hostPos: sideHost.hostPos, type: host?.type?.name }) ?? false;
-          if (host.attrs?.occurrenceId === neighborOccId) return WLOG("bail: self-wrap") ?? false;
-          const neighbor = embedType.create({ occurrenceId: neighborOccId });
-          // Neighbor FIRST so it floats and the host's prose wraps around it (L).
-          // columnOnly (non-textmapped host) → wrap:false = side-by-side columns.
-          const group = groupType.create({ side: sideHost.side, anchor: sideHost.anchor || "top", anchorIndex: sideHost.anchorIndex ?? null, anchorOffset: sideHost.anchorOffset ?? null, wrap: !sideHost.columnOnly }, [neighbor, asWrapMember(host)]);
-          const from = sideHost.hostPos;
-          const to = sideHost.hostPos + host.nodeSize;
-          const ran = editor.chain().focus().command(({ tr }) => { tr.replaceWith(from, to, group); return true; }).run();
-          WLOG("replaceWith ran →", ran, { from, to });
-          return ran;
-        };
+        const wrapHostWithNeighbor = (neighborOccId, sideHost) => wrapHostWithNeighborIn(editor, neighborOccId, sideHost);
+        const asWrapMember = (node) => asWrapMemberIn(editor, node);
         // Top-level (depth-1) embed lookup by occurrenceId — used to relocate a
         // moved node. Restricted to top level so we never reach inside an
         // existing wrapGroup (which must keep its two children).
@@ -3219,6 +3249,24 @@ const Editor = forwardRef(function Editor({
     // over a block's content (clicking a heading to edit, selecting text) stay
     // hidden — otherwise a click-to-edit pops a stray insert line under the
     // block that the keyboard can't dismiss (it's an overlay).
+    // Not while pointing at a control of the block itself (a header's "+", a field pill): the bar
+    // would sit on top of it.
+    const onControl = !!e.target?.closest?.("button, input, select, textarea, [role='button'], .radial-menu");
+    if (onControl && !e.target?.closest?.(".doc-side-gap")) setSideGap((prev) => (prev?.pinned ? prev : null));
+    else if (!e.target?.closest?.(".doc-side-gap")) {
+      const edge = sideEdgeAt(view, editor.state.doc, e.clientX, e.clientY);
+      const host = edge ? detectSideHost({ clientX: edge.probeX, clientY: e.clientY, target: e.target }) : null;
+      if (edge && host && host.side === edge.side) {
+        const wr = wrapEl.getBoundingClientRect();
+        setSideGap((prev) => (prev?.pinned ? prev : {
+          side: edge.side, sideHost: host,
+          left: edge.x - wr.left, top: edge.top - wr.top, height: edge.height,
+        }));
+        clearDocGapUnlessPinned();
+        return;
+      }
+      setSideGap((prev) => (prev?.pinned ? prev : null));
+    }
     if (isOverTopBlock(view, editor.state.doc, e.clientY)) {
       clearDocGapUnlessPinned();
       return;
@@ -3226,17 +3274,20 @@ const Editor = forwardRef(function Editor({
     // Nearest block boundary (works in the empty margin between blocks too, so
     // the "+" doesn't vanish exactly where the user hovers to insert).
     setDocGapUnlessPinned(nearestDocBoundary(view, editor.state.doc, wrapEl, e.clientY));
-  }, [gapsOn, editor, clearDocGapUnlessPinned, setDocGapUnlessPinned]);
+  }, [gapsOn, editor, clearDocGapUnlessPinned, setDocGapUnlessPinned, detectSideHost]);
 
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
   // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
   // a fresh placement of a picked module; else a new role:"instance" module.
-  const insertDocItemAt = useCallback((pos, { existingModuleId = null, kind = null, fieldIds = [], fieldBindings = null, initialFields = null, folderId = null, url = null, file = null } = {}) => {
+  const insertDocItemAt = useCallback((pos, { existingModuleId = null, kind = null, fieldIds = [], fieldBindings = null, initialFields = null, folderId = null, url = null, file = null } = {}, place = null) => {
     if (!editor || !occurrence?.userId) return;
     const userId = occurrence.userId;
     const gridId = occurrence.gridId;
 
     const embedAt = (id) => {
+      // `place` puts the new occurrence somewhere other than a line of its own (the side "+" wraps it
+      // beside a block); without one it is embedded at `pos`.
+      if (place) { place(id); setSideGap(null); return; }
       const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
       editor.chain().focus().insertContentAt(at, { type: "moduleEmbed", attrs: { occurrenceId: id } }).run();
       setDocGap(null);
@@ -3329,7 +3380,10 @@ const Editor = forwardRef(function Editor({
         draggable={false}
         ref={(el) => { docGapElRef.current = el; }}
         onMouseMove={gapsOn ? handleGapMove : undefined}
-        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) clearDocGapUnlessPinned(); } : undefined}
+        onMouseLeave={gapsOn ? (e) => {
+          if (!e.relatedTarget?.closest?.(".doc-insert-gap")) clearDocGapUnlessPinned();
+          if (!e.relatedTarget?.closest?.(".doc-side-gap")) setSideGap((p) => (p?.pinned ? p : null));
+        } : undefined}
         onMouseDown={(e) => {
           // Block content sync briefly so ProseMirror's cursor placement on mousedown
           // isn't overwritten by a server echo arriving before the focus event fires.
@@ -3449,6 +3503,25 @@ const Editor = forwardRef(function Editor({
               // onOpenChange fires on real transitions only (never on mount),
               // so a close always means "the user is done with this gap".
               onOpenChange={(open) => { if (!open) setDocGap(null); }}
+            />
+          </div>
+        </div>
+      )}
+
+      {sideGap && (
+        <div
+          className={`doc-side-gap doc-side-gap--${sideGap.side}`}
+          style={{ left: sideGap.left, top: sideGap.top, height: sideGap.height }}
+          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) setSideGap((p) => (p?.pinned ? p : null)); }}
+        >
+          <div className="insert-gap-line" />
+          <div className="insert-gap-btn">
+            <QuickAddMenu
+              targetRole="instance"
+              hostOccurrence={occurrence}
+              onSelect={(m) => { const sh = sideGap.sideHost; insertDocItemAt(null, { existingModuleId: m?.id ?? m }, (id) => wrapHostWithNeighborIn(editor, id, sh)); }}
+              onCreateNew={(args = {}) => { const sh = sideGap.sideHost; insertDocItemAt(null, args, (id) => wrapHostWithNeighborIn(editor, id, sh)); }}
+              onOpenChange={(open) => setSideGap((p) => (p ? (open ? { ...p, pinned: true } : null) : p))}
             />
           </div>
         </div>

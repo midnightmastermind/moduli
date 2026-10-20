@@ -2674,6 +2674,25 @@ body[data-drag-kind] .insert-gap-btn { pointer-events: none; }
 .doc-insert-gap .quick-add-btn { width: 100% !important; }
 .doc-insert-gap .quick-add-btn svg { pointer-events: none; }
 
+/* The SIDE "+" — a vertical bar on a block's left or right edge; what is added there wraps beside it.
+   Same blue line turned upright; the bar (the middle half of the block's height) is the button. */
+.doc-side-gap {
+  position: absolute;
+  width: 12px;
+  transform: translateX(-50%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 16;
+  pointer-events: none;   /* only the button clicks — a block's own edge controls stay reachable */
+}
+.doc-side-gap .insert-gap-line {
+  left: 50%; right: auto; width: 3px; height: auto; top: 25%; bottom: 25%;
+  transform: translateX(-50%); opacity: 1;
+}
+.doc-side-gap .insert-gap-btn { opacity: 1; pointer-events: auto; width: 100% !important; height: 50%; }
+.doc-side-gap .quick-add-btn { width: 100% !important; height: 100% !important; opacity: 1 !important; cursor: pointer !important; }
+.doc-side-gap .quick-add-btn svg { pointer-events: none; }
+body[data-drag-kind] .doc-side-gap { display: none; }
+
 /* Drag variant — same blue line, bolder + glowing so the drop spot is obvious
    while dragging a block to reorder (no finicky guessing). No "+" button. */
 .doc-insert-gap--drag { z-index: 22; }
