@@ -15,7 +15,7 @@ import {
 import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye, Image as ImageIcon } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId, nextProjectionFieldId } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, moveColumn, fillRange, firstEmbedOccId, nextProjectionFieldId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { useGridActions } from "../../GridActionsContext";
@@ -70,6 +70,17 @@ function FilterValueWidget({ comparator, value, onChange }) {
       }}
     />
   );
+}
+
+// The column menu hangs to the LEFT of its button (right: 0). On the first columns that runs past the
+// table's left edge, where the table's own scroll box clips it — the first column's menu could not be
+// used at all (measured on poms' People Table: x = -143). It opens to the right there instead.
+export function keepKebabMenuInTable(el) {
+  if (!el) return;
+  el.style.left = ""; el.style.right = "";
+  const box = el.closest(".table-container")?.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  if (box && r.left < box.left + 4) { el.style.right = "auto"; el.style.left = "0"; }
 }
 
 const DEFAULT_TABLE = () => ({
@@ -911,6 +922,11 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Whether the cell repeats the row's name above its fields. Add column turns it off for a
   // projection column; this is the control for it (it had none — a setting only one gesture wrote).
+  const handleMoveColumn = useCallback((colIndex, delta) => {
+    persist(moveColumn(table, colIndex, colIndex + delta));
+    setKebabOpen(null);
+  }, [persist, table]);
+
   // Whether the cell's field pills show their names ("Relationship: …") or just the values.
   const toggleColumnHideFieldNames = useCallback((colIndex) => {
     const nextCols = columns.map((c, i) => (i === colIndex ? { ...c, hideFieldNames: !(c.hideFieldNames === true) } : c));
@@ -1503,7 +1519,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                       <MoreVertical size={12} />
                     </button>
                     {kebabOpen?.colIndex === c && (
-                      <div className="table-kebab-menu">
+                      <div className="table-kebab-menu" ref={keepKebabMenuInTable}>
                         {/* Show field picker or the Show field trigger */}
                         {fieldPickerCol === c ? (
                           <div className="table-kebab-field-picker">
@@ -1715,6 +1731,20 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                 {col.hideFieldNames === true ? "Show field names" : "Hide field names"}
                               </span>
                             </button>
+                            <div className="table-kebab-divider" />
+                            <div className="table-kebab-section-label">Position</div>
+                            {c > 0 && (
+                              <button className="table-kebab-item" onClick={() => handleMoveColumn(c, -1)}>
+                                <ChevronUp size={11} style={{ transform: "rotate(-90deg)" }} />
+                                <span className="table-kebab-item-label">Move left</span>
+                              </button>
+                            )}
+                            {c < columns.length - 1 && (
+                              <button className="table-kebab-item" onClick={() => handleMoveColumn(c, +1)}>
+                                <ChevronDown size={11} style={{ transform: "rotate(-90deg)" }} />
+                                <span className="table-kebab-item-label">Move right</span>
+                              </button>
+                            )}
                             <div className="table-kebab-divider" />
                             <div className="table-kebab-section-label">Sort</div>
                             <button

@@ -40,4 +40,9 @@ describe("table column menu", () => {
     const fr = readFileSync(resolve(process.cwd(), "src/ui/FieldRenderer.jsx"), "utf8");
     expect(fr.match(/hideName=\{hideName \|\| forceHideName\}/g)?.length).toBe(4);
   });
+  it("can move a column left and right", () => {
+    expect(src).toMatch(/onClick=\{\(\) => handleMoveColumn\(c, -1\)\}/);
+    expect(src).toMatch(/onClick=\{\(\) => handleMoveColumn\(c, \+1\)\}/);
+    expect(src).toMatch(/persist\(moveColumn\(table, colIndex, colIndex \+ delta\)\)/);
+  });
 });

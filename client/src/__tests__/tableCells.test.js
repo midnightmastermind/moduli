@@ -96,3 +96,22 @@ describe("column structural ops", () => {
     expect(out.cells["1:2"]).toBe(9);
   });
 });
+
+import { moveColumn } from "../helpers/tableCells";
+describe("moveColumn", () => {
+  const t = { columns: [{ id: "a" }, { id: "b" }, { id: "c" }], rowCount: 1, cells: { "0:0": "A", "0:1": "B", "0:2": "C" } };
+  it("moves the last column to the front, its cells with it", () => {
+    const n = moveColumn(t, 2, 0);
+    expect(n.columns.map((c) => c.id)).toEqual(["c", "a", "b"]);
+    expect(n.cells).toEqual({ "0:0": "C", "0:1": "A", "0:2": "B" });
+  });
+  it("moves a column one step right", () => {
+    const n = moveColumn(t, 0, 1);
+    expect(n.columns.map((c) => c.id)).toEqual(["b", "a", "c"]);
+    expect(n.cells).toEqual({ "0:0": "B", "0:1": "A", "0:2": "C" });
+  });
+  it("returns the same table for a move off either end", () => {
+    expect(moveColumn(t, 0, -1)).toBe(t);
+    expect(moveColumn(t, 2, 3)).toBe(t);
+  });
+});

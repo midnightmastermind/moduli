@@ -86,6 +86,22 @@ export function insertColumn(table, colIndex, colDef) {
   return { ...table, columns, cells: reindex(table.cells, colIndex, +1) };
 }
 
+// Move column `from` to position `to`; typed cells move with their column.
+export function moveColumn(table, from, to) {
+  const n = table.columns.length;
+  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return table;
+  const order = table.columns.map((_, i) => i);
+  const [moved] = order.splice(from, 1);
+  order.splice(to, 0, moved);
+  const newIndexOf = new Map(order.map((oldI, newI) => [oldI, newI]));
+  const cells = {};
+  for (const [k, v] of Object.entries(table.cells || {})) {
+    const [r, c] = k.split(":").map(Number);
+    cells[`${r}:${newIndexOf.has(c) ? newIndexOf.get(c) : c}`] = v;
+  }
+  return { ...table, columns: order.map((i) => table.columns[i]), cells };
+}
+
 /**
  * Cells the fill gesture should write, given the source cell and the cell
  * under the pointer. Constrained to a single axis (Excel-style): the axis
