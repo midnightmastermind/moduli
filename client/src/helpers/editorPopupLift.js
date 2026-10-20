@@ -3,13 +3,14 @@
 // container (.container-shell, z-index 1) is its own stacking context — so the NEXT row painted
 // over it and the menu read as see-through (UI sweep 2026-10-19, item 43). While a popup is open
 // its hosting rows/containers are lifted above their siblings; the returned function undoes it.
-export const POPUP_LIFT_CLASS = "has-editor-popup";
+// A data attribute, not a class: React rewrites `className` whenever the row re-renders.
+export const POPUP_LIFT_ATTR = "data-editor-popup";
 const HOSTS = ".instance-wrap, .container-shell";
 
 export function liftPopupHosts(el) {
   const lifted = [];
   for (let e = el?.parentElement?.closest(HOSTS) ?? (el?.matches?.(HOSTS) ? el : null); e; e = e.parentElement?.closest(HOSTS)) {
-    if (!e.classList.contains(POPUP_LIFT_CLASS)) { e.classList.add(POPUP_LIFT_CLASS); lifted.push(e); }
+    if (!e.hasAttribute(POPUP_LIFT_ATTR)) { e.setAttribute(POPUP_LIFT_ATTR, ""); lifted.push(e); }
   }
-  return () => lifted.forEach((e) => e.classList.remove(POPUP_LIFT_CLASS));
+  return () => lifted.forEach((e) => e.removeAttribute(POPUP_LIFT_ATTR));
 }

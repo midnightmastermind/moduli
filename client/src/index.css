@@ -1430,8 +1430,8 @@ select:disabled { cursor: not-allowed; }
 
 /* A popup open in an editor inside this row/container sits above the next sibling
    (helpers/editorPopupLift.js — each row is its own z-index stacking context). */
-.instance-wrap.has-editor-popup,
-.container-shell.has-editor-popup {
+.instance-wrap[data-editor-popup],
+.container-shell[data-editor-popup] {
   z-index: 45;
 }
 
