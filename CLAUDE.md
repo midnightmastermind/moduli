@@ -69,9 +69,13 @@ the summary serves `…/3840px-X.jpg?utm_campaign=api` while the article's own f
 `…/960px-X.jpg?utm_campaign=parser`: the same file, two URLs. `wikipediaTools.wikimediaFileKey` names the file
 (thumb path, size prefix and query dropped) and `markdownHasImage` compares on it. Checked live: Bonsai, Eminem
 (whose lead is an infobox photo the body lacks, so it still gets one) and Tokyo import with 0 duplicate files.
-Test `wikiLeadImageDedup` (6; the old string check fails 4). **Not repaired:** articles already imported keep
-their second picture — 28 groups of the same external image sit side by side across the grids; removing them is
-the user's call. Server restart.
+Test `wikiLeadImageDedup` (6; the old string check fails 4). Server restart.
+**Repaired (user: "remove the second copy"):** grouped by grid + article + Wikimedia FILE, there were only **3**
+such pairs, all on the rebuild grid (Bonsai, Ryoan-ji in Wabi-sabi, Carl Jung) — the "28 groups" first reported
+counted repeated external images of any kind, not this defect. The summary copy (`utm_campaign=api`) of each was
+deleted through `delete_occurrence` (backup `server/backups/orphans/2026-10-20-dup-wiki-lead-images.json`); the
+article's own figure now leads each wrap group, no doc embeds a deleted id, the modules went with them, rebuild
+integrity 0 errors. Scan: `server/_dupimg.mjs` (gitignored).
 
 ---
 
