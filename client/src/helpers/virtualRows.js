@@ -75,6 +75,24 @@ export function findScrollParent(el) {
   return null;
 }
 
+/** The size to guess for an unmeasured row: the mean of the sizes the virtualizer has measured
+ *  (cached per cache version — it is asked once per unmeasured row on every recompute), else the
+ *  mount-time running average, else VIRTUAL_ESTIMATE. */
+export function measuredAverage(v, mountAvg, cache) {
+  const m = v?.itemSizeCache;
+  if (m && m.size > 0) {
+    const version = v.itemSizeCacheVersion ?? m.size;
+    if (!cache || cache.version !== version) {
+      let t = 0; for (const x of m.values()) t += x;
+      const avg = t / m.size;
+      if (!cache) return avg;
+      cache.version = version; cache.avg = avg;
+    }
+    return cache.avg;
+  }
+  return mountAvg && mountAvg.n > 0 ? mountAvg.total / mountAvg.n : VIRTUAL_ESTIMATE;
+}
+
 /** PURE: the rendered range plus any pinned index, sorted and de-duplicated. */
 export function rangeWithPin(range, pinIndex) {
   const base = defaultRangeExtractor(range);
@@ -174,6 +192,8 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     return () => ro.disconnect();
   }, [active, isGrid, tileW, lineGap, listRef]);
 
+  const vRef = useRef(null);
+  const estCacheRef = useRef({ version: -1, avg: 0 });
   const v = useVirtualizer({
     // NOT flushSync. The adapter's default re-renders the whole board SYNCHRONOUSLY inside each scroll
     // event while scrolling, which made every touch event of a swipe slow to handle (measured in Movies,
@@ -183,10 +203,12 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     count: active ? lines : 0,
     enabled: active,
     getScrollElement: () => scrollEl,
-    estimateSize: () => {
-      const a = avgRef.current;
-      return a.n > 0 ? a.total / a.n : VIRTUAL_ESTIMATE;
-    },
+    // Unmeasured rows are guessed at the average of the rows MEASURED SO FAR, read from the
+    // virtualizer's own size cache — which its ResizeObserver keeps current as pictures load.
+    // A row's height at mount (avgRef) is taken before its image arrives: on poms' People Table
+    // (a photo per row) that guessed ~40px against ~90 real, so the list grew from 45k to 107k px
+    // as it was scrolled and "the end" kept moving away.
+    estimateSize: () => measuredAverage(vRef.current, avgRef.current, estCacheRef.current),
     overscan: isGrid ? VIRTUAL_GRID_OVERSCAN : VIRTUAL_OVERSCAN,
     getItemKey: (i) => (isGrid ? `line-${i}` : (keyOfRef.current?.(i) ?? i)),
     rangeExtractor: (range) => rangeWithPin(range, pinIndex),
@@ -235,6 +257,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       el.scrollTo({ top: offset + adjustments + listTop, behavior });
     },
   });
+  vRef.current = v;
   // Normal flow: the browser's scroll anchoring already holds the view when a
   // row's real height differs from its estimate.
   v.shouldAdjustScrollPositionOnItemSizeChange = () => false;

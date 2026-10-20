@@ -84,3 +84,24 @@ describe("virtualRows does not flushSync on scroll", () => {
     expect(src).toMatch(/useVirtualizer\(\{/); // control: still the virtualizer
   });
 });
+
+import { measuredAverage } from "../helpers/virtualRows";
+describe("measuredAverage", () => {
+  it("guesses unmeasured rows at the mean of the measured ones (the cache, not mount heights)", () => {
+    const v = { itemSizeCache: new Map([["a", 90], ["b", 100]]), itemSizeCacheVersion: 3 };
+    expect(measuredAverage(v, { total: 80, n: 2 }, { version: -1, avg: 0 })).toBe(95);
+  });
+  it("re-reads the cache only when its version moves", () => {
+    const cache = { version: -1, avg: 0 };
+    const v = { itemSizeCache: new Map([["a", 90]]), itemSizeCacheVersion: 1 };
+    expect(measuredAverage(v, null, cache)).toBe(90);
+    v.itemSizeCache.set("b", 110);                 // same version: the cached mean stands
+    expect(measuredAverage(v, null, cache)).toBe(90);
+    v.itemSizeCacheVersion = 2;
+    expect(measuredAverage(v, null, cache)).toBe(100);
+  });
+  it("falls back to the mount-time average, then the constant", () => {
+    expect(measuredAverage({ itemSizeCache: new Map() }, { total: 120, n: 3 }, null)).toBe(40);
+    expect(measuredAverage(null, { total: 0, n: 0 }, null)).toBe(48);
+  });
+});

@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (4) — A PEOPLE TABLE ON POMS (1,181 people); long tables virtualize like boards; four table-menu gaps
+
+User: *"if its not on poms grid- recreate it with the people board we have for there"* (test grid 1 has one) ·
+*"test the speed of scroll and loading that table"* · *"forget the click next pagination … we will just do what boards
+do"* · columns: Name first, then one field per column, each with show/hide, sort, filter, "hide field label too" ·
+*"put photo in the first position"*. Answers: all 1,181 rows; filled-field columns (poms people have no Email/Phone).
+- **Built by clicking** (`_newpage` Table page in Boards/Social, `_cardrename`, `_feedset2`/`_feedon` — scope + limit
+  1200 + sort Name set while the feed is OFF, switched On LAST, `_pplcols*`). Feed: instances under the People page,
+  limit 1200, Name asc → 1,181 linked copies, all listed + parented (Mongo). Columns: **Photo · Name · Relationship ·
+  Birthday · City · Gender · Facebook · Instagram · Notes**; Name = the row's own name; field columns = their field,
+  no row name, no field names; Photo = media. 0 typed rows.
+- **`ContainerTable` child rows go through `helpers/virtualRows`** past `VIRTUAL_TABLE_MIN` (60) — the measured row
+  div is the row itself, spacers stand in, the table container is the scroller. Measured on prod (1600x1000, CPU 1):
+  ```
+                     old build (every row)   virtualized
+  rows on screen       38.7 s                  7.1 s
+  rows / DOM nodes     1,181 / 373,298         14-27 / 4,556
+  scroll frame median  150 ms                  67 ms
+  p95 / worst          733 / 1,583 ms          84-100 / 216-283 ms
+  ```
+  Position checked at 0 / 25 / 50 / 100%: the drawn rows are exactly `childRowOccs[i]` (0 mismatches).
+- **`virtualRows.measuredAverage`** — unmeasured rows are guessed at the mean of the virtualizer's own size cache
+  (kept current by its ResizeObserver), not mount-time heights taken before a row's picture loads: the table grew
+  45k → 107k px while scrolling and a jump to the end stopped at row 953; it reaches row 1180 now. Affects boards too.
+- **Column menu, four gaps:** (1) the FIRST column's menu opened at x = -143, clipped by the table — it opens to the
+  right when there is no room (`keepKebabMenuInTable`); (2) `hideLabel` had no control → **Hide/Show row name**;
+  (3) new **Hide/Show field names** (`col.hideFieldNames` → CellEmbedContext → `FieldRenderer forceHideName`, both
+  the static and the editor cell paths); (4) columns could not be reordered → **Move left / Move right**
+  (`tableCells.moveColumn`, typed cells move with their column).
+- **My probes moved Panel A** (the page a panel shows is shared): a search opened the People Table there, and before
+  virtualization shipped that could freeze the user's tab. Put back to Routines each time (`_panelrestore`); the page
+  Panel A showed before 09:20 is not recorded anywhere, Routines is the morning layout's.
+- Not done: the scroll is 15 fps under a hard fling (each frame mounts new rows of 9 full cells); the throttled run
+  did not apply (a loop typo). Queued (user 09:48): shrink the containers' inner light-green border and drop its top
+  padding (seen on Routines).
+
+---
+
 ### 2026-10-20 (3) — PACKAGES UPDATED WITHIN THEIR RANGES; nothing broke
 
 User (07:45): *"make sure our app is updated with all the updated packages and make sure nothing breaks"*.
