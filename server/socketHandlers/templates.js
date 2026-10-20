@@ -7,6 +7,8 @@
 // docs/superpowers/specs/2026-08-02-template-editing-design.md
 import Occurrence from "../models/Occurrence.js";
 import Module from "../models/Module.js";
+import Operation from "../models/Operation.js";
+import { planTemplateRepoint } from "../utils/templateRepoint.js";
 import { cloneSubtree, mergeSubtreeInto } from "../utils/cloneSubtree.js";
 import { resolveTemplatesFolderId } from "../utils/templatesFolder.js";
 import { awaitPendingOccCreate } from "../utils/pendingOccCreates.js";
@@ -176,10 +178,13 @@ export function registerTemplateHandlers(socket, {
 
       // Clone-first, delete-after. If the clone throws or produces no root,
       // the old template stays intact and the user sees an error toast.
+      // Sign each node from the copy it came from (a copy's nodes carry `auto:<old template node>`), so a
+      // later Merge still recognises the rows applied from the OLD template instead of re-cloning them.
       const r = await cloneSubtree({
         rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
         newParentId: resolvedParent,
         rootLabel: oldName,
+        stampSignatures: true, signRoot: false,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template clone failed; old template left intact");
@@ -214,7 +219,34 @@ export function registerTemplateHandlers(socket, {
         socket.to(userRoom(userId)).emit("occurrence_deleted", { id: o.id });
       }
 
+      // The new template has a NEW root id. Everything that named the old one must follow it, or a copy's
+      // next "Save over" finds nothing and an operation that applies the template applies nothing
+      // (found 2026-10-20: the copy kept pointing at the deleted id).
+      const newRootId = r.rootClonedOccurrenceId;
+      const plan = planTemplateRepoint({
+        oldId: templateOccurrenceId, newId: newRootId,
+        occurrences: Object.values(uc.occurrencesById), operations: Object.values(uc.operationsById || {}),
+      });
+      for (const { id, meta } of plan.occurrences) {
+        const o = uc.occurrencesById[id];
+        if (!o) continue;
+        uc.occurrencesById[id] = { ...o, meta };
+        await Occurrence.updateOne({ id }, { $set: { meta } });
+      }
+      for (const { id, pipeline } of plan.operations) {
+        const op = uc.operationsById[id];
+        if (!op) continue;
+        uc.operationsById[id] = { ...op, pipeline };
+        await Operation.updateOne({ id }, { $set: { pipeline } });
+        socket.emit("operation_updated", { operation: uc.operationsById[id] });
+        socket.to(userRoom(userId)).emit("operation_updated", { operation: uc.operationsById[id] });
+      }
       broadcastClones(uc, r.occurrenceIds, r.moduleIds);
+      for (const { id } of plan.occurrences) {
+        if (r.occurrenceIds.includes(id)) continue; // already sent whole as occurrence_created
+        socket.emit("occurrence_updated", { occurrence: uc.occurrencesById[id] });
+        socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: uc.occurrencesById[id] });
+      }
       socket.emit("template_saved_over", {
         oldTemplateId: templateOccurrenceId,
         newTemplateId: r.rootClonedOccurrenceId,
