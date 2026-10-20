@@ -53,7 +53,36 @@ export function consumeUserInput() {
   lastAt = 0;
 }
 
+// ── A BUTTON STILL HELD ─────────────────────────────────────────────────────
+// A click on an empty line minted its textblock on MOUSEDOWN, and the new block took the caret.
+// When the button came up, the page editor finished handling its OWN click — caret placed at the
+// release point, focus taken back — so the new block blurred while empty and vanished, the
+// "Saving…" being the page saving the collapse (user video, 2026-10-20). Only a click released
+// exactly where the caret lands survived. So a mint waits for the release.
+let held = false;
+let afterRelease = [];
+
+export function noteButtonDown() { held = true; }
+
+/** The button came up (or the press was cancelled): run whatever waited, after the click's own
+ *  mouseup/click handlers — they run in the same task as pointerup, so a 0ms timeout is after them. */
+export function noteButtonUp() {
+  held = false;
+  const run = afterRelease; afterRelease = [];
+  if (run.length) setTimeout(() => { for (const fn of run) { try { fn(); } catch { /* one waiter cannot stop the rest */ } } }, 0);
+}
+
+export function buttonHeld() { return held; }
+
+/** Run `fn` once the button is released (now, after the click finishes, if it is not held). */
+export function whenButtonReleased(fn) {
+  if (!held) { fn(); return; }
+  afterRelease.push(fn);
+}
+
 /** Test-only. */
 export function __resetUserInputWindow() {
   lastAt = 0;
+  held = false;
+  afterRelease = [];
 }

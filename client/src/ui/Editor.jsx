@@ -121,7 +121,7 @@ import {
   isEmptyTextblockDoc, isTextblockMintSuppressed, withoutProvisionalTextblocks,
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
-import { stampUserInput, userInputRecently, consumeUserInput } from "../helpers/userInputWindow";
+import { stampUserInput, userInputRecently, consumeUserInput, noteButtonDown, noteButtonUp, buttonHeld, whenButtonReleased } from "../helpers/userInputWindow";
 import { looseTextBlocks, lineHasInlineNodes, typingWouldReplaceBlock } from "../helpers/strictBlockSweep";
 
 import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
@@ -150,6 +150,11 @@ function trackUserInput() {
   const stampPointer = (e) => { if (!isInNonEditableIsland(e.target) && !isOnCommandControl(e.target)) stampUserInput(); };
   document.addEventListener("pointerdown", stampPointer, true);
   document.addEventListener("keydown", stamp, true);
+  // Whether a button is still down — a mint waits for the release (helpers/userInputWindow).
+  document.addEventListener("pointerdown", (e) => { if (e.button === 0) noteButtonDown(); }, true);
+  document.addEventListener("pointerup", noteButtonUp, true);
+  document.addEventListener("pointercancel", noteButtonUp, true);
+  window.addEventListener("blur", noteButtonUp);
 }
 
 /**
@@ -589,7 +594,11 @@ const Editor = forwardRef(function Editor({
     if (mintCheckRef.current) { mintMark("mint:check-coalesced"); return; }
     mintMark("mint:check-scheduled");
     const askedAt = Date.now();
-    mintCheckRef.current = setTimeout(() => {
+    mintCheckRef.current = setTimeout(function check() {
+      // The button is still down: the page editor has yet to finish this click (it places its own
+      // caret and takes focus on release), so a block minted now would lose the caret and vanish.
+      // Check again once the click is over — the caret it leaves is the one that counts.
+      if (buttonHeld()) { mintMark("mint:wait-release"); whenButtonReleased(check); return; }
       mintCheckRef.current = 0;
       const mint = onCaretMintRef.current;
       if (!mint || editor.isDestroyed) return;
@@ -3361,7 +3370,18 @@ const Editor = forwardRef(function Editor({
               docSize: editor.state.doc.content.size,
             });
             if (coords) {
+              // The position is only good for the document it was measured in. A click on an empty
+              // line MINTS a textblock within this frame (the line becomes an atom and the new block
+              // takes the caret); forcing the old position then selected in this editor instead —
+              // the space highlighted, the new block lost focus and, empty, vanished (user
+              // 2026-10-20, video: "if clicked off the original character position, autohighlights
+              // … it works fine if i click exactly where the caret will be").
+              const docAtDown = editor.state.doc;
               requestAnimationFrame(() => {
+                if (editor.isDestroyed || editor.state.doc !== docAtDown) {
+                  logCaretInterference("editor.setTextSelection(rAF) skipped — doc changed", { occId: (occurrence?.id || "").slice(0, 8) });
+                  return;
+                }
                 try {
                   editor.commands.setTextSelection(coords.pos);
                   logCaretInterference("editor.setTextSelection(rAF)", {
