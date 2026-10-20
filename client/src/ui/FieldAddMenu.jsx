@@ -21,7 +21,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, ChevronLeft, Search, Eye } from "lucide-react";
-import MenuSurface from "./MenuSurface";
+import MenuSurface, { isDrawerLayout } from "./MenuSurface";
 import { FieldDetail } from "./commandCenter/FieldsTab";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -175,7 +175,8 @@ export default function FieldAddMenu({ module, anchorRect, onClose }) {
             <div style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
               <Search style={{ width: 13, height: 13, color: "var(--text-faint)", flex: "0 0 auto" }} />
               <input
-                autoFocus
+                // Not on a phone: focusing raises the keyboard over half the drawer before you have looked.
+                autoFocus={!isDrawerLayout()}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search fields…"
