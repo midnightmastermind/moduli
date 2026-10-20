@@ -50,6 +50,14 @@ need an add panel button somewhere for the mosaic layout (in the grid header too
   Enter applied the pick AND split the line (leaving `/h` behind) → the editor leaves list keys to an open
   pick-list. **`@` never stayed open**: the picker focused its own input, so the editor's blur closed it (and
   vanished an empty textblock); it keeps the caret now. Watched on prod: `/hea`+Enter → H1; `@cal`+Enter → pill.
+- **Rows 1–14 (toolbar + Command Center), both sizes:** Escape now closes the toolbar date picker; Jonah's button
+  steps aside for the phone menu and the Command Center; the phone Command Center fills the screen (was 70vh);
+  the op editor wraps on a phone (it was crushed to ~90px under its run log) and a trigger's module select is
+  capped. Templates / Files tabs no longer exist (rows marked —).
+- **A doc container filed into a FOLDER could not be opened anywhere** (the Wikipedia importer's articles in
+  rebuild Library/Reading): its card was not clickable, a drill showed the panel's first page, search said "not
+  on a page". `helpers/folderPages` + `openOccurrenceInPanel.folderHomeOf`; the panel renders such a card as
+  its page (`ModulePanel.drilledFolderPage`, above the early return — it is a hook).
 
 ---
 
