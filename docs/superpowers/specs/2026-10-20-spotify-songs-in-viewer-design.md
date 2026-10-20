@@ -44,6 +44,16 @@ They have Spotify Premium.
    today appear on the Songs board by themselves, with their Artist and Album rows, in the same
    shape as the existing 5,484 rows.
 
+6. **Phones play too, with the same controls** (the user, 17:30: *"it makes no sense for it not to be a
+   phone too"*). Spotify's Web Playback SDK does not run in mobile browsers, so on a phone the same
+   tile REMOTE-CONTROLS a Spotify device through the Web API (Spotify Connect): it starts the track
+   on the phone's own Spotify app by default, or on any device the user picks (a speaker, the
+   desktop's Moduli device), and our play/pause/seek/volume/time drive it; state is read back by
+   polling `/me/player`. The sound comes out of the Spotify app, not the page. One tile, two engines:
+   the SDK where the browser supports it, Connect elsewhere, and a device picker on both so a desktop
+   can also play to a speaker. If no device is active (the Spotify app has been closed long enough to
+   drop off Connect), the tile says so and offers an "Open Spotify" link that wakes it.
+
 ## Non-goals (for this project)
 
 - **The user's own music files** (the 4,113 FLAC/MP3s on the WD My Passport, the easystore tracks).
@@ -54,8 +64,6 @@ They have Spotify Premium.
   or be hidden until it exists. Builder's call which.
 - **Playlists, podcasts, albums as a playable unit.** Only single tracks play. (An album or playlist
   link keeps today's behaviour.)
-- **Phones.** Spotify's Web Playback SDK does not run on mobile browsers. On a phone the tile keeps
-  today's Spotify embed (or an "Open in Spotify" link). Desktop Chrome and Firefox are the target.
 
 ## Anti-goals (would make this a failure even if it "works")
 
@@ -111,7 +119,7 @@ They have Spotify Premium.
   track the position goes on the occurrence (`occurrence.meta.playbackPosition`); file-backed audio
   keeps the module. (A Spotify track also remembers its place through Spotify itself only per
   session, so this is still worth doing.)
-- **One Spotify player per browser tab.** The SDK creates a Spotify Connect device ("Moduli"); a
+- **One Spotify player per browser tab (desktop SDK).** The SDK creates a Spotify Connect device ("Moduli"); a
   second tile pauses the first. Starting a song in another tab moves playback there, as Spotify does.
 - Unliking a song or unsaving an album on Spotify does **not** delete rows (a row may carry the
   user's own fields/notes); they are left alone. Followed artists add Artist rows only.
