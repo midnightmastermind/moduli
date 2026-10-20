@@ -91,6 +91,7 @@ import { ExprPill } from "../docs/ExprPillExtension";
 import { CellEmbedContext } from "../docs/CellEmbedContext";
 import FieldSuggestion from "../docs/suggestions/FieldSuggestion";
 import CommandPalette from "../docs/suggestions/CommandPalette";
+import { liftPopupHosts } from "../helpers/editorPopupLift";
 import { slashOpensPalette } from "../docs/suggestions/slashTrigger.js";
 import DocLinkSuggestion from "../docs/suggestions/DocLinkSuggestion";
 import DocToolbar from "../docs/DocToolbar";
@@ -1915,6 +1916,11 @@ const Editor = forwardRef(function Editor({
     chain.insertExprPill({ expr: fieldName }).run();
     setShowExprSuggestion(false); setExprQuery("");
   }, [editor]);
+
+  // A popup is drawn inside this editor; lift the rows/containers around it above their
+  // siblings, or the next row paints over it (helpers/editorPopupLift.js).
+  const anyPopupOpen = showSuggestion || showCommandPalette || showDocLink || showExprSuggestion || showEmbedPicker;
+  useEffect(() => (anyPopupOpen ? liftPopupHosts(wrapperRef.current) : undefined), [anyPopupOpen]);
 
   // ── key handling for popup query modes ──────────────────────
   useEffect(() => {
