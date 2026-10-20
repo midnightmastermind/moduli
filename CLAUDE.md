@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (7) — A LINKED RECTANGLE DRAGS THE CARDS INSIDE IT (it moved alone, or took the wrong card)
+
+Parked from the other account's canvas deep test: *"dragging a linked rectangle with Select moved a card that was
+outside the rectangle"*. Reproduced on test grid 2's Canvas Test (`_canvasGrp2.mjs DX DY`, logs the socket writes):
+with card A inside the rectangle, a drag sent ONE write — the shape — and A stayed put.
+- A shape's children were computed DURING RENDER from `cardCenterFor` (screen rects relative to the world). Rendered
+  while a scale animation ran (page enter / full screen) the centres were shrunk toward the origin, and nothing
+  re-renders the shape afterwards — so the membership stayed wrong: a card inside dropped out, one outside got in.
+- `CanvasContent.cardCenterFor` divides by the world's on-screen scale (`worldCssScale`), the drag takes its children
+  from a fresh measurement at the press (`linkedShapeChildren`, pure, shared with the render), and the shape + card
+  writes are one `withAction("Moved group")`. Test `linkedShapeChildren` (9).
+- Watched on prod: rectangle −100 → A 260→160, back +100 → A 160→260; B (corner overlap only) never moved.
+- The rest of that deep test passed on its run: pen and eraser strokes saved, the page "+" offers Board / Doc /
+  Canvas / Table container. Client 6,483 pass; client-only deploy.
+
+---
+
 ### 2026-10-20 (6) — THE PEOPLE TABLE OPENS IN 0.8s (was an 11.6s freeze with no loading sign)
 
 User (10:33): *"the people table takes way too long to open and theres no indicator that its loading"*.
