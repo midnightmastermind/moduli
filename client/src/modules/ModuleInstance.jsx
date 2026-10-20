@@ -983,6 +983,7 @@ function InstanceInner({
         socket={socket}
         compact={true}
         disabled={!!instance?.meta?.disabled}
+        forceHideName={cellEmbedCtx?.hideFieldNames === true}
       />
     </AutoMarquee>
   );

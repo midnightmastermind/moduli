@@ -59,6 +59,8 @@ function FieldRenderer({
   socket,
   compact = false,
   disabled = false,
+  // A host can hide every pill's name (a table column showing just the values).
+  forceHideName = false,
 }) {
   bumpRender("field");
   // Per-slice selectors instead of useGridActions() — the full-context
@@ -459,7 +461,7 @@ function FieldRenderer({
             state={state}
             context={context}
             compact={compact}
-            hideName={hideName}
+            hideName={hideName || forceHideName}
             hidePrefix={hidePrefix}
             hidePostfix={hidePostfix}
           />
@@ -503,7 +505,7 @@ function FieldRenderer({
         value={inputValue}
         displayRule={computedDisplayRule}
         compact={compact}
-        hideName={hideName}
+        hideName={hideName || forceHideName}
         hidePrefix={hidePrefix}
         hidePostfix={hidePostfix}
       />
@@ -524,7 +526,7 @@ function FieldRenderer({
           target={computedTarget}
           displayRule={computedDisplayRule}
           compact={compact}
-          hideName={hideName}
+          hideName={hideName || forceHideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
           affixPrefix={pickedPrefix}
@@ -544,7 +546,7 @@ function FieldRenderer({
           onCommit={handleCommit}
           onFlowChange={handleFlowChange}
           compact={compact}
-          hideName={hideName}
+          hideName={hideName || forceHideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
           affixPrefix={pickedPrefix}

@@ -28,6 +28,10 @@ import { uid } from "../../uid";
 import Editor from "../../ui/Editor.jsx";
 import DrilldownPicker from "../../ui/DrilldownPicker.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
+import { useVirtualRows } from "../../helpers/virtualRows";
+
+// Child rows past this many are virtualized (the same rule long boards follow).
+export const VIRTUAL_TABLE_MIN = 60;
 import ModuleContainer from "../ModuleContainer.jsx";
 import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
 import AutoMarquee from "../../ui/AutoMarquee.jsx";
@@ -100,12 +104,12 @@ const DEBOUNCE_MS = 500;
 // for the cases tables actually use (instance / container). Wrapped in
 // CellEmbedContext so ModuleInstance's field-visibility + hideLabel projection
 // works identically to the editor path.
-function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, containerId = null, containerOccurrence = null }) {
+function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, hideFieldNames = false, containerId = null, containerOccurrence = null }) {
   const occurrence = occId ? occurrencesById?.[occId] : null;
   const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const ctxValue = useMemo(
-    () => ({ displayFieldId, fieldVisibility, hideLabel, showMedia: !!showMedia, __inCell: true }),
-    [displayFieldId, fieldVisibility, hideLabel, showMedia],
+    () => ({ displayFieldId, fieldVisibility, hideLabel, showMedia: !!showMedia, hideFieldNames: !!hideFieldNames, __inCell: true }),
+    [displayFieldId, fieldVisibility, hideLabel, showMedia, hideFieldNames],
   );
   if (!occurrence || !mod) {
     return <div className="table-cell-static" style={{ minHeight: 18 }} />;
@@ -159,7 +163,7 @@ function plainTextOfDoc(doc) {
   return out.join("").trim();
 }
 
-function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
+function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, hideFieldNames, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -374,6 +378,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           fieldVisibility={fieldVisibility ?? null}
           hideLabel={hideLabel ?? false}
           showMedia={showMedia ?? false}
+          hideFieldNames={hideFieldNames ?? false}
         />
       ) : !embedOccId ? (
         <div className="table-cell-static-text">
@@ -390,6 +395,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           fieldVisibility={fieldVisibility ?? null}
           hideLabel={hideLabel ?? false}
           showMedia={showMedia ?? false}
+          hideFieldNames={hideFieldNames ?? false}
         />
       )}
       {(isFocused || hovered) && (
@@ -903,6 +909,18 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     persist({ ...table, columns: nextCols });
   }, [columns, persist, table]);
 
+  // Whether the cell repeats the row's name above its fields. Add column turns it off for a
+  // projection column; this is the control for it (it had none — a setting only one gesture wrote).
+  // Whether the cell's field pills show their names ("Relationship: …") or just the values.
+  const toggleColumnHideFieldNames = useCallback((colIndex) => {
+    const nextCols = columns.map((c, i) => (i === colIndex ? { ...c, hideFieldNames: !(c.hideFieldNames === true) } : c));
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+  const toggleColumnHideLabel = useCallback((colIndex) => {
+    const nextCols = columns.map((c, i) => (i === colIndex ? { ...c, hideLabel: !(c.hideLabel === true) } : c));
+    persist({ ...table, columns: nextCols });
+  }, [columns, persist, table]);
+
   // --- Table-level sort: writes meta.table.sort = { colId, dir } | null ---
   // Independent of per-column sort; lives at table scope so the entire table
   // is sorted by one column at a time. Per-column sort still works for
@@ -1216,6 +1234,18 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     return occs;
   }, [occurrence?.occurrences, occurrencesById, table.sort, columns, modulesById]);
 
+  // Long tables are virtualized like long boards (helpers/virtualRows).
+  const childListRef = useRef(null);
+  const childKeyOf = useCallback((i) => childRowOccs[i]?.id, [childRowOccs]);
+  const childIndexOf = useCallback((id) => childRowOccs.findIndex((o) => o.id === id), [childRowOccs]);
+  const childVirtual = useVirtualRows({
+    count: childRowOccs.length,
+    enabled: childRowOccs.length > VIRTUAL_TABLE_MIN,
+    listRef: childListRef,
+    keyOf: childKeyOf,
+    indexOf: childIndexOf,
+  });
+
   const handleAddColumn = useCallback(() => {
     const n = columns.length + 1;
     // A new column PROJECTS the next field the rows carry (see
@@ -1245,6 +1275,68 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // cells stretch to match via CSS `align-items: stretch`.
   const totalColsWidth =
     effectiveWidths.reduce((a, w) => a + w, 0) + ROW_ACTION_COL_W;
+
+  // One child row. `rowProps` carries the virtualizer's measure ref + index when the
+  // table is long enough to virtualize.
+  const renderChildRow = (childOcc, rowProps = {}) => (
+          <div
+            key={`child-row-${childOcc.id}`}
+            {...rowProps}
+            className="table-row table-child-row"
+            style={{
+              width: totalColsWidth,
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "stretch",
+            }}
+          >
+            {columns.map((col, c) => (
+              <div
+                key={`${childOcc.id}:${c}`}
+                className="table-td"
+                style={{
+                  flex: `0 0 ${effectiveWidths[c]}px`,
+                  boxSizing: "border-box",
+                }}
+              >
+                <StaticCellEmbed
+                  occId={childOcc.id}
+                  occurrencesById={occurrencesById}
+                  modulesById={modulesById}
+                  dispatch={dispatch}
+                  socket={socket}
+                  displayFieldId={col.displayFieldId ?? null}
+                  fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
+                  hideLabel={col.hideLabel === true}
+                  showMedia={col.showMedia === true}
+                  hideFieldNames={col.hideFieldNames === true}
+                  containerId={occurrence?.moduleId || null}
+                  containerOccurrence={occurrence}
+                />
+              </div>
+            ))}
+            <div
+              className="table-td table-row-action-cell"
+              style={{ flex: `0 0 ${ROW_ACTION_COL_W}px`, boxSizing: "border-box" }}
+            >
+              {!childOcc.meta?.feedSourceId && (
+                <button
+                  className="table-remove-row-btn"
+                  title="Remove this item"
+                  onClick={() => CommitHelpers.removeOccurrence({
+                    dispatch, socket,
+                    occurrenceId: childOcc.id,
+                    occurrence: childOcc,
+                    parentOccurrence: occurrence,
+                    emit: true,
+                  })}
+                >
+                  –
+                </button>
+              )}
+            </div>
+          </div>
+  );
 
   return (
     <div
@@ -1605,6 +1697,24 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                 {col.showMedia ? "Hide media" : "Show media"}
                               </span>
                             </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => toggleColumnHideLabel(c)}
+                            >
+                              <Eye size={11} />
+                              <span className="table-kebab-item-label">
+                                {col.hideLabel === true ? "Show row name" : "Hide row name"}
+                              </span>
+                            </button>
+                            <button
+                              className="table-kebab-item"
+                              onClick={() => toggleColumnHideFieldNames(c)}
+                            >
+                              <Eye size={11} />
+                              <span className="table-kebab-item-label">
+                                {col.hideFieldNames === true ? "Show field names" : "Hide field names"}
+                              </span>
+                            </button>
                             <div className="table-kebab-divider" />
                             <div className="table-kebab-section-label">Sort</div>
                             <button
@@ -1707,6 +1817,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
                   hideLabel={col.hideLabel === true}
                   showMedia={col.showMedia === true}
+                  hideFieldNames={col.hideFieldNames === true}
                   onFocusCell={() => setFocusedCell({ r, c })}
                   onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
                   isFocused={focusedCell?.r === r && focusedCell?.c === c}
@@ -1745,64 +1856,17 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
         {/* Children rows — see childRowOccs above. Feed copies
             (meta.feedSourceId) hide the remove button: the feed engine owns
-            their lifecycle (a manual delete would just re-mint next sync). */}
-        {childRowOccs.map((childOcc) => (
-          <div
-            key={`child-row-${childOcc.id}`}
-            className="table-row table-child-row"
-            style={{
-              width: totalColsWidth,
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "stretch",
-            }}
-          >
-            {columns.map((col, c) => (
-              <div
-                key={`${childOcc.id}:${c}`}
-                className="table-td"
-                style={{
-                  flex: `0 0 ${effectiveWidths[c]}px`,
-                  boxSizing: "border-box",
-                }}
-              >
-                <StaticCellEmbed
-                  occId={childOcc.id}
-                  occurrencesById={occurrencesById}
-                  modulesById={modulesById}
-                  dispatch={dispatch}
-                  socket={socket}
-                  displayFieldId={col.displayFieldId ?? null}
-                  fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
-                  hideLabel={col.hideLabel === true}
-                  showMedia={col.showMedia === true}
-                  containerId={occurrence?.moduleId || null}
-                  containerOccurrence={occurrence}
-                />
-              </div>
-            ))}
-            <div
-              className="table-td table-row-action-cell"
-              style={{ flex: `0 0 ${ROW_ACTION_COL_W}px`, boxSizing: "border-box" }}
-            >
-              {!childOcc.meta?.feedSourceId && (
-                <button
-                  className="table-remove-row-btn"
-                  title="Remove this item"
-                  onClick={() => CommitHelpers.removeOccurrence({
-                    dispatch, socket,
-                    occurrenceId: childOcc.id,
-                    occurrence: childOcc,
-                    parentOccurrence: occurrence,
-                    emit: true,
-                  })}
-                >
-                  –
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+            their lifecycle (a manual delete would just re-mint next sync).
+            A long table renders only the rows near the viewport (the same
+            virtualizer long boards use): rows stay in normal flow, each row
+            div is measured, and spacers stand in for the rest. */}
+        <div ref={childListRef} className="table-child-rows">
+          {childVirtual.active
+            ? childVirtual.plan.map((p, k) => (p.spacer != null
+              ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer }} />
+              : renderChildRow(childRowOccs[p.index], { "data-index": p.index, ref: childVirtual.measureRef })))
+            : childRowOccs.map((childOcc) => renderChildRow(childOcc))}
+        </div>
 
       {/* +Row strip — mirrors the +Column strip at the right edge of the
           header but spans the full body width along the bottom. Vertically

@@ -474,6 +474,8 @@ const Editor = forwardRef(function Editor({
   // LOCAL override; it wins over the occurrence-level fieldVisibility cascade.
   fieldVisibility = null,
   hideLabel = false,
+  showMedia = false,
+  hideFieldNames = false,
   // Opt-in "insert here" gap affordance between top-level doc blocks (primary
   // doc editors only — NOT cell editors or textblock sub-editors). Mirrors the
   // board/list InsertGap: hover a block boundary → highlight bar + QuickAddMenu
@@ -3466,7 +3468,7 @@ const Editor = forwardRef(function Editor({
           logCaretInterference("editor.padding-click focus('end')", { occId: (occurrence?.id || "").slice(0, 8), how });
         }}
       >
-        <CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility, hideLabel, __inCell: true }}>
+        <CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility, hideLabel, showMedia: !!showMedia, hideFieldNames: !!hideFieldNames, __inCell: true }}>
           <EditorContent editor={editor} />
         </CellEmbedContext.Provider>
       </div>
