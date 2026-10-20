@@ -144,7 +144,7 @@ export async function mintOccurrence({
       { $set: { label: nextLabel, fields: nextFields, meta: nextMeta, ...(textmap ? { textmap: compressTextmap(textmap) } : {}) } },
       // The row AFTER the write — without `new` this returned the old one, and
       // that is what was mirrored into the warm cache.
-      { new: true },
+      { returnDocument: "after" },
     )) || { ...existing, label: nextLabel, fields: nextFields, meta: nextMeta };
     // The DB holds a textmap compressed; the cache and every tab hold it raw.
     const row = textmap ? { ...updated, textmap } : cacheShapeOccurrence(updated);

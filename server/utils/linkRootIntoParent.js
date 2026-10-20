@@ -31,7 +31,7 @@ export async function linkRootIntoParent({ parentId, childId, userId }) {
   const pushed = await Occurrence.findOneAndUpdate(
     { id: parentId, userId, occurrences: { $ne: childId } },
     { $push: { occurrences: childId } },
-    { new: true },
+    { returnDocument: "after" },
   );
   if (pushed) return pushed;
   return Occurrence.findOne({ id: parentId, userId, occurrences: childId });

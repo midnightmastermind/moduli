@@ -55,7 +55,7 @@ export async function consumeStage(stageId, key, { withUser = false } = {}) {
     { $set: { consumedAt: new Date() } },
     // The claimed doc AFTER the claim — what the tests' mock returns, stated
     // here so a later read of a mutated field is not green-in-tests-only.
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
   if (!claimed) return null;
   return withUser ? { payload: claimed.payload, userId: claimed.userId } : claimed.payload;

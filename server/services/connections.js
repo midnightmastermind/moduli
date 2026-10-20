@@ -52,7 +52,7 @@ export async function setDefaultConnection(userId, id) {
 
 export async function renameConnection(userId, id, name) {
   if (id === "server") { const e = new Error("the Server connection cannot be renamed"); e.status = 400; throw e; }
-  const row = await Connection.findOneAndUpdate({ id, userId }, { $set: { name: String(name || "").slice(0, 80) } }, { new: true }).lean();
+  const row = await Connection.findOneAndUpdate({ id, userId }, { $set: { name: String(name || "").slice(0, 80) } }, { returnDocument: "after" }).lean();
   if (!row) { const e = new Error(`connection ${id} not found`); e.status = 404; throw e; }
   return publicConnection(row);
 }

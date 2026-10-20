@@ -50,7 +50,7 @@ ApiTokenSchema.statics.upsertFromRaw = async function ({ rawToken, userId, name 
   return this.findOneAndUpdate(
     { tokenId: parts.tokenId },
     { $set: { tokenId: parts.tokenId, userId, name, hash, scopes, revoked: false } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
   );
 };
 
