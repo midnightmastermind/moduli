@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-20 (5) — THE ROW-LAYOUT EDITOR MOVES THINGS WITH ↑/↓; bigger type in the settings menus
+
+User: *"i cant reorganize the col and row container elements … i cant put anything at the top. we should change
+from drag and drop to the arrows"* · *"the font size of all of these menus [should be] bigger"*.
+- **`instanceLayout.stepItem(layout, path, index, dir)`** — one step: swap with the neighbour; a field stepping
+  onto a box goes INTO it (first slot going down, last going up); stepping past either end of a box takes it OUT
+  to the parent, beside the box. Repeated ↑ reaches the top of the row. Boxes move the same way (they swap; they
+  never enter another box). Tests `instanceLayout` (+5).
+- **`ui/InstanceLayoutEditor`** — drag-and-drop removed; every chip and every box header has ↑/↓
+  (`aria-label "Move <name> up/down"`). Type 13/12/14px. InstanceForm / ContainerForm / LayoutForm /
+  LayoutCascadeEditor: 9-10px text → 12px, 11px → 13px.
+- Watched on a local build against prod (writes blocked): three ↑ presses on the last box of a Routines row moved
+  it up, back, and up again — as expected. Client-only deploy.
+
 ### 2026-10-20 (4) — A PEOPLE TABLE ON POMS (1,181 people); long tables virtualize like boards; four table-menu gaps
 
 User: *"if its not on poms grid- recreate it with the people board we have for there"* (test grid 1 has one) ·
