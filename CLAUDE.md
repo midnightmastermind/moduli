@@ -25,7 +25,9 @@ UI sweep rows 50–51, phone column (390×844, poms Books › the Big Book, open
   Save page were off to the right. Its 86px right padding only sat at the end of a sideways-scrolling row; in a tile
   the row WRAPS now so the padding keeps the buttons' corner clear on every line. The Contents select starts at 72px
   (`flex: 1 1 72px`) so a wide desktop tile still fits one row — measured 715px, one 33px row.
-- Test `spreadPhoneOneColumn.test.js` (5). Client-only deploy.
+- **Bookmark page strip (row 53):** one row that never wrapped — on a phone the address box was ~12px and Archive ran
+  off the edge. It wraps; the box has a 160px base (`BookmarkView`).
+- Test `spreadPhoneOneColumn.test.js` (6). Client-only deploys.
 
 ---
 

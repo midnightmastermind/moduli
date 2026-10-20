@@ -26,3 +26,11 @@ describe("a book tile's header in the viewer", () => {
     expect(src).toMatch(/aria-label="Contents"[^\n]*flex: "1 1 72px"/);
   });
 });
+
+describe("the bookmark strip", () => {
+  const src = fs.readFileSync(path.join(__dirname, "../modules/BookmarkView.jsx"), "utf8");
+  it("wraps, and the address box keeps a base width (it shrank to ~12px on a phone)", () => {
+    expect(src).toMatch(/flexWrap: "wrap", rowGap: 4/);
+    expect(src).toMatch(/flex: "1 1 160px", minWidth: 0, background: "var\(--panel-bg\)"/);
+  });
+});

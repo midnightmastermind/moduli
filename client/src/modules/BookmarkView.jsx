@@ -752,6 +752,10 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           never triggered from inside it. */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", flexShrink: 0,
+        // WRAPS on a narrow screen (UI sweep 2026-10-20, phone): one row put the address box at
+        // ~12px and Archive past the edge. The box keeps a 160px base, so the modes drop to a
+        // second line instead; a wide panel still holds everything on one row.
+        flexWrap: "wrap", rowGap: 4,
         // SOLID, because the strip is CHROME and it is not always over a panel.
         // `--input-bg` is 0.08 alpha, which reads fine over a panel and vanishes
         // over the spread's dark backdrop — so every muted label on it lost its
@@ -785,7 +789,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           placeholder="Type an address…"
           title={url || ""}
           style={{
-            flex: 1, minWidth: 0, background: "var(--panel-bg)", color: "var(--text-primary)",
+            flex: "1 1 160px", minWidth: 0, background: "var(--panel-bg)", color: "var(--text-primary)",
             border: "1px solid var(--border-subtle)", borderRadius: 4,
             padding: "2px 6px", fontSize: 12, fontFamily: "var(--font-mono)",
           }}
