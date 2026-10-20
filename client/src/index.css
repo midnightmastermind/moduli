@@ -1962,6 +1962,22 @@ body[data-drag-kind="panel"] .container-shell {
   caret-color: auto;
 }
 
+/* A LINE IN A DOC IS THE SIZE OF A TEXTBLOCK (user 2026-10-20: "the text inside the doc (before it
+   becomes a textblock) has alot smaller lines than the size of the textblock. so the page becomes uneven
+   with the clicks" → "change the lines, not the textblock size" → "make it match the font size of the
+   fonts in the textblocks too"). Clicking an empty line in a doc that mints swapped a 19px line for a
+   44px textblock, so everything below moved and the next click landed on another line (or on the "+"
+   strip). A textblock is: 4px editor padding + its line's 0.25em margin + a 1.6 line at the
+   instance-label size, top and bottom, with 3px outside. A top-level line takes the same text size and
+   the same spacing (as padding — the line is the box), so it is exactly as tall as what it becomes. */
+/* The :not() keeps it out of a textblock's own body (a doc that does not mint), which sits inside. */
+.doc-editor--mints .doc-editor-content.ProseMirror > p:not(.doc-container:not(.doc-editor--mints) *) {
+  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
+  line-height: 1.6;
+  padding-block: calc(4px + 0.25em);
+  margin-block: 3px;
+}
+
 .doc-editor-content.ProseMirror {
   /* Body sits BELOW the deepest heading. At 13 it outsized the `####` question
      header, so the hierarchy read upside-down at the bottom (user 2026-08-01:
