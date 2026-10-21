@@ -1595,6 +1595,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           url: body.url || null, text: body.text || null, title: body.title || null,
           label: body.label || null, shape: body.shape || null,
           clip: body.clip || null,
+          // A sender that knows each post is a NEW thing (the watch: every
+          // "Drink water" is its own entry) names it. Never under a stage key —
+          // that key authorizes the staged clip, not choosing which row to update.
+          externalId: req.stagePayload ? null : (body.externalId || null),
           files: firstFile ? [{ filename: firstFile.originalname, mimetype: firstFile.mimetype,
             size: firstFile.size, path: firstFile.path, _multer: firstFile }] : [],
           storeFile: storeUploadedFile ? async ({ file }) => {

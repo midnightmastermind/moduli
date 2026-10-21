@@ -77,7 +77,14 @@ function queueDraw() {
   drawTimeout = setTimeout(() => { drawTimeout = undefined; draw(); }, 60000 - (Date.now() % 60000));
 }
 
-function post(text) {
+// Each entry gets its own id when it is made. The server treats two posts of
+// the same text as one share unless the sender names them, so without this a
+// second "Drink water" updated the first instead of adding a new textblock.
+// The id rides along in the waiting list, so a retry can never land twice.
+const newId = () => Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e9).toString(36);
+
+function post(entry) {
+  const text = entry.text;
   if (!Bangle.http) return Promise.reject("no internet (Gadgetbridge)");
   if (!cfg.token || !cfg.gridId || !cfg.parentId) return Promise.reject("not set up");
   return Bangle.http(cfg.url + "/api/v1/share", {
@@ -85,13 +92,13 @@ function post(text) {
     timeout: 20000,
     headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.token },
     body: JSON.stringify({
-      gridId: cfg.gridId, source: "bangle", text: text, mode: "manual",
+      gridId: cfg.gridId, source: "bangle", text: text, mode: "manual", externalId: entry.id,
       placement: { parentId: cfg.parentId, role: "textblock", body: text },
     }),
   }).then((r) => {
     let j = {};
     try { j = JSON.parse(r.resp || "{}"); } catch (e) { /* non-JSON body */ }
-    if (j.error) throw j.error.message || j.error;
+    if (j.error) throw j.message || j.error;
     return j;
   });
 }
@@ -99,13 +106,14 @@ function post(text) {
 function send(text) {
   text = (text || "").trim();
   if (!text) return load();
+  const entry = { text: text, id: newId(), at: Date.now() };
   E.showMessage("Sending...", "Moduli");
-  post(text).then(() => {
+  post(entry).then(() => {
     Bangle.buzz(60);
     E.showMessage("Added", "Moduli");
     setTimeout(load, 1000);
   }).catch((e) => {
-    const q = pending(); q.push({ text: text, at: Date.now() }); setPending(q);
+    const q = pending(); q.push(entry); setPending(q);
     E.showMessage("Kept on watch\n" + q.length + " waiting\n\n" + e, "Not sent");
     setTimeout(load, 2500);
   });
@@ -118,7 +126,9 @@ function sendPending() {
   const next = () => {
     const left = pending();
     if (!left.length) { Bangle.buzz(60); return load(); }
-    post(left[0].text).then(() => { setPending(left.slice(1)); next(); })
+    // Entries queued by an older version carry no id; give them one now.
+    if (!left[0].id) { left[0].id = newId(); setPending(left); }
+    post(left[0]).then(() => { setPending(left.slice(1)); next(); })
       .catch((e) => { E.showMessage(left.length + " still waiting\n\n" + e, "Not sent"); setTimeout(load, 2500); });
   };
   next();

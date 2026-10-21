@@ -160,7 +160,7 @@ async function storeImageClip(url, { storeFile, fetchImage, userId, gridId }) {
 export async function prepareShare({
   userId, gridId, source = "api",
   files = [], url = null, text = null, title = null, label = null, shape = null,
-  clip = null,
+  clip = null, externalId: senderExternalId = null,
   fetchPreview = null, storeFile = null, fetchProfile = null, fetchImage = null,
   timeZone = null, resolveSlotLabels = null, fetchCalendar = null,
 }) {
@@ -279,11 +279,24 @@ export async function prepareShare({
     ...(person ? { person } : {}),
     ...(calendar ? { events: calendar.events, notices: calendar.notices } : {}),
     label: shareLabelFor(type, enriched, label || clipLabel || cleanClip?.label),
-    externalId: cleanClip?.externalId || (shareType === "ics" && type === "link"
+    externalId: cleanClip?.externalId || senderIdentity(source, senderExternalId) || (shareType === "ics" && type === "link"
       ? `webcal:${calendarFetchUrl(enriched.url)}`
       : shareExternalIdFor(type, enriched, { shape, sha256 })),
     receivedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * A sender's own id for a share, namespaced so it can never equal an id the
+ * server derives (`text:…`, `link:…`, `ics:…`) and so overwrite that row.
+ * Without one, two posts of the same text are ONE share: the second updates
+ * the first (measured 2026-10-21 — the watch's "Drink water" twice kept one row).
+ */
+export function senderIdentity(source, id) {
+  if (typeof id !== "string") return null;
+  const v = id.trim();
+  if (!v || v.length > 200) return null;
+  return `ext:${String(source || "api").slice(0, 40)}:${v}`;
 }
 
 /**
