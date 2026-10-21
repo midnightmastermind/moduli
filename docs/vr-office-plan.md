@@ -46,6 +46,24 @@ then query off that"*.
   query evaluator — a port of `state/selectors.resolveFeedItems` +
   `helpers/feedPredicate` — which the `?vrType=` form would need anyway.
 
+### 1a. The shelf you place decides the asset (11:59)
+User: *"it should make a custom query feed using the same ui as our system,
+that pulls occurances and each one should become a book asset, record asset, or
+movie asset, based on the shelf i choose to place"*.
+
+- The SHELF TYPE you place (bookshelf / record crate / VHS shelf) decides what
+  every result looks like; the QUERY decides what is on it. VR Type (§1) becomes
+  one optional condition in the query, not the thing that picks the asset.
+- The query is a Moduli FEED — the same conditions / scope / roles / sort /
+  limit, edited with the same feed editor UI (`ui/FeedSection`), not a VR-only
+  query language.
+- Open question — how "the same UI" appears in VR: the WebXR scene cannot show
+  the app's own React panels, so either (a) the shelf's Settings rebuilds the
+  feed editor's controls in 3D (same fields, same options, same live count), or
+  (b) Settings opens Moduli's real feed editor for that shelf in a browser
+  window beside you and the shelf refills when you come back. (b) is exactly
+  the same UI and far less work; (a) keeps you inside VR.
+
 ### 1b. Shelves are created and edited in VR
 User (11:54): *"this all should be editable in vr. so i would go to a new custom
 shelf and type in the query in its settings and it fills the assets with those
