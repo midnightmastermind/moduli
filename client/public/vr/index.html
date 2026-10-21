@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Moduli Office</title>
+  <style>
+    :root { --bg: #14100c; --ink: #f4e9d8; --muted: #b9a88f; --accent: #e8893a; --panel: rgba(20,16,12,0.82); }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; overflow: hidden; }
+    canvas { display: block; }
+    #hud { position: fixed; left: 16px; right: 16px; bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: center; pointer-events: none; }
+    #hud > * { pointer-events: auto; }
+    button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--panel); color: var(--ink); cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    #status { position: fixed; top: 12px; left: 16px; right: 16px; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
+  </style>
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div id="status">Loading…</div>
+  <div id="hud">
+    <button id="enterAR" disabled>Enter mixed reality</button>
+    <button id="enterVR" disabled>Enter VR</button>
+    <button id="resetLayout">Reset layout</button>
+  </div>
+  <script type="module" src="./vr.js"></script>
+</body>
+</html>

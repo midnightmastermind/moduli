@@ -1445,6 +1445,35 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   });
 
   // The searchable destination list behind the placement window.
+  // GET /vr/shelf?gridId=, GET /vr/page/:id?gridId= — what the VR office's
+  // bookshelf reads (client/public/vr). Read-only, and they take the signed-in
+  // session because the VR page is an app page on the same site.
+  const vrGridCache = async (req, res) => {
+    const gridId = String(req.query.gridId || "");
+    if (!gridId) { err(res, 400, "validation_error", "gridId required"); return null; }
+    const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean().catch(() => null);
+    if (!grid) { err(res, 404, "not_found", "Grid not found"); return null; }
+    return getUserCache(req.userId, gridId);
+  };
+  router.get("/vr/shelf", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const uc = await vrGridCache(req, res);
+      if (!uc) return;
+      const { shelfBooks } = await import("../services/vrShelf.js");
+      res.json(shelfBooks(uc));
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.get("/vr/page/:id", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const uc = await vrGridCache(req, res);
+      if (!uc) return;
+      const { pageReadable } = await import("../services/vrShelf.js");
+      const page = pageReadable(uc, req.params.id);
+      if (!page) return err(res, 404, "not_found", "Page not found");
+      res.json(page);
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { gridId, q, limit } = req.query;
