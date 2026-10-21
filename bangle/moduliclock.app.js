@@ -322,16 +322,20 @@ function togglePlay() {
 // Starts the phone's voice assistant, which listens and answers through your
 // Bluetooth headphones when they are connected. Sent as an Android intent
 // through Gadgetbridge ("Allow Intents" must be on in its Bangle.js settings).
-// By default it opens whatever the phone has set as its default assistant
-// (Settings > Apps > Default apps > Digital assistant app). cfg.voice can name
-// another intent instead, e.g. {"action":"...","package":"...","class":"..."}.
+// By default it sends VOICE_ASSIST, the request a held assistant gesture or a
+// headset button sends, which goes to the phone's default assistant (Settings
+// > Apps > Default apps > Digital assistant app). VOICE_COMMAND instead opened
+// a chooser, and Claude does not answer it. cfg.voice in moduliclock.json can
+// name another intent without re-uploading this file:
+//   {"action":"...","package":"...","class":"...","categories":["..."]}
 function startVoice() {
   const v = cfg.voice || {};
   const msg = { t: "intent", target: v.target || "activity",
-    action: v.action || "android.intent.action.VOICE_COMMAND",
+    action: v.action || "android.intent.action.VOICE_ASSIST",
     flags: ["FLAG_ACTIVITY_NEW_TASK"] };
   if (v.package) msg.package = v.package;
   if (v.class) msg.class = v.class;
+  if (v.categories) msg.categories = v.categories;
   try {
     Bluetooth.println("");
     Bluetooth.println(JSON.stringify(msg));
