@@ -1,10 +1,12 @@
-// Moduli Clock — a Casio-style face for Bangle.js 2. Four buttons along the
-// bottom:
+// Moduli Clock — a Casio-style face for Bangle.js 2. A button in each corner
+// (pomodoro top-left with its reset beside it, AI top-right, music bottom-left,
+// + bottom-right):
 //   ⏯  play / pause whatever is playing on the phone (Spotify included),
 //       through Gadgetbridge's music control
-//   POMO a pomodoro timer on the watch: tap to start, tap to pause / resume.
+//   POMO a pomodoro timer on the watch: tap to start, tap to pause / resume,
+//       RST beside it to reset.
 //       Work, then a break; it buzzes at the end of each. The time left shows
-//       on the screen. Reset it from the + menu.
+//       at the top.
 //   AI start the phone's voice assistant (talk to it through your headphones)
 //   +  add a textblock — pick a preset or type → POST /api/v1/share
 //       (mode "manual", role "textblock"). No phone connection? The text is
@@ -46,12 +48,19 @@ const cfg = Object.assign({
 }, storage.readJSON(SETTINGS, 1) || {});
 
 const W = g.getWidth(), H = g.getHeight();          // 176 × 176
-const LCD = { x: 6, y: 44, w: W - 12, h: 88 };      // the light "screen"
-// Bottom row: four equal buttons. A tap anywhere at or below BTN_Y picks one
-// by which quarter of the screen it landed in.
-const BTN_Y = H - 42, BTN_W = 38, BTN_H = 38, BTN_GAP = (W - 12 - 4 * BTN_W) / 3;
-const BTN_X = [0, 1, 2, 3].map((i) => 6 + i * (BTN_W + BTN_GAP)); // music · pomo · AI · +
-const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+// A button in each corner (widgets own the top 24px). Top-left is the
+// pomodoro: start/pause, with a reset beside it. Top-right AI, bottom-left
+// music, bottom-right +. The light "screen" sits between the two rows.
+const BT = 26, BB = H - 38, BS = 36;                // top / bottom row y, button size
+const BTN = {
+  pomo:  { x: 4, y: BT, w: BS, h: BS },
+  reset: { x: 42, y: BT, w: 28, h: BS },
+  ai:    { x: W - 4 - BS, y: BT, w: BS, h: BS },
+  music: { x: 4, y: BB, w: BS, h: BS },
+  add:   { x: W - 4 - BS, y: BB, w: BS, h: BS },
+};
+const LCD = { x: 4, y: BT + BS + 2, w: W - 8, h: BB - BT - BS - 4 };
+const DAYS = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 let drawTimeout;
 
 const pending = () => storage.readJSON(QUEUE, 1) || [];
@@ -62,41 +71,44 @@ function draw() {
   const d = new Date();
   g.reset().setBgColor("#000").clearRect(0, 24, W - 1, H - 1);
 
-  // Bezel lettering
-  g.setColor("#fff").setFont("6x8").setFontAlign(0, 0);
-  g.drawString("M O D U L I", W / 2, 32);
+  // Top middle, between the pomodoro and AI buttons: the timer when one is
+  // set ("WORK" over "24:13", "PAUSED" when paused), else the bezel lettering.
+  const topMid = (BTN.reset.x + BTN.reset.w + BTN.ai.x) / 2;
+  g.setColor("#fff");
+  if (pomo.phase) {
+    const s = Math.ceil(pomoLeft() / 1000);
+    g.setFont("6x8").setFontAlign(0, -1)
+      .drawString(pomo.running ? (pomo.phase === "break" ? "BREAK" : "WORK") : "PAUSED", topMid, BT + 2);
+    g.setFont("6x8:2").setFontAlign(0, -1).drawString(Math.floor(s / 60) + ":" + pad(s % 60), topMid, BT + 14);
+  } else {
+    g.setFont("6x8").setFontAlign(0, 0).drawString("MODULI", topMid, BT + BS / 2);
+  }
 
   // LCD panel
   g.setColor("#fff").fillRect(LCD.x, LCD.y, LCD.x + LCD.w, LCD.y + LCD.h);
   g.setColor("#000").drawRect(LCD.x + 2, LCD.y + 2, LCD.x + LCD.w - 2, LCD.y + LCD.h - 2);
 
-  // Top row: day + date (small 7-segment)
-  g.setFont("6x8:2").setFontAlign(-1, -1).drawString(DAYS[d.getDay()], LCD.x + 8, LCD.y + 8);
-  g.setFont(SEG_SMALL).setFontAlign(1, -1)
-    .drawString(pad(d.getMonth() + 1) + "-" + pad(d.getDate()), LCD.x + LCD.w - 8, LCD.y + 6);
+  // Weekday written out, date small on the right
+  g.setFont("6x8:2").setFontAlign(-1, -1).drawString(DAYS[d.getDay()], LCD.x + 6, LCD.y + 5);
+  g.setFont("6x8").setFontAlign(1, -1).drawString(pad(d.getMonth() + 1) + "-" + pad(d.getDate()), LCD.x + LCD.w - 6, LCD.y + 9);
 
   // Big time, colon drawn as two squares so it never depends on the font
   let h = d.getHours();
   const pm = h >= 12;
   const is12 = (storage.readJSON("setting.json", 1) || {})["12hour"];
   if (is12) h = (h % 12) || 12;
-  const cy = LCD.y + 34;
+  const cy = LCD.y + 24;
   g.setFont(SEG_BIG).setFontAlign(1, -1).drawString(pad(h), W / 2 - 6, cy);
   g.setFontAlign(-1, -1).drawString(pad(d.getMinutes()), W / 2 + 6, cy);
   g.fillRect(W / 2 - 2, cy + 12, W / 2 + 1, cy + 15).fillRect(W / 2 - 2, cy + 28, W / 2 + 1, cy + 31);
-  if (is12) g.setFont("6x8").setFontAlign(-1, -1).drawString(pm ? "PM" : "AM", LCD.x + 8, cy + 2);
+  if (is12) g.setFont("6x8").setFontAlign(-1, -1).drawString(pm ? "PM" : "AM", LCD.x + 6, cy + 2);
 
-  // Battery, bottom-right of the screen (a "+" when charging)
-  g.setFont("6x8").setFontAlign(1, 1)
-    .drawString("BAT " + E.getBattery() + "%" + (Bangle.isCharging() ? "+" : ""), LCD.x + LCD.w - 8, LCD.y + LCD.h - 4);
-
-  // Pomodoro, top-middle of the screen: "WORK 24:13" / "BREAK 3:02", "||" when paused
-  const pt = pomoText();
-  if (pt) g.setFont("6x8").setFontAlign(0, -1).drawString(pt, W / 2, LCD.y + 22);
-
-  // Waiting-to-send count
+  // Bottom middle, between music and +: battery, and notes not sent yet
+  const botMid = W / 2;
+  g.setColor("#fff").setFont("6x8").setFontAlign(0, -1)
+    .drawString("BAT " + E.getBattery() + "%" + (Bangle.isCharging() ? "+" : ""), botMid, BB + 6);
   const n = pending().length;
-  if (n) g.setFont("6x8").setFontAlign(-1, 1).drawString(n + " WAITING", LCD.x + 8, LCD.y + LCD.h - 4);
+  if (n) g.drawString(n + " NOT SENT", botMid, BB + 20);
 
   drawButtons();
 
@@ -109,25 +121,32 @@ function musicState() {
 }
 
 function drawButtons() {
-  const y = BTN_Y, cy = y + BTN_H / 2;
-  BTN_X.forEach((x) => g.setColor("#fff").fillRect(x, y, x + BTN_W, y + BTN_H));
+  Object.keys(BTN).forEach((k) => { const b = BTN[k]; g.setColor("#fff").fillRect(b.x, b.y, b.x + b.w, b.y + b.h); });
   g.setColor("#000");
-  // Play/pause: show PAUSE bars while something plays, else a play triangle.
-  let x = BTN_X[0] + BTN_W / 2;
-  if (musicState() === "play") g.fillRect(x - 9, cy - 10, x - 3, cy + 10).fillRect(x + 3, cy - 10, x + 9, cy + 10);
-  else g.fillPoly([x - 7, cy - 11, x - 7, cy + 11, x + 10, cy]);
-  // Pomodoro: play triangle (or pause bars while it runs) over "POMO"
-  x = BTN_X[1] + BTN_W / 2;
-  const py = cy - 5;
-  if (pomo.running) g.fillRect(x - 6, py - 7, x - 2, py + 7).fillRect(x + 2, py - 7, x + 6, py + 7);
-  else g.fillPoly([x - 5, py - 7, x - 5, py + 7, x + 7, py]);
-  g.setFont("6x8").setFontAlign(0, 0).drawString("POMO", x, cy + 11);
+  let b, x, y;
+  // Pomodoro start / pause, over "POMO"
+  b = BTN.pomo; x = b.x + b.w / 2; y = b.y + b.h / 2 - 5;
+  if (pomo.running) g.fillRect(x - 6, y - 7, x - 2, y + 7).fillRect(x + 2, y - 7, x + 6, y + 7);
+  else g.fillPoly([x - 5, y - 7, x - 5, y + 7, x + 7, y]);
+  g.setFont("6x8").setFontAlign(0, 0).drawString("POMO", x, b.y + b.h - 7);
+  // Pomodoro reset: a stop square over "RST" (grey when there is nothing to reset)
+  b = BTN.reset; x = b.x + b.w / 2; y = b.y + b.h / 2 - 5;
+  if (!pomo.phase) g.setColor("#888");
+  g.fillRect(x - 6, y - 6, x + 6, y + 6);
+  g.setFont("6x8").setFontAlign(0, 0).drawString("RST", x, b.y + b.h - 7);
+  g.setColor("#000");
   // AI
-  g.setFont("6x8:2").setFontAlign(0, 0).drawString("AI", BTN_X[2] + BTN_W / 2, cy + 1);
+  b = BTN.ai;
+  g.setFont("6x8:2").setFontAlign(0, 0).drawString("AI", b.x + b.w / 2, b.y + b.h / 2 + 1);
+  // Music play / pause: pause bars while something plays, else a play triangle
+  b = BTN.music; x = b.x + b.w / 2; y = b.y + b.h / 2;
+  if (musicState() === "play") g.fillRect(x - 9, y - 10, x - 3, y + 10).fillRect(x + 3, y - 10, x + 9, y + 10);
+  else g.fillPoly([x - 7, y - 11, x - 7, y + 11, x + 10, y]);
   // "+"
-  x = BTN_X[3] + BTN_W / 2;
-  g.fillRect(x - 3, cy - 12, x + 3, cy + 12).fillRect(x - 12, cy - 3, x + 12, cy + 3);
+  b = BTN.add; x = b.x + b.w / 2; y = b.y + b.h / 2;
+  g.fillRect(x - 3, y - 12, x + 3, y + 12).fillRect(x - 12, y - 3, x + 12, y + 3);
 }
+
 
 function queueDraw() {
   if (drawTimeout) clearTimeout(drawTimeout);
@@ -354,10 +373,23 @@ function stopFace() {
   Bangle.removeListener("charging", draw);
 }
 
+// A tap counts for a button when it lands inside it or within 4px of it.
+function hit(b, xy) { return xy.x >= b.x - 4 && xy.x <= b.x + b.w + 4 && xy.y >= b.y - 4 && xy.y <= b.y + b.h + 4; }
+
+function tapReset() {
+  if (!pomo.phase) return;
+  Bangle.buzz(30);
+  resetPomo();
+  draw();
+}
+
 function onTouch(btn, xy) {
-  if (!xy || xy.y < BTN_Y - 8) return;
-  const i = Math.min(3, Math.floor((xy.x * 4) / W));
-  [togglePlay, togglePomo, startVoice, openAdd][i]();
+  if (!xy) return;
+  if (hit(BTN.pomo, xy)) togglePomo();
+  else if (hit(BTN.reset, xy)) tapReset();
+  else if (hit(BTN.ai, xy)) startVoice();
+  else if (hit(BTN.music, xy)) togglePlay();
+  else if (hit(BTN.add, xy)) openAdd();
 }
 
 Bangle.setUI({
