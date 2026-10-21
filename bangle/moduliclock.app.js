@@ -1,7 +1,10 @@
-// Moduli Clock — a Casio-style face for Bangle.js 2. Three buttons along the
+// Moduli Clock — a Casio-style face for Bangle.js 2. Four buttons along the
 // bottom:
 //   ⏯  play / pause whatever is playing on the phone (Spotify included),
 //       through Gadgetbridge's music control
+//   POMO a pomodoro timer on the watch: tap to start, tap to pause / resume.
+//       Work, then a break; it buzzes at the end of each. The time left shows
+//       on the screen. Reset it from the + menu.
 //   AI start the phone's voice assistant (talk to it through your headphones)
 //   +  add a textblock — pick a preset or type → POST /api/v1/share
 //       (mode "manual", role "textblock"). No phone connection? The text is
@@ -10,6 +13,7 @@
 const storage = require("Storage");
 const SETTINGS = "moduliclock.json";
 const QUEUE = "moduliclock.queue.json";
+const POMO = "moduliclock.pomo.json";      // the timer, kept so it survives menus
 require("Font7x11Numeric7Seg").add(Graphics);
 
 const cfg = Object.assign({
@@ -18,14 +22,16 @@ const cfg = Object.assign({
   gridId: "",     // which grid
   parentId: "",   // the container the textblocks go into
   presets: ["Drink water", "Took meds", "Idea: "],
+  pomoWork: 25,   // minutes
+  pomoBreak: 5,   // minutes
 }, storage.readJSON(SETTINGS, 1) || {});
 
 const W = g.getWidth(), H = g.getHeight();          // 176 × 176
 const LCD = { x: 6, y: 44, w: W - 12, h: 88 };      // the light "screen"
-// Bottom row: three equal buttons. A tap anywhere at or below BTN_Y picks one
-// by which third of the screen it landed in.
-const BTN_Y = H - 42, BTN_W = 52, BTN_H = 38;
-const BTN_X = [6, (W - BTN_W) / 2, W - 6 - BTN_W];   // play/pause · AI · +
+// Bottom row: four equal buttons. A tap anywhere at or below BTN_Y picks one
+// by which quarter of the screen it landed in.
+const BTN_Y = H - 42, BTN_W = 38, BTN_H = 38, BTN_GAP = (W - 12 - 4 * BTN_W) / 3;
+const BTN_X = [0, 1, 2, 3].map((i) => 6 + i * (BTN_W + BTN_GAP)); // music · pomo · AI · +
 const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 let drawTimeout;
 
@@ -65,6 +71,10 @@ function draw() {
   g.setFont("6x8").setFontAlign(1, 1)
     .drawString("BAT " + E.getBattery() + "%" + (Bangle.isCharging() ? "+" : ""), LCD.x + LCD.w - 8, LCD.y + LCD.h - 4);
 
+  // Pomodoro, top-middle of the screen: "WORK 24:13" / "BREAK 3:02", "||" when paused
+  const pt = pomoText();
+  if (pt) g.setFont("6x8").setFontAlign(0, -1).drawString(pt, W / 2, LCD.y + 22);
+
   // Waiting-to-send count
   const n = pending().length;
   if (n) g.setFont("6x8").setFontAlign(-1, 1).drawString(n + " WAITING", LCD.x + 8, LCD.y + LCD.h - 4);
@@ -87,16 +97,114 @@ function drawButtons() {
   let x = BTN_X[0] + BTN_W / 2;
   if (musicState() === "play") g.fillRect(x - 9, cy - 10, x - 3, cy + 10).fillRect(x + 3, cy - 10, x + 9, cy + 10);
   else g.fillPoly([x - 7, cy - 11, x - 7, cy + 11, x + 10, cy]);
+  // Pomodoro: play triangle (or pause bars while it runs) over "POMO"
+  x = BTN_X[1] + BTN_W / 2;
+  const py = cy - 5;
+  if (pomo.running) g.fillRect(x - 6, py - 7, x - 2, py + 7).fillRect(x + 2, py - 7, x + 6, py + 7);
+  else g.fillPoly([x - 5, py - 7, x - 5, py + 7, x + 7, py]);
+  g.setFont("6x8").setFontAlign(0, 0).drawString("POMO", x, cy + 11);
   // AI
-  g.setFont("6x8:2").setFontAlign(0, 0).drawString("AI", BTN_X[1] + BTN_W / 2, cy + 1);
+  g.setFont("6x8:2").setFontAlign(0, 0).drawString("AI", BTN_X[2] + BTN_W / 2, cy + 1);
   // "+"
-  x = BTN_X[2] + BTN_W / 2;
+  x = BTN_X[3] + BTN_W / 2;
   g.fillRect(x - 3, cy - 12, x + 3, cy + 12).fillRect(x - 12, cy - 3, x + 12, cy + 3);
 }
 
 function queueDraw() {
   if (drawTimeout) clearTimeout(drawTimeout);
-  drawTimeout = setTimeout(() => { drawTimeout = undefined; draw(); }, 60000 - (Date.now() % 60000));
+  // Every second while a pomodoro runs (the countdown shows seconds), else on the minute.
+  const wait = pomo.running ? 1000 - (Date.now() % 1000) : 60000 - (Date.now() % 60000);
+  drawTimeout = setTimeout(() => { drawTimeout = undefined; draw(); }, wait);
+}
+
+// ── POMODORO ──────────────────────────────────────────────────────────────
+// State: { phase: "work"|"break", running, end (ms, while running),
+// left (ms, while paused) }, or {} when idle. Saved on every change, because
+// the face reloads after each menu and would otherwise forget it.
+// The end buzz goes through the Scheduler library when installed, so it rings
+// even after you leave the clock; without it a timer on this face buzzes.
+let pomo = storage.readJSON(POMO, 1) || {};
+let pomoTimeout;
+const savePomo = () => storage.writeJSON(POMO, pomo);
+const phaseMs = (ph) => (ph === "break" ? cfg.pomoBreak : cfg.pomoWork) * 60000;
+
+function pomoLeft() {
+  if (!pomo.phase) return 0;
+  return pomo.running ? Math.max(0, pomo.end - Date.now()) : pomo.left;
+}
+
+function pomoText() {
+  if (!pomo.phase) return "";
+  const s = Math.ceil(pomoLeft() / 1000);
+  return (pomo.phase === "break" ? "BREAK " : "WORK ") + Math.floor(s / 60) + ":" + pad(s % 60) + (pomo.running ? "" : " ||");
+}
+
+function schedSet(ms, msg) {
+  try {
+    const sched = require("sched");
+    const d = new Date();
+    const now = ((d.getHours() * 60 + d.getMinutes()) * 60 + d.getSeconds()) * 1000;
+    sched.setAlarm("moduliclock.pomo", { appid: "moduliclock", on: true, timer: ms, t: (now + ms) % 86400000,
+      msg: msg, vibrate: "==", hidden: true, del: true });
+    sched.reloadScheduler();
+    return true;
+  } catch (e) { return false; }
+}
+function schedClear() {
+  try { const sched = require("sched"); sched.setAlarm("moduliclock.pomo", undefined); sched.reloadScheduler(); } catch (e) { /* no scheduler */ }
+}
+
+// (Re)arm the end of the running phase. Called on start/resume and on load.
+function armPomo() {
+  if (pomoTimeout) clearTimeout(pomoTimeout);
+  pomoTimeout = undefined;
+  if (!pomo.running) return;
+  const left = pomo.end - Date.now();
+  if (left <= 0) {
+    // The phase ended while the face was closed (another app, or the
+    // Scheduler's alarm screen). Pick up where the clock says we are now.
+    const over = -left;
+    if (pomo.phase === "work" && over < phaseMs("break")) return startPhase("break", phaseMs("break") - over);
+    pomo = {}; savePomo(); return;
+  }
+  pomoTimeout = setTimeout(pomoPhaseEnded, left);
+}
+
+function pomoPhaseEnded() {
+  pomoTimeout = undefined;
+  if (!pomo.usesSched) Bangle.buzz(400).then(() => setTimeout(() => Bangle.buzz(400), 300));
+  if (pomo.phase === "work") startPhase("break");   // work done → the break starts by itself
+  else { pomo = {}; savePomo(); draw(); }            // break done → idle
+}
+
+function startPhase(phase, ms) {
+  ms = ms || phaseMs(phase);
+  pomo = { phase: phase, running: true, end: Date.now() + ms };
+  pomo.usesSched = schedSet(ms, phase === "work" ? "Pomodoro done - take a break" : "Break over");
+  savePomo();
+  armPomo();
+  draw();
+}
+
+function togglePomo() {
+  Bangle.buzz(30);
+  if (!pomo.phase) return startPhase("work");
+  if (pomo.running) {                                // pause
+    pomo = { phase: pomo.phase, running: false, left: pomoLeft() };
+    schedClear();
+    if (pomoTimeout) clearTimeout(pomoTimeout);
+    pomoTimeout = undefined;
+    savePomo();
+    draw();
+  } else startPhase(pomo.phase, pomo.left);          // resume
+}
+
+function resetPomo() {
+  pomo = {};
+  schedClear();
+  if (pomoTimeout) clearTimeout(pomoTimeout);
+  pomoTimeout = undefined;
+  savePomo();
 }
 
 // Each entry gets its own id when it is made. The server treats two posts of
@@ -172,6 +280,7 @@ function openAdd() {
   });
   const n = pending().length;
   if (n) menu["Send waiting (" + n + ")"] = sendPending;
+  if (pomo.phase) menu["Reset pomodoro"] = () => { resetPomo(); load(); };
   E.showMenu(menu);
 }
 
@@ -216,15 +325,16 @@ function startVoice() {
 function stopFace() {
   if (drawTimeout) clearTimeout(drawTimeout);
   drawTimeout = undefined;
+  if (pomoTimeout) clearTimeout(pomoTimeout);
+  pomoTimeout = undefined;
   Bangle.removeListener("touch", onTouch);
   Bangle.removeListener("charging", draw);
 }
 
 function onTouch(btn, xy) {
   if (!xy || xy.y < BTN_Y - 8) return;
-  if (xy.x < W / 3) togglePlay();
-  else if (xy.x < (2 * W) / 3) startVoice();
-  else openAdd();
+  const i = Math.min(3, Math.floor((xy.x * 4) / W));
+  [togglePlay, togglePomo, startVoice, openAdd][i]();
 }
 
 Bangle.setUI({
@@ -232,12 +342,14 @@ Bangle.setUI({
   remove: () => {
     if (drawTimeout) clearTimeout(drawTimeout);
     drawTimeout = undefined;
+    if (pomoTimeout) clearTimeout(pomoTimeout);
     Bangle.removeListener("touch", onTouch);
     Bangle.removeListener("charging", draw);
   },
 });
 Bangle.on("touch", onTouch);
 Bangle.on("charging", draw);
+armPomo();
 Bangle.loadWidgets();
 draw();
 Bangle.drawWidgets();

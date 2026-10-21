@@ -3,5 +3,12 @@
   "token": "moduli_PASTE_YOUR_TOKEN_HERE",
   "gridId": "6a690f6fb8e785df961a9f3c",
   "parentId": "PASTE_THE_CONTAINER_ID_HERE",
-  "presets": ["Drink water", "Took meds", "Idea: ", "Note: "]
+  "presets": [
+    "Drink water",
+    "Took meds",
+    "Idea: ",
+    "Note: "
+  ],
+  "pomoWork": 25,
+  "pomoBreak": 5
 }
