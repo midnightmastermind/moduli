@@ -279,7 +279,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     () => occurrenceUrl(occurrence, { module, fieldsById: fields }),
     [occurrence, module, fields],
   );
-  const storedUrl = resolved?.url || null;
+  // A SCRATCH browser keeps the address you last typed on its own placement
+  // (`meta.url`, written by `commitUrl` below), and that is the one to reopen.
+  // Reading only `resolved` (the module's original fileRef) brought a browser
+  // made from "+" back BLANK on every reload (user, 2026-10-20: "does it persist
+  // sites correct").
+  const scratchUrl = isScratch(occurrence) && typeof occurrence?.meta?.url === "string" && /^https?:\/\//i.test(occurrence.meta.url)
+    ? occurrence.meta.url : null;
+  const storedUrl = scratchUrl || resolved?.url || null;
 
   // ── THE ADDRESS BAR ─────────────────────────────────────────────────────
   //
@@ -294,7 +301,9 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // Re-seed when the OCCURRENCE's own url changes (a different bookmark opened
   // in this surface), not when we navigate — otherwise every navigation would
   // be undone by its own effect.
-  useEffect(() => { setNav(initialNav(storedUrl)); }, [storedUrl]);
+  // A scratch browser's own save comes back as a new `storedUrl`; that is the
+  // page already on screen, so it must not wipe the Back history.
+  useEffect(() => { setNav((n) => (currentUrl(n) === storedUrl ? n : initialNav(storedUrl))); }, [storedUrl]);
   const url = currentUrl(nav) || storedUrl;
 
   const [typed, setTyped] = useState("");

@@ -460,3 +460,25 @@ describe("adding what you are reading as a page", () => {
     expect(page.occurrence.occurrences).toEqual(["root-occ"]);
   });
 });
+
+// User 2026-10-20: "for the browser. does it persist sites correct". A browser
+// made from "+" has an EMPTY fileRef; the address you type is saved on its own
+// placement (meta.url). After a reload it must reopen there, not blank.
+describe("a scratch browser reopens at the address you last typed", () => {
+  const socket = { emit: () => {} };
+  it("reads meta.url, not the module's empty fileRef", () => {
+    render(<BookmarkView
+      occurrence={{ id: "s1", moduleId: "sm", meta: { scratch: true, url: "https://example.org/page" } }}
+      module={{ id: "sm", role: "artifact", kind: "bookmark", fileRef: "" }}
+      socket={socket} />);
+    expect(screen.getByPlaceholderText("Type an address…").value).toBe("https://example.org/page");
+  });
+  it("control: a SAVED bookmark keeps its own address", () => {
+    render(<BookmarkView
+      occurrence={{ id: "s2", moduleId: "sm2", meta: { url: "https://elsewhere.test/" } }}
+      module={{ id: "sm2", role: "artifact", kind: "bookmark", fileRef: "https://example.org/kept" }}
+      socket={socket} />);
+    const box = screen.queryByPlaceholderText("Type an address…");
+    if (box) expect(box.value).toBe("https://example.org/kept");
+  });
+});
