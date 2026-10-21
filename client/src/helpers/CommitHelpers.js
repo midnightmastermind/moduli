@@ -1,4 +1,5 @@
 // helpers/CommitHelpers.js
+import { renameTarget } from "./sharedModule.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
@@ -141,9 +142,17 @@ export function updateModule({ dispatch, socket, module, emit = true }) {
  * an uploaded or linked file visibly do nothing; for an artifact that carries one, the displayed name
  * follows the rename. The rest of `meta` is kept (the server replaces `meta` whole).
  */
-export function renameLeaf({ dispatch, socket, module, label }) {
+export function renameLeaf({ dispatch, socket, module, occurrence = null, label }) {
   if (!module?.id) return;
   const next = (label ?? "").trim();
+  // A module placed more than once (a board's shared type module, a template and
+  // its copies) is renamed on THIS placement only (helpers/sharedModule).
+  if (renameTarget({ module, occurrence }) === "occurrence") {
+    const own = next === (module.label ?? "") ? null : next;
+    if ((occurrence.label ?? null) === own) return;
+    withAction("Renamed", () => _updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: own } }));
+    return;
+  }
   const nameShown = module.role === "artifact" && module.meta?.originalName != null;
   if (next === (module.label ?? "") && (!nameShown || module.meta.originalName === next)) return;
   withAction("Renamed", () => updateModule({
@@ -163,13 +172,14 @@ export function renameFileTile({ dispatch, socket, module, occurrence, label }) 
   const next = (label ?? "").trim();
   if (!next || !module?.id) return;
   if (module.meta?.originalName != null) return renameLeaf({ dispatch, socket, module, label: next });
+  // (renameLeaf below gets the placement too, so a shared module renames this file only.)
   const own = typeof occurrence?.label === "string" ? occurrence.label.trim() : "";
   if (own && occurrence?.id) {
     if (own === next) return;
     updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: next }, emit: true });
     return;
   }
-  renameLeaf({ dispatch, socket, module, label: next });
+  renameLeaf({ dispatch, socket, module, occurrence, label: next });
 }
 
 /**
@@ -185,6 +195,18 @@ export function renameFileTile({ dispatch, socket, module, occurrence, label }) 
 export function renameContainer({ dispatch, socket, module, occurrence, label, meta, allowEmpty = false }) {
   const next = (label ?? "").trim();
   if ((!next && !allowEmpty) || !module?.id) return;
+  // Shared module (a template's container and every day's copy of it): the name
+  // goes on this placement; settings `meta` still belong to the module.
+  if (renameTarget({ module, occurrence }) === "occurrence") {
+    const own = next === (module.label ?? "") ? null : next;
+    const metaChanged = meta !== undefined && meta !== module.meta;
+    if ((occurrence.label ?? null) === own && !metaChanged) return;
+    withAction("Renamed", () => {
+      if (metaChanged) updateModule({ dispatch, socket, module: { ...module, meta }, emit: true });
+      if ((occurrence.label ?? null) !== own) _updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: own } });
+    });
+    return;
+  }
   const moduleChanged = next !== (module.label ?? "") || (meta !== undefined && meta !== module.meta);
   const placementLabel = occurrence?.id && occurrence.label != null;
   if (!moduleChanged && !placementLabel) return;

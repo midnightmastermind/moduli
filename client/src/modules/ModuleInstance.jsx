@@ -345,8 +345,8 @@ function InstanceInner({
   }, [id]);
 
   const commitLabel = useCallback(() => {
-    CommitHelpers.renameLeaf({ dispatch, socket, module: instance || { id }, label: draft?.label });
-  }, [draft?.label, id, instance, dispatch, socket]);
+    CommitHelpers.renameLeaf({ dispatch, socket, module: instance || { id }, occurrence, label: draft?.label });
+  }, [draft?.label, id, instance, occurrence, dispatch, socket]);
 
   // Inline label editor — committed independently of the settings-popover draft.
   // Double-click on the label flips into an <input>; Enter / blur commits to
@@ -359,7 +359,7 @@ function InstanceInner({
     // label as "{Water}". Non-token labels pass through untouched.
     const { label: cleaned, writes } = commitLabelTokens(next, occurrence || {}, fieldsById || {});
     if (cleaned && cleaned !== (label ?? "")) {
-      CommitHelpers.renameLeaf({ dispatch, socket, module: instance || { id }, label: cleaned });
+      CommitHelpers.renameLeaf({ dispatch, socket, module: instance || { id }, occurrence, label: cleaned });
     }
     if (writes.length && occurrence?.id) {
       // Mirror FieldRenderer.handleCommit: full updated occurrence + a

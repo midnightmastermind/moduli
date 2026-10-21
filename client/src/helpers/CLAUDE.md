@@ -3,6 +3,16 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-21 (2) — sharedModule, panelPresence; find by module/day; trigger scope/wait/skip)
+- `sharedModule.js`: `placementsByModule`, `hasOtherPlacements`, `renameTarget` (a shared module renames the placement).
+- `panelPresence.js`: `shownPageIds`, `heldBy` (lists + embeds), `presentInPanels`, `matchedIds`, `planPanelFire` (pure).
+  Fired by `hooks/usePanelLoadTriggers`. Trigger types `onLoadInPanel` / `onUnloadFromPanel` (PanelLoadOp / PanelUnloadOp).
+- `operationActions`: FIND `ofModules` / `first`; `FIND_MODULE_OCCURRENCES`; `moduleIndexFor`, `recordsOfModules`;
+  `sameDayRuleOf` + `recordsOnDay` (SAME_DAY index, `sameDayKey` = SAME_DAY's own day rule — NOT `dayKeyOf`, which
+  slices a timestamp). APPLY_TEMPLATE / COPY_OCCURRENCE place the source module (`templateExists`).
+- `operationExecutor`: `matchModuleScope` (trigger `moduleIds`), `waitMs` → `context._debounce` (bindSocketToStore
+  re-fires with `_onlyOpId`), `changeTouchesOp` (`op.skipIfUnchanged`), per-step `ms` on log entries.
+
 ## Recent Changes (2026-10-21 — localLayout.js NEW; fileKind `model`)
 - `localLayout.js`: `isLocalLayout/setLocalLayout` (sessionStorage), `keepLocal(event, data)` (true for
   `update_view`, `update_grid`, `update_occurrence` on a panel id — safeEmit drops those), `incomingGridPatch`

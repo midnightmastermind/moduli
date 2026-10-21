@@ -44,6 +44,30 @@ screen does not affect the layout for other devices"* · *"a library of custom a
 
 ---
 
+### 2026-10-21 (2) — OPERATIONS: a copy keeps its template's module; find by module / by day; onLoadInPanel; wait, scope, skip
+
+User: *"occurances have a module can change pretty much anything standalone unless copylinked"* · *"copy the template one
+… they all keep the same module"* · *"we can change the label on occurances without affecting the original model"* ·
+*"onLoadInPanel … select occurances or modules too"* (timing: options for each) · *"lets do all that"*.
+- **Template copies share the template's module** (client APPLY_TEMPLATE / COPY_OCCURRENCE: `templateExists:true`; server
+  `cloneSubtree` shares unless `freshRoot`). Save over no longer deletes a module still placed elsewhere.
+  `0425` folds the old copy modules back (name / drag mode / style onto the placements, bindings unioned, doc embeds
+  re-pointed); dry runs: poms 129/129, rebuild 77 (62 kept: source gone), test grid 2 34/34.
+- **A rename of a shared module renames the PLACEMENT** (`helpers/sharedModule.renameTarget`), every rename path.
+- **Find by module:** action "Find occurrences of module" + Find's "only occurrences of" (`moduleIndexFor`, cached per
+  list) and "First match only". **Find by day:** a plain `fields.<id>.value SAME_DAY <day>` rule reads that day's
+  records from an index (`recordsOnDay`, keeps non-date values so nothing that could match is dropped).
+- **onLoadInPanel / onUnloadFromPanel** (`helpers/panelPresence`, `hooks/usePanelLoadTriggers`): the query names
+  pages/containers and/or modules; load fires each time one appears in a panel, once per app load, or each time one
+  scrolls into view. Read from the data (the page each panel shows + everything it holds), run like the scheduler.
+- **Triggers:** "only for occurrences of" modules (`matchModuleScope`, an unknown module does not fire), "wait N ms"
+  (runs once with the last event), and per-op "Skip a field change this operation doesn't read" (`changeTouchesOp`,
+  `Operation.skipIfUnchanged`). **Run history** shows each step's time (slow steps in red).
+- Measured first (poms, desktop): the load sweep is 5.4s over 60 ops; Build Schedule 1.7s; Find predicate scans ~2s;
+  a per-run `templateById` rebuild ~0.8s (removed). Build Schedule stays on onLoad (user).
+
+---
+
 ### 2026-10-20 (13) — THE LAST "NOT DRIVEN" ROW: a table page's "+" works; every chart type re-run on live data
 
 Picked up the other account (session limit at 16:17). Its last step was a scratch run of all 9 chart types over six

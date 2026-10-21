@@ -20,6 +20,7 @@
 // and the write is the SAME one a container's inline rename makes.
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { withAction } from "../helpers/actionScope";
+import { renameTarget } from "../helpers/sharedModule.js";
 
 /**
  * @returns a context-menu item, or null when there is nothing to rename.
@@ -28,7 +29,7 @@ import { withAction } from "../helpers/actionScope";
  * card has no inline editor, and inventing one inside a portalled menu is how
  * the caret bugs in this repo start.
  */
-export function buildRenameItem({ module, dispatch, socket, onStart = null }) {
+export function buildRenameItem({ module, occurrence = null, dispatch, socket, onStart = null }) {
   if (!module?.id) return null;
 
   // The MODULE's label, not the occurrence's. `occurrence.label` overrides one
@@ -38,12 +39,21 @@ export function buildRenameItem({ module, dispatch, socket, onStart = null }) {
   // The whole module is spread because `updateModule` persists what it is
   // given — a partial write drops `meta`, `kind`, `fieldBindings` and whatever
   // else the page carries. That clobber is recorded in this repo twice.
+  // A page whose module is placed more than once (a project made from the
+  // Project template shares the template's page module) is renamed on this
+  // placement only (helpers/sharedModule).
+  const shown = (occurrence?.label ?? module.label) ?? "";
   const commit = (next) => {
     const label = String(next ?? "").trim();
-    if (!label || label === (module.label ?? "")) return false;   // same guard the container rename has
+    if (!label || label === shown) return false;   // same guard the container rename has
+    if (renameTarget({ module, occurrence }) === "occurrence") {
+      const own = label === (module.label ?? "") ? null : label;
+      withAction("Renamed", () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: own }, emit: true }));
+      return true;
+    }
     withAction("Renamed", () => CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label }, emit: true }));
     return true;
   };
 
-  return { label: "Rename…", commit, onClick: () => onStart?.(module, commit) };
+  return { label: "Rename…", commit, onClick: () => onStart?.({ ...module, label: shown }, commit) };
 }

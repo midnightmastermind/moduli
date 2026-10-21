@@ -1,5 +1,4 @@
 // server/utils/cloneSubtree.js
-import { pickReusableModuleId, stampCloneOrigin } from "./cloneModuleReuse.js";
 import { randomUUID } from "node:crypto";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
@@ -122,34 +121,23 @@ export async function cloneSubtree({
     const srcMod = uc.modulesById[src.moduleId];
     if (!srcMod) return null;
 
-    // ── ONE MODULE, MANY OCCURRENCES — the same rule the client clone uses ──
-    // This minted a fresh module for every clone, so applying a template twice
-    // produced two identical modules. The client's APPLY_TEMPLATE was fixed
-    // first (it is the high-traffic path — `Day Page: Build` runs every
-    // morning); this is its twin, and it imports the SAME decision rather than
-    // restating it, because two copies of a rule are how they drift.
-    //
-    // The first apply still mints: the source is a template and pointing a clone
-    // at it would place the template itself. It stamps `clonedFromModuleId`, and
-    // every later apply of that node reuses it.
-    const reusedModId = (isRoot && freshRoot) ? null : pickReusableModuleId({
-      modulesById: uc.modulesById, srcModId: src.moduleId, srcMod,
-      isRoot, rootLabelOverride: (isRoot && rootLabel) ? rootLabel : null,
-    });
-    const cloneModId = reusedModId || newId();
+    // ── A COPY IS ANOTHER OCCURRENCE OF THE SAME MODULE (2026-10-21) ──────
+    // The same rule as the client's APPLY_TEMPLATE: a copied node points at its
+    // source's module, and a per-apply name goes on the occurrence's label.
+    // Only a Copy apply's ROOT (`freshRoot`) still gets a module of its own —
+    // Save over re-points copies by that root (utils/templateRepoint).
+    const mintRoot = isRoot && freshRoot;
+    const cloneModId = mintRoot ? newId() : src.moduleId;
     const cloneOccId = newId();
-
-    const newMod = {
-      ...srcMod,
-      id: cloneModId,
-      meta: stampCloneOrigin({ ...(srcMod.meta || {}), ...moduleMetaPatch }, src.moduleId),
-    };
-    if (isRoot && rootLabel) newMod.label = rootLabel;
-    delete newMod._id;
-    uc.modulesById[cloneModId] = newMod;
+    if (mintRoot) {
+      const newMod = { ...srcMod, id: cloneModId, meta: { ...(srcMod.meta || {}), ...moduleMetaPatch } };
+      if (rootLabel) newMod.label = rootLabel;
+      delete newMod._id;
+      uc.modulesById[cloneModId] = newMod;
+      await persist.saveModule(newMod);
+      created.moduleIds.push(cloneModId);
+    }
     modRemap.set(src.moduleId, cloneModId);
-    await persist.saveModule(newMod);
-    created.moduleIds.push(cloneModId);
 
     const childIds = [];
     for (const childOccId of src.occurrences || []) {
@@ -170,6 +158,8 @@ export async function cloneSubtree({
       textmap: remapEmbeddedRefs(src.textmap, occRemap, modRemap),
       meta: { ...(src.meta || {}), ...(isRoot ? occMetaPatch : {}) },
     };
+    // A root that shares its source's module takes a per-copy name as its own label.
+    if (isRoot && rootLabel && !mintRoot) newOcc.label = rootLabel;
     if (stampSignatures && (signRoot || !isRoot)) newOcc.identitySignature = signatureOf(src);
     delete newOcc._id;
     delete newOcc.linkedGroupId;

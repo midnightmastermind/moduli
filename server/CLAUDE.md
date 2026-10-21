@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-21 (2) — template copies share the module; `0425`; Operation.skipIfUnchanged)
+- `utils/cloneSubtree.js`: nodes keep `src.moduleId` (no module minted) unless the ROOT is cloned with `freshRoot`
+  (save as / save over template). `socketHandlers/templates.js` save over deletes a module only when nothing outside
+  the old template places it. `0425-template-copies-share-module` folds `meta.clonedFromModuleId` copies back.
+- `models/Operation.js`: `skipIfUnchanged` (Boolean).
+
 ## Recent Changes (2026-10-21 — `PUT /api/v1/vr/office`; upload kind `model`)
 - `routes/apiV1.js`: `PUT /vr/office` (session JWT allowed) sanitizes shelves/screens and `$set`s ONLY
   `meta.vrOffice` on the caller's grid, then emits `grid_updated {grid:{id, meta}}`. `services/vrShelf.js` and the

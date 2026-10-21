@@ -23,6 +23,21 @@ import { toast } from "../../state/notificationStore";
 
 // ─── Formatters ─────────────────────────────────────────────────────────
 
+
+// How long a step took (recorded by the executor). Slow steps stand out so the
+// cost of an operation can be found without a profiler.
+export const SLOW_STEP_MS = 20;
+function StepMs({ ms }) {
+  if (typeof ms !== "number") return null;
+  const slow = ms >= SLOW_STEP_MS;
+  return (
+    <span title="Time this step took" style={{ marginLeft: "auto", fontSize: 9, fontFamily: "monospace",
+      color: slow ? "var(--danger-text)" : "var(--text-faint)", fontWeight: slow ? 700 : 400 }}>
+      {ms < 1 ? "<1" : ms}ms
+    </span>
+  );
+}
+
 function fmtTime(ms) {
   if (!ms) return "—";
   return new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
@@ -717,6 +732,7 @@ function LogEntry({ entry, maps }) {
               · {entry.resultCount} change{entry.resultCount === 1 ? "" : "s"}
             </span>
           )}
+          <StepMs ms={entry.ms} />
         </StepHeader>
         <ActionBody
           actionType={entry.actionType}
@@ -775,6 +791,7 @@ function LogEntry({ entry, maps }) {
           <span style={{ fontSize: 10, color: "var(--text-primary)", fontWeight: 600 }}>
             {entry.itemCount} iteration{entry.itemCount === 1 ? "" : "s"}
           </span>
+          <StepMs ms={entry.ms} />
         </StepHeader>
       </StepRow>
     );

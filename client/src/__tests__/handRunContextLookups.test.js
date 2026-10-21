@@ -26,7 +26,8 @@ const creates = (r) => r.filter((e) => e?._effect === "CREATE_ITEM");
 describe("hand-run op context", () => {
   it("APPLY_TEMPLATE clones the template when the caller passed no modulesById", () => {
     const r = executePipeline(op, { state, fieldsById: {}, occurrencesById, operationsById: {} }, { type: "manual" });
-    expect(creates(r).map((e) => e.template.label).sort()).toEqual(["Backburner", "Project: Alpha"]);
+    // The root keeps the template's module; its name lives on the placement (2026-10-21).
+    expect(creates(r).map((e) => e.instance.label || e.template.label).sort()).toEqual(["Backburner", "Project: Alpha"]);
   });
   it("CONTROL: a caller that passes modulesById gets the same clone", () => {
     const modulesById = Object.fromEntries(modules.map((m) => [m.id, m]));

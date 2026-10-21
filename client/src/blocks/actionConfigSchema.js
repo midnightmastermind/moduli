@@ -25,6 +25,7 @@
 //   select one of `options`
 //   bool   a checkbox
 //   list   a list of expressions
+//   modules  module ids, picked by name (ModuleSelect)
 //
 // `hint` is the one-line explanation shown under the row. A field marked
 // `optional` renders the default the executor applies when it is blank, so a
@@ -440,6 +441,15 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$whenSlots" },
     ],
     hint: "The time slots a date-and-time / repeat value lands in on that day (\"9:00am\"), one per time. An all-day value gives none.",
+  },
+  FIND_MODULE_OCCURRENCES: {
+    fields: [
+      { key: "modules", kind: "modules", label: "module(s)" },
+      { key: "over", kind: "expr", label: "in", optional: true, defaultsTo: "$allOccurrences", placeholder: "$allOccurrences" },
+      { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$moduleOccurrences" },
+      { key: "idsVar", kind: "var", label: "ids → $", optional: true },
+    ],
+    hint: "Every occurrence of the chosen module(s) — e.g. all of Exercise, wherever it was placed or copied. Read from an index, so it does not test every record. Always a list.",
   },
   SLOTS_COVERED: {
     fields: [

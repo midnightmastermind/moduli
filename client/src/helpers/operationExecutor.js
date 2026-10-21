@@ -22,7 +22,7 @@ import { buildParentMap, allAncestorsOf } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
 import { operationsBridge, byIdCached } from "../state/bindSocketToStore";
-import { analyzeAllOperations } from "./operationIntrospection";
+import { analyzeAllOperations, analyzeOperationCached } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
 import { bumpOpRun } from "./renderProbe";
 import { noteOpSweep } from "./opActivity";
@@ -269,8 +269,10 @@ function makeLogger(opId) {
     // via $vars._log directly can't bypass the cap.
     _mute: 0,
     add(kind, data) {
-      if (this._mute > 0) return;
-      this.entries.push({ kind, t: Date.now(), ...data });
+      if (this._mute > 0) return null;
+      const entry = { kind, t: Date.now(), ...data };
+      this.entries.push(entry);
+      return entry; // a caller may stamp `ms` on it once the step has run
     },
   };
 }
@@ -585,9 +587,38 @@ function matchesTrigger(t, operation, transactionType, transaction) {
   for (const to of forThisEvent) {
     if (!matchSubjectFilter(to, t, transaction)) continue;
     if (!matchAncestorScope(to, t, transaction)) continue;
+    if (!matchModuleScope(to, transaction)) continue;
     return { matched: true, triggerObject: to };
   }
   return false;
+}
+
+/**
+ * "Skip if nothing it reads changed": a field change runs the op only when the
+ * changed field is one the op reads or is triggered by (operationIntrospection).
+ * Any other kind of event always runs it — only a field change names what changed.
+ */
+export function changeTouchesOp(op, transactionType, transaction, context) {
+  if (transactionType !== "MeasureOp") return true;
+  const changed = transaction?.fieldId ? [transaction.fieldId] : Object.keys(transaction?.fields || {});
+  if (!changed.length) return true;
+  const rec = analyzeOperationCached(op, { fieldsById: context?.fieldsById, occurrencesById: context?.occurrencesById });
+  if (!rec) return true;
+  const reads = new Set([...(rec.fields_read || []), ...(rec.triggered_by_fields || [])]);
+  return changed.some((f) => reads.has(f));
+}
+
+/**
+ * Optional module scoping: a trigger carrying `moduleIds` fires only for an
+ * occurrence of one of those modules. An event whose module cannot be told
+ * does NOT fire it — a scope exists to keep the op off everything else.
+ * Panel triggers use `moduleIds` as their query and never reach this matcher.
+ */
+export function matchModuleScope(to, transaction) {
+  const ids = Array.isArray(to?.moduleIds) ? to.moduleIds : [];
+  if (!ids.length || to.eventType === "onLoadInPanel" || to.eventType === "onUnloadFromPanel") return true;
+  const modId = transaction?._occModuleId ?? transaction?.instanceId ?? null;
+  return modId != null && ids.includes(modId);
 }
 
 /**
@@ -1132,6 +1163,13 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     transaction._occRole = (modId && context?.modulesById?.[modId]?.role) || null;
   }
 
+  // The module of the occurrence the event is about, for triggers scoped to
+  // modules ("only when an occurrence of Exercise changes"). Null = unknown.
+  if (transaction && transaction._occModuleId === undefined) {
+    transaction._occModuleId = context?.occurrencesById?.[transaction.occurrenceId]?.moduleId
+      ?? transaction._occurrenceSnapshot?.moduleId ?? transaction.instanceId ?? null;
+  }
+
   const matched = [];
   for (const op of operations) {
     // Skip ops whose own effects are mid-application on this sync stack —
@@ -1140,8 +1178,18 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     if (isOpApplyingEffects(op.id)) continue;
     if (cascadeFiredOps && cascadeFiredOps.has(op.id)) continue;
     if (!opRunsOnGrid(op, context?.state)) continue;
+    // A delayed re-run (below) names the one op it is for.
+    if (transaction?._onlyOpId && op.id !== transaction._onlyOpId) continue;
     const m = computeTriggerMatch(op, transactionType, transaction);
     if (!m) continue;
+    if (op.skipIfUnchanged && !changeTouchesOp(op, transactionType, transaction, context)) continue;
+    // "Wait N ms": the op runs once things have been quiet that long, with the
+    // last event — typing in a field runs it once, not per keystroke.
+    const waitMs = Number(m.triggerObject?.waitMs) || 0;
+    if (waitMs > 0 && transaction?._onlyOpId !== op.id && typeof context?._debounce === "function") {
+      context._debounce(op.id, waitMs, transactionType, transaction);
+      continue;
+    }
     matched.push({ op, match: m });
   }
   matched.sort((a, b) => {
@@ -1767,8 +1815,13 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   // _effectiveFilter is the filter value chain resolved up to grid level —
   // pipelines can read e.g. `$schedPage._effectiveFilter.<dateFieldId>` to
   // know what date the user is viewing without firing as a NavigationOp.
+  // The module map withEntityLookups already holds (cached per modules-array
+  // identity). This line used to rebuild a map of every module on EVERY
+  // pipeline run — ~0.8s of a 5.4s poms load sweep (11,504 modules × ~70 runs
+  // counting Run-operation callees) — although only enrichOne reads it, and
+  // only when the item cache is rebuilt.
   const allTemplates = state?.modules ?? [];
-  const templateById = Object.fromEntries(allTemplates.map(t => [t.id, t]));
+  const templateById = context.modulesById || {};
   // Memoized batch resolver — enriching every item used to re-walk each
   // occurrence's full ancestor chain (O(N × depth) per pipeline run, ×20 ops
   // per drop sweep in the CPU profile). Same semantics, ancestor contexts
@@ -2548,7 +2601,9 @@ function executeSteps(steps, $vars, context, transaction) {
       const varsBefore = log ? snapshotVars($vars) : null;
       const resolvedConfig = log ? resolveConfigForLog(cfg, $vars) : null;
       let resolvedPredicate = log && cfg.predicate ? resolveGroupForLog(cfg.predicate, $vars) : null;
+      const _t0 = log ? performance.now() : 0;
       const result = executeActionItem(actionType, cfg, $vars, context, transaction);
+      const _ms = log ? Math.round((performance.now() - _t0) * 10) / 10 : 0;
       // For FIND, recompute the predicate's resolved values against the matched
       // record. Without this, bare record paths on the left side (`templateId`,
       // `_ancestors`, `fields.<fid>.value`, `meta.scheduleSlot`) display as the
@@ -2614,6 +2669,7 @@ function executeSteps(steps, $vars, context, transaction) {
         varsBefore,
         resultCount: result.length,
         result,
+        ms: _ms,
         ...(boundVars ? { boundVars } : {}),
         ...(candidates ? { candidates } : {}),
       });
@@ -2688,7 +2744,8 @@ function executeSteps(steps, $vars, context, transaction) {
       if (step.predicate && Array.isArray(step.predicate.rules) && step.predicate.rules.length) {
         items = items.filter(it => evalGroupAgainstRecord(step.predicate, it, $vars));
       }
-      log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
+      const loopEntry = log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
+      const _loopT0 = loopEntry ? performance.now() : 0;
       let i = 0;
       let mutedHere = false;
       for (const item of items) {
@@ -2706,6 +2763,7 @@ function executeSteps(steps, $vars, context, transaction) {
         i += 1;
       }
       if (mutedHere) log._mute -= 1;
+      if (loopEntry) loopEntry.ms = Math.round((performance.now() - _loopT0) * 10) / 10;
       delete $vars[varName];
     }
   }

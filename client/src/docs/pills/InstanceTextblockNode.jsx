@@ -67,8 +67,8 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   useEffect(() => { if (settingsOpen) setDraft({ label: instance?.label ?? "" }); }, [settingsOpen, instance?.label]);
   const commitLabel = useCallback(() => {
     if (!instance?.id) return;
-    CommitHelpers.renameLeaf({ dispatch, socket, module: instance, label: draft?.label });
-  }, [draft?.label, instance?.id, instance?.label, dispatch, socket]);
+    CommitHelpers.renameLeaf({ dispatch, socket, module: instance, occurrence, label: draft?.label });
+  }, [draft?.label, instance?.id, instance?.label, occurrence, dispatch, socket]);
 
   // A NODE FOR AN OCCURRENCE THAT RESOLVES FROM NOWHERE — not the store, not the
   // provisional registry. This node draws the "—" below, and it is the shape of

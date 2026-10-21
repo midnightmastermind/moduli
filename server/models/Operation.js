@@ -59,6 +59,9 @@ const OperationSchema = new mongoose.Schema(
     // this config (client helpers/alarmOps.js) and the Operations tab renders
     // it read-only. Shape: { type: "alarm"|"reminder", label, time: "HH:MM" }.
     alarm: { type: mongoose.Schema.Types.Mixed, default: null },
+    // On a field change, run only when the changed field is one the op reads
+    // (client helpers/operationExecutor.changeTouchesOp).
+    skipIfUnchanged: { type: Boolean, default: false },
 
     // Whether this operation is active
     enabled: { type: Boolean, default: true },

@@ -1213,7 +1213,7 @@ function PageTreeNodeImpl({ pageOccId, activeOccId, onOpenPage, onClosePage, occ
             ...(onClosePage ? [{ label: "Close page", icon: X, onClick: () => onClosePage(pageOccId) }] : []),
             // A folder renames from its row; a page could only rename from its card (UI sweep
             // 2026-10-19). Same helper and prompt the card uses.
-            { ...buildRenameItem({ module: pageMod, dispatch, socket, onStart: (mod, commit) => {
+            { ...buildRenameItem({ module: pageMod, occurrence: pageOcc, dispatch, socket, onStart: (mod, commit) => {
                 const next = window.prompt("Rename page", mod.label ?? "");
                 if (next != null) commit(next);
               } }), icon: Pencil },

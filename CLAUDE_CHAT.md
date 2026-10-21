@@ -4094,3 +4094,8 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 12:10 *"we should have something that makes sure the grid opening up on a screen does not affect the layout for other devices"*
 - 12:13 *"i should be able to open the book anywhere i sit in the office btw, not just the chair"*
 - 12:14 *"id like a library of custom assets to put places too … so i can decorate the room"*
+- 13:18 *"we can have more options for our operations … findOccurancesByType for a function and triggers we can have onLoadofOccuranceInPanel where we only trigger it if it loads in the dom. let me know if that helps speed up operations or operations we load on app start"* — asked for an assessment, measured before answering.
+- 13:23 *"onLoadInPanel would take in a query to show any of these occurances appear in a panel"*
+- 13:27 *"onLoadInPanel should be able to select occurances or modules too. and ask the other questions you need and why does it need to get a copy of its own module again in template?"*
+- 13:34 *"we can change the label on occurances without affecting the original model"* — so a renamed template root shares its module too; the per-apply name goes on the occurrence's label.
+- 13:40 *"lets do all that"* — the rename rule (a shared module renames the occurrence), fold copy modules back, occurrences-of-module (action + Find option), onLoadInPanel (+ onUnloadFromPanel), find by date, find first, timing in Run history, module scope on triggers, debounce, skip-if-unchanged.

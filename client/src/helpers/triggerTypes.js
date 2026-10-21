@@ -45,6 +45,13 @@ export const EVENT_TYPES = [
   // something without the renderer knowing what it means: selecting an emotion
   // records a mood because an OPERATION says so, not because the graph does.
   { value: "onGraphSelect",  label: "On Graph Select",  desc: "Fires when a part of a graph is clicked (a slice, segment or point)", transactionType: "GraphSelectOp" },
+  // Something a query names comes into a panel / leaves every panel. Fired only by
+  // hooks/usePanelLoadTriggers (it reads panelPresence), never by the transaction
+  // matcher — no other code produces these transaction types. The trigger object
+  // carries the query (`occurrenceIds`, `moduleIds`) and, for a load, `mode`
+  // ("appear" | "once" | "inView").
+  { value: "onLoadInPanel",     label: "On Load In Panel",     desc: "Fires when one of the chosen occurrences (or occurrences of the chosen modules) shows in a panel", transactionType: "PanelLoadOp" },
+  { value: "onUnloadFromPanel", label: "On Unload From Panel", desc: "Fires when all of the chosen occurrences have left every panel", transactionType: "PanelUnloadOp" },
   { value: "onModuleUpdate", label: "On Module Update", desc: "Fires when a module template changes",                                transactionType: "ModuleOp" },
   { value: "onWebhook",      label: "On Webhook",       desc: "Fires via HTTP POST to the webhook URL",                              transactionType: "WebhookOp" },
   { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)",                                     transactionType: "ScheduleOp" },
@@ -189,6 +196,8 @@ export function getTriggerVars(eventType, subjectType) {
     base.push("$trigger.gridId");
   } else if (subjectType === "filterNav") {
     base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue", "$trigger.sourceOccurrenceId", "$trigger.occurrenceId", "$trigger.fieldId");
+  } else if (subjectType === "panelQuery") {
+    base.push("$trigger.occurrenceIds", "$trigger.occurrenceId", "$trigger.occurrence");
   } else if (subjectType === "transaction") {
     base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.templateId");
   }

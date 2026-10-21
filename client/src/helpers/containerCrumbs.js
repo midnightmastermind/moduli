@@ -28,7 +28,7 @@ import { occurrenceDisplayLabel } from "./occurrenceLabel.js";
 // "9:00am" beside the real "Schedule › Schedule - Saturday … › 9:00am". A
 // container filed in a FOLDER is reachable through the tree and keeps that
 // folder as its crumb.
-export function buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById = null } = {}) {
+export function buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById = null, roles = ["container"] } = {}) {
   const occMap = occurrencesById || {};
   // Reverse parent map: childOccId → parentOccId via occurrences[].
   const parentByChild = {};
@@ -42,7 +42,7 @@ export function buildContainerCrumbOptions(occurrencesById, modulesById, { folde
   const out = [];
   for (const occ of Object.values(occMap)) {
     const mod = modulesById?.[occ.moduleId];
-    if (!mod || mod.role !== "container") continue;
+    if (!mod || !roles.includes(mod.role)) continue;
     const listedBy = parentByChild[occ.id];
     const folder = !listedBy && occ.parentId && !occMap[occ.parentId] ? foldersById?.[occ.parentId] : null;
     if (!listedBy && !occMap[occ.parentId] && !folder) continue; // unreachable

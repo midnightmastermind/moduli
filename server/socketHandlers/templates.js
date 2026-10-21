@@ -60,6 +60,9 @@ export function registerTemplateHandlers(socket, {
         rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
         newParentId: resolvedParent,
         rootLabel: name || null,
+        // A template is a new named thing: its ROOT gets a module (the name lives
+        // there); the nodes below share their source's modules.
+        freshRoot: true,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template clone failed");
@@ -184,7 +187,7 @@ export function registerTemplateHandlers(socket, {
         rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
         newParentId: resolvedParent,
         rootLabel: oldName,
-        stampSignatures: true, signRoot: false,
+        stampSignatures: true, signRoot: false, freshRoot: true,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template clone failed; old template left intact");
@@ -203,12 +206,21 @@ export function registerTemplateHandlers(socket, {
         (o.occurrences || []).forEach(walk);
       })(templateOccurrenceId);
 
+      // A module goes with the old template ONLY when nothing else places it.
+      // Copies share their source's module (2026-10-21), and a template's
+      // copy-linked bank rows always did — deleting by subtree would remove the
+      // module of every copy and of the bank row itself.
+      const doomed = new Set(toDelete.map((o) => o.id));
+      const usedElsewhere = new Set();
+      for (const o of Object.values(uc.occurrencesById)) {
+        if (o?.moduleId && !doomed.has(o.id)) usedElsewhere.add(o.moduleId);
+      }
       const deletedModIds = new Set();
       for (const o of toDelete) {
         await Occurrence.deleteOne({ id: o.id });
         delete uc.occurrencesById[o.id];
         const modId = o.moduleId;
-        if (modId && uc.modulesById[modId] && !deletedModIds.has(modId)) {
+        if (modId && uc.modulesById[modId] && !deletedModIds.has(modId) && !usedElsewhere.has(modId)) {
           await Module.deleteOne({ id: modId });
           delete uc.modulesById[modId];
           deletedModIds.add(modId);

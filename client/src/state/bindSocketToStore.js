@@ -1777,8 +1777,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const inst = effect.instance;
         if (!inst?.id || !inst?.templateId) break;
 
-        // Mint template if one was created
-        if (effect.template?.id) {
+        // Mint template if one was created (an applied template copy reuses its
+        // node's module — `templateExists` — and only places the occurrence).
+        if (effect.template?.id && !effect.templateExists) {
           // A CLONE emits `kind: srcMod.kind`, so a kindless template arrives
           // here as undefined. Defaulting that to "doc" is what minted 232
           // inert `instance/doc` modules on the live grid between 2026-08-02
@@ -1834,7 +1835,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           textmap: inst.textmap || null,
           role: effect.template?.role || null,
           kind: effect.template?.kind || null,
-          label: effect.template?.label || effect.template?.name || null,
+          // A placement of an EXISTING module carries only its own name, if it
+          // has one, so renaming the module later still renames the copy.
+          label: effect.templateExists
+            ? (inst.label || null)
+            : (effect.template?.label || effect.template?.name || null),
           // Honor occurrences[] if the caller passed one (APPLY_TEMPLATE
           // sends nested children's ids so the parent is created WITH the
           // child list rather than patched via a separate UPDATE_OCCURRENCE
@@ -2144,6 +2149,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // so a runaway cycle doesn't flood the console.
   const _fireWarnAt = new Map();
 
+  // A trigger with `waitMs` runs its op once events have stopped for that long,
+  // with the LAST event (operationExecutor.runMatchingOperations).
+  const _debounceTimers = new Map();
+  function debounceOpRun(opId, waitMs, transactionType, transaction) {
+    clearTimeout(_debounceTimers.get(opId));
+    _debounceTimers.set(opId, setTimeout(() => {
+      _debounceTimers.delete(opId);
+      fireOperations(transactionType, { ...transaction, _onlyOpId: opId });
+    }, waitMs));
+  }
+
   function fireOperations(transactionType, transaction) {
     if (isSnapshotMode()) return; // the grid on screen is a boot snapshot (state/snapshotMode)
     // During a drop batch (beginDropBatch active), collect top-level fires instead
@@ -2316,7 +2332,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // Lets the executor reuse one parent map across the per-descendant sweeps
       // of a date change (operationExecutor.sweepParentMap).
       // The STRUCTURE version: a value write does not change the parent index (occOverlay.structVersion).
-      _occVersion: _occOverlay.structVersion };
+      _occVersion: _occOverlay.structVersion,
+      _debounce: debounceOpRun };
     const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById }));
 
     // ── THE SWEEP MAY YIELD, AND EVERYTHING AFTER IT IS SHARED ─────────────
@@ -3275,6 +3292,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // CLEANUP (important with HMR)
   // ======================================================
   return () => {
+    for (const t of _debounceTimers.values()) clearTimeout(t);
     unbound = true;
     clearTimeout(_snapSaveTimer);
     operationsBridge.fireOperations = null;

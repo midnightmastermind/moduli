@@ -24,7 +24,6 @@
 
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
-import { pickReusableModuleId, stampCloneOrigin } from "../../../server/utils/cloneModuleReuse.js";
 import { matchesPattern } from "../../../server/utils/matchesPattern.js";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
@@ -712,14 +711,8 @@ export function evalRule(rule, $vars) {
       // Normalizes both sides to YYYY-MM-DD so "2026-04-16T17:00:00.000Z" matches "2026-04-16".
       if (rightVal == null || rightVal === "") return true;
       if (leftVal == null || leftVal === "") return false;
-      const dayKey = (v) => {
-        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-        const d = new Date(v);
-        if (isNaN(d.getTime())) return null;
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      };
-      const lk = dayKey(leftVal);
-      const rk = dayKey(rightVal);
+      const lk = sameDayKey(leftVal);
+      const rk = sameDayKey(rightVal);
       return lk != null && lk === rk;
     }
     case "SAME_WEEK": {
@@ -960,6 +953,52 @@ export function idIndexFor(list) {
   return m;
 }
 
+// ── Occurrences of a module (2026-10-21) ─────────────────────────────────
+// A list → Map(moduleId → [[position, record], …]), built once per list
+// identity like idIndexFor. "Occurrences of Exercise" reads exactly those rows
+// instead of testing every record (poms: 28,634, 17,562 of them files).
+const _moduleIndexCache = new WeakMap();
+export function moduleIndexFor(list) {
+  if (!Array.isArray(list)) return new Map();
+  const hit = _moduleIndexCache.get(list);
+  if (hit) return hit;
+  const m = new Map();
+  list.forEach((it, i) => {
+    const mid = it?.moduleId ?? it?.templateId;
+    if (!mid) return;
+    let rows = m.get(mid);
+    if (!rows) m.set(mid, (rows = []));
+    rows.push([i, it]);
+  });
+  _moduleIndexCache.set(list, m);
+  return m;
+}
+
+/** The records of `list` placing any of `moduleIds`, in the list's own order. PURE. */
+export function recordsOfModules(list, moduleIds) {
+  const idx = moduleIndexFor(list);
+  const ids = [...new Set((moduleIds || []).filter(Boolean))];
+  if (ids.length === 1) return (idx.get(ids[0]) || []).map(([, r]) => r);
+  const rows = ids.flatMap((id) => idx.get(id) || []);
+  rows.sort((a, b) => a[0] - b[0]);
+  return rows.map(([, r]) => r);
+}
+
+/** Module ids from a cfg value: an array or one id; each may be an expression (a record → its moduleId). */
+export function resolveModuleIds(raw, $vars) {
+  if (raw == null || raw === "") return [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  const out = [];
+  for (const v of list) {
+    const r = typeof v === "string" && v.startsWith("$") ? resolveExpr(v, $vars) : v;
+    for (const x of Array.isArray(r) ? r : [r]) {
+      if (x && typeof x === "object") { const id = x.moduleId ?? x.templateId ?? x.id; if (id) out.push(id); }
+      else if (typeof x === "string" && x) out.push(x);
+    }
+  }
+  return out;
+}
+
 /**
  * The id a predicate asks for when it is EXACTLY `id IS <x>`, else null.
  * One plain rule only: a second rule, a nested group, or any other comparator
@@ -974,6 +1013,67 @@ export function singleIdEquals(predicate, $vars) {
   if (left !== "id") return null;
   const v = resolveExpr(r.right, $vars);
   return typeof v === "string" && v ? v : null;
+}
+
+function recordsOnDaySet(list, { fieldId, day }) { return new Set(recordsOnDay(list, fieldId, day)); }
+
+/**
+ * The day SAME_DAY compares ("YYYY-MM-DD"), else null: a bare date verbatim,
+ * anything else read through Date in the local zone. (Not `dayKeyOf`, which
+ * slices a timestamp's first ten characters — SAME_DAY has always read the
+ * timestamp's LOCAL day, and the index must agree with it exactly.)
+ */
+export function sameDayKey(v) {
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (v == null || v === "") return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * When an AND condition holds a plain `fields.<id>.value SAME_DAY <day>` rule,
+ * the field and day it asks for — the FIND can then read that day's records
+ * from an index instead of testing every record. Null otherwise (an OR group,
+ * no such rule, or a right side that is not a single day).
+ */
+export function sameDayRuleOf(predicate, $vars) {
+  if (!predicate || (predicate.operator || "AND") !== "AND" || !Array.isArray(predicate.rules)) return null;
+  for (const r of predicate.rules) {
+    if (!r || Array.isArray(r.rules) || r.comparator !== "SAME_DAY") continue;
+    const m = /^(?:\$item\.|\$record\.)?fields\.([^.]+)\.value$/.exec(typeof r.left === "string" ? r.left : "");
+    if (!m) continue;
+    const right = resolveExpr(r.right, $vars);
+    if (typeof right !== "string") continue; // a period object or nothing: leave it to the scan
+    const day = sameDayKey(right);
+    if (day) return { fieldId: m[1], day };
+  }
+  return null;
+}
+
+const _dayIndexes = new WeakMap(); // list -> Map(fieldId -> { byDay: Map(day -> idx[]), other: idx[] })
+/**
+ * The records of `list` (in list order) whose `fieldId` falls on `day`, plus
+ * every record whose value is not a plain date — those are still tested by the
+ * condition, so nothing that could match is left out. Built once per list.
+ */
+export function recordsOnDay(list, fieldId, day) {
+  let byField = _dayIndexes.get(list);
+  if (!byField) { byField = new Map(); _dayIndexes.set(list, byField); }
+  let ix = byField.get(fieldId);
+  if (!ix) {
+    ix = { byDay: new Map(), other: [] };
+    list.forEach((rec, i) => {
+      const k = sameDayKey(resolveRecordPath(rec, `fields.${fieldId}.value`));
+      if (k == null) { ix.other.push(i); return; }
+      if (!ix.byDay.has(k)) ix.byDay.set(k, []);
+      ix.byDay.get(k).push(i);
+    });
+    byField.set(fieldId, ix);
+  }
+  const hits = ix.byDay.get(day) || [];
+  const idxs = ix.other.length ? [...hits, ...ix.other].sort((a, b) => a - b) : hits;
+  return idxs.map((i) => list[i]);
 }
 
 export function resolveRecordPath(record, path) {
@@ -1665,6 +1765,22 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // a regular expression against $vars. There is no `$item` namespace —
     // record-key paths are bare, and the editor's left-picker drills the
     // collection's record shape directly.
+    // ============================================================
+    // FIND_MODULE_OCCURRENCES — every occurrence of the chosen module(s)
+    // cfg: { modules: [moduleId | $expr], over? (default $allOccurrences),
+    //        resultVar? (default $moduleOccurrences), idsVar? }
+    // Reads the module index — no record is tested. Always an array.
+    // ============================================================
+    case "FIND_MODULE_OCCURRENCES": {
+      const list = resolveExpr(cfg.over || "$allOccurrences", $vars);
+      const ids = resolveModuleIds(cfg.modules, $vars);
+      const rows = (Array.isArray(list) && ids.length ? recordsOfModules(list, ids) : [])
+        .filter((it) => it && !it.deleted && !it.meta?.isTemplate);
+      $vars[cfg.resultVar || "$moduleOccurrences"] = rows;
+      if (cfg.idsVar) $vars[cfg.idsVar] = rows.map((r) => r.id);
+      break;
+    }
+
     case "FIND": {
       const overExpr = cfg.over || "$allOccurrences";
       const itemList = Array.isArray(resolveExpr(overExpr, $vars))
@@ -1683,14 +1799,28 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // 22,000 records to reach one (prod profile, 2026-09-19). Same collection,
       // same exclusions, same result shape: only the walk is skipped.
       const wantedId = singleIdEquals(predicate, $vars);
+      // "Only occurrences of" these modules: read them from the module index
+      // instead of testing every record; the conditions still apply on top.
+      const ofModules = resolveModuleIds(cfg.ofModules, $vars);
+      // A plain "<date field> SAME_DAY <day>" rule reads that day's records
+      // from an index (built once per collection) instead of scanning them all.
+      const onDay = sameDayRuleOf(predicate, $vars);
+      let pool = ofModules.length ? recordsOfModules(itemList, ofModules) : itemList;
+      if (onDay) pool = ofModules.length
+        ? pool.filter((r) => recordsOnDaySet(itemList, onDay).has(r))
+        : recordsOnDay(itemList, onDay.fieldId, onDay.day);
+      const usable = (it) => it && !it.deleted && !it.meta?.isTemplate;
       let candidates;
       if (wantedId != null) {
         const hit = idIndexFor(itemList).get(wantedId);
-        candidates = (hit && !hit.deleted && !hit.meta?.isTemplate) ? [hit] : [];
+        const inPool = !ofModules.length || ofModules.includes(hit?.moduleId ?? hit?.templateId);
+        candidates = (usable(hit) && inPool) ? [hit] : [];
+      } else if (cfg.first === true) {
+        // "First match only": stop at the first record that matches.
+        const one = pool.find((it) => usable(it) && matchItem(it));
+        candidates = one ? [one] : [];
       } else {
-        candidates = itemList
-          .filter(it => it && !it.deleted && !it.meta?.isTemplate)
-          .filter(matchItem);
+        candidates = pool.filter(usable).filter(matchItem);
       }
 
       // Task #30 follow-up — FIND auto-detects: returns the bare item when
@@ -3723,19 +3853,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           }
         }
 
-        // ── ONE MODULE, MANY OCCURRENCES — the premise, at the clone site ────
-        // This minted a FRESH module for every clone, so `Day Page: Build` made
-        // a new Journal / Notes / Tasks Completed module every morning: 924
-        // modules across 198 signatures on the live grid that should be 198.
-        // The first apply still mints (the SOURCE is a template and must not be
-        // placed); it stamps `clonedFromModuleId`, and every later apply of the
-        // same node reuses it. See helpers/cloneModuleReuse.js for why a renamed
-        // root, a renamed clone, and a trashed one are all refused.
-        const reusedModId = pickReusableModuleId({
-          modulesById, srcModId, srcMod,
-          isRoot, rootLabelOverride: (isRoot && rootLabelOverride) ? rootLabelOverride : null,
-        });
-        const cloneModId = reusedModId || newId();
+        // ── A COPY IS ANOTHER OCCURRENCE OF THE SAME MODULE ────────────────
+        // User, 2026-10-21: *"copy link the ones into template and then copy the
+        // template one … they all keep the same module"*. An applied copy points
+        // at the template node's own module, like a Copy drag does; what differs
+        // per copy (its name, field values, text, placement style) lives on the
+        // occurrence. A root renamed per apply ("Tuesday, October 21st") takes
+        // the name as its OCCURRENCE label (user: *"we can change the label on
+        // occurances without affecting the original model"*). Editing a copy's
+        // bindings or module style now edits the template's too — the user's call.
+        // (Until now each template node got one copy module, stamped
+        // `clonedFromModuleId`; migration 0423 folds those back.)
+        const cloneModId = srcModId;
+        const cloneLabel = (isRoot && rootLabelOverride) ? rootLabelOverride : null;
         const cloneOccId = newId();
         occRemap.set(srcOccId, cloneOccId);
         if (srcModId) modRemap.set(srcModId, cloneModId);
@@ -3770,10 +3900,6 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           if (childCloneId) childIds.push(childCloneId);
         }
 
-        // Strip templateModule marker on apply, attach appliedFromTemplateId on root
-        // Stamped so the NEXT apply of this template node can find and reuse
-        // this module instead of minting another.
-        const newModuleMeta = stampCloneOrigin({ ...(srcMod.meta || {}), templateModule: false }, srcModId);
         // ── THE CALLER DECLARED THIS NODE UNIQUE UNDER ITS PARENT ──────────
         //
         // `rootSignature` says "this signature IS this node's identity here",
@@ -3793,22 +3919,14 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
         updates.push({
           _effect: "CREATE_ITEM",
-          template: {
-            id: cloneModId,
-            name: (isRoot && rootLabelOverride) ? rootLabelOverride : (srcMod.label || srcMod.name),
-            label: (isRoot && rootLabelOverride) ? rootLabelOverride : (srcMod.label || srcMod.name),
-            role: srcMod.role,
-            kind: srcMod.kind,
-            meta: newModuleMeta,
-            fieldBindings: Array.isArray(srcMod.fieldBindings) ? srcMod.fieldBindings : [],
-            // A clone keeps its source's look (user 2026-10-17: a Sleep placed in a
-            // passed 5am slot showed the slot's red — its clone had no colour, so the
-            // row was see-through). The server's clone already copies the whole module.
-            ...styleKeysOf(srcMod),
-          },
+          // The module already exists: the effect places the occurrence only.
+          // `template` still rides along for the role/kind the in-pass slices read.
+          templateExists: true,
+          template: { id: cloneModId, role: srcMod.role, kind: srcMod.kind, label: srcMod.label || srcMod.name },
           instance: {
             id: cloneOccId,
             templateId: cloneModId,
+            ...(cloneLabel ? { label: cloneLabel } : {}),
             parentId,
             fields: { ...(srcOcc.fields || {}), ...defaultFieldsFor(srcMod) },
             textmap: cloneTextmap(srcOcc.textmap),
@@ -3853,6 +3971,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           meta: newOccMeta,
           identitySignature: nodeSig,
           role: srcMod.role,
+          ...(cloneLabel ? { label: cloneLabel } : {}),
         };
         newOccStubs.push(stub);
 
@@ -3938,7 +4057,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     // }
     // Differs from APPLY_TEMPLATE in that:
     //   - source need not be a template (no meta.templateName requirement)
-    //   - cloned modules don't get templateModule:false stamped (no template metadata)
+    //   - copies keep the source's module (a copy is another occurrence of it)
     //   - cloned root occurrence doesn't get appliedFromTemplateId stamped
     //   - no merge mode (always fresh clones)
     // Shares the CREATE_ITEM effect machinery, so the optimistic local
@@ -3971,7 +4090,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const srcMod = srcModId ? modulesById[srcModId] : null;
         if (!srcMod) return null;
 
-        const cloneModId = newId();
+        const cloneModId = srcModId; // a copy is another occurrence of the same module
         const cloneOccId = newId();
 
         const childIds = [];
@@ -3984,15 +4103,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
         updates.push({
           _effect: "CREATE_ITEM",
-          template: {
-            id: cloneModId,
-            name: srcMod.label || srcMod.name,
-            label: srcMod.label || srcMod.name,
-            role: srcMod.role,
-            kind: srcMod.kind,
-            meta: { ...(srcMod.meta || {}) },
-            fieldBindings: Array.isArray(srcMod.fieldBindings) ? srcMod.fieldBindings : [],
-          },
+          templateExists: true,
+          template: { id: cloneModId, role: srcMod.role, kind: srcMod.kind, label: srcMod.label || srcMod.name },
           instance: {
             id: cloneOccId,
             templateId: cloneModId,

@@ -275,7 +275,7 @@ export default function PreviewNode({
   // The prompt is the host: this card has no inline editor, and mounting one
   // inside a portalled context menu is how the caret bugs in this repo start.
   const renameItem = buildRenameItem({
-    module, dispatch, socket,
+    module, occurrence, dispatch, socket,
     onStart: (mod, commit) => {
       const next = typeof window !== "undefined" ? window.prompt("Rename page", mod.label ?? "") : null;
       if (next != null) commit(next);

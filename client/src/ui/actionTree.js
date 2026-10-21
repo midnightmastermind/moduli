@@ -153,6 +153,7 @@ export const ACTION_TREE = [
       // and that autodoes it if i finds multiple". `multiple: true` is still
       // accepted as an optional force-array hint for shape consistency.
       { value: "FIND", title: "Find", sub: "auto single|array", description: "Match items by rules. Auto-returns bare item when 1 match, array when many. Sets itemIdVar / itemVar." },
+      { value: "FIND_MODULE_OCCURRENCES", title: "Find occurrences of module", sub: "list", description: "Every occurrence of the chosen module(s), wherever placed or copied. Read from an index — no record is tested." },
     ],
   },
 

@@ -979,7 +979,9 @@ describe("APPLY_TEMPLATE", () => {
     const createEffect = updates.find(u => u._effect === "CREATE_ITEM");
     expect(createEffect).toBeTruthy();
     expect(createEffect.template.role).toBe("container");
-    expect(createEffect.template.meta.templateModule).toBe(false);
+    // A copy places the template's OWN module again (2026-10-21) — no copy module.
+    expect(createEffect.templateExists).toBe(true);
+    expect(createEffect.template.id).toBe(tplModId);
     expect(createEffect.instance.parentId).toBe(targetId);
 
     // Optimistic publish happened

@@ -49,6 +49,8 @@ const inputStyle = {
 // hides alias-only entries (onCreate / onNavigation / onDrop).
 import { VISIBLE_EVENT_TYPES as EVENT_TYPES, eventOptions, getTriggerVars, isAncestorScopable, priorityOptions, subjectOptions, DEFAULT_TRIGGER_PRIORITY } from "../../helpers/triggerTypes";
 import CategoryColumnHeader from "./CategoryColumnHeader.jsx";
+import PanelQueryEditor from "./PanelQueryEditor.jsx";
+import ModuleSelect from "../ModuleSelect.jsx";
 import OpCategorySelect, { groupOpsByCategory } from "./OpCategorySelect.jsx";
 
 // Subject types — WHAT KIND of entity the event is about
@@ -642,6 +644,12 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
       {(
       <div>
         <span style={labelStyle}>Triggers</span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "var(--text-muted)", marginBottom: 6, cursor: "pointer" }}
+          title="On a field change, run only when the changed field is one this operation reads or is triggered by">
+          <input type="checkbox" checked={!!local.skipIfUnchanged}
+            onChange={(e) => setLocal((p) => ({ ...p, skipIfUnchanged: e.target.checked || undefined }))} />
+          Skip a field change this operation doesn't read
+        </label>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {triggerObjects.map((trigObj, idx) => {
             const eventType = trigObj.eventType || "onChange";
@@ -654,7 +662,8 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
               : subjectType === "filterNav" ? []
               : [];
             // English readout: "onChange · Field · Water"
-            const subjectLabel = subjectType === "field" ? "Field"
+            const subjectLabel = subjectType === "panelQuery" ? `${(trigObj.occurrenceIds || []).length + (trigObj.moduleIds || []).length} watched`
+              : subjectType === "field" ? "Field"
               : subjectType === "filterNav" ? "Filter"
               : subjectType === "grid" ? "Grid"
               : subjectRole ? subjectRole.charAt(0).toUpperCase() + subjectRole.slice(1)
@@ -696,21 +705,22 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                     // Snap subject to a sensible default when the event has no module/field subject.
                     if (next === "onLoad")          updateTriggerObject(idx, { eventType: next, subjectType: "grid",      subjectRole: "", targetId: "" });
                     else if (next === "onFilterChange") updateTriggerObject(idx, { eventType: next, subjectType: "filterNav", subjectRole: "", targetId: "" });
+                    else if (next === "onLoadInPanel" || next === "onUnloadFromPanel") updateTriggerObject(idx, { eventType: next, subjectType: "panelQuery", subjectRole: "", targetId: "" });
                     else                            updateTriggerObject(idx, { eventType: next });
                   }}
                   style={{ ...inputStyle, width: "auto", minWidth: 110, fontSize: 10 }}
                 >
                   {eventOptions(eventType).map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
                 </select>
-                {/* Subject type */}
-                <select
+                {/* Subject type — a panel trigger's subject is its query (below) */}
+                {subjectType !== "panelQuery" && <select
                   value={subjectType}
                   title="What kind of thing"
                   onChange={e => updateTriggerObject(idx, { subjectType: e.target.value, subjectRole: "", targetId: "" })}
                   style={{ ...inputStyle, width: "auto", minWidth: 90, fontSize: 10 }}
                 >
                   {subjectOptions(trigObj.subjectType).map(v => <option key={v} value={v}>{SUBJECT_TYPES.find(st => st.value === v)?.label ?? v}</option>)}
-                </select>
+                </select>}
                 {/* Role filter for modules */}
                 {subjectType === "module" && (
                   <select
@@ -793,6 +803,10 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                   title="Remove trigger"
                 >×</button>
                 </span>
+                {subjectType === "panelQuery" && (
+                  <PanelQueryEditor trigger={trigObj} onChange={(patch) => updateTriggerObject(idx, patch)}
+                    occurrencesById={occurrencesById} modulesById={modulesById} foldersById={foldersById} />
+                )}
                 {/* $trigger var hints */}
                 <TriggerDataHint eventType={eventType} subjectType={subjectType} />
                 {/* Schedule time picker — onSchedule semantics still live in triggerConfig (no subject/target) */}
@@ -851,6 +865,25 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
                       placeholder='e.g. "Physical"'
                       style={{ ...inputStyle, width: 130, fontSize: 10 }}
                     />
+                  </div>
+                )}
+                {/* Only for occurrences of these modules (operationExecutor.matchModuleScope). */}
+                {isAncestorScopable(eventType) && (
+                  <div style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "monospace" }}>only for occurrences of:</span>
+                    <ModuleSelect value={trigObj.moduleIds || []} onChange={(ids) => updateTriggerObject(idx, { moduleIds: ids.length ? ids : undefined })}
+                      modulesById={modulesById} occurrencesById={occurrencesById} placeholder="(any module)" />
+                  </div>
+                )}
+                {/* Wait: run once events have been quiet this long, with the last one. */}
+                {subjectType !== "panelQuery" && eventType !== "onLoad" && (
+                  <div style={{ width: "100%", display: "flex", gap: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: "monospace" }}>wait</span>
+                    <input type="number" min={0} step={100} aria-label="Wait before running (ms)"
+                      value={trigObj.waitMs ?? ""} placeholder="0"
+                      onChange={(e) => updateTriggerObject(idx, { waitMs: e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)) })}
+                      style={{ ...inputStyle, width: 64, fontSize: 10 }} />
+                    <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "monospace" }}>ms after the last event (0 = run right away)</span>
                   </div>
                 )}
               </div>

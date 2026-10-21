@@ -391,6 +391,14 @@ function materialize(sets) {
 // each op only re-analyzes when its object identity changes (i.e. when the
 // user edits it).
 const _cache = new WeakMap();
+/** One operation's record, memoized on the op object like analyzeAllOperations. */
+export function analyzeOperationCached(op, ctx = {}) {
+  if (!op) return null;
+  let rec = _cache.get(op);
+  if (!rec) { rec = analyzeOperation(op, ctx); _cache.set(op, rec); }
+  return rec;
+}
+
 export function analyzeAllOperations(operationsById, ctx = {}) {
   if (!operationsById) return {};
   const out = {};

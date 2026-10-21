@@ -55,6 +55,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useReminderSync } from "./hooks/useReminderSync";
+import { usePanelLoadTriggers } from "./hooks/usePanelLoadTriggers";
 import { useTheme } from "./helpers/useTheme";
 import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
 import { useSkin } from "./hooks/useSkin";
@@ -71,6 +72,7 @@ import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
 import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js";
 import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
 import { setPanelIdsGetter } from "./helpers/localLayout.js";
+import { setOccurrencesGetter } from "./helpers/sharedModule.js";
 import LocalLayoutPill from "./ui/LocalLayoutPill.jsx";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
@@ -303,6 +305,8 @@ export default function App() {
   });
   // Reminder fields -> entries in the Alarms list (helpers/reminderSync).
   useReminderSync({ state, dispatch, socket, modulesById });
+  // onLoadInPanel / onUnloadFromPanel operations (hooks/usePanelLoadTriggers).
+  usePanelLoadTriggers({ state, dispatch, fieldsById, operationsById, occurrencesById, modulesById, viewsById });
 
   // Undo/Redo state (lifted from Grid so Toolbar can access it)
   const [commandCenterOpen, setCommandCenterOpen] = useState(false);
@@ -354,7 +358,8 @@ export default function App() {
   gridOccsRef.current = state.grid?.occurrences;
   useEffect(() => {
     setPanelIdsGetter(() => new Set(gridOccsRef.current || []));
-    return () => setPanelIdsGetter(null);
+    setOccurrencesGetter(() => stateRef.current?.occurrences);
+    return () => { setPanelIdsGetter(null); setOccurrencesGetter(null); };
   }, []);
 
   // Prevent OS from intercepting unhandled drags. Per user request, the

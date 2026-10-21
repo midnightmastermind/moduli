@@ -4,6 +4,7 @@
 // Inspired by Snap!/Scratch
 // ============================================================
 
+import ModuleSelect from "../ui/ModuleSelect.jsx";
 import LiteralName from "../ui/LiteralName.jsx";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { BlockDragProvider } from "./useBlockDnD";
@@ -1005,6 +1006,16 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
             <span style={{ fontSize: 10, color: "var(--text-muted)" }}>where</span>
             <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{predicate.operator === "OR" ? "ANY rule passes" : "ALL rules pass"}</span>
           </div>
+          <div style={rowStyle}>
+            {fl("only occurrences of")}
+            <ModuleSelect
+              value={Array.isArray(cfg.ofModules) ? cfg.ofModules : []}
+              onChange={ids => setCfg({ ofModules: ids.length ? ids : undefined })}
+              modulesById={modulesById}
+              occurrencesById={occurrencesById}
+              placeholder="any module"
+            />
+          </div>
           <div style={{ paddingLeft: 12 }}>
             <ConditionGroup
               group={predicate}
@@ -1034,6 +1045,11 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
               <input type="checkbox" checked={!!cfg.multiple} onChange={e => setCfg({ multiple: e.target.checked })} />
               Force array result
               <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(default: auto — bare item when 1 match, array when many)</span>
+            </label>
+            <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+              <input type="checkbox" checked={!!cfg.first} onChange={e => setCfg({ first: e.target.checked || undefined })} />
+              First match only
+              <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(stops at the first record that matches — faster when you need one)</span>
             </label>
           </div>
         </div>
@@ -1804,6 +1820,8 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 varNameInput={varNameInput}
                 exprProps={exprProps}
                 fields={fields}
+                modulesById={modulesById}
+                occurrencesById={occurrencesById}
               />
             ))}
           </div>
@@ -1823,7 +1841,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
 // ROW of an array, so a `$var` there resolves to nothing and the step silently
 // does the wrong thing. A plain input with a placeholder that says so is the
 // honest control.
-function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields = [] }) {
+function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields = [], modulesById = {}, occurrencesById = {} }) {
   const { key, kind, label, placeholder, optional, defaultsTo, options, defaultValue } = field;
   const ph = placeholder || (optional && defaultsTo ? `(default: ${defaultsTo})` : "");
 
@@ -1887,6 +1905,16 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
         );
       // A { fieldId: value } map plus its per-field hide toggles — the CREATE
       // step's editor, so a copy's fields are set the same way a create's are.
+      // Modules are PICKED by name (occurrences of Exercise), never typed ids.
+      case "modules":
+        return (
+          <ModuleSelect
+            value={Array.isArray(cfg[key]) ? cfg[key] : cfg[key] ? [cfg[key]] : []}
+            onChange={(ids) => setCfg({ [key]: ids.length ? ids : undefined })}
+            modulesById={modulesById}
+            occurrencesById={occurrencesById}
+          />
+        );
       case "fieldMap":
         return <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} mapKey={key} label={label} />;
       case "bool":
