@@ -4081,3 +4081,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 18:15 *"also we should be able to add other occurances at the top level of a board page, not just containers"*
 - 18:20 *"for the browser. does it persist sites correct"*
 - 18:20 answer: a "+"-made browser came back blank after a reload (meta.url never read) — fixed
+- 08:36 *"could you also include spotify controls on the casio skin we are creating. just a play and pause"*
+- 08:38 *"also a button to start ai … assistant … talk to it i mean"*
+- 08:40 *"i mean, you cant just have it activate voice mode on the phone"*

@@ -1,7 +1,11 @@
-// Moduli Clock — a Casio-style face for Bangle.js 2 with a "+" that adds a
-// textblock to Moduli. Tap "+" → pick a preset or type → POST /api/v1/share
-// (mode "manual", role "textblock") through Gadgetbridge. No phone connection?
-// The text is kept on the watch and sent the next time you open the menu.
+// Moduli Clock — a Casio-style face for Bangle.js 2. Three buttons along the
+// bottom:
+//   ⏯  play / pause whatever is playing on the phone (Spotify included),
+//       through Gadgetbridge's music control
+//   AI start the phone's voice assistant (talk to it through your headphones)
+//   +  add a textblock — pick a preset or type → POST /api/v1/share
+//       (mode "manual", role "textblock"). No phone connection? The text is
+//       kept on the watch and sent the next time you open the menu.
 {
 const storage = require("Storage");
 const SETTINGS = "moduliclock.json";
@@ -18,7 +22,10 @@ const cfg = Object.assign({
 
 const W = g.getWidth(), H = g.getHeight();          // 176 × 176
 const LCD = { x: 6, y: 44, w: W - 12, h: 88 };      // the light "screen"
-const PLUS = { x: W - 50, y: H - 42, w: 44, h: 38 }; // tap area for "+"
+// Bottom row: three equal buttons. A tap anywhere at or below BTN_Y picks one
+// by which third of the screen it landed in.
+const BTN_Y = H - 42, BTN_W = 52, BTN_H = 38;
+const BTN_X = [6, (W - BTN_W) / 2, W - 6 - BTN_W];   // play/pause · AI · +
 const DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 let drawTimeout;
 
@@ -33,7 +40,6 @@ function draw() {
   // Bezel lettering
   g.setColor("#fff").setFont("6x8").setFontAlign(0, 0);
   g.drawString("M O D U L I", W / 2, 32);
-  g.setColor("#0ff").drawString("QUICK ADD  WATER RESIST", W / 2, 40 + LCD.h + 10);
 
   // LCD panel
   g.setColor("#fff").fillRect(LCD.x, LCD.y, LCD.x + LCD.w, LCD.y + LCD.h);
@@ -63,13 +69,29 @@ function draw() {
   const n = pending().length;
   if (n) g.setFont("6x8").setFontAlign(-1, 1).drawString(n + " WAITING", LCD.x + 8, LCD.y + LCD.h - 4);
 
-  // "+" button
-  g.setColor("#fff").fillRect(PLUS.x, PLUS.y, PLUS.x + PLUS.w, PLUS.y + PLUS.h);
-  g.setColor("#000").fillRect(PLUS.x + 19, PLUS.y + 7, PLUS.x + 25, PLUS.y + 31)
-    .fillRect(PLUS.x + 10, PLUS.y + 16, PLUS.x + 34, PLUS.y + 22);
-  g.setColor("#fff").setFont("6x8").setFontAlign(-1, 0).drawString("ADD >", 8, PLUS.y + PLUS.h / 2);
+  drawButtons();
 
   queueDraw();
+}
+
+// What the phone last said is playing ("play" / "pause"); null when unknown.
+function musicState() {
+  try { return require("android").musicState || null; } catch (e) { return null; }
+}
+
+function drawButtons() {
+  const y = BTN_Y, cy = y + BTN_H / 2;
+  BTN_X.forEach((x) => g.setColor("#fff").fillRect(x, y, x + BTN_W, y + BTN_H));
+  g.setColor("#000");
+  // Play/pause: show PAUSE bars while something plays, else a play triangle.
+  let x = BTN_X[0] + BTN_W / 2;
+  if (musicState() === "play") g.fillRect(x - 9, cy - 10, x - 3, cy + 10).fillRect(x + 3, cy - 10, x + 9, cy + 10);
+  else g.fillPoly([x - 7, cy - 11, x - 7, cy + 11, x + 10, cy]);
+  // AI
+  g.setFont("6x8:2").setFontAlign(0, 0).drawString("AI", BTN_X[1] + BTN_W / 2, cy + 1);
+  // "+"
+  x = BTN_X[2] + BTN_W / 2;
+  g.fillRect(x - 3, cy - 12, x + 3, cy + 12).fillRect(x - 12, cy - 3, x + 12, cy + 3);
 }
 
 function queueDraw() {
@@ -142,10 +164,7 @@ function type(start) {
 }
 
 function openAdd() {
-  if (drawTimeout) clearTimeout(drawTimeout);
-  drawTimeout = undefined;
-  Bangle.removeListener("touch", onTouch);
-  Bangle.removeListener("charging", draw);
+  stopFace();
   const menu = { "": { title: "Add textblock", back: load }, "Type...": () => type("") };
   cfg.presets.forEach((p) => {
     // A preset ending in ": " opens the keyboard with it filled in.
@@ -156,8 +175,56 @@ function openAdd() {
   E.showMenu(menu);
 }
 
+// ── PLAY / PAUSE ──────────────────────────────────────────────────────────
+// Gadgetbridge's own music control (the "android" app's boot code defines
+// Bangle.musicControl). It controls the phone's active media session, so it
+// works for Spotify and anything else playing. Sends pause while the phone
+// reports playing, else play; the icon is flipped at once and corrected when
+// the phone reports back.
+function togglePlay() {
+  if (!Bangle.musicControl) return E.showAlert("Needs the Android\nIntegration app\n(Gadgetbridge)").then(load);
+  const playing = musicState() === "play";
+  Bangle.musicControl(playing ? "pause" : "play");
+  try { require("android").musicState = playing ? "pause" : "play"; } catch (e) { /* no android lib */ }
+  Bangle.buzz(30);
+  draw();
+}
+
+// ── VOICE ASSISTANT ───────────────────────────────────────────────────────
+// Starts the phone's voice assistant, which listens and answers through your
+// Bluetooth headphones when they are connected. Sent as an Android intent
+// through Gadgetbridge ("Allow Intents" must be on in its Bangle.js settings).
+// By default it opens whatever the phone has set as its default assistant
+// (Settings > Apps > Default apps > Digital assistant app). cfg.voice can name
+// another intent instead, e.g. {"action":"...","package":"...","class":"..."}.
+function startVoice() {
+  const v = cfg.voice || {};
+  const msg = { t: "intent", target: v.target || "activity",
+    action: v.action || "android.intent.action.VOICE_COMMAND",
+    flags: ["FLAG_ACTIVITY_NEW_TASK"] };
+  if (v.package) msg.package = v.package;
+  if (v.class) msg.class = v.class;
+  try {
+    Bluetooth.println("");
+    Bluetooth.println(JSON.stringify(msg));
+    Bangle.buzz(80);
+  } catch (e) {
+    E.showAlert("Phone not\nconnected").then(load);
+  }
+}
+
+function stopFace() {
+  if (drawTimeout) clearTimeout(drawTimeout);
+  drawTimeout = undefined;
+  Bangle.removeListener("touch", onTouch);
+  Bangle.removeListener("charging", draw);
+}
+
 function onTouch(btn, xy) {
-  if (xy && xy.x >= PLUS.x - 8 && xy.y >= PLUS.y - 8) openAdd();
+  if (!xy || xy.y < BTN_Y - 8) return;
+  if (xy.x < W / 3) togglePlay();
+  else if (xy.x < (2 * W) / 3) startVoice();
+  else openAdd();
 }
 
 Bangle.setUI({
