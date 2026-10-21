@@ -1,1 +1,1 @@
-{"id":"moduliclock","name":"Moduli Clock","type":"clock","src":"moduliclock.app.js","version":"0.1"}
+{"id":"moduliclock","name":"Moduli Clock","type":"clock","src":"moduliclock.app.js","version":"0.2","storage":[{"name":"moduliclock.app.js"},{"name":"moduliclock.info"}],"data":[{"name":"moduliclock.json"},{"name":"moduliclock.queue.json"},{"name":"moduliclock.pomo.json"}]}

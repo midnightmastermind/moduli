@@ -13,8 +13,27 @@
 const storage = require("Storage");
 const SETTINGS = "moduliclock.json";
 const QUEUE = "moduliclock.queue.json";
+// Launchers read every .info file, and Folder Launcher crashes on one it cannot
+// parse (it sorts them with readJSON(file, false)) — which sends the button
+// straight back to the clock. A hand upload can leave this file altered, so
+// the clock rewrites it whenever it does not read back as this exact record.
+const INFO = { id: "moduliclock", name: "Moduli Clock", type: "clock", src: "moduliclock.app.js", version: "0.2",
+  storage: [{ name: "moduliclock.app.js" }, { name: "moduliclock.info" }], data: [{ name: "moduliclock.json" },
+  { name: "moduliclock.queue.json" }, { name: "moduliclock.pomo.json" }] };
+{
+  const cur = storage.readJSON("moduliclock.info", 1);
+  if (!cur || cur.id !== INFO.id || cur.src !== INFO.src || cur.version !== INFO.version) storage.writeJSON("moduliclock.info", INFO);
+}
 const POMO = "moduliclock.pomo.json";      // the timer, kept so it survives menus
-require("Font7x11Numeric7Seg").add(Graphics);
+// The 7-segment digits come from a module the watch may not have (the App
+// Loader installs it with some clocks; a file uploaded by hand gets no
+// modules). Without it the face uses the built-in Vector font instead of
+// failing to start.
+let SEG_SMALL = "Vector:22", SEG_BIG = "Vector:40";
+try {
+  require("Font7x11Numeric7Seg").add(Graphics);
+  SEG_SMALL = "7x11Numeric7Seg:2"; SEG_BIG = "7x11Numeric7Seg:4";
+} catch (e) { /* no 7-segment font on this watch */ }
 
 const cfg = Object.assign({
   url: "https://viafluere.com",
@@ -53,7 +72,7 @@ function draw() {
 
   // Top row: day + date (small 7-segment)
   g.setFont("6x8:2").setFontAlign(-1, -1).drawString(DAYS[d.getDay()], LCD.x + 8, LCD.y + 8);
-  g.setFont("7x11Numeric7Seg:2").setFontAlign(1, -1)
+  g.setFont(SEG_SMALL).setFontAlign(1, -1)
     .drawString(pad(d.getMonth() + 1) + "-" + pad(d.getDate()), LCD.x + LCD.w - 8, LCD.y + 6);
 
   // Big time, colon drawn as two squares so it never depends on the font
@@ -62,7 +81,7 @@ function draw() {
   const is12 = (storage.readJSON("setting.json", 1) || {})["12hour"];
   if (is12) h = (h % 12) || 12;
   const cy = LCD.y + 34;
-  g.setFont("7x11Numeric7Seg:4").setFontAlign(1, -1).drawString(pad(h), W / 2 - 6, cy);
+  g.setFont(SEG_BIG).setFontAlign(1, -1).drawString(pad(h), W / 2 - 6, cy);
   g.setFontAlign(-1, -1).drawString(pad(d.getMinutes()), W / 2 + 6, cy);
   g.fillRect(W / 2 - 2, cy + 12, W / 2 + 1, cy + 15).fillRect(W / 2 - 2, cy + 28, W / 2 + 1, cy + 31);
   if (is12) g.setFont("6x8").setFontAlign(-1, -1).drawString(pm ? "PM" : "AM", LCD.x + 8, cy + 2);
