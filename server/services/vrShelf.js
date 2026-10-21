@@ -3,15 +3,15 @@
 // and return plain data, so they are tested without a database.
 //
 // shelfBooks: the grid's pages, newest first, as books (title, kind, cover).
-// pageReadable: one page flattened into blocks a headset can lay out as text:
-//   { title, blocks: [{ type: "heading" | "text" | "item", text, level? }] }
-// It walks what the page SHOWS — its own textmap, the sections it embeds and
-// the rows those sections list — and stops at MAX_BLOCKS, saying so.
+// shelfBoard: one board's rows as books — a shelf is a query, and the query is
+//   a board (Books, Albums, Movies…).
+// A book is opened by the app (`/?open=<id>`), in its own page / file viewer —
+// the headset cannot draw those viewers inside the 3D scene.
 
 const BOOK_KINDS = new Set(["doc", "board", "canvas", "table"]);
 const MAX_BOOKS = 60;
-const MAX_BLOCKS = 600;
-const MAX_DEPTH = 6;
+const FILE_KINDS = new Set(["pdf", "ebook"]);
+const MAX_ROWS = 6000;
 
 const moduleOf = (uc, occ) => uc.modulesById?.[occ?.moduleId || occ?.targetId] || null;
 const titleOf = (uc, occ) => (occ?.label || moduleOf(uc, occ)?.label || "").trim();
@@ -59,81 +59,105 @@ export function shelfBooks(uc, { limit = MAX_BOOKS } = {}) {
   return { books: books.slice(0, limit), total: books.length };
 }
 
-// Inline text of a TipTap node: text runs plus the labels of inline chips.
-function inlineText(uc, node) {
-  if (!node) return "";
-  if (node.type === "text") return node.text || "";
-  if (node.type === "hardBreak") return "\n";
-  if (/^instance(Pill|TextblockInline)$/.test(node.type || "")) {
-    const o = uc.occurrencesById?.[node.attrs?.occurrenceId || node.attrs?.instanceId];
-    if (o?.textmap) return blockText(uc, o.textmap);
-    return titleOf(uc, o) || node.attrs?.instanceLabel || "";
+// A row's "files" field holds { value: [artifact occurrence ids], main }.
+function filesOfRow(uc, occ) {
+  const mod = moduleOf(uc, occ);
+  const out = [];
+  for (const b of mod?.fieldBindings || []) {
+    if (b.role !== "files") continue;
+    const cell = occ.fields?.[b.fieldId];
+    const ids = Array.isArray(cell?.value) ? cell.value : [];
+    if (cell?.main && ids.includes(cell.main)) out.push(cell.main);
+    out.push(...ids);
   }
-  if (node.type === "fieldPill") return node.attrs?.label || "";
-  return (node.content || []).map((c) => inlineText(uc, c)).join("");
-}
-function blockText(uc, doc) {
-  return (doc?.content || []).map((n) => inlineText(uc, n)).join(" ").replace(/\s+/g, " ").trim();
+  return out;
 }
 
-export function pageReadable(uc, occId) {
-  const page = uc.occurrencesById?.[occId];
-  if (!page) return null;
-  const blocks = [];
-  const seen = new Set();
-  let truncated = false;
-  const push = (b) => {
-    if (blocks.length >= MAX_BLOCKS) { truncated = true; return false; }
-    if (b.text && b.text.trim()) blocks.push({ ...b, text: b.text.trim() });
-    return true;
-  };
+// A shelf is a QUERY, and the query is a board: the shelf holds whatever rows
+// the board holds (a feed board's rows are its feed). `board` is a container
+// occurrence id, or a label — then the container of that label with the most
+// rows. Each book opens the row's readable file (pdf / ebook) when it has one,
+// else the row itself (its page).
+export function findBoard(uc, board) {
+  const occs = uc.occurrencesById || {};
+  if (occs[board] && moduleOf(uc, occs[board])?.role === "container") return occs[board];
+  const want = String(board || "").trim().toLowerCase();
+  let best = null;
+  for (const o of Object.values(occs)) {
+    if (moduleOf(uc, o)?.role !== "container" || titleOf(uc, o).toLowerCase() !== want || underTemplates(uc, o)) continue;
+    if (!best || (o.occurrences || []).length > (best.occurrences || []).length) best = o;
+  }
+  return best;
+}
 
-  function walkDoc(doc, depth) {
-    for (const node of doc?.content || []) {
-      if (truncated) return;
-      walkNode(node, depth);
-    }
+// A folder of that name (when no board has it): the pages filed in it and its
+// subfolders, e.g. Documents › Notes.
+// Several folders can share a name; the one whose tree holds the most pages wins.
+function folderTree(uc, rootId) {
+  const inTree = new Set([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const f of Object.values(uc.foldersById || {})) if (f.parentId && inTree.has(f.parentId) && !inTree.has(f.id)) { inTree.add(f.id); grew = true; }
   }
-  function walkNode(node, depth) {
-    switch (node.type) {
-      case "heading": push({ type: "heading", level: Math.min(3, node.attrs?.level || 2), text: inlineText(uc, node) }); break;
-      case "paragraph": push({ type: "text", text: inlineText(uc, node) }); break;
-      case "bulletList": case "orderedList":
-        for (const li of node.content || []) push({ type: "item", text: (li.content || []).map((c) => inlineText(uc, c)).join(" ") });
-        break;
-      case "blockquote": push({ type: "text", text: "“" + blockText(uc, node) + "”" }); break;
-      case "codeBlock": push({ type: "text", text: inlineText(uc, node) }); break;
-      case "table":
-        for (const row of node.content || []) push({ type: "item", text: (row.content || []).map((c) => blockText(uc, c)).join(" | ") });
-        break;
-      case "moduleEmbed": case "instanceTextblock":
-        walkOcc(uc.occurrencesById?.[node.attrs?.occurrenceId], depth + 1);
-        break;
-      case "wrapGroup":
-        walkDoc(node, depth);
-        break;
-      default:
-        if (node.content) walkDoc(node, depth);
-    }
-  }
-  function walkOcc(occ, depth) {
-    if (!occ || seen.has(occ.id) || depth > MAX_DEPTH || truncated) return;
-    seen.add(occ.id);
+  return inTree;
+}
+function pagesInFolder(uc, inTree) {
+  const books = [];
+  for (const occ of Object.values(uc.occurrencesById || {})) {
     const mod = moduleOf(uc, occ);
-    const role = mod?.role;
-    if (role === "container" || role === "page") {
-      if (depth > 0) push({ type: "heading", level: Math.min(3, 1 + depth), text: titleOf(uc, occ) });
-      if (occ.textmap?.content?.length && (mod?.kind === "doc" || role === "page")) walkDoc(occ.textmap, depth);
-      for (const cid of occ.occurrences || []) walkOcc(uc.occurrencesById?.[cid], depth + 1);
-    } else if (role === "textblock" || (occ.textmap?.content?.length && role !== "artifact")) {
-      walkDoc(occ.textmap, depth);
-    } else if (role === "artifact") {
-      push({ type: "item", text: "[" + (mod?.kind || "file") + "] " + (titleOf(uc, occ) || mod?.meta?.originalName || "") });
-    } else {
-      push({ type: "item", text: titleOf(uc, occ) });
-    }
+    if (!mod || mod.role !== "page" || !BOOK_KINDS.has(mod.kind) || !inTree.has(occ.parentId) || occ.hidden) continue;
+    const title = titleOf(uc, occ);
+    if (title) books.push({ id: occ.id, rowId: occ.id, title, opens: "row", cover: coverOf(uc, occ) });
   }
+  return books;
+}
+function shelfFolder(uc, name, limit) {
+  const want = String(name || "").trim().toLowerCase();
+  let best = null;
+  for (const f of Object.values(uc.foldersById || {})) {
+    if ((f.name || "").trim().toLowerCase() !== want) continue;
+    const books = pagesInFolder(uc, folderTree(uc, f.id));
+    if (!best || books.length > best.books.length) best = { folder: f, books };
+  }
+  if (!best) return null;
+  best.books.sort((a, b) => a.title.localeCompare(b.title));
+  return { title: best.folder.name, folder: best.folder.id, books: best.books.slice(0, limit), total: best.books.length };
+}
 
-  walkOcc(page, 0);
-  return { id: occId, title: titleOf(uc, page), blocks, truncated };
+// The query names a board or a folder. When both exist under that name (a day
+// page has a "Notes" section; Documents has a Notes folder) the one holding
+// more wins.
+export function shelfBoard(uc, board, { limit = MAX_ROWS } = {}) {
+  const fromBoard = shelfFromBoard(uc, board, limit);
+  const fromFolder = shelfFolder(uc, board, limit);
+  if (fromBoard && fromFolder) return fromFolder.total > fromBoard.total ? fromFolder : fromBoard;
+  return fromBoard || fromFolder;
+}
+
+function shelfFromBoard(uc, board, limit) {
+  const container = findBoard(uc, board);
+  if (!container) return null;
+  const isBookFile = (id) => {
+    const o = uc.occurrencesById?.[id];
+    const m = moduleOf(uc, o);
+    return !!(o && m?.role === "artifact" && FILE_KINDS.has(m.kind) && !m.trashed);
+  };
+  const rows = [];
+  const seen = new Set();
+  for (const id of container.occurrences || []) {
+    const occ = uc.occurrencesById?.[id];
+    const mod = moduleOf(uc, occ);
+    if (!occ || !mod || mod.role === "container" || mod.role === "page" || occ.hidden) continue;
+    const key = occ.meta?.feedSourceId || occ.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const title = titleOf(uc, occ) || mod.meta?.originalName || "";
+    if (!title) continue;
+    // A feed copy opens the occurrence it was copied from, not the copy.
+    const source = (occ.meta?.feedSourceId && uc.occurrencesById?.[occ.meta.feedSourceId]) || occ;
+    const fileId = mod.role === "artifact" ? null : filesOfRow(uc, source).find(isBookFile);
+    rows.push({ id: fileId || source.id, rowId: source.id, title, opens: fileId ? "file" : (mod.role === "artifact" ? "file" : "row"), cover: coverOf(uc, occ) });
+  }
+  return { title: titleOf(uc, container), board: container.id, books: rows.slice(0, limit), total: rows.length };
 }

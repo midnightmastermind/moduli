@@ -1445,8 +1445,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   });
 
   // The searchable destination list behind the placement window.
-  // GET /vr/shelf?gridId=, GET /vr/page/:id?gridId= — what the VR office's
-  // bookshelf reads (client/public/vr). Read-only, and they take the signed-in
+  // GET /vr/shelf?gridId=[&board=<container id or label>] — what the VR
+  // office's shelves read: every page, or one board's rows (client/public/vr). Read-only, and they take the signed-in
   // session because the VR page is an app page on the same site.
   const vrGridCache = async (req, res) => {
     const gridId = String(req.query.gridId || "");
@@ -1459,21 +1459,16 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const uc = await vrGridCache(req, res);
       if (!uc) return;
-      const { shelfBooks } = await import("../services/vrShelf.js");
-      res.json(shelfBooks(uc));
+      const { shelfBooks, shelfBoard } = await import("../services/vrShelf.js");
+      if (req.query.board) {
+        const shelf = shelfBoard(uc, String(req.query.board));
+        if (!shelf) return err(res, 404, "not_found", "No board named " + req.query.board);
+        return res.json(shelf);
+      }
+      const pages = shelfBooks(uc);
+      res.json({ title: "Pages", books: pages.books, total: pages.total });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
-  router.get("/vr/page/:id", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
-    try {
-      const uc = await vrGridCache(req, res);
-      if (!uc) return;
-      const { pageReadable } = await import("../services/vrShelf.js");
-      const page = pageReadable(uc, req.params.id);
-      if (!page) return err(res, 404, "not_found", "Page not found");
-      res.json(page);
-    } catch (e) { err(res, 500, "internal_error", e.message); }
-  });
-
   router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { gridId, q, limit } = req.query;

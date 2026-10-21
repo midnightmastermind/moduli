@@ -5,7 +5,11 @@
 //     next one, a lamp on any table it found.
 //   VR: the same office inside a cozy room shell.
 // Point and pinch (or trigger) to use things:
-//   a book      -> it opens as a reading panel (◀ ▶ to turn pages, ✕ to close)
+//   a book      -> it opens in Moduli itself (`/?open=<id>`): the page in its
+//                  page view, a file in the file viewer / book reader. The
+//                  headset cannot draw those inside the 3D scene, so the VR
+//                  session ends and Moduli opens in a browser window.
+//   ◀ ▶ on a shelf -> the next or previous shelf-full
 //   the palette -> pick an object, then point at the floor / a table and pinch
 //   a placed object (or the fireplace / shelf) -> pick it up and place it again
 // The layout is kept in this browser (localStorage), not in Moduli yet.
@@ -25,22 +29,43 @@ async function api(path) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || r.status);
   return r.json();
 }
-const SAMPLE_BOOKS = ["Notes", "Fitness Plan", "Philosopher's Stone", "Gospel of Thomas", "Tasks", "Reading List", "Recipes", "Journal"]
-  .map((title, i) => ({ id: "sample-" + i, title, sample: true }));
-async function loadBooks() {
-  if (!token || !gridId) { status("Not signed in — showing sample books. Open Moduli, sign in, then come back."); return SAMPLE_BOOKS; }
-  try {
-    const { books, total } = await api("/vr/shelf");
-    status(total + " pages on your shelf" + (total > books.length ? " (newest " + books.length + ")" : ""));
-    return books;
-  } catch (e) {
-    status("Could not read your pages (" + e.message + ") — showing sample books.");
-    return SAMPLE_BOOKS;
-  }
+// A library is a QUERY: a board or folder name (or a container id). What
+// gets put into that board shows up on the shelf. Kept in this browser for now.
+const LIBRARIES_KEY = "moduli-vr-libraries";
+const DEFAULT_LIBRARIES = [
+  { title: "Notes", query: "Notes" },
+  { title: "Books", query: "Books" },
+  { title: "Albums", query: "Albums" },
+  { title: "Movies", query: "Movies" },
+];
+function libraries() {
+  try { const v = JSON.parse(localStorage.getItem(LIBRARIES_KEY) || "null"); if (Array.isArray(v) && v.length) return v; } catch (e) { /* default */ }
+  return DEFAULT_LIBRARIES;
 }
-async function loadPage(book) {
-  if (book.sample) return { title: book.title, blocks: [{ type: "text", text: "This is a sample book. Sign in to Moduli to see your own pages here." }] };
-  return api("/vr/page/" + encodeURIComponent(book.id));
+const sample = (titles) => titles.map((title) => ({ id: "sample-" + title, title, sample: true }));
+async function loadShelves() {
+  const libs = libraries();
+  if (!token || !gridId) {
+    status("Not signed in — showing sample shelves. Open Moduli, sign in, then come back.");
+    return libs.map((l) => ({ ...l, books: sample([l.title + " 1", l.title + " 2", l.title + " 3"]) }));
+  }
+  const out = await Promise.all(libs.map(async (l) => {
+    try { const r = await api("/vr/shelf?board=" + encodeURIComponent(l.query)); return { ...l, books: r.books || [], total: r.total }; }
+    catch (e) { return { ...l, books: [], error: e.message }; }
+  }));
+  status(out.map((l) => l.title + " " + (l.error ? "(not found)" : l.total)).join(" · "));
+  return out;
+}
+// Open a page or a file in Moduli's own viewer. In a headset the VR session
+// ends first (the app cannot be drawn inside the scene); the app opens in a
+// new window so this one can be re-entered.
+async function openInModuli(book) {
+  if (book.sample) { status("That is a sample book — sign in to Moduli to see your own."); return; }
+  const url = "/?open=" + encodeURIComponent(book.id);
+  const session = renderer.xr.getSession();
+  const win = window.open(url, "_blank");
+  if (session) await session.end().catch(() => {});
+  if (!win) location.href = url;
 }
 
 // ── Scene ─────────────────────────────────────────────────────────────────
@@ -119,7 +144,7 @@ function makeFireplace() {
   return g;
 }
 
-// ── Bookshelf ─────────────────────────────────────────────────────────────
+// ── Bookshelves ───────────────────────────────────────────────────────────
 const hash = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 const SPINE_COLORS = [0x7a2e2e, 0x2e4a7a, 0x2e6a4a, 0x6a5a2e, 0x5a2e6a, 0x8a5a2a, 0x3a3a3a, 0x7a6a5a];
 function spineTexture(title, color) {
@@ -134,92 +159,72 @@ function spineTexture(title, color) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-function makeBookshelf(books) {
+function labelTexture(text, w = 512, h = 96) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const x = c.getContext("2d");
+  x.fillStyle = "#2a1c12"; x.fillRect(0, 0, w, h);
+  x.fillStyle = "#e8c98a"; x.font = "bold " + Math.round(h * 0.42) + "px Georgia"; x.textAlign = "center"; x.textBaseline = "middle";
+  x.fillText(text, w / 2, h / 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function plaque(text, w, h) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: labelTexture(text, 512, Math.round(512 * h / w)) }));
+  return m;
+}
+// Books are packed onto shelves in order; whatever does not fit goes onto
+// the next "shelf-full", reached with the ◀ ▶ plaques on top.
+function makeBookshelf(title, books) {
   const g = new THREE.Group();
-  const W = 1.0, H = 1.8, D = 0.3, wood = 0x4e3220;
+  const W = 1.1, H = 1.8, D = 0.3, wood = 0x4e3220, SHELVES = 5;
   g.add(box(W, H, 0.02, wood, 0, H / 2, -D / 2 + 0.01));
   g.add(box(0.03, H, D, wood, -W / 2, H / 2, 0));
   g.add(box(0.03, H, D, wood, W / 2, H / 2, 0));
-  const shelves = 5;
-  for (let i = 0; i <= shelves; i++) g.add(box(W, 0.025, D, wood, 0, 0.02 + i * (H - 0.04) / shelves, 0));
-  let shelf = 0, x = -W / 2 + 0.04;
+  for (let i = 0; i <= SHELVES; i++) g.add(box(W, 0.025, D, wood, 0, 0.02 + i * (H - 0.04) / SHELVES, 0));
+  // pack every book once: [{ book, page, shelf, x, t, h }]
+  const slots = []; let page = 0, shelf = 0, x = -W / 2 + 0.04;
   for (const book of books) {
     const h = 0.24 + (hash(book.title) % 6) / 100, t = 0.035 + (hash(book.title + "w") % 3) / 100;
     if (x + t > W / 2 - 0.03) { shelf++; x = -W / 2 + 0.04; }
-    if (shelf >= shelves) break;
-    const color = SPINE_COLORS[hash(book.title) % SPINE_COLORS.length];
-    const spine = new THREE.MeshStandardMaterial({ map: spineTexture(book.title, color), roughness: 0.7 });
-    const plain = mat(color), pages = mat(0xe9dfc8);
-    // BoxGeometry faces: +x, -x, +y, -y, +z (front = spine), -z
-    const m = new THREE.Mesh(new THREE.BoxGeometry(t, h, D * 0.8), [plain, plain, pages, pages, spine, plain]);
-    m.position.set(x + t / 2, 0.035 + shelf * (H - 0.04) / shelves + h / 2, 0.01);
-    m.castShadow = true;
-    m.userData.onSelect = () => openBook(book, m);
-    m.userData.hoverable = true;
-    g.add(m); interactive.push(m);
+    if (shelf >= SHELVES) { page++; shelf = 0; x = -W / 2 + 0.04; }
+    slots.push({ book, page, shelf, x, t, h });
     x += t + 0.004;
   }
+  const pageCount = page + 1;
+  const bookGroup = new THREE.Group(); g.add(bookGroup);
+  const titlePlaque = plaque(title, 0.6, 0.09); titlePlaque.position.set(0, H + 0.08, 0.02); g.add(titlePlaque);
+  let current = 0;
+  const show = (p) => {
+    current = (p + pageCount) % pageCount;
+    for (const m of [...bookGroup.children]) { bookGroup.remove(m); const i = interactive.indexOf(m); if (i >= 0) interactive.splice(i, 1); }
+    for (const s of slots) {
+      if (s.page !== current) continue;
+      const color = SPINE_COLORS[hash(s.book.title) % SPINE_COLORS.length];
+      const spine = new THREE.MeshStandardMaterial({ map: spineTexture(s.book.title, color), roughness: 0.7 });
+      const plain = mat(color), edges = mat(0xe9dfc8);
+      // BoxGeometry faces: +x, -x, +y, -y, +z (front = spine), -z
+      const m = new THREE.Mesh(new THREE.BoxGeometry(s.t, s.h, D * 0.8), [plain, plain, edges, edges, spine, plain]);
+      m.position.set(s.x + s.t / 2, 0.035 + s.shelf * (H - 0.04) / SHELVES + s.h / 2, 0.01);
+      m.castShadow = true;
+      m.userData.onSelect = () => { m.position.z += 0.08; openInModuli(s.book); setTimeout(() => (m.position.z -= 0.08), 900); };
+      m.userData.hoverable = true;
+      bookGroup.add(m); interactive.push(m);
+    }
+    counter.material.map?.dispose();
+    counter.material.map = labelTexture((current + 1) + " / " + pageCount, 256, 96);
+    counter.material.needsUpdate = true;
+  };
+  const counter = plaque("", 0.16, 0.06); counter.position.set(0, H + 0.0, 0.17); g.add(counter);
+  if (pageCount > 1) {
+    const prev = plaque("◀", 0.09, 0.07), next = plaque("▶", 0.09, 0.07);
+    prev.position.set(-0.15, H, 0.17); next.position.set(0.15, H, 0.17);
+    prev.userData.onSelect = () => show(current - 1); next.userData.onSelect = () => show(current + 1);
+    g.add(prev, next); interactive.push(prev, next);
+  } else counter.visible = false;
+  show(0);
+  g.userData.pageCount = pageCount;
   return g;
 }
-
-// ── Reading panel ─────────────────────────────────────────────────────────
-const PANEL_W = 0.62, PANEL_H = 0.78, PX_W = 1024, PX_H = 1288;
-const panelCanvas = document.createElement("canvas"); panelCanvas.width = PX_W; panelCanvas.height = PX_H;
-const panelTex = new THREE.CanvasTexture(panelCanvas); panelTex.colorSpace = THREE.SRGBColorSpace;
-const panel = new THREE.Mesh(new THREE.PlaneGeometry(PANEL_W, PANEL_H), new THREE.MeshBasicMaterial({ map: panelTex, transparent: true }));
-panel.visible = false; scene.add(panel);
-let reading = null; // { page, pages: [[lines]], index, book }
-
-function layoutPages(page) {
-  const x = panelCanvas.getContext("2d");
-  const pages = [[]]; let y = 0; const top = 150, bottom = PX_H - 110, maxW = PX_W - 140;
-  const add = (line) => { if (top + y + line.size * 1.45 > bottom) { pages.push([]); y = 0; } pages[pages.length - 1].push({ ...line, y }); y += line.size * 1.45; };
-  for (const b of page.blocks) {
-    const size = b.type === "heading" ? (b.level === 1 ? 46 : b.level === 2 ? 38 : 33) : 30;
-    const font = (b.type === "heading" ? "bold " : "") + size + "px Georgia";
-    x.font = font;
-    const words = ((b.type === "item" ? "• " : "") + b.text).split(/\s+/);
-    let cur = "";
-    if (b.type === "heading" && y > 0) y += 12;
-    for (const w of words) {
-      const test = cur ? cur + " " + w : w;
-      if (x.measureText(test).width > maxW && cur) { add({ text: cur, font, size }); cur = w; } else cur = test;
-    }
-    if (cur) add({ text: cur, font, size });
-    y += 10;
-  }
-  if (page.truncated) add({ text: "(this page goes on — open it in Moduli for the rest)", font: "italic 26px Georgia", size: 26 });
-  return pages;
-}
-function drawPanel() {
-  const x = panelCanvas.getContext("2d");
-  x.clearRect(0, 0, PX_W, PX_H);
-  x.fillStyle = "#f3ead7"; roundRect(x, 0, 0, PX_W, PX_H, 40); x.fill();
-  x.fillStyle = "#3a2a1c"; x.font = "bold 44px Georgia"; x.textAlign = "left";
-  const title = reading?.page?.title || "";
-  x.fillText(title.length > 34 ? title.slice(0, 33) + "…" : title, 70, 90);
-  x.fillStyle = "#c9b48f"; x.fillRect(70, 112, PX_W - 140, 3);
-  if (reading?.loading) { x.font = "32px Georgia"; x.fillText("Opening…", 70, 200); }
-  for (const l of reading?.pages?.[reading.index] || []) { x.font = l.font; x.fillStyle = "#2b2016"; x.fillText(l.text, 70, 150 + l.y + l.size); }
-  // footer controls: ◀  page n / N  ▶   and ✕ top-right
-  x.font = "bold 54px system-ui"; x.fillStyle = "#8a5a2a"; x.textAlign = "center";
-  x.fillText("◀", 110, PX_H - 40); x.fillText("▶", PX_W - 110, PX_H - 40); x.fillText("✕", PX_W - 70, 92);
-  x.font = "28px Georgia"; x.fillStyle = "#6b5a44";
-  if (reading?.pages) x.fillText((reading.index + 1) + " / " + reading.pages.length, PX_W / 2, PX_H - 50);
-  panelTex.needsUpdate = true;
-}
-function roundRect(x, l, t, w, h, r) { x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r); x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath(); }
-panel.userData.onSelect = (hit) => {
-  const u = hit.uv.x, v = hit.uv.y;
-  if (u > 0.86 && v > 0.88) return closeBook();
-  if (!reading?.pages) return;
-  if (v < 0.12 && u < 0.3) reading.index = Math.max(0, reading.index - 1);
-  else if (v < 0.12 && u > 0.7) reading.index = Math.min(reading.pages.length - 1, reading.index + 1);
-  else if (u > 0.5) reading.index = Math.min(reading.pages.length - 1, reading.index + 1);
-  else reading.index = Math.max(0, reading.index - 1);
-  drawPanel();
-};
-interactive.push(panel);
 
 function headPose() {
   const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
@@ -232,20 +237,7 @@ function placeInFront(obj, dist, height) {
   obj.position.copy(pos).addScaledVector(dir, dist); obj.position.y = height ?? pos.y - 0.1;
   obj.lookAt(pos.x, obj.position.y, pos.z);
 }
-async function openBook(book, mesh) {
-  if (mesh) { mesh.position.z += 0.06; setTimeout(() => (mesh.position.z -= 0.06), 900); }
-  reading = { book, loading: true, page: { title: book.title } };
-  placeInFront(panel, 0.75);
-  panel.visible = true; drawPanel();
-  try {
-    const page = await loadPage(book);
-    reading = { book, page, pages: layoutPages(page), index: 0 };
-  } catch (e) {
-    reading = { book, page: { title: book.title }, pages: [[{ text: "Could not open: " + e.message, font: "30px Georgia", size: 30, y: 0 }]], index: 0 };
-  }
-  drawPanel();
-}
-function closeBook() { panel.visible = false; reading = null; }
+function roundRect(x, l, t, w, h, r) { x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r); x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath(); }
 
 // ── Objects you can place ─────────────────────────────────────────────────
 const MAKERS = {
@@ -301,15 +293,15 @@ const LABELS = { armchair: "Armchair", lamp: "Floor lamp", desklamp: "Desk lamp"
 const placed = []; // { type, obj }
 let holding = null; // { obj, type, fixed } while choosing where it goes
 function spawn(type) {
-  const obj = type === "fireplace" ? fireplace : type === "bookshelf" ? bookshelf : MAKERS[type]();
+  const obj = FIXTURES[type] || MAKERS[type]();
   obj.userData.type = type;
   if (!office.children.includes(obj)) office.add(obj);
   // every mesh in it picks the whole object up again
   obj.traverse((m) => { if (m.isMesh && !m.userData.onSelect) { m.userData.onSelect = () => pickUp(obj); interactive.push(m); } });
   return obj;
 }
-function pickUp(obj) { if (holding) return; closeBook(); holding = { obj, type: obj.userData.type }; status("Point where it should go and pinch"); }
-function choose(type) { closeBook(); if (holding) return; const obj = spawn(type); placed.push({ type, obj }); holding = { obj, type }; status("Point at the floor or a table and pinch to place the " + LABELS[type].toLowerCase()); }
+function pickUp(obj) { if (holding) return; holding = { obj, type: obj.userData.type }; status("Point where it should go and pinch"); }
+function choose(type) { if (holding) return; const obj = spawn(type); placed.push({ type, obj }); holding = { obj, type }; status("Point at the floor or a table and pinch to place the " + LABELS[type].toLowerCase()); }
 function drop(point, faceUser) {
   const { obj } = holding; holding = null;
   obj.position.copy(point);
@@ -344,7 +336,10 @@ palette.userData.onSelect = (hit) => {
 scene.add(palette); interactive.push(palette);
 
 // ── Layout (kept in this browser) ─────────────────────────────────────────
-let fireplace, bookshelf;
+let fireplace;
+const shelves = [];   // one per library, in order
+const FIXTURES = {};   // fireplace / bookshelf / library: one of each, never minted again
+const isFixture = (type) => type in FIXTURES;
 function saveLayout() {
   const items = office.children.filter((o) => o.userData.type).map((o) => ({
     type: o.userData.type, p: o.position.toArray().map((n) => +n.toFixed(3)), r: +o.rotation.y.toFixed(3),
@@ -355,7 +350,7 @@ function loadLayout() { try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)
 function applyLayout(items) {
   for (const it of items) {
     const obj = spawn(it.type);
-    if (it.type !== "fireplace" && it.type !== "bookshelf") placed.push({ type: it.type, obj });
+    if (!isFixture(it.type)) placed.push({ type: it.type, obj });
     obj.position.fromArray(it.p); obj.rotation.set(0, it.r, 0);
   }
 }
@@ -366,7 +361,9 @@ $("resetLayout").onclick = () => {
 };
 function defaultLayout() {
   fireplace.position.set(0, 0, -1.8); fireplace.rotation.set(0, 0, 0);
-  bookshelf.position.set(-2.4, 0, -0.6); bookshelf.rotation.set(0, Math.PI / 2, 0);
+  // shelves down both side walls, two per wall
+  const spots = [[-2.4, -1.0, Math.PI / 2], [-2.4, 0.4, Math.PI / 2], [2.4, -1.0, -Math.PI / 2], [2.4, 0.4, -Math.PI / 2]];
+  shelves.forEach((sh, i) => { const [x, z, r] = spots[i % spots.length]; sh.position.set(x, 0, z + Math.floor(i / spots.length) * 1.3); sh.rotation.set(0, r, 0); });
   palette.position.set(0.9, 1.1, 1.0); palette.lookAt(0, 1.4, 2.6);
 }
 
@@ -409,7 +406,13 @@ function fitToRoom(frame, refSpace) {
   };
   if (!loadLayout()) {
     onWall(fireplace, walls[0]);
-    if (walls[1]) onWall(bookshelf, walls[1]); else onWall(bookshelf, walls[0], 1.4);
+    // shelves on the other walls, side by side (1.25m apart), wrapping round the room
+    const others = walls.length > 1 ? walls.slice(1) : walls;
+    shelves.forEach((sh, i) => {
+      const wall = others[i % others.length];
+      const k = Math.floor(i / others.length);
+      onWall(sh, wall, (walls.length > 1 ? 0 : 1.4) + (k % 2 ? -1 : 1) * Math.ceil(k / 2) * 1.25);
+    });
     if (tables[0]) { const l = spawn("desklamp"); placed.push({ type: "desklamp", obj: l }); l.position.copy(tables[0].pos); }
     saveLayout();
   }
@@ -503,23 +506,20 @@ renderer.setAnimationLoop((t, frame) => {
 });
 
 // For checking the page from a test browser.
-window.__vr = { scene, camera, interactive, palette, panel, office, placed, choose, onSelect, raycaster };
+window.__vr = { scene, camera, interactive, palette, office, placed, choose, onSelect, raycaster, opened: [] };
 
 // ── Start ─────────────────────────────────────────────────────────────────
 (async () => {
-  const books = await loadBooks();
-  fireplace = makeFireplace(); bookshelf = makeBookshelf(books);
-  spawn("fireplace"); spawn("bookshelf");
+  const libs = await loadShelves();
+  fireplace = makeFireplace();
+  FIXTURES.fireplace = fireplace;
+  libs.forEach((l, i) => { const sh = makeBookshelf(l.title, l.books); shelves.push(sh); FIXTURES["shelf:" + i] = sh; });
+  for (const t of Object.keys(FIXTURES)) spawn(t);
   defaultLayout();
   const saved = loadLayout();
   if (saved) {
-    for (const it of saved) {
-      if (it.type === "fireplace" || it.type === "bookshelf") {
-        const o = it.type === "fireplace" ? fireplace : bookshelf;
-        o.position.fromArray(it.p); o.rotation.set(0, it.r, 0);
-      }
-    }
-    applyLayout(saved.filter((it) => it.type !== "fireplace" && it.type !== "bookshelf"));
+    for (const it of saved) if (isFixture(it.type)) { FIXTURES[it.type].position.fromArray(it.p); FIXTURES[it.type].rotation.set(0, it.r, 0); }
+    applyLayout(saved.filter((it) => !isFixture(it.type) && MAKERS[it.type]));
   }
   if (!navigator.xr) status($("status").textContent + " · this browser has no WebXR; open this page on the Quest");
 })();

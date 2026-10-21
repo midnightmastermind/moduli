@@ -66,7 +66,8 @@ import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { revealNewRow } from "./helpers/revealNewRow.js";
 import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
-import { bindSnapshotInputGuard } from "./state/snapshotMode.js";
+import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js";
+import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -320,6 +321,21 @@ export default function App() {
     setCommandCenterOpen(true);
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
   }, []);
+
+  // `/?open=<occurrenceId>` (the VR office's bookshelf hands books back this
+  // way): open that page or file once the real grid is here — not the boot
+  // snapshot (read-only) and not before the deferred half (it carries files).
+  const openLinkRef = useRef(openParamFrom(window.location.search));
+  useEffect(() => {
+    const occId = openLinkRef.current;
+    if (!occId || isSnapshotMode() || !state.grid) return;
+    const found = !!occurrencesById[occId];
+    if (!found && state.awaitingDeferred !== false) return;
+    openLinkRef.current = null;
+    window.history.replaceState(null, "", withoutOpenParam(window.location));
+    const res = openFromLink({ occId, grid: state.grid, occurrencesById, modulesById, viewsById, dispatch, socket });
+    if (!res.ok) toast(`Could not open that item: ${res.reason}.`);
+  }, [occurrencesById, modulesById, viewsById, state.grid, state.awaitingDeferred, dispatch, socket]);
 
   // Prevent OS from intercepting unhandled drags. Per user request, the
   // CommandCenter does NOT auto-collapse on drag start — only file (artifact)

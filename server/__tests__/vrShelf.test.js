@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shelfBooks, pageReadable } from "../services/vrShelf.js";
+import { shelfBooks, shelfBoard } from "../services/vrShelf.js";
 
 const p = (text) => ({ type: "paragraph", content: [{ type: "text", text }] });
 function grid() {
@@ -38,26 +38,25 @@ describe("vrShelf", () => {
     expect(total).toBe(2);
   });
 
-  it("flattens a doc page through its embedded sections", () => {
-    const r = pageReadable(grid(), "page");
-    expect(r.title).toBe("Notes");
-    expect(r.blocks).toEqual([
-      { type: "heading", level: 1, text: "Hello" },
-      { type: "text", text: "First line." },
-      { type: "heading", level: 2, text: "Intro" },
-      { type: "text", text: "Inside a section." },
-    ]);
-  });
-
-  it("reads a board page's containers and rows", () => {
-    const r = pageReadable(grid(), "board");
-    expect(r.blocks).toEqual([
-      { type: "heading", level: 2, text: "Today" },
-      { type: "item", text: "Email Sam" },
-    ]);
-  });
-
-  it("returns null for a page that is not there", () => {
-    expect(pageReadable(grid(), "nope")).toBeNull();
+  it("a board shelf holds the board's rows; a row with a book file opens the file", () => {
+    const g = grid();
+    g.modulesById.mBook = { id: "mBook", role: "instance", label: "Book", fieldBindings: [{ fieldId: "files", role: "files" }] };
+    g.modulesById.mBooks = { id: "mBooks", role: "container", kind: "board", label: "Books" };
+    g.modulesById.mEpub = { id: "mEpub", role: "artifact", kind: "ebook", label: "x.epub" };
+    g.modulesById.mImg = { id: "mImg", role: "artifact", kind: "image", label: "pic.png" };
+    g.occurrencesById.books = { id: "books", moduleId: "mBooks", occurrences: ["zen", "dune", "zenCopy"] };
+    g.occurrencesById.zen = { id: "zen", moduleId: "mBook", label: "The Way of Zen", fields: { files: { value: ["img", "epub"], main: "epub" } } };
+    g.occurrencesById.zenCopy = { id: "zenCopy", moduleId: "mBook", label: "The Way of Zen", meta: { feedSourceId: "zen" } };
+    g.occurrencesById.dune = { id: "dune", moduleId: "mBook", label: "Dune", fields: { files: { value: ["img"] } } };
+    g.occurrencesById.epub = { id: "epub", moduleId: "mEpub" };
+    g.occurrencesById.img = { id: "img", moduleId: "mImg" };
+    const shelf = shelfBoard(g, "Books");
+    expect(shelf.title).toBe("Books");
+    expect(shelf.books.map((b) => [b.title, b.id, b.opens])).toEqual([["The Way of Zen", "epub", "file"], ["Dune", "dune", "row"]]);
+    expect(shelfBoard(g, "books").board).toBe("books");   // by id too
+    // a feed board's copies open their source
+    g.occurrencesById.feed = { id: "feed", moduleId: "mBooks", label: "Feed", occurrences: ["zenCopy"] };
+    expect(shelfBoard(g, "feed").books.map((b) => [b.id, b.rowId])).toEqual([["epub", "zen"]]);
+    expect(shelfBoard(g, "Nope")).toBeNull();
   });
 });
