@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-21 — localLayout.js NEW; fileKind `model`)
+- `localLayout.js`: `isLocalLayout/setLocalLayout` (sessionStorage), `keepLocal(event, data)` (true for
+  `update_view`, `update_grid`, `update_occurrence` on a panel id — safeEmit drops those), `incomingGridPatch`
+  (strips rows/cols/sizes/active filter values; keeps this tab's layoutTree/layoutRules). Test `localLayout` (6).
+- `fileKind.js`: `.glb/.gltf` → `model`, mirroring `server/utils/uploadKinds`.
+
 ## Recent Changes (2026-10-20 — fieldCategories.js NEW)
 - `fieldCategoryFolders`, `groupFieldsByCategory`, `uniqueFieldName` (moved out of FieldsTab) and
   `appendFieldBinding(bindings, fieldId)` (append visible after the highest order, show a hidden one, null

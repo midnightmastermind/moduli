@@ -11,6 +11,10 @@ const CALENDAR_EXTENSIONS = new Set([".ics", ".ical", ".ifb", ".vcs"]);
 // markdown note and could not be opened). Kindle files often arrive with no mime at all.
 export const EBOOK_EXTENSIONS = new Set([".epub", ".mobi", ".azw", ".azw3", ".kf8"]);
 const EBOOK_MIMES = new Set(["application/epub+zip", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook", "application/vnd.amazon.mobi8-ebook"]);
+// A 3D model (the VR office's decor, user 2026-10-21) — as "markdown" a binary
+// .glb would open in the note editor. .glb is one self-contained file.
+export const MODEL_EXTENSIONS = new Set([".glb", ".gltf"]);
+const MODEL_MIMES = new Set(["model/gltf-binary", "model/gltf+json"]);
 export function mimeToKind(mime, filename = "") {
   if (mime?.startsWith("image/")) return "image";
   if (mime?.startsWith("video/")) return "video";
@@ -18,6 +22,7 @@ export function mimeToKind(mime, filename = "") {
   if (mime === "application/pdf") return "pdf";
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
   if (EBOOK_MIMES.has(mime) || EBOOK_EXTENSIONS.has(ext)) return "ebook";
+  if (MODEL_MIMES.has(mime) || MODEL_EXTENSIONS.has(ext)) return "model";
   if (CODE_EXTENSIONS.has(ext)) return "code";
   // A calendar file is data, not a note: as "markdown" it opened in the note
   // editor, which runs its lines together, and saving there would rewrite the

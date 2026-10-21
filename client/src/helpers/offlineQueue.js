@@ -3,6 +3,7 @@
 
 import { getActionId, getActionLabel } from "./actionScope";
 import { isSnapshotMode } from "../state/snapshotMode.js";
+import { keepLocal } from "./localLayout.js";
 
 const queue = [];
 
@@ -48,6 +49,9 @@ export function safeEmit(socket, event, data) {
   // The boot snapshot is a READ-ONLY copy (user, 2026-10-13: "id like to scroll a read only
   // copy"): input is held (state/snapshotMode), and anything written from it is dropped.
   if (isSnapshotMode() && !NON_MUTATING.has(event)) return;
+  // "This device only" layout (the VR office): panel pages, the split layout and the
+  // date filter stay in this tab (helpers/localLayout).
+  if (keepLocal(event, data)) return;
   // `window.__emitDiag = true` records every write with the stack that made it
   // (window.__emitLog) — for "who sent this?" when a value is overwritten.
   if (typeof window !== "undefined" && window.__emitDiag) {

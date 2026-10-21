@@ -13,6 +13,10 @@ const CODE_EXTENSIONS = new Set([
 const EBOOK_EXTENSIONS = new Set([".epub", ".mobi", ".azw", ".azw3", ".kf8"]);
 const EBOOK_MIMES = new Set(["application/epub+zip", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook", "application/vnd.amazon.mobi8-ebook"]);
 
+// A 3D model (the VR office's decor, user 2026-10-21) — as "markdown" a binary
+// .glb would open in the note editor. .glb is one self-contained file.
+export const MODEL_EXTENSIONS = new Set([".glb", ".gltf"]);
+const MODEL_MIMES = new Set(["model/gltf-binary", "model/gltf+json"]);
 export function mimeToKind(mime, filename = "") {
   if (mime?.startsWith("image/")) return "image";
   if (mime?.startsWith("video/")) return "video";
@@ -20,6 +24,7 @@ export function mimeToKind(mime, filename = "") {
   if (mime === "application/pdf") return "pdf";
   const ext = filename.includes(".") ? "." + filename.split(".").pop().toLowerCase() : "";
   if (EBOOK_MIMES.has(mime) || EBOOK_EXTENSIONS.has(ext)) return "ebook";
+  if (MODEL_MIMES.has(mime) || MODEL_EXTENSIONS.has(ext)) return "model";
   if (CODE_EXTENSIONS.has(ext)) return "code";
   return "markdown";
 }

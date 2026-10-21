@@ -195,19 +195,24 @@ const inputStyle = {
   padding: "3px 6px",
 };
 
-export default function FeedSection({ occurrence }) {
+// `feed` + `onFeedChange` (with an `occurrence`-shaped `{ id, gridId }` owner)
+// edit a feed that is NOT stored on an occurrence — the VR office's shelves keep
+// their query on the grid (vr/officeConfig). Same editor, same live count.
+export default function FeedSection({ occurrence, feed: controlledFeed, onFeedChange }) {
   const { dispatch, socket, occurrencesById, modulesById, fieldsById } = useGridActions() || {};
-  const feed = occurrence?.feed || null;
+  const controlled = typeof onFeedChange === "function";
+  const feed = (controlled ? controlledFeed : occurrence?.feed) || null;
   const cfg = feed || {};
 
   const write = useCallback((next) => {
+    if (controlled) { onFeedChange(next); return; }
     if (!occurrence?.id) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrence.id, feed: next },
       emit: true,
     });
-  }, [occurrence?.id, dispatch, socket]);
+  }, [controlled, onFeedChange, occurrence?.id, dispatch, socket]);
 
   const patch = useCallback((p) => {
     write({
@@ -260,7 +265,7 @@ export default function FeedSection({ occurrence }) {
             </span>
           )}
         </div>
-        <button
+        {!controlled && <button
           onClick={() => patch({ enabled: !feed?.enabled })}
           style={{
             fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
@@ -271,7 +276,7 @@ export default function FeedSection({ occurrence }) {
           }}
         >
           {feed?.enabled ? "On" : "Off"}
-        </button>
+        </button>}
       </div>
 
       {/* SHOWN WHILE OFF, so a feed is built BEFORE it pulls anything. It used to

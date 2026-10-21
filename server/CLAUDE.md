@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-10-21 — `PUT /api/v1/vr/office`; upload kind `model`)
+- `routes/apiV1.js`: `PUT /vr/office` (session JWT allowed) sanitizes shelves/screens and `$set`s ONLY
+  `meta.vrOffice` on the caller's grid, then emits `grid_updated {grid:{id, meta}}`. `services/vrShelf.js` and the
+  `/vr/shelf` route are gone (shelves are client-side feeds now).
+- `utils/uploadKinds.js`: `.glb/.gltf` (and their mimes) → kind `model` (VR decor). Homed in Files/Documents.
+
 ## Recent Changes (2026-10-16 — 0401's matcher: cut titles, author-first rows, fall-through)
 - `planBookLinks` tries, in order: exact, title key, main title, **a cut file title (>=15 chars) that starts a
   row's title**, **a row title (>=12) that starts the file's at a word**, **author and title both inside the row

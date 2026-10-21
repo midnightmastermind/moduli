@@ -15,6 +15,35 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-21 — THE VR OFFICE RUNS INSIDE MODULI: shelves are queries, screens show pages, a decor library
+
+Picked up account2's VR plan (`docs/vr-office-plan.md`; its weekly limit hit mid-change). The user's answers:
+a shelf is a QUERY (*"it wouldnt be a board page, it would just be a query"*), run inside Moduli; then *"custom
+screens … set to pages directly"* · *"show the whole grid on the screen too"* · *"make sure the grid opening up on a
+screen does not affect the layout for other devices"* · *"a library of custom assets … so i can decorate the room"*.
+- **`/?office`** mounts `vr/VrOffice` (lazy, three.js); `/vr/` redirects there. Config lives in
+  `grid.meta.vrOffice = { shelves:[{id,title,asset,feed}], screens:[{id,title,source:page|grid,pageOccId}] }`,
+  saved by `PUT /api/v1/vr/office` (writes that key ONLY). Placement is per device (localStorage).
+- **A shelf** = a feed answered by `resolveFeedItems` (no copies, no board page); its settings dialog is the real
+  `FeedSection` in a new CONTROLLED mode (`feed` + `onFeedChange`, no On/Off). A shelf with no conditions and no
+  scope holds NOTHING (a bare feed means the whole grid). New shelves pull `instance` + `artifact` — poms' books,
+  songs and movies are artifacts.
+- **A screen** is a picture (html-to-image) of `.grid-frame` or of the page rendered off screen through
+  `PagePreviewBody`; ⟳ re-pictures it. Screens and shelves rebuild only when their settings/contents change — the
+  first version rebuilt every screen whenever rows changed (re-picturing the whole grid every 5s, which stalled the
+  probe's tab) and a slow picture landed on the screen object the rebuild had just discarded.
+- **Local layout** (`helpers/localLayout`): while the office is open the tab keeps panels, page choices and the date
+  to itself — `safeEmit` drops `update_view`, `update_grid` and panel `update_occurrence`; incoming grid layout keys
+  and `view_updated` are ignored. `ui/LocalLayoutPill` says so, with "Sync with my other devices".
+- **Decor**: six built-ins plus every `.glb/.gltf` on the grid (new upload kind `model`, client + server) — upload a
+  model anywhere and it is on the palette. Grab, place, saved per device.
+- **Watched on prod data (local build, office save stubbed):** Books shelf (scope = the Books board) 200 rows over 2
+  pages, grid screen and Routines page screen painted 1280×720, an armchair placed and remembered, 0 page errors,
+  0 writes from the office. **Not tested on a Quest.** Still planned: the reader anywhere in the room, records, VHS,
+  typewriter. Probes `_office.mjs`, `_officebooks.mjs`. Tests `vrOffice` (14), `localLayout` (6), `fileKindModel`.
+
+---
+
 ### 2026-10-20 (13) — THE LAST "NOT DRIVEN" ROW: a table page's "+" works; every chart type re-run on live data
 
 Picked up the other account (session limit at 16:17). Its last step was a scratch run of all 9 chart types over six

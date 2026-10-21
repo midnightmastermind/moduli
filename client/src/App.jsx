@@ -31,6 +31,8 @@ import Toolbar from "./Toolbar";
 // Lazy: CommandCenter pulls the whole settings-tab tree + the blocks
 // operations editor — none of it is needed before the user opens it.
 const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
+// The VR office (vr/VrOffice) — three.js lives only in this chunk.
+const VrOffice = React.lazy(() => import("./vr/VrOffice.jsx"));
 import AssistantDrawer from "./ui/AssistantDrawer";
 import TextContextMenu from "./ui/TextContextMenu";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
@@ -68,6 +70,8 @@ import { revealNewRow } from "./helpers/revealNewRow.js";
 import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
 import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js";
 import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
+import { setPanelIdsGetter } from "./helpers/localLayout.js";
+import LocalLayoutPill from "./ui/LocalLayoutPill.jsx";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -336,6 +340,22 @@ export default function App() {
     const res = openFromLink({ occId, grid: state.grid, occurrencesById, modulesById, viewsById, dispatch, socket });
     if (!res.ok) toast(`Could not open that item: ${res.reason}.`);
   }, [occurrencesById, modulesById, viewsById, state.grid, state.awaitingDeferred, dispatch, socket]);
+
+  // `/?office` opens the VR office over the grid (the grid stays rendered under
+  // it: a "whole grid" screen is a picture of it).
+  const [officeOpen, setOfficeOpen] = useState(() => new URLSearchParams(window.location.search).has("office"));
+  const closeOffice = useCallback(() => {
+    setOfficeOpen(false);
+    const q = new URLSearchParams(window.location.search); q.delete("office");
+    window.history.replaceState(null, "", window.location.pathname + (q.toString() ? "?" + q : "") + window.location.hash);
+  }, []);
+  // helpers/localLayout needs to know which occurrences are panels, at write time.
+  const gridOccsRef = useRef(null);
+  gridOccsRef.current = state.grid?.occurrences;
+  useEffect(() => {
+    setPanelIdsGetter(() => new Set(gridOccsRef.current || []));
+    return () => setPanelIdsGetter(null);
+  }, []);
 
   // Prevent OS from intercepting unhandled drags. Per user request, the
   // CommandCenter does NOT auto-collapse on drag start — only file (artifact)
@@ -1277,6 +1297,15 @@ export default function App() {
             has to be mounted where the drag context exists, or its tiles
             register as draggables and then hand every gesture to a no-op.
             Do not move it back up here without moving DragProvider with it. */}
+        <LocalLayoutPill hidden={officeOpen} />
+        {officeOpen && state.grid && (
+          <React.Suspense fallback={null}>
+            <VrOffice
+              grid={state.grid} occurrencesById={occurrencesById} modulesById={modulesById} viewsById={viewsById}
+              dispatch={dispatch} socket={socket} onClose={closeOffice}
+            />
+          </React.Suspense>
+        )}
       </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>

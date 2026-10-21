@@ -51,6 +51,7 @@ import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 import { loadBootSnapshot, saveBootSnapshot } from "../helpers/bootSnapshot.js";
 import { applyViewOverlay, recordViewPage } from "../helpers/bootViewOverlay";
 import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
+import { incomingGridPatch, isLocalLayout } from "../helpers/localLayout.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -1247,7 +1248,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onGridUpdated(payload = {}) {
     // The REST route (routes/apiV1) sends `{ grid }` with the id INSIDE it.
     const gridId = payload.gridId || payload.id || payload.grid?.id;
-    const patch = payload.grid || payload;
+    // A tab keeping its layout to itself (the VR office) ignores other devices'
+    // layout and date filter (helpers/localLayout).
+    const patch = incomingGridPatch(payload.grid || payload, stateRef.current?.grid?.meta);
 
     if (!gridId) return;
 
@@ -1326,6 +1329,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onViewUpdated(p = {}) {
     const view = p.view || p;
     if (!view?.id) return;
+    // Which page a panel shows is layout: a local-layout tab keeps its own.
+    if (isLocalLayout()) return;
     if (view.activeOccurrenceId) recordViewPage(localStorage.getItem("moduli-gridId"), view.id, view.activeOccurrenceId);
     socketDispatch({ type: ActionTypes.UPDATE_VIEW, payload: { view } });
   }

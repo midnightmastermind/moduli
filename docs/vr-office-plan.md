@@ -4,27 +4,52 @@ User direction, 2026-10-21 (CLAUDE_CHAT.md 11:33–11:52): a Quest 3 app that tu
 a hotel room into a cozy fireplace office, maps the real room, puts VR furniture
 where the real furniture is, and shelves Moduli content you can pick up and use.
 
-## Shipped (prototype, `/vr/`)
+## Shipped
 
-- WebXR page at `client/public/vr/` (Three.js from a CDN, no build step).
-  Mixed reality (passthrough) or full VR; the desktop shows the same scene.
-- Room fitting from Space Setup: fireplace on the biggest wall, shelves on the
-  other walls, a desk lamp on any table the headset found.
-- Shelves are queries. Each one names a board or folder (or a container id) and
-  shows its rows; ◀ ▶ on top flips through shelf-fulls. Defaults: Notes, Books,
-  Albums, Movies. A feed board's rows are its feed, so a shelf pointed at a feed
-  board shows exactly what the feed collects; a feed copy opens its source.
-- Pointing at a book opens it in Moduli itself: `/?open=<id>` (App.jsx +
-  `helpers/deepLinkOpen.js`). A file opens as its own page (file viewer / book
-  reader), anything else opens the page it lives on. The VR session ends and
-  Moduli opens in a browser window.
-- Object palette (armchair, lamps, plant, rug, candle); place on the floor or a
-  table, pick anything up to move it. Layout kept in the browser.
-- Server: `GET /api/v1/vr/shelf?gridId=[&board=]` (`services/vrShelf.js`).
+### 2026-10-21 (2) — the office runs INSIDE Moduli (`/?office`)
+User (12:03–12:04): *"it wouldnt be a board page, it would just be a query"* → run it inside the
+app. The standalone `/vr/` page and the server's `/vr/shelf` route are gone; `/vr/` redirects.
+- `client/src/vr/VrOffice.jsx` (lazy; three.js lives only in its chunk) over the grid, which stays
+  rendered underneath. `vr/officeScene.js` is the Three.js/WebXR scene (fireplace, room fitting in
+  mixed reality, pointing, placing, the palette).
+- **Shelves are saved queries** on the grid: `grid.meta.vrOffice.shelves[] = { id, title, asset:
+  book|record|vhs, feed }` (`vr/officeConfig.js`). The query is a feed, answered by
+  `resolveFeedItems` (`vr/shelfItems.js`) — no copies, no board pages. A shelf with no query yet
+  holds nothing. Place one from the palette; its ⚙ opens settings with the app's own feed editor
+  (`ui/FeedSection` in a mode that edits a feed not stored on an occurrence). The PLACED shelf picks
+  the asset: bookshelf = spines, record crate = face-out sleeves (covers when the picture allows
+  CORS), VHS shelf = black tapes. Pointing at an item opens it in Moduli (its pdf/epub, audio or
+  video file when it has one).
+- **Screens** (12:07–12:08): `grid.meta.vrOffice.screens[] = { id, title, source: page|grid,
+  pageOccId }`. A screen shows a picture of one page (rendered off screen through
+  `PagePreviewBody`) or of the whole grid as it looks in the app (`html-to-image`). ⟳ redraws;
+  pointing opens the page. Pictures, not live pages: WebXR cannot draw a web page in the scene.
+- **This device only** (12:10): while the office is open the tab keeps panel pages, the split
+  layout and the date filter to itself (`helpers/localLayout.js`, checked in `safeEmit`; incoming
+  layout from other devices is ignored too). The office's settings save through
+  `PUT /api/v1/vr/office`, which writes `meta.vrOffice` ALONE. A pill offers "Sync with my other
+  devices" (reloads the shared layout).
+- **Decor library** (12:14): the palette's "Decor ▸" page lists the built-in pieces plus every 3D
+  model file (`.glb` / `.gltf`, new file kind `model`) on the grid (`vr/decorLibrary.js`). Upload a
+  model to Moduli and it is on the palette; it is scaled to a room-sized piece and stood on its base.
+- Where things stand in the room is still kept per device (localStorage, per grid) — §7.
+
+### 2026-10-21 — first prototype (standalone `/vr/`, replaced the same day)
+
+## Decisions (user, 2026-10-21 ~12:00)
+
+- Shelf query: open **Moduli's real feed editor in a window** beside you; the
+  shelf refills when you come back (§1a option b).
+- Reading at the chair: a **VR reader** at the chair; everything else opens in
+  Moduli's own viewers (§3 option a).
+- Record player: **both** — a Drive audio file when the album has one, else Spotify.
+- VHS: **video files in Drive**; a tape without one shows its poster and says so.
+- Typewriter: line it up **by hand** now; a **native Quest app** later.
+- Build order: **placeable shelves + feed queries first**.
 
 ## Next
 
-### 1. A VR Type field decides the shelf and the object (fully custom queries)
+### 1. A VR Type field (optional now — a shelf's query is any feed)
 Today a shelf query is a board/folder NAME and the library list lives in the
 browser. User (2026-10-21 11:53): *"i would have a field called like vr_type and
 then query off that"*.
@@ -93,9 +118,11 @@ Picked by VR Type; every library is custom-queried (§1).
 | Record | record crate or shelf | an LP sleeve with the album cover |
 | VHS | tape shelf beside the TV | a VHS case with the movie poster on the spine |
 
-### 3. Carry a book or note to your chair and read it
-Grab an item (hand or controller) and it stays in your hand; walk to the chair;
-sit (or drop it on the chair's reading spot) and it opens to read.
+### 3. Carry a book or note anywhere and read it
+Grab an item (hand or controller) and it stays in your hand; it opens to read
+**wherever you sit or stand** (user 12:13: *"open the book anywhere i sit in the
+office btw, not just the chair"*) — the reader floats in front of you, not a
+chair-only spot.
 **Open question:** reading inside VR means an in-VR reader — PDF pages (pdf.js
 to a texture), epub/notes as laid-out text. That contradicts "use Moduli's own
 viewers", which cannot be drawn inside the 3D scene. Options: (a) an in-VR

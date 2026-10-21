@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-27. Check this file before re-reading source._
 
+## Recent Changes (2026-10-21 — `vr/`: the VR office; local layout)
+- **`vr/` (NEW)**: `VrOffice.jsx` (mounted by App on `?office`, lazy), `officeScene.js` (three.js scene: fireplace,
+  shelves, screens, palette, decor; `window.__vr` for probes), `officeConfig.js` (pure edits of `grid.meta.vrOffice`),
+  `shelfItems.js` (a shelf's feed → items via `resolveFeedItems`; no query = nothing), `decorLibrary.js` (built-ins +
+  every `model` artifact). Placement per device in localStorage `moduli-vr-layout:<grid>`.
+- **`helpers/localLayout.js` (NEW)** + `offlineQueue` / `bindSocketToStore`: while on, layout writes stay in this tab
+  and other tabs' layout changes are not applied here. `App` registers the panel ids (`setPanelIdsGetter`).
+- Scene rule: shelves/screens rebuild only on a changed signature (settings + contents); a screen picture is applied
+  to the CURRENT fixture after the await.
+
 ## Recent Changes (2026-10-19 — Books scroll: one `:has()` rule was most of it; a grid fills its row)
 - **`.container-shell:has(.container-doc) > .container-header span`** (a Stardew-only rule) made the browser
   restyle every span in a container each time a row mounted inside it — 126,800 restyles in one Books scroll,

@@ -1445,28 +1445,37 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   });
 
   // The searchable destination list behind the placement window.
-  // GET /vr/shelf?gridId=[&board=<container id or label>] — what the VR
-  // office's shelves read: every page, or one board's rows (client/public/vr). Read-only, and they take the signed-in
-  // session because the VR page is an app page on the same site.
-  const vrGridCache = async (req, res) => {
-    const gridId = String(req.query.gridId || "");
-    if (!gridId) { err(res, 400, "validation_error", "gridId required"); return null; }
-    const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean().catch(() => null);
-    if (!grid) { err(res, 404, "not_found", "Grid not found"); return null; }
-    return getUserCache(req.userId, gridId);
-  };
-  router.get("/vr/shelf", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+  // PUT /vr/office { gridId, office: { shelves, screens } } — the VR office's
+  // shelves (saved queries) and screens, stored on the grid. Writes
+  // `meta.vrOffice` ALONE: the office tab keeps its layout to itself
+  // (client helpers/localLayout), so it must never send the grid's whole meta,
+  // which would put this device's split layout over every other device's.
+  router.put("/vr/office", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
     try {
-      const uc = await vrGridCache(req, res);
-      if (!uc) return;
-      const { shelfBooks, shelfBoard } = await import("../services/vrShelf.js");
-      if (req.query.board) {
-        const shelf = shelfBoard(uc, String(req.query.board));
-        if (!shelf) return err(res, 404, "not_found", "No board named " + req.query.board);
-        return res.json(shelf);
+      const { gridId, office } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!office || !Array.isArray(office.shelves) || !Array.isArray(office.screens)) {
+        return err(res, 400, "validation_error", "office needs shelves[] and screens[]");
       }
-      const pages = shelfBooks(uc);
-      res.json({ title: "Pages", books: pages.books, total: pages.total });
+      const clean = {
+        shelves: office.shelves.filter((s) => s && typeof s.id === "string").map((s) => ({
+          id: s.id, title: String(s.title || ""), asset: ["book", "record", "vhs"].includes(s.asset) ? s.asset : "book",
+          feed: s.feed && typeof s.feed === "object" ? { ...s.feed, enabled: true } : null,
+        })),
+        screens: office.screens.filter((s) => s && typeof s.id === "string").map((s) => ({
+          id: s.id, title: String(s.title || ""), source: s.source === "grid" ? "grid" : "page",
+          pageOccId: typeof s.pageOccId === "string" ? s.pageOccId : null,
+        })),
+      };
+      const next = await Grid.findOneAndUpdate(
+        { _id: gridId, userId: req.userId },
+        { $set: { "meta.vrOffice": clean } },
+        { returnDocument: "after" },
+      ).lean().catch(() => null);
+      if (!next) return err(res, 404, "not_found", "Grid not found");
+      // Other tabs hear it. ONLY id + meta (see /share/presets above).
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      res.json({ office: clean });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
   router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {

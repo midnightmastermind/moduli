@@ -2,6 +2,11 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-21 — FeedSection controlled mode; LocalLayoutPill)
+- `FeedSection({ occurrence, feed, onFeedChange })`: given `feed` + `onFeedChange` it edits that feed (the VR shelf
+  dialog) and hides On/Off. Scope options read "under: <page>".
+- `LocalLayoutPill.jsx` (NEW): shown while `helpers/localLayout` is on (hidden inside the office).
+
 ## Recent Changes (2026-10-20 — FieldAddMenu.jsx NEW: the row "+" field menu)
 - A hover "+" on every row (`ModuleInstance` `.instance-field-add-btn`, bottom-right beside the notes/link
   buttons) opens `FieldAddMenu` (lazy — it imports `FieldDetail`): this grid's fields in the Fields tab's

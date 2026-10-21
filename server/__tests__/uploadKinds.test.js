@@ -23,3 +23,12 @@ describe("mimeToKind", () => {
     expect(viewFieldsForKind("ebook")).toEqual({ viewType: "display", artifactType: "ebook" });
   });
 });
+
+describe("3D models (the VR office's decor)", () => {
+  it("a .glb / .gltf is a model, by extension or by mime, not a markdown note", () => {
+    expect(mimeToKind("application/octet-stream", "Armchair.glb")).toBe("model");
+    expect(mimeToKind("", "lamp.GLTF")).toBe("model");
+    expect(mimeToKind("model/gltf-binary", "x")).toBe("model");
+    expect(mimeToKind("text/plain", "notes.txt")).toBe("markdown");
+  });
+});
