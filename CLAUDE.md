@@ -52,7 +52,8 @@ User: *"occurances have a module can change pretty much anything standalone unle
 - **Template copies share the template's module** (client APPLY_TEMPLATE / COPY_OCCURRENCE: `templateExists:true`; server
   `cloneSubtree` shares unless `freshRoot`). Save over no longer deletes a module still placed elsewhere.
   `0425` folds the old copy modules back (name / drag mode / style onto the placements, bindings unioned, doc embeds
-  re-pointed); dry runs: poms 129/129, rebuild 77 (62 kept: source gone), test grid 2 34/34.
+  re-pointed). **Applied** (read back: 0 placements point at a missing module, 0 copy modules left): poms 129 folded / 1,691
+  placements, rebuild 77 (62 kept: source gone), test grid 2 34 (its one dangling row predates this, Oct 2). pm2 restarted.
 - **A rename of a shared module renames the PLACEMENT** (`helpers/sharedModule.renameTarget`), every rename path.
 - **Find by module:** action "Find occurrences of module" + Find's "only occurrences of" (`moduleIndexFor`, cached per
   list) and "First match only". **Find by day:** a plain `fields.<id>.value SAME_DAY <day>` rule reads that day's
