@@ -15,6 +15,22 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-22 (3) — EVERY FILE KIND DROPPED ONTO A BOARD AND A DOC; e-book uploads had failed since 10-16
+
+User: *"could you test the other artifacts too"*. Rebuild grid, Root › Documents › **Embed Test Board / Embed Test Doc**
+(left in place for the user). Real files (png, wav, pdf, epub, glb, js, md, csv — scratchpad `gen.py`) dropped as from
+the OS (`_osdrop.mjs`: native drop with a `File`; the **intake sheet** answers by `PICK=plain|first|<prefix>`).
+- **Fixed: every e-book upload 500'd since 10-16** — `viewFieldsForKind` returns `artifactType:"ebook"` (0406) and
+  `View.artifactType`'s enum lacked it, so the save threw after the Module upsert. Enum + `viewArtifactTypeEnum.test.js`
+  (every kind's view fields validate). Census: 413 ebook modules since 10-15, 1 unplaced — the probe's own.
+- **Works, board and doc:** all 8 upload, file into Files/<kind>, are listed / embedded. Image, video, audio play/show in
+  place. PDF + epub open in the book reader from the viewer. md → "Import as a tree" and csv → "Table" build real content.
+- **Gaps, reported not fixed:** (1) code / markdown / csv / text / glb cards and their viewer tile show only a glyph —
+  the viewer has no branch for them; "Open in panel" on the tile shows code (CodeViewer) but (2) **an uploaded
+  `.md`/`.csv`/text file opens as an EMPTY note** — the file's text is never read into the textmap; (3) a `.glb` also
+  opens as an empty note (only the VR office shows models). (4) Double-click on a card does not "open in panel": the
+  first click opens the viewer. Headless note: no emoji font here, so 📕/📄 glyphs render blank in screenshots only.
+
 ### 2026-10-22 (2) — A VIDEO PLAYS WHERE IT IS EMBEDDED; a file dragged out of the viewer reaches the doc or board
 
 User: *"i just would like to embed a video that plays right there"* · embed the FILES inside a row (the tiles its viewer
