@@ -78,6 +78,10 @@ export default function ArtifactSpread({
   // Shift ARMS the ordinary app drag: the overlay gets out of the way so the
   // drop lands on the grid behind it.
   const [shiftHeld, setShiftHeld] = useState(false);
+  // True from the moment a Shift-drag starts until it ends: the shell and its backdrop stop
+  // catching the pointer so the drop reaches the doc / board BENEATH. "Armed" alone only faded the
+  // viewer — full screen, it still covered every target (2026-10-22).
+  const [leaving, setLeaving] = useState(false);
   // Closing SHRINKS BACK INTO THE THUMBNAIL — the exact inverse of the open
   // (user, 2026-08-17: "the zoom in effect thats the opposite of when opening
   // it"). `transform-origin` is already the clicked thumbnail's centre, so the
@@ -139,7 +143,7 @@ export default function ArtifactSpread({
     };
   }, [open, requestClose]);
 
-  useEffect(() => { if (!open) setShiftHeld(false); }, [open]);
+  useEffect(() => { if (!open) { setShiftHeld(false); setLeaving(false); } }, [open]);
 
   // A drag that STARTS while shifted is leaving the overlay. Closing on drop
   // (rather than on drag end) would fight the drag system's own cleanup, so the
@@ -151,7 +155,8 @@ export default function ArtifactSpread({
     // ghosted out of the way for the drag, so shrinking it back into a
     // thumbnail afterwards would animate something the user has stopped
     // looking at, on top of the drop they just made.
-    const end = () => { document.removeEventListener("dragend", end, true); onClose?.(); };
+    setLeaving(true);
+    const end = () => { document.removeEventListener("dragend", end, true); setLeaving(false); onClose?.(); };
     document.addEventListener("dragend", end, true);
   }, [shiftHeld, onClose]);
 
@@ -187,7 +192,7 @@ export default function ArtifactSpread({
           nothing, since the viewer already covers exactly that box. */}
       {!isDocked && (
         <div
-          className={`artifact-spread-backdrop${closing ? " artifact-spread-backdrop--closing" : ""}`}
+          className={`artifact-spread-backdrop${closing ? " artifact-spread-backdrop--closing" : ""}${leaving ? " artifact-spread-backdrop--leaving" : ""}`}
           onClick={() => requestClose()}
         />
       )}
@@ -200,6 +205,7 @@ export default function ArtifactSpread({
           // Ghosted, not unmounted — unmounting mid-drag would destroy the
           // element the drag system is carrying.
           shiftHeld ? "artifact-spread--armed" : "",
+          leaving ? "artifact-spread--leaving" : "",
           // Plays the inverse of the open, then the host unmounts us.
           closing ? "artifact-spread--closing" : "",
         ].filter(Boolean).join(" ")}

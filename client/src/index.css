@@ -4115,6 +4115,19 @@ input.artifact-thumb-info-name--editing {
 /* Audio: inline player, full-width (not centered/narrowed). The 🎵 glyph above
    it is centered — the row is stretch-aligned so the player fills the width, so
    the glyph needs its own centering. */
+/* A video on a doc or board is a player (ArtifactCard `playable`, 2026-10-22). The wrapper takes the
+   thumb slot; the player inside fills the width and keeps its own aspect, capped so a tall clip
+   does not swallow the page. */
+.artifact-thumb--video {
+  max-height: none;
+}
+.artifact-thumb--video video {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 5px;
+  background: #000;
+}
 .artifact-thumb--audio {
   display: flex;
   flex-direction: column;
@@ -7659,6 +7672,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread--armed .artifact-spread-backdrop,
 .artifact-spread--armed + .artifact-spread-backdrop { opacity: 0; }
 .artifact-spread--armed .artifact-spread-body { pointer-events: auto; }
+/* A Shift-drag in flight: nothing in the viewer catches the pointer, so dragover / drop reach the
+   doc or board beneath (ArtifactSpread `leaving`). The dragged element keeps being dragged — a drag
+   already started is not cancelled by pointer-events. */
+.artifact-spread--leaving,
+.artifact-spread--leaving *,
+.artifact-spread-backdrop--leaving { pointer-events: none !important; }
 
 /* Mobile: one column, and the two things a phone genuinely needs that the
    now-full-screen base does not — `100dvh` (so a retracting URL bar does not

@@ -160,6 +160,24 @@ describe("ArtifactSpread shell", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // 2026-10-22: the viewer covers the whole screen, and "armed" only faded it — so a tile dragged
+  // out was still over the viewer and could never reach the doc or board beneath. Once a Shift-drag
+  // starts, the shell (and its backdrop) stop catching the pointer.
+  it("a Shift-drag that starts lets the pointer through to the grid beneath", () => {
+    renderSpread({ onClose: vi.fn() });
+    fireEvent.keyDown(document, { key: "Shift" });
+    expect(document.querySelector(".artifact-spread--leaving")).toBe(null);
+    fireEvent.dragStart(document.querySelector(".artifact-spread"));
+    expect(document.querySelector(".artifact-spread--leaving")).toBeTruthy();
+    expect(document.querySelector(".artifact-spread-backdrop--leaving")).toBeTruthy();
+  });
+
+  it("an unshifted drag keeps the viewer catching the pointer (it reorders inside)", () => {
+    renderSpread({ onClose: vi.fn() });
+    fireEvent.dragStart(document.querySelector(".artifact-spread"));
+    expect(document.querySelector(".artifact-spread--leaving")).toBe(null);
+  });
+
   it("does NOT hijack an unshifted drag — that one is the renderer's to arrange", () => {
     const onClose = vi.fn();
     renderSpread({ onClose });

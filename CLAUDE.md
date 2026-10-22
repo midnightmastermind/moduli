@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-22 (2) — A VIDEO PLAYS WHERE IT IS EMBEDDED; a file dragged out of the viewer reaches the doc or board
+
+User: *"i just would like to embed a video that plays right there"* · embed the FILES inside a row (the tiles its viewer
+shows), by dragging from the viewer or dragging the file occurrence itself, onto a doc or board.
+- **Video plays in place**: a video card on a doc or board was a muted, control-less frame whose click opened the viewer.
+  It is a player now (`ArtifactCard` `renderThumbnail(..., { playable: true })`, clicks on it do not open the viewer),
+  like audio already was. The folder-page preview face (`ArtifactThumbnail`) stays a still frame. `spreadMediaPlays`
+  "outside the viewer they stay thumbnails" INVERTED with its reason + a control.
+- **Shift-drag out of the viewer could never land**: the viewer is full screen and "armed" only faded it (opacity 0.22),
+  so the drag stayed over the viewer — measured: element under the drop point = the viewer's own video, nothing
+  created. Once a Shift-drag starts, `artifact-spread--leaving` (+ `artifact-spread-backdrop--leaving`) turn off pointer
+  events. Its own comment already claimed "the shell simply stops intercepting". Test in `ArtifactSpread.test.jsx` (+2).
+- **Watched on the rebuild grid, local build** (`_vidembed.mjs`; headless Chromium starts no native drag from this
+  handle, so a real press + dispatched DragEvents on the row): viewer → doc and viewer → board, and the row's own handle
+  → doc and → board, all four create a placement of the same file, embedded/listed, playing with controls; the original
+  stays in Sample Files (the tile was in Copy mode). Test placements deleted via `delete_occurrence`, panels restored.
+- Pre-existing, not touched: `bookReaderHeadOneRow` "does not wrap" fails — it pins the `nowrap` header 10-20 (12)
+  deliberately made wrap.
+
 ### 2026-10-22 — AN OPEN DOC'S PICTURES ARRIVE WITH IT; doc tables scroll sideways
 
 User: Philosopher's Stone open on load goes "embedded element → loading → image" slowly; tables overflow with no

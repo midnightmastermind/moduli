@@ -47,11 +47,26 @@ describe("viewer media tiles", () => {
     expect(getByTestId("waveform").dataset.src).toContain("/files/c/a");
   });
 
-  it("outside the viewer they stay thumbnails", () => {
+  // INVERTED 2026-10-22. This said a video outside the viewer stays a muted, control-less frame whose
+  // click opens the viewer. User: "i just would like to embed a video that plays right there" — so a video
+  // card on a doc or board is a player now, like the audio card always was. Audio still gets no waveform.
+  it("outside the viewer a video plays in place; audio gets no waveform", () => {
     const { container, queryByTestId } = render(<ArtifactCard module={video} occurrence={occ("o-v")} />);
-    expect(container.querySelector("video").hasAttribute("controls")).toBe(false);
+    const v = container.querySelector("video");
+    expect(v.hasAttribute("controls")).toBe(true);
+    expect(v.muted).toBe(false);
+    fireEvent.click(v);
+    expect(openArtifactSpread).not.toHaveBeenCalled();
     const a = render(<ArtifactCard module={audio} occurrence={occ("o-a")} />);
     expect(a.queryByTestId("waveform")).toBeNull();
     expect(queryByTestId("waveform")).toBeNull();
+  });
+
+  // Control: the folder-page preview card shares the thumbnail code and must stay a still frame — a click
+  // there opens the item, and a player would swallow it.
+  it("the folder-page preview face stays a still frame", async () => {
+    const { ArtifactThumbnail } = await import("../modules/ArtifactCard");
+    const { container } = render(<ArtifactThumbnail module={video} occurrence={occ("o-v")} />);
+    expect(container.querySelector("video").hasAttribute("controls")).toBe(false);
   });
 });

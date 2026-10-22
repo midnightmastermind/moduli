@@ -779,7 +779,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
       )}
-      {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id)}
+      {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id, { playable: true })}
       {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
           `openViewer`), so a corner control would be a second way to do the one
           thing the picture already does — and the two spent a day disagreeing.
@@ -821,7 +821,10 @@ export function ArtifactThumbnail({ module, occurrence = null }) {
   return renderThumbnail(module?.kind, src, module?.label, imgSrc, cover);
 }
 
-function renderThumbnail(kind, src, label, imgSrc = src, cover = null, moduleId = null) {
+// `playable`: the card on a doc or board plays its video in place (user, 2026-10-22: "i just would like to
+// embed a video that plays right there"), as its audio always did. The folder-page preview face
+// (ArtifactThumbnail) leaves it off — a click there opens the item, and a player would swallow it.
+function renderThumbnail(kind, src, label, imgSrc = src, cover = null, moduleId = null, { playable = false } = {}) {
   if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   // A DEAD COVER FALLS BACK TO THE KIND'S OWN THUMBNAIL, not to a broken-image
   // glyph. Measured on the live board before this existed: ~28% of the 1,467
@@ -838,7 +841,11 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null, moduleId 
       fallback={renderThumbnail(kind, src, label, imgSrc)}
     />
   );
-  if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
+  if (kind === "video") return playable ? (
+    <div className="artifact-thumb artifact-thumb--video" onClick={(e) => e.stopPropagation()}>
+      <PlaceMedia as="video" moduleId={moduleId} src={src} controls playsInline preload="metadata" style={{ width: "100%", display: "block" }} />
+    </div>
+  ) : <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
       <span style={{ fontSize: 16 }} aria-hidden="true">🎵</span>
