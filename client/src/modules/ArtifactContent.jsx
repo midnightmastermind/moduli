@@ -25,6 +25,7 @@ import ImageOcrViews from "./ImageOcrViews.jsx";
 // a ReferenceError instead of opening the picker.
 import { openImagePicker } from "../ui/ImagePickerMenu";
 import "highlight.js/styles/atom-one-dark.css";
+import FileTextReader, { fileReaderKind, langForFile } from "./FileTextReaders.jsx";
 import { Settings, Download, ImagePlus } from "lucide-react";
 
 // Human-readable byte count. Mirrors ArtifactCard's formatBytes —
@@ -73,22 +74,6 @@ function ArtifactDownloadBadge({ fileRef, originalName, size, style }) {
   );
 }
 
-// Extension → highlight.js language id. Common cases only; anything not in
-// the map falls through to highlightAuto.
-const EXT_TO_LANG = {
-  js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
-  ts: "typescript", tsx: "typescript",
-  py: "python", rb: "ruby", go: "go", rs: "rust", java: "java",
-  c: "c", h: "c", cpp: "cpp", hpp: "cpp", cs: "csharp", swift: "swift",
-  kt: "kotlin", scala: "scala", php: "php", pl: "perl", lua: "lua",
-  sh: "bash", bash: "bash", zsh: "bash", fish: "bash",
-  json: "json", yaml: "yaml", yml: "yaml", toml: "ini", ini: "ini",
-  xml: "xml", html: "xml", svg: "xml",
-  css: "css", scss: "scss", sass: "scss", less: "less",
-  md: "markdown", markdown: "markdown",
-  sql: "sql", graphql: "graphql", dockerfile: "dockerfile",
-  vue: "xml", svelte: "xml",
-};
 
 function CodeViewer({ fileRef, label, originalName, size }) {
   const [code, setCode] = useState(null);
@@ -108,8 +93,9 @@ function CodeViewer({ fileRef, label, originalName, size }) {
     import("highlight.js").then((mod) => { if (mounted) setHljs(() => mod.default); });
     return () => { mounted = false; };
   }, []);
-  const ext = fileRef ? fileRef.split(".").pop().toLowerCase() : "";
-  const lang = EXT_TO_LANG[ext] || null;
+  // The ORIGINAL name carries the extension; a Drive ref (gdrive:<conn>:<id>) has none.
+  const ext = ((originalName || fileRef || "").match(/\.([A-Za-z0-9]+)$/)?.[1] || "").toLowerCase();
+  const lang = langForFile(originalName, fileRef);
   const highlighted = useMemo(() => {
     if (code == null || !hljs) return null;
     try {
@@ -290,6 +276,20 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
         originalName={module?.meta?.originalName}
         size={module?.meta?.uploadSize}
       />
+    );
+  }
+
+  // AN UPLOADED TEXT FILE SHOWS THE FILE (2026-10-22). A dropped .md / .csv / .txt is a markdown-kind
+  // artifact with a fileRef and NO textmap, so the note editor below opened it EMPTY — the file's text was
+  // never read. While nothing has been written into the occurrence, show the file itself: a table for a
+  // csv, formatted text for markdown. A note written in the app always carries its textmap and keeps the editor.
+  const pageReaderKind = fileReaderKind(module?.kind, module?.meta?.originalName || module?.label);
+  const hasNoteText = !!(occurrence?.textmap && typeof occurrence.textmap === "object" && (occurrence.textmap.content || []).some((n) => (n.content || []).length));
+  if (fileRef && pageReaderKind && pageReaderKind !== "book" && pageReaderKind !== "code" && !hasNoteText) {
+    return (
+      <div className="file-reader-page" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+        <FileTextReader readerKind={pageReaderKind} fileRef={fileRef} originalName={module?.meta?.originalName} />
+      </div>
     );
   }
 

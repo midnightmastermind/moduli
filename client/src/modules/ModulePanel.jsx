@@ -84,7 +84,7 @@ import { nextDragMode } from "../helpers/dragModes";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
-import { openPanelOnRootFolderPage } from "../helpers/importsFolder";
+import { openPanelOnRootFolderPage, ensureFolderPageOcc } from "../helpers/importsFolder";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W } from "../helpers/rootTreeLayout";
 import { PAGEABLE_CONTAINER_KINDS } from "../helpers/folderPages";
@@ -894,6 +894,38 @@ function Panel({
     }
     if (res.found === false) toast("Found it, but it's hidden by the current filter");
   }, [panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket, openPage]);
+
+  // "Go to file" on a copy of an uploaded file (ArtifactCard.GoToFileButton) names the panel it sits in;
+  // that panel opens the file's home the way a search pick does (folder page drilled into its card).
+  useEffect(() => {
+    // It goes to the FOLDER the file lives in, explicitly: the file is usually also listed by the board it
+    // was dropped on, and a search pick finds it there first — which only highlights the card you clicked.
+    const onGoto = (e) => {
+      const { occId, panelModuleId } = e.detail || {};
+      if (!occId || panelModuleId !== module?.id) return;
+      const occ = occurrencesById?.[occId];
+      const folder = occ?.parentId ? foldersById?.[occ.parentId] : null;
+      if (!folder) { handleSearchPick(occId); return; }
+      const existing = Object.values(occurrencesById || {}).find((o) => {
+        if (!o || o.parentId !== folder.id) return false;
+        if (o.meta?.folderPage === true) return true;
+        const m = modulesById?.[o.moduleId];
+        return m?.role === "page" && m?.kind === "folder";
+      });
+      const folderPageOccId = existing?.id || ensureFolderPageOcc({
+        folderId: folder.id, label: folder.name, gridId: grid?._id, occurrencesById, dispatch, socket, userId: state?.userId,
+      });
+      if (!folderPageOccId) { handleSearchPick(occId); return; }
+      // Show the folder with the file's card ringed — not drilled into: "go to it in the file section".
+      openPage(folderPageOccId);
+      jumpToOccurrence(occId, {
+        root: () => document.querySelector(`[data-panel-id="${CSS.escape(String(module?.id || ""))}"]`),
+        retries: 24, retryMs: 150,
+      });
+    };
+    window.addEventListener("moduli:goto-occurrence", onGoto);
+    return () => window.removeEventListener("moduli:goto-occurrence", onGoto);
+  }, [module?.id, handleSearchPick, occurrencesById, foldersById, modulesById, grid, state, dispatch, socket, openPage]);
 
   // THE PAGE THIS PANEL STARTS ON goes into its back history (2026-09-15). History
   // only hears CHANGES, so without this the page you land on after a reload is

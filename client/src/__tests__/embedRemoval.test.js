@@ -38,6 +38,8 @@ describe("the embedded instance row uses it", () => {
   it("removeRow deletes through removeOccurrence when owned", () => {
     const body = src.slice(src.indexOf("const removeRow = useCallback"), src.indexOf("// Resize drag state"));
     expect(body).toContain('embedRemoval(occurrence, hostId) !== "delete"');
-    expect(body).toContain("CommitHelpers.removeOccurrence(");
+    // 2026-10-22: through removeOccurrenceOfferingFile, which removes via CommitHelpers.removeOccurrence and
+    // then asks about the file when this was its last copy outside Files (helpers/lastFileCopy).
+    expect(body).toContain("removeOccurrenceOfferingFile(");
   });
 });

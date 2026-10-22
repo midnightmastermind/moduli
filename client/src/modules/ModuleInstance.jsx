@@ -34,6 +34,7 @@ import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "../state/notificationStore";
 import { shiftPressKeepsText } from "../helpers/shiftSelect";
+import { removeOccurrenceOfferingFile } from "../helpers/lastFileCopy.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { openCoverPicker, setCover } from "../helpers/coverPick";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
@@ -382,15 +383,13 @@ function InstanceInner({
 
   const deleteMe = useCallback(() => {
     if (!occurrence?.id) return;
-    CommitHelpers.removeOccurrence({
-      dispatch,
-      socket,
-      occurrenceId: occurrence.id,
-      occurrence,
+    // The last copy of an uploaded file outside Files asks about the file (helpers/lastFileCopy).
+    removeOccurrenceOfferingFile({
+      dispatch, socket, occurrence,
       parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap),
-      emit: true,
+      getState, getOccMap,
     });
-  }, [occurrence, containerOccurrence, getOccMap, dispatch, socket]);
+  }, [occurrence, containerOccurrence, getOccMap, getState, dispatch, socket]);
 
   // Cycle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template.
   // An instance is the ONE kind whose drop path runs copylinkInstanceToContainer,
@@ -1189,7 +1188,7 @@ function InstanceInner({
                   deleteLabel={embedOnDelete ? (embedDeleteLabel || "Remove") : "Delete"}
                   onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
-                    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), emit: true });
+                    removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
                   extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems]}
                 />
@@ -1780,7 +1779,7 @@ function ModuleInstance({
         label: "Delete", icon: Trash2, danger: true,
         onClick: () => {
           if (!occurrence?.id) return;
-          CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), emit: true });
+          removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
         },
       },
     ].filter(Boolean);

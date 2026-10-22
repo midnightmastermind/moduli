@@ -14,7 +14,7 @@ import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText, Columns2, Shuffle } from "lucide-react";
 import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
-import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import { removeOccurrenceOfferingFile, offerFileDeleteAfterUnlink } from "../helpers/lastFileCopy.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember, extractGroupMember } from "../helpers/wrapGroupOps.js";
 import { floatCountOf, wrapRoleAt, wrapMenuKey } from "./wrapRoles.js";
@@ -50,6 +50,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const viewsById = useGridActionsSelector(s => s.viewsById);
   const dispatch = useGridActionsSelector(s => s.dispatch);
   const socket = useGridActionsSelector(s => s.socket);
+  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   // Cell-mode projection: set by the enclosing cell <Editor> when the column
   // has a displayFieldId configured. Null/undefined = full doc-mode render.
@@ -110,10 +112,16 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   // takes the node out; the server's delete-scrub persists that.
   const removeRow = useCallback(() => {
     const hostId = hostOccurrenceIdOf(editor);
-    if (embedRemoval(occurrence, hostId) !== "delete") { deleteNode?.(); return; }
+    if (embedRemoval(occurrence, hostId) !== "delete") {
+      deleteNode?.();
+      // An uploaded file unlinked from the last place it showed outside Files: ask about the file.
+      offerFileDeleteAfterUnlink({ occurrence: occurrence || { id: occurrenceId }, hostId, getState, getOccMap, dispatch, socket });
+      return;
+    }
     const parentOccurrence = operationsBridge.getLocalOcc?.(hostId) || null;
-    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, emit: true });
-  }, [editor, occurrence, occurrenceId, deleteNode, dispatch, socket]);
+    // The last copy of an uploaded file outside Files asks about the file (helpers/lastFileCopy).
+    removeOccurrenceOfferingFile({ dispatch, socket, occurrence: occurrence || { id: occurrenceId }, parentOccurrence, getState, getOccMap });
+  }, [editor, occurrence, occurrenceId, deleteNode, dispatch, socket, getState, getOccMap]);
 
   // Resize drag state
   const resizeRef = useRef(null);

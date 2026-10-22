@@ -4049,7 +4049,8 @@ body:has([data-cc-open]) .assistant-fab { display: none !important; }
    15,709 have caption === label, 1 has no info block, and the two-facts case
    occurs ZERO times (an upload takes its label from its filename, so even those
    agree). Nothing on this grid has a title that this rule hides. */
-.instance-content:has(.artifact-card--with-info) > .instance-textcol > .instance-label {
+.instance-content:has(.artifact-card--with-info) > .instance-textcol > .instance-label,
+.instance-content:has(.artifact-card--reader) > .instance-textcol > .instance-label {
   display: none;
 }
 /* Frame the picture itself the way a doc figure is framed, so a stacked card
@@ -4115,6 +4116,35 @@ input.artifact-thumb-info-name--editing {
 /* Audio: inline player, full-width (not centered/narrowed). The 🎵 glyph above
    it is centered — the row is stretch-aligned so the player fills the width, so
    the glyph needs its own centering. */
+/* "Go to file" on a copy of an uploaded file (ArtifactCard.GoToFileButton). */
+.artifact-goto-file { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 2px 8px; font-size: 11px;
+  border-radius: 999px; border: 1px solid var(--border-default); background: var(--input-bg); color: var(--text-muted); cursor: pointer; }
+.artifact-goto-file:hover { color: var(--text-primary); background: var(--surface-2, var(--input-bg)); }
+/* A text / book file placed on a doc or board shows its content (ArtifactCard `readerKind`, 2026-10-22).
+   Fixed height, scrolls inside. In the viewer a tile fills its box instead. */
+.artifact-card--reader { flex-direction: column; align-items: stretch; gap: 6px; padding: 6px 8px; cursor: default; }
+.artifact-card--reader .artifact-thumb-info { order: 1; cursor: pointer; }
+.file-reader-box { width: 100%; border-radius: 5px; overflow: hidden; background: var(--input-bg); border: 1px solid var(--border-subtle); }
+.file-reader-box--text { max-height: 480px; overflow: auto; }
+.file-reader-box--book { height: 600px; }
+.file-reader-stop { height: 100%; }
+.artifact-card--reader-tile { height: 100%; }
+.artifact-card--reader-tile .file-reader-box { flex: 1 1 auto; max-height: none; min-height: 0; }
+.file-reader-note { padding: 10px 12px; font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.file-reader-code, .file-reader-text { margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5; font-family: var(--font-mono); white-space: pre; tab-size: 2; }
+.file-reader-text { white-space: pre-wrap; color: var(--text-primary); }
+.file-reader-table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.file-reader-table th, .file-reader-table td { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; vertical-align: top; white-space: nowrap; }
+.file-reader-table th { position: sticky; top: 0; background: var(--surface-2, var(--input-bg)); font-weight: 600; z-index: 1; }
+.file-reader-markdown { padding: 10px 14px; font-size: 13px; line-height: 1.55; color: var(--text-primary); }
+.file-reader-markdown h1 { font-size: 1.5em; margin: 0.4em 0; } .file-reader-markdown h2 { font-size: 1.25em; margin: 0.5em 0 0.3em; }
+.file-reader-markdown h3 { font-size: 1.1em; margin: 0.5em 0 0.3em; }
+.file-reader-markdown p { margin: 0.4em 0; } .file-reader-markdown ul, .file-reader-markdown ol { padding-left: 1.5em; margin: 0.4em 0; }
+.file-reader-markdown code { font-family: var(--font-mono); font-size: 0.92em; }
+.file-reader-markdown pre { background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 4px; overflow: auto; }
+.file-reader-markdown table { border-collapse: collapse; } .file-reader-markdown th, .file-reader-markdown td { border: 1px solid var(--border-subtle); padding: 3px 7px; }
+.file-reader-markdown a { color: var(--accent-blue-text, #7cb7ff); }
+.file-reader-markdown img { max-width: 100%; }
 /* A video on a doc or board is a player (ArtifactCard `playable`, 2026-10-22). The wrapper takes the
    thumb slot; the player inside fills the width and keeps its own aspect, capped so a tall clip
    does not swallow the page. */

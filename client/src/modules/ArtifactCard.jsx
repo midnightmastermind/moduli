@@ -5,7 +5,7 @@
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, FolderOpen } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
@@ -26,6 +26,8 @@ import BookReader from "./BookReader.jsx";
 import ImageOcrViews from "./ImageOcrViews.jsx";
 import AudioWaveform from "./AudioWaveform.jsx";
 import PlaceMedia from "../ui/PlaceMedia.jsx";
+import FileTextReader, { fileReaderKind, MountWhenVisible } from "./FileTextReaders.jsx";
+import { fileHomeOccId, isUploadedFile } from "../helpers/fileHome.js";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -157,6 +159,10 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getState = useGridActionsSelector(s => s.getState);
   const getViewMap = useGridActionsSelector(s => s.getViewMap);
   const getFieldMap = useGridActionsSelector(s => s.getFieldMap);
+  // A COPY of an uploaded file carries "Go to file" — its home is the placement filed in a Files folder.
+  // Only uploads are looked up (a shared type module like "Movie" has ~1000 placements; it is skipped).
+  const fileHomeId = useGridActionsSelector(s => (isUploadedFile(module)
+    ? fileHomeOccId(occurrence, module, s.occurrencesByModuleId?.[module?.id], s.foldersById) : null));
   const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
   // A bookmark IS a page; any other artifact with a URL in a FIELD (a song's
   // Spotify page, an album's) gets a browser of its own. Presence needs no field
@@ -623,6 +629,39 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
+  // A FILE PLACED ON A DOC OR BOARD SHOWS ITS CONTENT THERE (user, 2026-10-22: "we should show the book
+  // reader and have a code reader as well. csv should be a table already ... markdown as well" · "these
+  // should be all inline, unless attached to Files field (for the viewer on instances and cards)"). A
+  // file attached to a row's Files field is not drawn by this card — it opens in the row's viewer, where
+  // each tile is the same reader. A fixed-height box that scrolls inside; mounted once it comes on screen,
+  // so a board of files never fetches them all at once. The name underneath still opens the viewer.
+  const readerKind = fileReaderKind(kind, module?.meta?.originalName || module?.label);
+  if (readerKind && src && !expanded && (readerKind !== "book" || !inSpread)) {
+    const readerName = module?.meta?.originalName || occurrenceDisplayLabel(occurrence, module) || label || null;
+    return (
+      <div ref={inSpread ? markTileRow : undefined}
+        className={`artifact-card artifact-card--reader${inSpread ? " artifact-card--reader-tile" : ""}`}
+        data-kind={kind} data-reader={readerKind}>
+        <MountWhenVisible
+          className={`file-reader-box file-reader-box--${readerKind === "book" ? "book" : "text"}`}
+        >
+          {/* The reader takes its own clicks, scrolls and selections; none of them should open the viewer. */}
+          <div className="file-reader-stop" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+            {readerKind === "book"
+              ? <BookReader module={module} occurrence={occurrence} src={src} kind={kind} />
+              : <FileTextReader readerKind={readerKind} fileRef={module?.fileRef} originalName={module?.meta?.originalName} />}
+          </div>
+        </MountWhenVisible>
+        {readerName && (
+          <div className="artifact-thumb-info" onClick={inSpread ? undefined : openViewer} role={inSpread ? undefined : "button"}>
+            <FileName name={readerName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />
+            {fileHomeId && <GoToFileButton homeId={fileHomeId} />}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!src && !coverSrc) {
     // Nothing to draw. This used to be the title and nothing else, so an
     // instance that arrived without a picture (a shared IMDb link) could not be
@@ -775,6 +814,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       {showInfo && (
         <div className="artifact-thumb-info">
           {fileName && <FileName name={fileName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />}
+          {fileHomeId && <GoToFileButton homeId={fileHomeId} />}
           {fileDims && <span className="artifact-thumb-info-dim">{fileDims}</span>}
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
@@ -787,6 +827,29 @@ export default function ArtifactCard({ module, label, occurrence }) {
           the cover image and moved to the row's handle group (user,
           2026-09-15). Double-click still opens it in a panel. */}
     </div>
+  );
+}
+
+/**
+ * "Go to file": opens the file's home (its placement in a Files folder) in the panel this card sits in,
+ * through that panel's own search-pick navigation (ModulePanel listens for `moduli:goto-occurrence`).
+ * A card in the portalled viewer has no panel above it — the first panel on screen takes it.
+ */
+function GoToFileButton({ homeId }) {
+  const go = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const own = e.currentTarget.closest("[data-panel-id]");
+    const panel = own || document.querySelector("[data-panel-id]");
+    window.dispatchEvent(new CustomEvent("moduli:goto-occurrence", {
+      detail: { occId: homeId, panelModuleId: panel?.getAttribute("data-panel-id") || null },
+    }));
+  };
+  return (
+    <button type="button" className="artifact-goto-file" title="Go to file (where it lives in Files)"
+      aria-label="Go to file" onClick={go} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <FolderOpen size={12} /> <span>Go to file</span>
+    </button>
   );
 }
 

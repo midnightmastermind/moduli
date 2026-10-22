@@ -15,6 +15,39 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-22 (4) — FILES SHOW THEIR CONTENT WHERE THEY ARE PLACED; "Go to file"; removing the last copy asks
+
+User: *"we should show the book reader and have a code reader as well. csv should be a table already … markdown as
+well"* · *"these should be all inline, unless attached to Files field"* · *"go to file button if its an uploaded
+thing"* · *"if we delete the last occurance of a file (outside the file tree), we should ask if we want the file
+deleted too"*. Answers: keep the file and show it as a table/markdown; fixed-height readers that scroll inside; on
+docs and boards.
+- **Readers in place** (`modules/FileTextReaders.jsx`, `ArtifactCard`): code (highlight.js), CSV/TSV table, markdown
+  (`marked` + DOMPurify), plain text, and the book reader for pdf/epub — read from the file, mounted once on screen
+  (`MountWhenVisible`). Under the catch-all `markdown` kind only named text extensions get a reader (a .docx would
+  paint binary). The intake sheet still asks; its tree/table shapes are unchanged. Rows using a Files field keep
+  their viewer.
+- **Go to file** (`helpers/fileHome.js`): an uploaded file's card opens its home in Files (the folder page, then a
+  jump to the card), in the panel the card is in.
+- **Removing the last copy asks** (`helpers/lastFileCopy.js`): a placement in Files taken off a board/doc is only
+  UNLISTED. The server deletes the whole file when a Files placement is deleted (`classifyFileDelete`), so a plain
+  delete there used to remove the file with no question. When nothing outside Files shows it any more: "Delete the
+  file too?" Keep it in Files / Delete the file. A copy is deleted as before. The viewer's hidden page, a folder page
+  and a file's own page do not count as places.
+- **Two defects found by clicking:** the store keeps `folders` as an ARRAY (no `foldersById`), so the first build
+  recognised no folder and deleted with no dialog; and a file can have TWO placements in Files — taking only the first
+  as "the file" sent a plain delete for the other and the server removed `embed-notes.md` outright. Both fixed, A/B'd
+  (`lastFileCopy.test.js`, 9).
+- **Watched on a local build against prod (rebuild grid):** drop a fresh csv on Embed Test Board → Delete → the
+  dialog → Keep: still in Files, off the board; a second file → Delete the file: module gone. A file still embedded
+  in Embed Test Doc is unlisted from the board with no question.
+- **Not verified:** a pdf's text on screen with a real pdf (the fixture's text did not render; pdf.js draws the
+  page); multi-select bulk delete does not ask. Probe fix: `_build.mjs` serves `.mjs` as JavaScript (pdf.js worker).
+  Debris on the rebuild grid: `embed-notes.md` and `embed-data.csv` deleted by the probes, `lastcopy-test.csv` kept
+  in Files/Documents.
+
+---
+
 ### 2026-10-22 (3) — EVERY FILE KIND DROPPED ONTO A BOARD AND A DOC; e-book uploads had failed since 10-16
 
 User: *"could you test the other artifacts too"*. Rebuild grid, Root › Documents › **Embed Test Board / Embed Test Doc**
