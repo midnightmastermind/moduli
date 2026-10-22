@@ -2,6 +2,9 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-22 — ModulePlacements.jsx NEW)
+- In InstanceForm + ContainerForm Settings: count + list of every place a module is shown, with ancestry (helpers/modulePlaces). Replaces OtherPlacements.
+
 ## Recent Changes (2026-10-21 — FeedSection controlled mode; LocalLayoutPill)
 - `FeedSection({ occurrence, feed, onFeedChange })`: given `feed` + `onFeedChange` it edits that feed (the VR shelf
   dialog) and hides On/Off. Scope options read "under: <page>".

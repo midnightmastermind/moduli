@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-22 (5) — SETTINGS SAYS HOW MANY PLACES A MODULE IS IN, AND WHERE; the embed test debris is gone
+
+User: *"put an indicator of how many files of it are present (excluding the file folder one)"* · *"in the settings
+of it actually"* · *"do that for all occurances and modules"* · *"and maybe list them"* · *"with … its ancestory"*.
+- **`helpers/modulePlaces.js` + `ui/ModulePlacements.jsx`**, in an instance's and a container's Settings (replaces
+  the old "Other Placements", which named only the parent): "This module is in N places" and one row per place —
+  folders › page › containers, the placement's own name at the end when it has one (day columns share a module and
+  were otherwise 18 identical rows). Clicking a row goes there. An uploaded file's Files placement does not count;
+  a board listing it or a doc embedding it does ("This file is in N places (not counting Files)"). The viewer's
+  page, folder pages and a file's own page are not places. Tests `modulePlaces` (11, each rule A/B'd).
+- **Watched on a local build against prod (rebuild grid):** a Daily Question row reads 12 places with full paths
+  (template + each day), "this one" marked; a day column reads 19, each by its date.
+- **Cleanup (user asked):** Embed Test Board / Doc, the eight embed-* test files and lastcopy-test.csv deleted
+  through `delete_occurrence` (files whole, with their viewer and file pages). Panels back on Day Page / Authors /
+  Tasks. Rebuild integrity 0 errors.
+
+---
+
 ### 2026-10-22 (4) — FILES SHOW THEIR CONTENT WHERE THEY ARE PLACED; "Go to file"; removing the last copy asks
 
 User: *"we should show the book reader and have a code reader as well. csv should be a table already … markdown as

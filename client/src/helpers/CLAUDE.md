@@ -3,6 +3,9 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-22 — modulePlaces.js NEW)
+- `ancestryOf(occId, maps)` (folders › page › containers, stops at a panel, `hidden` under a viewer/folder/file page) and `modulePlaces(moduleId, maps)` (an uploaded file's Files home is not a place; its listers/embedders are).
+
 ## Recent Changes (2026-10-21 (2) — sharedModule, panelPresence; find by module/day; trigger scope/wait/skip)
 - `sharedModule.js`: `placementsByModule`, `hasOtherPlacements`, `renameTarget` (a shared module renames the placement).
 - `panelPresence.js`: `shownPageIds`, `heldBy` (lists + embeds), `presentInPanels`, `matchedIds`, `planPanelFire` (pure).

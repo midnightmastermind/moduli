@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import GraphSection from "./GraphSection";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { getOtherOccurrences } from "../state/selectors";
+import ModulePlacements from "./ModulePlacements";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
@@ -114,11 +114,6 @@ export default function ContainerForm({
       onOccurrenceUpdate?.({ meta: { ...(occurrence?.meta || {}), headerLink: next } });
     }
   };
-
-  const otherPlacements = useMemo(
-    () => getOtherOccurrences(occurrencesById, modulesById, containerId, occurrence?.id),
-    [occurrencesById, modulesById, containerId, occurrence?.id]
-  );
 
   return (
     <div className="font-mono flex flex-col w-full sm:w-72">
@@ -355,23 +350,8 @@ export default function ContainerForm({
             fields={allFields}
           />
 
-          {/* Other Placements */}
-          {otherPlacements.length > 0 && (
-            <>
-              <Separator />
-              <div className="py-2">
-                <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({otherPlacements.length})</h4>
-                <div className="space-y-1">
-                  {otherPlacements.map(({ occurrence: occ, parentLabel }) => (
-                    <div key={occ.id} className="flex items-center gap-2 text-[12px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
-                      <span className="text-muted-foreground/50">&#x2192;</span>
-                      <span className="truncate">{parentLabel}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
+          {/* Every place this module is shown, with its ancestry */}
+          <ModulePlacements moduleId={containerId} currentOccId={occurrence?.id} />
         </TabsContent>
 
         {/* STYLE TAB */}

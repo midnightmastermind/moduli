@@ -13,7 +13,7 @@ import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
 import FieldVisibilitySection from "./FieldVisibilitySection";
 import { useGridActions } from "../GridActionsContext";
-import { getOtherOccurrences } from "../state/selectors";
+import ModulePlacements from "./ModulePlacements";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
@@ -289,15 +289,8 @@ export default function InstanceForm({
             />
           )}
 
-          {/* Other Placements */}
-          {instance && (
-            <OtherPlacements
-              moduleId={instance.id}
-              excludeOccId={occurrence?.id}
-              occurrencesById={occurrencesById}
-              modulesById={modulesById}
-            />
-          )}
+          {/* Every place this module is shown, with its ancestry */}
+          {instance && <ModulePlacements moduleId={instance.id} currentOccId={occurrence?.id} />}
         </TabsContent>
 
         {/* STYLE TAB */}
@@ -566,33 +559,6 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
         </Button>
       )}
     </div>
-  );
-}
-
-/**
- * OtherPlacements — shows where else this module appears in the grid
- */
-function OtherPlacements({ moduleId, excludeOccId, occurrencesById, modulesById }) {
-  const placements = useMemo(
-    () => getOtherOccurrences(occurrencesById, modulesById, moduleId, excludeOccId),
-    [occurrencesById, modulesById, moduleId, excludeOccId]
-  );
-  if (placements.length === 0) return null;
-  return (
-    <>
-      <Separator />
-      <div className="py-2">
-        <h4 className="text-xs font-semibold text-foreground/70 mb-2">Other Placements ({placements.length})</h4>
-        <div className="space-y-1">
-          {placements.map(({ occurrence: occ, parentLabel }) => (
-            <div key={occ.id} className="flex items-center gap-2 text-[12px] text-muted-foreground px-1 py-0.5 rounded bg-muted/20">
-              <span className="text-muted-foreground/50">&#x2192;</span>
-              <span className="truncate">{parentLabel}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
   );
 }
 
