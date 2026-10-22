@@ -3059,7 +3059,15 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   display: flex !important;
 }
 
-/* TipTap table */
+/* TipTap table. The resizable table renders inside `.tableWrapper`, which was
+   overflow: visible — so a table wider than its block (Philosopher's Stone: 8
+   tables, 580-890px in a 354px block) was cut off with no way to reach the
+   right-hand columns. The wrapper scrolls sideways now. */
+.doc-editor-content.ProseMirror .tableWrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 .doc-editor-content.ProseMirror table {
   border-collapse: collapse;
   width: 100%;

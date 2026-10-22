@@ -70,6 +70,18 @@ export function splitFullState(occurrences = [], modules = []) {
     (deferredRole.has(role) ? deferred : core).push(o);
   }
 
+  // A picture a working document EMBEDS is part of that document. Held back with
+  // the catalogue, an open doc drew "embed: <id>" for every picture until the last
+  // deferred chunk landed (Philosopher's Stone, 2026-10-22: 49 placeholders for
+  // ~6s). One level is enough: an artifact's own textmap is never walked here.
+  const embeddedByCore = new Set();
+  for (const o of core) if (o?.textmap) collectEmbedIds(o.textmap, embeddedByCore);
+  if (embeddedByCore.size) {
+    for (let i = deferred.length - 1; i >= 0; i--) {
+      if (embeddedByCore.has(deferred[i]?.id)) core.push(deferred.splice(i, 1)[0]);
+    }
+  }
+
   // A module is only deferred when nothing in the CORE set places it. An
   // artifact module that also backs a working row must arrive with the core, or
   // that row renders module-less until the second message lands.
@@ -81,4 +93,12 @@ export function splitFullState(occurrences = [], modules = []) {
   }
 
   return { core, deferred, coreModules, deferredModules };
+}
+
+/** Every `attrs.occurrenceId` in a TipTap JSON tree (embeds, wrap members, pills). */
+function collectEmbedIds(node, out) {
+  if (!node || typeof node !== "object") return;
+  const id = node.attrs?.occurrenceId;
+  if (typeof id === "string" && id) out.add(id);
+  if (Array.isArray(node.content)) for (const c of node.content) collectEmbedIds(c, out);
 }
