@@ -30,10 +30,12 @@ const ViewSchema = new mongoose.Schema(
     },
 
     // Display sub-type — only used when viewType === "display"
-    // "image" | "pdf" | "audio" | "video"
+    // "image" | "pdf" | "audio" | "video" | "ebook" — every value utils/uploadKinds.viewFieldsForKind
+    // returns (pinned by __tests__/viewArtifactTypeEnum.test.js; "ebook" was missing 10-16..10-22 and
+    // every e-book upload failed at this save).
     artifactType: {
       type: String,
-      enum: ["image", "pdf", "audio", "video"],
+      enum: ["image", "pdf", "audio", "video", "ebook"],
       default: null,
     },
 
