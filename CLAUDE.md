@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-22 — AN OPEN DOC'S PICTURES ARRIVE WITH IT; doc tables scroll sideways
+
+User: Philosopher's Stone open on load goes "embedded element → loading → image" slowly; tables overflow with no
+scrollbar. Measured on prod (panel already on the page, no writes): the doc drew at ~23s with **49 `embed: <id>`
+placeholders** that held until the LAST deferred `full_state_rest` chunk at ~28.6s. `splitFullState` deferred every
+`role:"artifact"` row, including pictures the open doc embeds. Now an artifact any CORE textmap embeds
+(`attrs.occurrenceId`, one level) ships in the first message: poms +609 rows / ~1.2MB on a ~23MB core. After deploy: 0
+placeholders at any sample, pictures render with the first frame. Tables: TipTap's `.tableWrapper` was
+`overflow: visible`, so 8 tables 580-890px wide were clipped in a 354px block; it scrolls sideways now (measured all 8,
+local build). Test `splitFullStateEmbeds` (3; 2 fail before, control passes). Probes `_psload.mjs`, `_pstables.mjs`.
+**Not changed:** the ~20s to the first message itself (the load-time dockets below).
+
+---
+
 ### 2026-10-21 — THE VR OFFICE RUNS INSIDE MODULI: shelves are queries, screens show pages, a decor library
 
 Picked up account2's VR plan (`docs/vr-office-plan.md`; its weekly limit hit mid-change). The user's answers:
