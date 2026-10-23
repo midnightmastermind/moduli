@@ -170,3 +170,18 @@ describe("a shelf that holds a whole folder", () => {
     expect(shelfItemsF(shelf, { occurrencesById, modulesById, foldersById }).map((i) => i.id)).toEqual(["a"]);
   });
 });
+
+describe("a folder VHS shelf", () => {
+  it("holds the folder's videos (with their file url) as well as its pages", () => {
+    const foldersById = { vid: { id: "vid", name: "Video", parentId: "files" } };
+    const modulesById = { v: { id: "v", role: "artifact", kind: "video", fileRef: "/uploads/user/a.mp4" }, im: { id: "im", role: "artifact", kind: "image", fileRef: "/x.png" } };
+    const occurrencesById = {
+      a: { id: "a", moduleId: "v", parentId: "vid", label: "Big Buck Bunny" },
+      b: { id: "b", moduleId: "im", parentId: "vid", label: "A picture" },
+    };
+    const items = folderShelfItems("vid", { occurrencesById, modulesById, foldersById, asset: "vhs" });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ id: "a", title: "Big Buck Bunny", fileKind: "video" });
+    expect(items[0].src).toContain("a.mp4");
+  });
+});
