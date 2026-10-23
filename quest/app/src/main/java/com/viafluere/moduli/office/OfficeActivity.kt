@@ -97,6 +97,7 @@ class OfficeActivity : AppSystemActivity() {
     private const val CARD_W = 0.16f
     private const val CARD_H = 0.22f
     private const val CARD_COUNT = 2
+    private const val LAYOUT_BACKUP_MS = 5000L
     /** A piece's menu (bar, ⚙, 🗑) stays up this long after you point at nothing. The menu is inside the pointing
      *  box, so reaching the buttons needs no linger; 1.5s felt far too slow to go away. */
     private const val MENU_LINGER_MS = 300L
@@ -344,6 +345,15 @@ class OfficeActivity : AppSystemActivity() {
       store.gridId = m.optString("gridId")
       for (k in things.keys.toList()) if (k != CONTROL) deleteEntity(k)
       placed = false
+      // This headset has nothing for the grid (wiped, reinstalled, a new headset): put back the layout backed up on
+      // the grid. Its own copy, when there is one, always wins.
+      m.optJSONObject("layout")?.let { backup ->
+        if (!store.hasLayout()) {
+          store.importLayout(backup)
+          Log.i(TAG, "restored the layout from the grid backup (${backup.optString("savedAt")})")
+        }
+      }
+      lastLayoutSent = store.exportLayout().toString()
     }
     placeAll()
   }
@@ -876,7 +886,24 @@ class OfficeActivity : AppSystemActivity() {
     override fun execute() {
       if (++frames % 36 != 0) return
       for (t in things.values) remember(t)
+      backUpLayout()
     }
+  }
+
+  /** The layout last handed to the control panel to back up on the grid, and when (at most every LAYOUT_BACKUP_MS). */
+  private var lastLayoutSent = ""
+  private var lastLayoutAt = 0L
+
+  /** Back the layout up on the grid (through the control panel, which is signed in) when it has changed. */
+  private fun backUpLayout() {
+    if (store.gridId.isEmpty() || control == null) return
+    val now = System.currentTimeMillis()
+    if (now - lastLayoutAt < LAYOUT_BACKUP_MS) return
+    val layout = store.exportLayout()
+    val json = layout.toString()
+    if (json == lastLayoutSent || !store.hasLayout()) return
+    lastLayoutSent = json; lastLayoutAt = now
+    send(JSONObject().put("type", "layout").put("layout", layout))
   }
 
   // ── Readers: a page or a file opened from a shelf or a screen ────────────

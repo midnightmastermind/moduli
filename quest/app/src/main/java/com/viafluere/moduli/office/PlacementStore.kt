@@ -65,6 +65,23 @@ class PlacementStore(context: Context) {
     prefs.edit().putString("poses:${scope(key)}", all.toString()).apply()
   }
 
+  /** This grid's placements and decor, as one object — what the app backs up on the grid (meta.vrLayout). */
+  fun exportLayout(): JSONObject = JSONObject().put("poses", posesJson()).put("decor", JSONArray(decor()))
+
+  /** True when this headset already holds placements or decor for the grid (then a backup is never restored over it). */
+  fun hasLayout(): Boolean = posesJson().length() > 0 || decor().isNotEmpty()
+
+  /** Take a backup's placements and decor as this grid's own. Only poses in the current frame (STAGE) are kept. */
+  fun importLayout(layout: JSONObject) {
+    val poses = layout.optJSONObject("poses") ?: JSONObject()
+    val kept = JSONObject()
+    for (k in poses.keys()) poses.optJSONObject(k)?.takeIf { it.optString("space") == STAGE }?.let { kept.put(k, it) }
+    prefs.edit()
+        .putString("poses:$gridId", kept.toString())
+        .putString("decor:$gridId", (layout.optJSONArray("decor") ?: JSONArray()).toString())
+        .apply()
+  }
+
   fun clearPoses() { prefs.edit().remove("poses:$gridId").apply() }
 
   fun decor(): List<JSONObject> {

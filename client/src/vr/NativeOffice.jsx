@@ -11,6 +11,9 @@
 //   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode } | { type: "remove", key }
 //                                              | { type: "moveMode", on })
 //   page → app   also { type: "moveMode", on } — furniture can be moved only while it is on (off at every start).
+//   app → page   { type: "layout", layout } — the headset's placements, saved on the grid as a backup (PUT
+//                /api/v1/vr/layout); the state sent back carries `layout`, which the app restores from when its own
+//                copy is gone.
 //
 // Each piece has its OWN settings (user, 2026-10-23: "each one should have their own settings button, not all
 // coalesced into one screen"): the ⚙ beside a piece's handle opens `/?office&piece=<key>`, which renders
@@ -21,6 +24,7 @@ import { shelfItems } from "./shelfItems.js";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
+import { sessionHeaders } from "../helpers/authStorage";
 
 export function hasNativeBridge() {
   return typeof window !== "undefined" && !!window.ModuliNative && typeof window.ModuliNative.postMessage === "function";
@@ -46,7 +50,24 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
       label: s.source === "grid" ? "The grid" : (s.pageOccId ? pageLabel(s.pageOccId) || "Missing page" : "No page chosen"),
     })),
     decor: decorLibrary({ grid, occurrencesById, modulesById }).map((d) => ({ key: d.key, title: d.title, src: d.src || null })),
+    layout: grid?.meta?.vrLayout || null,
   };
+}
+
+/** Save the headset's placements on the grid (a backup the app restores from). Failures are only logged: the
+ *  headset keeps its own copy, and the next change tries again. */
+export async function saveLayoutBackup(gridId, layout) {
+  if (!gridId || !layout) return;
+  try {
+    const r = await fetch("/api/v1/vr/layout", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...sessionHeaders() },
+      body: JSON.stringify({ gridId, layout }),
+    });
+    if (!r.ok) console.warn("[office] layout backup refused", r.status);
+  } catch (e) {
+    console.warn("[office] layout backup failed", e);
+  }
 }
 
 /** One piece's settings, in its own window beside it (`/?office&piece=<key>`). Sends no state — the main panel does. */
@@ -154,6 +175,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         }
         else if (e?.type === "mode") setMode(e.mode);
         else if (e?.type === "moveMode") setMoveMode(!!e.on);
+        else if (e?.type === "layout") saveLayoutBackup(live.current.gridId, e.layout);
         else if (e?.type === "hello") { lastSent.current = ""; sendState(); }
       },
     };

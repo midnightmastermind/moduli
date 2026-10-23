@@ -7,6 +7,7 @@ vi.mock("../ui/FeedSection.jsx", () => ({ default: () => <div data-testid="feed"
 vi.mock("../PagePreviewApp.jsx", () => ({ PagePreviewBody: () => null }));
 
 import NativeOffice, { NativePiece, nativeOfficeState, hasNativeBridge } from "../vr/NativeOffice.jsx";
+import { act } from "@testing-library/react";
 
 const grid = { _id: "g1", meta: { vrOffice: {
   shelves: [{ id: "s1", title: "Books", asset: "book", feed: { conditions: [], scope: null } }],
@@ -70,5 +71,24 @@ describe("NativePiece (one piece's own settings window)", () => {
     render(<NativePiece pieceKey="decor:abc" grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
     fireEvent.click(screen.getByText("Remove"));
     expect(sent.at(-1)).toEqual({ type: "delete", key: "decor:abc" });
+  });
+});
+
+describe("the layout backup", () => {
+  it("is saved on the grid when the headset sends its layout, and goes back to the headset in the state", async () => {
+    const calls = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({}) }; });
+    const sent = [];
+    window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
+    const g = { ...grid, meta: { ...grid.meta, vrLayout: { poses: { fireplace: { space: "stage" } }, decor: [] } } };
+    render(<NativeOffice grid={g} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
+    expect(sent.find((m) => m.type === "state").layout).toEqual(g.meta.vrLayout);
+    const layout = { poses: { "decor:x": { space: "stage", t: [1, 0, 2] } }, decor: [{ key: "decor:x", model: "couch" }] };
+    await act(async () => { window.__moduliNative.onEvent({ type: "layout", layout }); });
+    const put = calls.find((c) => c.url === "/api/v1/vr/layout");
+    expect(put.opts.method).toBe("PUT");
+    expect(JSON.parse(put.opts.body)).toEqual({ gridId: "g1", layout });
+    globalThis.fetch = realFetch;
   });
 });

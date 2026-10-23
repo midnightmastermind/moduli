@@ -1480,6 +1480,28 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ office: clean });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+  // PUT /vr/layout { gridId, layout: { poses, decor } } — a BACKUP of where the Quest app placed things on this grid
+  // (it keeps its own copy on the headset; this is what it restores from when that copy is gone). Writes
+  // `meta.vrLayout` ALONE, for the same reason /vr/office writes only its key.
+  router.put("/vr/layout", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, layout } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!layout || typeof layout !== "object" || typeof layout.poses !== "object" || !Array.isArray(layout.decor)) {
+        return err(res, 400, "validation_error", "layout needs poses{} and decor[]");
+      }
+      if (JSON.stringify(layout).length > 200_000) return err(res, 413, "too_large", "layout over 200KB");
+      const clean = { poses: layout.poses, decor: layout.decor, savedAt: new Date().toISOString() };
+      const next = await Grid.findOneAndUpdate(
+        { _id: gridId, userId: req.userId },
+        { $set: { "meta.vrLayout": clean } },
+        { returnDocument: "after" },
+      ).lean().catch(() => null);
+      if (!next) return err(res, 404, "not_found", "Grid not found");
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      res.json({ ok: true, savedAt: clean.savedAt });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
   router.get("/destinations", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const { gridId, q, limit } = req.query;
