@@ -239,6 +239,9 @@ class OfficeActivity : AppSystemActivity() {
                               android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                           )
                           settings.javaScriptEnabled = true
+                          // Let spine titles go below the 8px default floor (they are meant to be tiny).
+                          settings.minimumFontSize = 1
+                          settings.minimumLogicalFontSize = 1
                           settings.domStorageEnabled = true
                           settings.databaseEnabled = true
                           settings.mediaPlaybackRequiresUserGesture = false
@@ -1014,7 +1017,8 @@ class OfficeActivity : AppSystemActivity() {
    */
   private fun openReader(occId: String, near: FloatArray? = null) {
     val id = nextPanelId++
-    val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?open=${Uri.encode(occId)}&local=1"
+    // `solo`: show just that page or file (its panel full screen), not the whole app.
+    val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?open=${Uri.encode(occId)}&local=1&solo=1"
     registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> web.loadUrl(url) })
     val e = Entity.create(listOf(
         Panel(id),

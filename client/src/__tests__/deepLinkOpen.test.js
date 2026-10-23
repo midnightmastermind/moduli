@@ -28,7 +28,7 @@ describe("deepLinkOpen", () => {
   });
 
   it("opens anything else on its page, in a panel of this grid", () => {
-    expect(openFromLink({ occId: "p", grid, occurrencesById, modulesById })).toEqual({ ok: true });
+    expect(openFromLink({ occId: "p", grid, occurrencesById, modulesById })).toEqual({ ok: true, panelOccId: "panel" });
     expect(openOccurrenceInPanel.mock.calls[0][0].panelOccurrence.id).toBe("panel");
   });
 

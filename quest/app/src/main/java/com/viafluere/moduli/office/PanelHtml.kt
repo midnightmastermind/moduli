@@ -51,7 +51,7 @@ object PanelHtml {
   .it{position:absolute;border-radius:.6vh;box-shadow:0 0 .6vh rgba(0,0,0,.6);background-size:cover;background-position:center;
       display:flex;align-items:flex-end;justify-content:center;overflow:hidden;cursor:pointer}
   /* Small titles (user: "way smaller"), allowed most of the spine so long titles show more words. */
-  .it span{font-size:1.1vh;line-height:1.15;padding:.3vh;background:rgba(0,0,0,.55);width:100%;text-align:center;
+  .it span{font-size:.75vh;line-height:1.15;padding:.3vh;background:rgba(0,0,0,.55);width:100%;text-align:center;
       max-height:85%;overflow:hidden;word-break:break-word}
   /* The spot of a book in your hand: an empty, glowing outline, so you can see where it goes back. */
   .it.held{background:none!important;box-shadow:0 0 2vh #ffd27a;outline:.5vh dashed #ffd27a;outline-offset:-.5vh}

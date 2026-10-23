@@ -41,10 +41,10 @@ export function openFromLink({ occId, grid, occurrencesById = {}, modulesById = 
       panelsById: collectPanelOccurrences(occurrencesById, modulesById),
       occurrencesById, modulesById, viewsById, dispatch, socket,
     });
-    return res.ok ? { ok: true } : { ok: false, reason: res.reason || "could not open the file" };
+    return res.ok ? { ok: true, panelOccId: res.panelId } : { ok: false, reason: res.reason || "could not open the file" };
   }
   const panelOccurrence = pickPanelOccurrence({ grid, occurrencesById });
   if (!panelOccurrence) return { ok: false, reason: "no panel to open in" };
   const res = openOccurrenceInPanel({ occId, panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket });
-  return res.ok ? { ok: true } : { ok: false, reason: "it is not on a page" };
+  return res.ok ? { ok: true, panelOccId: panelOccurrence.id } : { ok: false, reason: "it is not on a page" };
 }

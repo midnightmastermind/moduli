@@ -334,6 +334,8 @@ export default function App() {
   // way): open that page or file once the real grid is here — not the boot
   // snapshot (read-only) and not before the deferred half (it carries files).
   const openLinkRef = useRef(openParamFrom(window.location.search));
+  // `&solo` (the Quest app's reader windows): show only what was opened — its panel full screen, not the whole app.
+  const soloRef = useRef(new URLSearchParams(window.location.search).has("solo"));
   // `&local` (the Quest app's reader panels): this tab keeps its panels and date to itself.
   useEffect(() => { if (new URLSearchParams(window.location.search).has("local")) setLocalLayout(true); }, []);
   useEffect(() => {
@@ -345,6 +347,10 @@ export default function App() {
     window.history.replaceState(null, "", withoutOpenParam(window.location));
     const res = openFromLink({ occId, grid: state.grid, occurrencesById, modulesById, viewsById, dispatch, socket });
     if (!res.ok) toast(`Could not open that item: ${res.reason}.`);
+    else if (soloRef.current && res.panelOccId) {
+      const moduleId = occurrencesById[res.panelOccId]?.moduleId;
+      if (moduleId) window.dispatchEvent(new CustomEvent("moduli:fullscreen-panel", { detail: { moduleId } }));
+    }
   }, [occurrencesById, modulesById, viewsById, state.grid, state.awaitingDeferred, dispatch, socket]);
 
   // `/?office` opens the VR office over the grid (the grid stays rendered under
@@ -1304,7 +1310,8 @@ export default function App() {
             has to be mounted where the drag context exists, or its tiles
             register as draggables and then hand every gesture to a no-op.
             Do not move it back up here without moving DragProvider with it. */}
-        <LocalLayoutPill hidden={officeOpen} />
+        {/* Not in the Quest app's windows (a reader keeps its layout to itself by design; the notice was clutter). */}
+        <LocalLayoutPill hidden={officeOpen || new URLSearchParams(window.location.search).has("local")} />
         {officeOpen && state.grid && (
           <React.Suspense fallback={null}>
             <VrOffice

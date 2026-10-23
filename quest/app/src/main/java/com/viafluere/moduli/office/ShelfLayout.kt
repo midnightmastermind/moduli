@@ -19,7 +19,12 @@ object ShelfLayout {
 
   fun perRow(asset: String) = when (asset) { "record" -> 3; "vhs" -> 9; else -> 8 }
 
-  /** The shelf's slots, top row first, left to right. The panel is the shelf's width less its sides (6cm). */
+  /**
+   * The shelf's slots, top row first, left to right AS YOU SEE THEM. The panel is the shelf's width less its sides
+   * (6cm), and it is turned 180° to face out of the shelf — so the page's left edge is the shelf's +x side, not -x.
+   * (Laid out the other way, every book's grab block sat over its mirror image: pointing at the second spine from
+   * the left lit the second from the right, and a grab took that one.)
+   */
   fun slots(asset: String, size: OfficeSizes.Shelf): List<Slot> {
     val panelW = size.w - 0.06f
     val areaH = size.h
@@ -33,10 +38,10 @@ object ShelfLayout {
     for (r in 0 until size.rows) {
       val bottom = areaH - rowH * (r + 1) + rowH * 0.04f
       for (c in 0 until per) {
-        val cx = -panelW / 2f + pad + slotW * (c + 0.5f)
+        val cx = panelW / 2f - pad - slotW * (c + 0.5f)
         out += Slot(
             cx, bottom + bh / 2f, bw, bh,
-            leftPct = (cx - bw / 2f + panelW / 2f) / panelW * 100f,
+            leftPct = (pad + slotW * (c + 0.5f) - bw / 2f) / panelW * 100f,
             bottomPct = bottom / areaH * 100f,
             wPct = bw / panelW * 100f,
             hPct = bh / areaH * 100f,

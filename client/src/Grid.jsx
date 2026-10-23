@@ -668,6 +668,12 @@ function GridInner() {
   }, [visiblePanels, dispatch, socket]);
 
   const [fullscreenPanelId, setFullscreenPanelId] = useState(null);
+  // Someone asks for a panel full screen (App, for a Quest reader window opened `&solo`).
+  useEffect(() => {
+    const on = (e) => { if (e?.detail?.moduleId) setFullscreenPanelId(e.detail.moduleId); };
+    window.addEventListener("moduli:fullscreen-panel", on);
+    return () => window.removeEventListener("moduli:fullscreen-panel", on);
+  }, []);
 
   // Grid sizing
   const ensureSizes = (arr, count) => {
