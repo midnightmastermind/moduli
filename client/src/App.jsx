@@ -71,7 +71,7 @@ import { revealNewRow } from "./helpers/revealNewRow.js";
 import { clearBootSnapshots } from "./helpers/bootSnapshot.js";
 import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js";
 import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
-import { setPanelIdsGetter } from "./helpers/localLayout.js";
+import { setPanelIdsGetter, setLocalLayout } from "./helpers/localLayout.js";
 import { setOccurrencesGetter } from "./helpers/sharedModule.js";
 import LocalLayoutPill from "./ui/LocalLayoutPill.jsx";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
@@ -334,6 +334,8 @@ export default function App() {
   // way): open that page or file once the real grid is here — not the boot
   // snapshot (read-only) and not before the deferred half (it carries files).
   const openLinkRef = useRef(openParamFrom(window.location.search));
+  // `&local` (the Quest app's reader panels): this tab keeps its panels and date to itself.
+  useEffect(() => { if (new URLSearchParams(window.location.search).has("local")) setLocalLayout(true); }, []);
   useEffect(() => {
     const occId = openLinkRef.current;
     if (!occId || isSnapshotMode() || !state.grid) return;

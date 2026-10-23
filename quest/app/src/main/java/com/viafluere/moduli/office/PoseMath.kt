@@ -1,0 +1,59 @@
+package com.viafluere.moduli.office
+
+import com.meta.spatial.core.Pose
+import com.meta.spatial.core.Quaternion
+import com.meta.spatial.core.Vector3
+import kotlin.math.cos
+import kotlin.math.sin
+
+/**
+ * Pose arithmetic done here on plain numbers (w, x, y, z quaternions), so the "relative to the room" math does not
+ * depend on which helpers an SDK version happens to ship.
+ */
+object PoseMath {
+  fun qMul(a: FloatArray, b: FloatArray) = floatArrayOf(
+      a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
+      a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
+      a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
+      a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0],
+  )
+
+  fun qConj(q: FloatArray) = floatArrayOf(q[0], -q[1], -q[2], -q[3])
+
+  fun rotate(q: FloatArray, v: FloatArray): FloatArray {
+    val r = qMul(qMul(q, floatArrayOf(0f, v[0], v[1], v[2])), qConj(q))
+    return floatArrayOf(r[1], r[2], r[3])
+  }
+
+  /** A turn of `deg` degrees about the vertical axis. */
+  fun yaw(deg: Float): FloatArray {
+    val h = Math.toRadians(deg.toDouble()) / 2
+    return floatArrayOf(cos(h).toFloat(), 0f, sin(h).toFloat(), 0f)
+  }
+
+  fun tOf(p: Pose) = floatArrayOf(p.t.x, p.t.y, p.t.z)
+  fun qOf(p: Pose) = floatArrayOf(p.q.w, p.q.x, p.q.y, p.q.z)
+  fun pose(t: FloatArray, q: FloatArray) = Pose(Vector3(t[0], t[1], t[2]), Quaternion(q[0], q[1], q[2], q[3]))
+
+  /** `world` expressed in the frame `origin`. */
+  fun toLocal(origin: Pose, world: Pose): Pair<FloatArray, FloatArray> {
+    val oq = qOf(origin); val inv = qConj(oq)
+    val d = tOf(world).let { w -> val o = tOf(origin); floatArrayOf(w[0] - o[0], w[1] - o[1], w[2] - o[2]) }
+    return rotate(inv, d) to qMul(inv, qOf(world))
+  }
+
+  /** A pose kept in the frame `origin`, back in the world. */
+  fun toWorld(origin: Pose, t: FloatArray, q: FloatArray): Pose {
+    val oq = qOf(origin); val r = rotate(oq, t); val o = tOf(origin)
+    return pose(floatArrayOf(o[0] + r[0], o[1] + r[1], o[2] + r[2]), qMul(oq, q))
+  }
+
+  /** Only the turn about the vertical axis of `q` (furniture stands upright). */
+  fun upright(q: FloatArray): FloatArray {
+    val f = rotate(q, floatArrayOf(0f, 0f, 1f))
+    val ang = Math.toDegrees(kotlin.math.atan2(f[0].toDouble(), f[2].toDouble())).toFloat()
+    return yaw(ang)
+  }
+
+  fun near(a: FloatArray, b: FloatArray, eps: Float) = a.indices.all { kotlin.math.abs(a[it] - b[it]) < eps }
+}

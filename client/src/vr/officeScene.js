@@ -28,6 +28,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_LABELS } from "./officeConfig.js";
 import { decorPage } from "./decorLibrary.js";
+import { makeFireplace as makeFireplaceObject, makeShelfFrame, makeScreenFrame, makeDecor as makeDecorObject, SHELF_SIZES, SCREEN_SIZE } from "./decorMakers.js";
 
 const hash = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 const SPINE_COLORS = [0x7a2e2e, 0x2e4a7a, 0x2e6a4a, 0x6a5a2e, 0x5a2e6a, 0x8a5a2a, 0x3a3a3a, 0x7a6a5a];
@@ -165,26 +166,8 @@ export function createOfficeScene(container, host) {
   const flames = [];
   let fireLight;
   function makeFireplace() {
-    const g = new THREE.Group();
-    g.add(box(1.5, 1.1, 0.4, 0x8a8077, 0, 0.55, 0));
-    g.add(box(1.7, 0.08, 0.5, 0x5b3a22, 0, 1.14, 0.03));
-    g.add(box(0.9, 0.7, 0.3, 0x1a1410, 0, 0.42, 0.08));
-    g.add(box(0.6, 0.06, 0.12, 0x4a2c18, -0.05, 0.12, 0.18));
-    g.add(box(0.5, 0.06, 0.12, 0x3f2614, 0.1, 0.17, 0.16));
-    const flameMat = (c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
-    [[0xff6a1a, 0.13, 0.4], [0xffa43a, 0.1, 0.3], [0xffd36b, 0.06, 0.2]].forEach(([c, r, h], i) => {
-      for (let k = -1; k <= 1; k++) {
-        const f = new THREE.Mesh(new THREE.ConeGeometry(r, h, 10), flameMat(c));
-        f.position.set(k * 0.16, 0.2 + h / 2, 0.2 + i * 0.01);
-        f.userData.phase = Math.random() * 10; f.userData.h = h;
-        g.add(f); flames.push(f);
-      }
-    });
-    fireLight = new THREE.PointLight(0xff8a3d, 6, 6, 1.4);
-    fireLight.position.set(0, 0.45, 0.45); fireLight.castShadow = true;
-    g.add(fireLight);
-    g.add(box(0.6, 0.42, 0.03, 0x3b2a1a, 0, 1.55, 0));
-    g.add(box(0.52, 0.34, 0.01, 0x9fb7c9, 0, 1.55, 0.02));
+    const g = makeFireplaceObject(THREE, { flames });
+    fireLight = g.userData.light;
     return g;
   }
 
@@ -210,11 +193,10 @@ export function createOfficeScene(container, host) {
   function makeShelf(shelf, items) {
     const g = new THREE.Group();
     const asset = shelf.asset;
-    const wood = 0x4e3220;
     let W, H, D, SHELVES, packed, place;
     if (asset === "record") {
       // A face-out cube shelf: 3 × 3 sleeves.
-      W = 1.15; H = 1.15; D = 0.36; SHELVES = 3;
+      ({ W, H, D, SHELVES } = SHELF_SIZES.record);
       packed = packGrid(items, PER_PAGE.record);
       place = (s) => {
         const color = SPINE_COLORS[hash(s.item.title) % SPINE_COLORS.length];
@@ -228,7 +210,7 @@ export function createOfficeScene(container, host) {
       };
     } else {
       const vhs = asset === "vhs";
-      W = vhs ? 1.0 : 1.1; H = vhs ? 1.3 : 1.8; D = vhs ? 0.24 : 0.3; SHELVES = vhs ? 4 : 5;
+      ({ W, H, D, SHELVES } = SHELF_SIZES[vhs ? "vhs" : "book"]);
       packed = packSpines(items, { W, SHELVES, height: vhs ? 0.19 : 0.24, thick: vhs ? 0.028 : 0.035, fixed: vhs });
       place = (s) => {
         const color = vhs ? 0x151515 : SPINE_COLORS[hash(s.item.title) % SPINE_COLORS.length];
@@ -239,10 +221,7 @@ export function createOfficeScene(container, host) {
         return m;
       };
     }
-    g.add(box(W, H, 0.02, wood, 0, H / 2, -D / 2 + 0.01));
-    g.add(box(0.03, H, D, wood, -W / 2, H / 2, 0));
-    g.add(box(0.03, H, D, wood, W / 2, H / 2, 0));
-    for (let i = 0; i <= SHELVES; i++) g.add(box(W, 0.025, D, wood, 0, 0.02 + i * (H - 0.04) / SHELVES, 0));
+    g.add(makeShelfFrame(THREE, asset));
 
     const itemGroup = new THREE.Group(); g.add(itemGroup);
     const title = plaque(shelf.title || ASSET_LABELS[asset] || "Shelf", 0.6, 0.09); title.position.set(0, H + 0.08, 0.02); g.add(title);
@@ -280,8 +259,8 @@ export function createOfficeScene(container, host) {
   // ── Screens: a page, or the whole grid ───────────────────────────────────
   function makeScreen(screen, label) {
     const g = new THREE.Group();
-    const W = 1.6, H = 0.9;
-    g.add(box(W + 0.06, H + 0.06, 0.04, 0x111111, 0, 1.5, 0));
+    const { W, H } = SCREEN_SIZE;
+    g.add(makeScreenFrame(THREE));
     const face = new THREE.MeshBasicMaterial({ map: labelTexture(label || "Point at ⚙ to choose a page", 1024, 576) });
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(W, H), face);
     panel.position.set(0, 1.5, 0.021);
@@ -291,8 +270,6 @@ export function createOfficeScene(container, host) {
       else host.editScreen(screen.id);
     };
     g.add(panel); interactive.push(panel);
-    const stand = box(0.06, 1.05, 0.06, 0x222222, 0, 0.525, -0.05); g.add(stand);
-    g.add(box(0.5, 0.03, 0.3, 0x222222, 0, 0.015, -0.05));
     const gear = plaque("⚙", 0.09, 0.07); gear.position.set(W / 2 - 0.06, 1.5 - H / 2 - 0.07, 0.03);
     gear.userData.onSelect = () => host.editScreen(screen.id); g.add(gear); interactive.push(gear);
     const redraw = plaque("⟳", 0.09, 0.07); redraw.position.set(W / 2 - 0.17, 1.5 - H / 2 - 0.07, 0.03);
@@ -319,54 +296,6 @@ export function createOfficeScene(container, host) {
   }
 
   // ── Objects you can place ────────────────────────────────────────────────
-  const MAKERS = {
-    armchair() {
-      const g = new THREE.Group(), c = 0x7a3b2e;
-      g.add(box(0.8, 0.42, 0.8, c, 0, 0.21, 0)); g.add(box(0.8, 0.5, 0.18, c, 0, 0.67, -0.31));
-      g.add(box(0.14, 0.25, 0.8, c, -0.33, 0.54, 0)); g.add(box(0.14, 0.25, 0.8, c, 0.33, 0.54, 0));
-      return g;
-    },
-    lamp() {
-      const g = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.4), mat(0x2b2b2b)); pole.position.y = 0.7; g.add(pole);
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.03), mat(0x2b2b2b)); base.position.y = 0.015; g.add(base);
-      const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.25, 20, 1, true), mat(0xf2e0b8, { emissive: 0xffcf8a, emissiveIntensity: 0.6, side: THREE.DoubleSide }));
-      shade.position.y = 1.45; g.add(shade);
-      const l = new THREE.PointLight(0xffd29a, 2.5, 4, 1.5); l.position.y = 1.4; g.add(l);
-      return g;
-    },
-    desklamp() {
-      const g = new THREE.Group();
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.02), mat(0x2b2b2b)); base.position.y = 0.01; g.add(base);
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.3), mat(0x2b2b2b)); stem.position.y = 0.16; g.add(stem);
-      const shade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.12, 16, 1, true), mat(0x1f4f3a, { emissive: 0xffcf8a, emissiveIntensity: 0.3, side: THREE.DoubleSide }));
-      shade.position.y = 0.33; g.add(shade);
-      const l = new THREE.PointLight(0xffd29a, 1.2, 2, 1.5); l.position.y = 0.28; g.add(l);
-      return g;
-    },
-    plant() {
-      const g = new THREE.Group();
-      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.26, 16), mat(0x9a5a3a)); pot.position.y = 0.13; g.add(pot);
-      for (let i = 0; i < 7; i++) {
-        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), mat(0x3f6b34));
-        leaf.position.set(Math.sin(i) * 0.1, 0.38 + (i % 3) * 0.1, Math.cos(i * 1.7) * 0.1); g.add(leaf);
-      }
-      return g;
-    },
-    rug() {
-      const g = new THREE.Group();
-      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.01, 40), mat(0x8a3a32)); r.scale.z = 0.65; r.position.y = 0.005; g.add(r);
-      const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.012, 40), mat(0xc49a5a)); inner.scale.z = 0.65; inner.position.y = 0.006; g.add(inner);
-      return g;
-    },
-    candle() {
-      const g = new THREE.Group();
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 12), mat(0xf4ecd8)); c.position.y = 0.06; g.add(c);
-      const f = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.035, 8), new THREE.MeshBasicMaterial({ color: 0xffc35a })); f.position.y = 0.14; g.add(f); flames.push(f); f.userData.phase = Math.random() * 10; f.userData.h = 0.035;
-      const l = new THREE.PointLight(0xffb45a, 0.6, 1.5, 1.6); l.position.y = 0.16; g.add(l);
-      return g;
-    },
-  };
   const LABELS = { armchair: "Armchair", lamp: "Floor lamp", desklamp: "Desk lamp", plant: "Plant", rug: "Rug", candle: "Candle" };
 
   // ── Decor from files: any .glb on the grid ───────────────────────────────
@@ -398,7 +327,7 @@ export function createOfficeScene(container, host) {
     return g;
   }
   function makeDecor(key) {
-    if (MAKERS[key]) return MAKERS[key]();
+    { const g = makeDecorObject(THREE, key, { flames }); if (g) return g; }
     const entry = (host.decor?.() || []).find((d) => d.key === key);
     return entry?.src ? makeModel(entry) : null;
   }
