@@ -49,6 +49,10 @@ import com.meta.spatial.toolkit.PanelStyleOptions
 import com.meta.spatial.toolkit.PlayerBodyAttachmentSystem
 import com.meta.spatial.toolkit.QuadShapeOptions
 import com.meta.spatial.toolkit.Scale
+import com.meta.spatial.toolkit.SceneObjectSystem
+import com.meta.spatial.toolkit.Visible
+import com.meta.spatial.runtime.InputListener
+import com.meta.spatial.runtime.SceneObject
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
@@ -84,6 +88,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val PIECE_H = 0.75f
     private const val GEAR_M = 0.09f
     private const val TRASH_W = 0.15f
+    /** A piece's menu (bar, ⚙, 🗑) stays up this long after you stop pointing at it, to reach the buttons. */
+    private const val MENU_LINGER_MS = 1500L
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
     /** Held thumbstick: degrees turned per second, how many times bigger per second, metres pushed per second. */
@@ -110,6 +116,10 @@ class OfficeActivity : AppSystemActivity() {
     var gear: Entity? = null
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
+    /** How many of its parts (model, front panel, bar, ⚙, 🗑) the pointer is on, and when it last left one. */
+    var hovers = 0
+    var lastHover = 0L
+    var menuShown = true
     var web: WebView? = null
     var html: String = ""
     var lastT = FloatArray(3)
@@ -340,6 +350,7 @@ class OfficeActivity : AppSystemActivity() {
     SelectOnTrigger.attach(frame) { select(key) }
     t.gear = gearButton(t)
     if (key != "fireplace") t.trash = trashButton(t)
+    for (e in listOfNotNull(frame, t.handle?.entity, t.gear, t.trash)) watchHover(t, e)
     return t
   }
 
@@ -378,6 +389,7 @@ class OfficeActivity : AppSystemActivity() {
         Transform(PoseMath.pose(floatArrayOf(0f, y, z), PoseMath.yaw(180f))),
         TransformParent(t.frame),
     ))
+    t.panel?.let { watchHover(t, it) }
     applyScale(t)
   }
 
@@ -521,6 +533,33 @@ class OfficeActivity : AppSystemActivity() {
     t.handle?.follow()
   }
 
+  /** Count the pointer on and off one part of `t` (its menu shows only while you point at the piece). */
+  private fun watchHover(t: Thing, e: Entity) {
+    systemManager.findSystem<SceneObjectSystem>().getSceneObject(e)?.thenAccept { so ->
+      so.addInputListener(object : InputListener {
+        override fun onHoverStart(receiver: SceneObject, sourceOfInput: Entity) { t.hovers++ }
+        override fun onHoverStop(receiver: SceneObject, sourceOfInput: Entity) {
+          t.hovers = (t.hovers - 1).coerceAtLeast(0); t.lastHover = System.currentTimeMillis()
+        }
+      })
+    }
+  }
+
+  /**
+   * A piece's bar, ⚙ and 🗑 show only while you point at it (or just did), hold it, or have its settings open — shown
+   * all the time they blocked the view of the room. Hidden, the bar cannot be grabbed by accident either.
+   */
+  private fun showMenus() {
+    val now = System.currentTimeMillis()
+    for (t in things.values) {
+      if (t.key == CONTROL) continue
+      val want = t.hovers > 0 || now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
+      if (want == t.menuShown) continue
+      t.menuShown = want
+      for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))
+    }
+  }
+
   private fun select(key: String) {
     selected = key
     if (key == CONTROL) return
@@ -556,6 +595,7 @@ class OfficeActivity : AppSystemActivity() {
         if (h.held) held = t.key
       }
       for (h in readerHandles.values) h.update(head)
+      showMenus()
 
       val now = System.nanoTime()
       val dt = if (lastNs == 0L) 0f else ((now - lastNs) / 1e9f).coerceAtMost(0.1f)
