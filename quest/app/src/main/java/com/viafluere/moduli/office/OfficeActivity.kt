@@ -232,6 +232,12 @@ class OfficeActivity : AppSystemActivity() {
                       modifier = Modifier.fillMaxSize(),
                       factory = { c ->
                         WebView(c).apply {
+                          // MATCH_PARENT, not the default WRAP_CONTENT: with wrap-content the page's viewport is 0px
+                          // tall, so every vh size (heights, fonts, spines) was 0 and the shelves looked empty.
+                          layoutParams = android.view.ViewGroup.LayoutParams(
+                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                          )
                           settings.javaScriptEnabled = true
                           settings.domStorageEnabled = true
                           settings.databaseEnabled = true
