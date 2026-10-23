@@ -124,11 +124,11 @@ export function screenPicture(screen, { picture, snapshotPage, occurrencesById }
   return Promise.resolve(null);
 }
 
-export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesById, save, onDone, confirmRemove = true }) {
+export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesById, save, onDone, onRemoved, confirmRemove = true }) {
   const count = useMemo(() => shelfItems(shelf, { grid, occurrencesById, modulesById }).length, [shelf, grid, occurrencesById, modulesById]);
   const remove = () => {
     if (confirmRemove && !window.confirm(`Remove "${shelf.title}"?`)) return;
-    save(removeShelf(grid, shelf.id)); onDone?.();
+    save(removeShelf(grid, shelf.id)); (onRemoved || onDone)?.();
   };
   return (
     <>
@@ -156,7 +156,7 @@ export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesByI
   );
 }
 
-export function ScreenSettings({ screen, grid, gridId, occurrencesById, modulesById, save, onDone, extra = null, confirmRemove = true }) {
+export function ScreenSettings({ screen, grid, gridId, occurrencesById, modulesById, save, onDone, onRemoved, extra = null, confirmRemove = true }) {
   const pages = useMemo(() => {
     const out = [];
     for (const o of Object.values(occurrencesById || {})) {
@@ -167,7 +167,7 @@ export function ScreenSettings({ screen, grid, gridId, occurrencesById, modulesB
   }, [occurrencesById, modulesById, gridId]);
   const remove = () => {
     if (confirmRemove && !window.confirm("Remove this screen?")) return;
-    save(removeScreen(grid, screen.id)); onDone?.();
+    save(removeScreen(grid, screen.id)); (onRemoved || onDone)?.();
   };
   return (
     <>

@@ -18,10 +18,17 @@ class PlacementStore(context: Context) {
 
   data class Stored(val space: String, val t: FloatArray, val q: FloatArray, val scale: Float = 1f)
 
-  private fun posesJson(): JSONObject = JSONObject(prefs.getString("poses:$gridId", "{}") ?: "{}")
+  companion object {
+    /** Keys kept for the headset, not per grid: the settings panel is where you left it whichever grid is open. */
+    val GLOBAL = setOf("control")
+  }
+
+  private fun scope(key: String) = if (key in GLOBAL) "" else gridId
+  private fun posesJson(key: String = ""): JSONObject =
+      JSONObject(prefs.getString("poses:${scope(key)}", "{}") ?: "{}")
 
   fun get(key: String): Stored? {
-    val o = posesJson().optJSONObject(key) ?: return null
+    val o = posesJson(key).optJSONObject(key) ?: return null
     val t = o.optJSONArray("t") ?: return null
     val q = o.optJSONArray("q") ?: return null
     return Stored(
@@ -33,18 +40,18 @@ class PlacementStore(context: Context) {
   }
 
   fun put(key: String, s: Stored) {
-    val all = posesJson()
+    val all = posesJson(key)
     all.put(key, JSONObject()
         .put("space", s.space)
         .put("t", JSONArray(s.t.map { it.toDouble() }))
         .put("q", JSONArray(s.q.map { it.toDouble() }))
         .put("s", s.scale.toDouble()))
-    prefs.edit().putString("poses:$gridId", all.toString()).apply()
+    prefs.edit().putString("poses:${scope(key)}", all.toString()).apply()
   }
 
   fun remove(key: String) {
-    val all = posesJson(); all.remove(key)
-    prefs.edit().putString("poses:$gridId", all.toString()).apply()
+    val all = posesJson(key); all.remove(key)
+    prefs.edit().putString("poses:${scope(key)}", all.toString()).apply()
   }
 
   fun clearPoses() { prefs.edit().remove("poses:$gridId").apply() }

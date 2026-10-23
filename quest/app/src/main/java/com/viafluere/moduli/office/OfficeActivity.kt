@@ -66,12 +66,18 @@ class OfficeActivity : AppSystemActivity() {
   companion object {
     private const val TAG = "ModuliOffice"
     private const val CONTROL_PANEL_ID = 7000
+    /** The settings panel is a piece of the room like the furniture (move, turn, resize, push/pull). */
+    private const val CONTROL = "control"
     private const val PERMISSION_USE_SCENE = "com.oculus.permission.USE_SCENE"
     private const val REQUEST_USE_SCENE = 1
     private const val CONTROL_W = 1.2f
     private const val CONTROL_H = 0.9f
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
+    /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
+    private const val PIECE_W = 0.8f
+    private const val PIECE_H = 0.75f
+    private const val GEAR_M = 0.09f
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
     /** Held thumbstick: degrees turned per second, how many times bigger per second, metres pushed per second. */
@@ -87,11 +93,15 @@ class OfficeActivity : AppSystemActivity() {
     var handle: GrabHandle? = null
     /** The piece's height at scale 1 (the model, or its web panel when that stands taller). */
     var top = 1f
+    /** A panel's handle hangs below it (its origin is its centre); furniture's floats above. */
+    var handleBelow = false
     var scale = 1f
     var lastScale = 1f
     var panel: Entity? = null
     /** Where the panel sits on the piece at scale 1 (height, distance out front). */
     var panelAt = floatArrayOf(0f, 0f)
+    /** The ⚙ beside the handle that opens this piece's own settings window. */
+    var gear: Entity? = null
     var web: WebView? = null
     var html: String = ""
     var lastT = FloatArray(3)
@@ -108,7 +118,8 @@ class OfficeActivity : AppSystemActivity() {
   private val things = LinkedHashMap<String, Thing>()
   private val readers = HashMap<Int, Entity>()
   private val readerHandles = HashMap<Int, GrabHandle>()
-  private var controlHandle: GrabHandle? = null
+  /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
+  private val pieceWindows = HashMap<String, Int>()
   /** The piece the thumbstick turns when nothing is held: the last one grabbed, tapped or picked in the panel. */
   private var selected: String? = null
   /** Each model's height (tools/exportModels.mjs writes office/sizes.json), so its handle floats just above it. */
@@ -218,13 +229,15 @@ class OfficeActivity : AppSystemActivity() {
     // swung the whole room around) is off — you walk around your real room instead.
     systemManager.findSystem<LocomotionSystem>().enableLocomotion(false)
     applyMode(store.mode)
-    // The control panel floats to the left of where you are looking.
-    val controlEntity = Entity.create(listOf(
-        Panel(CONTROL_PANEL_ID),
-        Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)),
-    ))
-    controlHandle = GrabHandle(controlEntity, -(CONTROL_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.3f)
-    controlHandle?.follow()
+    // The control panel: where you left it, else floating to the left of where you are looking.
+    val t = Thing(CONTROL, Entity.create(listOf(Panel(CONTROL_PANEL_ID), Transform(Pose()))))
+    t.top = CONTROL_H / 2f
+    t.handleBelow = true
+    t.handle = GrabHandle(t.frame, -(t.top + HANDLE_GAP / 2f), facesHead = false, widthScale = 1.3f)
+    things[CONTROL] = t
+    // Not saved here: a spot saved relative to the room only resolves once the room loads (onRoomChanged restores it).
+    if (!restore(t)) t.frame.setComponent(Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)))
+    t.handle?.follow()
   }
 
   private fun onRoomChanged() {
@@ -246,6 +259,7 @@ class OfficeActivity : AppSystemActivity() {
       "open" -> openReader(m.optString("id"))
       "turn" -> things[m.optString("key")]?.let { turn(it, m.optDouble("deg", 45.0).toFloat()) }
       "delete" -> deleteThing(m.optString("key"))
+      "closePiece" -> pieceWindows[m.optString("key")]?.let { closeReader(it) }
       "addDecor" -> addDecor(m)
       "spawn" -> things[m.optString("key")]?.let { putInFront(it) }
       "mode" -> { store.mode = m.optString("mode", "mr"); applyMode(store.mode); send(JSONObject().put("type", "mode").put("mode", store.mode)) }
@@ -263,7 +277,7 @@ class OfficeActivity : AppSystemActivity() {
     m.optString("origin").takeIf { it.isNotEmpty() }?.let { origin = it }
     if (gridChanged) {
       store.gridId = m.optString("gridId")
-      for (k in things.keys.toList()) deleteEntity(k)
+      for (k in things.keys.toList()) if (k != CONTROL) deleteEntity(k)
       placed = false
     }
     if (room.resolved || placed) placeAll()
@@ -276,6 +290,7 @@ class OfficeActivity : AppSystemActivity() {
     placed = true
     val st = state
     val wanted = LinkedHashMap<String, () -> Unit>()
+    wanted[CONTROL] = {}
     wanted["fireplace"] = { ensureThing("fireplace", "fireplace") }
     if (st != null) {
       val shelves = st.optJSONArray("shelves")
@@ -315,6 +330,7 @@ class OfficeActivity : AppSystemActivity() {
     t.handle?.follow()
     Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
     SelectOnTrigger.attach(frame) { select(key) }
+    t.gear = gearButton(t)
     return t
   }
 
@@ -371,11 +387,13 @@ class OfficeActivity : AppSystemActivity() {
     if (selected == key) selected = null
     t.handle?.destroy()
     t.panel?.destroy()
+    t.gear?.destroy()
+    pieceWindows[key]?.let { closeReader(it) }
     t.frame.destroy()
   }
 
   private fun deleteThing(key: String) {
-    if (key == "fireplace") return
+    if (key == "fireplace" || key == CONTROL) return
     deleteEntity(key)
     store.remove(key)
     if (key.startsWith("decor:")) store.saveDecor(store.decor().filter { it.optString("key") != key })
@@ -411,6 +429,7 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun putInFront(t: Thing) {
+    if (t.key == CONTROL) return putDefault(t)
     val dist = when {
       t.key == "fireplace" -> 2.6f
       t.key.startsWith("decor:") -> 1.2f
@@ -423,6 +442,12 @@ class OfficeActivity : AppSystemActivity() {
 
   /** Where a thing goes the first time: a spread in front of you, so new pieces do not pile up. */
   private fun putDefault(t: Thing) {
+    if (t.key == CONTROL) {
+      t.frame.setComponent(Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)))
+      t.handle?.follow()
+      remember(t, force = true)
+      return
+    }
     val i = things.keys.indexOf(t.key)
     val side = if (t.key == "fireplace") 0f else ((i % 5) - 2) * 1.3f
     val dist = if (t.key == "fireplace") 2.8f else 2.2f
@@ -482,12 +507,13 @@ class OfficeActivity : AppSystemActivity() {
       p.setComponent(Scale(Vector3(t.scale)))
       p.setComponent(Transform(PoseMath.pose(floatArrayOf(0f, t.panelAt[0] * t.scale, t.panelAt[1] * t.scale), PoseMath.yaw(180f))))
     }
-    t.handle?.dy = t.top * t.scale + HANDLE_GAP
+    t.handle?.dy = if (t.handleBelow) -(t.top * t.scale + HANDLE_GAP / 2f) else t.top * t.scale + HANDLE_GAP
     t.handle?.follow()
   }
 
   private fun select(key: String) {
     selected = key
+    if (key == CONTROL) return
     send(JSONObject().put("type", "select").put("key", key))
   }
 
@@ -519,7 +545,6 @@ class OfficeActivity : AppSystemActivity() {
         if (h.update(head)) select(t.key)
         if (h.held) held = t.key
       }
-      controlHandle?.update(head)
       for (h in readerHandles.values) h.update(head)
 
       val now = System.nanoTime()
@@ -572,7 +597,51 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun closeReader(id: Int) {
-    main.post { readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy() }
+    main.post {
+      pieceWindows.entries.removeAll { it.value == id }
+      readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy()
+    }
+  }
+
+  // ── Each piece's own settings: a ⚙ beside its handle opens a window for that piece alone ─────────
+  /** A small panel holding one ⚙ button, riding just right of `t`'s handle and facing out of the piece's front. */
+  private fun gearButton(t: Thing): Entity? {
+    val handle = t.handle ?: return null
+    val id = nextPanelId++
+    registerPanel(ComposeViewPanelRegistration(
+        id,
+        composeViewCreator = { _, ctx ->
+          ComposeView(ctx).apply {
+            setContent { Button(onClick = { main.post { togglePiece(t.key) } }, modifier = Modifier.fillMaxSize()) { Text("⚙") } }
+          }
+        },
+        settingsCreator = {
+          UIPanelSettings(
+              shape = QuadShapeOptions(width = GEAR_M, height = GEAR_M),
+              style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
+              display = DpPerMeterDisplayOptions(),
+          )
+        },
+    ))
+    return Entity.create(listOf(
+        Panel(id),
+        Transform(PoseMath.pose(floatArrayOf(0.28f, 0f, 0f), PoseMath.yaw(180f))),
+        TransformParent(handle.entity),
+    ))
+  }
+
+  /** Open `key`'s own settings window in front of you, or close it if it is open. */
+  private fun togglePiece(key: String) {
+    pieceWindows[key]?.let { closeReader(it); return }
+    val id = nextPanelId++
+    registerPanel(webPanel(id, PIECE_W, PIECE_H, toolbar = true) { web ->
+      web.loadUrl("$origin/?office&piece=${Uri.encode(key)}")
+    })
+    val e = Entity.create(listOf(Panel(id), Transform(spawnPose(1.0f, 1.35f, 0.35f, panel = true))))
+    readers[id] = e
+    readerHandles[id] = GrabHandle(e, -(PIECE_H / 2f + HANDLE_GAP / 2f), facesHead = true).also { it.follow() }
+    pieceWindows[key] = id
+    select(key)
   }
 
   // ── Mixed reality or a VR room built from your room's walls ──────────────

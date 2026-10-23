@@ -13,7 +13,7 @@ import { readOffice, addShelf, removeShelf, addScreen, removeScreen } from "./of
 import { shelfItems } from "./shelfItems.js";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings, visibleOnlyFilter } from "./officeShared.jsx";
-import NativeOffice, { hasNativeBridge } from "./NativeOffice.jsx";
+import NativeOffice, { NativePiece, hasNativeBridge } from "./NativeOffice.jsx";
 import { openFromLink } from "../helpers/deepLinkOpen.js";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { toast } from "../state/notificationStore";
@@ -22,7 +22,10 @@ export { visibleOnlyFilter };
 
 /** In the Quest app the office is native; this page is its control panel. */
 export default function VrOfficeEntry(props) {
-  return hasNativeBridge() ? <NativeOffice {...props} /> : <VrOffice {...props} />;
+  if (!hasNativeBridge()) return <VrOffice {...props} />;
+  // `/?office&piece=<key>`: one piece's own settings window (the ⚙ beside it in the headset).
+  const piece = new URLSearchParams(window.location.search).get("piece");
+  return piece ? <NativePiece pieceKey={piece} {...props} /> : <NativeOffice {...props} />;
 }
 
 function VrOffice({ grid, occurrencesById, modulesById, viewsById, dispatch, socket, onClose }) {

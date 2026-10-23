@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 vi.mock("../ui/FeedSection.jsx", () => ({ default: () => <div data-testid="feed" /> }));
 vi.mock("../PagePreviewApp.jsx", () => ({ PagePreviewBody: () => null }));
 
-import NativeOffice, { nativeOfficeState, hasNativeBridge } from "../vr/NativeOffice.jsx";
+import NativeOffice, { NativePiece, nativeOfficeState, hasNativeBridge } from "../vr/NativeOffice.jsx";
 
 const grid = { _id: "g1", meta: { vrOffice: {
   shelves: [{ id: "s1", title: "Books", asset: "book", feed: { conditions: [], scope: null } }],
@@ -34,15 +34,34 @@ describe("NativeOffice", () => {
     expect(hasNativeBridge()).toBe(true);
   });
 
-  it("sends its state, and a select from the headset opens that shelf's settings", () => {
+  it("sends its state, and holds only room-wide controls (no piece settings)", () => {
     const sent = [];
     window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
     render(<NativeOffice grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
     expect(sent.some((m) => m.type === "state")).toBe(true);
     expect(sent.some((m) => m.type === "ready")).toBe(true);
-    act(() => window.__moduliNative.onEvent({ type: "select", key: "shelf:s1" }));
+    expect(screen.queryByTestId("feed")).toBeNull();
+    expect(screen.getByText("Mixed reality")).toBeTruthy();
+  });
+});
+
+describe("NativePiece (one piece's own settings window)", () => {
+  it("shows that shelf's settings, sends no state, and Done closes the window", () => {
+    const sent = [];
+    window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
+    render(<NativePiece pieceKey="shelf:s1" grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
     expect(screen.getByTestId("feed")).toBeTruthy();
-    fireEvent.click(screen.getByText("Turn ⟳"));
-    expect(sent.at(-1)).toEqual({ type: "turn", key: "shelf:s1", deg: 45 });
+    expect(sent.some((m) => m.type === "state")).toBe(false);
+    fireEvent.click(screen.getByText("Done"));
+    expect(sent.at(-1)).toEqual({ type: "closePiece", key: "shelf:s1" });
+  });
+
+  it("decor can be removed from its own window", () => {
+    const sent = [];
+    window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<NativePiece pieceKey="decor:abc" grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
+    fireEvent.click(screen.getByText("Remove"));
+    expect(sent.at(-1)).toEqual({ type: "delete", key: "decor:abc" });
   });
 });

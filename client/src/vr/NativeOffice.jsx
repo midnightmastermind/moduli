@@ -7,10 +7,14 @@
 // leaves the headset.
 //
 // Bridge (the app adds `window.ModuliNative`):
-//   page → app   ModuliNative.postMessage(JSON)  { type: "state" | "screenImage" | "addDecor" | "turn" | "delete" | "mode" | "resetLayout" }
-//   app → page   window.__moduliNative.onEvent({ type: "select", key } | { type: "refreshScreen", id } | { type: "mode", mode })
+//   page → app   ModuliNative.postMessage(JSON)  { type: "state" | "screenImage" | "addDecor" | "delete" | "mode" | "resetLayout" | "closePiece" }
+//   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode })
+//
+// Each piece has its OWN settings (user, 2026-10-23: "each one should have their own settings button, not all
+// coalesced into one screen"): the ⚙ beside a piece's handle opens `/?office&piece=<key>`, which renders
+// NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
+import { readOffice, addShelf, addScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
 import { shelfItems } from "./shelfItems.js";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
@@ -43,7 +47,38 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById }, pageLa
   };
 }
 
-const KIND_NAMES = { shelf: "Shelf", screen: "Screen", decor: "Decor", fireplace: "Fireplace" };
+/** One piece's settings, in its own window beside it (`/?office&piece=<key>`). Sends no state — the main panel does. */
+export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, dispatch }) {
+  const gridId = grid?._id || grid?.id;
+  const office = useMemo(() => readOffice(grid), [grid]);
+  const live = useRef({});
+  live.current = { grid, gridId, occurrencesById, modulesById, dispatch, office };
+  const save = useOfficeSave(live);
+  useEffect(() => { setLocalLayout(true); }, []);
+  const [kind, id] = String(pieceKey || "").split(/:(.*)/s);
+  const shelf = kind === "shelf" ? office.shelves.find((s) => s.id === id) : null;
+  const screen = kind === "screen" ? office.screens.find((s) => s.id === id) : null;
+  const close = () => post({ type: "closePiece", key: pieceKey });
+  // A removed shelf or screen leaves the room when the main panel sends the new state; this window closes with it.
+  const removed = () => post({ type: "delete", key: pieceKey });
+  const wrap = { position: "fixed", inset: 0, zIndex: 2000, background: "var(--surface-card)", color: "var(--text-primary)", overflow: "auto", padding: 14, fontSize: 14 };
+  const common = { grid, gridId, occurrencesById, modulesById, save: (m) => save(m), confirmRemove: true };
+  if (shelf) return <div style={wrap}><ShelfSettings shelf={shelf} {...common} onDone={close} onRemoved={removed} /></div>;
+  if (screen) return <div style={wrap}><ScreenSettings screen={screen} {...common} onDone={close} onRemoved={removed} /></div>;
+  const title = kind === "fireplace" ? "Fireplace" : kind === "decor" ? "Decor" : "This piece";
+  return (
+    <div style={wrap}>
+      <h3 style={{ margin: "0 0 10px", fontSize: 16 }}>{title}</h3>
+      <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>
+        Move it by its bar. Right stick: turn (left / right) and size (up / down). Left stick while holding: further / closer.
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+        {kind === "decor" && <button style={btn} onClick={() => { if (window.confirm("Remove this from the room?")) removed(); }}>Remove</button>}
+        <button style={btn} onClick={close}>Done</button>
+      </div>
+    </div>
+  );
+}
 
 export default function NativeOffice({ grid, occurrencesById, modulesById, dispatch }) {
   const gridId = grid?._id || grid?.id;
@@ -52,7 +87,6 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
   live.current = { grid, gridId, occurrencesById, modulesById, dispatch, office };
   const save = useOfficeSave(live);
   const { picture, snapshotPage, portal } = usePagePictures();
-  const [selected, setSelected] = useState(null);   // "shelf:<id>" | "screen:<id>" | "decor:<id>" | "fireplace"
   const [mode, setMode] = useState("mr");
 
   useEffect(() => { setLocalLayout(true); }, []);
@@ -102,8 +136,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
     window.__moduliNative = {
       onEvent: (ev) => {
         const e = typeof ev === "string" ? JSON.parse(ev) : ev;
-        if (e?.type === "select") setSelected(e.key || null);
-        else if (e?.type === "refreshScreen") paint(e.id);
+        if (e?.type === "refreshScreen") paint(e.id);
         else if (e?.type === "mode") setMode(e.mode);
         else if (e?.type === "hello") { lastSent.current = ""; sendState(); }
       },
@@ -112,25 +145,13 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
     return () => { delete window.__moduliNative; };
   }, [paint, sendState]);
 
-  const [kind, id] = String(selected || "").split(/:(.*)/s);
-  const shelf = kind === "shelf" ? office.shelves.find((s) => s.id === id) : null;
-  const screen = kind === "screen" ? office.screens.find((s) => s.id === id) : null;
-  const gone = (kind === "shelf" && !shelf) || (kind === "screen" && !screen);
-  useEffect(() => { if (gone) setSelected(null); }, [gone]);
-
-  const removeSelected = () => {
-    if (shelf) save(removeShelf(grid, shelf.id));
-    else if (screen) save(removeScreen(grid, screen.id));
-    post({ type: "delete", key: selected });
-    setSelected(null);
-  };
   const addAShelf = async (asset) => {
     const { meta, shelf: s } = addShelf(grid, asset);
-    await save(meta); post({ type: "spawn", key: "shelf:" + s.id }); setSelected("shelf:" + s.id);
+    await save(meta); post({ type: "spawn", key: "shelf:" + s.id });
   };
   const addAScreen = async () => {
     const { meta, screen: s } = addScreen(grid, { source: "grid" });
-    await save(meta); post({ type: "spawn", key: "screen:" + s.id }); setSelected("screen:" + s.id);
+    await save(meta); post({ type: "spawn", key: "screen:" + s.id });
   };
   const decor = useMemo(() => decorLibrary({ grid, occurrencesById, modulesById }), [grid, occurrencesById, modulesById]);
 
@@ -144,21 +165,6 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
         <button style={btn} onClick={() => { if (window.confirm("Put everything back to where it started?")) post({ type: "resetLayout" }); }}>Reset layout</button>
       </div>
 
-      {selected && (
-        <div style={section} aria-label="Selected">
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-            <strong>{KIND_NAMES[kind] || "Selected"}{shelf ? `: ${shelf.title}` : ""}</strong>
-            <button style={btn} onClick={() => post({ type: "turn", key: selected, deg: -45 })}>⟲ Turn</button>
-            <button style={btn} onClick={() => post({ type: "turn", key: selected, deg: 45 })}>Turn ⟳</button>
-            {kind !== "fireplace" && !shelf && !screen && <button style={btn} onClick={removeSelected}>Delete</button>}
-            {screen && <button style={btn} onClick={() => paint(screen.id)}>Repaint</button>}
-            <button style={btn} onClick={() => setSelected(null)}>Done</button>
-          </div>
-          {shelf && <ShelfSettings shelf={shelf} grid={grid} gridId={gridId} occurrencesById={occurrencesById} modulesById={modulesById} save={(m) => save(m)} onDone={() => setSelected(null)} />}
-          {screen && <ScreenSettings screen={screen} grid={grid} gridId={gridId} occurrencesById={occurrencesById} modulesById={modulesById} save={(m) => save(m)} onDone={() => setSelected(null)} />}
-        </div>
-      )}
-
       <div style={section}>
         <div style={{ marginBottom: 6 }}>Add</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -171,14 +177,9 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
         </div>
       </div>
 
-      <div style={section}>
-        <div style={{ marginBottom: 6 }}>In the room</div>
-        {office.shelves.map((s) => <button key={s.id} style={{ ...btn, margin: "0 6px 6px 0" }} onClick={() => setSelected("shelf:" + s.id)}>{s.title}</button>)}
-        {office.screens.map((s) => <button key={s.id} style={{ ...btn, margin: "0 6px 6px 0" }} onClick={() => setSelected("screen:" + s.id)}>Screen · {s.source === "grid" ? "The grid" : pageLabel(s.pageOccId) || "no page"}</button>)}
-        {!office.shelves.length && !office.screens.length && <div style={{ color: "var(--text-muted)" }}>Nothing yet — add a shelf or a screen.</div>}
-        <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>
-          Hold grip on a piece to move it. Press ⚙ on a shelf or screen, or point at decor and pull the trigger, to choose it here.
-        </div>
+      <div style={{ ...section, color: "var(--text-muted)", fontSize: 12 }}>
+        Grab a piece by the bar above it. Its ⚙ opens that piece's own settings. Right stick: turn (left / right) and
+        size (up / down). Left stick while holding: push further / pull closer.
       </div>
       {portal}
     </div>
