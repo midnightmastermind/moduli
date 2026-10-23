@@ -43,6 +43,14 @@ describe("NativeOffice", () => {
     expect(screen.queryByTestId("feed")).toBeNull();
     expect(screen.getByText("Mixed reality")).toBeTruthy();
   });
+
+  it("Move furniture starts off, and its switch asks the headset to turn it on", () => {
+    const sent = [];
+    window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
+    render(<NativeOffice grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
+    fireEvent.click(screen.getByText(/Move furniture: Off/));
+    expect(sent.at(-1)).toEqual({ type: "moveMode", on: true });
+  });
 });
 
 describe("NativePiece (one piece's own settings window)", () => {

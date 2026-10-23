@@ -148,6 +148,11 @@ class OfficeActivity : AppSystemActivity() {
   private val readerHandles = HashMap<Int, GrabHandle>()
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
   private val pieceWindows = HashMap<String, Int>()
+  /**
+   * Furniture moves only in "Move furniture" mode (the main panel's switch; off at every start). Off, no piece shows
+   * its bar, ⚙ or 🗑 and none can be grabbed — so reaching for a book never moves the shelf.
+   */
+  private var moveMode = false
   /** Each model's height (tools/exportModels.mjs writes office/sizes.json), so its handle floats just above it. */
   private val sizes: JSONObject by lazy {
     try { JSONObject(assets.open("office/sizes.json").bufferedReader().readText()) } catch (e: Exception) { JSONObject() }
@@ -274,7 +279,11 @@ class OfficeActivity : AppSystemActivity() {
   // ── Messages from the pages ──────────────────────────────────────────────
   private fun onMessage(m: JSONObject) {
     when (m.optString("type")) {
-      "ready" -> { send(JSONObject().put("type", "mode").put("mode", store.mode)) }
+      "ready" -> {
+        send(JSONObject().put("type", "mode").put("mode", store.mode))
+        send(JSONObject().put("type", "moveMode").put("on", moveMode))
+      }
+      "moveMode" -> { moveMode = m.optBoolean("on"); send(JSONObject().put("type", "moveMode").put("on", moveMode)) }
       "state" -> onState(m)
       "screenImage" -> {
         val id = m.optString("id"); screenImages[id] = m.optString("image")
@@ -587,7 +596,7 @@ class OfficeActivity : AppSystemActivity() {
     // Each controller points at ONE piece: the nearest its ray meets. A ray across the room passes through several
     // pieces' boxes, and lighting them all up let a grab land on the wrong piece.
     val pointed = HashSet<String>()
-    for ((o, d) in controllerRays()) {
+    for ((o, d) in if (moveMode) controllerRays() else emptyList()) {
       var best: Thing? = null; var bestD = Float.MAX_VALUE
       for (t in things.values) {
         // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — skip it then.
@@ -601,7 +610,7 @@ class OfficeActivity : AppSystemActivity() {
     if (pointed.isNotEmpty()) for (t in things.values) if (t.key !in pointed) t.lastHover = 0L
     for (t in things.values) {
       if (t.key == CONTROL) continue
-      val want = !t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
+      val want = moveMode && (!t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows)
       if (want == t.menuShown) continue
       t.menuShown = want
       for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))

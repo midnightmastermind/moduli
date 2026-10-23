@@ -8,7 +8,9 @@
 //
 // Bridge (the app adds `window.ModuliNative`):
 //   page → app   ModuliNative.postMessage(JSON)  { type: "state" | "screenImage" | "addDecor" | "delete" | "mode" | "resetLayout" | "closePiece" }
-//   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode } | { type: "remove", key })
+//   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode } | { type: "remove", key }
+//                                              | { type: "moveMode", on })
+//   page → app   also { type: "moveMode", on } — furniture can be moved only while it is on (off at every start).
 //
 // Each piece has its OWN settings (user, 2026-10-23: "each one should have their own settings button, not all
 // coalesced into one screen"): the ⚙ beside a piece's handle opens `/?office&piece=<key>`, which renders
@@ -89,6 +91,10 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
   const save = useOfficeSave(live);
   const { picture, snapshotPage, portal } = usePagePictures();
   const [mode, setMode] = useState("mr");
+  const [moveMode, setMoveMode] = useState(false);
+  // Two taps to reset (a web confirm never shows inside a headset panel): the first arms it for 3s.
+  const [resetArmed, setResetArmed] = useState(false);
+  useEffect(() => { if (!resetArmed) return; const t = setTimeout(() => setResetArmed(false), 3000); return () => clearTimeout(t); }, [resetArmed]);
 
   useEffect(() => { setLocalLayout(true); }, []);
 
@@ -147,6 +153,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
           else if (k === "screen") save(removeScreen(g, id));
         }
         else if (e?.type === "mode") setMode(e.mode);
+        else if (e?.type === "moveMode") setMoveMode(!!e.on);
         else if (e?.type === "hello") { lastSent.current = ""; sendState(); }
       },
     };
@@ -171,7 +178,11 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
         <strong style={{ fontSize: 16, marginRight: 8 }}>Office</strong>
         <button style={{ ...btn, outline: mode === "mr" ? "2px solid var(--accent, #4a8)" : "none" }} onClick={() => post({ type: "mode", mode: "mr" })}>Mixed reality</button>
         <button style={{ ...btn, outline: mode === "vr" ? "2px solid var(--accent, #4a8)" : "none" }} onClick={() => post({ type: "mode", mode: "vr" })}>VR room</button>
-        <button style={btn} onClick={() => { if (window.confirm("Put everything back to where it started?")) post({ type: "resetLayout" }); }}>Reset layout</button>
+        <button style={{ ...btn, outline: moveMode ? "2px solid var(--accent, #4a8)" : "none" }} aria-pressed={moveMode}
+          onClick={() => post({ type: "moveMode", on: !moveMode })}>Move furniture: {moveMode ? "On" : "Off"}</button>
+        <button style={btn} onClick={() => { if (resetArmed) { post({ type: "resetLayout" }); setResetArmed(false); } else setResetArmed(true); }}>
+          {resetArmed ? "Tap again to reset" : "Reset layout"}
+        </button>
       </div>
 
       <div style={section}>
@@ -187,7 +198,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
       </div>
 
       <div style={{ ...section, color: "var(--text-muted)", fontSize: 12 }}>
-        Grab a piece by the bar above it. Its ⚙ opens that piece's own settings. Right stick: turn (left / right) and
+        Turn on Move furniture, then grab a piece by the bar above it. Its ⚙ opens that piece's own settings. Right stick: turn (left / right) and
         size (up / down). Left stick while holding: push further / pull closer.
       </div>
       {portal}
