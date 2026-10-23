@@ -740,14 +740,22 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   // ── Mixed reality or a VR room built from your room's walls ──────────────
+  private fun applyDepth(on: Boolean) {
+    if (on) scene.setEnvironmentDepthMode(com.meta.spatial.runtime.EnvironmentDepthMode.OCCLUSION)
+    scene.enableEnvironmentDepth(on)
+    Log.i(TAG, "environment depth ${if (on) "on (occlusion)" else "off"}")
+  }
+
   private fun applyMode(mode: String) {
     if (!sceneReady) return
     val vr = mode == "vr"
     scene.enablePassthrough(!vr)
     // Mixed reality: real things nearer than a piece hide it (environment depth), so sitting on a chair shows your
     // own legs in front of it rather than the chair drawn through you. Off in VR — there is no camera view of you.
-    scene.enableEnvironmentDepth(!vr)
-    if (!vr) scene.setEnvironmentDepthMode(com.meta.spatial.runtime.EnvironmentDepthMode.OCCLUSION)
+    // The MODE has to be set before depth is switched on: enabled first, the system logged "not requested mode" and
+    // nothing was occluded. Re-applied once the scene has settled, in case the first call came too early.
+    applyDepth(!vr)
+    main.postDelayed({ if (store.mode == mode) applyDepth(!vr) }, 3000)
     room.showWalls(vr)
   }
 }
