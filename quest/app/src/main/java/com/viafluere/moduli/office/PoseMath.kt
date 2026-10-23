@@ -59,5 +59,24 @@ object PoseMath {
   fun yawToward(from: FloatArray, to: FloatArray): Float =
       Math.toDegrees(kotlin.math.atan2((to[0] - from[0]).toDouble(), (to[2] - from[2]).toDouble())).toFloat()
 
+  /**
+   * Where the ray (o, d) first meets a box — `lo`..`hi` in the frame of `pose` (its position and turn) — as a distance
+   * along d, or null when it misses (or the box is more than 10m away). The menus and the shelf books both use it.
+   */
+  fun rayBox(o: FloatArray, d: FloatArray, pose: Pose, lo: FloatArray, hi: FloatArray): Float? {
+    val inv = qConj(qOf(pose)); val p = tOf(pose)
+    val lo3 = rotate(inv, floatArrayOf(o[0] - p[0], o[1] - p[1], o[2] - p[2]))
+    val ld = rotate(inv, d)
+    var tMin = 0f; var tMax = 10f
+    for (i in 0..2) {
+      if (kotlin.math.abs(ld[i]) < 1e-6f) { if (lo3[i] < lo[i] || lo3[i] > hi[i]) return null; continue }
+      var a = (lo[i] - lo3[i]) / ld[i]; var b = (hi[i] - lo3[i]) / ld[i]
+      if (a > b) { val x = a; a = b; b = x }
+      tMin = maxOf(tMin, a); tMax = minOf(tMax, b)
+      if (tMin > tMax) return null
+    }
+    return tMin
+  }
+
   fun near(a: FloatArray, b: FloatArray, eps: Float) = a.indices.all { kotlin.math.abs(a[it] - b[it]) < eps }
 }

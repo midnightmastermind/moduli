@@ -132,6 +132,8 @@ class OfficeActivity : AppSystemActivity() {
     var shelfSize: OfficeSizes.Shelf? = null
     /** "book" | "record" | "vhs": what you hold when you take something off this shelf. */
     var shelfAsset = "book"
+    /** The book a controller is pointing at on this shelf (its spine lights up), or null. */
+    var hoverBook: String? = null
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
     /** When a controller last pointed at it (the piece or its menu). */
@@ -433,6 +435,33 @@ class OfficeActivity : AppSystemActivity() {
     bookFront[t.key] = size.d / 2f + 0.01f + BOOK_PROXY_DEPTH / 2f
   }
 
+  /**
+   * Light up the spine each controller points at (the nearest book its ray meets), so you see which book you are
+   * about to take — not its neighbour.
+   */
+  private fun hoverBooks() {
+    val want = HashMap<String, String>()
+    for ((o, d) in controllerRays()) {
+      var best: Pair<Thing, Book>? = null; var bestD = Float.MAX_VALUE
+      for (t in things.values) for (b in t.books) {
+        if (b.held) continue
+        val rest = bookRestPose(t, b) ?: continue
+        val s = t.scale
+        val hw = b.slot.w * s / 2f; val hh = b.slot.h * s / 2f; val hd = BOOK_PROXY_DEPTH * s / 2f
+        val dist = PoseMath.rayBox(o, d, rest, floatArrayOf(-hw, -hh, -hd), floatArrayOf(hw, hh, hd)) ?: continue
+        if (dist < bestD) { bestD = dist; best = t to b }
+      }
+      best?.let { (t, b) -> want[t.key] = b.itemId }
+    }
+    for (t in things.values) {
+      if (t.books.isEmpty() && t.hoverBook == null) continue
+      val id = want[t.key]
+      if (id == t.hoverBook) continue
+      t.hoverBook = id
+      t.web?.evaluateJavascript("hover(${if (id == null) "null" else JSONObject.quote(id)})", null)
+    }
+  }
+
   /** How far out from a shelf's centre its books' grab blocks sit (just in front of the spines on the panel). */
   private val bookFront = HashMap<String, Float>()
 
@@ -451,6 +480,7 @@ class OfficeActivity : AppSystemActivity() {
    */
   private fun updateBooks() {
     val now = System.currentTimeMillis()
+    hoverBooks()
     for (t in things.values) {
       if (t.books.isEmpty()) continue
       val s = t.scale
@@ -667,23 +697,11 @@ class OfficeActivity : AppSystemActivity() {
   /** How far along the ray (o, d) it meets `t`'s box, or null when it misses. */
   private fun hitDistance(t: Thing, o: FloatArray, d: FloatArray): Float? {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return null
-    val inv = PoseMath.qConj(PoseMath.qOf(pose)); val p = PoseMath.tOf(pose)
     val s = t.scale
     val hx = maxOf((if (t.hx > 0f) t.hx else 0.5f) * s, 0.5f) + 0.05f
     val hz = maxOf((if (t.hz > 0f) t.hz else 0.5f) * s, 0.08f) + 0.05f
     val top = (t.handle?.dy ?: (t.top * s)) + 0.1f
-    val lo = floatArrayOf(-hx, -0.05f, -hz); val hi = floatArrayOf(hx, top, hz)
-    val lo3 = PoseMath.rotate(inv, floatArrayOf(o[0] - p[0], o[1] - p[1], o[2] - p[2]))
-    val ld = PoseMath.rotate(inv, d)
-    var tMin = 0f; var tMax = 10f
-    for (i in 0..2) {
-      if (kotlin.math.abs(ld[i]) < 1e-6f) { if (lo3[i] < lo[i] || lo3[i] > hi[i]) return null; continue }
-      var a = (lo[i] - lo3[i]) / ld[i]; var b = (hi[i] - lo3[i]) / ld[i]
-      if (a > b) { val x = a; a = b; b = x }
-      tMin = maxOf(tMin, a); tMax = minOf(tMax, b)
-      if (tMin > tMax) return null
-    }
-    return tMin
+    return PoseMath.rayBox(o, d, pose, floatArrayOf(-hx, -0.05f, -hz), floatArrayOf(hx, top, hz))
   }
 
   /**

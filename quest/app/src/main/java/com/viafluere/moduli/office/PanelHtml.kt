@@ -52,7 +52,11 @@ object PanelHtml {
       display:flex;align-items:flex-end;justify-content:center;overflow:hidden;cursor:pointer}
   .it span{font-size:2.6vh;line-height:1.1;padding:.4vh;background:rgba(0,0,0,.55);width:100%;text-align:center;
       max-height:60%;overflow:hidden}
-  .it.held{visibility:hidden}
+  /* The spot of a book in your hand: an empty, glowing outline, so you can see where it goes back. */
+  .it.held{background:none!important;box-shadow:0 0 2vh #ffd27a;outline:.5vh dashed #ffd27a;outline-offset:-.5vh}
+  .it.held span{visibility:hidden}
+  /* The book a controller points at: the one a grab will take. */
+  .it.hover{outline:.5vh solid #fff;outline-offset:-.5vh;box-shadow:0 0 2.5vh #fff;transform:translateY(-1vh)}
   #empty{padding:4vh 4vw;font-size:4.5vh;background:rgba(0,0,0,.5);margin:3vh;border-radius:1vh}
 </style></head><body>
 <div id="head"><b>${esc(title)}</b><span id="pg"></span>
@@ -63,15 +67,16 @@ object PanelHtml {
   var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")};
   var colors=${JSONArray(SPINE_COLORS)};
   function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
-  var per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={};
+  var per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null;
   function go(d){page=(page+d+pages)%pages;draw();send({type:'shelfPage',key:key,page:page});}
   function hold(id,on){if(on)held[id]=1;else delete held[id];draw();}
+  function hover(id){hoverId=id;draw();}
   function draw(){
     var box=document.getElementById('rows'); box.innerHTML='';
     document.getElementById('pg').textContent=(page+1)+' / '+pages+' · '+items.length;
     if(!items.length){box.innerHTML='<div id="empty">Press ⚙ to choose what this shelf holds.</div>';return;}
     items.slice(page*per,page*per+per).forEach(function(it,i){
-      var r=rects[i], d=document.createElement('div'); d.className='it'+(held[it.id]?' held':'');
+      var r=rects[i], d=document.createElement('div'); d.className='it'+(held[it.id]?' held':(it.id===hoverId?' hover':''));
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';
       d.style.backgroundColor=asset==='vhs' ? '#151515' : colors[hash(it.t)%colors.length];
       if(it.c) d.style.backgroundImage='url("'+it.c.replace(/"/g,'%22')+'")';
