@@ -56,6 +56,13 @@ class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boole
       return started
     }
     held = false
+    follow()
+    return false
+  }
+
+  /** Put the handle over (or under) the target. Called whenever the target is placed, and every frame it is not held. */
+  fun follow() {
+    val tp = target.tryGetComponent<Transform>()?.transform ?: return
     val want = PoseMath.pose(
         PoseMath.tOf(tp).let { floatArrayOf(it[0], it[1] + dy, it[2]) },
         PoseMath.upright(PoseMath.qOf(tp)),
@@ -65,7 +72,6 @@ class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boole
         !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(want), 0.002f)) {
       entity.setComponent(Transform(want))
     }
-    return false
   }
 
   fun destroy() = entity.destroy()

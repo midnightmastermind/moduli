@@ -214,6 +214,7 @@ class OfficeActivity : AppSystemActivity() {
         Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)),
     ))
     controlHandle = GrabHandle(controlEntity, -(CONTROL_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.22f)
+    controlHandle?.follow()
   }
 
   private fun onRoomChanged() {
@@ -300,6 +301,8 @@ class OfficeActivity : AppSystemActivity() {
     t.top = sizes.optJSONObject(if (src != null) "" else model)?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
     t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false)
     if (!restore(t)) putDefault(t)
+    t.handle?.follow()
+    Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
     SelectOnTrigger.attach(frame) { select(key) }
     return t
   }
@@ -401,6 +404,7 @@ class OfficeActivity : AppSystemActivity() {
       else -> 1.8f
     }
     t.frame.setComponent(Transform(spawnPose(dist, 0f)))
+    t.handle?.follow()
     remember(t, force = true)
   }
 
@@ -410,6 +414,7 @@ class OfficeActivity : AppSystemActivity() {
     val side = if (t.key == "fireplace") 0f else ((i % 5) - 2) * 1.3f
     val dist = if (t.key == "fireplace") 2.8f else 2.2f
     t.frame.setComponent(Transform(spawnPose(dist, 0f, side)))
+    t.handle?.follow()
     remember(t, force = true)
   }
 
@@ -444,6 +449,7 @@ class OfficeActivity : AppSystemActivity() {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.upright(PoseMath.qOf(pose)))
     t.frame.setComponent(Transform(PoseMath.pose(PoseMath.tOf(pose), q)))
+    t.handle?.follow()
     remember(t, force = true)
   }
 
@@ -457,6 +463,7 @@ class OfficeActivity : AppSystemActivity() {
   private fun applyScale(t: Thing) {
     t.frame.setComponent(Scale(Vector3(t.scale)))
     t.handle?.dy = t.top * t.scale + HANDLE_GAP
+    t.handle?.follow()
   }
 
   private fun select(key: String) {
@@ -470,7 +477,18 @@ class OfficeActivity : AppSystemActivity() {
    * controllers — per-entity button events never carried the thumbstick on the headset.
    */
   inner class InputSystem : SystemBase() {
+    private var ran = false
+    private var lastError = ""
     override fun execute() {
+      if (!ran) { ran = true; Log.i(TAG, "InputSystem running") }
+      try { step() } catch (e: Exception) {
+        // Log each distinct failure once, so a broken frame shows up without flooding the log.
+        val msg = e.toString()
+        if (msg != lastError) { lastError = msg; Log.e(TAG, "InputSystem failed", e) }
+      }
+    }
+
+    private fun step() {
       val head = headPose()
       var held: String? = null
       for (t in things.values) {
@@ -518,7 +536,7 @@ class OfficeActivity : AppSystemActivity() {
         Transform(spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
     ))
     readers[id] = e
-    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.25f)
+    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.25f).also { it.follow() }
   }
 
   private fun closeReader(id: Int) {
