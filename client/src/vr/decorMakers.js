@@ -92,7 +92,7 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       return g;
     }
     case "swivelchair": {
-      // An office chair: five-star base on casters, gas lift, padded seat and back, arms. Faces +z like the armchair.
+      // An office chair with no back (user, 2026-10-23): five-star base on casters, gas lift, padded seat, arms.
       const dark = 0x2b2b2b, pad = 0x34495e;
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
@@ -103,7 +103,6 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       }
       const lift = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12), mat(0x888888)); lift.position.y = 0.26; g.add(lift);
       g.add(box(0.5, 0.08, 0.48, pad, 0, 0.47, 0));
-      g.add(box(0.48, 0.55, 0.07, pad, 0, 0.8, -0.24));
       for (const x of [-0.27, 0.27]) { g.add(box(0.04, 0.2, 0.04, dark, x, 0.6, 0)); g.add(box(0.07, 0.03, 0.3, dark, x, 0.71, 0)); }
       return g;
     }

@@ -704,6 +704,10 @@ class OfficeActivity : AppSystemActivity() {
     if (!sceneReady) return
     val vr = mode == "vr"
     scene.enablePassthrough(!vr)
+    // Mixed reality: real things nearer than a piece hide it (environment depth), so sitting on a chair shows your
+    // own legs in front of it rather than the chair drawn through you. Off in VR — there is no camera view of you.
+    scene.enableEnvironmentDepth(!vr)
+    if (!vr) scene.setEnvironmentDepthMode(com.meta.spatial.runtime.EnvironmentDepthMode.OCCLUSION)
     room.showWalls(vr)
   }
 }
