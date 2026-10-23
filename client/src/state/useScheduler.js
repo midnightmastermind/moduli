@@ -24,6 +24,11 @@
 // ============================================================
 import { useEffect, useRef } from "react";
 import { isSnapshotMode } from "./snapshotMode.js";
+
+/** True inside the Quest app's web windows (the app adds the `ModuliNative` bridge to every one). */
+export function inQuestApp() {
+  return typeof window !== "undefined" && !!window.ModuliNative;
+}
 import { executePipeline, opRunsOnGrid } from "../helpers/operationExecutor";
 import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
@@ -101,6 +106,9 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
 
     const tick = () => {
       if (isSnapshotMode()) return; // a boot snapshot is on screen (state/snapshotMode)
+      // Not inside the Quest app's windows (its control panel, readers): an alarm rang in a reader with no way to
+      // stop it there. Scheduled operations and alarms run in the user's ordinary tabs.
+      if (inQuestApp()) return;
       const now = new Date();
       const inFlight = inFlightRef.current;
       for (const opId of Object.keys(operationsById)) {

@@ -45,8 +45,10 @@ object PanelHtml {
 <style>
   html,body{margin:0;height:100%;background:transparent;font-family:Georgia,serif;color:#f4e9d8;overflow:hidden}
   #head{height:${headerPct}vh;display:flex;align-items:center;gap:2vw;padding:0 2vw;box-sizing:border-box;background:rgba(40,26,16,.82);border-radius:1.5vh}
-  #head b{flex:1;font-size:6vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  button{font-size:5vh;padding:.5vh 2.5vw;border-radius:1vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
+  /* Small enough that a shelf's name fits beside its buttons (it showed "Boo…"). */
+  #head b{flex:1;font-size:3vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #pg{font-size:2.2vh;white-space:nowrap}
+  button{font-size:2.6vh;padding:.3vh 1.4vw;border-radius:.8vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
   #rows{position:relative;height:${100f - headerPct}vh}
   .it{position:absolute;border-radius:.6vh;box-shadow:0 0 .6vh rgba(0,0,0,.6);background-size:cover;background-position:center;
       display:flex;align-items:flex-end;justify-content:center;overflow:hidden;cursor:pointer}
