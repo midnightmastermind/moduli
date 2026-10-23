@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 (6) — SLOT SHADES CLOSE TOGETHER; 19 bare board selects become string lists; a Purchases board
+
+User: *"the 2 shades red and green for the timeslots … are too diff"* · boards for selects that are "not necessary,
+that can be replaced by string literal selects … its the occurances that dont have any fields really" · *"you should
+be able to add to the string literal list … for the select input"* · *"a general purchases board"* (a board of the
+things you buy, Board Category `purchase`).
+- **`0426`** — `Mark Passed Slots` alternated red 0.10/0.20 and grey 0.22/0.12 (one shade double the other; the
+  Terminal skin x2.2 widened it). Now red 0.16/0.20, grey 0.20/0.16; every occurrence of each old literal is swapped
+  so the IS_NOT guards match the new paint. The seed wraps its pipeline in `closeSlotShades`. Applied to poms.
+- **`0427`** — a Purchases board in Boards/Money (copied from the Charities pair at run time), `purchase` added to
+  Board Category + Tags. Purchase Item queries `purchase` only (it OR'd seven categories) and "+ Add new" files
+  there. **Uber Ride and Vr supplies** — bare rows "+ Add new" had filed onto Wish List — moved onto Purchases,
+  retagged, so the three Spend rows keep their picks. (My first probe read those picks as dangling; it was wrong.)
+- **`0428`** — a select converts when its option rows fill nothing but Board Category / Tags / Date / Last Seen and
+  the stock Poster + Files pictures, and no op reads it (census `server/_convcensus.mjs`): Area, Charity, Equipment,
+  Gift Idea, Gratitude Entry, Idea, Leisure Activity, Medium, Medication, Plant, Practice, Prompt, Route, Skill,
+  Supplement, Topic, Verse, Win, Wish List Item → `select`, manual options = the rows' names, `allowNewOptions`;
+  stored ids → names (Medium's 4). 17 boards deleted (17 pages, 17 containers, 85 rows, 118 modules); KEPT: Wish
+  List (Savings Goal read it — narrowed to `savingsGoal` in the same pass), Verses (Reading reads it), songs.
+  Refuses a field whose rows carry data, an op that reads it, or a text embedding a doomed row.
+- Integrity after: no new errors (the 2 errors + 4 warnings are pre-existing schedule/housekeeping ones).
+  Tests `scheduleSlotShadesCloser` (5), `boardSelectsToStrings` (6). Server 3,230 pass.
+
+---
+
 ### 2026-10-23 (5) — THE OFFICE AS A QUEST APP: first APK built; not yet on the headset
 
 User: *"maybe we should do an actual app instead of just in browser"* → *"yes just do the app"* (Meta Spatial SDK,
