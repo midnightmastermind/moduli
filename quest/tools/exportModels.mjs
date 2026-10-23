@@ -30,13 +30,19 @@ const pieces = {
 };
 
 const exporter = new GLTFExporter();
+// How tall each piece is, so the app can float its grab handle just above it (OfficeActivity reads office/sizes.json).
+const sizes = {};
 for (const [name, make] of Object.entries(pieces)) {
   const scene = new THREE.Scene();
   const g = make();
   // Lights stay in the browser; the headset lights the room itself.
   g.traverse((o) => { if (o.isLight) o.visible = false; });
   scene.add(g);
+  const box = new THREE.Box3().setFromObject(g);
+  sizes[name] = { top: +box.max.y.toFixed(3) };
   const glb = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
   writeFileSync(resolve(out, name + ".glb"), Buffer.from(glb));
   console.log(name + ".glb", Buffer.from(glb).length, "bytes");
 }
+writeFileSync(resolve(out, "sizes.json"), JSON.stringify(sizes, null, 2));
+console.log("sizes.json", sizes);

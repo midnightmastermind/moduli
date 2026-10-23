@@ -55,5 +55,9 @@ object PoseMath {
     return yaw(ang)
   }
 
+  /** The turn (degrees about the vertical) that points +z from `from` toward `to`. */
+  fun yawToward(from: FloatArray, to: FloatArray): Float =
+      Math.toDegrees(kotlin.math.atan2((to[0] - from[0]).toDouble(), (to[2] - from[2]).toDouble())).toFloat()
+
   fun near(a: FloatArray, b: FloatArray, eps: Float) = a.indices.all { kotlin.math.abs(a[it] - b[it]) < eps }
 }

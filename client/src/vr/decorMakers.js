@@ -82,6 +82,26 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       g.add(box(0.14, 0.25, 0.8, c, -0.33, 0.54, 0)); g.add(box(0.14, 0.25, 0.8, c, 0.33, 0.54, 0));
       return g;
     }
+    case "couch": {
+      // A three-seat sofa, 2.1m wide; its back is at -z like the armchair's, so it faces +z.
+      const c = 0x4a5a6a, cushion = 0x5c6e80;
+      g.add(box(2.1, 0.22, 0.9, 0x3a4652, 0, 0.17, 0));
+      for (const x of [-0.65, 0, 0.65]) g.add(box(0.64, 0.14, 0.7, cushion, x, 0.35, 0.06));
+      g.add(box(2.1, 0.5, 0.2, c, 0, 0.6, -0.35));
+      g.add(box(0.18, 0.32, 0.9, c, -0.96, 0.44, 0)); g.add(box(0.18, 0.32, 0.9, c, 0.96, 0.44, 0));
+      for (const x of [-0.95, 0.95]) for (const z of [-0.38, 0.38]) g.add(box(0.06, 0.06, 0.06, 0x2a2a2a, x, 0.03, z));
+      return g;
+    }
+    case "bed": {
+      // A queen bed: 1.52 x 2.03m mattress. The headboard is at -z; you get in from +z.
+      g.add(box(1.62, 0.3, 2.13, 0x5b3a22, 0, 0.15, 0));
+      g.add(box(1.52, 0.25, 2.03, 0xf2efe8, 0, 0.42, 0));
+      g.add(box(1.56, 0.06, 1.4, 0x3d5a78, 0, 0.56, 0.33));
+      g.add(box(1.56, 0.08, 0.3, 0xe8e4da, 0, 0.58, -0.25));
+      for (const x of [-0.38, 0.38]) g.add(box(0.6, 0.12, 0.38, 0xffffff, x, 0.6, -0.76));
+      g.add(box(1.7, 1.1, 0.08, 0x5b3a22, 0, 0.55, -1.1));
+      return g;
+    }
     case "lamp": {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.4), mat(0x2b2b2b)); pole.position.y = 0.7; g.add(pole);
       const base = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.03), mat(0x2b2b2b)); base.position.y = 0.015; g.add(base);
@@ -123,4 +143,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];

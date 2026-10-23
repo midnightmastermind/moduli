@@ -26,15 +26,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.ComposeViewPanelRegistration
+import com.meta.spatial.runtime.ButtonBits
+import com.meta.spatial.toolkit.Controller
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
+import com.meta.spatial.core.Query
 import com.meta.spatial.core.SpatialFeature
 import com.meta.spatial.core.SystemBase
 import com.meta.spatial.core.Vector3
 import com.meta.spatial.toolkit.AppSystemActivity
 import com.meta.spatial.toolkit.DpPerMeterDisplayOptions
-import com.meta.spatial.toolkit.Grabbable
-import com.meta.spatial.toolkit.GrabbableType
 import com.meta.spatial.toolkit.Mesh
 import com.meta.spatial.toolkit.MeshCollision
 import com.meta.spatial.toolkit.Panel
@@ -42,6 +43,7 @@ import com.meta.spatial.toolkit.PanelRegistration
 import com.meta.spatial.toolkit.PanelStyleOptions
 import com.meta.spatial.toolkit.PlayerBodyAttachmentSystem
 import com.meta.spatial.toolkit.QuadShapeOptions
+import com.meta.spatial.toolkit.Scale
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
@@ -69,10 +71,19 @@ class OfficeActivity : AppSystemActivity() {
     private const val CONTROL_H = 0.9f
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
+    /** How far a handle floats above the top of a piece (or below a panel). */
+    private const val HANDLE_GAP = 0.12f
+    private const val SCALE_STEP = 1.1f
+    private const val SCALE_MIN = 0.3f
+    private const val SCALE_MAX = 3f
   }
 
   /** One thing in the room: its frame (a model you can grab) and, for shelves and screens, a web panel on its front. */
   class Thing(val key: String, val frame: Entity) {
+    var handle: GrabHandle? = null
+    /** The piece's height at scale 1 (the model, or its web panel when that stands taller). */
+    var top = 1f
+    var scale = 1f
     var panel: Entity? = null
     var web: WebView? = null
     var html: String = ""
@@ -89,6 +100,14 @@ class OfficeActivity : AppSystemActivity() {
   private var state: JSONObject? = null
   private val things = LinkedHashMap<String, Thing>()
   private val readers = HashMap<Int, Entity>()
+  private val readerHandles = HashMap<Int, GrabHandle>()
+  private var controlHandle: GrabHandle? = null
+  /** The piece the thumbstick turns when nothing is held: the last one grabbed, tapped or picked in the panel. */
+  private var selected: String? = null
+  /** Each model's height (tools/exportModels.mjs writes office/sizes.json), so its handle floats just above it. */
+  private val sizes: JSONObject by lazy {
+    try { JSONObject(assets.open("office/sizes.json").bufferedReader().readText()) } catch (e: Exception) { JSONObject() }
+  }
   private val screenImages = HashMap<String, String>()
   private var sceneReady = false
   private var placed = false
@@ -168,6 +187,7 @@ class OfficeActivity : AppSystemActivity() {
       requestPermissions(arrayOf(PERMISSION_USE_SCENE), REQUEST_USE_SCENE)
     } else room.load()
     systemManager.registerSystem(SaveSystem())
+    systemManager.registerSystem(InputSystem())
     // If the room never loads (no scan, permission refused) place things anyway, in the headset's own frame.
     main.postDelayed({ if (!placed) placeAll() }, 4000)
   }
@@ -189,11 +209,11 @@ class OfficeActivity : AppSystemActivity() {
     )
     applyMode(store.mode)
     // The control panel floats to the left of where you are looking.
-    Entity.create(listOf(
+    val controlEntity = Entity.create(listOf(
         Panel(CONTROL_PANEL_ID),
         Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)),
-        Grabbable(true, GrabbableType.FACE),
     ))
+    controlHandle = GrabHandle(controlEntity, -(CONTROL_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.22f)
   }
 
   private fun onRoomChanged() {
@@ -210,7 +230,7 @@ class OfficeActivity : AppSystemActivity() {
         val id = m.optString("id"); screenImages[id] = m.optString("image")
         things["screen:$id"]?.let { refreshPanel(it) }
       }
-      "select" -> send(JSONObject().put("type", "select").put("key", m.optString("key")))
+      "select" -> select(m.optString("key"))
       "refreshScreen" -> send(JSONObject().put("type", "refreshScreen").put("id", m.optString("id")))
       "open" -> openReader(m.optString("id"))
       "turn" -> things[m.optString("key")]?.let { turn(it, m.optDouble("deg", 45.0).toFloat()) }
@@ -274,12 +294,13 @@ class OfficeActivity : AppSystemActivity() {
     val frame = Entity.create(listOf(
         Mesh(modelUri(model, src), hittable = MeshCollision.LineTest),
         Transform(Pose()),
-        Grabbable(true, GrabbableType.PIVOT_Y),
     ))
     val t = Thing(key, frame)
     things[key] = t
+    t.top = sizes.optJSONObject(if (src != null) "" else model)?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
+    t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false)
     if (!restore(t)) putDefault(t)
-    SelectOnTrigger.attach(frame, onTurn = { deg -> turn(t, deg) }) { send(JSONObject().put("type", "select").put("key", key)) }
+    SelectOnTrigger.attach(frame) { select(key) }
     return t
   }
 
@@ -302,6 +323,9 @@ class OfficeActivity : AppSystemActivity() {
 
   /** A web panel on the front of `t`'s frame (made once; later only its page changes). */
   private fun attachPanel(t: Thing, w: Float, h: Float, y: Float, z: Float) {
+    // The handle has to clear the panel, which can stand taller than the model (a shelf's header).
+    t.top = maxOf(t.top, y + h / 2f)
+    applyScale(t)
     if (t.panel != null) { refreshPanel(t); return }
     val id = nextPanelId++
     registerPanel(webPanel(id, w, h, toolbar = false) { web ->
@@ -328,6 +352,8 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun deleteEntity(key: String) {
     val t = things.remove(key) ?: return
+    if (selected == key) selected = null
+    t.handle?.destroy()
     t.panel?.destroy()
     t.frame.destroy()
   }
@@ -346,7 +372,7 @@ class OfficeActivity : AppSystemActivity() {
     if (!m.isNull("src")) entry.put("src", m.optString("src"))
     store.saveDecor(store.decor() + entry)
     putInFront(ensureThing(key, model, entry.optString("src").ifEmpty { null }))
-    send(JSONObject().put("type", "select").put("key", key))
+    select(key)
   }
 
   // ── Where things stand ───────────────────────────────────────────────────
@@ -396,6 +422,8 @@ class OfficeActivity : AppSystemActivity() {
     } else PoseMath.pose(s.t, s.q)
     t.frame.setComponent(Transform(pose))
     t.lastT = PoseMath.tOf(pose); t.lastQ = PoseMath.qOf(pose)
+    t.scale = s.scale
+    applyScale(t)
     return true
   }
 
@@ -408,8 +436,8 @@ class OfficeActivity : AppSystemActivity() {
     val o = room.originPose()
     if (o != null) {
       val (lt, lq) = PoseMath.toLocal(o, pose)
-      store.put(t.key, PlacementStore.Stored("room", lt, lq))
-    } else store.put(t.key, PlacementStore.Stored("world", tt, q))
+      store.put(t.key, PlacementStore.Stored("room", lt, lq, t.scale))
+    } else store.put(t.key, PlacementStore.Stored("world", tt, q, t.scale))
   }
 
   private fun turn(t: Thing, deg: Float) {
@@ -417,6 +445,58 @@ class OfficeActivity : AppSystemActivity() {
     val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.upright(PoseMath.qOf(pose)))
     t.frame.setComponent(Transform(PoseMath.pose(PoseMath.tOf(pose), q)))
     remember(t, force = true)
+  }
+
+  /** Grow (factor > 1) or shrink `t`, about its base, and save it. */
+  private fun resize(t: Thing, factor: Float) {
+    t.scale = (t.scale * factor).coerceIn(SCALE_MIN, SCALE_MAX)
+    applyScale(t)
+    remember(t, force = true)
+  }
+
+  private fun applyScale(t: Thing) {
+    t.frame.setComponent(Scale(Vector3(t.scale)))
+    t.handle?.dy = t.top * t.scale + HANDLE_GAP
+  }
+
+  private fun select(key: String) {
+    selected = key
+    send(JSONObject().put("type", "select").put("key", key))
+  }
+
+  /**
+   * Every frame: pieces follow their handles. The RIGHT thumbstick (left / right) turns the piece being held, else
+   * the selected one, 45°; the LEFT thumbstick (up / down) makes it 10% bigger / smaller. Read straight from the
+   * controllers — per-entity button events never carried the thumbstick on the headset.
+   */
+  inner class InputSystem : SystemBase() {
+    override fun execute() {
+      val head = headPose()
+      var held: String? = null
+      for (t in things.values) {
+        val h = t.handle ?: continue
+        if (h.update(head)) select(t.key)
+        if (h.held) held = t.key
+      }
+      controlHandle?.update(head)
+      for (h in readerHandles.values) h.update(head)
+
+      var deg = 0f
+      var factor = 1f
+      for (c in Query.where { has(Controller.id) }.eval()) {
+        if (!c.isLocal()) continue
+        val ctl = c.tryGetComponent<Controller>() ?: continue
+        if (!ctl.isActive) continue
+        val pressed = ctl.buttonState and ctl.changedButtons
+        if (pressed and ButtonBits.ButtonThumbRL != 0) deg += 45f
+        if (pressed and ButtonBits.ButtonThumbRR != 0) deg -= 45f
+        if (pressed and ButtonBits.ButtonThumbLU != 0) factor *= SCALE_STEP
+        if (pressed and ButtonBits.ButtonThumbLD != 0) factor /= SCALE_STEP
+      }
+      val target = (held ?: selected)?.let { things[it] } ?: return
+      if (deg != 0f) turn(target, deg)
+      if (factor != 1f) resize(target, factor)
+    }
   }
 
   /** Watches for moved furniture (grabbing moves it without telling anyone) and saves it, about twice a second. */
@@ -433,14 +513,17 @@ class OfficeActivity : AppSystemActivity() {
     val id = nextPanelId++
     val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?open=${Uri.encode(occId)}&local=1"
     registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> web.loadUrl(url) })
-    readers[id] = Entity.create(listOf(
+    val e = Entity.create(listOf(
         Panel(id),
         Transform(spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
-        Grabbable(true, GrabbableType.FACE),
     ))
+    readers[id] = e
+    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.25f)
   }
 
-  private fun closeReader(id: Int) { main.post { readers.remove(id)?.destroy() } }
+  private fun closeReader(id: Int) {
+    main.post { readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy() }
+  }
 
   // ── Mixed reality or a VR room built from your room's walls ──────────────
   private fun applyMode(mode: String) {
