@@ -17,7 +17,7 @@
 // a row that does not exist yet (quick add) and one that already does (the
 // add-an-option flow).
 import React, { useCallback, useMemo, useState } from "react";
-import { Search, Check, ChevronLeft } from "lucide-react";
+import { Search, Check, ChevronLeft, X, BookmarkPlus } from "lucide-react";
 import { splitDisplayInput, typeableFields } from "../helpers/siblingFieldBindings.js";
 import { resolveOptions } from "../helpers/optionsResolver";
 import Field from "./Field.jsx";
@@ -53,8 +53,15 @@ export default function FieldPickerPanel({
   getOccMap,
   modulesById,
   foldersById,
+  // Field presets (helpers/fieldPresets): a row of saved field sets above the list. Omit `onSavePreset` and the
+  // row is not drawn — the add-an-option flow does not use presets.
+  presets = [],
+  onApplyPreset = null,   // (preset) => void
+  onSavePreset = null,    // (name) => void
+  onDeletePreset = null,  // (preset) => void
 }) {
   const [search, setSearch] = useState("");
+  const [naming, setNaming] = useState(null); // null = not saving; string = the name being typed
 
   // Three sections (user, 2026-08-22: "put the selected fields first, then
   // input fields and then display fields"). Ticked fields used to sort to the
@@ -122,6 +129,41 @@ export default function FieldPickerPanel({
       <div style={{ padding: "8px 10px 4px", fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", borderBottom: "1px solid var(--border-subtle)" }}>
         {title} ({(picked || []).length} selected)
       </div>
+      {onSavePreset && (
+        <div data-testid="field-presets" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, padding: "5px 10px", borderBottom: "1px solid var(--border-subtle)" }}>
+          <span style={{ fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-faint)", fontFamily: "var(--font-mono)", marginRight: 2 }}>Presets</span>
+          {presets.map((p) => (
+            <span key={p.id} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--border-default)", borderRadius: 999, background: "var(--input-bg)", fontSize: 10, fontFamily: "var(--font-mono)" }}>
+              <button type="button" onClick={() => onApplyPreset?.(p)} title={`Use "${p.name}" — ${p.fieldIds.length} field${p.fieldIds.length === 1 ? "" : "s"}`}
+                style={{ padding: "2px 4px 2px 8px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", font: "inherit" }}>{p.name}</button>
+              {onDeletePreset && (
+                <button type="button" aria-label={`Delete preset ${p.name}`} onClick={() => onDeletePreset(p)}
+                  style={{ display: "flex", padding: "2px 6px 2px 2px", background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)" }}><X size={9} /></button>
+              )}
+            </span>
+          ))}
+          {naming == null ? (
+            <button type="button" onClick={() => setNaming("")} disabled={!(picked || []).length}
+              title={(picked || []).length ? "Save the ticked fields and their values as a preset" : "Tick some fields first"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 8px", border: "1px dashed var(--border-default)", borderRadius: 999, background: "none", cursor: (picked || []).length ? "pointer" : "default", color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)", opacity: (picked || []).length ? 1 : 0.5 }}>
+              <BookmarkPlus size={10} /> Save as preset
+            </button>
+          ) : (
+            <span style={{ display: "inline-flex", gap: 4 }}>
+              <input autoFocus value={naming} placeholder="Preset name" aria-label="Preset name"
+                onChange={(e) => setNaming(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter" && naming.trim()) { onSavePreset(naming.trim()); setNaming(null); }
+                  if (e.key === "Escape") setNaming(null);
+                }}
+                style={{ width: 110, padding: "2px 6px", fontSize: 10, fontFamily: "var(--font-mono)", background: "var(--input-bg)", border: "1px solid var(--border-default)", borderRadius: 4, color: "var(--text-primary)", outline: "none" }} />
+              <button type="button" disabled={!naming.trim()} onClick={() => { onSavePreset(naming.trim()); setNaming(null); }}
+                style={{ padding: "2px 8px", fontSize: 10, fontFamily: "var(--font-mono)", background: "var(--accent-blue)", border: "none", borderRadius: 4, color: "var(--on-accent)", cursor: "pointer", opacity: naming.trim() ? 1 : 0.5 }}>Save</button>
+            </span>
+          )}
+        </div>
+      )}
       <div style={{ position: "relative" }}>
         <Search size={10} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
         <input

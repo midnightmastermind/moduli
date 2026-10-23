@@ -3,6 +3,9 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-23 — fieldPresets.js NEW)
+- `presetsOf`, `presetFromPick`, `withPreset` (same name replaces, keeps id), `withoutPreset`, `applyPreset`, `orderPresets(list, siblingFieldIds)`, `writePresets` (grid.meta.fieldPresets, other meta kept).
+
 ## Recent Changes (2026-10-23 — selectionDrag.js NEW: a selection drags together)
 - `routeDrop` → `tryGroupDrop`: `groupForDrag`, `groupDestination` (board/list container or board page), `groupInsertAt`, `planGroupMove` (pure, one final list per container), `runGroupDrop` (move / copy / copylink, one action). Selection read via `setSelectionSnapshot` (written by `state/SelectionContext`).
 

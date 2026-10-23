@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 (2) — FIELD PRESETS WHEN ADDING AN ITEM
+
+User: *"can we add field presets when adding new items"*; answers: fields + default values, saved from the
+add-item picker, offered on the whole grid.
+- **`helpers/fieldPresets.js`** — `grid.meta.fieldPresets = [{id, name, fieldIds, values}]` (values: what was typed
+  in the picker for ticked fields, raw). Saving under an existing name replaces it and keeps its id; applying drops
+  fields deleted since; presets whose fields the container's rows already wear are listed first. Written with the
+  rest of `grid.meta` kept (read at write time).
+- **`ui/FieldPickerPanel`** — a Presets row above the field list (only when the caller passes `onSavePreset`, so
+  the add-an-option flow is unchanged): click a chip to tick its fields and fill its values, × deletes (confirm),
+  "Save as preset" (off until a field is ticked) asks for a name inline. Wired in `QuickAddMenu`.
+- **Watched on a local build against prod (rebuild grid):** tick fields + type a value → Save as preset → reopen
+  + › Item → the chip is there → apply → Create: the new row carries the value. Probe rows + preset removed.
+  **Probe trap:** where a container sits at the top of a board page, the PAGE's own "+" lies over the container
+  header's "+" — a coordinate click opened the page's menu and the rows went onto the page (correctly). Click the
+  container's button itself. Tests `fieldPresets` (8).
+
+---
+
 ### 2026-10-23 — DRAGGING ONE ROW OF A SELECTION DRAGS THE SELECTION; a Todo at the top of Tasks
 
 User: *"tried to move one of them with multiple selected and it only moved that one occurance … id expect all of

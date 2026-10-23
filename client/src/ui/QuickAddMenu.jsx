@@ -26,6 +26,7 @@ import { toast } from "../state/notificationStore";
 import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 import Field from "./Field.jsx";
 import FieldPickerPanel from "./FieldPickerPanel.jsx";
+import { presetsOf, presetFromPick, withPreset, withoutPreset, applyPreset, orderPresets, writePresets } from "../helpers/fieldPresets";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
@@ -135,6 +136,8 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const ctxGrid = useGridActionsSelector(s => s.state.grid);
   const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const dispatch = useGridActionsSelector(s => s.dispatch);
+  const getState = useGridActionsSelector(s => s.getState);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -163,6 +166,27 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // fields are inherited from the siblings, the values are always yours to
   // type. Nothing is persisted until Create.
   const [pickingValues, setPickingValues] = useState({});
+  // Field presets (helpers/fieldPresets): saved field sets + values. Ordered so the presets whose fields the
+  // rows already in this container wear come first.
+  const [siblingFieldIds, setSiblingFieldIds] = useState([]);
+  const presetList = useMemo(() => orderPresets(presetsOf(ctxGrid), siblingFieldIds), [ctxGrid, siblingFieldIds]);
+  const getGrid = useCallback(() => getState?.()?.grid || ctxGrid, [getState, ctxGrid]);
+  const handleApplyPreset = useCallback((preset) => {
+    const { fieldIds, values } = applyPreset(preset, fieldsById);
+    setPickingFields(fieldIds);
+    setPickingValues(values);
+  }, [fieldsById]);
+  const handleSavePreset = useCallback((name) => {
+    const preset = presetFromPick({ name, fieldIds: pickingFields || [], values: pickingValues });
+    const existed = presetsOf(getGrid()).some((p) => p.name.trim().toLowerCase() === preset.name.toLowerCase());
+    if (writePresets({ dispatch, socket, getGrid, list: withPreset(presetsOf(getGrid()), preset) })) {
+      toast.success(`${existed ? "Updated" : "Saved"} preset "${preset.name}"`);
+    }
+  }, [pickingFields, pickingValues, dispatch, socket, getGrid]);
+  const handleDeletePreset = useCallback((preset) => {
+    if (!window.confirm(`Delete the preset "${preset.name}"?`)) return;
+    writePresets({ dispatch, socket, getGrid, list: withoutPreset(presetsOf(getGrid()), preset.id) });
+  }, [dispatch, socket, getGrid]);
   // Where a page tile files the page it creates, so it shows in the Local/Root
   // tree instead of existing only at the spot it was added.
   const rootFolderId = manifestsById?.[ctxGrid?.manifestId]?.rootFolderId || null;
@@ -346,6 +370,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
         inheritedRolesRef.current = Object.fromEntries(inherited.map(b => [b.fieldId, b.role]));
         inheritedHiddenRef.current = new Set(inherited.filter(b => b.hidden).map(b => b.fieldId));
         setPickingFields(inherited.map(b => b.fieldId));
+        setSiblingFieldIds(inherited.map(b => b.fieldId));
         return;
       }
       onCreateNew?.({ fieldIds: [], kind: "instance" });
@@ -620,6 +645,10 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               getOccMap={getOccMap}
               modulesById={modulesById}
               foldersById={foldersById}
+              presets={presetList}
+              onApplyPreset={handleApplyPreset}
+              onSavePreset={handleSavePreset}
+              onDeletePreset={handleDeletePreset}
             />
           ) : (
             // ── Unified: search + type tiles + existing matches + templates ──
