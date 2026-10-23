@@ -33,8 +33,14 @@ super long time to load"*.
   own navigator.xr otherwise wins): enter mixed reality, aim, trigger → pick up; ⟳ → −45°; thumbstick → turns; Done
   keeps the angle (saved); fireplace Delete refused; a placed decor and an added screen deleted (screen gone from
   the saved office). Probes `_vrturn.mjs`, `_vrdel.mjs`, `_vrload.mjs`, `_vrprof.mjs` (IWER under the job's tmp).
-- **Open (next):** furniture moves between sessions and VR ignores the boundary — positions are saved in
-  `local-floor`, whose origin is wherever the headset started; shelf settings leave the headset (2D form).
+- **Boundary (same day):** *"all the furniture is moved around always"* · *"vr mode doesnt follow my boundary"*.
+  Positions were saved in `local-floor`, whose origin is wherever the headset started. Sessions now ask for
+  `bounded-floor` (optional) and use it when the headset gives a boundary, so places are boundary-relative and stay
+  put; in VR the shell is rebuilt along the boundary polygon (floor, ceiling, a wall per edge — `fitShellToBounds`),
+  and the default room comes back when the session ends. No boundary → `local-floor` + a status saying so. Watched
+  with IWER + a fake 6-edge boundary (6 walls on its edges) and without one (fallback). `_vrbounds.mjs`.
+  **Not verified on the Quest:** whether its browser grants `bounded-floor` inside an `immersive-ar` session.
+- **Open:** shelf settings leave the headset (2D form).
 
 ---
 

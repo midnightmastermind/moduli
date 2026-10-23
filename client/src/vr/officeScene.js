@@ -80,6 +80,31 @@ export function createOfficeScene(container, host) {
     const front = back.clone(); front.position.z = 4; front.rotation.y = Math.PI; shell.add(front);
     scene.add(shell);
   }
+  // In VR the room follows the headset's BOUNDARY (bounded-floor): floor, walls and ceiling along its edges.
+  const shellDefault = [...shell.children];
+  function fitShellToBounds(points) {
+    if (!points || points.length < 3) return false;
+    for (const c of [...shell.children]) shell.remove(c);
+    const shape = new THREE.Shape(points.map((p) => new THREE.Vector2(p.x, -p.z)));
+    const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat(0x5a3b25));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; shell.add(floor);
+    const ceiling = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat(0x3a2a20, { side: THREE.BackSide }));
+    ceiling.rotation.x = -Math.PI / 2; ceiling.position.y = 3; shell.add(ceiling);
+    const wallMat = mat(0x6b4e3d, { side: THREE.DoubleSide });
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      const len = Math.hypot(b.x - a.x, b.z - a.z); if (len < 0.01) continue;
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(len, 3), wallMat);
+      wall.position.set((a.x + b.x) / 2, 1.5, (a.z + b.z) / 2);
+      wall.rotation.y = Math.atan2(b.x - a.x, b.z - a.z) + Math.PI / 2;
+      shell.add(wall);
+    }
+    return true;
+  }
+  function restoreDefaultShell() {
+    for (const c of [...shell.children]) shell.remove(c);
+    for (const c of shellDefault) shell.add(c);
+  }
   const floorSurface = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshBasicMaterial({ visible: false }));
   floorSurface.rotation.x = -Math.PI / 2;
   scene.add(floorSurface); surfaces.push(floorSurface);
@@ -681,13 +706,23 @@ export function createOfficeScene(container, host) {
   async function startSession(mode) {
     const session = await navigator.xr.requestSession(mode, {
       requiredFeatures: ["local-floor"],
-      optionalFeatures: mode === "immersive-ar" ? ["plane-detection", "hand-tracking", "anchors"] : ["hand-tracking"],
+      optionalFeatures: mode === "immersive-ar" ? ["bounded-floor", "plane-detection", "hand-tracking", "anchors"] : ["bounded-floor", "hand-tracking"],
     });
     shell.visible = mode !== "immersive-ar";
     roomFitted = mode !== "immersive-ar";
-    renderer.xr.setReferenceSpaceType("local-floor");
+    // BOUNDED-FLOOR: positions are relative to your boundary, so what you place stays put from one session to the
+    // next. `local-floor`'s origin is wherever the headset was when the session began — which is why furniture
+    // used to land somewhere new every time.
+    let bounds = null;
+    try {
+      const space = await session.requestReferenceSpace("bounded-floor");
+      if (space?.boundsGeometry?.length >= 3) bounds = [...space.boundsGeometry].map((p) => ({ x: p.x, z: p.z }));
+    } catch { /* no boundary: local-floor */ }
+    renderer.xr.setReferenceSpaceType(bounds ? "bounded-floor" : "local-floor");
     await renderer.xr.setSession(session);
-    session.addEventListener("end", () => { shell.visible = true; });
+    if (bounds && mode === "immersive-vr") fitShellToBounds(bounds);
+    status(bounds ? "Using your boundary — what you place stays where you put it." : "No boundary from the headset — places follow where you start.");
+    session.addEventListener("end", () => { shell.visible = true; restoreDefaultShell(); });
     setTimeout(() => {
       const { pos, dir } = headPose();
       palette.position.copy(pos).addScaledVector(dir, 0.6); palette.position.y = 1.0;
@@ -749,7 +784,7 @@ export function createOfficeScene(container, host) {
   }
 
   // For checking the page from a test browser.
-  window.__vr = { scene, camera, interactive, palette, office, FIXTURES, placed, onSelect, raycaster, palCells, holdMenu, isHolding: () => !!holding };
+  window.__vr = { scene, camera, interactive, palette, office, FIXTURES, placed, onSelect, raycaster, palCells, holdMenu, isHolding: () => !!holding, shell, renderer };
 
   return { refresh, refreshScreens, refreshDecor, startSession, endSession, resetLayout, dispose };
 }
