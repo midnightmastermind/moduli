@@ -296,7 +296,7 @@ export function createOfficeScene(container, host) {
   }
 
   // ── Objects you can place ────────────────────────────────────────────────
-  const LABELS = { armchair: "Armchair", swivelchair: "Swivel chair", ottoman: "Ottoman", couch: "Couch", bed: "Queen bed", lamp: "Floor lamp", desklamp: "Desk lamp", plant: "Plant", rug: "Rug", candle: "Candle" };
+  const LABELS = { armchair: "Armchair", swivelchair: "Swivel chair", ottoman: "Ottoman", longtable: "Long table", couch: "Couch", bed: "Queen bed", lamp: "Floor lamp", desklamp: "Desk lamp", plant: "Plant", rug: "Rug", candle: "Candle" };
 
   // ── Decor from files: any .glb on the grid ───────────────────────────────
   // Loaded once per file. A model is scaled so its largest side is sensible

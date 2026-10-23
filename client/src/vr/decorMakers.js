@@ -92,7 +92,7 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       return g;
     }
     case "swivelchair": {
-      // An office chair with no back (user, 2026-10-23): five-star base on casters, gas lift, padded seat, arms.
+      // An office chair with no back and no arms (user, 2026-10-23): five-star base on casters, gas lift, padded seat.
       const dark = 0x2b2b2b, pad = 0x34495e;
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
@@ -103,7 +103,15 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       }
       const lift = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12), mat(0x888888)); lift.position.y = 0.26; g.add(lift);
       g.add(box(0.5, 0.08, 0.48, pad, 0, 0.47, 0));
-      for (const x of [-0.27, 0.27]) { g.add(box(0.04, 0.2, 0.04, dark, x, 0.6, 0)); g.add(box(0.07, 0.03, 0.3, dark, x, 0.71, 0)); }
+      return g;
+    }
+    case "longtable": {
+      // A long table, 2.4 x 0.9m, 75cm high: a thick wooden top on four square legs with a rail under the top.
+      const wood = 0x6b4a2f;
+      g.add(box(2.4, 0.05, 0.9, 0x7a5636, 0, 0.725, 0));
+      for (const x of [-1.12, 1.12]) for (const z of [-0.38, 0.38]) g.add(box(0.07, 0.7, 0.07, wood, x, 0.35, z));
+      for (const z of [-0.38, 0.38]) g.add(box(2.2, 0.08, 0.03, wood, 0, 0.66, z));
+      for (const x of [-1.12, 1.12]) g.add(box(0.03, 0.08, 0.7, wood, x, 0.66, 0));
       return g;
     }
     case "ottoman": {
@@ -164,4 +172,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
