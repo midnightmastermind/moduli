@@ -91,6 +91,29 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       for (const x of [-0.95, 0.95]) for (const z of [-0.38, 0.38]) g.add(box(0.06, 0.06, 0.06, 0x2a2a2a, x, 0.03, z));
       return g;
     }
+    case "swivelchair": {
+      // An office chair: five-star base on casters, gas lift, padded seat and back, arms. Faces +z like the armchair.
+      const dark = 0x2b2b2b, pad = 0x34495e;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const leg = box(0.32, 0.03, 0.05, dark, Math.sin(a) * 0.16, 0.07, Math.cos(a) * 0.16);
+        leg.rotation.y = a + Math.PI / 2; g.add(leg);
+        const wheel = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), mat(0x111111));
+        wheel.position.set(Math.sin(a) * 0.31, 0.03, Math.cos(a) * 0.31); g.add(wheel);
+      }
+      const lift = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12), mat(0x888888)); lift.position.y = 0.26; g.add(lift);
+      g.add(box(0.5, 0.08, 0.48, pad, 0, 0.47, 0));
+      g.add(box(0.48, 0.55, 0.07, pad, 0, 0.8, -0.24));
+      for (const x of [-0.27, 0.27]) { g.add(box(0.04, 0.2, 0.04, dark, x, 0.6, 0)); g.add(box(0.07, 0.03, 0.3, dark, x, 0.71, 0)); }
+      return g;
+    }
+    case "ottoman": {
+      // A padded footstool on short legs.
+      g.add(box(0.6, 0.3, 0.6, 0x7a5c48, 0, 0.27, 0));
+      g.add(box(0.56, 0.04, 0.56, 0x8c6d58, 0, 0.44, 0));
+      for (const x of [-0.25, 0.25]) for (const z of [-0.25, 0.25]) g.add(box(0.05, 0.12, 0.05, 0x3a2a1e, x, 0.06, z));
+      return g;
+    }
     case "bed": {
       // A queen bed: 1.52 x 2.03m mattress. The headboard is at -z; you get in from +z.
       g.add(box(1.62, 0.3, 2.13, 0x5b3a22, 0, 0.15, 0));
@@ -142,4 +165,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];

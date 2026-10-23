@@ -8,13 +8,13 @@
 //
 // Bridge (the app adds `window.ModuliNative`):
 //   page → app   ModuliNative.postMessage(JSON)  { type: "state" | "screenImage" | "addDecor" | "delete" | "mode" | "resetLayout" | "closePiece" }
-//   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode })
+//   app → page   window.__moduliNative.onEvent({ type: "refreshScreen", id } | { type: "mode", mode } | { type: "remove", key })
 //
 // Each piece has its OWN settings (user, 2026-10-23: "each one should have their own settings button, not all
 // coalesced into one screen"): the ⚙ beside a piece's handle opens `/?office&piece=<key>`, which renders
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readOffice, addShelf, addScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
+import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
 import { shelfItems } from "./shelfItems.js";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
@@ -62,7 +62,8 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, disp
   // A removed shelf or screen leaves the room when the main panel sends the new state; this window closes with it.
   const removed = () => post({ type: "delete", key: pieceKey });
   const wrap = { position: "fixed", inset: 0, zIndex: 2000, background: "var(--surface-card)", color: "var(--text-primary)", overflow: "auto", padding: 14, fontSize: 14 };
-  const common = { grid, gridId, occurrencesById, modulesById, save: (m) => save(m), confirmRemove: true };
+  // No confirm(): a web confirm never shows inside a headset panel, so it left Remove doing nothing.
+  const common = { grid, gridId, occurrencesById, modulesById, save: (m) => save(m), confirmRemove: false };
   if (shelf) return <div style={wrap}><ShelfSettings shelf={shelf} {...common} onDone={close} onRemoved={removed} /></div>;
   if (screen) return <div style={wrap}><ScreenSettings screen={screen} {...common} onDone={close} onRemoved={removed} /></div>;
   const title = kind === "fireplace" ? "Fireplace" : kind === "decor" ? "Decor" : "This piece";
@@ -73,7 +74,7 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, disp
         Move it by its bar. Right stick: turn (left / right) and size (up / down). Left stick while holding: further / closer.
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-        {kind === "decor" && <button style={btn} onClick={() => { if (window.confirm("Remove this from the room?")) removed(); }}>Remove</button>}
+        {kind === "decor" && <button style={btn} onClick={removed}>Remove</button>}
         <button style={btn} onClick={close}>Done</button>
       </div>
     </div>
@@ -137,13 +138,21 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, dispa
       onEvent: (ev) => {
         const e = typeof ev === "string" ? JSON.parse(ev) : ev;
         if (e?.type === "refreshScreen") paint(e.id);
+        else if (e?.type === "remove") {
+          // The 🗑 beside a shelf or screen in the headset: take it out of the grid's office (the headset already
+          // dropped it from the room; without this the next state would bring it back).
+          const [k, id] = String(e.key || "").split(/:(.*)/s);
+          const g = live.current.grid;
+          if (k === "shelf") save(removeShelf(g, id));
+          else if (k === "screen") save(removeScreen(g, id));
+        }
         else if (e?.type === "mode") setMode(e.mode);
         else if (e?.type === "hello") { lastSent.current = ""; sendState(); }
       },
     };
     post({ type: "ready" });
     return () => { delete window.__moduliNative; };
-  }, [paint, sendState]);
+  }, [paint, sendState, save]);
 
   const addAShelf = async (asset) => {
     const { meta, shelf: s } = addShelf(grid, asset);

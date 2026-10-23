@@ -8,6 +8,8 @@ import { resolveFileRef } from "../helpers/fileRef";
 
 export const BUILTIN_DECOR = [
   { key: "armchair", title: "Armchair" },
+  { key: "swivelchair", title: "Swivel chair" },
+  { key: "ottoman", title: "Ottoman" },
   { key: "couch", title: "Couch" },
   { key: "bed", title: "Queen bed" },
   { key: "lamp", title: "Floor lamp" },

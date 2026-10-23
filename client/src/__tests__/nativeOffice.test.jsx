@@ -56,10 +56,9 @@ describe("NativePiece (one piece's own settings window)", () => {
     expect(sent.at(-1)).toEqual({ type: "closePiece", key: "shelf:s1" });
   });
 
-  it("decor can be removed from its own window", () => {
+  it("decor can be removed from its own window, with no confirm (it never shows in a headset)", () => {
     const sent = [];
     window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<NativePiece pieceKey="decor:abc" grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
     fireEvent.click(screen.getByText("Remove"));
     expect(sent.at(-1)).toEqual({ type: "delete", key: "decor:abc" });

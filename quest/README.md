@@ -1,34 +1,8886 @@
-# Moduli Office (Quest app)
-
-The VR office as a native Meta Quest app (Meta Spatial SDK 0.14, Kotlin). The room is real (passthrough) and the
-furniture is saved relative to your scanned room's floor, so it stays where you put it.
-
-- `OfficeActivity.kt` — the room: fireplace, shelves, screens, decor; a floating Moduli panel (`viafluere.com/?office`,
-  which in this app is `client/src/vr/NativeOffice.jsx`) holds every setting and sends the office as JSON.
-- `RoomAnchor.kt` — MR Utility Kit: loads the room, gives the floor anchor (the frame poses are saved in), draws the
-  room's own walls in VR mode.
-- `GrabHandle.kt` — the white bar above each piece (below each panel) you grab to move it. The pieces themselves are
-  not grabbable: a shelf's/screen's web panel covers its front, and the SDK's grab flipped a held piece to face you.
-- `SelectOnTrigger.kt` — a trigger tap on a piece selects it.
-- Each piece has a ⚙ beside its handle: it opens (and closes) that piece's own settings window,
-  `/?office&piece=<key>` → `client/src/vr/NativeOffice.jsx` `NativePiece`. The main panel holds only room-wide
-  controls (add, MR/VR, reset). The main panel is itself a piece (key `control`, saved for the headset, not per
-  grid): move, turn, resize and push/pull it like furniture.
 - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
-  (else selected) piece, up/down grows/shrinks it (0.3x–3x, saved with its pose); LEFT stick up/down, while carrying
-  a piece, pushes it further away / pulls it closer. Pieces can be carried into the air but not below the floor. The
-  SDK's own stick locomotion (snap turn) is switched off.
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+Q- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
 
-## Build
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
 
-```
-export JAVA_HOME=~/.local/jdk/jdk-17.0.21+9
-echo "sdk.dir=$HOME/Android/Sdk" > local.properties
-./gradlew :app:assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
-```
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+V- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+Q- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+0- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+1- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+4- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
 
-## Sideload
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
 
-Quest in developer mode (Meta Horizon phone app › Devices › Developer mode), USB to the PC, then:
-`adb install -r app-debug.apk` (or drag the APK onto the headset in Meta Quest Developer Hub).
-It shows under Library › Unknown sources. Allow "spatial data" when asked; sign in to Moduli in the floating panel.
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+—- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+;- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+?- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+N- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+j- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+x- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+J- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+N- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+—- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+U- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+V- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+G- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+—- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+—- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+E- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+⚙- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+?- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+&- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+=- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+<- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+>- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+→- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+N- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+j- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+x- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+N- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+P- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+V- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+z- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+C- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+I- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+R- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+I- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+G- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+0- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+3- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+x- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+–- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+3- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+x- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+;- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+L- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+E- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+F- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+P- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+T- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+'- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+B- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+x- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+J- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+V- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+_- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+E- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+=- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+~- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+j- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+j- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+1- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+7- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+0- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+2- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+1- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
++- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+9- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+"- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+=- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+$- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+O- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+E- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+"- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+>- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+>- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+/- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+#- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+Q- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+z- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+›- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+›- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+m- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+U- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+S- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+B- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+P- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+C- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+,- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+:- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+-- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+`- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+(- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+P- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+K- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+Q- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+D- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+v- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+H- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+)- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+I- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+L- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+b- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+y- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+›- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+U- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+r- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+c- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+A- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+"- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+"- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+w- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+k- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+;- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+s- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+M- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+d- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+u- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+h- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+f- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+o- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+t- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+i- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+g- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+ - Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+p- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+a- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+n- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+e- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+l- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+.- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.
+
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down pushes it further away / pulls it closer while carried; LEFT stick up/down grows /
+  shrinks it (0.3x–3x, saved with its pose). Pieces can be carried into the air but not below the floor. The SDK's
+  own stick locomotion (snap turn) is switched off.

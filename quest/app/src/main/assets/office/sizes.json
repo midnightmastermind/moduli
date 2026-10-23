@@ -20,6 +20,12 @@
   "armchair": {
     "top": 0.92
   },
+  "swivelchair": {
+    "top": 1.075
+  },
+  "ottoman": {
+    "top": 0.46
+  },
   "couch": {
     "top": 0.85
   },

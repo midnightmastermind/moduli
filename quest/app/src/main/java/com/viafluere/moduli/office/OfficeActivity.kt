@@ -20,6 +20,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -78,6 +83,7 @@ class OfficeActivity : AppSystemActivity() {
     private const val PIECE_W = 0.8f
     private const val PIECE_H = 0.75f
     private const val GEAR_M = 0.09f
+    private const val TRASH_W = 0.15f
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
     /** Held thumbstick: degrees turned per second, how many times bigger per second, metres pushed per second. */
@@ -102,6 +108,8 @@ class OfficeActivity : AppSystemActivity() {
     var panelAt = floatArrayOf(0f, 0f)
     /** The ⚙ beside the handle that opens this piece's own settings window. */
     var gear: Entity? = null
+    /** The 🗑 beside the ⚙ (none on the fireplace). */
+    var trash: Entity? = null
     var web: WebView? = null
     var html: String = ""
     var lastT = FloatArray(3)
@@ -331,6 +339,7 @@ class OfficeActivity : AppSystemActivity() {
     Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
     SelectOnTrigger.attach(frame) { select(key) }
     t.gear = gearButton(t)
+    if (key != "fireplace") t.trash = trashButton(t)
     return t
   }
 
@@ -388,6 +397,7 @@ class OfficeActivity : AppSystemActivity() {
     t.handle?.destroy()
     t.panel?.destroy()
     t.gear?.destroy()
+    t.trash?.destroy()
     pieceWindows[key]?.let { closeReader(it) }
     t.frame.destroy()
   }
@@ -519,8 +529,8 @@ class OfficeActivity : AppSystemActivity() {
 
   /**
    * Every frame: pieces follow their handles. RIGHT thumbstick, held: left / right turns the piece being held (else
-   * the selected one), up / down grows / shrinks it. LEFT thumbstick, held, while carrying: up pushes the piece
-   * further away, down pulls it closer. All smooth, by how long the stick is held.
+   * the selected one); up / down, while carrying, pushes it further away / pulls it closer. LEFT thumbstick, held:
+   * up / down grows / shrinks it — size on a stick of its own. All smooth, by how long the stick is held.
    * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
    * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
    */
@@ -560,10 +570,10 @@ class OfficeActivity : AppSystemActivity() {
         val down = ctl.buttonState
         if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
         if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
-        if (down and ButtonBits.ButtonThumbRU != 0) growDir += 1f
-        if (down and ButtonBits.ButtonThumbRD != 0) growDir -= 1f
-        if (down and ButtonBits.ButtonThumbLU != 0) reachDir += 1f
-        if (down and ButtonBits.ButtonThumbLD != 0) reachDir -= 1f
+        if (down and ButtonBits.ButtonThumbRU != 0) reachDir += 1f
+        if (down and ButtonBits.ButtonThumbRD != 0) reachDir -= 1f
+        if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
+        if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
       }
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
@@ -628,6 +638,51 @@ class OfficeActivity : AppSystemActivity() {
         Transform(PoseMath.pose(floatArrayOf(0.28f, 0f, 0f), PoseMath.yaw(180f))),
         TransformParent(handle.entity),
     ))
+  }
+
+  /**
+   * A 🗑 just right of the ⚙. One tap arms it ("Sure?"), a second within 3s deletes the piece — a plain web confirm
+   * never showed inside a headset panel, which is why deleting from the settings window did nothing.
+   */
+  private fun trashButton(t: Thing): Entity? {
+    val handle = t.handle ?: return null
+    val id = nextPanelId++
+    registerPanel(ComposeViewPanelRegistration(
+        id,
+        composeViewCreator = { _, ctx ->
+          ComposeView(ctx).apply {
+            setContent {
+              var armed by remember { mutableStateOf(false) }
+              LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(3000); armed = false } }
+              Button(
+                  onClick = { if (armed) main.post { removePiece(t.key) } else armed = true },
+                  modifier = Modifier.fillMaxSize(),
+              ) { Text(if (armed) "Sure?" else "🗑") }
+            }
+          }
+        },
+        settingsCreator = {
+          UIPanelSettings(
+              shape = QuadShapeOptions(width = TRASH_W, height = GEAR_M),
+              style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
+              display = DpPerMeterDisplayOptions(),
+          )
+        },
+    ))
+    return Entity.create(listOf(
+        Panel(id),
+        Transform(PoseMath.pose(floatArrayOf(0.28f + GEAR_M / 2f + 0.015f + TRASH_W / 2f, 0f, 0f), PoseMath.yaw(180f))),
+        TransformParent(handle.entity),
+    ))
+  }
+
+  /**
+   * Take a piece out of the room. Decor lives on this headset, so it goes here; a shelf or screen is part of the
+   * grid's office, so the control panel removes it from there too (else the next state would bring it back).
+   */
+  private fun removePiece(key: String) {
+    if (key.startsWith("shelf:") || key.startsWith("screen:")) send(JSONObject().put("type", "remove").put("key", key))
+    deleteThing(key)
   }
 
   /** Open `key`'s own settings window in front of you, or close it if it is open. */
