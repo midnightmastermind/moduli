@@ -90,6 +90,10 @@ class OfficeActivity : AppSystemActivity() {
     private const val TRASH_W = 0.15f
     /** A piece's menu (bar, ⚙, 🗑) stays up this long after you stop pointing at it, to reach the buttons. */
     private const val MENU_LINGER_MS = 1500L
+    /** You are "in" a piece when your head is over its footprint (plus this margin) and lower than its top plus
+     *  SEATED_HEAD_M — sitting in a chair or lying on the bed, not standing beside or over it. */
+    private const val FOOTPRINT_MARGIN_M = 0.1f
+    private const val SEATED_HEAD_M = 0.9f
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
     /** Held thumbstick: degrees turned per second, how many times bigger per second, metres pushed per second. */
@@ -120,6 +124,11 @@ class OfficeActivity : AppSystemActivity() {
     var hovers = 0
     var lastHover = 0L
     var menuShown = true
+    /** The built-in model's name (null for an uploaded model, which has no see-through copy), and its footprint. */
+    var model: String? = null
+    var hx = 0f
+    var hz = 0f
+    var ghosted = false
     var web: WebView? = null
     var html: String = ""
     var lastT = FloatArray(3)
@@ -341,7 +350,11 @@ class OfficeActivity : AppSystemActivity() {
     ))
     val t = Thing(key, frame)
     things[key] = t
-    t.top = sizes.optJSONObject(if (src != null) "" else model)?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
+    val size = sizes.optJSONObject(if (src != null) "" else model)
+    t.top = size?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
+    if (src == null && size != null) {
+      t.model = model; t.hx = size.optDouble("hx").toFloat(); t.hz = size.optDouble("hz").toFloat()
+    }
     t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false,
         minY = 0f)
     if (!restore(t)) putDefault(t)
@@ -560,6 +573,28 @@ class OfficeActivity : AppSystemActivity() {
     }
   }
 
+  /**
+   * While you sit (or lie) in a piece it shows its see-through copy, so your own legs show through it instead of
+   * the chair being drawn over your lap. The headset's depth occlusion did not apply to these models.
+   */
+  private fun ghostSeats(head: Pose?) {
+    if (head == null) return
+    val h = PoseMath.tOf(head)
+    for (t in things.values) {
+      val model = t.model ?: continue
+      val pose = t.frame.tryGetComponent<Transform>()?.transform ?: continue
+      val (local, _) = PoseMath.toLocal(pose, head)
+      val s = t.scale
+      val inside = kotlin.math.abs(local[0]) < t.hx * s + FOOTPRINT_MARGIN_M &&
+          kotlin.math.abs(local[2]) < t.hz * s + FOOTPRINT_MARGIN_M &&
+          h[1] - pose.t.y < t.top * s + SEATED_HEAD_M
+      if (inside == t.ghosted) continue
+      t.ghosted = inside
+      val name = if (inside) "$model-ghost" else model
+      t.frame.setComponent(Mesh(Uri.parse("apk:///office/$name.glb"), hittable = MeshCollision.LineTest))
+    }
+  }
+
   private fun select(key: String) {
     selected = key
     if (key == CONTROL) return
@@ -596,6 +631,7 @@ class OfficeActivity : AppSystemActivity() {
       }
       for (h in readerHandles.values) h.update(head)
       showMenus()
+      ghostSeats(head)
 
       val now = System.nanoTime()
       val dt = if (lastNs == 0L) 0f else ((now - lastNs) / 1e9f).coerceAtMost(0.1f)

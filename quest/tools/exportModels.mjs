@@ -48,9 +48,31 @@ for (const [name, make] of Object.entries(pieces)) {
   g.traverse((o) => { if (o.isLight) o.visible = false; });
   scene.add(g);
   const box = new THREE.Box3().setFromObject(g);
-  sizes[name] = { top: +box.max.y.toFixed(3) };
+  // hx / hz: half its footprint, so the app can tell when you are sitting in it (and show the see-through copy).
+  sizes[name] = {
+    top: +box.max.y.toFixed(3),
+    hx: +((box.max.x - box.min.x) / 2).toFixed(3),
+    hz: +((box.max.z - box.min.z) / 2).toFixed(3),
+  };
   const glb = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
   writeFileSync(resolve(out, name + ".glb"), Buffer.from(glb));
+  // A see-through copy, shown while you sit in the piece so your own legs show through it.
+  if (name !== "handle") {
+    const ghost = new THREE.Scene();
+    const gg = make();
+    gg.traverse((o) => {
+      if (o.isLight) o.visible = false;
+      if (o.material) {
+        o.material = o.material.clone();
+        o.material.transparent = true;
+        o.material.opacity = 0.25;
+        o.material.depthWrite = false;
+      }
+    });
+    ghost.add(gg);
+    const gglb = await exporter.parseAsync(ghost, { binary: true, onlyVisible: true });
+    writeFileSync(resolve(out, name + "-ghost.glb"), Buffer.from(gglb));
+  }
   console.log(name + ".glb", Buffer.from(glb).length, "bytes");
 }
 writeFileSync(resolve(out, "sizes.json"), JSON.stringify(sizes, null, 2));
