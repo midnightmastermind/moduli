@@ -2,11 +2,12 @@
 // code an occurrence feed uses (`resolveFeedItems`), turned into the things the
 // VR office draws. Pure; no copies are made.
 //
-// Each item: { id, rowId, title, cover, fileId, fileKind }
+// Each item: { id, rowId, title, cover, fileId, fileKind, src }
 //   rowId   the occurrence the query matched
 //   id      what pointing at it opens: the row's readable/playable file when it
 //           has one of the shelf's kind, else the row itself
 //   cover   a picture url for the sleeve / spine / case, or null
+//   src     the readable/playable file's url (a record player plays it, a VHS player runs it on a screen), or null
 import { resolveFeedItems } from "../state/selectors";
 import { filesOf, primaryMediaOf } from "../helpers/occurrenceMedia";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
@@ -82,10 +83,10 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
     const title = (occurrenceDisplayLabel(occ, mod) || mod?.meta?.originalName || "").trim();
     if (!title) continue;
     let file = null;
-    if (mod?.role === "artifact" && wanted.includes(mod.kind)) file = { id: occ.id, kind: mod.kind };
+    if (mod?.role === "artifact" && wanted.includes(mod.kind)) file = { id: occ.id, kind: mod.kind, ref: mod.fileRef };
     else {
       const f = filesOf(occ, ctx).find((e) => wanted.includes(e.kind));
-      if (f) file = { id: f.occ.id, kind: f.kind };
+      if (f) file = { id: f.occ.id, kind: f.kind, ref: modulesById?.[f.occ.moduleId]?.fileRef };
     }
     out.push({
       id: file?.id || occ.id,
@@ -94,6 +95,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
+      src: file?.ref ? resolveFileRef(file.ref) : null,
     });
   }
   return out;

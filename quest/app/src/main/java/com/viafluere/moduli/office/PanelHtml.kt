@@ -109,6 +109,62 @@ object PanelHtml {
 </style></head><body><div id="w">$img<div id="t">${esc(title)}</div></div></body></html>"""
   }
 
+  /** The wall clock's face: the time and date, live. */
+  fun clock(): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Georgia,serif}
+  #f{position:absolute;inset:2vh;border-radius:50%;background:#f4ecd8;display:flex;flex-direction:column;align-items:center;
+     justify-content:center;color:#2b1d12;box-shadow:inset 0 0 3vh rgba(0,0,0,.35)}
+  #t{font-size:24vh;letter-spacing:-.5vh}
+  #d{font-size:8vh;margin-top:1vh;color:#5e4129}
+</style></head><body><div id="f"><div id="t"></div><div id="d"></div></div>
+<script>
+  function tick(){var n=new Date(), h=n.getHours()%12||12, m=('0'+n.getMinutes()).slice(-2);
+    document.getElementById('t').textContent=h+':'+m;
+    document.getElementById('d').textContent=n.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});}
+  tick(); setInterval(tick, 10000);
+</script></body></html>"""
+
+  /** The window's view: a painted landscape shipped in the app (load with base file:///android_asset/). */
+  fun windowView(): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#8fb0d0}
+img{width:100vw;height:100vh;object-fit:cover;display:block}</style></head>
+<body><img src="office/window_view.jpg"></body></html>"""
+
+  /** A record or VHS player waiting: what to drop on it. */
+  fun playerIdle(what: String): String = playerCard("Drop a $what here", "", "")
+
+  /** A record playing on the record player (with a stop button), or a tape running on a screen (status only). */
+  fun playerCard(title: String, audioSrc: String, stopKey: String, note: String = ""): String {
+    val audio = if (audioSrc.isNotEmpty()) """<audio src="${esc(audioSrc)}" autoplay controls></audio>""" else ""
+    val stop = if (stopKey.isNotEmpty()) """<button onclick="send({type:'stopPlayer',key:${js(stopKey)}})">⏹</button>""" else ""
+    return """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Georgia,serif;color:#f4e9d8}
+  #w{position:absolute;inset:0;background:rgba(30,20,12,.88);border-radius:4vh;border:.8vh solid #ffd27a;box-sizing:border-box;
+     display:flex;flex-direction:column;justify-content:center;padding:2vh 3vw;gap:2vh}
+  #r{display:flex;align-items:center;gap:2vw}
+  #t{flex:1;font-size:16vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #n{font-size:11vh;color:#d8c39a}
+  audio{width:100%;height:24vh}
+  button{font-size:16vh;padding:0 3vw;border-radius:2vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
+</style></head><body><div id="w"><div id="r"><div id="t">${esc(title)}</div>$stop</div>
+${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</div>
+<script>$BRIDGE</script></body></html>"""
+  }
+
+  /** A tape running on a screen: the video, with ⏹ to give the screen back its picture. */
+  fun video(title: String, src: String, screenKey: String): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#ddd;font-family:sans-serif}
+  video{width:100vw;height:100vh;object-fit:contain;display:block}
+  #bar{position:fixed;right:1vw;top:1vh;display:flex;gap:1vw;align-items:center}
+  #bar span{font-size:4vh;background:rgba(0,0,0,.6);padding:.4vh 1vw;border-radius:1vh}
+  button{font-size:4vh;padding:.4vh 1.6vw;border-radius:1vh;border:1px solid #555;background:rgba(20,20,20,.8);color:#eee}
+</style></head><body><video src="${esc(src)}" autoplay controls></video>
+<div id="bar"><span>${esc(title)}</span><button onclick="send({type:'stopVideo',key:${js(screenKey)}})">⏹</button></div>
+<script>$BRIDGE</script></body></html>"""
+
   /** A screen: the picture the control panel took of a page or of the grid. */
   fun screen(screen: JSONObject, image: String?): String {
     val id = screen.optString("id")

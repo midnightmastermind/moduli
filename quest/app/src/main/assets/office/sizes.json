@@ -233,6 +233,30 @@
     "hx": 0.755,
     "hz": 0.015
   },
+  "recordplayer": {
+    "top": 0.136,
+    "bottom": 0,
+    "hx": 0.225,
+    "hz": 0.18
+  },
+  "vhsplayer": {
+    "top": 0.09,
+    "bottom": 0,
+    "hx": 0.215,
+    "hz": 0.152
+  },
+  "clock": {
+    "top": 0.4,
+    "bottom": 0,
+    "hx": 0.2,
+    "hz": 0.02
+  },
+  "window": {
+    "top": 0.87,
+    "bottom": -0.015,
+    "hx": 0.6,
+    "hz": 0.085
+  },
   "couch": {
     "top": 0.85,
     "bottom": 0,

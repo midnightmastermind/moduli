@@ -43,7 +43,8 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
     origin: typeof window !== "undefined" ? window.location.origin : "",
     shelves: office.shelves.map((s) => ({
       id: s.id, title: s.title, asset: s.asset,
-      items: shelfItems(s, { grid, occurrencesById, modulesById, foldersById }).map((i) => ({ id: i.id, title: i.title, cover: i.cover })),
+      items: shelfItems(s, { grid, occurrencesById, modulesById, foldersById })
+        .map((i) => ({ id: i.id, title: i.title, cover: i.cover, src: i.src || null, kind: i.fileKind || null })),
     })),
     screens: office.screens.map((s) => ({
       id: s.id, source: s.source, pageOccId: s.pageOccId || null,
@@ -70,6 +71,22 @@ export async function saveLayoutBackup(gridId, layout) {
   }
 }
 
+/** The Day Page in use: a page named "Day Page" that is not inside the Templates folder. Pure. */
+export function findDayPage({ occurrencesById, modulesById, foldersById } = {}) {
+  const inTemplates = (folderId) => {
+    let f = foldersById?.[folderId]; let n = 0;
+    while (f && n++ < 30) { if (f.name === "Templates") return true; f = foldersById?.[f.parentId]; }
+    return false;
+  };
+  for (const occ of Object.values(occurrencesById || {})) {
+    const mod = modulesById?.[occ?.moduleId];
+    if (mod?.role !== "page" || (occ.label || mod.label) !== "Day Page") continue;
+    if (occ.parentId && inTemplates(occ.parentId)) continue;
+    return occ.id;
+  }
+  return null;
+}
+
 /** One piece's settings, in its own window beside it (`/?office&piece=<key>`). Sends no state — the main panel does. */
 export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, foldersById, dispatch }) {
   const gridId = grid?._id || grid?.id;
@@ -87,12 +104,26 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, fold
   const wrap = { position: "fixed", inset: 0, zIndex: 2000, background: "var(--surface-card)", color: "var(--text-primary)", overflow: "auto", padding: 14, fontSize: 14 };
   // No confirm(): a web confirm never shows inside a headset panel, so it left Remove doing nothing.
   const common = { grid, gridId, occurrencesById, modulesById, foldersById, save: (m) => save(m), confirmRemove: false };
+  // The app passes the decor's model and, for a VHS player, the screen it plays on (`&model=…&screen=…`).
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const model = params.get("model") || "";
+  const [vhsScreen, setVhsScreen] = useState(params.get("screen") || "");
   if (shelf) return <div style={wrap}><ShelfSettings shelf={shelf} {...common} onDone={close} onRemoved={removed} /></div>;
   if (screen) return <div style={wrap}><ScreenSettings screen={screen} {...common} onDone={close} onRemoved={removed} /></div>;
-  const title = kind === "fireplace" ? "Fireplace" : kind === "decor" ? "Decor" : "This piece";
+  const pickScreen = (sid) => { setVhsScreen(sid); post({ type: "decorSetting", key: pieceKey, screenId: sid || null }); };
+  const screenLabel = (s) => (s.source === "grid" ? "The grid" : (occurrencesById?.[s.pageOccId]?.label || modulesById?.[occurrencesById?.[s.pageOccId]?.moduleId]?.label || "A page"));
+  const title = kind === "fireplace" ? "Fireplace" : model === "vhsplayer" ? "VHS player" : kind === "decor" ? "Decor" : "This piece";
   return (
     <div style={wrap}>
       <h3 style={{ margin: "0 0 10px", fontSize: 16 }}>{title}</h3>
+      {model === "vhsplayer" && (
+        <label style={{ display: "block", fontSize: 13, marginBottom: 12 }}>A tape dropped on it plays on<br />
+          <select value={vhsScreen} onChange={(e) => pickScreen(e.target.value)} style={{ width: "100%", fontSize: 14, padding: 4 }}>
+            <option value="">The first screen in the room</option>
+            {office.screens.map((s) => <option key={s.id} value={s.id}>Screen · {screenLabel(s)}</option>)}
+          </select>
+        </label>
+      )}
       <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>
         Move it by its bar. Right stick: turn (left / right) and size (up / down). Left stick while holding: further / closer.
       </div>
@@ -191,6 +222,13 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     const { meta, screen: s } = addScreen(grid, { source: "grid" });
     await save(meta); post({ type: "spawn", key: "screen:" + s.id });
   };
+  // A "today board" is a screen showing the Day Page (the one in use, not its template).
+  const dayPageId = useMemo(() => findDayPage({ occurrencesById, modulesById, foldersById }), [occurrencesById, modulesById, foldersById]);
+  const addTodayBoard = async () => {
+    if (!dayPageId) return;
+    const { meta, screen: s } = addScreen(grid, { source: "page", pageOccId: dayPageId });
+    await save(meta); post({ type: "spawn", key: "screen:" + s.id });
+  };
   const decor = useMemo(() => decorLibrary({ grid, occurrencesById, modulesById }), [grid, occurrencesById, modulesById]);
 
   const section = { borderTop: "1px solid var(--border-subtle)", paddingTop: 10, marginTop: 12 };
@@ -212,6 +250,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {SHELF_ASSETS.map((a) => <button key={a} style={btn} onClick={() => addAShelf(a)}>+ {ASSET_LABELS[a]}</button>)}
           <button style={btn} onClick={addAScreen}>+ Screen</button>
+          <button style={btn} onClick={addTodayBoard} disabled={!dayPageId} title={dayPageId ? "A screen showing your Day Page" : "No Day Page found"}>+ Today board</button>
         </div>
         <div style={{ margin: "10px 0 6px" }}>Decor</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

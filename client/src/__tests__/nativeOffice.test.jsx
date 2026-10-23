@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("../ui/FeedSection.jsx", () => ({ default: () => <div data-testid="feed" /> }));
 vi.mock("../PagePreviewApp.jsx", () => ({ PagePreviewBody: () => null }));
 
-import NativeOffice, { NativePiece, nativeOfficeState, hasNativeBridge } from "../vr/NativeOffice.jsx";
+import NativeOffice, { NativePiece, nativeOfficeState, hasNativeBridge, findDayPage } from "../vr/NativeOffice.jsx";
 import { act } from "@testing-library/react";
 
 const grid = { _id: "g1", meta: { vrOffice: {
@@ -90,5 +90,28 @@ describe("the layout backup", () => {
     expect(put.opts.method).toBe("PUT");
     expect(JSON.parse(put.opts.body)).toEqual({ gridId: "g1", layout });
     globalThis.fetch = realFetch;
+  });
+});
+
+describe("the today board and the VHS player", () => {
+  it("finds the Day Page in use, never its template", () => {
+    const foldersById = { tpl: { id: "tpl", name: "Templates", parentId: "root" }, ifc: { id: "ifc", name: "Interfaces", parentId: "root" } };
+    const modulesById = { dp: { id: "dp", role: "page", label: "Day Page" } };
+    const occurrencesById = {
+      t: { id: "t", moduleId: "dp", parentId: "tpl" },
+      d: { id: "d", moduleId: "dp", parentId: "ifc" },
+    };
+    expect(findDayPage({ occurrencesById, modulesById, foldersById })).toBe("d");
+    expect(findDayPage({ occurrencesById: { t: occurrencesById.t }, modulesById, foldersById })).toBe(null);
+  });
+
+  it("a VHS player's window picks the screen its tapes play on", () => {
+    const sent = [];
+    window.ModuliNative = { postMessage: (s) => sent.push(JSON.parse(s)) };
+    window.history.replaceState(null, "", "/?office&piece=decor:v1&model=vhsplayer");
+    render(<NativePiece pieceKey="decor:v1" grid={grid} occurrencesById={occurrencesById} modulesById={modulesById} dispatch={() => {}} />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "sc1" } });
+    expect(sent.at(-1)).toEqual({ type: "decorSetting", key: "decor:v1", screenId: "sc1" });
+    window.history.replaceState(null, "", "/");
   });
 });

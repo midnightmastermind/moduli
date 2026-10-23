@@ -98,6 +98,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val CARD_H = 0.22f
     private const val CARD_COUNT = 2
     private const val LAYOUT_BACKUP_MS = 5000L
+    /** How near a record player / VHS player you must let go of a record / tape for it to play there. */
+    private const val PLAYER_DROP_M = 0.5f
     /** A piece's menu (bar, ⚙, 🗑) stays up this long after you point at nothing. The menu is inside the pointing
      *  box, so reaching the buttons needs no linger; 1.5s felt far too slow to go away. */
     private const val MENU_LINGER_MS = 300L
@@ -139,6 +141,12 @@ class OfficeActivity : AppSystemActivity() {
     var shelfAsset = "book"
     /** The book a controller is pointing at on this shelf (its spine lights up), or null. */
     var hoverBook: String? = null
+    /** A decor piece's own entry (model, and a VHS player's screenId), and the base its panel page loads against
+     *  (null = the Moduli origin; the window's view is an app asset). */
+    var decorEntry: JSONObject? = null
+    var panelBase: String? = null
+    /** A screen running a tape (its picture is not put back until ⏹). */
+    var videoPlaying = false
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
     /** When a controller last pointed at it (the piece or its menu). */
@@ -325,6 +333,11 @@ class OfficeActivity : AppSystemActivity() {
       "delete" -> deleteThing(m.optString("key"))
       "closePiece" -> pieceWindows[m.optString("key")]?.let { closeReader(it) }
       "piece" -> togglePiece(m.optString("key"))
+      "stopPlayer" -> things[m.optString("key")]?.let { t ->
+        showOnPanel(t, PanelHtml.playerIdle(if (t.decorEntry?.optString("model") == "vhsplayer") "tape" else "record"))
+      }
+      "stopVideo" -> things[m.optString("key")]?.let { t -> t.videoPlaying = false; refreshPanel(t) }
+      "decorSetting" -> setDecorScreen(m.optString("key"), m.optString("screenId").takeIf { !m.isNull("screenId") && it.isNotEmpty() })
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       "addDecor" -> addDecor(m)
       "spawn" -> things[m.optString("key")]?.let { putInFront(it) }
@@ -381,7 +394,7 @@ class OfficeActivity : AppSystemActivity() {
     }
     for (d in store.decor()) {
       val key = d.optString("key")
-      wanted[key] = { ensureThing(key, d.optString("model"), d.optString("src").ifEmpty { null }) }
+      wanted[key] = { decorPanel(ensureThing(key, d.optString("model"), d.optString("src").ifEmpty { null }), d) }
     }
     for (k in things.keys.toList()) if (k !in wanted) deleteEntity(k)
     for (make in wanted.values) make()
@@ -561,8 +574,19 @@ class OfficeActivity : AppSystemActivity() {
           b.held = false
           val at = b.entity.tryGetComponent<Transform>()?.transform
           val moved = at?.let { !PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } ?: false
-          if (moved) openReader(b.itemId, near = at?.let { PoseMath.tOf(it) })
-          else if (now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
+          if (moved) {
+            val p = at?.let { PoseMath.tOf(it) }
+            val player = p?.let { when (t.shelfAsset) {
+              "record" -> playerNear("recordplayer", it)
+              "vhs" -> playerNear("vhsplayer", it)
+              else -> null
+            } }
+            when {
+              player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId))
+              player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
+              else -> openReader(b.itemId, near = p)
+            }
+          } else if (now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
           b.entity.setComponent(Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
           hideCard(b)
@@ -594,7 +618,7 @@ class OfficeActivity : AppSystemActivity() {
     val id = nextPanelId++
     registerPanel(webPanel(id, w, h, toolbar = false) { web ->
       t.web = web
-      web.loadDataWithBaseURL(origin, t.html, "text/html", "utf-8", null)
+      web.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
     })
     // A panel shows its face on -z; the furniture's front is +z, so the panel is turned to look out of it.
     t.panelAt = floatArrayOf(y, z)
@@ -608,13 +632,14 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun refreshPanel(t: Thing) {
+    if (t.videoPlaying) return
     if (t.key.startsWith("screen:")) {
       val id = t.key.removePrefix("screen:")
       val s = (0 until (state?.optJSONArray("screens")?.length() ?: 0))
           .map { state!!.getJSONArray("screens").getJSONObject(it) }.firstOrNull { it.optString("id") == id } ?: return
       t.html = PanelHtml.screen(s, screenImages[id])
     }
-    t.web?.loadDataWithBaseURL(origin, t.html, "text/html", "utf-8", null)
+    t.web?.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
   }
 
   private fun deleteEntity(key: String) {
@@ -642,7 +667,71 @@ class OfficeActivity : AppSystemActivity() {
     val entry = JSONObject().put("key", key).put("model", model).put("title", m.optString("title"))
     if (!m.isNull("src")) entry.put("src", m.optString("src"))
     store.saveDecor(store.decor() + entry)
-    putInFront(ensureThing(key, model, entry.optString("src").ifEmpty { null }))
+    val t = ensureThing(key, model, entry.optString("src").ifEmpty { null })
+    decorPanel(t, entry)
+    putInFront(t)
+  }
+
+  // ── Decor that does something: clock, window, record player, VHS player ──
+  /** Give a decor piece its live face, when its model has one (once; later calls only keep the entry current). */
+  private fun decorPanel(t: Thing, entry: JSONObject) {
+    t.decorEntry = entry
+    if (t.panel != null) return
+    when (entry.optString("model")) {
+      "clock" -> { t.html = PanelHtml.clock(); attachPanel(t, 0.34f, 0.34f, 0.2f, 0.026f) }
+      "window" -> {
+        t.panelBase = "file:///android_asset/"
+        t.html = PanelHtml.windowView()
+        attachPanel(t, 1.0f, 0.75f, 0.435f, -0.01f)
+      }
+      "recordplayer" -> { t.html = PanelHtml.playerIdle("record"); attachPanel(t, 0.34f, 0.12f, 0.24f, 0f) }
+      "vhsplayer" -> { t.html = PanelHtml.playerIdle("tape"); attachPanel(t, 0.34f, 0.12f, 0.2f, 0f) }
+    }
+  }
+
+  /** The nearest piece of `model` within PLAYER_DROP_M of `p`, or null. */
+  private fun playerNear(model: String, p: FloatArray): Thing? =
+      things.values
+          .filter { it.decorEntry?.optString("model") == model }
+          .mapNotNull { t -> t.frame.tryGetComponent<Transform>()?.transform?.let { pose ->
+            val d = PoseMath.tOf(pose).let { o -> kotlin.math.sqrt((o[0] - p[0]) * (o[0] - p[0]) + (o[2] - p[2]) * (o[2] - p[2])) }
+            if (d <= PLAYER_DROP_M * maxOf(1f, t.scale)) t to d else null } }
+          .minByOrNull { it.second }?.first
+
+  private fun itemSrc(t: Thing, itemId: String): String {
+    for (i in 0 until t.shelfItems.length()) {
+      val it = t.shelfItems.optJSONObject(i) ?: continue
+      if (it.optString("id") == itemId) return it.optString("src")
+    }
+    return ""
+  }
+
+  private fun showOnPanel(t: Thing, html: String) {
+    t.html = html
+    t.web?.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
+  }
+
+  /** A record dropped on a record player plays there. */
+  private fun playRecord(player: Thing, title: String, src: String) {
+    if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file for this record")); return }
+    showOnPanel(player, PanelHtml.playerCard(title, src, player.key, "Now playing"))
+    Log.i(TAG, "playing $title on ${player.key}")
+  }
+
+  /** A tape dropped on a VHS player runs on its chosen screen (else the first screen; with none, in a window). */
+  private fun playTape(player: Thing, title: String, itemId: String, src: String) {
+    if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No video file for this tape")); return }
+    val chosen = player.decorEntry?.optString("screenId")?.takeIf { it.isNotEmpty() }
+    val screen = chosen?.let { things["screen:$it"] } ?: things.values.firstOrNull { it.key.startsWith("screen:") }
+    if (screen == null) {
+      showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No screen in the room, so it opened in a window"))
+      openReader(itemId)
+      return
+    }
+    screen.videoPlaying = true
+    showOnPanel(screen, PanelHtml.video(title, src, screen.key))
+    showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "Playing on the screen"))
+    Log.i(TAG, "playing $title on ${screen.key}")
   }
 
   // ── Where things stand ───────────────────────────────────────────────────
@@ -1009,12 +1098,25 @@ class OfficeActivity : AppSystemActivity() {
     deleteThing(key)
   }
 
+  /** A VHS player's screen: kept in its decor entry on the headset (and so in the layout backup). */
+  private fun setDecorScreen(key: String, screenId: String?) {
+    val list = store.decor().map { if (it.optString("key") == key) JSONObject(it.toString()).apply {
+      if (screenId == null) remove("screenId") else put("screenId", screenId)
+    } else it }
+    store.saveDecor(list)
+    things[key]?.decorEntry = list.firstOrNull { it.optString("key") == key }
+  }
+
   /** Open `key`'s own settings window in front of you, or close it if it is open. */
   private fun togglePiece(key: String) {
     pieceWindows[key]?.let { closeReader(it); return }
     val id = nextPanelId++
     registerPanel(webPanel(id, PIECE_W, PIECE_H, toolbar = true) { web ->
-      web.loadUrl("$origin/?office&piece=${Uri.encode(key)}")
+      // A decor piece's window is told its model (and a VHS player its screen), which only the headset knows.
+      val extra = things[key]?.decorEntry?.let { e ->
+        "&model=" + Uri.encode(e.optString("model")) + (e.optString("screenId").takeIf { it.isNotEmpty() }?.let { "&screen=" + Uri.encode(it) } ?: "")
+      } ?: ""
+      web.loadUrl("$origin/?office&piece=${Uri.encode(key)}$extra")
     })
     val e = Entity.create(listOf(Panel(id), Transform(spawnPose(1.0f, 1.35f, 0.35f, panel = true))))
     readers[id] = e

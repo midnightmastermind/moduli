@@ -114,6 +114,41 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       for (const x of [-1.12, 1.12]) g.add(box(0.03, 0.08, 0.7, wood, x, 0.66, 0));
       return g;
     }
+    case "recordplayer": {
+      // A turntable: wooden plinth, platter with a black record, a tonearm. Drop a record on it to play it (Quest app).
+      g.add(box(0.45, 0.1, 0.36, 0x5e4129, 0, 0.05, 0));
+      const platter = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.015, 40), mat(0x1a1a1a, { roughness: 0.4 }));
+      platter.position.set(-0.04, 0.108, 0); g.add(platter);
+      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.017, 24), mat(0xc9a86a));
+      label.position.set(-0.04, 0.109, 0); g.add(label);
+      g.add(box(0.012, 0.012, 0.22, 0xb8b8b8, 0.16, 0.13, -0.02));
+      g.add(box(0.04, 0.03, 0.04, 0x2b2b2b, 0.16, 0.115, -0.13));
+      return g;
+    }
+    case "vhsplayer": {
+      // A VCR: black box with a tape slot and a small green display. Drop a tape on it to play it on a screen.
+      g.add(box(0.43, 0.09, 0.3, 0x1b1b1b, 0, 0.045, 0));
+      g.add(box(0.2, 0.025, 0.004, 0x050505, -0.07, 0.055, 0.152));
+      g.add(box(0.08, 0.02, 0.004, 0x1f5f3a, 0.13, 0.055, 0.152));
+      return g;
+    }
+    case "clock": {
+      // A round wall clock: a dark wooden rim around the face (the face is drawn live by the Quest app).
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 48), mat(0x3a2616));
+      rim.rotation.x = Math.PI / 2; rim.position.set(0, 0.2, 0); g.add(rim);
+      return g;
+    }
+    case "window": {
+      // A window frame, 1.0 x 0.75m glass area, four panes and a sill (the view is drawn by the Quest app).
+      const wood = 0xe8e2d4;
+      g.add(box(1.1, 0.06, 0.08, wood, 0, 0.03, 0));
+      g.add(box(1.1, 0.06, 0.08, wood, 0, 0.84, 0));
+      for (const x of [-0.53, 0.53]) g.add(box(0.06, 0.87, 0.08, wood, x, 0.435, 0));
+      g.add(box(0.03, 0.75, 0.04, wood, 0, 0.435, 0.02));
+      g.add(box(1.0, 0.03, 0.04, wood, 0, 0.435, 0.02));
+      g.add(box(1.2, 0.03, 0.16, wood, 0, 0.0, 0.05));
+      return g;
+    }
     case "keyboard": {
       // A full-size keyboard, 44 x 14cm: a dark case with five rows of keys and a space bar. Typing side is +z.
       g.add(box(0.44, 0.02, 0.14, 0x1e1e1e, 0, 0.01, 0));
@@ -215,4 +250,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "smalltable", "desk", "keyboard", "tvframe", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "smalltable", "desk", "keyboard", "tvframe", "recordplayer", "vhsplayer", "clock", "window", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
