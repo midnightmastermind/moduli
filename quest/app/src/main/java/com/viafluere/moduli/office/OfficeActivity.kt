@@ -127,6 +127,8 @@ class OfficeActivity : AppSystemActivity() {
     var model: String? = null
     var hx = 0f
     var hz = 0f
+    /** The model's lowest visible point above its origin (the TV's frame starts ~1m up). */
+    var bottom = 0f
     var ghosted = false
     var web: WebView? = null
     var html: String = ""
@@ -350,6 +352,7 @@ class OfficeActivity : AppSystemActivity() {
     t.top = size?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
     if (src == null && size != null) {
       t.model = model; t.hx = size.optDouble("hx").toFloat(); t.hz = size.optDouble("hz").toFloat()
+      t.bottom = size.optDouble("bottom", 0.0).toFloat()
     }
     t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false,
         minY = 0f)
@@ -535,6 +538,7 @@ class OfficeActivity : AppSystemActivity() {
       p.setComponent(Transform(PoseMath.pose(floatArrayOf(0f, t.panelAt[0] * t.scale, t.panelAt[1] * t.scale), PoseMath.yaw(180f))))
     }
     t.handle?.dy = if (t.handleBelow) -(t.top * t.scale + HANDLE_GAP / 2f) else t.top * t.scale + HANDLE_GAP
+    if (!t.handleBelow) t.handle?.minY = -t.bottom * t.scale
     t.handle?.follow()
   }
 

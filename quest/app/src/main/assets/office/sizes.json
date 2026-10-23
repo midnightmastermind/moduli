@@ -1,86 +1,103 @@
 {
   "fireplace": {
     "top": 1.76,
+    "bottom": 0,
     "hx": 0.85,
     "hz": 0.275
   },
   "shelf-book": {
     "top": 1.8,
+    "bottom": 0,
     "hx": 0.565,
     "hz": 0.15
   },
   "shelf-record": {
     "top": 1.15,
+    "bottom": 0,
     "hx": 0.59,
     "hz": 0.18
   },
   "shelf-vhs": {
     "top": 1.3,
+    "bottom": 0,
     "hx": 0.515,
     "hz": 0.12
   },
   "screen": {
     "top": 1.98,
+    "bottom": 1.02,
     "hx": 0.83,
     "hz": 0.02
   },
   "handle": {
     "top": 0.07,
+    "bottom": -0.07,
     "hx": 0.22,
     "hz": 0.07
   },
   "armchair": {
     "top": 0.92,
+    "bottom": 0,
     "hx": 0.4,
     "hz": 0.4
   },
   "swivelchair": {
     "top": 0.51,
+    "bottom": 0,
     "hx": 0.325,
     "hz": 0.309
   },
   "ottoman": {
     "top": 0.46,
+    "bottom": 0,
     "hx": 0.3,
     "hz": 0.3
   },
   "longtable": {
     "top": 0.75,
+    "bottom": 0,
     "hx": 1.2,
     "hz": 0.45
   },
   "couch": {
     "top": 0.85,
+    "bottom": 0,
     "hx": 1.05,
     "hz": 0.45
   },
   "bed": {
     "top": 1.1,
+    "bottom": 0,
     "hx": 0.85,
     "hz": 1.103
   },
   "lamp": {
     "top": 1.575,
+    "bottom": 0,
     "hx": 0.2,
     "hz": 0.2
   },
   "desklamp": {
     "top": 0.39,
+    "bottom": 0,
     "hx": 0.09,
     "hz": 0.09
   },
   "plant": {
     "top": 0.7,
+    "bottom": 0,
     "hx": 0.213,
     "hz": 0.212
   },
   "rug": {
     "top": 0.012,
+    "bottom": 0,
     "hx": 0.9,
     "hz": 0.585
   },
   "candle": {
     "top": 0.158,
+    "bottom": 0,
     "hx": 0.03,
     "hz": 0.03
   }

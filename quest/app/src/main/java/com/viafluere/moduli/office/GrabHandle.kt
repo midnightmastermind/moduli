@@ -20,8 +20,8 @@ import com.meta.spatial.toolkit.Transform
  * its own turn (the thumbstick changes it); a panel faces you while you carry it.
  *
  * `dy` is how far above the target's origin the handle sits (negative = below, for a panel centred on its origin).
- * `minY`: the lowest the piece's base may go — the floor for furniture (carrying pieces below it left them stuck in
- * the floor); null for panels. Above that, anything goes: furniture can be placed in the air.
+ * `minY`: the lowest the piece's ORIGIN may go, so its lowest visible part stays on or above the floor (carrying
+ * pieces below it left them stuck in the floor); null for panels. Above that, anything goes, even mid-air.
  * `reach` pushes the piece further out (or pulls it in) along your line of sight, from the left thumbstick.
  */
 class GrabHandle(
@@ -29,7 +29,7 @@ class GrabHandle(
     var dy: Float,
     private val facesHead: Boolean,
     widthScale: Float = 1f,
-    private val minY: Float? = null,
+    var minY: Float? = null,
 ) {
   // The bar is one of the app's own models (tools/exportModels.mjs), drawn the way the furniture is — the SDK's
   // built-in "mesh://box" did not show on the headset. `widthScale` stretches it for the wider panels.

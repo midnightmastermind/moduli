@@ -56,6 +56,8 @@ for (const [name, make] of Object.entries(pieces)) {
   // hx / hz: half its footprint, so the app can tell when you are sitting in it (and show the see-through copy).
   sizes[name] = {
     top: +box.max.y.toFixed(3),
+    // The lowest visible point: the TV (no stand) starts 1.02m up, so "not below the floor" must use this.
+    bottom: +box.min.y.toFixed(3),
     hx: +((box.max.x - box.min.x) / 2).toFixed(3),
     hz: +((box.max.z - box.min.z) / 2).toFixed(3),
   };
