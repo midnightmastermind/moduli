@@ -13,6 +13,7 @@ import com.meta.spatial.mruk.MRUKLabel
 import com.meta.spatial.mruk.MRUKLoadDeviceResult
 import com.meta.spatial.mruk.MRUKRoom
 import com.meta.spatial.mruk.MRUKSceneEventListener
+import com.meta.spatial.mruk.SceneModel
 import com.meta.spatial.toolkit.Material
 import com.meta.spatial.toolkit.Transform
 
@@ -34,8 +35,14 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
 
   fun load() {
     feature.addSceneEventListener(this)
-    feature.loadSceneFromDevice().whenComplete { result, err ->
-      Log.i(TAG, "room load: $result ${err?.message ?: ""}")
+    // V2_FALLBACK_V1: newer Quest software saves Space Setup in the V2 scene model; the default (V1 only) found
+    // "0 rooms" on a headset whose room had just been scanned. If there is truly no scan, the headset asks for one.
+    feature.loadSceneFromDevice(
+        requestSceneCaptureIfNoDataFound = true,
+        removeMissingRooms = true,
+        sceneModel = SceneModel.V2_FALLBACK_V1,
+    ).whenComplete { result, err ->
+      Log.i(TAG, "room load: $result ${err?.message ?: ""} · rooms ${feature.rooms.size} · floor ${originPose() != null}")
       resolved = true
       if (result != MRUKLoadDeviceResult.SUCCESS) onChange?.invoke()
     }
