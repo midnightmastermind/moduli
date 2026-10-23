@@ -22,7 +22,8 @@ import com.meta.spatial.toolkit.Transform
  *
  * Its FLOOR anchor is the frame every placement is saved in (PlacementStore "room" space): the anchor stays put in
  * the real room however the headset's tracking origin moves, which is what the browser office could not do.
- * In VR mode the room's own walls, floor and ceiling are drawn, so the VR room IS your room.
+ * In VR mode the room's own walls, floor and ceiling are drawn as a log cabin (user, 2026-10-23: "give it a cabin
+ * feel") — textures from quest/tools/cabinTextures.py — so the VR room IS your room, in wood.
  */
 class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEventListener {
   val feature = MRUKFeature(context, systemManager)
@@ -76,13 +77,19 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
     wantWalls = show
     if (!show) { walls?.destroy(); walls = null; return }
     if (walls != null || feature.rooms.isEmpty()) return
-    fun mat(r: Float, g: Float, b: Float) = Material().apply { baseColor = Color4(r, g, b, 1f) }
+    // Each texture tiles; repeat counts are per surface, so a wall shows ~3 log courses across and 2 tiles up.
+    fun wood(tex: Int, u: Float, v: Float) = Material().apply {
+      baseTextureAndroidResourceId = tex
+      repeatU = u; repeatV = v
+      baseColor = Color4(1f, 1f, 1f, 1f)
+      roughness = 0.9f
+    }
     walls = AnchorProceduralMesh(
         feature,
         mapOf(
-            MRUKLabel.FLOOR to AnchorProceduralMeshConfig(mat(0.34f, 0.22f, 0.14f), false),
-            MRUKLabel.WALL_FACE to AnchorProceduralMeshConfig(mat(0.78f, 0.72f, 0.62f), false),
-            MRUKLabel.CEILING to AnchorProceduralMeshConfig(mat(0.9f, 0.88f, 0.84f), false),
+            MRUKLabel.FLOOR to AnchorProceduralMeshConfig(wood(R.drawable.cabin_floor, 3f, 3f), false),
+            MRUKLabel.WALL_FACE to AnchorProceduralMeshConfig(wood(R.drawable.cabin_logs, 3f, 2f), false),
+            MRUKLabel.CEILING to AnchorProceduralMeshConfig(wood(R.drawable.cabin_ceiling, 3f, 3f), false),
         ),
     )
   }

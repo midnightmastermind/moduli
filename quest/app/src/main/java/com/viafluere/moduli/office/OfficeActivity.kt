@@ -588,8 +588,9 @@ class OfficeActivity : AppSystemActivity() {
     val rays = controllerRays()
     for (t in things.values) {
       if (t.key == CONTROL) continue
-      if (pointsAt(t, rays)) t.lastHover = now
-      val want = now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
+      // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — no menu then.
+      if (!t.ghosted && pointsAt(t, rays)) t.lastHover = now
+      val want = !t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
       if (want == t.menuShown) continue
       t.menuShown = want
       for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))
@@ -809,6 +810,18 @@ class OfficeActivity : AppSystemActivity() {
     if (!sceneReady) return
     val vr = mode == "vr"
     scene.enablePassthrough(!vr)
+    // VR is a log cabin: warm, firelit light. Mixed reality keeps neutral light to match your real room.
+    if (vr) scene.setLightingEnvironment(
+        ambientColor = Vector3(0.42f, 0.30f, 0.20f),
+        sunColor = Vector3(2.2f, 1.6f, 1.1f),
+        sunDirection = -Vector3(1.0f, 3.0f, -2.0f),
+        environmentIntensity = 0.3f,
+    ) else scene.setLightingEnvironment(
+        ambientColor = Vector3(0.35f),
+        sunColor = Vector3(3.0f, 2.8f, 2.6f),
+        sunDirection = -Vector3(1.0f, 3.0f, -2.0f),
+        environmentIntensity = 0.4f,
+    )
     // Mixed reality: real things nearer than a piece hide it (environment depth), so sitting on a chair shows your
     // own legs in front of it rather than the chair drawn through you. Off in VR — there is no camera view of you.
     // The MODE has to be set before depth is switched on: enabled first, the system logged "not requested mode" and
