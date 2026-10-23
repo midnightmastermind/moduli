@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 — DRAGGING ONE ROW OF A SELECTION DRAGS THE SELECTION; a Todo at the top of Tasks
+
+User: *"tried to move one of them with multiple selected and it only moved that one occurance … id expect all of
+them to move"* · *"add a general todo at the top of the tasks page"*.
+- **Multi-drag never existed** — the selection only fed the right-click bulk menu. `helpers/selectionDrag.js`:
+  `routeDrop` → `tryGroupDrop` before the single-row router. When the dragged row is selected with other rows
+  (leaf rows only), all of them land together at the drop line, in screen order. Move: every list written ONCE
+  with its final contents (`planGroupMove`, pure), parentIds follow, one OccurrenceMoveOp per row, one undo step,
+  locked surfaces respected. Copy / copy-link place copies in order. Destinations: board/list containers and board
+  pages; a doc, canvas, table or empty cell keeps the single-row drop. The selection reaches the drop pipeline
+  through `setSelectionSnapshot` (SelectionContext). Tests `selectionDrag` (9; removing the hook fails the routing case).
+- **Watched on a local build against prod (rebuild grid), with a real mouse:** shift-click two rows of one board,
+  drag one onto another board → both moved, in order; dragged both back; the list's exact order put back.
+- **Todo** (board, the Tasks green) is now first on poms grid's Tasks page (`542da7cf…`), created through
+  `create_module` / `create_occurrence` with `insertAtIndex: 0`; a fresh load serves it first.
+- **Pre-existing, date-dependent, not touched:** `operationExecutor` "DATE_DIFF perOccurrence" expects 10 days and
+  gets 11 from today (Oct 23 + 10 crosses the Nov 1 clock change) — fails with these changes stashed too.
+
+---
+
 ### 2026-10-22 (5) — SETTINGS SAYS HOW MANY PLACES A MODULE IS IN, AND WHERE; the embed test debris is gone
 
 User: *"put an indicator of how many files of it are present (excluding the file folder one)"* · *"in the settings

@@ -3,6 +3,9 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-23 — selectionDrag.js NEW: a selection drags together)
+- `routeDrop` → `tryGroupDrop`: `groupForDrag`, `groupDestination` (board/list container or board page), `groupInsertAt`, `planGroupMove` (pure, one final list per container), `runGroupDrop` (move / copy / copylink, one action). Selection read via `setSelectionSnapshot` (written by `state/SelectionContext`).
+
 ## Recent Changes (2026-10-22 — modulePlaces.js NEW)
 - `ancestryOf(occId, maps)` (folders › page › containers, stops at a panel, `hidden` under a viewer/folder/file page) and `modulePlaces(moduleId, maps)` (an uploaded file's Files home is not a place; its listers/embedders are).
 

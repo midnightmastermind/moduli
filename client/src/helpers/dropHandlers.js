@@ -91,6 +91,7 @@ import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCasca
 import { containerDropDestination } from "./containerDropDestination";
 import { withAction } from "./actionScope";
 import { plannedStateFor, materializePlanned } from "./plannedDrop";
+import { getSelectionSnapshot, groupForDrag, orderOnScreen, groupDestination, groupInsertAt, runGroupDrop } from "./selectionDrag";
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -2399,7 +2400,36 @@ export function routeDrop(dropContext, ctx) {
   const plannedId = dropContext.payload?.context?.occurrenceId || dropContext.payload?.occurrenceId;
   const plannedState = plannedId && !ctx.occurrencesById?.[plannedId] ? plannedStateFor(plannedId) : null;
   if (plannedState) return withAction("Kept from Magic", () => routePlannedDrop(dropContext, ctx, plannedId, plannedState));
+  if (tryGroupDrop(dropContext, ctx)) { ctx.clearSession?.(); return; }
   return _routeDrop(dropContext, ctx);
+}
+
+// A row dragged out of a multi-selection carries the whole selection (helpers/selectionDrag). Only in-grid
+// row drags onto a board/list container or a board page; anything else is the ordinary single-row drop.
+const NOT_A_ROW_DRAG = new Set(["file", "external", "text", "url", "field", "operation", "doc-embed",
+  "command-center", "pool", "doc", "canvas", "tree-anchor", "tree-page"]);
+function tryGroupDrop(dropContext, ctx) {
+  const { payload } = dropContext;
+  if (NOT_A_ROW_DRAG.has(payload?.sourceKind) || payload?.payloadType === "artifact" || payload?.payloadType === "folder") return false;
+  const draggedId = payload?.context?.occurrenceId || payload?.occurrenceId;
+  const occurrencesById = ctx.occurrencesById || {};
+  const modulesById = ctx.state?.modulesById || {};
+  const group = groupForDrag(draggedId, getSelectionSnapshot(), { occurrencesById, modulesById });
+  if (!group) return false;
+  const { containerOccurrenceId, dropTarget } = dropView(dropContext, ctx);
+  const dest = groupDestination({ dropTarget, containerOccurrenceId, occurrencesById, modulesById });
+  if (!dest) return false;
+  const mode = ctx.sessionRef?.current?.mode || dropContext.mode || "move";
+  if (mode === "move") {
+    for (const id of group) {
+      const lock = isMoveBlockedByCascadeLock({ sourceOccurrence: occurrencesById[id], destinationOccurrence: dest,
+        occurrencesById, modulesById, grid: ctx.state?.grid || null });
+      if (lock.blocked) { try { toast?.("This surface is locked — children can't be moved out."); } catch {} return true; }
+    }
+  }
+  const hovered = dropContext.target?.occurrenceId;
+  const insertAt = groupInsertAt({ dropTarget, hoveredOccId: hovered !== dest.id ? hovered : null, dest });
+  return runGroupDrop({ ids: orderOnScreen(group), dest, insertAt, mode, ctx });
 }
 
 // A piece dragged out of a Magic view (helpers/plannedDrop): it is always a COPY. The planned node

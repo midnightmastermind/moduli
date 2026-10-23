@@ -16,7 +16,8 @@
 // MVP scope: shift+click on instances/containers. Future: rubber-band
 // drag, shift+arrow tree-walking, multi-drag, copy/copylink/move bulk
 // actions.
-import { createContext, useCallback, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { setSelectionSnapshot } from "../helpers/selectionDrag";
 
 // Clipboard shape:
 //   { mode: "copy" | "move" | "copylink", ids: [occId,...] }
@@ -39,6 +40,8 @@ export const SelectionContext = createContext({
 export function useSelectionProvider() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [clipboard, setClipboardState] = useState(null);
+  // The drop pipeline is not a component; it reads the selection from here (helpers/selectionDrag).
+  useEffect(() => { setSelectionSnapshot(selectedIds); }, [selectedIds]);
 
   const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
   const toggle = useCallback((id) => {
