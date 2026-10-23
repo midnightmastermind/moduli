@@ -33,8 +33,10 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
   private var walls: AnchorProceduralMesh? = null
   private var wantWalls = false
 
+  private var listening = false
+
   fun load() {
-    feature.addSceneEventListener(this)
+    if (!listening) { feature.addSceneEventListener(this); listening = true }
     // V2_FALLBACK_V1: newer Quest software saves Space Setup in the V2 scene model; the default (V1 only) found
     // "0 rooms" on a headset whose room had just been scanned. If there is truly no scan, the headset asks for one.
     feature.loadSceneFromDevice(
@@ -43,10 +45,23 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
         sceneModel = SceneModel.V2_FALLBACK_V1,
     ).whenComplete { result, err ->
       Log.i(TAG, "room load: $result ${err?.message ?: ""} · rooms ${feature.rooms.size} · floor ${originPose() != null}")
+      if (result == MRUKLoadDeviceResult.ERROR_NO_ROOMS_FOUND && !captureAsked) {
+        // The headset holds no room model this app can read (seen even right after Space Setup). Open the headset's
+        // own room scan from here — as Meta's sample does — then load again. Once per launch, so it cannot loop.
+        captureAsked = true
+        Log.i(TAG, "no room: asking the headset for a room scan")
+        feature.requestSceneCapture().whenComplete { _, e ->
+          Log.i(TAG, "room scan finished ${e?.message ?: ""}")
+          load()
+        }
+        return@whenComplete
+      }
       resolved = true
       if (result != MRUKLoadDeviceResult.SUCCESS) onChange?.invoke()
     }
   }
+
+  private var captureAsked = false
 
   private fun floor(): Entity? {
     val room = feature.getCurrentRoom() ?: feature.rooms.firstOrNull() ?: return null
