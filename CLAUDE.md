@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 (5) — THE OFFICE AS A QUEST APP: first APK built; not yet on the headset
+
+User: *"maybe we should do an actual app instead of just in browser"* → *"yes just do the app"* (Meta Spatial SDK,
+sideloaded). Picked up from the main account (session limit mid-`OfficeActivity.kt`).
+- **`quest/`** (Kotlin, Spatial SDK 0.14): passthrough by default; every pose saved RELATIVE TO THE ROOM'S FLOOR
+  ANCHOR (MRUK, `RoomAnchor.kt`) so furniture stays put between visits — the browser kept `local-floor` poses, which
+  move with the headset's origin. No scan / permission refused → saved in the headset's frame. VR mode switches
+  passthrough off and draws the room's own walls/floor/ceiling (`AnchorProceduralMesh`). Grab = Spatial SDK
+  `Grabbable` (PIVOT_Y); a trigger tap that does not move a piece selects it (`SelectOnTrigger.kt`), thumbstick
+  turns it 45°. Shelf/screen faces are plain HTML panels (`PanelHtml.kt`); only the control panel loads Moduli.
+- **Web half deployed:** `?office` inside the app renders `vr/NativeOffice.jsx` (bridge `window.ModuliNative`) —
+  settings, Turn/Delete, decor palette, MR/VR switch, all inside the headset (the browser's shelf settings left MR).
+  `officeShared.jsx` is what both offices share; `decorMakers.js` builds the furniture, exported to .glb by
+  `quest/tools/exportModels.mjs`. Served chunk sha-matched.
+- **Built:** `./gradlew :app:assembleDebug` → 91 MB debug APK (copied to Windows Downloads). Build + sideload steps in
+  `quest/README.md`. **Not run on a Quest or an emulator** — every runtime path (room load, grab, bridge, panels) is
+  unverified. Client 6,650 pass; the 2 failures are the known pre-existing ones.
+
+---
+
 ### 2026-10-23 (4) — VR OFFICE: TURN AND DELETE WHAT YOU HOLD; the office loaded in 4 minutes at Quest speed
 
 User (on the Quest): *"i can point at stuff and move them but i cant turn anything or delete them"* · *"it takes a
