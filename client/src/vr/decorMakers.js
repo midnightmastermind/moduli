@@ -114,6 +114,16 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       for (const x of [-1.12, 1.12]) g.add(box(0.03, 0.08, 0.7, wood, x, 0.66, 0));
       return g;
     }
+    case "tvframe": {
+      // Just a TV's bezel with nothing inside (user: "make this a tv furniture, not a screen. so i can see my tv
+      // through it") — sized for a 65" set (1.45 x 0.83m picture), sitting on its own base so it can be lifted
+      // and resized to fit around a real TV.
+      const W = 1.45, H = 0.83, b = 0.03, d = 0.03, c = 0x151515;
+      g.add(box(W + 2 * b, b, d, c, 0, b / 2, 0));
+      g.add(box(W + 2 * b, b, d, c, 0, H + b * 1.5, 0));
+      for (const x of [-(W + b) / 2, (W + b) / 2]) g.add(box(b, H, d, c, x, b + H / 2, 0));
+      return g;
+    }
     case "desk": {
       // A desk, 1.4 x 0.7m, 75cm high: wooden top, a three-drawer pedestal on the right, a leg and a back panel on
       // the left. You sit at +z (the drawers' fronts face +z).
@@ -186,4 +196,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "desk", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "desk", "tvframe", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];

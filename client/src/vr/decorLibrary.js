@@ -12,6 +12,7 @@ export const BUILTIN_DECOR = [
   { key: "ottoman", title: "Ottoman" },
   { key: "longtable", title: "Long table" },
   { key: "desk", title: "Desk" },
+  { key: "tvframe", title: "TV frame" },
   { key: "couch", title: "Couch" },
   { key: "bed", title: "Queen bed" },
   { key: "lamp", title: "Floor lamp" },
