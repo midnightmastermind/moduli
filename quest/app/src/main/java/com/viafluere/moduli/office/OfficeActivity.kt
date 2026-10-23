@@ -93,6 +93,10 @@ class OfficeActivity : AppSystemActivity() {
     private const val BOOK_DEPTH = 0.16f
     private const val BOOK_PULL_M = 0.12f
     private const val BOOK_TAP_MS = 350L
+    /** The cover-and-title card over a held item, and how many (one per hand). */
+    private const val CARD_W = 0.16f
+    private const val CARD_H = 0.22f
+    private const val CARD_COUNT = 2
     /** A piece's menu (bar, ⚙, 🗑) stays up this long after you point at nothing. The menu is inside the pointing
      *  box, so reaching the buttons needs no linger; 1.5s felt far too slow to go away. */
     private const val MENU_LINGER_MS = 300L
@@ -156,8 +160,10 @@ class OfficeActivity : AppSystemActivity() {
    * One book you can take off a shelf: an invisible block over its spine, which becomes a solid book while held.
    * `slot` is where it rests, in the shelf's frame.
    */
-  class Book(val itemId: String, val title: String, val slot: ShelfLayout.Slot, val color: Int, val entity: Entity) {
+  class Book(val itemId: String, val title: String, val cover: String, val slot: ShelfLayout.Slot, val color: Int, val entity: Entity) {
     var held = false
+    /** The card (cover + title) floating over it while held: an index into `cards`, or -1. */
+    var card = -1
     var grabbedAt = 0L
     var placedScale = -1f
   }
@@ -296,6 +302,7 @@ class OfficeActivity : AppSystemActivity() {
     things[CONTROL] = t
     if (!restore(t)) putDefault(t)
     t.handle?.follow()
+    makeCards()
   }
 
   // ── Messages from the pages ──────────────────────────────────────────────
@@ -430,9 +437,50 @@ class OfficeActivity : AppSystemActivity() {
           Transform(Pose()),
           Grabbable(true, GrabbableType.PIVOT_Y),
       ))
-      t.books += Book(item.optString("id"), title, t.slots[i], PanelHtml.spineColor(title), e)
+      t.books += Book(item.optString("id"), title, item.optString("cover"), t.slots[i], PanelHtml.spineColor(title), e)
     }
     bookFront[t.key] = size.d / 2f + 0.01f + BOOK_PROXY_DEPTH / 2f
+  }
+
+  // ── The card over something in your hand ─────────────────────────────────
+  /** Two cards (one per hand), made once: a panel each, hidden until something is picked up. */
+  private val cards = ArrayList<Entity>()
+  private val cardInUse = BooleanArray(CARD_COUNT)
+  private val cardWebs = arrayOfNulls<WebView>(CARD_COUNT)
+
+  private fun makeCards() {
+    for (i in 0 until CARD_COUNT) {
+      val id = nextPanelId++
+      registerPanel(webPanel(id, CARD_W, CARD_H, toolbar = false) { web -> cardWebs[i] = web })
+      cards += Entity.create(listOf(Panel(id), Transform(Pose()), Visible(false)))
+    }
+  }
+
+  private fun showCard(b: Book): Int {
+    val i = cardInUse.indexOfFirst { !it }
+    if (i < 0 || i >= cards.size) return -1
+    cardInUse[i] = true
+    cardWebs[i]?.loadDataWithBaseURL(origin, PanelHtml.heldCard(b.title, b.cover), "text/html", "utf-8", null)
+    cards[i].setComponent(Visible(true))
+    return i
+  }
+
+  private fun hideCard(b: Book) {
+    val i = b.card
+    if (i < 0) return
+    b.card = -1
+    cardInUse[i] = false
+    cards[i].setComponent(Visible(false))
+  }
+
+  /** The card floats just above the held thing, turned to face you. */
+  private fun placeCard(t: Thing, b: Book) {
+    val i = b.card
+    if (i < 0) return
+    val at = b.entity.tryGetComponent<Transform>()?.transform ?: return
+    val head = headPose() ?: return
+    val p = floatArrayOf(at.t.x, at.t.y + b.slot.h * t.scale / 2f + CARD_H / 2f + 0.04f, at.t.z)
+    cards[i].setComponent(Transform(PoseMath.pose(p, PoseMath.yaw(PoseMath.yawToward(p, PoseMath.tOf(head)) + 180f))))
   }
 
   /**
@@ -493,18 +541,21 @@ class OfficeActivity : AppSystemActivity() {
           b.entity.setComponent(Mesh(Uri.parse("apk:///office/$held-${b.color}.glb"), hittable = MeshCollision.LineTest))
           b.entity.setComponent(Scale(if (held == "book") Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s) else Vector3(s)))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, true)", null)
+          b.card = showCard(b)
           Log.i(TAG, "took ${b.title} off ${t.key}")
           continue
         }
-        if (grabbed) continue
+        if (grabbed) { placeCard(t, b); continue }
         val rest = bookRestPose(t, b) ?: continue
         if (b.held) {
           b.held = false
           val at = b.entity.tryGetComponent<Transform>()?.transform
           val moved = at?.let { !PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } ?: false
-          if (moved || now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
+          if (moved) openReader(b.itemId, near = at?.let { PoseMath.tOf(it) })
+          else if (now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
           b.entity.setComponent(Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
+          hideCard(b)
           b.placedScale = -1f
         }
         if (b.placedScale != s) {
@@ -829,16 +880,27 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   // ── Readers: a page or a file opened from a shelf or a screen ────────────
-  private fun openReader(occId: String) {
+  /**
+   * Open a page or file to read. `near`: where you let go of a book — the reader opens there (at reading height),
+   * facing you; otherwise in front of you.
+   */
+  private fun openReader(occId: String, near: FloatArray? = null) {
     val id = nextPanelId++
     val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?open=${Uri.encode(occId)}&local=1"
     registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> web.loadUrl(url) })
     val e = Entity.create(listOf(
         Panel(id),
-        Transform(spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
+        Transform(near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
     ))
     readers[id] = e
     readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
+  }
+
+  /** A reader at `p` — raised or lowered to reading height — turned to face you. */
+  private fun readerPoseAt(p: FloatArray): Pose {
+    val at = floatArrayOf(p[0], p[1].coerceIn(1.0f, 1.7f), p[2])
+    val head = headPose()?.let { PoseMath.tOf(it) } ?: return PoseMath.pose(at, PoseMath.yaw(180f))
+    return PoseMath.pose(at, PoseMath.yaw(PoseMath.yawToward(at, head) + 180f))
   }
 
   private fun closeReader(id: Int) {

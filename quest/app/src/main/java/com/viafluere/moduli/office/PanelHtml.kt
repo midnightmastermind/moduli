@@ -96,6 +96,19 @@ object PanelHtml {
     return kotlin.math.abs(h) % SPINE_COLORS.size
   }
 
+  /** The card floating over a book / record / tape in your hand: its cover (when it has one) and its title. */
+  fun heldCard(title: String, cover: String): String {
+    val img = if (cover.isNotEmpty()) """<div id="c" style="background-image:url('${esc(cover)}')"></div>""" else ""
+    return """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;font-family:Georgia,serif}
+  #w{position:absolute;inset:0;display:flex;flex-direction:column;background:rgba(30,20,12,.88);border-radius:3vh;
+     border:.6vh solid #ffd27a;box-sizing:border-box;padding:3vh}
+  #c{flex:1;background-size:contain;background-repeat:no-repeat;background-position:center;margin-bottom:2vh}
+  #t{color:#f4e9d8;font-size:9vh;line-height:1.15;text-align:center;max-height:45vh;overflow:hidden}
+</style></head><body><div id="w">$img<div id="t">${esc(title)}</div></div></body></html>"""
+  }
+
   /** A screen: the picture the control panel took of a page or of the grid. */
   fun screen(screen: JSONObject, image: String?): String {
     val id = screen.optString("id")
