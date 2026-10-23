@@ -20,6 +20,9 @@ const M = await import(resolve(client, "src/vr/decorMakers.js"));
 const out = resolve(here, "../app/src/main/assets/office");
 mkdirSync(out, { recursive: true });
 
+// The shelf spine colours (quest PanelHtml SPINE_COLORS): a held book / record / tape takes its spine's colour.
+const SPINES = ["#7a2e2e", "#2e4a7a", "#3f6b34", "#7a5a2e", "#4a2e7a", "#2e6b6b", "#8a6a3a", "#5a3a2a"];
+
 const pieces = {
   fireplace: () => M.makeFireplace(THREE),
   "shelf-book": () => M.makeShelfFrame(THREE, "book"),
@@ -49,7 +52,7 @@ const pieces = {
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })));
     return g;
   },
-  ...Object.fromEntries(["#7a2e2e", "#2e4a7a", "#3f6b34", "#7a5a2e", "#4a2e7a", "#2e6b6b", "#8a6a3a", "#5a3a2a"].map((c, i) => [`book-${i}`, () => {
+  ...Object.fromEntries(SPINES.map((c, i) => [`book-${i}`, () => {
     const g = new THREE.Group();
     const cover = new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
     const pages = new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.9 });
@@ -59,6 +62,30 @@ const pieces = {
     g.add(part(new THREE.BoxGeometry(1, 1, 0.08), cover, 0, -0.46));
     g.add(part(new THREE.BoxGeometry(0.12, 1, 1), cover, -0.44, 0));
     g.add(part(new THREE.BoxGeometry(0.86, 0.94, 0.84), pages, 0.05, 0));
+    return g;
+  }])),
+  // A record taken from a crate and a tape taken from a VHS shelf, at real size (the app scales them only by the
+  // shelf's own scale): a 12" sleeve in the item's colour with the black disc peeking out, and a black cassette with
+  // a coloured label and two reel windows. Front faces +z.
+  ...Object.fromEntries(SPINES.map((c, i) => [`record-${i}`, () => {
+    const g = new THREE.Group();
+    const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.315, 0.315, 0.006), new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+    g.add(sleeve);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.003, 48), new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.35 }));
+    disc.rotation.x = Math.PI / 2; disc.position.set(0.07, 0, 0.0045); g.add(disc);
+    const label = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.0032, 32), new THREE.MeshStandardMaterial({ color: 0xd8c39a, roughness: 0.7 }));
+    label.rotation.x = Math.PI / 2; label.position.set(0.07, 0, 0.0047); g.add(label);
+    return g;
+  }])),
+  ...Object.fromEntries(SPINES.map((c, i) => [`vhs-${i}`, () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.187, 0.102, 0.025), new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.6 })));
+    const label = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.03, 0.002), new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+    label.position.set(0, 0.028, 0.0132); g.add(label);
+    for (const x of [-0.045, 0.045]) {
+      const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.002, 24), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.5 }));
+      reel.rotation.x = Math.PI / 2; reel.position.set(x, -0.015, 0.0132); g.add(reel);
+    }
     return g;
   }])),
   ...Object.fromEntries(M.DECOR_KEYS.map((k) => [k, () => M.makeDecor(THREE, k)])),
@@ -85,7 +112,7 @@ for (const [name, make] of Object.entries(pieces)) {
   const glb = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
   writeFileSync(resolve(out, name + ".glb"), Buffer.from(glb));
   // A see-through copy, shown while you sit in the piece so your own legs show through it.
-  if (name !== "handle" && !name.startsWith("book")) {
+  if (name !== "handle" && !/^(book|record-|vhs-)/.test(name)) {
     const ghost = new THREE.Scene();
     const gg = make();
     gg.traverse((o) => {

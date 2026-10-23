@@ -130,6 +130,8 @@ class OfficeActivity : AppSystemActivity() {
     var shelfItems: org.json.JSONArray = org.json.JSONArray()
     var page = 0
     var shelfSize: OfficeSizes.Shelf? = null
+    /** "book" | "record" | "vhs": what you hold when you take something off this shelf. */
+    var shelfAsset = "book"
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
     /** When a controller last pointed at it (the piece or its menu). */
@@ -401,6 +403,7 @@ class OfficeActivity : AppSystemActivity() {
     val t = ensureThing(key, "shelf-$asset")
     val size = OfficeSizes.SHELVES.getValue(asset)
     t.shelfSize = size
+    t.shelfAsset = asset
     t.slots = ShelfLayout.slots(asset, size)
     t.shelfItems = s.optJSONArray("items") ?: org.json.JSONArray()
     val pages = maxOf(1, (t.shelfItems.length() + t.slots.size - 1) / t.slots.size)
@@ -455,8 +458,10 @@ class OfficeActivity : AppSystemActivity() {
         val grabbed = b.entity.tryGetComponent<Grabbable>()?.isGrabbed == true
         if (grabbed && !b.held) {
           b.held = true; b.grabbedAt = now
-          b.entity.setComponent(Mesh(Uri.parse("apk:///office/book-${b.color}.glb"), hittable = MeshCollision.LineTest))
-          b.entity.setComponent(Scale(Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s)))
+          // A book fills its slot (spine width = its thickness); a record sleeve and a tape are drawn at real size.
+          val held = when (t.shelfAsset) { "record" -> "record"; "vhs" -> "vhs"; else -> "book" }
+          b.entity.setComponent(Mesh(Uri.parse("apk:///office/$held-${b.color}.glb"), hittable = MeshCollision.LineTest))
+          b.entity.setComponent(Scale(if (held == "book") Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s) else Vector3(s)))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, true)", null)
           Log.i(TAG, "took ${b.title} off ${t.key}")
           continue
