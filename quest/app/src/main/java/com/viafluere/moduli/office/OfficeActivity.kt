@@ -231,14 +231,13 @@ class OfficeActivity : AppSystemActivity() {
     super.onCreate(savedInstanceState)
     store = PlacementStore(this)
     WebView.setWebContentsDebuggingEnabled(true)
-    room.onChange = { onRoomChanged() }
+    // The room scan is only for the VR cabin's walls; placement does not wait for it (see onSceneReady: STAGE).
     if (checkSelfPermission(PERMISSION_USE_SCENE) != PackageManager.PERMISSION_GRANTED) {
       requestPermissions(arrayOf(PERMISSION_USE_SCENE), REQUEST_USE_SCENE)
     } else room.load()
     systemManager.registerSystem(SaveSystem())
     systemManager.registerSystem(InputSystem())
-    // If the room never loads (no scan, permission refused) place things anyway, in the headset's own frame.
-    main.postDelayed({ if (!placed) placeAll() }, 4000)
+    main.postDelayed({ if (!placed) placeAll() }, 1500)
   }
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -249,7 +248,10 @@ class OfficeActivity : AppSystemActivity() {
   override fun onSceneReady() {
     super.onSceneReady()
     sceneReady = true
-    scene.setReferenceSpace(com.meta.spatial.runtime.ReferenceSpace.LOCAL_FLOOR)
+    // STAGE: coordinates tied to the headset's boundary, the same every session (until the boundary is redrawn),
+    // so a saved pose comes back where it was. LOCAL_FLOOR starts wherever the app was opened, which moved the whole
+    // room on every start; the room scan that was meant to anchor it was found on one start and missing on the next.
+    scene.setReferenceSpace(com.meta.spatial.runtime.ReferenceSpace.STAGE)
     scene.setLightingEnvironment(
         ambientColor = Vector3(0.35f),
         sunColor = Vector3(3.0f, 2.8f, 2.6f),
@@ -266,20 +268,8 @@ class OfficeActivity : AppSystemActivity() {
     t.handleBelow = true
     t.handle = GrabHandle(t.frame, -(t.top + HANDLE_GAP / 2f), facesHead = false, widthScale = 1.3f)
     things[CONTROL] = t
-    // Not saved here: a spot saved relative to the room only resolves once the room loads (onRoomChanged restores it).
-    if (!restore(t)) t.frame.setComponent(Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)))
+    if (!restore(t)) putDefault(t)
     t.handle?.follow()
-  }
-
-  private fun onRoomChanged() {
-    // The room arrived (or changed): put everything back where it was in it. With a room, poses saved in the
-    // headset's own frame are stale (that frame starts wherever the app was opened), so they are dropped and those
-    // pieces start at their default spot, to be placed once more and saved relative to the room.
-    if (room.originPose() != null) {
-      store.dropWorldPoses()
-      for (t in things.values) if (store.get(t.key) == null) putDefault(t)
-    }
-    if (!placed) placeAll() else for (t in things.values) restore(t)
   }
 
   // ── Messages from the pages ──────────────────────────────────────────────
@@ -320,7 +310,7 @@ class OfficeActivity : AppSystemActivity() {
       for (k in things.keys.toList()) if (k != CONTROL) deleteEntity(k)
       placed = false
     }
-    if (room.resolved || placed) placeAll()
+    placeAll()
   }
 
   // ── Building the room's contents ─────────────────────────────────────────
@@ -503,11 +493,8 @@ class OfficeActivity : AppSystemActivity() {
 
   /** Put `t` where it was saved. False if nothing is saved for it. */
   private fun restore(t: Thing): Boolean {
-    val s = store.get(t.key) ?: return false
-    val pose = if (s.space == "room") {
-      val o = room.originPose() ?: return false
-      PoseMath.toWorld(o, s.t, s.q)
-    } else PoseMath.pose(s.t, s.q)
+    val s = store.get(t.key)?.takeIf { it.space == PlacementStore.STAGE } ?: return false
+    val pose = PoseMath.pose(s.t, s.q)
     t.frame.setComponent(Transform(pose))
     t.lastT = PoseMath.tOf(pose); t.lastQ = PoseMath.qOf(pose)
     t.scale = s.scale; t.lastScale = s.scale
@@ -515,23 +502,14 @@ class OfficeActivity : AppSystemActivity() {
     return true
   }
 
-  /** Save `t`'s pose if it moved (relative to the room when there is one). */
+  /** Save `t`'s pose (stage space) if it moved. */
   private fun remember(t: Thing, force: Boolean = false) {
-    // NOTHING is saved before the room has loaded (or is known to be missing): pieces placed in that gap sit at a
-    // stand-in spot, and saving it overwrote every room-relative pose with a headset-start one — the whole room
-    // moved on every restart. And a room-relative pose is never replaced while the room cannot be found.
-    if (!room.resolved) return
-    if (room.originPose() == null && store.get(t.key)?.space == "room") return
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val tt = PoseMath.tOf(pose); val q = PoseMath.qOf(pose)
     if (!force && PoseMath.near(tt, t.lastT, 0.005f) && PoseMath.near(q, t.lastQ, 0.002f) &&
         kotlin.math.abs(t.scale - t.lastScale) < 0.005f) return
     t.lastT = tt; t.lastQ = q; t.lastScale = t.scale
-    val o = room.originPose()
-    if (o != null) {
-      val (lt, lq) = PoseMath.toLocal(o, pose)
-      store.put(t.key, PlacementStore.Stored("room", lt, lq, t.scale))
-    } else store.put(t.key, PlacementStore.Stored("world", tt, q, t.scale))
+    store.put(t.key, PlacementStore.Stored(PlacementStore.STAGE, tt, q, t.scale))
   }
 
   private fun turn(t: Thing, deg: Float, save: Boolean = true) {

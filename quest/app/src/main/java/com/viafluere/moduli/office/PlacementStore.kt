@@ -21,6 +21,17 @@ class PlacementStore(context: Context) {
   companion object {
     /** Keys kept for the headset, not per grid: the settings panel is where you left it whichever grid is open. */
     val GLOBAL = setOf("control")
+    /** The only frame poses are saved in: the boundary-tied STAGE space (OfficeActivity.onSceneReady). */
+    const val STAGE = "stage"
+  }
+
+  init {
+    // Poses saved before STAGE ("room" / "world") were in frames that no longer line up; clear them once.
+    if (prefs.getString("frame", null) != STAGE) {
+      val e = prefs.edit()
+      prefs.all.keys.filter { it.startsWith("poses:") }.forEach { e.remove(it) }
+      e.putString("frame", STAGE).apply()
+    }
   }
 
   private fun scope(key: String) = if (key in GLOBAL) "" else gridId
@@ -52,21 +63,6 @@ class PlacementStore(context: Context) {
   fun remove(key: String) {
     val all = posesJson(key); all.remove(key)
     prefs.edit().putString("poses:${scope(key)}", all.toString()).apply()
-  }
-
-  /**
-   * Forget every pose saved in the headset's own frame (this grid's and the headset-wide ones). Once a room exists
-   * those are meaningless — the headset's frame starts wherever the app was opened — and restoring them scattered
-   * the room.
-   */
-  fun dropWorldPoses() {
-    for (scope in listOf(gridId, "")) {
-      val all = JSONObject(prefs.getString("poses:$scope", "{}") ?: "{}")
-      val stale = all.keys().asSequence().filter { all.optJSONObject(it)?.optString("space") == "world" }.toList()
-      if (stale.isEmpty()) continue
-      stale.forEach { all.remove(it) }
-      prefs.edit().putString("poses:$scope", all.toString()).apply()
-    }
   }
 
   fun clearPoses() { prefs.edit().remove("poses:$gridId").apply() }
