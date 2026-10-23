@@ -49,10 +49,7 @@ import com.meta.spatial.toolkit.PanelStyleOptions
 import com.meta.spatial.toolkit.PlayerBodyAttachmentSystem
 import com.meta.spatial.toolkit.QuadShapeOptions
 import com.meta.spatial.toolkit.Scale
-import com.meta.spatial.toolkit.SceneObjectSystem
 import com.meta.spatial.toolkit.Visible
-import com.meta.spatial.runtime.InputListener
-import com.meta.spatial.runtime.SceneObject
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
@@ -120,8 +117,7 @@ class OfficeActivity : AppSystemActivity() {
     var gear: Entity? = null
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
-    /** How many of its parts (model, front panel, bar, ⚙, 🗑) the pointer is on, and when it last left one. */
-    var hovers = 0
+    /** When a controller last pointed at it (the piece or its menu). */
     var lastHover = 0L
     var menuShown = true
     /** The built-in model's name (null for an uploaded model, which has no see-through copy), and its footprint. */
@@ -363,7 +359,6 @@ class OfficeActivity : AppSystemActivity() {
     SelectOnTrigger.attach(frame) { select(key) }
     t.gear = gearButton(t)
     if (key != "fireplace") t.trash = trashButton(t)
-    for (e in listOfNotNull(frame, t.handle?.entity, t.gear, t.trash)) watchHover(t, e)
     return t
   }
 
@@ -402,7 +397,7 @@ class OfficeActivity : AppSystemActivity() {
         Transform(PoseMath.pose(floatArrayOf(0f, y, z), PoseMath.yaw(180f))),
         TransformParent(t.frame),
     ))
-    t.panel?.let { watchHover(t, it) }
+
     applyScale(t)
   }
 
@@ -546,16 +541,42 @@ class OfficeActivity : AppSystemActivity() {
     t.handle?.follow()
   }
 
-  /** Count the pointer on and off one part of `t` (its menu shows only while you point at the piece). */
-  private fun watchHover(t: Thing, e: Entity) {
-    systemManager.findSystem<SceneObjectSystem>().getSceneObject(e)?.thenAccept { so ->
-      so.addInputListener(object : InputListener {
-        override fun onHoverStart(receiver: SceneObject, sourceOfInput: Entity) { t.hovers++ }
-        override fun onHoverStop(receiver: SceneObject, sourceOfInput: Entity) {
-          t.hovers = (t.hovers - 1).coerceAtLeast(0); t.lastHover = System.currentTimeMillis()
-        }
-      })
+  /** Each controller's ray, as (origin, forward). Forward is +z of the controller's pose, as in Meta's samples. */
+  private fun controllerRays(): List<Pair<FloatArray, FloatArray>> =
+      Query.where { has(Controller.id) }.eval()
+          .filter { it.isLocal() && it.tryGetComponent<Controller>()?.isActive == true }
+          .mapNotNull { c ->
+            val pose = c.tryGetComponent<Transform>()?.transform ?: return@mapNotNull null
+            PoseMath.tOf(pose) to PoseMath.rotate(PoseMath.qOf(pose), floatArrayOf(0f, 0f, 1f))
+          }.toList()
+
+  /**
+   * Is a ray pointing at `t` or the menu floating above it? Tested in the piece's own frame against one box: its
+   * footprint (at least as wide as the menu), from the floor up past the handle. The SDK's hover events never fired
+   * for these pieces, so the menu hid for good and the bar could not be grabbed.
+   */
+  private fun pointsAt(t: Thing, rays: List<Pair<FloatArray, FloatArray>>): Boolean {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return false
+    val inv = PoseMath.qConj(PoseMath.qOf(pose)); val p = PoseMath.tOf(pose)
+    val s = t.scale
+    val hx = maxOf((if (t.hx > 0f) t.hx else 0.5f) * s, 0.5f) + 0.05f
+    val hz = maxOf((if (t.hz > 0f) t.hz else 0.5f) * s, 0.08f) + 0.05f
+    val top = (t.handle?.dy ?: (t.top * s)) + 0.1f
+    val lo = floatArrayOf(-hx, -0.05f, -hz); val hi = floatArrayOf(hx, top, hz)
+    for ((o, d) in rays) {
+      val lo3 = PoseMath.rotate(inv, floatArrayOf(o[0] - p[0], o[1] - p[1], o[2] - p[2]))
+      val ld = PoseMath.rotate(inv, d)
+      var tMin = 0f; var tMax = 10f; var hit = true
+      for (i in 0..2) {
+        if (kotlin.math.abs(ld[i]) < 1e-6f) { if (lo3[i] < lo[i] || lo3[i] > hi[i]) { hit = false; break }; continue }
+        var a = (lo[i] - lo3[i]) / ld[i]; var b = (hi[i] - lo3[i]) / ld[i]
+        if (a > b) { val x = a; a = b; b = x }
+        tMin = maxOf(tMin, a); tMax = minOf(tMax, b)
+        if (tMin > tMax) { hit = false; break }
+      }
+      if (hit) return true
     }
+    return false
   }
 
   /**
@@ -564,9 +585,11 @@ class OfficeActivity : AppSystemActivity() {
    */
   private fun showMenus() {
     val now = System.currentTimeMillis()
+    val rays = controllerRays()
     for (t in things.values) {
       if (t.key == CONTROL) continue
-      val want = t.hovers > 0 || now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
+      if (pointsAt(t, rays)) t.lastHover = now
+      val want = now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
       if (want == t.menuShown) continue
       t.menuShown = want
       for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))
@@ -626,7 +649,7 @@ class OfficeActivity : AppSystemActivity() {
       var held: String? = null
       for (t in things.values) {
         val h = t.handle ?: continue
-        if (h.update(head)) select(t.key)
+        if (h.update(head)) { select(t.key); Log.i(TAG, "grabbed ${t.key}") }
         if (h.held) held = t.key
       }
       for (h in readerHandles.values) h.update(head)
