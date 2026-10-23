@@ -65,9 +65,8 @@ export function makeScreenFrame(THREE) {
   const { box } = kit(THREE);
   const { W, H, Y } = SCREEN_SIZE;
   const g = new THREE.Group();
+  // Wall-mounted: just the frame, no stand (user, 2026-10-23).
   g.add(box(W + 0.06, H + 0.06, 0.04, 0x111111, 0, Y, 0));
-  g.add(box(0.06, 1.05, 0.06, 0x222222, 0, 0.525, -0.05));
-  g.add(box(0.5, 0.03, 0.3, 0x222222, 0, 0.015, -0.05));
   return g;
 }
 

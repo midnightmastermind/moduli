@@ -20,8 +20,17 @@ import com.meta.spatial.toolkit.Transform
  * its own turn (the thumbstick changes it); a panel faces you while you carry it.
  *
  * `dy` is how far above the target's origin the handle sits (negative = below, for a panel centred on its origin).
+ * `minY`: the lowest the piece's base may go — the floor for furniture (carrying pieces below it left them stuck in
+ * the floor); null for panels. Above that, anything goes: furniture can be placed in the air.
+ * `reach` pushes the piece further out (or pulls it in) along your line of sight, from the left thumbstick.
  */
-class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boolean, widthScale: Float = 1f) {
+class GrabHandle(
+    val target: Entity,
+    var dy: Float,
+    private val facesHead: Boolean,
+    widthScale: Float = 1f,
+    private val minY: Float? = null,
+) {
   // The bar is one of the app's own models (tools/exportModels.mjs), drawn the way the furniture is — the SDK's
   // built-in "mesh://box" did not show on the headset. `widthScale` stretches it for the wider panels.
   val entity: Entity = Entity.create(listOf(
@@ -35,6 +44,9 @@ class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boole
   var held = false
     private set
 
+  /** Metres the piece is pushed beyond (positive) or pulled in from (negative) the handle while held. */
+  var reach = 0f
+
   private val grabbed get() = entity.tryGetComponent<Grabbable>()?.isGrabbed == true
 
   /**
@@ -46,9 +58,20 @@ class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boole
     if (grabbed) {
       val started = !held
       held = true
+      if (started) reach = 0f
       val h = entity.tryGetComponent<Transform>()?.transform ?: return started
       val ht = PoseMath.tOf(h)
-      val t = floatArrayOf(ht[0], ht[1] - dy, ht[2])
+      val y = ht[1] - dy
+      val t = floatArrayOf(ht[0], minY?.let { y.coerceAtLeast(it) } ?: y, ht[2])
+      if (head != null && reach != 0f) {
+        val ex = ht[0] - head.t.x; val ez = ht[2] - head.t.z
+        val len = kotlin.math.sqrt(ex * ex + ez * ez)
+        if (len > 1e-3f) {
+          // Never closer than 40cm to you.
+          val r = reach.coerceAtLeast(0.4f - len).also { reach = it }
+          t[0] += ex / len * r; t[2] += ez / len * r
+        }
+      }
       val q = if (facesHead && head != null) PoseMath.yaw(PoseMath.yawToward(t, PoseMath.tOf(head)) + 180f)
               else PoseMath.upright(PoseMath.qOf(tp))
       target.setComponent(Transform(PoseMath.pose(t, q)))

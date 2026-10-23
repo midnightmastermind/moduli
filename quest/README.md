@@ -10,12 +10,10 @@ furniture is saved relative to your scanned room's floor, so it stays where you 
 - `GrabHandle.kt` — the white bar above each piece (below each panel) you grab to move it. The pieces themselves are
   not grabbable: a shelf's/screen's web panel covers its front, and the SDK's grab flipped a held piece to face you.
 - `SelectOnTrigger.kt` — a trigger tap on a piece selects it.
-- Controls (`OfficeActivity.InputSystem`): RIGHT stick held left/right turns the held (else selected) piece smoothly
-  (90°/s); LEFT stick held
-  up/down grows/shrinks it smoothly (0.3x–3x, saved with its pose).
-- `PlacementStore.kt` / `PoseMath.kt` — saved poses (per grid, per headset).
-- `PanelHtml.kt` — the shelf and screen faces (plain HTML; only the control panel loads the Moduli app).
-- `tools/exportModels.mjs` — writes the furniture from `client/src/vr/decorMakers.js` as .glb into `app/src/main/assets/office/`.
+- Controls (`OfficeActivity.InputSystem`), all smooth while the stick is held: RIGHT stick left/right turns the held
+  (else selected) piece, up/down grows/shrinks it (0.3x–3x, saved with its pose); LEFT stick up/down, while carrying
+  a piece, pushes it further away / pulls it closer. Pieces can be carried into the air but not below the floor. The
+  SDK's own stick locomotion (snap turn) is switched off.
 
 ## Build
 

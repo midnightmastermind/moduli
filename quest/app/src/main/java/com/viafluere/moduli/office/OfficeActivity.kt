@@ -47,6 +47,7 @@ import com.meta.spatial.toolkit.Scale
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
+import com.meta.spatial.vr.LocomotionSystem
 import com.meta.spatial.vr.VRFeature
 import org.json.JSONObject
 import java.util.UUID
@@ -73,9 +74,10 @@ class OfficeActivity : AppSystemActivity() {
     private const val READER_H = 1.0f
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
-    /** Held thumbstick: degrees turned per second, and how many times bigger per second (smooth, not stepped). */
+    /** Held thumbstick: degrees turned per second, how many times bigger per second, metres pushed per second. */
     private const val TURN_DEG_PER_S = 90f
     private const val GROW_PER_S = 1.6f
+    private const val REACH_M_PER_S = 1.5f
     private const val SCALE_MIN = 0.3f
     private const val SCALE_MAX = 3f
   }
@@ -88,6 +90,8 @@ class OfficeActivity : AppSystemActivity() {
     var scale = 1f
     var lastScale = 1f
     var panel: Entity? = null
+    /** Where the panel sits on the piece at scale 1 (height, distance out front). */
+    var panelAt = floatArrayOf(0f, 0f)
     var web: WebView? = null
     var html: String = ""
     var lastT = FloatArray(3)
@@ -210,6 +214,9 @@ class OfficeActivity : AppSystemActivity() {
         sunDirection = -Vector3(1.0f, 3.0f, -2.0f),
         environmentIntensity = 0.4f,
     )
+    // The thumbsticks turn and resize furniture here, so the headset's own stick locomotion (snap-turning you, which
+    // swung the whole room around) is off — you walk around your real room instead.
+    systemManager.findSystem<LocomotionSystem>().enableLocomotion(false)
     applyMode(store.mode)
     // The control panel floats to the left of where you are looking.
     val controlEntity = Entity.create(listOf(
@@ -302,7 +309,8 @@ class OfficeActivity : AppSystemActivity() {
     val t = Thing(key, frame)
     things[key] = t
     t.top = sizes.optJSONObject(if (src != null) "" else model)?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
-    t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false)
+    t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false,
+        minY = 0f)
     if (!restore(t)) putDefault(t)
     t.handle?.follow()
     Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
@@ -339,11 +347,13 @@ class OfficeActivity : AppSystemActivity() {
       web.loadDataWithBaseURL(origin, t.html, "text/html", "utf-8", null)
     })
     // A panel shows its face on -z; the furniture's front is +z, so the panel is turned to look out of it.
+    t.panelAt = floatArrayOf(y, z)
     t.panel = Entity.create(listOf(
         Panel(id),
         Transform(PoseMath.pose(floatArrayOf(0f, y, z), PoseMath.yaw(180f))),
         TransformParent(t.frame),
     ))
+    applyScale(t)
   }
 
   private fun refreshPanel(t: Thing) {
@@ -466,6 +476,12 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun applyScale(t: Thing) {
     t.frame.setComponent(Scale(Vector3(t.scale)))
+    // A child does not take its parent's scale, so the web panel on a shelf or screen is scaled and re-seated with it
+    // (it stayed full size, floating above a shrunken TV).
+    t.panel?.let { p ->
+      p.setComponent(Scale(Vector3(t.scale)))
+      p.setComponent(Transform(PoseMath.pose(floatArrayOf(0f, t.panelAt[0] * t.scale, t.panelAt[1] * t.scale), PoseMath.yaw(180f))))
+    }
     t.handle?.dy = t.top * t.scale + HANDLE_GAP
     t.handle?.follow()
   }
@@ -476,8 +492,9 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   /**
-   * Every frame: pieces follow their handles. While the RIGHT thumbstick is held left / right the piece being held
-   * (else the selected one) turns smoothly; while the LEFT thumbstick is held up / down it grows / shrinks smoothly.
+   * Every frame: pieces follow their handles. RIGHT thumbstick, held: left / right turns the piece being held (else
+   * the selected one), up / down grows / shrinks it. LEFT thumbstick, held, while carrying: up pushes the piece
+   * further away, down pulls it closer. All smooth, by how long the stick is held.
    * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
    * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
    */
@@ -510,6 +527,7 @@ class OfficeActivity : AppSystemActivity() {
       lastNs = now
       var turnDir = 0f
       var growDir = 0f
+      var reachDir = 0f
       for (c in Query.where { has(Controller.id) }.eval()) {
         if (!c.isLocal()) continue
         val ctl = c.tryGetComponent<Controller>() ?: continue
@@ -517,10 +535,14 @@ class OfficeActivity : AppSystemActivity() {
         val down = ctl.buttonState
         if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
         if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
-        if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
-        if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
+        if (down and ButtonBits.ButtonThumbRU != 0) growDir += 1f
+        if (down and ButtonBits.ButtonThumbRD != 0) growDir -= 1f
+        if (down and ButtonBits.ButtonThumbLU != 0) reachDir += 1f
+        if (down and ButtonBits.ButtonThumbLD != 0) reachDir -= 1f
       }
-      if (dt == 0f || (turnDir == 0f && growDir == 0f)) return
+      if (dt == 0f) return
+      if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
+      if (turnDir == 0f && growDir == 0f) return
       val target = (held ?: selected)?.let { things[it] } ?: return
       if (turnDir != 0f) turn(target, turnDir * TURN_DEG_PER_S * dt, save = false)
       if (growDir != 0f) resize(target, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat(), save = false)
