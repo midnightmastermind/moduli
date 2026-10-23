@@ -87,8 +87,9 @@ class OfficeActivity : AppSystemActivity() {
     private const val PIECE_H = 0.75f
     private const val GEAR_M = 0.09f
     private const val TRASH_W = 0.15f
-    /** A piece's menu (bar, ⚙, 🗑) stays up this long after you stop pointing at it, to reach the buttons. */
-    private const val MENU_LINGER_MS = 1500L
+    /** A piece's menu (bar, ⚙, 🗑) stays up this long after you point at nothing. The menu is inside the pointing
+     *  box, so reaching the buttons needs no linger; 1.5s felt far too slow to go away. */
+    private const val MENU_LINGER_MS = 300L
     /** You are "in" a piece when your head is over its footprint (plus this margin) and lower than its top plus
      *  SEATED_HEAD_M — sitting in a chair or lying on the bed, not standing beside or over it. */
     private const val FOOTPRINT_MARGIN_M = 0.1f
@@ -581,6 +582,7 @@ class OfficeActivity : AppSystemActivity() {
     val now = System.currentTimeMillis()
     // Each controller points at ONE piece: the nearest its ray meets. A ray across the room passes through several
     // pieces' boxes, and lighting them all up let a grab land on the wrong piece.
+    val pointed = HashSet<String>()
     for ((o, d) in controllerRays()) {
       var best: Thing? = null; var bestD = Float.MAX_VALUE
       for (t in things.values) {
@@ -589,8 +591,10 @@ class OfficeActivity : AppSystemActivity() {
         val dist = hitDistance(t, o, d) ?: continue
         if (dist < bestD) { bestD = dist; best = t }
       }
-      best?.lastHover = now
+      best?.let { it.lastHover = now; pointed += it.key }
     }
+    // Pointing at another piece hides the last one at once; the linger is only for pointing at nothing.
+    if (pointed.isNotEmpty()) for (t in things.values) if (t.key !in pointed) t.lastHover = 0L
     for (t in things.values) {
       if (t.key == CONTROL) continue
       val want = !t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
