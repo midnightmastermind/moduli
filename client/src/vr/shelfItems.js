@@ -69,7 +69,8 @@ export function folderShelfItems(rootId, { grid, occurrencesById, modulesById, f
       src: isFile && mod.fileRef ? resolveFileRef(mod.fileRef) : null,
     });
   }
-  return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 300);
+  // Up to 3,000: a Documents shelf holds the whole codex (~2,500 notes).
+  return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 3000);
 }
 
 export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } = {}) {
