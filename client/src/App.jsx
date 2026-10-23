@@ -1309,7 +1309,7 @@ export default function App() {
           <React.Suspense fallback={null}>
             <VrOffice
               grid={state.grid} occurrencesById={occurrencesById} modulesById={modulesById} viewsById={viewsById}
-              dispatch={dispatch} socket={socket} onClose={closeOffice}
+              foldersById={foldersById} dispatch={dispatch} socket={socket} onClose={closeOffice}
             />
           </React.Suspense>
         )}

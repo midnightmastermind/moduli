@@ -124,8 +124,18 @@ export function screenPicture(screen, { picture, snapshotPage, occurrencesById }
   return Promise.resolve(null);
 }
 
-export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesById, save, onDone, onRemoved, confirmRemove = true }) {
-  const count = useMemo(() => shelfItems(shelf, { grid, occurrencesById, modulesById }).length, [shelf, grid, occurrencesById, modulesById]);
+export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesById, foldersById, save, onDone, onRemoved, confirmRemove = true }) {
+  const count = useMemo(() => shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById }).length,
+    [shelf, grid, occurrencesById, modulesById, foldersById]);
+  // Folders by path, to pick one a shelf holds whole. Category folders (the Fields/Operations tabs') are not places.
+  const folderPaths = useMemo(() => {
+    const byId = foldersById || {};
+    const path = (f) => { const p = []; let c = f; let n = 0; while (c && n++ < 30) { p.unshift(c.name); c = byId[c.parentId]; } return p.join(" / "); };
+    return Object.values(byId)
+      .filter((f) => f && f.folderType !== "category" && (!gridId || !f.gridId || f.gridId === gridId))
+      .map((f) => ({ id: f.id, path: path(f) }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [foldersById, gridId]);
   const remove = () => {
     if (confirmRemove && !window.confirm(`Remove "${shelf.title}"?`)) return;
     save(removeShelf(grid, shelf.id)); (onRemoved || onDone)?.();
@@ -142,12 +152,21 @@ export function ShelfSettings({ shelf, grid, gridId, occurrencesById, modulesByI
           {SHELF_ASSETS.map((a) => <option key={a} value={a}>{ASSET_LABELS[a]}</option>)}
         </select>
       </label>
-      <div style={{ fontSize: 13, margin: "6px 0" }}>What it holds ({count} now):</div>
-      <FeedSection
-        occurrence={{ id: shelf.id, gridId }}
-        feed={shelf.feed}
-        onFeedChange={(feed) => save(updateShelf(grid, shelf.id, { feed }))}
-      />
+      <label style={{ display: "block", fontSize: 13, marginBottom: 8 }}>Holds a whole folder (every page in it and its subfolders)<br />
+        <select value={shelf.folderId || ""} onChange={(e) => save(updateShelf(grid, shelf.id, { folderId: e.target.value || null }))}
+          style={{ width: "100%", fontSize: 14, padding: 4 }}>
+          <option value="">No — use the query below</option>
+          {folderPaths.map((f) => <option key={f.id} value={f.id}>{f.path}</option>)}
+        </select>
+      </label>
+      <div style={{ fontSize: 13, margin: "6px 0" }}>What it holds ({count} now){shelf.folderId ? " — from the folder" : ":"}</div>
+      {!shelf.folderId && (
+        <FeedSection
+          occurrence={{ id: shelf.id, gridId }}
+          feed={shelf.feed}
+          onFeedChange={(feed) => save(updateShelf(grid, shelf.id, { feed }))}
+        />
+      )}
       <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: 12 }}>
         <button style={officeBtn} onClick={remove}>Remove shelf</button>
         {onDone && <button style={officeBtn} onClick={onDone}>Done</button>}

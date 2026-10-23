@@ -59,6 +59,12 @@
     "hx": 1.2,
     "hz": 0.45
   },
+  "smalltable": {
+    "top": 0.553,
+    "bottom": 0,
+    "hx": 0.275,
+    "hz": 0.275
+  },
   "desk": {
     "top": 0.75,
     "bottom": 0,

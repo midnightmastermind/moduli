@@ -1,7 +1,7 @@
 // vr/officeConfig.js — what the VR office keeps on the grid.
 //
 // grid.meta.vrOffice = {
-//   shelves: [{ id, title, asset: "book"|"record"|"vhs", feed }],
+//   shelves: [{ id, title, asset: "book"|"record"|"vhs", feed, folderId? }],
 //   screens: [{ id, title, source: "page"|"grid", pageOccId }],
 // }
 //
@@ -10,6 +10,9 @@
 // occurrence feed has (conditions / roles / scope / sort / limit), so the
 // app's own feed editor edits it and `resolveFeedItems` answers it. Nothing is
 // copied: a shelf reads the grid each time it is drawn.
+//
+// A shelf can instead hold a whole FOLDER (`folderId`): every page in it and its subfolders, one spine each (user,
+// 2026-10-23: a shelf for notes, the codex and other docs). The query is ignored while a folder is set.
 //
 // Where each thing STANDS in the room stays in the browser for now (room
 // anchors are plan §7) — this is only what the things ARE.

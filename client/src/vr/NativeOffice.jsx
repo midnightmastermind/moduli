@@ -31,7 +31,7 @@ function post(msg) {
 }
 
 /** What the headset draws, as plain data. Pure, so it can be tested. */
-export function nativeOfficeState({ grid, occurrencesById, modulesById }, pageLabel) {
+export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById }, pageLabel) {
   const office = readOffice(grid);
   return {
     type: "state",
@@ -39,7 +39,7 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById }, pageLa
     origin: typeof window !== "undefined" ? window.location.origin : "",
     shelves: office.shelves.map((s) => ({
       id: s.id, title: s.title, asset: s.asset,
-      items: shelfItems(s, { grid, occurrencesById, modulesById }).map((i) => ({ id: i.id, title: i.title, cover: i.cover })),
+      items: shelfItems(s, { grid, occurrencesById, modulesById, foldersById }).map((i) => ({ id: i.id, title: i.title, cover: i.cover })),
     })),
     screens: office.screens.map((s) => ({
       id: s.id, source: s.source, pageOccId: s.pageOccId || null,
@@ -50,7 +50,7 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById }, pageLa
 }
 
 /** One piece's settings, in its own window beside it (`/?office&piece=<key>`). Sends no state — the main panel does. */
-export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, dispatch }) {
+export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, foldersById, dispatch }) {
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
   const live = useRef({});
@@ -65,7 +65,7 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, disp
   const removed = () => post({ type: "delete", key: pieceKey });
   const wrap = { position: "fixed", inset: 0, zIndex: 2000, background: "var(--surface-card)", color: "var(--text-primary)", overflow: "auto", padding: 14, fontSize: 14 };
   // No confirm(): a web confirm never shows inside a headset panel, so it left Remove doing nothing.
-  const common = { grid, gridId, occurrencesById, modulesById, save: (m) => save(m), confirmRemove: false };
+  const common = { grid, gridId, occurrencesById, modulesById, foldersById, save: (m) => save(m), confirmRemove: false };
   if (shelf) return <div style={wrap}><ShelfSettings shelf={shelf} {...common} onDone={close} onRemoved={removed} /></div>;
   if (screen) return <div style={wrap}><ScreenSettings screen={screen} {...common} onDone={close} onRemoved={removed} /></div>;
   const title = kind === "fireplace" ? "Fireplace" : kind === "decor" ? "Decor" : "This piece";
@@ -83,11 +83,11 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, disp
   );
 }
 
-export default function NativeOffice({ grid, occurrencesById, modulesById, dispatch }) {
+export default function NativeOffice({ grid, occurrencesById, modulesById, foldersById, dispatch }) {
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
   const live = useRef({});
-  live.current = { grid, gridId, occurrencesById, modulesById, dispatch, office };
+  live.current = { grid, gridId, occurrencesById, modulesById, foldersById, dispatch, office };
   const save = useOfficeSave(live);
   const { picture, snapshotPage, portal } = usePagePictures();
   const [mode, setMode] = useState("mr");

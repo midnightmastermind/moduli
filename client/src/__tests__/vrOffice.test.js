@@ -140,3 +140,33 @@ describe("decorLibrary", () => {
     expect(decorPage(items, -1, 8).items).toEqual([8, 9]);
   });
 });
+
+import { folderShelfItems, shelfItems as shelfItemsF } from "../vr/shelfItems.js";
+
+describe("a shelf that holds a whole folder", () => {
+  const foldersById = {
+    docs: { id: "docs", name: "Documents", parentId: "root" },
+    notes: { id: "notes", name: "Notes", parentId: "docs" },
+    codex: { id: "codex", name: "Codex", parentId: "docs" },
+    other: { id: "other", name: "Other", parentId: "root" },
+  };
+  const modulesById = { pg: { id: "pg", role: "page", kind: "doc" }, fp: { id: "fp", role: "page", kind: "folder" }, it: { id: "it", role: "instance" } };
+  const occurrencesById = {
+    a: { id: "a", moduleId: "pg", parentId: "notes", label: "Philosopher's Stone" },
+    b: { id: "b", moduleId: "pg", parentId: "codex", label: "Dreams" },
+    c: { id: "c", moduleId: "pg", parentId: "other", label: "Elsewhere" },
+    d: { id: "d", moduleId: "fp", parentId: "notes", label: "Notes" },
+    e: { id: "e", moduleId: "it", parentId: "notes", label: "A row" },
+  };
+
+  it("holds every page in the folder and its subfolders, by title, and nothing else", () => {
+    const items = folderShelfItems("docs", { occurrencesById, modulesById, foldersById });
+    expect(items.map((i) => i.title)).toEqual(["Dreams", "Philosopher's Stone"]);
+    expect(items[0].id).toBe("b");
+  });
+
+  it("is what a shelf with a folderId holds, whatever its query says", () => {
+    const shelf = { id: "s", asset: "book", folderId: "notes", feed: { conditions: [], scope: null } };
+    expect(shelfItemsF(shelf, { occurrencesById, modulesById, foldersById }).map((i) => i.id)).toEqual(["a"]);
+  });
+});

@@ -28,7 +28,7 @@ export default function VrOfficeEntry(props) {
   return piece ? <NativePiece pieceKey={piece} {...props} /> : <NativeOffice {...props} />;
 }
 
-function VrOffice({ grid, occurrencesById, modulesById, viewsById, dispatch, socket, onClose }) {
+function VrOffice({ grid, occurrencesById, modulesById, viewsById, foldersById, dispatch, socket, onClose }) {
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
   const mountRef = useRef(null);
@@ -39,7 +39,7 @@ function VrOffice({ grid, occurrencesById, modulesById, viewsById, dispatch, soc
 
   // The scene reads the newest props through this ref, never a stale closure.
   const live = useRef({});
-  live.current = { grid, gridId, occurrencesById, modulesById, viewsById, dispatch, socket, office };
+  live.current = { grid, gridId, occurrencesById, modulesById, viewsById, foldersById, dispatch, socket, office };
 
   // Keep the tab's layout local for as long as it is in the office.
   useEffect(() => { setLocalLayout(true); }, []);
@@ -150,7 +150,7 @@ function VrOffice({ grid, occurrencesById, modulesById, viewsById, dispatch, soc
             width: "min(560px, 100%)", maxHeight: "90vh", overflow: "auto", background: "var(--surface-card, #1d1d1d)",
             border: "1px solid var(--border-subtle)", borderRadius: 12, color: "var(--text-primary)", padding: 14,
           }}>
-            {shelf && <ShelfSettings shelf={shelf} grid={grid} gridId={gridId} occurrencesById={occurrencesById} modulesById={modulesById} save={save} onDone={() => setEditing(null)} />}
+            {shelf && <ShelfSettings foldersById={foldersById} shelf={shelf} grid={grid} gridId={gridId} occurrencesById={occurrencesById} modulesById={modulesById} save={save} onDone={() => setEditing(null)} />}
             {screen && <ScreenSettings screen={screen} grid={grid} gridId={gridId} occurrencesById={occurrencesById} modulesById={modulesById} save={save} onDone={() => setEditing(null)} />}
           </div>
         </div>

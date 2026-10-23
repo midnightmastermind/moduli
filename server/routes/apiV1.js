@@ -1461,6 +1461,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         shelves: office.shelves.filter((s) => s && typeof s.id === "string").map((s) => ({
           id: s.id, title: String(s.title || ""), asset: ["book", "record", "vhs"].includes(s.asset) ? s.asset : "book",
           feed: s.feed && typeof s.feed === "object" ? { ...s.feed, enabled: true } : null,
+          // A shelf can hold a whole folder instead of its query (client vr/shelfItems folderShelfItems).
+          folderId: typeof s.folderId === "string" && s.folderId ? s.folderId : null,
         })),
         screens: office.screens.filter((s) => s && typeof s.id === "string").map((s) => ({
           id: s.id, title: String(s.title || ""), source: s.source === "grid" ? "grid" : "page",

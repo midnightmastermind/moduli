@@ -29,7 +29,43 @@ function coverUrl(occ, mod, media) {
   return null;
 }
 
-export function shelfItems(shelf, { grid, occurrencesById, modulesById } = {}) {
+/** Every folder under `rootId` (itself included). */
+function folderTree(rootId, foldersById) {
+  const kids = new Map();
+  for (const f of Object.values(foldersById || {})) {
+    if (!f?.parentId) continue;
+    if (!kids.has(f.parentId)) kids.set(f.parentId, []);
+    kids.get(f.parentId).push(f.id);
+  }
+  const out = new Set([rootId]);
+  const stack = [rootId];
+  while (stack.length) for (const k of kids.get(stack.pop()) || []) if (!out.has(k)) { out.add(k); stack.push(k); }
+  return out;
+}
+
+/**
+ * A folder shelf: every page homed in the folder or any folder under it, by title — a doc page is its own book,
+ * opened by pointing at it. The folder's own folder page (kind "folder") is not a book.
+ */
+export function folderShelfItems(rootId, { grid, occurrencesById, modulesById, foldersById } = {}) {
+  if (!rootId || !occurrencesById) return [];
+  const under = folderTree(rootId, foldersById);
+  const gridId = grid?._id || grid?.id || null;
+  const out = [];
+  for (const occ of Object.values(occurrencesById)) {
+    if (!occ?.parentId || !under.has(occ.parentId)) continue;
+    if (gridId && occ.gridId && occ.gridId !== gridId) continue;
+    const mod = modulesById?.[occ.moduleId];
+    if (mod?.role !== "page" || mod.kind === "folder") continue;
+    const title = (occurrenceDisplayLabel(occ, mod) || "").trim();
+    if (!title) continue;
+    out.push({ id: occ.id, rowId: occ.id, title, cover: coverUrl(occ, mod, null), fileId: null, fileKind: null });
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 300);
+}
+
+export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } = {}) {
+  if (shelf?.folderId) return folderShelfItems(shelf.folderId, { grid, occurrencesById, modulesById, foldersById });
   if (!shelf?.feed || !occurrencesById) return [];
   // A shelf nobody has given a query yet holds NOTHING. A feed with no
   // conditions and no scope means "every row on the grid" (a real feed shape),
