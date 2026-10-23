@@ -40,6 +40,27 @@ const pieces = {
     g.add(zone);
     return g;
   },
+  // A shelf's books (OfficeActivity shelf books): an invisible 1m block laid in front of each spine to grab, and the
+  // solid book it turns into in your hand — one per spine colour (PanelHtml SPINE_COLORS). Unit size; the app scales
+  // each to its slot.
+  bookproxy: () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })));
+    return g;
+  },
+  ...Object.fromEntries(["#7a2e2e", "#2e4a7a", "#3f6b34", "#7a5a2e", "#4a2e7a", "#2e6b6b", "#8a6a3a", "#5a3a2a"].map((c, i) => [`book-${i}`, () => {
+    const g = new THREE.Group();
+    const cover = new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
+    const pages = new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.9 });
+    const part = (geo, mat, x, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, 0, z); return m; };
+    // Covers: front, back, spine. Pages fill the rest, set back a little from the fore-edge.
+    g.add(part(new THREE.BoxGeometry(1, 1, 0.08), cover, 0, 0.46));
+    g.add(part(new THREE.BoxGeometry(1, 1, 0.08), cover, 0, -0.46));
+    g.add(part(new THREE.BoxGeometry(0.12, 1, 1), cover, -0.44, 0));
+    g.add(part(new THREE.BoxGeometry(0.86, 0.94, 0.84), pages, 0.05, 0));
+    return g;
+  }])),
   ...Object.fromEntries(M.DECOR_KEYS.map((k) => [k, () => M.makeDecor(THREE, k)])),
 };
 
@@ -64,7 +85,7 @@ for (const [name, make] of Object.entries(pieces)) {
   const glb = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
   writeFileSync(resolve(out, name + ".glb"), Buffer.from(glb));
   // A see-through copy, shown while you sit in the piece so your own legs show through it.
-  if (name !== "handle") {
+  if (name !== "handle" && !name.startsWith("book")) {
     const ghost = new THREE.Scene();
     const gg = make();
     gg.traverse((o) => {

@@ -87,6 +87,12 @@ class OfficeActivity : AppSystemActivity() {
     private const val PIECE_H = 0.75f
     private const val GEAR_M = 0.09f
     private const val TRASH_W = 0.15f
+    /** A shelf book: its grab block's depth, the depth of the book in your hand, how far off the shelf counts as
+     *  taking it (then letting go opens it), and how short a grab counts as a tap (which opens it too). */
+    private const val BOOK_PROXY_DEPTH = 0.03f
+    private const val BOOK_DEPTH = 0.16f
+    private const val BOOK_PULL_M = 0.12f
+    private const val BOOK_TAP_MS = 350L
     /** A piece's menu (bar, ⚙, 🗑) stays up this long after you point at nothing. The menu is inside the pointing
      *  box, so reaching the buttons needs no linger; 1.5s felt far too slow to go away. */
     private const val MENU_LINGER_MS = 300L
@@ -118,6 +124,12 @@ class OfficeActivity : AppSystemActivity() {
     var panelAt = floatArrayOf(0f, 0f)
     /** The ⚙ beside the handle that opens this piece's own settings window. */
     var gear: Entity? = null
+    /** A shelf's grabbable books (the current page), its slots, what it holds and which page it shows. */
+    val books = ArrayList<Book>()
+    var slots: List<ShelfLayout.Slot> = emptyList()
+    var shelfItems: org.json.JSONArray = org.json.JSONArray()
+    var page = 0
+    var shelfSize: OfficeSizes.Shelf? = null
     /** The 🗑 beside the ⚙ (none on the fireplace). */
     var trash: Entity? = null
     /** When a controller last pointed at it (the piece or its menu). */
@@ -134,6 +146,16 @@ class OfficeActivity : AppSystemActivity() {
     var html: String = ""
     var lastT = FloatArray(3)
     var lastQ = floatArrayOf(1f, 0f, 0f, 0f)
+  }
+
+  /**
+   * One book you can take off a shelf: an invisible block over its spine, which becomes a solid book while held.
+   * `slot` is where it rests, in the shelf's frame.
+   */
+  class Book(val itemId: String, val title: String, val slot: ShelfLayout.Slot, val color: Int, val entity: Entity) {
+    var held = false
+    var grabbedAt = 0L
+    var placedScale = -1f
   }
 
   private lateinit var store: PlacementStore
@@ -290,6 +312,8 @@ class OfficeActivity : AppSystemActivity() {
       "turn" -> things[m.optString("key")]?.let { turn(it, m.optDouble("deg", 45.0).toFloat()) }
       "delete" -> deleteThing(m.optString("key"))
       "closePiece" -> pieceWindows[m.optString("key")]?.let { closeReader(it) }
+      "piece" -> togglePiece(m.optString("key"))
+      "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       "addDecor" -> addDecor(m)
       "spawn" -> things[m.optString("key")]?.let { putInFront(it) }
       "mode" -> { store.mode = m.optString("mode", "mr"); applyMode(store.mode); send(JSONObject().put("type", "mode").put("mode", store.mode)) }
@@ -376,8 +400,87 @@ class OfficeActivity : AppSystemActivity() {
     if (existing != null && existing.html.isNotEmpty() && !existing.html.contains("asset=${JSONObject.quote(asset)}")) deleteEntity(key)
     val t = ensureThing(key, "shelf-$asset")
     val size = OfficeSizes.SHELVES.getValue(asset)
-    t.html = PanelHtml.shelf(s, size.rows, size.h)
+    t.shelfSize = size
+    t.slots = ShelfLayout.slots(asset, size)
+    t.shelfItems = s.optJSONArray("items") ?: org.json.JSONArray()
+    val pages = maxOf(1, (t.shelfItems.length() + t.slots.size - 1) / t.slots.size)
+    t.page = t.page.coerceIn(0, pages - 1)
+    t.html = PanelHtml.shelf(s, t.slots, size.h, t.page)
     attachPanel(t, size.w - 0.06f, size.h + PanelHtml.HEADER_M, (size.h + PanelHtml.HEADER_M) / 2f, size.d / 2f + 0.01f)
+    buildBooks(t, size)
+  }
+
+  // ── Books you can take off a shelf ───────────────────────────────────────
+  /** Lay a grabbable book over each spine on the shelf's current page (the old ones go). */
+  private fun buildBooks(t: Thing, size: OfficeSizes.Shelf) {
+    for (b in t.books) b.entity.destroy()
+    t.books.clear()
+    val start = t.page * t.slots.size
+    for (i in t.slots.indices) {
+      val item = t.shelfItems.optJSONObject(start + i) ?: break
+      val title = item.optString("title")
+      val e = Entity.create(listOf(
+          Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest),
+          Scale(Vector3(1f)),
+          Transform(Pose()),
+          Grabbable(true, GrabbableType.PIVOT_Y),
+      ))
+      t.books += Book(item.optString("id"), title, t.slots[i], PanelHtml.spineColor(title), e)
+    }
+    bookFront[t.key] = size.d / 2f + 0.01f + BOOK_PROXY_DEPTH / 2f
+  }
+
+  /** How far out from a shelf's centre its books' grab blocks sit (just in front of the spines on the panel). */
+  private val bookFront = HashMap<String, Float>()
+
+  /** Where a book rests: its slot, in the world, following the shelf as it moves, turns and is resized. */
+  private fun bookRestPose(t: Thing, b: Book): Pose? {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return null
+    val s = t.scale
+    val local = floatArrayOf(b.slot.x * s, b.slot.y * s, (bookFront[t.key] ?: 0.2f) * s)
+    val w = PoseMath.rotate(PoseMath.qOf(pose), local)
+    return PoseMath.pose(floatArrayOf(pose.t.x + w[0], pose.t.y + w[1], pose.t.z + w[2]), PoseMath.qOf(pose))
+  }
+
+  /**
+   * Every frame: a resting book stays on its slot; take one off the shelf and it turns into a solid book in your
+   * hand (its spine hides); let go of it away from the shelf — or just tap it — and it opens to read, then goes back.
+   */
+  private fun updateBooks() {
+    val now = System.currentTimeMillis()
+    for (t in things.values) {
+      if (t.books.isEmpty()) continue
+      val s = t.scale
+      for (b in t.books) {
+        val grabbed = b.entity.tryGetComponent<Grabbable>()?.isGrabbed == true
+        if (grabbed && !b.held) {
+          b.held = true; b.grabbedAt = now
+          b.entity.setComponent(Mesh(Uri.parse("apk:///office/book-${b.color}.glb"), hittable = MeshCollision.LineTest))
+          b.entity.setComponent(Scale(Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s)))
+          t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, true)", null)
+          Log.i(TAG, "took ${b.title} off ${t.key}")
+          continue
+        }
+        if (grabbed) continue
+        val rest = bookRestPose(t, b) ?: continue
+        if (b.held) {
+          b.held = false
+          val at = b.entity.tryGetComponent<Transform>()?.transform
+          val moved = at?.let { !PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } ?: false
+          if (moved || now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
+          b.entity.setComponent(Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest))
+          t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
+          b.placedScale = -1f
+        }
+        if (b.placedScale != s) {
+          b.entity.setComponent(Scale(Vector3(b.slot.w * s, b.slot.h * s, BOOK_PROXY_DEPTH * s)))
+          b.placedScale = s
+        }
+        val cur = b.entity.tryGetComponent<Transform>()?.transform
+        if (cur == null || !PoseMath.near(PoseMath.tOf(cur), PoseMath.tOf(rest), 0.002f) ||
+            !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(rest), 0.002f)) b.entity.setComponent(Transform(rest))
+      }
+    }
   }
 
   private fun ensureScreen(s: JSONObject) {
@@ -424,6 +527,8 @@ class OfficeActivity : AppSystemActivity() {
     t.panel?.destroy()
     t.gear?.destroy()
     t.trash?.destroy()
+    for (b in t.books) b.entity.destroy()
+    t.books.clear()
     pieceWindows[key]?.let { closeReader(it) }
     t.frame.destroy()
   }
@@ -662,6 +767,7 @@ class OfficeActivity : AppSystemActivity() {
       for (h in readerHandles.values) h.update(head)
       showMenus()
       ghostSeats(head)
+      updateBooks()
 
       val now = System.nanoTime()
       val dt = if (lastNs == 0L) 0f else ((now - lastNs) / 1e9f).coerceAtMost(0.1f)
