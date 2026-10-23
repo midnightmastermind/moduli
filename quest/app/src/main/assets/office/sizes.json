@@ -65,6 +65,12 @@
     "hx": 0.7,
     "hz": 0.355
   },
+  "keyboard": {
+    "top": 0.032,
+    "bottom": 0,
+    "hx": 0.22,
+    "hz": 0.07
+  },
   "tvframe": {
     "top": 0.89,
     "bottom": 0,

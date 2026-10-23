@@ -114,6 +114,17 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       for (const x of [-1.12, 1.12]) g.add(box(0.03, 0.08, 0.7, wood, x, 0.66, 0));
       return g;
     }
+    case "keyboard": {
+      // A full-size keyboard, 44 x 14cm: a dark case with five rows of keys and a space bar. Typing side is +z.
+      g.add(box(0.44, 0.02, 0.14, 0x1e1e1e, 0, 0.01, 0));
+      const key = 0x3a3a3a;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 14; c++) g.add(box(0.024, 0.012, 0.022, key, -0.195 + c * 0.03, 0.026, -0.05 + r * 0.026));
+      }
+      g.add(box(0.15, 0.012, 0.022, key, 0, 0.026, 0.054));
+      for (const x of [-0.16, -0.12, 0.12, 0.16]) g.add(box(0.034, 0.012, 0.022, key, x, 0.026, 0.054));
+      return g;
+    }
     case "tvframe": {
       // Just a TV's bezel with nothing inside (user: "make this a tv furniture, not a screen. so i can see my tv
       // through it") — sized for a 65" set (1.45 x 0.83m picture), sitting on its own base so it can be lifted
@@ -196,4 +207,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "desk", "tvframe", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "desk", "keyboard", "tvframe", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
