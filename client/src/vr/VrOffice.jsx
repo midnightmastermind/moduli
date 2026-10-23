@@ -33,6 +33,28 @@ const btn = {
   border: "1px solid var(--border-subtle)", background: "var(--surface-2, #2a2a2a)", color: "var(--text-primary)",
 };
 
+/** html-to-image `filter`: keep an element only if it shows inside the pictured box and inside its panel. */
+export function visibleOnlyFilter(root, rectOf = (el) => el.getBoundingClientRect()) {
+  const box = rectOf(root);
+  const clips = new Map();
+  const clipFor = (el) => {
+    const panel = el.closest?.("[data-panel-id]");
+    if (!panel || !root.contains(panel)) return box;
+    if (!clips.has(panel)) {
+      const r = rectOf(panel);
+      clips.set(panel, { left: Math.max(r.left, box.left), top: Math.max(r.top, box.top), right: Math.min(r.right, box.right), bottom: Math.min(r.bottom, box.bottom) });
+    }
+    return clips.get(panel);
+  };
+  return (el) => {
+    if (!(el instanceof Element) || el === root) return true;
+    const r = rectOf(el);
+    if (r.width === 0 && r.height === 0) return true; // an inline wrapper or a display:contents box: judge its children
+    const c = clipFor(el);
+    return r.right > c.left && r.left < c.right && r.bottom > c.top && r.top < c.bottom;
+  };
+}
+
 export default function VrOffice({ grid, occurrencesById, modulesById, viewsById, dispatch, socket, onClose }) {
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
@@ -69,11 +91,16 @@ export default function VrOffice({ grid, occurrencesById, modulesById, viewsById
   }, []);
 
   // ── Pictures for the screens ────────────────────────────────────────────
+  // A picture copies every element's computed style, so it only takes what can be SEEN: anything scrolled out of
+  // its panel (or out of the pictured box) is left out. On poms grid the whole-grid picture took ~16s on a desktop
+  // (~200s at a Quest's speed) and froze the office's load; a picture can never show the hidden rows anyway.
   const picture = useCallback(async (node) => {
     if (!node) return null;
     try {
+      const keep = visibleOnlyFilter(node);
       return await toCanvas(node, {
         width: SNAP_W, height: SNAP_H, canvasWidth: SNAP_W, canvasHeight: SNAP_H, pixelRatio: 1,
+        filter: keep,
         skipFonts: true, imagePlaceholder: PLACEHOLDER, cacheBust: false,
         backgroundColor: getComputedStyle(document.body).backgroundColor,
         // The page is drawn off screen; the copy html-to-image paints must not be.
@@ -143,6 +170,14 @@ export default function VrOffice({ grid, occurrencesById, modulesById, viewsById
       addShelf: async (asset) => {
         const { meta, shelf } = addShelf(live.current.grid, asset);
         live.current.office = meta.vrOffice; await save(meta); return shelf.id;
+      },
+      // Delete from the headset (the hold menu): a shelf or screen leaves the office's saved setup.
+      removeFixture: async (key) => {
+        const [kind, id] = String(key).split(":");
+        const g = live.current.grid;
+        const meta = kind === "shelf" ? removeShelf(g, id) : kind === "screen" ? removeScreen(g, id) : null;
+        if (!meta) return false;
+        live.current.office = meta.vrOffice; await save(meta); return true;
       },
       addScreen: async () => {
         const { meta, screen } = addScreen(live.current.grid, { source: "grid" });

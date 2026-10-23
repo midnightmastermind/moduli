@@ -276,7 +276,14 @@ export function createOfficeScene(container, host) {
     g.userData.face = face; g.userData.screen = screen;
     return g;
   }
+  // Screens are painted once the office is up and the page has gone quiet — a picture is heavy work and must not
+  // hold up the room appearing. Repaints (⟳) run straight away.
+  let screensReady = false;
+  const waitingScreens = new Set();
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 8000 }) : setTimeout(fn, 1500));
+  setTimeout(() => idle(() => { screensReady = true; for (const id of waitingScreens) paintScreen(id); waitingScreens.clear(); }), 2500);
   async function paintScreen(id) {
+    if (!screensReady) { waitingScreens.add(id); return; }
     if (!FIXTURES["screen:" + id]) return;
     const canvas = await host.snapshot(FIXTURES["screen:" + id].userData.screen).catch(() => null);
     // Read it again: a settings change may have rebuilt the screen meanwhile.
@@ -383,20 +390,84 @@ export function createOfficeScene(container, host) {
     obj.userData.grabbable = true;
     obj.traverse((m) => { if (m.isMesh && !m.userData.onSelect) { m.userData.onSelect = () => pickUp(obj); interactive.push(m); } });
   }
-  function pickUp(obj) { if (holding) return; holding = { obj }; status("Point where it should go and pinch"); }
+  function pickUp(obj) { if (holding) return; holding = { obj, turned: true }; showHoldMenu(); status("Point where it should go and pinch · the menu above it turns or deletes it"); }
   function choose(type) {
     if (holding) return;
     const obj = makeDecor(type); if (!obj) return;
     obj.userData.type = type; office.add(obj); makeGrabbable(obj);
-    placed.push(obj); holding = { obj };
+    placed.push(obj); holding = { obj, turned: false }; showHoldMenu();
     status("Point at the floor or a table and pinch to place the " + decorTitle(type).toLowerCase());
   }
   function drop(point) {
-    const { obj } = holding; holding = null;
-    obj.position.copy(point);
-    const { pos } = headPose();
-    obj.lookAt(pos.x, obj.position.y, pos.z);
-    saveLayout(); status("Placed. Point at it and pinch to move it again.");
+    const { obj, turned } = holding; holding = null; hideHoldMenu();
+    if (point) obj.position.copy(point);
+    // A NEW piece faces you; one you picked up (or turned) keeps the way it was turned.
+    if (!turned) { const { pos } = headPose(); obj.lookAt(pos.x, obj.position.y, pos.z); }
+    saveLayout(); status("Placed. Point at it and pinch to move, turn or delete it.");
+  }
+  function turnHeld(radians) {
+    if (!holding) return;
+    holding.obj.rotation.y += radians; holding.turned = true;
+  }
+  function keyOf(obj) { return Object.keys(FIXTURES).find((k) => FIXTURES[k] === obj) || null; }
+  async function deleteHeld() {
+    if (!holding) return;
+    const { obj } = holding; const key = keyOf(obj);
+    if (key === "fireplace") { status("The fireplace stays — move or turn it instead."); return; }
+    holding = null; hideHoldMenu();
+    if (key) {
+      const ok = await host.removeFixture?.(key);
+      if (ok === false) { status("Could not remove that."); return; }
+      office.remove(obj); unregister(obj); delete FIXTURES[key];
+      refresh();
+    } else {
+      const i = placed.indexOf(obj); if (i >= 0) placed.splice(i, 1);
+      office.remove(obj); unregister(obj);
+    }
+    saveLayout(); status("Deleted.");
+  }
+
+  // ── The hold menu: ⟲ ⟳ Delete Done, floating above whatever you are holding ──
+  const HOLD_BTNS = [["left", "⟲"], ["right", "⟳"], ["delete", "Delete"], ["done", "Done"]];
+  const holdCanvas = document.createElement("canvas"); holdCanvas.width = 512; holdCanvas.height = 112;
+  const holdTex = new THREE.CanvasTexture(holdCanvas); holdTex.colorSpace = THREE.SRGBColorSpace;
+  const holdMenu = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.105), new THREE.MeshBasicMaterial({ map: holdTex, transparent: true, side: THREE.DoubleSide, depthTest: false }));
+  holdMenu.renderOrder = 10; holdMenu.visible = false; scene.add(holdMenu);
+  function drawHoldMenu() {
+    const x = holdCanvas.getContext("2d"); x.clearRect(0, 0, 512, 112);
+    x.fillStyle = "rgba(26,18,12,0.88)"; x.beginPath(); x.roundRect(0, 0, 512, 112, 22); x.fill();
+    const fixedFire = holding && keyOf(holding.obj) === "fireplace";
+    HOLD_BTNS.forEach(([k, label], i) => {
+      const cx = 8 + i * 126; const off = k === "delete" && fixedFire;
+      x.fillStyle = k === "delete" ? (off ? "#4a3a30" : "#8a2f22") : k === "done" ? "#3f774e" : "#5a4030";
+      x.beginPath(); x.roundRect(cx, 10, 118, 92, 16); x.fill();
+      x.fillStyle = off ? "#9a8a7a" : "#f4e9d8"; x.font = (label.length > 2 ? "30px" : "52px") + " system-ui"; x.textAlign = "center"; x.textBaseline = "middle";
+      x.fillText(label, cx + 59, 58);
+    });
+    holdTex.needsUpdate = true;
+  }
+  function showHoldMenu() { drawHoldMenu(); holdMenu.visible = true; }
+  function hideHoldMenu() { holdMenu.visible = false; }
+  const holdBox = new THREE.Box3();
+  function placeHoldMenu() {
+    if (!holding) return;
+    holdBox.setFromObject(holding.obj);
+    const top = Number.isFinite(holdBox.max.y) ? holdBox.max.y : holding.obj.position.y + 1;
+    holdMenu.position.set(holding.obj.position.x, top + 0.18, holding.obj.position.z);
+    const { pos } = headPose(); holdMenu.lookAt(pos.x, holdMenu.position.y, pos.z);
+  }
+  function holdMenuHit(rc) {
+    if (!holdMenu.visible) return null;
+    const h = rc.intersectObject(holdMenu, false)[0];
+    if (!h?.uv) return null;
+    const i = Math.min(3, Math.max(0, Math.floor(h.uv.x * 4)));
+    return { key: HOLD_BTNS[i][0], distance: h.distance };
+  }
+  function pressHoldMenu(key) {
+    if (key === "left") turnHeld(Math.PI / 4);
+    else if (key === "right") turnHeld(-Math.PI / 4);
+    else if (key === "delete") deleteHeld();
+    else if (key === "done") drop(null);
   }
 
   // ── Layout, kept in this browser ─────────────────────────────────────────
@@ -466,7 +537,7 @@ export function createOfficeScene(container, host) {
   function holdFixture(key) {
     const obj = FIXTURES[key];
     if (!obj || holding) return;
-    holding = { obj }; status("Point at the floor and pinch to place it");
+    holding = { obj, turned: false }; showHoldMenu(); status("Point at the floor and pinch to place it");
   }
 
   // ── The palette: Place (shelves, screens) and Decor (the library) ───────
@@ -589,7 +660,9 @@ export function createOfficeScene(container, host) {
   const isShown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
   function onSelect(rc) {
     if (holding) {
+      const menu = holdMenuHit(rc);
       const hits = rc.intersectObjects(surfaces, false);
+      if (menu && (!hits.length || menu.distance <= hits[0].distance)) { pressHoldMenu(menu.key); return; }
       if (hits.length) drop(hits[0].point);
       return;
     }
@@ -625,6 +698,7 @@ export function createOfficeScene(container, host) {
 
   // ── Loop ─────────────────────────────────────────────────────────────────
   const clock = new THREE.Clock();
+  let lastTime = null;
   renderer.setAnimationLoop((t, frame) => {
     const time = clock.getElapsedTime();
     for (const f of flames) {
@@ -634,11 +708,21 @@ export function createOfficeScene(container, host) {
     }
     if (fireLight) fireLight.intensity = 5 + Math.sin(time * 11) * 0.8 + Math.sin(time * 27) * 0.5;
     if (frame && !roomFitted) roomFitted = fitToRoom(frame, renderer.xr.getReferenceSpace());
+    const dt = Math.min(0.1, time - (lastTime ?? time)); lastTime = time;
     if (holding) {
+      // A thumbstick pushed sideways turns what you hold.
+      for (const src of frame?.session?.inputSources || []) {
+        const ax = src.gamepad?.axes?.[2] ?? 0;
+        if (Math.abs(ax) > 0.3) turnHeld(-ax * 2.2 * dt);
+      }
       const rc = renderer.xr.isPresenting ? rayFrom(lastController || controllers[1]) : (raycaster.setFromCamera(mouse, camera), raycaster);
+      const menu = holdMenuHit(rc);
       const hits = rc.intersectObjects(surfaces, false);
-      reticle.visible = !!hits.length;
-      if (hits.length) { reticle.position.copy(hits[0].point); holding.obj.position.copy(hits[0].point); }
+      // Pointing at the hold menu leaves the piece where it is, so you can press its buttons.
+      const onMenu = menu && (!hits.length || menu.distance <= hits[0].distance);
+      reticle.visible = !!hits.length && !onMenu;
+      if (hits.length && !onMenu) { reticle.position.copy(hits[0].point); holding.obj.position.copy(hits[0].point); }
+      placeHoldMenu();
     } else reticle.visible = false;
     renderer.render(scene, camera);
   });
@@ -665,7 +749,7 @@ export function createOfficeScene(container, host) {
   }
 
   // For checking the page from a test browser.
-  window.__vr = { scene, camera, interactive, palette, office, FIXTURES, placed, onSelect, raycaster, palCells };
+  window.__vr = { scene, camera, interactive, palette, office, FIXTURES, placed, onSelect, raycaster, palCells, holdMenu, isHolding: () => !!holding };
 
   return { refresh, refreshScreens, refreshDecor, startSession, endSession, resetLayout, dispose };
 }

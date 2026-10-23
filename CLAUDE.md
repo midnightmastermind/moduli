@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 (4) — VR OFFICE: TURN AND DELETE WHAT YOU HOLD; the office loaded in 4 minutes at Quest speed
+
+User (on the Quest): *"i can point at stuff and move them but i cant turn anything or delete them"* · *"it takes a
+super long time to load"*.
+- **Hold menu** (`vr/officeScene.js`): picking anything up shows ⟲ · ⟳ · Delete · Done above it (45° steps; works with
+  hands or controllers); a thumbstick pushed sideways turns it smoothly. Pointing at the menu leaves the piece where
+  it is. `drop()` used to turn EVERY placed piece to face you, so a turn could never stick — only a new piece faces
+  you now. Delete: decor leaves the room; a shelf or screen is removed from `grid.meta.vrOffice` (host
+  `removeFixture`); the fireplace stays.
+- **Load:** profiled on poms grid — `html-to-image` picturing the WHOLE grid for the grid screen (computed style of
+  every element) blocked the main thread **206s at 4x CPU** (~16s desktop), before the room appeared. Pictures now
+  take only what is visible (`visibleOnlyFilter`: rows scrolled out of their panel are skipped) and screens are
+  painted after the room is up and idle. Office on screen at 4x: **252s → 16.6s**; the grid picture is ~13s of that
+  speed, run later.
+- **Watched with an emulated Quest 3** (IWER 2.7 in Playwright, `installRuntime({forceInstall:true})` — Chromium's
+  own navigator.xr otherwise wins): enter mixed reality, aim, trigger → pick up; ⟳ → −45°; thumbstick → turns; Done
+  keeps the angle (saved); fireplace Delete refused; a placed decor and an added screen deleted (screen gone from
+  the saved office). Probes `_vrturn.mjs`, `_vrdel.mjs`, `_vrload.mjs`, `_vrprof.mjs` (IWER under the job's tmp).
+- **Open (next):** furniture moves between sessions and VR ignores the boundary — positions are saved in
+  `local-floor`, whose origin is wherever the headset started; shelf settings leave the headset (2D form).
+
+---
+
 ### 2026-10-23 (3) — EXPORT TO MARKDOWN FROM THE RADIAL MENU
 
 User: *"an export to markdown button in the radial menu that takes my occurances and turns it back into markdown
