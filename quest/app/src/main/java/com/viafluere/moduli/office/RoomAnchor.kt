@@ -58,7 +58,9 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
         return@whenComplete
       }
       resolved = true
-      if (result != MRUKLoadDeviceResult.SUCCESS) onChange?.invoke()
+      // Always: the activity saves nothing until now, and puts every piece back where it belongs (in the room, or
+      // in the headset's frame when there is none). onRoomAdded can fire before this, while saving was still off.
+      onChange?.invoke()
     }
   }
 

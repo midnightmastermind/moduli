@@ -272,7 +272,13 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun onRoomChanged() {
-    // The room arrived (or changed): put everything back where it was in it.
+    // The room arrived (or changed): put everything back where it was in it. With a room, poses saved in the
+    // headset's own frame are stale (that frame starts wherever the app was opened), so they are dropped and those
+    // pieces start at their default spot, to be placed once more and saved relative to the room.
+    if (room.originPose() != null) {
+      store.dropWorldPoses()
+      for (t in things.values) if (store.get(t.key) == null) putDefault(t)
+    }
     if (!placed) placeAll() else for (t in things.values) restore(t)
   }
 
@@ -511,6 +517,11 @@ class OfficeActivity : AppSystemActivity() {
 
   /** Save `t`'s pose if it moved (relative to the room when there is one). */
   private fun remember(t: Thing, force: Boolean = false) {
+    // NOTHING is saved before the room has loaded (or is known to be missing): pieces placed in that gap sit at a
+    // stand-in spot, and saving it overwrote every room-relative pose with a headset-start one — the whole room
+    // moved on every restart. And a room-relative pose is never replaced while the room cannot be found.
+    if (!room.resolved) return
+    if (room.originPose() == null && store.get(t.key)?.space == "room") return
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val tt = PoseMath.tOf(pose); val q = PoseMath.qOf(pose)
     if (!force && PoseMath.near(tt, t.lastT, 0.005f) && PoseMath.near(q, t.lastQ, 0.002f) &&
