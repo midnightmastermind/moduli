@@ -3,6 +3,7 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
+import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
@@ -115,6 +116,7 @@ function Page({
   const ctxUserId = useGridActionsSelector(s => s.state.userId);
   const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getModMapForExport = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   // For the page's own field strip (<OccurrenceFields>). `ctxStateLite` is the
   // same shape ModuleContainer/ModuleInstance hand FieldRenderer — it reads
   // `state.grid` for filter context and nothing else.
@@ -764,6 +766,7 @@ function Page({
               <RadialMenu
                 onSettings={() => setSettingsOpen(true)}
                 onTemplate={openTemplates}
+                extraItems={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
                 size="sm"
                 forceDirection="down"
               />

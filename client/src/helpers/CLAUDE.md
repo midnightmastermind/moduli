@@ -3,6 +3,9 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-23 — exportMarkdown.js NEW)
+- `occurrenceToMarkdown(occId, {occurrencesById, modulesById, fieldsById})`, `tiptapToMarkdown(node, {embed, inline, headingBase})` (moved from DocToolbar), `fieldSummary`, `markdownFileName`, `downloadMarkdown`.
+
 ## Recent Changes (2026-10-23 — fieldPresets.js NEW)
 - `presetsOf`, `presetFromPick`, `withPreset` (same name replaces, keeps id), `withoutPreset`, `applyPreset`, `orderPresets(list, siblingFieldIds)`, `writePresets` (grid.meta.fieldPresets, other meta kept).
 

@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-23 (3) — EXPORT TO MARKDOWN FROM THE RADIAL MENU
+
+User: *"an export to markdown button in the radial menu that takes my occurances and turns it back into markdown
+and exports it"* · *"include the fields in the markdown export as well … as subscript items"*.
+- **`helpers/exportMarkdown.js`** — `occurrenceToMarkdown(occId, maps)`, the reverse of the importer: a page or
+  container is a heading (one level deeper per nesting), a doc is walked through its text (embeds in place, then
+  any children it lists but does not embed), a textblock is its text, an inline chip with a link is `[text](url)`,
+  a row is a list item, a table container a pipe table, a picture `![]()`, any other file a link (absolute URL).
+  Every entry's visible, filled fields are sub-items under it (`- Field: value`; occurrence refs by name, dates as
+  days, booleans yes/no). A header bound to a field (`meta.headerLink.selfField`) exports that value as the
+  heading. `tiptapToMarkdown` moved here (+ links, numbered/task lists, images); the doc toolbar's MD button uses it.
+- **`ui/exportMarkdownItem.js`** — the radial item, on rows, containers and pages; downloads `<name>.md`.
+- **Watched on a local build against prod (rebuild grid):** the day column's radial › Export to Markdown downloads
+  "Friday, October 23rd, 2026.md" with its sections, Date sub-items and the day's question as a heading.
+  Tests `exportMarkdown` (10).
+
+---
+
 ### 2026-10-23 (2) — FIELD PRESETS WHEN ADDING AN ITEM
 
 User: *"can we add field presets when adding new items"*; answers: fields + default values, saved from the

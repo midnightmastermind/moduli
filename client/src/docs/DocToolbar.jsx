@@ -24,68 +24,7 @@ import {
   Unlink,
   Download,
 } from "lucide-react";
-
-/**
- * Convert TipTap JSON content to Markdown string
- */
-function tiptapToMarkdown(node, depth = 0) {
-  if (!node) return "";
-
-  const children = (node.content || []).map(c => tiptapToMarkdown(c, depth)).join("");
-
-  switch (node.type) {
-    case "doc": return children;
-    case "paragraph": return children ? children + "\n\n" : "\n";
-    case "heading": {
-      const level = node.attrs?.level || 1;
-      return "#".repeat(level) + " " + children.replace(/\n+$/, "") + "\n\n";
-    }
-    case "bulletList": return children;
-    case "orderedList": return children;
-    case "listItem": {
-      const indent = "  ".repeat(depth);
-      const prefix = depth === 0 ? "- " : "  - ";
-      return indent + prefix + children.replace(/\n\n$/, "\n");
-    }
-    case "blockquote": return children.split("\n").map(l => l ? "> " + l : ">").join("\n") + "\n\n";
-    case "codeBlock": return "```\n" + children + "\n```\n\n";
-    case "horizontalRule": return "---\n\n";
-    case "hardBreak": return "\n";
-    case "text": {
-      let t = node.text || "";
-      const marks = node.marks || [];
-      for (const mark of marks) {
-        if (mark.type === "bold") t = `**${t}**`;
-        else if (mark.type === "italic") t = `*${t}*`;
-        else if (mark.type === "strike") t = `~~${t}~~`;
-        else if (mark.type === "code") t = `\`${t}\``;
-      }
-      return t;
-    }
-    case "table": {
-      const rows = node.content || [];
-      return rows.map((row, ri) => {
-        const cells = (row.content || []).map(cell => {
-          const cellText = (cell.content || []).map(p => tiptapToMarkdown(p)).join("").replace(/\n+/g, " ").trim();
-          return ` ${cellText} `;
-        });
-        const line = "|" + cells.join("|") + "|";
-        if (ri === 0) {
-          const sep = "|" + cells.map(() => " --- ").join("|") + "|";
-          return line + "\n" + sep;
-        }
-        return line;
-      }).join("\n") + "\n\n";
-    }
-    case "tableRow":
-    case "tableCell":
-    case "tableHeader":
-      return children;
-    case "fieldPill": return `#${node.attrs?.fieldName || node.attrs?.fieldId || "field"}`;
-    case "instancePill": return node.attrs?.instanceLabel || node.attrs?.instanceId || "";
-    default: return children;
-  }
-}
+import { tiptapToMarkdown } from "../helpers/exportMarkdown";
 
 /**
  * DocToolbar - Formatting toolbar for Tiptap editor

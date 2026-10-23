@@ -2,6 +2,9 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-10-23 — exportMarkdownItem.js NEW)
+- Radial "Export to Markdown" item (rows: ModuleInstance extraItems; containers: ModuleContainer x3; pages: ModulePage). Maps read on click.
+
 ## Recent Changes (2026-10-23 — field presets in the add-item picker)
 - `FieldPickerPanel` takes `presets` / `onApplyPreset` / `onSavePreset` / `onDeletePreset` (row drawn only with onSavePreset); `QuickAddMenu` wires them to helpers/fieldPresets.
 

@@ -3,6 +3,7 @@
 // Renders a container header and its instances.
 // Handles doc containers, focused instance view, list view, sorting.
 
+import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { askChoice } from "../ui/ChoiceDialog";
 import { createPortal } from "react-dom";
@@ -272,6 +273,7 @@ function Container({
   // Fallback closures cover custom providers (tests/previews) that omit the
   // getters; the app's getters are identity-stable.
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  const getModMapForExport = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
   // Lite state for children that only read grid/gridId/userId off a
   // state-shaped prop (FieldRenderer's gridFilters, ContainerPool). Ops in
@@ -1394,7 +1396,7 @@ function Container({
                 onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
+                extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
               />
             </div>
           </PopoverAnchor>
@@ -1460,7 +1462,7 @@ function Container({
                       onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                      extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
+                      extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
                     />
                   </div>
                 </PopoverAnchor>
@@ -1585,7 +1587,7 @@ function Container({
                     onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                    extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
+                    extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
                   />
                 </div>
               </PopoverAnchor>

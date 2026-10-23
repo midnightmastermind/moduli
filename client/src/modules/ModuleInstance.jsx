@@ -3,6 +3,7 @@
 // Also contains the inner Instance row (label, field pills, operation widgets).
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
+import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { applyManualOpUpdates } from "../helpers/manualOpRun";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
@@ -1190,7 +1191,7 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
-                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems]}
+                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById })].filter(Boolean)}
                 />
               </div>
             </PopoverAnchor>
