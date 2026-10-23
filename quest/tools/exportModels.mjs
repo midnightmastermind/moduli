@@ -30,9 +30,14 @@ const pieces = {
   handle: () => {
     const g = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({ color: 0xf2f2f7 });
-    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.36, 16), mat);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.36, 16), mat);
     bar.rotation.z = Math.PI / 2; g.add(bar);
-    for (const x of [-0.18, 0.18]) { const end = new THREE.Mesh(new THREE.SphereGeometry(0.025, 16, 12), mat); end.position.x = x; g.add(end); }
+    for (const x of [-0.18, 0.18]) { const end = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), mat); end.position.x = x; g.add(end); }
+    // An invisible, much bigger grab zone around the bar (44 x 14 x 14 cm): the 6cm bar alone was hard to hit with
+    // a controller ray. Fully transparent, so it is only felt. It stops short of the ⚙ at x = 0.235.
+    const zone = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.14, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+    g.add(zone);
     return g;
   },
   ...Object.fromEntries(M.DECOR_KEYS.map((k) => [k, () => M.makeDecor(THREE, k)])),

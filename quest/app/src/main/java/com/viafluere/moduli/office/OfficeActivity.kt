@@ -49,6 +49,8 @@ import com.meta.spatial.toolkit.PanelStyleOptions
 import com.meta.spatial.toolkit.PlayerBodyAttachmentSystem
 import com.meta.spatial.toolkit.QuadShapeOptions
 import com.meta.spatial.toolkit.Scale
+import com.meta.spatial.toolkit.Grabbable
+import com.meta.spatial.toolkit.GrabbableType
 import com.meta.spatial.toolkit.Visible
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
@@ -143,8 +145,6 @@ class OfficeActivity : AppSystemActivity() {
   private val readerHandles = HashMap<Int, GrabHandle>()
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
   private val pieceWindows = HashMap<String, Int>()
-  /** The piece the thumbstick turns when nothing is held: the last one grabbed, tapped or picked in the panel. */
-  private var selected: String? = null
   /** Each model's height (tools/exportModels.mjs writes office/sizes.json), so its handle floats just above it. */
   private val sizes: JSONObject by lazy {
     try { JSONObject(assets.open("office/sizes.json").bufferedReader().readText()) } catch (e: Exception) { JSONObject() }
@@ -277,7 +277,6 @@ class OfficeActivity : AppSystemActivity() {
         val id = m.optString("id"); screenImages[id] = m.optString("image")
         things["screen:$id"]?.let { refreshPanel(it) }
       }
-      "select" -> select(m.optString("key"))
       "refreshScreen" -> send(JSONObject().put("type", "refreshScreen").put("id", m.optString("id")))
       "open" -> openReader(m.optString("id"))
       "turn" -> things[m.optString("key")]?.let { turn(it, m.optDouble("deg", 45.0).toFloat()) }
@@ -356,7 +355,6 @@ class OfficeActivity : AppSystemActivity() {
     if (!restore(t)) putDefault(t)
     t.handle?.follow()
     Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
-    SelectOnTrigger.attach(frame) { select(key) }
     t.gear = gearButton(t)
     if (key != "fireplace") t.trash = trashButton(t)
     return t
@@ -413,7 +411,6 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun deleteEntity(key: String) {
     val t = things.remove(key) ?: return
-    if (selected == key) selected = null
     t.handle?.destroy()
     t.panel?.destroy()
     t.gear?.destroy()
@@ -436,7 +433,6 @@ class OfficeActivity : AppSystemActivity() {
     if (!m.isNull("src")) entry.put("src", m.optString("src"))
     store.saveDecor(store.decor() + entry)
     putInFront(ensureThing(key, model, entry.optString("src").ifEmpty { null }))
-    select(key)
   }
 
   // ── Where things stand ───────────────────────────────────────────────────
@@ -555,28 +551,26 @@ class OfficeActivity : AppSystemActivity() {
    * footprint (at least as wide as the menu), from the floor up past the handle. The SDK's hover events never fired
    * for these pieces, so the menu hid for good and the bar could not be grabbed.
    */
-  private fun pointsAt(t: Thing, rays: List<Pair<FloatArray, FloatArray>>): Boolean {
-    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return false
+  /** How far along the ray (o, d) it meets `t`'s box, or null when it misses. */
+  private fun hitDistance(t: Thing, o: FloatArray, d: FloatArray): Float? {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return null
     val inv = PoseMath.qConj(PoseMath.qOf(pose)); val p = PoseMath.tOf(pose)
     val s = t.scale
     val hx = maxOf((if (t.hx > 0f) t.hx else 0.5f) * s, 0.5f) + 0.05f
     val hz = maxOf((if (t.hz > 0f) t.hz else 0.5f) * s, 0.08f) + 0.05f
     val top = (t.handle?.dy ?: (t.top * s)) + 0.1f
     val lo = floatArrayOf(-hx, -0.05f, -hz); val hi = floatArrayOf(hx, top, hz)
-    for ((o, d) in rays) {
-      val lo3 = PoseMath.rotate(inv, floatArrayOf(o[0] - p[0], o[1] - p[1], o[2] - p[2]))
-      val ld = PoseMath.rotate(inv, d)
-      var tMin = 0f; var tMax = 10f; var hit = true
-      for (i in 0..2) {
-        if (kotlin.math.abs(ld[i]) < 1e-6f) { if (lo3[i] < lo[i] || lo3[i] > hi[i]) { hit = false; break }; continue }
-        var a = (lo[i] - lo3[i]) / ld[i]; var b = (hi[i] - lo3[i]) / ld[i]
-        if (a > b) { val x = a; a = b; b = x }
-        tMin = maxOf(tMin, a); tMax = minOf(tMax, b)
-        if (tMin > tMax) { hit = false; break }
-      }
-      if (hit) return true
+    val lo3 = PoseMath.rotate(inv, floatArrayOf(o[0] - p[0], o[1] - p[1], o[2] - p[2]))
+    val ld = PoseMath.rotate(inv, d)
+    var tMin = 0f; var tMax = 10f
+    for (i in 0..2) {
+      if (kotlin.math.abs(ld[i]) < 1e-6f) { if (lo3[i] < lo[i] || lo3[i] > hi[i]) return null; continue }
+      var a = (lo[i] - lo3[i]) / ld[i]; var b = (hi[i] - lo3[i]) / ld[i]
+      if (a > b) { val x = a; a = b; b = x }
+      tMin = maxOf(tMin, a); tMax = minOf(tMax, b)
+      if (tMin > tMax) return null
     }
-    return false
+    return tMin
   }
 
   /**
@@ -585,15 +579,26 @@ class OfficeActivity : AppSystemActivity() {
    */
   private fun showMenus() {
     val now = System.currentTimeMillis()
-    val rays = controllerRays()
+    // Each controller points at ONE piece: the nearest its ray meets. A ray across the room passes through several
+    // pieces' boxes, and lighting them all up let a grab land on the wrong piece.
+    for ((o, d) in controllerRays()) {
+      var best: Thing? = null; var bestD = Float.MAX_VALUE
+      for (t in things.values) {
+        // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — skip it then.
+        if (t.key == CONTROL || t.ghosted) continue
+        val dist = hitDistance(t, o, d) ?: continue
+        if (dist < bestD) { bestD = dist; best = t }
+      }
+      best?.lastHover = now
+    }
     for (t in things.values) {
       if (t.key == CONTROL) continue
-      // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — no menu then.
-      if (!t.ghosted && pointsAt(t, rays)) t.lastHover = now
       val want = !t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows
       if (want == t.menuShown) continue
       t.menuShown = want
       for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))
+      // A bar you cannot see cannot be grabbed either, so a grab only ever lands on the piece whose menu is showing.
+      t.handle?.entity?.setComponent(Grabbable(want, GrabbableType.PIVOT_Y))
     }
   }
 
@@ -619,16 +624,11 @@ class OfficeActivity : AppSystemActivity() {
     }
   }
 
-  private fun select(key: String) {
-    selected = key
-    if (key == CONTROL) return
-    send(JSONObject().put("type", "select").put("key", key))
-  }
-
   /**
-   * Every frame: pieces follow their handles. RIGHT thumbstick, held: left / right turns the piece being held (else
-   * the selected one); up / down, while carrying, pushes it further away / pulls it closer. LEFT thumbstick, held:
-   * up / down grows / shrinks it — size on a stick of its own. All smooth, by how long the stick is held.
+   * Every frame: pieces follow their handles. The sticks act ONLY on the piece whose bar you are holding (user: "it
+   * shouldnt select any furniture without grabbing the handle"): RIGHT thumbstick left / right turns it, up / down
+   * pushes it further away / pulls it closer; LEFT thumbstick up / down grows / shrinks it. Smooth, by how long the
+   * stick is held.
    * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
    * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
    */
@@ -650,7 +650,7 @@ class OfficeActivity : AppSystemActivity() {
       var held: String? = null
       for (t in things.values) {
         val h = t.handle ?: continue
-        if (h.update(head)) { select(t.key); Log.i(TAG, "grabbed ${t.key}") }
+        if (h.update(head)) Log.i(TAG, "grabbed ${t.key}")
         if (h.held) held = t.key
       }
       for (h in readerHandles.values) h.update(head)
@@ -678,7 +678,7 @@ class OfficeActivity : AppSystemActivity() {
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
       if (turnDir == 0f && growDir == 0f) return
-      val target = (held ?: selected)?.let { things[it] } ?: return
+      val target = held?.let { things[it] } ?: return
       if (turnDir != 0f) turn(target, turnDir * TURN_DEG_PER_S * dt, save = false)
       if (growDir != 0f) resize(target, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat(), save = false)
     }
@@ -796,7 +796,6 @@ class OfficeActivity : AppSystemActivity() {
     readers[id] = e
     readerHandles[id] = GrabHandle(e, -(PIECE_H / 2f + HANDLE_GAP / 2f), facesHead = true).also { it.follow() }
     pieceWindows[key] = id
-    select(key)
   }
 
   // ── Mixed reality or a VR room built from your room's walls ──────────────
