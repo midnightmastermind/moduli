@@ -73,7 +73,9 @@ class OfficeActivity : AppSystemActivity() {
     private const val READER_H = 1.0f
     /** How far a handle floats above the top of a piece (or below a panel). */
     private const val HANDLE_GAP = 0.12f
-    private const val SCALE_STEP = 1.1f
+    /** Held thumbstick: degrees turned per second, and how many times bigger per second (smooth, not stepped). */
+    private const val TURN_DEG_PER_S = 90f
+    private const val GROW_PER_S = 1.6f
     private const val SCALE_MIN = 0.3f
     private const val SCALE_MAX = 3f
   }
@@ -84,6 +86,7 @@ class OfficeActivity : AppSystemActivity() {
     /** The piece's height at scale 1 (the model, or its web panel when that stands taller). */
     var top = 1f
     var scale = 1f
+    var lastScale = 1f
     var panel: Entity? = null
     var web: WebView? = null
     var html: String = ""
@@ -213,7 +216,7 @@ class OfficeActivity : AppSystemActivity() {
         Panel(CONTROL_PANEL_ID),
         Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)),
     ))
-    controlHandle = GrabHandle(controlEntity, -(CONTROL_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.22f)
+    controlHandle = GrabHandle(controlEntity, -(CONTROL_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.3f)
     controlHandle?.follow()
   }
 
@@ -427,7 +430,7 @@ class OfficeActivity : AppSystemActivity() {
     } else PoseMath.pose(s.t, s.q)
     t.frame.setComponent(Transform(pose))
     t.lastT = PoseMath.tOf(pose); t.lastQ = PoseMath.qOf(pose)
-    t.scale = s.scale
+    t.scale = s.scale; t.lastScale = s.scale
     applyScale(t)
     return true
   }
@@ -436,8 +439,9 @@ class OfficeActivity : AppSystemActivity() {
   private fun remember(t: Thing, force: Boolean = false) {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val tt = PoseMath.tOf(pose); val q = PoseMath.qOf(pose)
-    if (!force && PoseMath.near(tt, t.lastT, 0.005f) && PoseMath.near(q, t.lastQ, 0.002f)) return
-    t.lastT = tt; t.lastQ = q
+    if (!force && PoseMath.near(tt, t.lastT, 0.005f) && PoseMath.near(q, t.lastQ, 0.002f) &&
+        kotlin.math.abs(t.scale - t.lastScale) < 0.005f) return
+    t.lastT = tt; t.lastQ = q; t.lastScale = t.scale
     val o = room.originPose()
     if (o != null) {
       val (lt, lq) = PoseMath.toLocal(o, pose)
@@ -445,19 +449,19 @@ class OfficeActivity : AppSystemActivity() {
     } else store.put(t.key, PlacementStore.Stored("world", tt, q, t.scale))
   }
 
-  private fun turn(t: Thing, deg: Float) {
+  private fun turn(t: Thing, deg: Float, save: Boolean = true) {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.upright(PoseMath.qOf(pose)))
     t.frame.setComponent(Transform(PoseMath.pose(PoseMath.tOf(pose), q)))
     t.handle?.follow()
-    remember(t, force = true)
+    if (save) remember(t, force = true)
   }
 
   /** Grow (factor > 1) or shrink `t`, about its base, and save it. */
-  private fun resize(t: Thing, factor: Float) {
+  private fun resize(t: Thing, factor: Float, save: Boolean = true) {
     t.scale = (t.scale * factor).coerceIn(SCALE_MIN, SCALE_MAX)
     applyScale(t)
-    remember(t, force = true)
+    if (save) remember(t, force = true)
   }
 
   private fun applyScale(t: Thing) {
@@ -472,12 +476,14 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   /**
-   * Every frame: pieces follow their handles. The RIGHT thumbstick (left / right) turns the piece being held, else
-   * the selected one, 45°; the LEFT thumbstick (up / down) makes it 10% bigger / smaller. Read straight from the
-   * controllers — per-entity button events never carried the thumbstick on the headset.
+   * Every frame: pieces follow their handles. While the RIGHT thumbstick is held left / right the piece being held
+   * (else the selected one) turns smoothly; while the LEFT thumbstick is held up / down it grows / shrinks smoothly.
+   * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
+   * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
    */
   inner class InputSystem : SystemBase() {
     private var ran = false
+    private var lastNs = 0L
     private var lastError = ""
     override fun execute() {
       if (!ran) { ran = true; Log.i(TAG, "InputSystem running") }
@@ -499,21 +505,25 @@ class OfficeActivity : AppSystemActivity() {
       controlHandle?.update(head)
       for (h in readerHandles.values) h.update(head)
 
-      var deg = 0f
-      var factor = 1f
+      val now = System.nanoTime()
+      val dt = if (lastNs == 0L) 0f else ((now - lastNs) / 1e9f).coerceAtMost(0.1f)
+      lastNs = now
+      var turnDir = 0f
+      var growDir = 0f
       for (c in Query.where { has(Controller.id) }.eval()) {
         if (!c.isLocal()) continue
         val ctl = c.tryGetComponent<Controller>() ?: continue
         if (!ctl.isActive) continue
-        val pressed = ctl.buttonState and ctl.changedButtons
-        if (pressed and ButtonBits.ButtonThumbRL != 0) deg += 45f
-        if (pressed and ButtonBits.ButtonThumbRR != 0) deg -= 45f
-        if (pressed and ButtonBits.ButtonThumbLU != 0) factor *= SCALE_STEP
-        if (pressed and ButtonBits.ButtonThumbLD != 0) factor /= SCALE_STEP
+        val down = ctl.buttonState
+        if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
+        if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
+        if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
+        if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
       }
+      if (dt == 0f || (turnDir == 0f && growDir == 0f)) return
       val target = (held ?: selected)?.let { things[it] } ?: return
-      if (deg != 0f) turn(target, deg)
-      if (factor != 1f) resize(target, factor)
+      if (turnDir != 0f) turn(target, turnDir * TURN_DEG_PER_S * dt, save = false)
+      if (growDir != 0f) resize(target, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat(), save = false)
     }
   }
 
@@ -536,7 +546,7 @@ class OfficeActivity : AppSystemActivity() {
         Transform(spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
     ))
     readers[id] = e
-    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, halfW = 0.25f).also { it.follow() }
+    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
   }
 
   private fun closeReader(id: Int) {

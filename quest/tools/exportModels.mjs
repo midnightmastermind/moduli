@@ -26,6 +26,15 @@ const pieces = {
   "shelf-record": () => M.makeShelfFrame(THREE, "record"),
   "shelf-vhs": () => M.makeShelfFrame(THREE, "vhs"),
   screen: () => M.makeScreenFrame(THREE),
+  // The grab handle the app floats above each piece (GrabHandle.kt): a white bar with rounded ends, 40cm wide.
+  handle: () => {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0xf2f2f7 });
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.36, 16), mat);
+    bar.rotation.z = Math.PI / 2; g.add(bar);
+    for (const x of [-0.18, 0.18]) { const end = new THREE.Mesh(new THREE.SphereGeometry(0.025, 16, 12), mat); end.position.x = x; g.add(end); }
+    return g;
+  },
   ...Object.fromEntries(M.DECOR_KEYS.map((k) => [k, () => M.makeDecor(THREE, k)])),
 };
 

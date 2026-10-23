@@ -1,16 +1,14 @@
 package com.viafluere.moduli.office
 
 import android.net.Uri
-import com.meta.spatial.core.Color4
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
 import com.meta.spatial.core.Vector3
-import com.meta.spatial.toolkit.Box
 import com.meta.spatial.toolkit.Grabbable
 import com.meta.spatial.toolkit.GrabbableType
-import com.meta.spatial.toolkit.Material
 import com.meta.spatial.toolkit.Mesh
 import com.meta.spatial.toolkit.MeshCollision
+import com.meta.spatial.toolkit.Scale
 import com.meta.spatial.toolkit.Transform
 
 /**
@@ -23,11 +21,12 @@ import com.meta.spatial.toolkit.Transform
  *
  * `dy` is how far above the target's origin the handle sits (negative = below, for a panel centred on its origin).
  */
-class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boolean, halfW: Float = 0.16f) {
+class GrabHandle(val target: Entity, var dy: Float, private val facesHead: Boolean, widthScale: Float = 1f) {
+  // The bar is one of the app's own models (tools/exportModels.mjs), drawn the way the furniture is — the SDK's
+  // built-in "mesh://box" did not show on the headset. `widthScale` stretches it for the wider panels.
   val entity: Entity = Entity.create(listOf(
-      Mesh(Uri.parse("mesh://box"), hittable = MeshCollision.LineTest),
-      Box(Vector3(-halfW, -0.018f, -0.018f), Vector3(halfW, 0.018f, 0.018f)),
-      Material().apply { baseColor = Color4(0.93f, 0.93f, 0.97f, 1f); unlit = true },
+      Mesh(Uri.parse("apk:///office/handle.glb"), hittable = MeshCollision.LineTest),
+      Scale(Vector3(widthScale, 1f, 1f)),
       Transform(Pose()),
       Grabbable(true, GrabbableType.PIVOT_Y),
   ))
