@@ -114,6 +114,20 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       for (const x of [-1.12, 1.12]) g.add(box(0.03, 0.08, 0.7, wood, x, 0.66, 0));
       return g;
     }
+    case "desk": {
+      // A desk, 1.4 x 0.7m, 75cm high: wooden top, a three-drawer pedestal on the right, a leg and a back panel on
+      // the left. You sit at +z (the drawers' fronts face +z).
+      const wood = 0x5e4129, front = 0x6e4d31;
+      g.add(box(1.4, 0.04, 0.7, 0x7a5636, 0, 0.73, 0));
+      g.add(box(0.42, 0.71, 0.66, wood, 0.47, 0.355, 0));
+      for (const y of [0.13, 0.36, 0.59]) {
+        g.add(box(0.38, 0.2, 0.02, front, 0.47, y, 0.335));
+        g.add(box(0.1, 0.02, 0.02, 0xb8b0a0, 0.47, y + 0.04, 0.35));
+      }
+      g.add(box(0.04, 0.71, 0.66, wood, -0.66, 0.355, 0));
+      g.add(box(0.88, 0.4, 0.02, wood, -0.2, 0.5, -0.32));
+      return g;
+    }
     case "ottoman": {
       // A padded footstool on short legs.
       g.add(box(0.6, 0.3, 0.6, 0x7a5c48, 0, 0.27, 0));
@@ -172,4 +186,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "desk", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
