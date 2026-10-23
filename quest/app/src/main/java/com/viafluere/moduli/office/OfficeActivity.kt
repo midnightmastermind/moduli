@@ -767,6 +767,12 @@ class OfficeActivity : AppSystemActivity() {
 
   /** Where a thing goes the first time: a spread in front of you, so new pieces do not pile up. */
   private fun putDefault(t: Thing) {
+    // Until the headset reports where your head is, "in front of you" is a guess from the boundary's centre, which
+    // put the fireplace out of sight. Wait for the head instead (nothing is saved meanwhile).
+    if (headPose() == null) {
+      main.postDelayed({ if (things[t.key] === t && store.get(t.key) == null) putDefault(t) }, 300)
+      return
+    }
     if (t.key == CONTROL) {
       t.frame.setComponent(Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)))
       t.handle?.follow()
