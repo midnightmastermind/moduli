@@ -46,7 +46,14 @@ import { setDropOver, setDropEdge } from "./dropEdgeAttr";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
-const _isTouch = () => window.matchMedia("(pointer: coarse)").matches;
+// Inside the headset app (window.ModuliNative) the controller's trigger reaches a page as TOUCH, while the media
+// query reads fine (the headset has no touchscreen) — so the touch path is the one that can drag there.
+const _isTouch = () => window.matchMedia("(pointer: coarse)").matches || (typeof window !== "undefined" && !!window.ModuliNative);
+
+/** Tell the headset a drag started / ended in this window, so it can carry it into another window. */
+function _nativeDrag(msg) {
+  try { if (typeof window !== "undefined" && window.ModuliNative) window.ModuliNative.postMessage(JSON.stringify(msg)); } catch { /* not in the headset */ }
+}
 
 // Create a small pill element for mobile drag ghost — label on top, the action
 // verb (Move / Copy / Copy-link) underneath, mirroring the desktop native ghost.
@@ -1013,6 +1020,7 @@ export function useDragDrop({
         hitEveryMs = _HIT_TEST_INTERVAL;
 
         dragCtx.handleDragStart(payload, startX, startY, { mode });
+        _nativeDrag({ type: "dragStart", occId: payload?.occurrenceId || null, mode });
         dragPerf.mark("handleDragStart");
         dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
       };
@@ -1265,6 +1273,7 @@ export function useDragDrop({
         // The drop handler has returned — the write is dispatched, the paint
         // is still a frame away. `end()` waits for that frame rather than
         // reporting the handler's return as though the user had seen it.
+        _nativeDrag({ type: "dragEnd", dropped: !!curTarget });
         dragPerf.dropDone();
         curTarget = null;
         dragging = false;

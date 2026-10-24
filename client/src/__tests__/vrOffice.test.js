@@ -185,3 +185,56 @@ describe("a folder VHS shelf", () => {
     expect(items[0].src).toContain("a.mp4");
   });
 });
+
+import { folderShelfView } from "../vr/shelfItems.js";
+
+describe("a folder shelf as a tree (the headset)", () => {
+  const foldersById = {
+    docs: { id: "docs", name: "Documents", parentId: "root" },
+    notes: { id: "notes", name: "Notes", parentId: "docs" },
+    deep: { id: "deep", name: "Deep", parentId: "notes" },
+    empty: { id: "empty", name: "Empty", parentId: "docs" },
+  };
+  const modulesById = { pg: { id: "pg", role: "page", kind: "doc" } };
+  const occurrencesById = {
+    top: { id: "top", moduleId: "pg", parentId: "docs", label: "Top page" },
+    a: { id: "a", moduleId: "pg", parentId: "notes", label: "A note" },
+    b: { id: "b", moduleId: "pg", parentId: "deep", label: "Deep note" },
+  };
+  const ctx = { occurrencesById, modulesById, foldersById };
+
+  it("at the root: folders that hold something first (with what is under them), then what sits there", () => {
+    const v = folderShelfView("docs", null, ctx);
+    expect(v.items.map((i) => i.title)).toEqual(["Notes", "Top page"]);
+    expect(v.items[0]).toMatchObject({ id: "folder:notes", folder: true, count: 2 });
+    expect(v.canUp).toBe(false);
+    expect(v.path.map((p) => p.title)).toEqual(["Documents"]);
+  });
+
+  it("inside a folder: its own subfolders and pages, a way up, and the path", () => {
+    const v = folderShelfView("docs", "notes", ctx);
+    expect(v.items.map((i) => i.title)).toEqual(["Deep", "A note"]);
+    expect(v.canUp).toBe(true);
+    expect(v.path.map((p) => p.title)).toEqual(["Documents", "Notes"]);
+  });
+
+  it("a folder that is no longer under the shelf falls back to the root", () => {
+    expect(folderShelfView("docs", "gone", ctx).at).toBe("docs");
+  });
+});
+
+import { planFolderDelete } from "../helpers/folderDelete.js";
+
+describe("deleting a folder moves its contents up", () => {
+  it("moves pages and subfolders to the parent, deletes only the folder's own page", () => {
+    const plan = planFolderDelete({ id: "f", parentId: "p" }, {
+      occurrencesById: { a: { id: "a", parentId: "f", moduleId: "pg" }, fp: { id: "fp", parentId: "f", moduleId: "fpm" }, x: { id: "x", parentId: "q", moduleId: "pg" } },
+      foldersById: { s: { id: "s", parentId: "f" } },
+      modulesById: { pg: { role: "page", kind: "doc" }, fpm: { role: "page", kind: "folder" } },
+    });
+    expect(plan).toEqual({ deleteOccIds: ["fp"], moveOccIds: ["a"], moveFolderIds: ["s"], parentId: "p" });
+  });
+  it("refuses a protected folder", () => {
+    expect(planFolderDelete({ id: "f", meta: { protected: true } }, {})).toBeNull();
+  });
+});

@@ -34,10 +34,15 @@ object PanelHtml {
     val title = shelf.optString("title", "Shelf")
     val items: JSONArray = shelf.optJSONArray("items") ?: JSONArray()
     val headerPct = HEADER_M / (shelfHeightM + HEADER_M) * 100f
+    // A folder shelf is a tree: where it stands (Documents › Notes) and a way back up.
+    val pathArr = shelf.optJSONArray("path") ?: JSONArray()
+    val path = (0 until pathArr.length()).joinToString(" › ") { pathArr.optString(it) }
+    val canUp = shelf.optBoolean("canUp")
     val data = JSONArray()
     for (i in 0 until items.length()) {
       val it = items.getJSONObject(i)
-      data.put(JSONObject().put("id", it.optString("id")).put("t", it.optString("title")).put("c", it.optString("cover", "")))
+      data.put(JSONObject().put("id", it.optString("id")).put("t", it.optString("title")).put("c", it.optString("cover", ""))
+          .put("r", it.optString("rowId", "").ifEmpty { it.optString("id") }).put("f", it.optBoolean("folder")).put("n", it.optInt("count")))
     }
     val rects = JSONArray()
     for (sl in slots) rects.put(JSONArray().put(sl.leftPct.toDouble()).put(sl.bottomPct.toDouble()).put(sl.wPct.toDouble()).put(sl.hPct.toDouble()))
@@ -61,9 +66,20 @@ object PanelHtml {
   /* The book a controller points at: the one a grab will take. */
   .it.hover{outline:.5vh solid #fff;outline-offset:-.5vh;box-shadow:0 0 2.5vh #fff;transform:translateY(-1vh)}
   #empty{padding:4vh 4vw;font-size:4.5vh;background:rgba(0,0,0,.5);margin:3vh;border-radius:1vh}
+  /* A folder is a book you open: a darker spine with a folder mark and how much is inside. */
+  .it.fold{background:linear-gradient(#5a4632,#3b2c1d)!important;border:.4vh solid #c9a46a;box-sizing:border-box}
+  .it.fold span:before{content:'📁 ';}
+  .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
+  /* Select mode: tap books to pick them, then Delete. */
+  .it.sel{outline:.6vh solid #ff6b6b!important;outline-offset:-.6vh;box-shadow:0 0 2vh #ff6b6b!important}
+  #path{font-size:2vh;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30vw}
+  button.on{background:#7a2e2e}
+  button.danger{background:#8a2020;border-color:#f99}
 </style></head><body>
-<div id="head"><b>${esc(title)}</b><span id="pg"></span>
+<div id="head">${if (canUp) """<button onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<b>${esc(title)}</b>
+  ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span>
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
+  <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${js("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>
 <script>$BRIDGE
@@ -75,7 +91,23 @@ object PanelHtml {
   // Pointing and holding change ONE spine's look, never the page: draw() rebuilds every spine and reloads every
   // cover, which made pointing along a shelf lag (it ran on each move from one book to the next).
   var nodes={};
-  function look(id){var d=nodes[id];if(d)d.className='it'+(held[id]?' held':(id===hoverId?' hover':''));}
+  var byId={}; items.forEach(function(it){byId[it.id]=it;});
+  var selecting=false, sel={}, armed=false, armT=null;
+  function look(id){var d=nodes[id];if(!d)return;var it=byId[id]||{};
+    d.className='it'+(it.f?' fold':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
+  function count(){return Object.keys(sel).length;}
+  function bar(){var b=document.getElementById('delb'), s=document.getElementById('selb');
+    s.textContent=selecting?'Done':'Select'; s.className=selecting?'on':'';
+    var n=count(); b.style.display=selecting&&n?'':'none'; b.textContent=armed?('Sure? delete '+n):('Delete '+n);}
+  function toggleSel(){selecting=!selecting; if(!selecting){var was=sel;sel={};for(var k in was)look(k);} armed=false; bar();
+    send({type:'shelfSelect',key:key,on:selecting});}
+  // Called by the app when a book is tapped in select mode (the 3D book over the spine takes the tap).
+  function tapItem(id){if(!selecting)return; if(sel[id])delete sel[id]; else sel[id]=1; armed=false; look(id); bar();}
+  function del(){var n=count(); if(!n)return;
+    if(!armed){armed=true;bar();clearTimeout(armT);armT=setTimeout(function(){armed=false;bar();},3000);return;}
+    var ids=Object.keys(sel).map(function(id){var it=byId[id];return it&&it.f?id:(it&&it.r)||id;});
+    send({type:'deleteItems',key:key,ids:ids}); sel={}; armed=false; selecting=false; bar(); draw();
+    send({type:'shelfSelect',key:key,on:false});}
   function hold(id,on){if(on)held[id]=1;else delete held[id];look(id);}
   function hover(id){var was=hoverId;hoverId=id;if(was)look(was);if(id)look(id);}
   function draw(){
@@ -88,7 +120,9 @@ object PanelHtml {
       d.style.backgroundColor=asset==='vhs' ? '#151515' : colors[hash(it.t)%colors.length];
       if(it.c) d.style.backgroundImage='url("'+it.c.replace(/"/g,'%22')+'")';
       var s=document.createElement('span'); s.textContent=it.t; d.appendChild(s);
-      d.onclick=function(){send({type:'open',id:it.id,title:it.t});};
+      if(it.f){var c=document.createElement('i'); c.textContent=it.n; d.appendChild(c);}
+      d.onclick=function(){ if(selecting) return tapItem(it.id);
+        if(it.f) send({type:'openFolder',key:key,folderId:it.id}); else send({type:'open',id:it.id,title:it.t}); };
       box.appendChild(d);
     });
   }

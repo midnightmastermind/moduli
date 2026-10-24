@@ -20,7 +20,11 @@
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
-import { shelfItems } from "./shelfItems.js";
+import { shelfItems, folderShelfView } from "./shelfItems.js";
+import { deleteFolderMoveUp } from "../helpers/folderDelete";
+import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import { withAction } from "../helpers/actionScope";
+import { runGroupDrop } from "../helpers/selectionDrag";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
@@ -68,17 +72,25 @@ export function bookmarkBar({ occurrencesById, modulesById }) {
 }
 
 /** What the headset draws, as plain data. Pure, so it can be tested. */
-export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById }, pageLabel) {
+export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, shelfAt = {} }, pageLabel) {
   const office = readOffice(grid);
+  const ctx = { grid, occurrencesById, modulesById, foldersById };
+  const wire = (i) => ({
+    id: i.id, rowId: i.rowId || null, title: i.title, cover: i.cover, src: i.src || null, kind: i.fileKind || null,
+    url: i.url || null, folder: !!i.folder, count: i.count || 0,
+  });
   return {
     type: "state",
     gridId: String(grid?._id || grid?.id || ""),
     origin: typeof window !== "undefined" ? window.location.origin : "",
-    shelves: office.shelves.map((s) => ({
-      id: s.id, title: s.title, asset: s.asset,
-      items: shelfItems(s, { grid, occurrencesById, modulesById, foldersById })
-        .map((i) => ({ id: i.id, title: i.title, cover: i.cover, src: i.src || null, kind: i.fileKind || null })),
-    })),
+    shelves: office.shelves.map((s) => {
+      if (s.folderId) {
+        // A folder shelf is a tree in the headset: its subfolders are books you open (and come back up from).
+        const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
+        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp };
+      }
+      return { id: s.id, title: s.title, asset: s.asset, items: shelfItems(s, ctx).map(wire), path: [], canUp: false };
+    }),
     screens: office.screens.map((s) => ({
       id: s.id, source: s.source, pageOccId: s.pageOccId || null,
       label: s.source === "grid" ? "The grid" : (s.pageOccId ? pageLabel(s.pageOccId) || "Missing page" : "No page chosen"),
@@ -188,7 +200,25 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
   const live = useRef({});
-  live.current = { grid, gridId, occurrencesById, modulesById, foldersById, dispatch, office };
+  // Which folder each folder shelf stands in (the headset opens folders like books), kept on this device so a
+  // reload comes back to the same folder.
+  const atKey = `moduli-vr-shelf-at:${gridId || ""}`;
+  const [shelfAt, setShelfAt] = useState(() => { try { return JSON.parse(localStorage.getItem(atKey) || "{}") || {}; } catch { return {}; } });
+  useEffect(() => { try { setShelfAt(JSON.parse(localStorage.getItem(atKey) || "{}") || {}); } catch { setShelfAt({}); } }, [atKey]);
+  const moveShelf = useCallback((shelfId, folderId) => {
+    setShelfAt((prev) => {
+      const next = { ...prev };
+      if (folderId) next[shelfId] = folderId; else delete next[shelfId];
+      try { localStorage.setItem(atKey, JSON.stringify(next)); } catch { /* private window */ }
+      return next;
+    });
+  }, [atKey]);
+  // The decor in the room (the headset owns it): listed here so a piece can be removed even when the room is too
+  // crowded to reach its 🗑 (too many record players crashed the app).
+  const [decorInRoom, setDecorInRoom] = useState([]);
+  const [removeArmed, setRemoveArmed] = useState(null);
+  useEffect(() => { if (!removeArmed) return; const t = setTimeout(() => setRemoveArmed(null), 3000); return () => clearTimeout(t); }, [removeArmed]);
+  live.current = { grid, gridId, occurrencesById, modulesById, foldersById, dispatch, office, shelfAt };
   const save = useOfficeSave(live);
   const { picture, snapshotPage, portal } = usePagePictures();
   const [mode, setMode] = useState("mr");
@@ -214,7 +244,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     lastSent.current = json;
     post(msg);
   }, [pageLabel]);
-  const officeKey = JSON.stringify(office);
+  const officeKey = JSON.stringify(office) + JSON.stringify(shelfAt);
   useEffect(() => { sendState(); }, [officeKey, sendState]);
   const lastRows = useRef(0);
   const lastCount = useRef(0);
@@ -275,6 +305,49 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const id = newNotePage(live.current);
           if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
         }
+        else if (e?.type === "openFolder" || e?.type === "shelfUp") {
+          const shelfId = String(e.key || "").replace(/^shelf:/, "");
+          const L = live.current;
+          const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
+          if (!shelf?.folderId) return;
+          if (e.type === "openFolder") moveShelf(shelfId, String(e.folderId || "").replace(/^folder:/, ""));
+          else {
+            const at = L.shelfAt[shelfId];
+            const up = at && at !== shelf.folderId ? L.foldersById?.[at]?.parentId : null;
+            moveShelf(shelfId, up && up !== shelf.folderId ? up : null);
+          }
+        }
+        else if (e?.type === "deleteItems") {
+          // The shelf's Select → Delete: rows go the way any delete goes; a folder book deletes the folder and
+          // moves what it held up a level (helpers/folderDelete). One undo step for the lot.
+          const L = live.current;
+          withAction("Deleted from shelf", () => {
+            for (const id of e.ids || []) {
+              if (String(id).startsWith("folder:")) {
+                const folder = L.foldersById?.[String(id).slice(7)];
+                if (folder) deleteFolderMoveUp({ dispatch: L.dispatch, socket, folder, occurrencesById: L.occurrencesById, foldersById: L.foldersById, modulesById: L.modulesById });
+              } else if (L.occurrencesById?.[id]) {
+                CommitHelpers.deleteOccurrence({ dispatch: L.dispatch, socket, occurrenceId: id, occurrence: L.occurrencesById[id] });
+              }
+            }
+          });
+          setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+        }
+        else if (e?.type === "placeInto") {
+          // A drag carried from one reader window into another (the headset found where it landed): the same write a
+          // drop inside one window makes. Then both windows reload to show it.
+          const L = live.current;
+          const dest = L.occurrencesById?.[e.parentId];
+          if (!dest || !L.occurrencesById?.[e.occId]) return;
+          runGroupDrop({
+            ids: [e.occId], dest, insertAt: Number.isInteger(e.index) ? e.index : undefined,
+            mode: e.mode === "copy" || e.mode === "copylink" ? e.mode : "move",
+            ctx: { dispatch: L.dispatch, socket, occurrencesById: L.occurrencesById,
+              state: { modulesById: L.modulesById, gridId: L.gridId, grid: L.grid, userId: L.grid?.userId || localStorage.getItem("moduli-userId") } },
+          });
+          setTimeout(() => post({ type: "placed", panels: e.panels || [] }), 1500);
+        }
+        else if (e?.type === "decorList") setDecorInRoom(Array.isArray(e.list) ? e.list : []);
         else if (e?.type === "mode") setMode(e.mode);
         else if (e?.type === "moveMode") setMoveMode(!!e.on);
         else if (e?.type === "layout") saveLayoutBackup(live.current.gridId, e.layout);
@@ -283,7 +356,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     };
     post({ type: "ready" });
     return () => { delete window.__moduliNative; };
-  }, [paint, sendState, save]);
+  }, [paint, sendState, save, moveShelf]);
 
   const addAShelf = async (asset) => {
     const { meta, shelf: s } = addShelf(grid, asset);
@@ -328,6 +401,23 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           {decor.map((d) => <button key={d.key} style={btn} onClick={() => post({ type: "addDecor", key: d.key, title: d.title, src: d.src || null })}>+ {d.title}</button>)}
         </div>
       </div>
+
+      {decorInRoom.length > 0 && (
+        <div style={section}>
+          <div style={{ marginBottom: 6 }}>In the room</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {decorInRoom.map((d) => (
+              <button key={d.key} style={{ ...btn, outline: removeArmed === d.key ? "2px solid #c55" : "none" }}
+                onClick={() => {
+                  if (removeArmed === d.key) { post({ type: "delete", key: d.key }); setRemoveArmed(null); }
+                  else setRemoveArmed(d.key);
+                }}>
+                {removeArmed === d.key ? `Tap again to remove ${d.title}` : `✕ ${d.title}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ ...section, color: "var(--text-muted)", fontSize: 12 }}>
         Turn on Move furniture, then grab a piece by the bar above it. Its ⚙ opens that piece's own settings. Right stick: turn (left / right) and

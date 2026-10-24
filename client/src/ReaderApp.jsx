@@ -20,6 +20,9 @@ import BookReader from "./modules/BookReader.jsx";
 import { sessionHeaders } from "./helpers/authStorage";
 import { resolveFileRef } from "./helpers/fileRef";
 import { useTheme } from "./helpers/useTheme";
+import { ChoiceDialogHost } from "./ui/ChoiceDialog";
+import { DragProvider } from "./helpers/DragProvider.jsx";
+import { readerDropTarget } from "./helpers/readerDropTarget.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
 
@@ -35,6 +38,7 @@ export function readerState(sub) {
     views: sub.views || [],
     folders: [], manifests: [], operations: [],
     computedValues: {},
+    userId: typeof localStorage !== "undefined" ? localStorage.getItem("moduli-userId") : null,
   };
 }
 
@@ -109,9 +113,23 @@ function ReaderBody({ initial, occurrenceId }) {
   }), []);
   useReaderSync(dispatch, has);
 
+  // Where a drag carried in from ANOTHER window lands: the headset asks this page (u, v on the panel) and has the
+  // control panel, which holds the whole grid, do the move or copy.
+  React.useEffect(() => {
+    window.__moduliDropTarget = (u, v, wM, hM) => JSON.stringify(readerDropTarget({
+      u, v, wM, hM, rootId: occurrenceId, occurrences: ref.current.occurrences, modules: ref.current.modules,
+    }));
+    return () => { delete window.__moduliDropTarget; };
+  }, [occurrenceId]);
+  const gridRef = React.useRef(null);
   const occ = state.occurrences.find((o) => o.id === occurrenceId);
   const mod = occ && state.modules.find((m) => m.id === occ.moduleId);
   const live = joined ? socket : null;
+  // A bookmark is a web page, not a board: show the page itself (the headset opens bookmarks in its own browser
+  // window; this is for one reached another way).
+  const bookmarkUrl = mod?.kind === "bookmark" ? (occ?.meta?.url || mod.fileRef || "") : "";
+  useEffect(() => { if (/^https?:\/\//i.test(bookmarkUrl)) window.location.replace(bookmarkUrl); }, [bookmarkUrl]);
+  if (bookmarkUrl) return <div style={{ ...fill, display: "grid", placeItems: "center", opacity: 0.6 }}>Opening {bookmarkUrl}…</div>;
   if (mod?.role === "artifact" && BOOK_KINDS.has(mod.kind) && mod.fileRef) {
     return (
       <div style={{ ...fill, display: "flex", flexDirection: "column" }}>
@@ -120,10 +138,16 @@ function ReaderBody({ initial, occurrenceId }) {
       </div>
     );
   }
+  // A drag system of its own (it had none, so a drag on a handle became a tap that opened the menu). In the
+  // headset the controller's trigger arrives as touch, so the touch drag path is the one that runs.
   return (
-    <div style={fill}>
-      <PagePreviewBody parentState={state} occurrenceId={occurrenceId} scroll publishComputed={false} rootChrome
-        dispatch={dispatch} socket={live} />
-    </div>
+    <DragProvider state={state} dispatch={dispatch} socket={live} gridRef={gridRef}
+      isTouch={typeof window !== "undefined" && !!window.ModuliNative} isMobileLayout={false}>
+      <div ref={gridRef} style={fill}>
+        <PagePreviewBody parentState={state} occurrenceId={occurrenceId} scroll publishComputed={false} rootChrome
+          dispatch={dispatch} socket={live} />
+        <ChoiceDialogHost />
+      </div>
+    </DragProvider>
   );
 }

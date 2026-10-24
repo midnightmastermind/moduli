@@ -37,9 +37,11 @@ describe("a folder's own page", () => {
     expect(isFolderPageOf({ moduleId: "bp" }, mods)).toBe(false);
     expect(isFolderPageOf({ moduleId: "art" }, mods)).toBe(false);
   });
-  it("the delete handler deletes it instead of moving it up", () => {
+  it("the delete handler deletes it instead of moving it up (through helpers/folderDelete)", () => {
     const src = fs.readFileSync(path.join(process.cwd(), "src/modules/ManifestTree.jsx"), "utf8");
-    const body = src.slice(src.indexOf("const handleDelete = useCallback"), src.indexOf("CommitHelpers.deleteFolder("));
-    expect(body).toMatch(/isFolderPageOf\(occ, modulesById\)[\s\S]*deleteOccurrence/);
+    const body = src.slice(src.indexOf("const handleDelete = useCallback"));
+    expect(body.slice(0, 1500)).toMatch(/deleteFolderMoveUp\(/);
+    const helper = fs.readFileSync(path.join(process.cwd(), "src/helpers/folderDelete.js"), "utf8");
+    expect(helper).toMatch(/deleteOccIds[\s\S]*isFolderPage\(o, modulesById\)/);
   });
 });

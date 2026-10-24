@@ -7,6 +7,7 @@ import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
+import { askChoice } from "../ui/ChoiceDialog";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
@@ -426,11 +427,18 @@ function Page({
   }, [pageModule, editLabel, dispatch, socket]);
 
   // Delete page (with confirmation)
-  const handleDelete = useCallback(() => {
-    if (!occurrence?.id || !panelOccurrence?.id) return;
-    const label = pageModule?.label || "this page";
-    if (!window.confirm(`Delete "${label}"? This will remove the page and all its contents.`)) return;
-    CommitHelpers.deletePage({ dispatch, socket, pageOccurrenceId: occurrence.id, panelOccurrenceId: panelOccurrence.id, emit: true });
+  // Asked in the app's own dialog, not window.confirm: a headset panel never shows a web confirm (so Delete did
+  // nothing there). A page shown alone (a reader window) has no panel to unpin it from, and needs none.
+  const handleDelete = useCallback(async () => {
+    if (!occurrence?.id) return;
+    const label = occurrence.label || pageModule?.label || "this page";
+    const pick = await askChoice({
+      title: `Delete "${label}"?`,
+      message: "This removes the page and everything on it.",
+      choices: [{ value: "delete", label: "Delete page", danger: true }],
+    });
+    if (pick !== "delete") return;
+    CommitHelpers.deletePage({ dispatch, socket, pageOccurrenceId: occurrence.id, panelOccurrenceId: panelOccurrence?.id || null, emit: true });
   }, [occurrence, panelOccurrence, pageModule?.label, dispatch, socket]);
 
   // Context menu
@@ -768,6 +776,8 @@ function Page({
               <RadialMenu
                 onSettings={() => setSettingsOpen(true)}
                 onTemplate={openTemplates}
+                onDelete={handleDelete}
+                deleteLabel="Delete page"
                 extraItems={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
                 size="sm"
                 forceDirection="down"

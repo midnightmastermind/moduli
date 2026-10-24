@@ -140,6 +140,8 @@ class OfficeActivity : AppSystemActivity() {
     var shelfSize: OfficeSizes.Shelf? = null
     /** "book" | "record" | "vhs": what you hold when you take something off this shelf. */
     var shelfAsset = "book"
+    /** Select mode on a shelf (its Select button): a tap picks a book for Delete instead of opening it. */
+    var selecting = false
     /** The book a controller is pointing at on this shelf (its spine lights up), or null. */
     var hoverBook: String? = null
     /** A decor piece's own entry (model, and a VHS player's screenId), and the base its panel page loads against
@@ -175,6 +177,9 @@ class OfficeActivity : AppSystemActivity() {
    * `slot` is where it rests, in the shelf's frame.
    */
   class Book(val itemId: String, val title: String, val cover: String, val slot: ShelfLayout.Slot, val color: Int, val entity: Entity) {
+    /** A folder book opens the folder on the shelf; a bookmark opens its page in a browser window. */
+    var folder = false
+    var url = ""
     var held = false
     /** The card (cover + title) floating over it while held: an index into `cards`, or -1. */
     var card = -1
@@ -191,6 +196,8 @@ class OfficeActivity : AppSystemActivity() {
   private var state: JSONObject? = null
   private val things = LinkedHashMap<String, Thing>()
   private val readers = HashMap<Int, Entity>()
+  /** Each reader window's page (a drag carried into it asks the page where it landed). */
+  private val readerWebs = HashMap<Int, WebView>()
   /** What each open reader shows (books and pages, not settings windows) — saved, so they are there next time. */
   private val readerOcc = HashMap<Int, String>()
   private var lastReadersSaved = ""
@@ -260,7 +267,7 @@ class OfficeActivity : AppSystemActivity() {
                           setBackgroundColor(Color.TRANSPARENT)
                           webViewClient = WebViewClient()
                           webChromeClient = WebChromeClient()
-                          addJavascriptInterface(Bridge(), "ModuliNative")
+                          addJavascriptInterface(Bridge(id), "ModuliNative")
                           onWeb(this)
                         }
                       },
@@ -290,7 +297,7 @@ class OfficeActivity : AppSystemActivity() {
   /** A browser screen's panel: back / forward / reload and an address bar over a real WebView (no frame — most sites
    *  refuse to be shown in one). The page it is on is kept on the decor entry, so it reopens there. */
   @SuppressLint("SetJavaScriptEnabled")
-  private fun browserPanel(id: Int, w: Float, h: Float, t: Thing): PanelRegistration =
+  private fun browserPanel(id: Int, w: Float, h: Float, t: Thing, onClose: (() -> Unit)? = null): PanelRegistration =
       ComposeViewPanelRegistration(
           id,
           composeViewCreator = { _, ctx ->
@@ -300,6 +307,7 @@ class OfficeActivity : AppSystemActivity() {
                 var web by remember { mutableStateOf<WebView?>(null) }
                 Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF1D1D1D))) {
                   Row(Modifier.fillMaxWidth().padding(6.dp)) {
+                    if (onClose != null) Button(onClick = onClose) { Text("Close") }
                     Button(onClick = { web?.let { if (it.canGoBack()) it.goBack() } }) { Text("◀") }
                     Button(onClick = { web?.let { if (it.canGoForward()) it.goForward() } }) { Text("▶") }
                     Button(onClick = { web?.reload() }) { Text("⟳") }
@@ -375,15 +383,22 @@ class OfficeActivity : AppSystemActivity() {
   private fun rememberBrowserUrl(t: Thing, url: String) {
     if (url.isEmpty() || url.startsWith("about:")) return
     t.panelUrl = url
+    // A bookmark's browser window reopens on the page it is on.
+    if (t.key.startsWith("reader:")) {
+      t.key.removePrefix("reader:").toIntOrNull()?.let { id -> if (readerOcc.containsKey(id)) { readerOcc[id] = "url:$url"; saveReaders() } }
+      return
+    }
+    if (!t.key.startsWith("decor:")) return
     store.saveDecor(store.decor().map { e -> if (e.optString("key") == t.key) JSONObject(e.toString()).put("url", url) else e })
   }
 
   /** Pages (the control panel, shelves, screens) talk to the app through `window.ModuliNative.postMessage`. */
-  inner class Bridge {
+  inner class Bridge(private val panelId: Int) {
     @JavascriptInterface
     fun postMessage(json: String) {
       main.post {
-        try { onMessage(JSONObject(json)) } catch (e: Exception) { Log.w(TAG, "bad message: ${e.message}") }
+        // Each message says which panel sent it (a drag started in one reader window is dropped in another).
+        try { onMessage(JSONObject(json).put("_panel", panelId)) } catch (e: Exception) { Log.w(TAG, "bad message: ${e.message}") }
       }
     }
   }
@@ -441,6 +456,7 @@ class OfficeActivity : AppSystemActivity() {
       "ready" -> {
         send(JSONObject().put("type", "mode").put("mode", store.mode))
         send(JSONObject().put("type", "moveMode").put("on", moveMode))
+        sendDecorList()
       }
       "moveMode" -> { moveMode = m.optBoolean("on"); send(JSONObject().put("type", "moveMode").put("on", moveMode)) }
       "state" -> onState(m)
@@ -454,13 +470,17 @@ class OfficeActivity : AppSystemActivity() {
       "delete" -> deleteThing(m.optString("key"))
       "closePiece" -> pieceWindows[m.optString("key")]?.let { closeReader(it) }
       "piece" -> togglePiece(m.optString("key"))
-      "stopPlayer" -> things[m.optString("key")]?.let { t ->
-        showOnPanel(t, PanelHtml.playerIdle(if (t.decorEntry?.optString("model") == "vhsplayer") "tape" else "record"))
-      }
+      "stopPlayer" -> things[m.optString("key")]?.let { stopPlayer(it) }
       "stopVideo" -> things[m.optString("key")]?.let { t -> t.videoPlaying = false; refreshPanel(t) }
       "decorSetting" -> setDecorScreen(m.optString("key"), m.optString("screenId").takeIf { !m.isNull("screenId") && it.isNotEmpty() })
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       "addDecor" -> addDecor(m)
+      // Folder shelves are trees and shelves can delete: the control panel (signed in, holds the grid) does both.
+      "openFolder", "shelfUp", "deleteItems" -> send(m)
+      "shelfSelect" -> things[m.optString("key")]?.selecting = m.optBoolean("on")
+      "dragStart" -> onDragStart(m)
+      "dragEnd" -> pendingDrag?.let { if (it.fromPanel == m.optInt("_panel", -1)) { it.ended = true; it.dropped = m.optBoolean("dropped") } }
+      "placed" -> m.optJSONArray("panels")?.let { a -> for (i in 0 until a.length()) readerWebs[a.optInt(i)]?.reload() }
       // The new-note screen's button: the control panel (signed in, holds the grid) makes the page, then says "openNote".
       "newNote" -> send(JSONObject().put("type", "newNote").put("key", m.optString("key")))
       "openNote" -> {
@@ -566,8 +586,8 @@ class OfficeActivity : AppSystemActivity() {
     if (!restore(t)) putDefault(t)
     t.handle?.follow()
     Log.i(TAG, "placed $key (top ${t.top}m, handle ${t.handle?.dy}m up)")
-    t.gear = gearButton(t)
-    if (key != "fireplace") t.trash = trashButton(t)
+    // The ⚙ and 🗑 are made the first time the piece's menu shows (showMenus), not up front: each is a panel, and a
+    // room full of pieces holding two idle panels each is part of what ran the headset out of memory.
     return t
   }
 
@@ -589,6 +609,7 @@ class OfficeActivity : AppSystemActivity() {
     // change keeps its page (reloading it repainted every cover and rebuilt every book — part of the lag).
     if (t.panel != null && html == t.html) return
     t.html = html
+    t.selecting = false
     attachPanel(t, size.w - 0.06f, size.h + PanelHtml.HEADER_M, (size.h + PanelHtml.HEADER_M) / 2f, size.d / 2f + 0.01f)
     buildBooks(t, size)
   }
@@ -608,7 +629,9 @@ class OfficeActivity : AppSystemActivity() {
           Transform(Pose()),
           Grabbable(true, GrabbableType.PIVOT_Y),
       ))
-      t.books += Book(item.optString("id"), title, item.optString("cover"), t.slots[i], PanelHtml.spineColor(title), e)
+      t.books += Book(item.optString("id"), title, item.optString("cover"), t.slots[i], PanelHtml.spineColor(title), e).apply {
+        folder = item.optBoolean("folder"); url = item.optString("url").takeIf { !item.isNull("url") } ?: ""
+      }
     }
     bookFront[t.key] = size.d / 2f + 0.01f + BOOK_PROXY_DEPTH / 2f
   }
@@ -730,11 +753,12 @@ class OfficeActivity : AppSystemActivity() {
               else -> null
             } }
             when {
+              t.selecting -> selectBook(t, b)
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
-              else -> openReader(b.itemId, near = p)
+              else -> activateBook(t, b, near = p)
             }
-          } else if (now - b.grabbedAt < BOOK_TAP_MS) openReader(b.itemId)
+          } else if (now - b.grabbedAt < BOOK_TAP_MS) { if (t.selecting) selectBook(t, b) else activateBook(t, b) }
           b.entity.setComponent(Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
           hideCard(b)
@@ -749,6 +773,20 @@ class OfficeActivity : AppSystemActivity() {
             !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(rest), 0.002f)) b.entity.setComponent(Transform(rest))
       }
     }
+  }
+
+  /** A book taken off (or tapped on) a shelf: a folder opens on the shelf, a bookmark in a browser, else a reader. */
+  private fun activateBook(t: Thing, b: Book, near: FloatArray? = null) {
+    when {
+      b.folder -> send(JSONObject().put("type", "openFolder").put("key", t.key).put("folderId", b.itemId))
+      b.url.isNotEmpty() -> openReader("url:" + b.url, near = near)
+      else -> openReader(b.itemId, near = near)
+    }
+  }
+
+  /** In select mode a tap picks (or unpicks) the book on the shelf's page, which keeps the selection and the Delete. */
+  private fun selectBook(t: Thing, b: Book) {
+    t.web?.evaluateJavascript("tapItem(${JSONObject.quote(b.itemId)})", null)
   }
 
   private fun ensureScreen(s: JSONObject) {
@@ -808,7 +846,14 @@ class OfficeActivity : AppSystemActivity() {
     if (key == "fireplace" || key == CONTROL) return
     deleteEntity(key)
     store.remove(key)
-    if (key.startsWith("decor:")) store.saveDecor(store.decor().filter { it.optString("key") != key })
+    if (key.startsWith("decor:")) { store.saveDecor(store.decor().filter { it.optString("key") != key }); sendDecorList() }
+  }
+
+  /** The decor in the room, for the control panel's "In the room" list (remove a piece you cannot reach). */
+  private fun sendDecorList() {
+    val list = org.json.JSONArray()
+    for (e in store.decor()) list.put(JSONObject().put("key", e.optString("key")).put("title", e.optString("title").ifEmpty { e.optString("model") }))
+    send(JSONObject().put("type", "decorList").put("list", list))
   }
 
   private fun addDecor(m: JSONObject) {
@@ -820,6 +865,7 @@ class OfficeActivity : AppSystemActivity() {
     val t = ensureThing(key, model, entry.optString("src").ifEmpty { null })
     decorPanel(t, entry)
     putInFront(t)
+    sendDecorList()
   }
 
   // ── Decor that does something: clock, window, record player, VHS player ──
@@ -834,8 +880,9 @@ class OfficeActivity : AppSystemActivity() {
         t.html = PanelHtml.windowView()
         attachPanel(t, 1.0f, 0.75f, 0.435f, -0.01f)
       }
-      "recordplayer" -> { t.html = PanelHtml.playerIdle("record"); attachPanel(t, 0.34f, 0.12f, 0.24f, 0f) }
-      "vhsplayer" -> { t.html = PanelHtml.playerIdle("tape"); attachPanel(t, 0.34f, 0.12f, 0.2f, 0f) }
+      // Players get their (web) panel only while something plays — a room of idle players each holding a page
+      // ran the headset out of memory and crashed the app.
+      "recordplayer", "vhsplayer" -> {}
       // The whole grid, live: the app itself (its own panels and date — `local`), on a screen you place.
       "gridscreen" -> { t.panelUrl = "$origin/?local=1"; attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
@@ -870,7 +917,16 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun showOnPanel(t: Thing, html: String) {
     t.html = html
+    if (t.panel == null) when (t.decorEntry?.optString("model")) {
+      "recordplayer" -> { attachPanel(t, 0.34f, 0.12f, 0.24f, 0f); return }
+      "vhsplayer" -> { attachPanel(t, 0.34f, 0.12f, 0.2f, 0f); return }
+    }
     t.web?.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
+  }
+
+  /** A player stops: its panel (and the web page in it) goes, until something plays again. */
+  private fun stopPlayer(t: Thing) {
+    t.panel?.destroy(); t.panel = null; t.web = null; t.html = ""
   }
 
   /** A record dropped on a record player plays there. */
@@ -1022,6 +1078,20 @@ class OfficeActivity : AppSystemActivity() {
     return PoseMath.rayBox(o, d, pose, floatArrayOf(-hx, -0.05f, -hz), floatArrayOf(hx, top, hz))
   }
 
+  /** Does `inner`'s origin lie inside `outer`'s pointing box? */
+  private fun standsInside(inner: Thing, outer: Thing): Boolean {
+    val ip = inner.frame.tryGetComponent<Transform>()?.transform ?: return false
+    val op = outer.frame.tryGetComponent<Transform>()?.transform ?: return false
+    val (l, _) = PoseMath.toLocal(op, ip)
+    val s = outer.scale
+    val hx = maxOf((if (outer.hx > 0f) outer.hx else 0.5f) * s, 0.5f) + 0.05f
+    val hz = maxOf((if (outer.hz > 0f) outer.hz else 0.5f) * s, 0.08f) + 0.05f
+    val top = (outer.handle?.dy ?: (outer.top * s)) + 0.1f
+    return kotlin.math.abs(l[0]) <= hx && kotlin.math.abs(l[2]) <= hz && l[1] >= -0.05f && l[1] <= top
+  }
+
+  private fun footprint(t: Thing): Float = maxOf(t.hx, 0.05f) * maxOf(t.hz, 0.05f) * t.scale * t.scale
+
   /**
    * A piece's bar, ⚙ and 🗑 show only while you point at it (or just did), hold it, or have its settings open — shown
    * all the time they blocked the view of the room. Hidden, the bar cannot be grabbed by accident either.
@@ -1033,12 +1103,18 @@ class OfficeActivity : AppSystemActivity() {
     val pointed = HashSet<String>()
     for ((o, d) in if (moveMode) controllerRays() else emptyList()) {
       var best: Thing? = null; var bestD = Float.MAX_VALUE
+      val hits = ArrayList<Thing>()
       for (t in things.values) {
         // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — skip it then.
         if (t.key == CONTROL || t.ghosted) continue
         val dist = hitDistance(t, o, d) ?: continue
+        hits += t
         if (dist < bestD) { bestD = dist; best = t }
       }
+      // A small piece standing on or in a bigger one (a record player on a desk) is inside the big one's pointing
+      // box, which reaches up to the big one's bar — so the ray met the desk first and the player's bar never showed.
+      // Of the pieces hit, one standing inside another's box wins over that box.
+      best?.let { outer -> hits.filter { it !== outer && standsInside(it, outer) }.minByOrNull { footprint(it) }?.let { best = it } }
       best?.let { it.lastHover = now; pointed += it.key }
     }
     // Pointing at another piece hides the last one at once; the linger is only for pointing at nothing.
@@ -1048,6 +1124,10 @@ class OfficeActivity : AppSystemActivity() {
       val want = moveMode && (!t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows)
       if (want == t.menuShown) continue
       t.menuShown = want
+      if (want && t.gear == null) {
+        t.gear = gearButton(t)
+        if (t.key != "fireplace") t.trash = trashButton(t)
+      }
       for (e in listOfNotNull(t.handle?.entity, t.gear, t.trash)) e.setComponent(Visible(want))
       // A bar you cannot see cannot be grabbed either, so a grab only ever lands on the piece whose menu is showing.
       t.handle?.entity?.setComponent(Grabbable(want, GrabbableType.PIVOT_Y))
@@ -1116,11 +1196,13 @@ class OfficeActivity : AppSystemActivity() {
       var turnDir = 0f
       var growDir = 0f
       var reachDir = 0f
+      var triggerDown = false
       for (c in Query.where { has(Controller.id) }.eval()) {
         if (!c.isLocal()) continue
         val ctl = c.tryGetComponent<Controller>() ?: continue
         if (!ctl.isActive) continue
         val down = ctl.buttonState
+        if (down and (ButtonBits.ButtonTriggerR or ButtonBits.ButtonTriggerL) != 0) triggerDown = true
         if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
         if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
         if (down and ButtonBits.ButtonThumbRU != 0) reachDir += 1f
@@ -1128,6 +1210,14 @@ class OfficeActivity : AppSystemActivity() {
         if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
         if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
       }
+      // A drag started in a reader window ends when the trigger is let go; give the page a moment to say whether it
+      // took the drop itself, then try the window the controller points at.
+      if (triggerWasDown && !triggerDown) pendingDrag?.takeIf { !it.released }?.let { d ->
+        d.released = true
+        val rays = controllerRays()
+        main.postDelayed({ if (pendingDrag === d) finishCrossDrag(rays) }, 250)
+      }
+      triggerWasDown = triggerDown
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
       if (turnDir == 0f && growDir == 0f) return
@@ -1164,6 +1254,61 @@ class OfficeActivity : AppSystemActivity() {
     send(JSONObject().put("type", "layout").put("layout", layout))
   }
 
+  // ── Dragging from one reader window to another ───────────────────────────
+  /** A drag a reader window reported starting (its page cannot see past its own edges). */
+  private class PendingDrag(val fromPanel: Int, val occId: String, val mode: String) {
+    var ended = false
+    var dropped = false
+    var released = false
+  }
+  private var pendingDrag: PendingDrag? = null
+  private var triggerWasDown = false
+
+  private fun onDragStart(m: JSONObject) {
+    val occ = m.optString("occId")
+    if (occ.isEmpty()) return
+    pendingDrag = PendingDrag(m.optInt("_panel", -1), occ, m.optString("mode", "move"))
+  }
+
+  /**
+   * The trigger was let go during a drag. When the page it started in did not take the drop, find the reader window
+   * the controller points at, ask that page where the point lands (`__moduliDropTarget`), and have the control panel
+   * place it there (it holds the grid). Both windows reload once it is written.
+   */
+  private fun finishCrossDrag(rays: List<Pair<FloatArray, FloatArray>>) {
+    val drag = pendingDrag ?: return
+    pendingDrag = null
+    if (drag.dropped) return
+    var best: Triple<Int, Float, FloatArray>? = null
+    for ((id, e) in readers) {
+      if (id == drag.fromPanel || !readerWebs.containsKey(id)) continue
+      val pose = e.tryGetComponent<Transform>()?.transform ?: continue
+      for ((o, d) in rays) {
+        val dist = PoseMath.rayBox(o, d, pose, floatArrayOf(-READER_W / 2f, -READER_H / 2f, -0.03f), floatArrayOf(READER_W / 2f, READER_H / 2f, 0.03f)) ?: continue
+        if (best == null || dist < best.second) {
+          val hit = floatArrayOf(o[0] + d[0] * dist, o[1] + d[1] * dist, o[2] + d[2] * dist)
+          best = Triple(id, dist, PoseMath.toLocal(pose, PoseMath.pose(hit, floatArrayOf(1f, 0f, 0f, 0f))).first)
+        }
+      }
+    }
+    val (toPanel, _, local) = best ?: return
+    // The panel's face looks out of -z, so seen from the front its +x is on your left.
+    val u = (0.5f - local[0] / READER_W).coerceIn(0f, 1f)
+    val v = (0.5f - local[1] / READER_H).coerceIn(0f, 1f)
+    val js = "window.__moduliDropTarget ? window.__moduliDropTarget($u, $v, $READER_W, $READER_H) : null"
+    readerWebs[toPanel]?.evaluateJavascript(js) { raw ->
+      val target = try {
+        val str = org.json.JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
+        JSONObject(str)
+      } catch (e: Exception) { return@evaluateJavascript }
+      if (target.optString("parentId").isEmpty()) return@evaluateJavascript
+      Log.i(TAG, "drag ${drag.occId} from window ${drag.fromPanel} into ${target.optString("parentId")} in window $toPanel")
+      send(JSONObject().put("type", "placeInto").put("occId", drag.occId).put("mode", drag.mode)
+          .put("parentId", target.optString("parentId")).put("index", target.optInt("index"))
+          .put("panels", org.json.JSONArray().put(drag.fromPanel).put(toPanel)))
+    }
+  }
+
   // ── Readers: a page or a file opened from a shelf or a screen ────────────
   /**
    * Open a page or file to read. `near`: where you let go of a book — the reader opens there (at reading height),
@@ -1173,8 +1318,14 @@ class OfficeActivity : AppSystemActivity() {
     val id = nextPanelId++
     // `read`: just that page or book, read on its own (ReaderApp) — not the whole grid. Each window keeps its own
     // page: as full app tabs they shared storage, and opening a second book turned the first into it too.
-    val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?read=${Uri.encode(occId)}"
-    registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> web.loadUrl(url) })
+    if (occId.startsWith("url:")) {
+      // A bookmark opens as a browser window (its page), not as the bookmark's row drawn as a board.
+      val holder = Thing("reader:$id", Entity.create(listOf(Transform(Pose())))).apply { browser = true; panelUrl = occId.removePrefix("url:") }
+      registerPanel(browserPanel(id, READER_W, READER_H + 0.16f, holder, onClose = { closeReader(id) }))
+    } else {
+      val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?read=${Uri.encode(occId)}"
+      registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> readerWebs[id] = web; web.loadUrl(url) })
+    }
     val e = Entity.create(listOf(
         Panel(id),
         Transform(pose ?: near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
@@ -1194,7 +1345,7 @@ class OfficeActivity : AppSystemActivity() {
   private fun closeReader(id: Int) {
     main.post {
       pieceWindows.entries.removeAll { it.value == id }
-      readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy()
+      readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy(); readerWebs.remove(id)
       if (readerOcc.remove(id) != null) saveReaders()
     }
   }

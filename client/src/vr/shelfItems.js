@@ -73,6 +73,54 @@ export function folderShelfItems(rootId, { grid, occurrencesById, modulesById, f
   return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 3000);
 }
 
+/**
+ * A folder shelf seen as a TREE (the headset): standing in folder `at` (default the shelf's root), its subfolders
+ * that hold anything are books of their own (`folder: true`, `count` = what is under them) and come first, then what
+ * sits directly in `at`. `path` is root..at by name, `canUp` whether there is a level above inside the shelf. A
+ * folder `at` that is not under the root (deleted, moved) falls back to the root. Pure.
+ */
+export function folderShelfView(rootId, at, { grid, occurrencesById, modulesById, foldersById, asset = "book" } = {}) {
+  if (!rootId) return { items: [], path: [], canUp: false, at: null };
+  const under = folderTree(rootId, foldersById);
+  const here = at && under.has(at) ? at : rootId;
+  const all = folderShelfItems(rootId, { grid, occurrencesById, modulesById, foldersById, asset });
+  // Which child of `here` (if any) each item sits under.
+  const childOf = (folderId) => {
+    let f = folderId;
+    for (let n = 0; f && n < 64; n++) {
+      const parent = foldersById?.[f]?.parentId;
+      if (parent === here) return f;
+      f = parent;
+    }
+    return null;
+  };
+  const counts = new Map();
+  const direct = [];
+  for (const it of all) {
+    const parent = occurrencesById?.[it.rowId]?.parentId;
+    if (parent === here) { direct.push(it); continue; }
+    const c = childOf(parent);
+    if (c) counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  const folders = [...counts.entries()]
+    .map(([fid, count]) => ({ id: "folder:" + fid, rowId: null, folder: true, count, title: foldersById?.[fid]?.name || "Folder", cover: null, fileId: null, fileKind: null, src: null }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  const path = [];
+  for (let f = here, n = 0; f && n < 64; n++) {
+    path.unshift({ id: f, title: foldersById?.[f]?.name || "Folder" });
+    if (f === rootId) break;
+    f = foldersById?.[f]?.parentId;
+  }
+  return { items: [...folders, ...direct], path, canUp: here !== rootId, at: here };
+}
+
+/** The address a bookmark row opens (its saved page), or null. */
+export function bookmarkUrl(occ, mod) {
+  if (mod?.kind !== "bookmark") return null;
+  const u = occ?.meta?.url || mod.fileRef || "";
+  return /^https?:\/\//i.test(u) ? u : null;
+}
+
 export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } = {}) {
   if (shelf?.folderId) return folderShelfItems(shelf.folderId, { grid, occurrencesById, modulesById, foldersById, asset: shelf.asset });
   if (!shelf?.feed || !occurrencesById) return [];
@@ -104,6 +152,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       fileId: file?.id || null,
       fileKind: file?.kind || null,
       src: file?.ref ? resolveFileRef(file.ref) : null,
+      url: bookmarkUrl(occ, mod),
     });
   }
   return out;

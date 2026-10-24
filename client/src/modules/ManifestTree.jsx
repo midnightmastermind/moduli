@@ -3,6 +3,7 @@
 // Selecting a doc row calls updateView({ activeOccurrenceId }) so the content pane updates.
 // Selecting an anchor chip calls updateView({ activeOccurrenceId: parentOccId, scrollAnchor: heading })
 // so the parent doc stays open and scrolls to that heading.
+import { deleteFolderMoveUp } from "../helpers/folderDelete";
 import { useVirtualRows } from "../helpers/virtualRows";
 import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -784,23 +785,11 @@ function FolderNodeImpl({ folder, depth, foldersById, occurrencesById, modulesBy
     // item is hidden too; this is the second half of that pair, because the
     // handler is reachable from anywhere the item is rendered.
     if (isProtectedFolder(folder)) return;
-    // Reparent child occurrences to the folder's parent — all but the folder's
-    // OWN page, which goes with it. Moving that up too left a stray page named
-    // after the deleted folder in the parent (found 2026-10-01 by the manifest
-    // UI test: deleting "MT Folder B" left an "MT Folder B" page in Library).
-    for (const occ of allChildOccs) {
-      if (isFolderPageOf(occ, modulesById)) {
-        CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occ.id, occurrence: occ });
-        continue;
-      }
-      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, parentId: folder.parentId }, emit: true });
-    }
-    // Reparent child folders to the folder's parent
-    for (const cf of childFolders) {
-      CommitHelpers.updateFolder({ dispatch, socket, folder: { id: cf.id, parentId: folder.parentId }, emit: true });
-    }
-    CommitHelpers.deleteFolder({ dispatch, socket, folderId: folder.id, emit: true });
-  }, [dispatch, socket, folder.id, folder.parentId, allChildOccs, childFolders, modulesById]);
+    // Contents move up a level and the folder's own landing page goes with it — helpers/folderDelete (shared with
+    // the headset shelf's delete).
+    deleteFolderMoveUp({ dispatch, socket, folder, occurrencesById: Object.fromEntries(allChildOccs.map((o) => [o.id, o])),
+      foldersById: Object.fromEntries(childFolders.map((f) => [f.id, f])), modulesById });
+  }, [dispatch, socket, folder, allChildOccs, childFolders, modulesById]);
 
   // Focus input when entering rename mode
   useEffect(() => {

@@ -4099,3 +4099,14 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 13:27 *"onLoadInPanel should be able to select occurances or modules too. and ask the other questions you need and why does it need to get a copy of its own module again in template?"*
 - 13:34 *"we can change the label on occurances without affecting the original model"* — so a renamed template root shares its module too; the per-apply name goes on the occurrence's label.
 - 13:40 *"lets do all that"* — the rename rule (a shared module renames the occurrence), fold copy modules back, occurrences-of-module (action + Find option), onLoadInPanel (+ onUnloadFromPanel), find by date, find first, timing in Run history, module scope on triggers, debounce, skip-if-unchanged.
+
+### 2026-10-24 08:42–09:02 CDT — Quest office + codex (asked together)
+- *"i cant find the bar to move the record player"*
+- *"cant drag between books or drag at all (opens a menu when i try to drag an occurance)"*
+- *"the books should be tree'd up with their folder structure (just have folders be books too and selecting them opens whats inside (puts the books up). the folder structure layout should be persisted so i can reload in the same folder. we need an option to delete a folder too then."*
+- *"the app crashes when there are too many record players in it … i cant delete any currently"*
+- *"i cant delete pages from the radial menu"*
+- *"bookmarks are opening as boards instead of browsers"*
+- *"make it easy to delete books as well and select multiple to delete"*
+- *"go through the codex and only keep notes, if it looks like nodes like people, books, etc, left over from notion or obsidian, lets delete them. unless they resolve somewhere else, then resolve it and add them into the page and then delete the node"* · *"we just have alot of images and notes that are entries in a list of some sort like people and books when those arent really notes"*
+- *"can you figure out why my echo vr game keeps crashing in quest 3s"*

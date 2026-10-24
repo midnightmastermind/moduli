@@ -22,7 +22,7 @@ describe("nativeOfficeState", () => {
   it("lists shelves (with an empty shelf holding nothing), screens with their page name, and decor", () => {
     const st = nativeOfficeState({ grid, occurrencesById, modulesById }, (id) => occurrencesById[id]?.label);
     expect(st.gridId).toBe("g1");
-    expect(st.shelves).toEqual([{ id: "s1", title: "Books", asset: "book", items: [] }]);
+    expect(st.shelves).toEqual([{ id: "s1", title: "Books", asset: "book", items: [], path: [], canUp: false }]);
     expect(st.screens[0]).toMatchObject({ id: "sc1", label: "Routines" });
     expect(st.decor.map((d) => d.key)).toContain("armchair");
   });
