@@ -82,7 +82,7 @@ import { InstancePill } from "../docs/InstancePillExtension";
 import { Footnote } from "../docs/FootnoteExtension";
 import { DocLink } from "../docs/DocLinkExtension";
 import { PillBackspace } from "../docs/PillBackspaceExtension";
-import { HeadingFocus } from "../docs/HeadingFocusExtension";
+import { LiveMarkdown } from "../docs/LiveMarkdownExtension";
 import { ModuleEmbed } from "../docs/ModuleEmbedExtension";
 import { WrapGroup } from "../docs/WrapGroupExtension";
 import { InstanceTextblock } from "../docs/InstanceTextblockExtension";
@@ -879,7 +879,7 @@ const Editor = forwardRef(function Editor({
       // instance) drew 1-2 extra "dead" white lines during every doc drag — the
       // custom handleDocDrop owns all drops, so the only honest indicators are
       // our own .doc-insert-gap--drag / .wrap-drop-line (2026-07-11).
-      StarterKit.configure({ heading: { levels: [1, 2, 3] }, dropcursor: false }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] }, dropcursor: false }),
       Placeholder.configure({ placeholder }),
       Image.configure({ inline: false, allowBase64: true }),
       TaskList,
@@ -892,7 +892,7 @@ const Editor = forwardRef(function Editor({
       Footnote,
       DocLink,
       PillBackspace,
-      HeadingFocus,
+      LiveMarkdown,
       ModuleEmbed,
       WrapGroup,
       ExprPill,

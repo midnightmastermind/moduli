@@ -164,7 +164,7 @@ function BoundTextEditor({ host, binding, value, field, badge, occurrencesById, 
   const editor = useEditor(
     {
       extensions: [
-        StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+        StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
         // Data-driven, so the notes field can prompt "Add notes..." while the
         // Daily Answer keeps its own wording. The seed already authors it.
         Placeholder.configure({ placeholder: field?.meta?.placeholder || "Answer…" }),
