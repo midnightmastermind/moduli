@@ -55,6 +55,22 @@ export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
   getAllGridsForUser, userRoom, gridRoom, io,
 }) {
+  // A reader window (client ReaderApp, `?read=`) edits one page: it joins the grid so its writes land on the grid's
+  // cache and reach the other tabs, WITHOUT the 15MB full_state. Not a feed member (it shows no feeds).
+  socket.on("join_grid_quiet", async ({ gridId } = {}, ack) => {
+    try {
+      const userId = socket.data.userId;
+      if (!userId || !gridId) return ack?.({ ok: false, error: "not_signed_in" });
+      const owns = await Grid.exists({ _id: gridId, userId });
+      if (!owns) return ack?.({ ok: false, error: "not_found" });
+      const prev = socket.data.activeGridId;
+      if (prev && prev !== gridId) socket.leave(gridRoom(userId, prev));
+      socket.join(gridRoom(userId, gridId));
+      socket.data.activeGridId = gridId;
+      ack?.({ ok: true });
+    } catch (e) { ack?.({ ok: false, error: e.message }); }
+  });
+
   socket.on("request_full_state", async (payload = {}) => {
     let { gridId } = payload || {};
     const userId = socket.userId;

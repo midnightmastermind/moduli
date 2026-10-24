@@ -7,7 +7,7 @@ import * as CommitHelpers from "./CommitHelpers";
 // `moduleId` is the schema-canonical pointer PageFolder / pagesList / role
 // lookups read; `targetId` is the legacy alias the server's createOccurrenceData
 // still uses. A doc page renders its OWN textmap, so only it gets one.
-export function createPageInFolder({ folderId, kind, sortOrder, state, dispatch, socket }) {
+export function createPageInFolder({ folderId, kind, sortOrder, label = "Untitled", state, dispatch, socket }) {
   const userId = state?.userId;
   const gridId = state?.grid?._id || state?.gridId;
   if (!folderId || !kind || !userId || !gridId || !dispatch || !socket) return null;
@@ -15,7 +15,7 @@ export function createPageInFolder({ folderId, kind, sortOrder, state, dispatch,
   const occId = crypto.randomUUID();
   CommitHelpers.createModule({
     dispatch, socket,
-    module: { id: modId, userId, gridId, role: "page", kind, label: "Untitled" }, emit: true,
+    module: { id: modId, userId, gridId, role: "page", kind, label }, emit: true,
   });
   CommitHelpers.createOccurrence({
     dispatch, socket,

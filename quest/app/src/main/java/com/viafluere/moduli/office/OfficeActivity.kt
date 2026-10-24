@@ -145,6 +145,8 @@ class OfficeActivity : AppSystemActivity() {
      *  (null = the Moduli origin; the window's view is an app asset). */
     var decorEntry: JSONObject? = null
     var panelBase: String? = null
+    /** A panel that is a live web page (the grid screen) rather than HTML the app writes. */
+    var panelUrl: String? = null
     /** A screen running a tape (its picture is not put back until ⏹). */
     var videoPlaying = false
     /** The 🗑 beside the ⚙ (none on the fireplace). */
@@ -354,6 +356,12 @@ class OfficeActivity : AppSystemActivity() {
       "decorSetting" -> setDecorScreen(m.optString("key"), m.optString("screenId").takeIf { !m.isNull("screenId") && it.isNotEmpty() })
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       "addDecor" -> addDecor(m)
+      // The new-note screen's button: the control panel (signed in, holds the grid) makes the page, then says "openNote".
+      "newNote" -> send(JSONObject().put("type", "newNote").put("key", m.optString("key")))
+      "openNote" -> {
+        val at = things[m.optString("key")]?.frame?.tryGetComponent<Transform>()?.transform
+        openReader(m.optString("id"), near = at?.let { val p = PoseMath.tOf(it); floatArrayOf(p[0], 1.4f, p[2]) })
+      }
       "spawn" -> things[m.optString("key")]?.let { putInFront(it) }
       "mode" -> { store.mode = m.optString("mode", "mr"); applyMode(store.mode); send(JSONObject().put("type", "mode").put("mode", store.mode)) }
       "resetLayout" -> { store.clearPoses(); for (t in things.values) putDefault(t) }
@@ -425,7 +433,10 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun modelUri(model: String, src: String? = null): Uri =
-      if (src != null) Uri.parse(if (src.startsWith("http")) src else origin + src) else Uri.parse("apk:///office/$model.glb")
+      if (src != null) Uri.parse(if (src.startsWith("http")) src else origin + src) else Uri.parse("apk:///office/${modelFile(model)}.glb")
+
+  /** Pieces drawn with another piece's model: the grid screen and the new-note screen are screens. */
+  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad" -> "screen"; else -> model }
 
   private fun ensureThing(key: String, model: String, src: String? = null): Thing {
     things[key]?.let { return it }
@@ -435,7 +446,7 @@ class OfficeActivity : AppSystemActivity() {
     ))
     val t = Thing(key, frame)
     things[key] = t
-    val size = sizes.optJSONObject(if (src != null) "" else model)
+    val size = sizes.optJSONObject(if (src != null) "" else modelFile(model))
     t.top = size?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
     if (src == null && size != null) {
       t.model = model; t.hx = size.optDouble("hx").toFloat(); t.hz = size.optDouble("hz").toFloat()
@@ -646,7 +657,8 @@ class OfficeActivity : AppSystemActivity() {
     val id = nextPanelId++
     registerPanel(webPanel(id, w, h, toolbar = false) { web ->
       t.web = web
-      web.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
+      val url = t.panelUrl
+      if (url != null) web.loadUrl(url) else web.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
     })
     // A panel shows its face on -z; the furniture's front is +z, so the panel is turned to look out of it.
     t.panelAt = floatArrayOf(y, z)
@@ -660,7 +672,7 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   private fun refreshPanel(t: Thing) {
-    if (t.videoPlaying) return
+    if (t.videoPlaying || t.panelUrl != null) return
     if (t.key.startsWith("screen:")) {
       val id = t.key.removePrefix("screen:")
       val s = (0 until (state?.optJSONArray("screens")?.length() ?: 0))
@@ -714,6 +726,10 @@ class OfficeActivity : AppSystemActivity() {
       }
       "recordplayer" -> { t.html = PanelHtml.playerIdle("record"); attachPanel(t, 0.34f, 0.12f, 0.24f, 0f) }
       "vhsplayer" -> { t.html = PanelHtml.playerIdle("tape"); attachPanel(t, 0.34f, 0.12f, 0.2f, 0f) }
+      // The whole grid, live: the app itself (its own panels and date — `local`), on a screen you place.
+      "gridscreen" -> { t.panelUrl = "$origin/?local=1"; attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
+      // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
+      "notepad" -> { t.html = PanelHtml.notepad(t.key); attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
     }
   }
 

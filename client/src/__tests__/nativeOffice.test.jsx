@@ -115,3 +115,16 @@ describe("the today board and the VHS player", () => {
     window.history.replaceState(null, "", "/");
   });
 });
+
+import { findNotesFolder } from "../vr/NativeOffice.jsx";
+describe("the new-note screen", () => {
+  it("files a note in the Notes folder inside Documents, not another folder of that name", () => {
+    const foldersById = {
+      a: { id: "a", name: "Notes", parentId: "proj" }, proj: { id: "proj", name: "Projects" },
+      b: { id: "b", name: "Notes", parentId: "docs" }, docs: { id: "docs", name: "Documents" },
+    };
+    expect(findNotesFolder(foldersById)).toBe("b");
+    expect(findNotesFolder({ a: foldersById.a })).toBe("a");
+    expect(findNotesFolder({})).toBe(null);
+  });
+});

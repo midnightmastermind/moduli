@@ -245,6 +245,10 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       const l = new THREE.PointLight(0xffb45a, 0.6, 1.5, 1.6); l.position.y = 0.16; g.add(l);
       return g;
     }
+    // Screens with a job (the headset app gives them their page): drawn as a screen.
+    case "gridscreen":
+    case "notepad":
+      return makeScreenFrame(THREE);
     default:
       return null;
   }

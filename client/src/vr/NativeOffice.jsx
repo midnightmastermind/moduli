@@ -24,6 +24,8 @@ import { shelfItems } from "./shelfItems.js";
 import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
+import { createPageInFolder } from "../helpers/createPageInFolder.js";
+import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
 export function hasNativeBridge() {
@@ -85,6 +87,21 @@ export function findDayPage({ occurrencesById, modulesById, foldersById } = {}) 
     return occ.id;
   }
   return null;
+}
+
+/** The Notes folder (the one inside Documents when there are several), or null. Pure. */
+export function findNotesFolder(foldersById) {
+  const all = Object.values(foldersById || {});
+  const notes = all.filter((f) => f?.name === "Notes");
+  return (notes.find((f) => foldersById[f.parentId]?.name === "Documents") || notes[0] || null)?.id || null;
+}
+
+/** Make a new note: a doc page in Notes, named for now. Returns its occurrence id, or null. */
+function newNotePage({ grid, foldersById, dispatch }) {
+  const folderId = findNotesFolder(foldersById);
+  if (!folderId) return null;
+  const label = "Note — " + new Date().toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return createPageInFolder({ folderId, kind: "doc", label, state: { userId: grid?.userId || localStorage.getItem("moduli-userId"), grid }, dispatch, socket });
 }
 
 /** One piece's settings, in its own window beside it (`/?office&piece=<key>`). Sends no state — the main panel does. */
@@ -209,6 +226,11 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const g = live.current.grid;
           if (k === "shelf") save(removeShelf(g, id));
           else if (k === "screen") save(removeScreen(g, id));
+        }
+        else if (e?.type === "newNote") {
+          // The new-note screen's button: a doc page in Notes (it is on the Documents shelf), opened beside the screen.
+          const id = newNotePage(live.current);
+          if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
         }
         else if (e?.type === "mode") setMode(e.mode);
         else if (e?.type === "moveMode") setMoveMode(!!e.on);

@@ -49,7 +49,9 @@ export default function PagePreviewApp({ occurrenceId }) {
 // React tree) can mount it inline without an iframe. Same subtree
 // filtering, same context-override architecture — only the state source
 // changes.
-export function PagePreviewBody({ parentState, occurrenceId, scroll = false, publishComputed = true, rootChrome = false }) {
+// `dispatch` + `socket` (both optional): a READER that can edit (ReaderApp) hands its own store and socket; a preview
+// card passes neither and stays read-only.
+export function PagePreviewBody({ parentState, occurrenceId, scroll = false, publishComputed = true, rootChrome = false, dispatch: dispatchProp = null, socket: socketProp = null }) {
   // Build a SUBTREE-only view of the parent state. The iframe needs:
   //   - the target occurrence + every descendant reachable via .occurrences[]
   //     or .parentId (instances inside containers, container children of a
@@ -267,6 +269,8 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
   const module = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
 
   const noop = useMemo(() => () => {}, []);
+  const dispatch = dispatchProp || noop;
+  const socket = socketProp || null;
   // Mirror App.jsx's stable non-subscribing getters so hot-path components
   // (ModuleContainer / ModuleInstance) work identically under preview.
   const lookupsRef = useRef({});
@@ -283,8 +287,8 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
   const getState = useCallback(() => lookupsRef.current.state || {}, []);
   const getViewMap = useCallback(() => lookupsRef.current.viewsById || {}, []);
   const actionsValue = useMemo(() => ({
-    dispatch: noop,
-    socket: null,
+    dispatch,
+    socket,
     state: parentState || {},
     getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState, getViewMap,
     occurrencesById,
@@ -302,7 +306,7 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
     operationsById,
     linkedGroupIndex: {},
     childrenByParentId,
-  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState, getViewMap]);
+  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, dispatch, socket, parentState, getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState, getViewMap]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
   // Publish the parent snapshot so field displays resolve.
@@ -362,8 +366,8 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
                 panelId={null}
                 panelOccurrence={null}
                 panelView={null}
-                dispatch={noop}
-                socket={null}
+                dispatch={dispatch}
+                socket={socket}
                 addInstanceToContainer={noop}
                 drilldownTarget={null}
                 onDrilldownComplete={null}
@@ -374,16 +378,16 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
                  && !(rootChrome && module.role === "container")) ? (
               <DocContent
                 occurrence={occurrence}
-                dispatch={noop}
-                socket={null}
+                dispatch={dispatch}
+                socket={socket}
               />
             ) : (
               <Container
                 module={module}
                 occurrenceOverride={occurrence}
                 panelId={null}
-                dispatch={noop}
-                socket={null}
+                dispatch={dispatch}
+                socket={socket}
               />
             )}
           </div>

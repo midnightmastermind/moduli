@@ -96,6 +96,18 @@ object PanelHtml {
 </script></body></html>"""
   }
 
+  /** The new-note screen: one big button (the app asks the control panel to make the page, then opens it). */
+  fun notepad(key: String): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;background:rgba(24,18,12,.9);font-family:Georgia,serif;color:#f4e9d8;overflow:hidden}
+  #w{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vh}
+  button{font-size:12vh;padding:3vh 8vw;border-radius:3vh;border:.6vh solid #ffd27a;background:#3a2616;color:#f4e9d8}
+  #n{font-size:5vh;opacity:.7}
+</style></head><body><div id="w">
+  <button onclick="this.disabled=true;send({type:'newNote',key:${js(key)}});setTimeout(()=>this.disabled=false,3000)">＋ New note</button>
+  <div id="n">Opens a new page in Notes</div>
+</div><script>$BRIDGE</script></body></html>"""
+
   /** The spine colour of an item, as the shelf page picks it (the 3D book in your hand takes the same one). */
   fun spineColor(title: String): Int {
     var h = 0
