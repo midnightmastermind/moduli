@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-24 — A READER IS ONE PAGE, NOT THE GRID; codex pictures uploaded; office: grid screen, new-note screen, readers come back
+
+User (on the Quest): a book loads the whole grid · several pulled books all became the last one · broken images in the
+notes · book hover laggy · open books should stay · a placeable whole-grid screen · a new-note screen · Bookmarks "37".
+- **`?read=<occId>` → `ReaderApp`** (+ `GET /api/v1/occurrences/:id/subtree`, `services/readSubtree.js`: what the root
+  lists, what is parented to it, what its textmaps embed; cache first, else Mongo by level; cap 3000). A codex note: 6KB
+  in 0.25s instead of the ~15MB grid. It EDITS: its own store (masterReducer over the subtree) + the socket singleton,
+  which joins the grid with the new `join_grid_quiet` (no full_state); `PagePreviewBody` takes `dispatch`/`socket`.
+  Watched on test grid 2: typing in a page's textblock saved (transactions applied), then removed. Each Quest reader
+  window is its own page now, so several books stay independent. A brand-new page 404s briefly: the reader retries 5x.
+- **`0430`** codex local images: 545 links → 206 files copied to prod `uploads/user/codex/` (sha16 names, rsynced BEFORE
+  --apply), 127 with no file anywhere in ~/notebook removed. **`0431`** dead web images: 69 of 244 dead; 20 recovered
+  (the wp.com proxy's origin, else the Internet Archive — it rate-limits: one at a time), 49 removed. Map in
+  CODEX_DEAD_IMAGES (outside git).
+- **Office:** a hover/hold changes one spine's class (draw() rebuilt every spine and reloaded every cover per move); an
+  unchanged shelf is not reloaded; open readers are saved per grid (`readers:<grid>`, occ + pose) and reopen; a removed
+  occurrence resends the shelves at once; decor `gridscreen` (the app, `?local=1`, on a screen) and `notepad` (a button →
+  control panel `newNote` → a doc page "Note — <date>" in Documents/Notes → `openNote` beside it). Shelf header reads
+  "1,469 · page 1 of 37" (the user read 37 as the count).
+- **Google Drive's refresh token is expired/revoked** (health: needsReconnect) — uncached books 502. The user must
+  reconnect in Command Center › Connections.
+
+---
+
 ### 2026-10-23 (6) — SLOT SHADES CLOSE TOGETHER; 19 bare board selects become string lists; a Purchases board
 
 User: *"the 2 shades red and green for the timeslots … are too diff"* · boards for selects that are "not necessary,
