@@ -2507,6 +2507,9 @@ function _routeDrop(dropContext, ctx) {
   const { payload } = dropContext;
   const sourceModule = payload.moduleId ? ctx.state?.modulesById?.[payload.moduleId] : null;
   const sourceRole = sourceModule?.role || null;
+  if (typeof window !== "undefined" && window.__dragDiag === true) {
+    console.log("[dragDiag] route", { sourceKind: payload.sourceKind, payloadType: payload.payloadType, sourceRole, moduleId: payload.moduleId, occurrenceId: payload.occurrenceId, mode: dropContext.mode, target: dropContext.target?.kind, targetOcc: dropContext.target?.occurrenceId, parent: dropContext.target?.parentOccurrenceId });
+  }
 
   // Source-kind first — these are unambiguous and don't depend on role.
   if (payload.sourceKind === "file") return handleFileDrop(dropContext, ctx);
