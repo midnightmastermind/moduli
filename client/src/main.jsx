@@ -52,6 +52,8 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // Check for preview mode — iframe thumbnails pass ?previewOcc=<occId>
 const params = new URLSearchParams(window.location.search);
 const previewOcc = params.get("previewOcc");
+// `?read=<occId>`: one page or book on its own (the Quest app's reader windows) — no grid, no socket.
+const readOcc = params.get("read");
 
 // Which of the three apps is this?
 //
@@ -83,6 +85,10 @@ if (isSharePath) {
       <Page />
     </React.Suspense>
   );
+} else if (readOcc) {
+  import("./ReaderApp.jsx").then(({ default: ReaderApp }) => {
+    root.render(<ReaderApp occurrenceId={readOcc} />);
+  });
 } else if (previewOcc) {
   // Lightweight preview app — only loads the occurrence subtree
   import("./PagePreviewApp.jsx").then(({ default: PagePreviewApp }) => {

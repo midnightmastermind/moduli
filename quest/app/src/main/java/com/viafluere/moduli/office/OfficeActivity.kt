@@ -186,6 +186,11 @@ class OfficeActivity : AppSystemActivity() {
   private var state: JSONObject? = null
   private val things = LinkedHashMap<String, Thing>()
   private val readers = HashMap<Int, Entity>()
+  /** What each open reader shows (books and pages, not settings windows) — saved, so they are there next time. */
+  private val readerOcc = HashMap<Int, String>()
+  private var lastReadersSaved = ""
+  /** The grid whose open readers have been put back (once per grid, after the room is built). */
+  private var readersRestoredFor = ""
   private val readerHandles = HashMap<Int, GrabHandle>()
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
   private val pieceWindows = HashMap<String, Int>()
@@ -364,6 +369,9 @@ class OfficeActivity : AppSystemActivity() {
     state = m
     m.optString("origin").takeIf { it.isNotEmpty() }?.let { origin = it }
     if (gridChanged) {
+      // Another grid's open books close (without saving: that would write this grid's empty list over them).
+      for (id in readerOcc.keys.toList()) { readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy() }
+      readerOcc.clear(); lastReadersSaved = ""
       store.gridId = m.optString("gridId")
       for (k in things.keys.toList()) if (k != CONTROL) deleteEntity(k)
       placed = false
@@ -385,6 +393,13 @@ class OfficeActivity : AppSystemActivity() {
   private fun placeAll() {
     if (!sceneReady) { main.postDelayed({ placeAll() }, 500); return }
     placed = true
+    if (store.gridId.isNotEmpty() && readersRestoredFor != store.gridId) {
+      readersRestoredFor = store.gridId
+      for (r in store.readers()) {
+        val t = r.optJSONArray("t") ?: continue; val q = r.optJSONArray("q") ?: continue
+        openReader(r.optString("occ"), pose = PoseMath.pose(FloatArray(3) { t.optDouble(it).toFloat() }, FloatArray(4) { q.optDouble(it).toFloat() }))
+      }
+    }
     val st = state
     val wanted = LinkedHashMap<String, () -> Unit>()
     wanted[CONTROL] = {}
@@ -449,7 +464,11 @@ class OfficeActivity : AppSystemActivity() {
     t.shelfItems = s.optJSONArray("items") ?: org.json.JSONArray()
     val pages = maxOf(1, (t.shelfItems.length() + t.slots.size - 1) / t.slots.size)
     t.page = t.page.coerceIn(0, pages - 1)
-    t.html = PanelHtml.shelf(s, t.slots, size.h, t.page)
+    val html = PanelHtml.shelf(s, t.slots, size.h, t.page)
+    // The control panel resends its state on every change anywhere in the grid; a shelf whose contents did not
+    // change keeps its page (reloading it repainted every cover and rebuilt every book — part of the lag).
+    if (t.panel != null && html == t.html) return
+    t.html = html
     attachPanel(t, size.w - 0.06f, size.h + PanelHtml.HEADER_M, (size.h + PanelHtml.HEADER_M) / 2f, size.d / 2f + 0.01f)
     buildBooks(t, size)
   }
@@ -990,6 +1009,7 @@ class OfficeActivity : AppSystemActivity() {
     override fun execute() {
       if (++frames % 36 != 0) return
       for (t in things.values) remember(t)
+      saveReaders()
       backUpLayout()
     }
   }
@@ -1015,16 +1035,18 @@ class OfficeActivity : AppSystemActivity() {
    * Open a page or file to read. `near`: where you let go of a book — the reader opens there (at reading height),
    * facing you; otherwise in front of you.
    */
-  private fun openReader(occId: String, near: FloatArray? = null) {
+  private fun openReader(occId: String, near: FloatArray? = null, pose: Pose? = null) {
     val id = nextPanelId++
-    // `solo`: show just that page or file (its panel full screen), not the whole app.
-    val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?open=${Uri.encode(occId)}&local=1&solo=1"
+    // `read`: just that page or book, read on its own (ReaderApp) — not the whole grid. Each window keeps its own
+    // page: as full app tabs they shared storage, and opening a second book turned the first into it too.
+    val url = if (occId.isEmpty()) "$origin/?local=1" else "$origin/?read=${Uri.encode(occId)}"
     registerPanel(webPanel(id, READER_W, READER_H, toolbar = true) { web -> web.loadUrl(url) })
     val e = Entity.create(listOf(
         Panel(id),
-        Transform(near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
+        Transform(pose ?: near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
     ))
     readers[id] = e
+    if (occId.isNotEmpty()) { readerOcc[id] = occId; saveReaders() }
     readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
   }
 
@@ -1039,7 +1061,24 @@ class OfficeActivity : AppSystemActivity() {
     main.post {
       pieceWindows.entries.removeAll { it.value == id }
       readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy()
+      if (readerOcc.remove(id) != null) saveReaders()
     }
+  }
+
+  /** Keep the open books and pages (and where they float) so they are there when you come back. */
+  private fun saveReaders() {
+    if (store.gridId.isEmpty() || readersRestoredFor != store.gridId) return
+    val list = readerOcc.mapNotNull { (id, occ) ->
+      val p = readers[id]?.tryGetComponent<Transform>()?.transform ?: return@mapNotNull null
+      val t = PoseMath.tOf(p); val q = PoseMath.qOf(p)
+      JSONObject().put("occ", occ)
+          .put("t", org.json.JSONArray(t.map { Math.round(it * 1000) / 1000.0 }))
+          .put("q", org.json.JSONArray(q.map { Math.round(it * 1000) / 1000.0 }))
+    }
+    val json = org.json.JSONArray(list).toString()
+    if (json == lastReadersSaved) return
+    lastReadersSaved = json
+    store.saveReaders(list)
   }
 
   // ── Each piece's own settings: a ⚙ beside its handle opens a window for that piece alone ─────────

@@ -36,6 +36,7 @@ import View from "../models/View.js";
 import Manifest from "../models/Manifest.js";
 import { cloneSubtree } from "../utils/cloneSubtree.js";
 import { mintOccurrence } from "../services/occurrenceMint.js";
+import { readSubtree } from "../services/readSubtree.js";
 
 import { apiAuth } from "../middleware/apiAuth.js";
 import { rateLimit } from "../middleware/rateLimit.js";
@@ -492,6 +493,16 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const occ = await Occurrence.findOne({ id: req.params.id, userId: req.userId }).lean();
       if (!occ) return err(res, 404, "not_found", "Occurrence not found");
       res.json({ occurrence: occ });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // One page (or file) and everything it draws — the Quest app's reader windows read this instead of loading the
+  // whole grid (services/readSubtree). Session JWT allowed: the reader is an app page.
+  router.get("/occurrences/:id/subtree", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const out = await readSubtree({ rootId: req.params.id, userId: req.userId, peekUserCache });
+      if (!out) return err(res, 404, "not_found", "Occurrence not found");
+      res.json(out);
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

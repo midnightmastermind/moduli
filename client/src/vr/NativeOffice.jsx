@@ -168,8 +168,14 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
   const officeKey = JSON.stringify(office);
   useEffect(() => { sendState(); }, [officeKey, sendState]);
   const lastRows = useRef(0);
+  const lastCount = useRef(0);
   useEffect(() => {
-    const wait = Math.max(0, 5000 - (Date.now() - lastRows.current));
+    // Something removed (a page deleted): the shelves change at once — a book you just deleted must not sit there
+    // for 5 seconds. Additions and edits still wait, so a busy grid does not resend the shelves every moment.
+    const count = Object.keys(occurrencesById || {}).length;
+    const removed = count < lastCount.current;
+    lastCount.current = count;
+    const wait = removed ? 0 : Math.max(0, 5000 - (Date.now() - lastRows.current));
     const t = setTimeout(() => { lastRows.current = Date.now(); sendState(); }, wait);
     return () => clearTimeout(t);
   }, [occurrencesById, sendState]);

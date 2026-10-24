@@ -93,6 +93,17 @@ class PlacementStore(context: Context) {
     prefs.edit().putString("decor:$gridId", JSONArray(list).toString()).apply()
   }
 
+  /** The pages and books left open, and where: [{ "occ": id, "t": [x,y,z], "q": [w,x,y,z] }] (stage space). */
+  fun readers(): List<JSONObject> {
+    val a = JSONArray(prefs.getString("readers:$gridId", "[]") ?: "[]")
+    return (0 until a.length()).map { a.getJSONObject(it) }
+  }
+
+  fun saveReaders(list: List<JSONObject>) {
+    if (gridId.isEmpty()) return
+    prefs.edit().putString("readers:$gridId", JSONArray(list).toString()).apply()
+  }
+
   var mode: String
     get() = prefs.getString("mode", "mr") ?: "mr"
     set(v) { prefs.edit().putString("mode", v).apply() }

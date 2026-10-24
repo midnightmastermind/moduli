@@ -72,14 +72,18 @@ object PanelHtml {
   function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
   var per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null;
   function go(d){page=(page+d+pages)%pages;draw();send({type:'shelfPage',key:key,page:page});}
-  function hold(id,on){if(on)held[id]=1;else delete held[id];draw();}
-  function hover(id){hoverId=id;draw();}
+  // Pointing and holding change ONE spine's look, never the page: draw() rebuilds every spine and reloads every
+  // cover, which made pointing along a shelf lag (it ran on each move from one book to the next).
+  var nodes={};
+  function look(id){var d=nodes[id];if(d)d.className='it'+(held[id]?' held':(id===hoverId?' hover':''));}
+  function hold(id,on){if(on)held[id]=1;else delete held[id];look(id);}
+  function hover(id){var was=hoverId;hoverId=id;if(was)look(was);if(id)look(id);}
   function draw(){
-    var box=document.getElementById('rows'); box.innerHTML='';
-    document.getElementById('pg').textContent=(page+1)+' / '+pages+' · '+items.length;
+    var box=document.getElementById('rows'); box.innerHTML=''; nodes={};
+    document.getElementById('pg').textContent=items.length.toLocaleString()+' · page '+(page+1)+' of '+pages;
     if(!items.length){box.innerHTML='<div id="empty">Press ⚙ to choose what this shelf holds.</div>';return;}
     items.slice(page*per,page*per+per).forEach(function(it,i){
-      var r=rects[i], d=document.createElement('div'); d.className='it'+(held[it.id]?' held':(it.id===hoverId?' hover':''));
+      var r=rects[i], d=document.createElement('div'); nodes[it.id]=d; look(it.id);
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';
       d.style.backgroundColor=asset==='vhs' ? '#151515' : colors[hash(it.t)%colors.length];
       if(it.c) d.style.backgroundImage='url("'+it.c.replace(/"/g,'%22')+'")';
