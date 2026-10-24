@@ -13,6 +13,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,6 +148,8 @@ class OfficeActivity : AppSystemActivity() {
     var panelBase: String? = null
     /** A panel that is a live web page (the grid screen) rather than HTML the app writes. */
     var panelUrl: String? = null
+    /** A browser screen: its panel has an address bar and back / forward / reload. */
+    var browser = false
     /** A screen running a tape (its picture is not put back until ⏹). */
     var videoPlaying = false
     /** The 🗑 beside the ⚙ (none on the fireplace). */
@@ -206,6 +209,8 @@ class OfficeActivity : AppSystemActivity() {
     try { JSONObject(assets.open("office/sizes.json").bufferedReader().readText()) } catch (e: Exception) { JSONObject() }
   }
   private val screenImages = HashMap<String, String>()
+  /** The bookmarks bar every browser screen shows: the Bookmarks board's first ones, (title, url). */
+  private val bookmarkBar = androidx.compose.runtime.mutableStateListOf<Pair<String, String>>()
   private var sceneReady = false
   private var placed = false
 
@@ -272,6 +277,102 @@ class OfficeActivity : AppSystemActivity() {
             )
           },
       )
+
+  /** What a typed address means: a url as it is (https added when missing), anything else a web search. */
+  private fun addressToUrl(text: String): String {
+    val a = text.trim()
+    if (a.isEmpty()) return "https://www.google.com"
+    if (Regex("^[a-z][a-z0-9+.-]*://", RegexOption.IGNORE_CASE).containsMatchIn(a)) return a
+    if (!a.contains(' ') && a.contains('.')) return "https://$a"
+    return "https://www.google.com/search?q=" + Uri.encode(a)
+  }
+
+  /** A browser screen's panel: back / forward / reload and an address bar over a real WebView (no frame — most sites
+   *  refuse to be shown in one). The page it is on is kept on the decor entry, so it reopens there. */
+  @SuppressLint("SetJavaScriptEnabled")
+  private fun browserPanel(id: Int, w: Float, h: Float, t: Thing): PanelRegistration =
+      ComposeViewPanelRegistration(
+          id,
+          composeViewCreator = { _, ctx ->
+            ComposeView(ctx).apply {
+              setContent {
+                var address by remember { mutableStateOf(t.panelUrl ?: "") }
+                var web by remember { mutableStateOf<WebView?>(null) }
+                Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF1D1D1D))) {
+                  Row(Modifier.fillMaxWidth().padding(6.dp)) {
+                    Button(onClick = { web?.let { if (it.canGoBack()) it.goBack() } }) { Text("◀") }
+                    Button(onClick = { web?.let { if (it.canGoForward()) it.goForward() } }) { Text("▶") }
+                    Button(onClick = { web?.reload() }) { Text("⟳") }
+                    androidx.compose.material3.OutlinedTextField(
+                        value = address,
+                        onValueChange = { address = it },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { web?.loadUrl(addressToUrl(address)) }),
+                    )
+                    Button(onClick = { web?.loadUrl(addressToUrl(address)) }) { Text("Go") }
+                    // ☆ saves this page to the Bookmarks board (the control panel writes it), ★ when it is there.
+                    val saved = bookmarkBar.any { it.second == address }
+                    Button(onClick = {
+                      val w = web ?: return@Button
+                      if (!saved) send(JSONObject().put("type", "saveBookmark").put("url", w.url ?: address).put("title", w.title ?: ""))
+                    }) { Text(if (saved) "★" else "☆") }
+                  }
+                  // The bookmarks bar, under the address bar like any browser's.
+                  Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 6.dp)) {
+                    for ((title, url) in bookmarkBar) {
+                      androidx.compose.material3.TextButton(onClick = { web?.loadUrl(url) }) {
+                        Text(title.ifEmpty { url }.take(24), maxLines = 1)
+                      }
+                    }
+                  }
+                  AndroidView(
+                      modifier = Modifier.fillMaxSize(),
+                      factory = { c ->
+                        WebView(c).apply {
+                          layoutParams = android.view.ViewGroup.LayoutParams(
+                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                          )
+                          settings.javaScriptEnabled = true
+                          settings.domStorageEnabled = true
+                          settings.databaseEnabled = true
+                          settings.mediaPlaybackRequiresUserGesture = false
+                          settings.loadWithOverviewMode = true
+                          settings.useWideViewPort = true
+                          webChromeClient = WebChromeClient()
+                          webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView, url: String) {
+                              address = url
+                              main.post { rememberBrowserUrl(t, url) }
+                            }
+                          }
+                          t.web = this
+                          web = this
+                          loadUrl(t.panelUrl ?: "https://www.google.com")
+                        }
+                      },
+                  )
+                }
+              }
+            }
+          },
+          settingsCreator = {
+            UIPanelSettings(
+                shape = QuadShapeOptions(width = w, height = h),
+                style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
+                display = DpPerMeterDisplayOptions(),
+            )
+          },
+      )
+
+  /** Keep a browser screen's page on its decor entry (so it reopens there). */
+  private fun rememberBrowserUrl(t: Thing, url: String) {
+    if (url.isEmpty() || url.startsWith("about:")) return
+    t.panelUrl = url
+    store.saveDecor(store.decor().map { e -> if (e.optString("key") == t.key) JSONObject(e.toString()).put("url", url) else e })
+  }
 
   /** Pages (the control panel, shelves, screens) talk to the app through `window.ModuliNative.postMessage`. */
   inner class Bridge {
@@ -375,6 +476,10 @@ class OfficeActivity : AppSystemActivity() {
   private fun onState(m: JSONObject) {
     val gridChanged = store.gridId != m.optString("gridId")
     state = m
+    m.optJSONArray("bookmarks")?.let { a ->
+      val next = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { it.optString("title") to it.optString("url") } }
+      if (next != bookmarkBar.toList()) { bookmarkBar.clear(); bookmarkBar.addAll(next) }
+    }
     m.optString("origin").takeIf { it.isNotEmpty() }?.let { origin = it }
     if (gridChanged) {
       // Another grid's open books close (without saving: that would write this grid's empty list over them).
@@ -436,7 +541,7 @@ class OfficeActivity : AppSystemActivity() {
       if (src != null) Uri.parse(if (src.startsWith("http")) src else origin + src) else Uri.parse("apk:///office/${modelFile(model)}.glb")
 
   /** Pieces drawn with another piece's model: the grid screen and the new-note screen are screens. */
-  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad" -> "screen"; else -> model }
+  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad", "browser" -> "screen"; else -> model }
 
   private fun ensureThing(key: String, model: String, src: String? = null): Thing {
     things[key]?.let { return it }
@@ -655,7 +760,8 @@ class OfficeActivity : AppSystemActivity() {
     applyScale(t)
     if (t.panel != null) { refreshPanel(t); return }
     val id = nextPanelId++
-    registerPanel(webPanel(id, w, h, toolbar = false) { web ->
+    if (t.browser) registerPanel(browserPanel(id, w, h, t))
+    else registerPanel(webPanel(id, w, h, toolbar = false) { web ->
       t.web = web
       val url = t.panelUrl
       if (url != null) web.loadUrl(url) else web.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
@@ -730,6 +836,12 @@ class OfficeActivity : AppSystemActivity() {
       "gridscreen" -> { t.panelUrl = "$origin/?local=1"; attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
       "notepad" -> { t.html = PanelHtml.notepad(t.key); attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
+      // A plain web browser on a screen: an address bar, back / forward / reload; it remembers its last page.
+      "browser" -> {
+        t.browser = true
+        t.panelUrl = entry.optString("url").ifEmpty { "https://www.google.com" }
+        attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H + 0.16f, OfficeSizes.SCREEN_Y, 0.025f)
+      }
     }
   }
 

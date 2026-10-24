@@ -25,6 +25,7 @@ import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
+import { addBookmarkOccurrence } from "../helpers/CommitHelpers.js";
 import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -34,6 +35,36 @@ export function hasNativeBridge() {
 
 function post(msg) {
   try { window.ModuliNative?.postMessage(JSON.stringify(msg)); } catch (e) { console.warn("[office] native post failed", e); }
+}
+
+/** How many bookmarks a browser screen's bar shows (the board's first ones — a new one goes to the top). */
+export const BOOKMARK_BAR_MAX = 40;
+
+/** The Bookmarks board's container (the one named Bookmarks holding the most bookmarks), or null. Pure. */
+export function findBookmarksBoard({ occurrencesById, modulesById }) {
+  let best = null; let bestCount = -1;
+  for (const occ of Object.values(occurrencesById || {})) {
+    const mod = modulesById?.[occ?.moduleId];
+    if (mod?.role !== "container" || (occ.label || mod.label) !== "Bookmarks") continue;
+    const count = (occ.occurrences || []).filter((id) => modulesById?.[occurrencesById[id]?.moduleId]?.kind === "bookmark").length;
+    if (count > bestCount) { best = occ; bestCount = count; }
+  }
+  return best;
+}
+
+/** The bookmarks bar: the board's first bookmarks, as { title, url }. Pure. */
+export function bookmarkBar({ occurrencesById, modulesById }) {
+  const board = findBookmarksBoard({ occurrencesById, modulesById });
+  const out = [];
+  for (const id of board?.occurrences || []) {
+    const occ = occurrencesById[id]; const mod = modulesById?.[occ?.moduleId];
+    if (mod?.kind !== "bookmark") continue;
+    const url = occ.meta?.url || mod.fileRef;
+    if (!url) continue;
+    out.push({ title: (occ.label || mod.label || url).slice(0, 60), url });
+    if (out.length >= BOOKMARK_BAR_MAX) break;
+  }
+  return out;
 }
 
 /** What the headset draws, as plain data. Pure, so it can be tested. */
@@ -54,6 +85,7 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
     })),
     decor: decorLibrary({ grid, occurrencesById, modulesById }).map((d) => ({ key: d.key, title: d.title, src: d.src || null })),
     layout: grid?.meta?.vrLayout || null,
+    bookmarks: bookmarkBar({ occurrencesById, modulesById }),
   };
 }
 
@@ -226,6 +258,17 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const g = live.current.grid;
           if (k === "shelf") save(removeShelf(g, id));
           else if (k === "screen") save(removeScreen(g, id));
+        }
+        else if (e?.type === "saveBookmark") {
+          // A browser screen's ☆: the page goes to the top of the Bookmarks board (and so onto every browser's bar).
+          const L = live.current;
+          const board = findBookmarksBoard(L);
+          if (!board || !e.url) return;
+          addBookmarkOccurrence({
+            dispatch: L.dispatch, socket, gridId: L.gridId, userId: L.grid?.userId || localStorage.getItem("moduli-userId"),
+            containerOccurrence: board, url: e.url, label: e.title || null, index: 0,
+          });
+          setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
         }
         else if (e?.type === "newNote") {
           // The new-note screen's button: a doc page in Notes (it is on the Documents shelf), opened beside the screen.

@@ -248,6 +248,7 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
     // Screens with a job (the headset app gives them their page): drawn as a screen.
     case "gridscreen":
     case "notepad":
+    case "browser":
       return makeScreenFrame(THREE);
     default:
       return null;

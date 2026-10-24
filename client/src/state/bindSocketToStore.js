@@ -51,7 +51,9 @@ import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 import { loadBootSnapshot, saveBootSnapshot } from "../helpers/bootSnapshot.js";
 import { applyViewOverlay, recordViewPage } from "../helpers/bootViewOverlay";
 import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
-import { incomingGridPatch, isLocalLayout } from "../helpers/localLayout.js";
+import { incomingGridPatch, isLocalLayout, currentPanelIds } from "../helpers/localLayout.js";
+import { getWindowId } from "../helpers/windowId.js";
+import { applyWindowLayout, readWindowLayout, incomingPanelUpdate } from "../helpers/windowLayout.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -271,6 +273,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // take them in so the screen keeps them and the sweep computes from them. The queue itself
     // is still flushed to the server after the sweep.
     if (!fromSnapshot) payload = applyQueuedEditsToPayload(payload, peekOfflineQueue());
+    // This window's own layout (which panels, which pages, the split, the date) over the server's last-written one.
+    payload = applyWindowLayout(payload, readWindowLayout(payload.gridId));
 
     timeLoad("dispatch", () => socketDispatch({ type: ActionTypes.FULL_STATE, payload }));
 
@@ -1027,14 +1031,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     opEmittedOccIds.delete(occurrence.id);
   }
 
-  function onOccurrenceUpdated({ occurrence } = {}) {
+  function onOccurrenceUpdated({ occurrence: incoming } = {}) {
     scheduleFeedSync();
-    if (!occurrence?.id) return;
+    if (!incoming?.id) return;
+    // Another window's PANEL layout (its pages, place, visibility) stays in that window (helpers/windowLayout).
+    const occurrence = incomingPanelUpdate(incoming, currentPanelIds());
 
     const prevOcc = localOccsById[occurrence.id];
 
-    // Keep local cache current before React re-renders stateRef
-    setLocalOcc(occurrence.id, occurrence);
+    // Keep local cache current before React re-renders stateRef. A panel update with its layout stripped is a
+    // PARTIAL row: the overlay replaces whole rows, so it keeps the panel's own pages from before.
+    setLocalOcc(occurrence.id, occurrence !== incoming && prevOcc ? { ...prevOcc, ...occurrence } : occurrence);
 
     socketDispatch({
       type: ActionTypes.UPDATE_OCCURRENCE,
@@ -1132,6 +1139,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   socket.on("occurrence_created", onOccurrenceCreated);
   socket.on("occurrence_updated", onOccurrenceUpdated);
   socket.on("occurrence_deleted", onOccurrenceDeleted);
+  // A cross-grid MOVE (socketHandlers/crossGrid): the other grid has its copy; the window the drag started in deletes
+  // the original through the ordinary delete (from where it sat, so a file homed in Files only leaves that spot).
+  function onCrossGridMoved({ sourceOccurrenceId, sourceWindowId } = {}) {
+    if (!sourceOccurrenceId || sourceWindowId !== getWindowId()) return;
+    const occurrence = localOccsById[sourceOccurrenceId] || (stateRef.current?.occurrences || []).find((o) => o.id === sourceOccurrenceId);
+    if (!occurrence) return;
+    deleteOccurrence({ dispatch: socketDispatch, socket, occurrenceId: sourceOccurrenceId, occurrence, fromParentId: occurrence.parentId || null });
+  }
+  socket.on("cross_grid_moved", onCrossGridMoved);
 
   // Stale-write rejection (#26 cheapest-level conflict resolution).
   // Server emits this when an update_occurrence's expectedUpdatedAt is
@@ -1248,9 +1264,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onGridUpdated(payload = {}) {
     // The REST route (routes/apiV1) sends `{ grid }` with the id INSIDE it.
     const gridId = payload.gridId || payload.id || payload.grid?.id;
-    // A tab keeping its layout to itself (the VR office) ignores other devices'
-    // layout and date filter (helpers/localLayout).
-    const patch = incomingGridPatch(payload.grid || payload, stateRef.current?.grid?.meta);
+    // Every window keeps its own layout and date (helpers/windowLayout): another WINDOW's (it names its socket) is not
+    // taken here. A change from no window (the API, Jonah) still is.
+    const raw = payload.grid || payload;
+    const patch = payload.originSocketId ? incomingGridPatch(raw, stateRef.current?.grid?.meta) : raw;
 
     if (!gridId) return;
 
@@ -3340,6 +3357,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.off("occurrence_persisted", onOccurrencePersisted);
     socket.off("occurrence_field_conflict", onOccurrenceFieldConflict);
     socket.off("occurrence_deleted", onOccurrenceDeleted);
+    socket.off("cross_grid_moved", onCrossGridMoved);
 
     socket.off("field_created", onFieldCreated);
     socket.off("field_updated", onFieldUpdated);

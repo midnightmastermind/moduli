@@ -168,13 +168,8 @@ export { DragHotContext };
 // ============================================================
 // WINDOW ID (for cross-window detection)
 // ============================================================
-let _windowId = null;
-export function getWindowId() {
-  if (!_windowId) {
-    _windowId = crypto?.randomUUID?.() || `win-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-  return _windowId;
-}
+export { getWindowId } from "./windowId.js";
+import { getWindowId } from "./windowId.js";
 
 // ============================================================
 // PAYLOAD HELPERS
@@ -244,8 +239,63 @@ export function createPayload(type, id, data, context = {}) {
   };
 }
 
+/** The grid this window shows (a drag tells the window it lands in where it came from). */
+export function currentGridIdForDrag() {
+  try { const st = window.__moduli_state__; return st?.grid?._id || st?.gridId || null; } catch { return null; }
+}
+
+/** What a drag does, as its handle shows it: the row's own mode, else the piece's default, else move. */
+export function dragModeOf(payload) {
+  const d = payload?.data;
+  return payload?.mode || d?.occurrence?.dragMode || d?.defaultDragMode || "move";
+}
+
+/** A marker type naming what is dragged — a window can read a drag's TYPES (not its data) while it hovers, so a
+ *  target in another window can tell a container from a row before the drop (`canAcceptExternal`). */
+export const DRAG_KIND_MIME_PREFIX = "application/x-moduli-kind-";
+export function externalDragData(payload, extra = {}) {
+  return {
+    [NATIVE_DND_MIME]: serializePayload(payload),
+    [DRAG_KIND_MIME_PREFIX + String(payload?.type || "item").toLowerCase()]: "1",
+    ...extra,
+  };
+}
+
+/** The dragged type a foreign drag carries, from its types alone, or null when it is not one of ours. */
+export function externalDragKind(types) {
+  const t = Array.from(types || []).find((x) => String(x).startsWith(DRAG_KIND_MIME_PREFIX));
+  return t ? t.slice(DRAG_KIND_MIME_PREFIX.length) : null;
+}
+
+/** The payload a drop from outside this window hands the drop pipeline (a foreign drag has no session). */
+export function externalSource(parsed) {
+  return {
+    type: parsed.type, id: parsed.id, data: parsed.data, context: parsed.context || {},
+    occurrenceId: parsed.occurrenceId ?? null,
+    mode: parsed.mode,
+    fromOtherWindow: !!parsed.fromOtherWindow,
+    isCrossWindow: !!parsed.isCrossWindow,
+    sourceGridId: parsed.sourceGridId || null,
+    sourceWindowId: parsed.sourceWindowId || null,
+  };
+}
+
+/**
+ * Whether a drop target takes a drag from outside this window. One of ours (from another window) is taken exactly as
+ * it would be here — by the kind it names; anything else (files, text, links) as before.
+ */
+export function acceptsExternal(list, types) {
+  if (!list?.length) return false;
+  const kind = externalDragKind(types);
+  if (kind) return list.includes(kind);
+  return list.includes(DragType.INSTANCE) || list.includes(DragType.FILE) || list.includes(DragType.TEXT) ||
+    list.includes(DragType.URL) || list.includes(DragType.EXTERNAL);
+}
+
 export function serializePayload(payload) {
   return JSON.stringify({
+    mode: dragModeOf(payload),
+    sourceGridId: currentGridIdForDrag(),
     v: 1,
     type: payload.type,
     id: payload.id,
@@ -285,7 +335,13 @@ export function parseExternalDrop(source) {
         // keep the same top-level contract as same-window ones.
         occurrenceId: parsed.occurrenceId
           ?? (parsed.context?.occurrenceId || parsed.data?.occurrenceId || parsed.data?.occurrence?.id || null),
-        isCrossWindow: parsed.sourceWindowId !== getWindowId(),
+        // From another window SHOWING ANOTHER GRID. Another window on this grid holds the same rows, so its drop is
+        // handled exactly like one made here (user, 2026-10-24: drag between windows like between browser tabs).
+        isCrossWindow: parsed.sourceWindowId !== getWindowId() && !!parsed.sourceGridId && parsed.sourceGridId !== currentGridIdForDrag(),
+        fromOtherWindow: parsed.sourceWindowId !== getWindowId(),
+        sourceGridId: parsed.sourceGridId || null,
+        sourceWindowId: parsed.sourceWindowId || null,
+        mode: parsed.mode || "move",
         meta: parsed.meta, // Also pass through meta
       };
     } catch { /* fall through */ }
@@ -611,14 +667,7 @@ export function useDroppable({
       return list.includes(dragType);
     };
 
-    const canAcceptExternal = () => {
-      const list = acceptsRef.current;
-      return list.includes(DragType.INSTANCE) ||
-             list.includes(DragType.FILE) ||
-             list.includes(DragType.TEXT) ||
-             list.includes(DragType.URL) ||
-             list.includes(DragType.EXTERNAL);
-    };
+    const canAcceptExternal = (source) => acceptsExternal(acceptsRef.current, source?.types);
 
     const cleanup = combine(
       dropTargetForElements({
@@ -663,10 +712,10 @@ export function useDroppable({
       }),
       dropTargetForExternal({
         element: el,
-        canDrop: () => canAcceptExternal(),
+        canDrop: ({ source }) => canAcceptExternal(source),
         getData: () => ({ type, id, context: contextRef.current }),
-        onDragEnter: () => {
-          if (canAcceptExternal()) {
+        onDragEnter: ({ source }) => {
+          if (canAcceptExternal(source)) {
             setIsOver(true);
           }
         },
@@ -694,12 +743,7 @@ export function useDroppable({
             context: contextRef.current,
             clientX,
             clientY,
-            source: {
-              type: parsed.type,
-              id: parsed.id,
-              data: parsed.data,
-              context: parsed.context || {},
-            },
+            source: externalSource(parsed),
             dataTransfer: source,
           });
         },
@@ -827,14 +871,7 @@ export function useDragDrop({
       return list.includes(dragType);
     };
 
-    const canAcceptExternal = () => {
-      const list = acceptsRef.current;
-      return list.includes(DragType.INSTANCE) ||
-             list.includes(DragType.FILE) ||
-             list.includes(DragType.TEXT) ||
-             list.includes(DragType.URL) ||
-             list.includes(DragType.EXTERNAL);
-    };
+    const canAcceptExternal = (source) => acceptsExternal(acceptsRef.current, source?.types);
 
     // Register in drop target registry (for mobile touch hit-testing)
     _registerDrop(el, { type, id, contextRef, acceptsRef, edgesRef, stateRef });
@@ -1267,7 +1304,7 @@ export function useDragDrop({
           element: el,
           ...(handleEl ? { dragHandle: handleEl } : {}),
           getInitialData: () => buildPayload(),
-          getInitialDataForExternal: () => ({ [NATIVE_DND_MIME]: serializePayload(buildPayload()) }),
+          getInitialDataForExternal: () => externalDragData(buildPayload()),
           onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
             const liveData = dataRef.current;
             const label = liveData?.label || liveData?.name || liveData?.occurrence?.label || "item";
@@ -1338,13 +1375,13 @@ export function useDragDrop({
         }),
         dropTargetForExternal({
           element: el,
-          canDrop: () => canAcceptExternal(),
+          canDrop: ({ source }) => canAcceptExternal(source),
           getData: ({ input, element }) => {
             const d = { type, id, context: contextRef.current, instanceId: id };
             return attachClosestEdge(d, { input, element, allowedEdges: edgesRef.current });
           },
-          onDragEnter: ({ self }) => {
-            if (canAcceptExternal()) {
+          onDragEnter: ({ self, source }) => {
+            if (canAcceptExternal(source)) {
               setIsOver(true);
               setClosestEdge(extractClosestEdge(self.data));
             }
@@ -1366,7 +1403,7 @@ export function useDragDrop({
               type, id,
               context: { ...contextRef.current, instanceId: id, closestEdge: edge },
               clientX, clientY,
-              source: { type: parsed.type, id: parsed.id, data: parsed.data, context: parsed.context || {} },
+              source: externalSource(parsed),
               dataTransfer: source,
             });
           },
@@ -1397,9 +1434,7 @@ export function useDragDrop({
       getInitialData: () => buildPayload(),
       getInitialDataForExternal: () => {
         const liveData = dataRef.current;
-        const externalData = {
-          [NATIVE_DND_MIME]: serializePayload(buildPayload()),
-        };
+        const externalData = externalDragData(buildPayload());
         if (!_isTouch()) {
           externalData['text/plain'] = liveData.label || liveData.name || id;
         }
@@ -1504,7 +1539,7 @@ export function useDragDrop({
       }),
       dropTargetForExternal({
         element: el,
-        canDrop: () => canAcceptExternal(),
+        canDrop: ({ source }) => canAcceptExternal(source),
         getData: ({ input, element }) => {
           const d = { type, id, context: contextRef.current, instanceId: id };
           return attachClosestEdge(d, {
@@ -1513,8 +1548,8 @@ export function useDragDrop({
             allowedEdges: edgesRef.current,
           });
         },
-        onDragEnter: ({ self }) => {
-          if (canAcceptExternal()) {
+        onDragEnter: ({ self, source }) => {
+          if (canAcceptExternal(source)) {
             setIsOver(true);
             const edge = extractClosestEdge(self.data);
             setClosestEdge(edge);
@@ -1544,12 +1579,7 @@ export function useDragDrop({
             context: { ...contextRef.current, instanceId: id, closestEdge: edge },
             clientX,
             clientY,
-            source: {
-              type: parsed.type,
-              id: parsed.id,
-              data: parsed.data,
-              context: parsed.context || {},
-            },
+            source: externalSource(parsed),
             dataTransfer: source,
           });
         },

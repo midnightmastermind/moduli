@@ -26,7 +26,7 @@ import {
 import * as LayoutHelpers from "./LayoutHelpers";
 import { nextStackIndex } from "./panelStack";
 import { batchUpdateModulesAction } from "../state/actions";
-import { routeDrop } from "./dropHandlers";
+import { routeDrop, crossGridDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards, resolvePageInsertAt } from "./dragHitTesting";
 import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
@@ -1036,7 +1036,9 @@ export function DragProvider({
     const docEditorEl = document.elementFromPoint(x, y)?.closest?.(".doc-editor");
     if (docEditorEl) {
       s.dropHandled = true;
-      if (dropTarget.isTouchDrop && dropTarget.source) {
+      // A drag from another window never reaches the editor's own (same-window) target either: route it like touch.
+      const fromOtherWindow = !s.dragging && dropTarget.source?.fromOtherWindow;
+      if ((dropTarget.isTouchDrop || fromOtherWindow) && dropTarget.source) {
         getDocTouchDrop(docEditorEl)?.({ source: { data: dropTarget.source }, clientX: x, clientY: y });
       }
       clearSession(); return;
@@ -1071,10 +1073,12 @@ export function DragProvider({
       dt.context = { ...dt.context, targetRect: dt.targetRect };
     }
 
+    // A drag from ANOTHER window has no session here: its handle's mode rides in the drag data (dragSystem).
+    const foreign = !s.dragging && !!payload?.fromOtherWindow;
     const rawEvent = buildRawDropEvent({
       dropTarget: dt,
       payload,
-      sessionMode: s?.mode,
+      sessionMode: foreign ? (payload.mode || "move") : s?.mode,
       hovered,
       getCellFromPoint,
     });
@@ -1095,6 +1099,15 @@ export function DragProvider({
     _lap(`dropContext built (target=${dropContext?.target?.kind || "?"} mode=${s?.mode || "?"})`);
 
     s.dropHandled = true;
+    if (foreign) {
+      // The drop handlers read the mode off the session; a drag from another window brings its own.
+      s.mode = payload.mode || "move";
+      // From a window on ANOTHER grid: the server copies it in (and, for a move, the other window deletes its own).
+      if (payload.isCrossWindow) {
+        crossGridDrop(dropContext, { socket, state: { ...state, modulesById }, occurrencesById });
+        clearSession(); return;
+      }
+    }
     // Defer all operation fires until after rAF — lets the browser paint the
     // committed drop position before any op work runs (eliminates post-drop freeze).
     operationsBridge.beginDropBatch?.();

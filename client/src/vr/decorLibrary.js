@@ -28,6 +28,7 @@ export const BUILTIN_DECOR = [
   { key: "candle", title: "Candle" },
   { key: "gridscreen", title: "Grid screen" },
   { key: "notepad", title: "New note screen" },
+  { key: "browser", title: "Browser screen" },
 ];
 
 /** Every 3D model on this grid: [{ key: "model:<occId>", occId, title, src }], by title. */

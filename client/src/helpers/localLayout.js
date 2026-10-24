@@ -1,36 +1,29 @@
-// helpers/localLayout.js — "this device only" layout.
+// helpers/localLayout.js — every window keeps its own layout.
 //
-// Which page each panel shows, the grid's split layout and its date filter are
-// SHARED: every device reads them from the server. The VR office runs inside a
-// headset's browser tab, and opening a book from it, or the headset's own
-// screen size reshaping the mosaic, would move panels on the desktop too (user,
-// 2026-10-21: "make sure the grid opening up on a screen does not affect the
-// layout for other devices").
-//
-// While this mode is on, those writes apply in THIS tab only: `safeEmit` drops
-// them before they reach the server (the local dispatch has already happened).
-// It lasts for the tab's session (sessionStorage), so a reload inside the
-// office keeps it; "Sync layout" turns it off and reloads the shared layout.
+// Which page each panel shows, the grid's split layout and its date filter are LAYOUT. Since 2026-10-24 (user: "turn
+// off persisted layout between devices for all") every window keeps its own: it still SENDS its layout writes (the
+// server's copy is what a device that has never opened the grid starts from), but it IGNORES other windows' layout
+// changes as they arrive, and on a reload it restores its own saved layout (helpers/windowLayout). Before, this was
+// a mode only the VR office switched on, and it DROPPED the writes — which also lost anything riding in the same
+// update_grid (a rename, field presets).
 //
 // Layout writes:
 //   update_view                      the page a panel shows, its tree toggles
 //   update_grid                      split layout, rows/cols, date filter, grid meta
 //   update_occurrence on a PANEL     the pages a panel holds
-// The office's own settings do NOT go through update_grid — they have their own
-// route that writes `meta.vrOffice` alone (PUT /api/v1/vr/office).
 
 const KEY = "moduli-local-layout";
-let on = false;
+// Always on (see the header). Kept as a value so the tests and the VR office can still ask.
+let on = true;
 let panelIdsGetter = () => null;
 const listeners = new Set();
 
-try { on = sessionStorage.getItem(KEY) === "1"; } catch { /* private mode */ }
+void KEY;
 
 export function isLocalLayout() { return on; }
 
 export function setLocalLayout(next) {
   on = !!next;
-  try { if (on) sessionStorage.setItem(KEY, "1"); else sessionStorage.removeItem(KEY); } catch { /* ignore */ }
   for (const fn of listeners) fn(on);
 }
 
@@ -49,8 +42,12 @@ export function isLayoutWrite(event, data) {
   return false;
 }
 
-/** True when this write must stay in this tab. */
-export function keepLocal(event, data) { return on && isLayoutWrite(event, data); }
+/** The occurrence ids that are panels on this grid (read at call time), or null. */
+export function currentPanelIds() { return panelIdsGetter(); }
+
+/** True when this write must stay in this tab. Never now: a window's layout writes go to the server as the default
+ *  for new devices; other windows ignore them as they arrive. */
+export function keepLocal() { return false; }
 
 // ── Incoming: another device's layout must not reshape this one either ──────
 const LAYOUT_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "activeFilterValues", "activeFilterId"];

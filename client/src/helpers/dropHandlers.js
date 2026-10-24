@@ -2395,6 +2395,35 @@ function dropView(dropContext, ctx) {
 // ============================================================
 // Dispatches a fully-built DropContext to the appropriate per-type
 // handler. All handlers take (dropContext, ctx).
+/**
+ * A drop from a window showing ANOTHER grid. Nothing it names exists here, so the server copies it in
+ * (`copy_to_grid`: the item and everything it draws, fields matched by name) at the drop spot; for a move the server
+ * tells the window it came from, which deletes its original through its own delete.
+ */
+export function crossGridDrop(dropContext, ctx) {
+  const { payload, target, position } = dropContext;
+  const sourceOccurrenceId = payload?.occurrenceId || payload?.context?.occurrenceId;
+  const targetGridId = ctx.state?.grid?._id || ctx.state?.gridId;
+  if (!sourceOccurrenceId || !targetGridId || !ctx.socket) { toast.error("Could not bring that over from the other grid."); return; }
+  const { containerOccurrenceId, dropTarget } = dropView(dropContext, ctx);
+  const targetOcc = target?.occurrenceId ? ctx.occurrencesById?.[target.occurrenceId] : null;
+  const targetIsPage = targetOcc && ctx.state?.modulesById?.[targetOcc.moduleId]?.role === "page";
+  const parentOccurrenceId = containerOccurrenceId || dropTarget.context?.pageOccurrenceId || (targetIsPage ? targetOcc.id : null);
+  if (!parentOccurrenceId) { toast.error("Drop it into a board or a page to bring it over from the other grid."); return; }
+  const mode = payload.mode === "copylink" ? "copy" : (payload.mode || "move");
+  const label = payload?.data?.label || payload?.data?.occurrence?.label || "it";
+  ctx.socket.emit("copy_to_grid", {
+    sourceOccurrenceId, targetGridId, parentOccurrenceId,
+    index: Number.isInteger(position?.insertIndex) ? position.insertIndex : null,
+    mode, sourceWindowId: payload.sourceWindowId || null,
+  }, (res) => {
+    if (!res?.ok) { toast.error(`Could not bring ${label} over: ${res?.error || "no answer"}`); return; }
+    const verb = mode === "move" ? "Moved" : "Copied";
+    const link = payload.mode === "copylink" ? " (a link cannot reach another grid, so this is a copy)" : "";
+    toast.success(`${verb} ${label} from the other grid${link}${res.newFields ? ` · ${res.newFields} field(s) added here` : ""}`);
+  });
+}
+
 export function routeDrop(dropContext, ctx) {
   if (!dropContext) { ctx.clearSession?.(); return; }
   const plannedId = dropContext.payload?.context?.occurrenceId || dropContext.payload?.occurrenceId;

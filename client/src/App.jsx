@@ -73,7 +73,7 @@ import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js"
 import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
 import { setPanelIdsGetter, setLocalLayout } from "./helpers/localLayout.js";
 import { setOccurrencesGetter } from "./helpers/sharedModule.js";
-import LocalLayoutPill from "./ui/LocalLayoutPill.jsx";
+import { snapshotLayout, saveWindowLayout } from "./helpers/windowLayout.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
@@ -369,6 +369,15 @@ export default function App() {
     setOccurrencesGetter(() => stateRef.current?.occurrences);
     return () => { setPanelIdsGetter(null); setOccurrencesGetter(null); };
   }, []);
+
+  // This window's layout, saved as it changes (helpers/windowLayout): a reload brings back THIS window's panels,
+  // pages, split and date, whatever another window or device did meanwhile. Not from a boot snapshot (read-only).
+  const layoutGridId = state.grid?._id || state.gridId;
+  useEffect(() => {
+    if (!layoutGridId || !state.grid || isSnapshotMode()) return;
+    const t = setTimeout(() => saveWindowLayout(layoutGridId, snapshotLayout({ grid: state.grid, views: state.views, occurrencesById })), 800);
+    return () => clearTimeout(t);
+  }, [layoutGridId, state.grid, state.views, occurrencesById]);
 
   // Prevent OS from intercepting unhandled drags. Per user request, the
   // CommandCenter does NOT auto-collapse on drag start — only file (artifact)
@@ -1311,7 +1320,6 @@ export default function App() {
             register as draggables and then hand every gesture to a no-op.
             Do not move it back up here without moving DragProvider with it. */}
         {/* Not in the Quest app's windows (a reader keeps its layout to itself by design; the notice was clutter). */}
-        <LocalLayoutPill hidden={officeOpen || new URLSearchParams(window.location.search).has("local")} />
         {officeOpen && state.grid && (
           <React.Suspense fallback={null}>
             <VrOffice
