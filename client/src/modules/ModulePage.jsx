@@ -12,7 +12,8 @@ import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, FileText, ClipboardPaste, Rss, Plus, X } from "lucide-react";
+import { Trash2, FileText, ClipboardPaste, Rss, Plus, X, Wand2 } from "lucide-react";
+import { runPageMagic } from "../helpers/pageMagic";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import { markLoadOnce } from "../helpers/loadDiag";
@@ -117,6 +118,7 @@ function Page({
   const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getModMapForExport = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
+  const [magicBusy, setMagicBusy] = useState(false);
   // For the page's own field strip (<OccurrenceFields>). `ctxStateLite` is the
   // same shape ModuleContainer/ModuleInstance hand FieldRenderer — it reads
   // `state.grid` for filter context and nothing else.
@@ -832,6 +834,28 @@ function Page({
               />
               {occurrence?.feed?.enabled && (
                 <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
+              {pageModule?.kind === "doc" && (
+                <button
+                  type="button"
+                  className="page-header-magic-btn"
+                  title="Magic: lay this page's plain text blocks out as sections (Ctrl+Z puts them back)"
+                  aria-label="Magic"
+                  disabled={magicBusy}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const pageOcc = getOccMap()[occurrence.id] || occurrence;
+                    setMagicBusy(true);
+                    const res = await runPageMagic({ pageOcc, maps: { occurrencesById: getOccMap(), modulesById: getModMapForExport() }, socket, dispatch, gridId: ctxGridId, userId: ctxUserId });
+                    setMagicBusy(false);
+                    if (res.ok) toast(`Laid out ${res.converted} text block${res.converted === 1 ? "" : "s"} — Ctrl+Z puts them back`);
+                    else toast(`Magic: ${res.error}`);
+                  }}
+                  style={{ background: "none", border: "none", cursor: magicBusy ? "wait" : "pointer", color: "var(--text-muted)", padding: 0, display: "flex", opacity: magicBusy ? 0.5 : 1 }}
+                >
+                  <Wand2 size={11} />
+                </button>
               )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
             </div>
