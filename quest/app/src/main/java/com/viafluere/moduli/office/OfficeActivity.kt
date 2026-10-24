@@ -341,6 +341,10 @@ class OfficeActivity : AppSystemActivity() {
                           settings.mediaPlaybackRequiresUserGesture = false
                           settings.loadWithOverviewMode = true
                           settings.useWideViewPort = true
+                          // Present as ordinary Chrome: Google (and sites signing in through it) refuse an embedded
+                          // WebView by its "; wv" marker. Cookies persist, so a sign-in lasts between visits.
+                          settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                          android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                           webChromeClient = WebChromeClient()
                           webViewClient = object : WebViewClient() {
                             override fun onPageFinished(view: WebView, url: String) {
@@ -541,7 +545,7 @@ class OfficeActivity : AppSystemActivity() {
       if (src != null) Uri.parse(if (src.startsWith("http")) src else origin + src) else Uri.parse("apk:///office/${modelFile(model)}.glb")
 
   /** Pieces drawn with another piece's model: the grid screen and the new-note screen are screens. */
-  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad", "browser" -> "screen"; else -> model }
+  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad", "browser", "claude" -> "screen"; else -> model }
 
   private fun ensureThing(key: String, model: String, src: String? = null): Thing {
     things[key]?.let { return it }
@@ -837,9 +841,11 @@ class OfficeActivity : AppSystemActivity() {
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
       "notepad" -> { t.html = PanelHtml.notepad(t.key); attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // A plain web browser on a screen: an address bar, back / forward / reload; it remembers its last page.
-      "browser" -> {
+      "browser", "claude" -> {
         t.browser = true
-        t.panelUrl = entry.optString("url").ifEmpty { "https://www.google.com" }
+        // A Claude screen is a browser that starts at claude.ai (the native app cannot be put in a panel).
+        val home = if (entry.optString("model") == "claude") "https://claude.ai/new" else "https://www.google.com"
+        t.panelUrl = entry.optString("url").ifEmpty { home }
         attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H + 0.16f, OfficeSizes.SCREEN_Y, 0.025f)
       }
     }

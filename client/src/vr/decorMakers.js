@@ -249,6 +249,7 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
     case "gridscreen":
     case "notepad":
     case "browser":
+    case "claude":
       return makeScreenFrame(THREE);
     default:
       return null;

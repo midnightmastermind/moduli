@@ -2266,12 +2266,15 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
 
 /* Headings — sized well above body text (user, 2026-10-24: "the header font sizes are just too small against the
    size of text in general"). Six levels: `####` and on are real headings now. */
-.doc-editor-content.ProseMirror h1 { font-size: 2em; line-height: 1.2; }
-.doc-editor-content.ProseMirror h2 { font-size: 1.65em; line-height: 1.25; }
-.doc-editor-content.ProseMirror h3 { font-size: 1.4em; line-height: 1.3; }
-.doc-editor-content.ProseMirror h4 { font-size: 1.2em; line-height: 1.35; }
-.doc-editor-content.ProseMirror h5 { font-size: 1.08em; }
-.doc-editor-content.ProseMirror h6 { font-size: 1em; opacity: 0.85; }
+/* Sized from the BODY text's own size (the same variable paragraphs use), not the editor's base font: with `em` a
+   level-3 heading came out 16.8px over 15px text (2026-10-24). */
+.doc-editor-content.ProseMirror { --md-body: var(--cascade-font-size, var(--instance-label-px, 17px)); }
+.doc-editor-content.ProseMirror h1 { font-size: calc(var(--md-body) * 2); line-height: 1.2; }
+.doc-editor-content.ProseMirror h2 { font-size: calc(var(--md-body) * 1.65); line-height: 1.25; }
+.doc-editor-content.ProseMirror h3 { font-size: calc(var(--md-body) * 1.4); line-height: 1.3; }
+.doc-editor-content.ProseMirror h4 { font-size: calc(var(--md-body) * 1.2); line-height: 1.35; }
+.doc-editor-content.ProseMirror h5 { font-size: calc(var(--md-body) * 1.08); }
+.doc-editor-content.ProseMirror h6 { font-size: var(--md-body); opacity: 0.85; }
 .doc-editor-content.ProseMirror h4, .doc-editor-content.ProseMirror h5, .doc-editor-content.ProseMirror h6 { margin: 0.6em 0 0.2em; font-weight: 600; }
 
 /* Live markdown (docs/LiveMarkdownExtension): the syntax of the line being edited, drawn beside the text. */
