@@ -10,7 +10,11 @@
 //   a paragraph starting `> `                      → a quote
 //   a ``` line … a ``` line                        → a code block (the lines between, verbatim)
 //   `**x**` `__x__` → bold · `*x*` `_x_` → italic · `` `x` `` → code · `~~x~~` → strike (inside text, never across)
-//   a table with no text in it                     → removed (after a paste only)
+//   a table with no text in it                     → removed (after a paste only); `dropEmptyTables: "layout"` removes
+//                                                    only a ONE-CELL empty table (a pasted form's box, not a table
+//                                                    someone inserted to fill in) — what opening a saved doc uses
+//   a paragraph whose lines (hard breaks) after the first start with markdown → one paragraph per line first, so
+//                                                    "text⏎- a⏎- b" becomes the text and a two-item list
 // `skip` (a set of top-level indexes) leaves blocks alone — the line being edited.
 
 const INLINE = [
@@ -83,6 +87,21 @@ const NUMBERED = /^\s{0,3}(\d{1,3})[.)]\s+(?=\S)/;
 const QUOTE = /^\s{0,3}>\s?(?=\S)/;
 
 function tableIsEmpty(t) { return !plainText(t).trim() && !JSON.stringify(t).includes('"type":"image"'); }
+function tableIsOneCell(t) { return t.content?.length === 1 && t.content[0].content?.length === 1; }
+
+const MARKDOWN_LINE = (text) => HEADING.test(text) || BULLET.test(text) || NUMBERED.test(text) || QUOTE.test(text);
+
+/** A paragraph's hard-break lines, as paragraphs — only when a line after the first starts with markdown. */
+function splitMarkdownLines(node) {
+  const parts = [[]];
+  for (const c of node.content || []) {
+    if (c.type === "hardBreak") parts.push([]);
+    else parts[parts.length - 1].push(c);
+  }
+  if (parts.length < 2) return null;
+  if (!parts.slice(1).some((part) => MARKDOWN_LINE(plainText({ content: part })))) return null;
+  return parts.map((part) => (part.length ? { ...node, content: part } : { type: "paragraph" }));
+}
 
 function resolveBlock(node) {
   if (node.type === "paragraph" || node.type === "heading") {
@@ -108,7 +127,18 @@ export function resolveBlocks(blocks, skip = new Set(), { dropEmptyTables = fals
     const node = blocks[i];
     if (skip.has(i)) { out.push(node); continue; }
     // Only a PASTE drops an empty table (a web form's layout box); one you just inserted is about to be filled.
-    if (dropEmptyTables && node.type === "table" && tableIsEmpty(node)) { changed = true; continue; }
+    if (dropEmptyTables && node.type === "table" && tableIsEmpty(node) && (dropEmptyTables !== "layout" || tableIsOneCell(node))) {
+      changed = true; continue;
+    }
+    if (node.type === "paragraph") {
+      const lines = splitMarkdownLines(node);
+      if (lines) {
+        const inner = resolveBlocks(lines, new Set(), { dropEmptyTables }).blocks;
+        out.push(...inner);
+        changed = true;
+        continue;
+      }
+    }
     if (node.type === "paragraph") {
       const text = plainText(node);
       // A fenced block: ``` (optionally a language) … ``` — the lines between are code, verbatim.

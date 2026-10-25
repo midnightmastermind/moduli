@@ -124,6 +124,17 @@ export function resolveTransaction(state, keep = -1, { dropEmptyTables = false }
 export const LiveMarkdown = Extension.create({
   name: "liveMarkdown",
 
+  // A doc saved with raw markdown in it (before the resolver existed, or never edited since) resolves when an
+  // editable editor opens — once, as a normal edit, so it is saved resolved (user, 2026-10-25: the CPS page). A
+  // one-cell empty table (a pasted form's box) goes too; a real empty table someone inserted stays. TipTap fires
+  // `create` a tick after construction, so the host editor is mounted and its save path is live by now.
+  onCreate() {
+    const ed = this.editor;
+    if (!ed || ed.isDestroyed || !ed.isEditable) return;
+    const tr = resolveTransaction(ed.state, -1, { dropEmptyTables: "layout" });
+    if (tr) ed.view.dispatch(tr.setMeta(liveMarkdownKey, "resolved"));
+  },
+
   addProseMirrorPlugins() {
     const extension = this;
     return [
