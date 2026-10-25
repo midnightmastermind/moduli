@@ -208,6 +208,22 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
 <script>$BRIDGE</script></body></html>"""
   }
 
+  /** A record playing through Spotify's own player (it has no audio file): the title, ⏹, and the player. */
+  fun spotifyCard(title: String, embedUrl: String, stopKey: String): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Georgia,serif;color:#f4e9d8}
+  #w{position:absolute;inset:0;background:rgba(30,20,12,.88);border-radius:3vh;border:.6vh solid #ffd27a;box-sizing:border-box;
+     display:flex;flex-direction:column;padding:1.6vh 2vw;gap:1.2vh}
+  #r{display:flex;align-items:center;gap:2vw}
+  #t{flex:1;font-size:7vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #n{font-size:4.5vh;color:#d8c39a}
+  iframe{flex:1;width:100%;border:0;border-radius:2vh;background:#121212}
+  button{font-size:7vh;padding:0 2vw;border-radius:1.5vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
+</style></head><body><div id="w"><div id="r"><div id="t">${esc(title)}</div><span id="n">Spotify</span>
+<button onclick="send({type:'stopPlayer',key:${js(stopKey)}})">⏹</button></div>
+<iframe src="${esc(embedUrl)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen" loading="eager"></iframe></div>
+<script>$BRIDGE</script></body></html>"""
+
   /** A tape running on a screen: the video, with ⏹ to give the screen back its picture. */
   fun video(title: String, src: String, screenKey: String): String = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
 <style>

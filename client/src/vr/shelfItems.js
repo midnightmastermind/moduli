@@ -115,6 +115,20 @@ export function folderShelfView(rootId, at, { grid, occurrencesById, modulesById
 }
 
 /** The address a bookmark row opens (its saved page), or null. */
+/**
+ * Spotify's own player for a row that links to Spotify (an album's URL field holds open.spotify.com/album/…): the
+ * record player plays it when the row has no audio file of its own. Null when no field holds a Spotify link. Pure.
+ */
+export function spotifyEmbedUrl(occ) {
+  for (const cell of Object.values(occ?.fields || {})) {
+    const v = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
+    if (typeof v !== "string") continue;
+    const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|track|playlist|artist|episode|show)\/([A-Za-z0-9]+)/.exec(v);
+    if (m) return `https://open.spotify.com/embed/${m[1]}/${m[2]}`;
+  }
+  return null;
+}
+
 export function bookmarkUrl(occ, mod) {
   if (mod?.kind !== "bookmark") return null;
   const u = occ?.meta?.url || mod.fileRef || "";
@@ -153,6 +167,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       fileKind: file?.kind || null,
       src: file?.ref ? resolveFileRef(file.ref) : null,
       url: bookmarkUrl(occ, mod),
+      spotify: spotifyEmbedUrl(occ),
     });
   }
   return out;

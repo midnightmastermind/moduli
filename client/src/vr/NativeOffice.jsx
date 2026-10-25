@@ -77,7 +77,7 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
   const ctx = { grid, occurrencesById, modulesById, foldersById };
   const wire = (i) => ({
     id: i.id, rowId: i.rowId || null, title: i.title, cover: i.cover, src: i.src || null, kind: i.fileKind || null,
-    url: i.url || null, folder: !!i.folder, count: i.count || 0,
+    url: i.url || null, folder: !!i.folder, count: i.count || 0, spotify: i.spotify || null,
   });
   return {
     type: "state",

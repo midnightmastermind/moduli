@@ -86,6 +86,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
     private const val GHOST_W = 0.30f
+    private const val SPOTIFY_W = 0.56f
+    private const val SPOTIFY_H = 0.26f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
@@ -283,7 +285,15 @@ class OfficeActivity : AppSystemActivity() {
                             false
                           }
                           webViewClient = WebViewClient()
-                          webChromeClient = WebChromeClient()
+                          // Spotify's embedded player (a record with no audio file of its own): it runs in an iframe, needs
+                          // the spotify.com sign-in cookie (a third-party cookie here) and protected media for full tracks.
+                          android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                          webChromeClient = object : WebChromeClient() {
+                            override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                              val ok = request.resources.filter { it == android.webkit.PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID }
+                              if (ok.isNotEmpty()) request.grant(ok.toTypedArray()) else request.deny()
+                            }
+                          }
                           addJavascriptInterface(Bridge(id), "ModuliNative")
                           made = this
                           onWeb(this)
@@ -788,7 +798,7 @@ class OfficeActivity : AppSystemActivity() {
             } }
             when {
               t.selecting -> selectBook(t, b)
-              player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId))
+              player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
               else -> activateBook(t, b, near = p)
             }
@@ -941,6 +951,15 @@ class OfficeActivity : AppSystemActivity() {
             if (d <= PLAYER_DROP_M * maxOf(1f, t.scale)) t to d else null } }
           .minByOrNull { it.second }?.first
 
+  /** A string the shelf's item carries (a JSON null is "", not the word "null"). */
+  private fun itemField(t: Thing, itemId: String, key: String): String {
+    for (i in 0 until t.shelfItems.length()) {
+      val it = t.shelfItems.optJSONObject(i) ?: continue
+      if (it.optString("id") == itemId) return if (it.isNull(key)) "" else it.optString(key)
+    }
+    return ""
+  }
+
   private fun itemSrc(t: Thing, itemId: String): String {
     for (i in 0 until t.shelfItems.length()) {
       val it = t.shelfItems.optJSONObject(i) ?: continue
@@ -964,8 +983,16 @@ class OfficeActivity : AppSystemActivity() {
     t.panel?.destroy(); t.panel = null; t.web = null; t.html = ""
   }
 
-  /** A record dropped on a record player plays there. */
-  private fun playRecord(player: Thing, title: String, src: String) {
+  /** A record dropped on a record player plays there: its audio file, else Spotify's player for it. */
+  private fun playRecord(player: Thing, title: String, src: String, spotify: String = "") {
+    if (src.isEmpty() && spotify.isNotEmpty()) {
+      // Spotify's player needs more room than a now-playing card, so the player's window is made at that size.
+      stopPlayer(player)
+      player.html = PanelHtml.spotifyCard(title, spotify, player.key)
+      attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
+      Log.i(TAG, "playing $title on ${player.key} through Spotify")
+      return
+    }
     if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file for this record")); return }
     showOnPanel(player, PanelHtml.playerCard(title, src, player.key, "Now playing"))
     Log.i(TAG, "playing $title on ${player.key}")
