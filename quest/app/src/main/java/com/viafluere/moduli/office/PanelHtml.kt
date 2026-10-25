@@ -50,9 +50,11 @@ object PanelHtml {
 <style>
   html,body{margin:0;height:100%;background:transparent;font-family:Georgia,serif;color:#f4e9d8;overflow:hidden}
   #head{height:${headerPct}vh;display:flex;align-items:center;gap:2vw;padding:0 2vw;box-sizing:border-box;background:rgba(40,26,16,.82);border-radius:1.5vh}
-  /* Small enough that a shelf's name fits beside its buttons (it showed "Boo…"). */
-  #head b{flex:1;font-size:3vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #pg{font-size:2.2vh;white-space:nowrap}
+  /* The name over its count and page, stacked, and small: in one row beside the buttons a Bookmarks shelf read
+     "B…" (user, 2026-10-25). */
+  #info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;line-height:1.15}
+  #head b{font-size:1.9vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #pg{font-size:1.4vh;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button{font-size:2.6vh;padding:.3vh 1.4vw;border-radius:.8vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
   #rows{position:relative;height:${100f - headerPct}vh}
   .it{position:absolute;border-radius:.6vh;box-shadow:0 0 .6vh rgba(0,0,0,.6);background-size:cover;background-position:center;
@@ -72,12 +74,12 @@ object PanelHtml {
   .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
   /* Select mode: tap books to pick them, then Delete. */
   .it.sel{outline:.6vh solid #ff6b6b!important;outline-offset:-.6vh;box-shadow:0 0 2vh #ff6b6b!important}
-  #path{font-size:2vh;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30vw}
+  #path{font-size:1.3vh;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.on{background:#7a2e2e}
   button.danger{background:#8a2020;border-color:#f99}
 </style></head><body>
-<div id="head">${if (canUp) """<button onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<b>${esc(title)}</b>
-  ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span>
+<div id="head">${if (canUp) """<button onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
+  ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
   <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${js("shelf:$id")}})">⚙</button></div>
