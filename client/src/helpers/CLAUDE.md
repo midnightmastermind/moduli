@@ -3,11 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
-## Recent Changes (2026-10-25 — formButton.js NEW; buttonRun / buttonOperation / formItems)
-- `formButton.planFormButton({container, containerModule, noun, occurrencesById, modulesById, fieldsById, gridId})`
-  → `{field, operation, containerModule}` (pure); `agreedValues(rows, fieldIds)`; `addFormButton` (one action).
-  Radial item `ui/formButtonItem` (asks the noun through `operationsBridge.requestUserInput`, never window.prompt).
-- `operationActions` CREATE: `module`, `occurrenceLabel`, `newModule` (skip find-by-name).
+## Recent Changes (2026-10-25 — a button runs its listeners; a pause keeps its action)
+- `buttonRun.buttonListeners(fieldId, operationsById)` / `runButtonPress({field, hostOccurrence, ctx})`; the hook runs
+  a field press through it. `buttonOperation.js` keeps only request/take/OPEN_OPERATION_EVENT.
+- `operationExecutor._handleSuspend` captures + retains the open action and resumes inside it (`runInAction`).
+- `operationActions` CREATE: `module`, `occurrenceLabel`, `newModule`. `ui/buttonItem.js` (Add a button…).
 
 ## Recent Changes (2026-10-23 — exportMarkdown.js NEW)
 - `occurrenceToMarkdown(occId, {occurrencesById, modulesById, fieldsById})`, `tiptapToMarkdown(node, {embed, inline, headingBase})` (moved from DocToolbar), `fieldSummary`, `markdownFileName`, `downloadMarkdown`.

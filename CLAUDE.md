@@ -15,44 +15,52 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
-### 2026-10-25 — BUTTONS ON ANY OCCURRENCE, FORMS ANYWHERE IN AN OPERATION, "ADD A FORM BUTTON"
+### 2026-10-25 — A BUTTON RUNS WHAT LISTENS TO IT; forms anywhere in an operation; New … buttons on poms grid
 
-User: *"make sure that button field inputs work … i can place them on any occurance. the operation should be able to
-take in the occurance and fields"* · *"a form builder that asks for user prompts, that we can hook up to buttons … a
-button on the board called new movie … asking for information on the movie then … add the movie to the movie board
-(through an operation)"* · *"make sure forms can work in any part of the operation"*. Spec / plan:
-`docs/superpowers/{specs,plans}/2026-10-25-button-forms*.md`. Tasks 1–7b by account3 (stopped on "Prompt is too
-long"); Task 8, the fixes below and the prod check by this session.
-- **One button runner** (`helpers/buttonRun.js`): both click paths, busy until the operation finishes, a form's
-  cancel clears it. `$trigger.occurrence` now carries label / role / kind / children.
-- **A pause works inside IF, a loop or a called operation** — before, steps after a nested pause were silently
-  dropped (the executor's "MVP limitation"); applies to CALL_API / READ_FILE / IMPORT_* as well as questions.
-- **`ASK_FORM`** ("Ask with a form", `ui/FormModal`): one window, several answers → `$form.values.<key>` /
-  `$form.fields.<fieldId>`; its editor is the form builder (field inputs + free questions, required, defaults, ↑/↓).
-- **Buttons on panels and on doc textblocks** (a strip under the text); a button field's settings can make its
-  operation (`helpers/buttonOperation`).
-- **CREATE `module` + `occurrenceLabel`** — place an existing module and name the new occurrence (`label` was not
-  reused: on the server a CREATE's `label` is the module name in 9 live share steps). **NEW: `newModule`** (editor
-  checkbox "Always a new module") — CREATE finds a module BY NAME grid-wide, so a form button's "New beverage"
-  named "Coffee" would have placed the existing Coffee module. Found on prod: the second "Probe Form Item" got the
-  first one's module.
-- **"Add a form button…"** on a container's radial (`helpers/formButton.planFormButton` + `ui/formButtonItem`): asks
-  the noun (nothing filled in), then one undo step writes a button field bound on the container and
-  an operation `ASK_FORM → CREATE → SCROLL_TO`. The form asks Name + the input fields the instances bind; values
-  every instance agrees on are fixed (needs 2+ instances); every other bound field is bound EMPTY and the
-  instances' hidden flags are copied (`fieldHidden`) — the first prod run showed Board Category as a visible chip
-  its siblings hide. 2+ instances sharing a module (≥ half) → a new placement of it; else their role/kind with
-  `newModule`. Nothing names movies or boards.
-- **CPS application doc** (account3): raw markdown already saved in a doc resolves when its editor opens.
-- **Watched on prod (test grid 2, Beverages, 5 instances):** radial → noun typed → "New probe thing"
-  button on the container → press → form (Name) → Submit → a new instance listed in Beverages, Board Category
-  beverage, scrolled to; second run: all three bindings hidden like its siblings. Debris deleted through socket
-  events (occurrences, operations, fields; container bindings 0). **Not watched:** Ctrl+Z of a press, a form inside
-  a loop in the editor, buttons on a page / panel / doc textblock (plan Task 9 steps 3–4), the shared-module path
-  (test grid 2 has no board whose instances share a module — unit + executor tested only).
-- Client 6,749 pass (the 2 known failures: `bookReaderHeadOneRow`, DATE_DIFF across the clock change). Server
-  3,245 pass; `protectedGridsIntegration.test.js` fails to PARSE, and did so before today's commits too.
-  A container can carry several form buttons; two for the same noun both read "New <x>" (only the field name is numbered).
+User: buttons on any occurrence that hand their operation the pressed occurrence, and a form builder hooked to them
+(*"add new movie to the movies board"*); then, while it was built: *"any button can do anything, not just new noun"* ·
+*"the button does nothing until we add a listener for it in the operations"* · *"containers can have multiple
+buttons"* · nothing prefilled · *"add a new movies, books, music, artist, routine, task, etc button"* · *"test the
+entire plan … with ui clicks"*. Plan `docs/superpowers/plans/2026-10-25-button-forms.md` (Tasks 1–7b by account3,
+which stopped on "Prompt is too long"; the rest and the redesign by this session).
+- **A button picks no operation.** A press of a button field runs every enabled operation with an On Button trigger
+  on THAT field (`helpers/buttonRun.buttonListeners` / `runButtonPress`, one undo step); an On Button trigger on no
+  button in particular does not hear button fields (`matchesTrigger`). The field lost `meta.operationId`, the
+  "Operation to run" picker and "New operation for this button"; its settings list "Listened to by" (click opens
+  the operation). Nothing listening → the button says so and does nothing. test grid 1's Show Profile was converted.
+- **"Add a button…"** on the radial of containers, pages, panels, rows and doc textblocks (`ui/buttonItem.js`): asks
+  only the button text (blank), binds a button field. The add-an-item generator (`helpers/formButton`) was built,
+  then removed at the user's word — a button's job is its operation.
+- **`0433` (poms grid, applied):** New movie / book / song / artist / album / author / series / person, New routine on
+  each Routines area (asks Where: its sub-containers), New task on Todo (Where: the Tasks containers). Each = a
+  button field (field category Buttons) + a listening operation (op category Buttons): Ask with a form → Create →
+  Scroll to. Media boards place the board's shared module (`module` + `occurrenceLabel`); People get a new module
+  (`newModule`) with the fields half the rows bind, hidden flags kept, the Name field filled from the form. Movies
+  and TV Series ask Drive/Size/File Path (visible input fields on the shared module) — edit the form to drop them.
+- **Engine (account3):** one button runner, busy until done; `$trigger.occurrence` carries label/role/kind/children;
+  a pause inside IF, a loop or a called operation waits (it used to drop the steps after it); `ASK_FORM` +
+  `ui/FormModal` + the form builder; CREATE `module` / `occurrenceLabel`. CPS doc markdown resolves.
+- **Fixed by clicking through it (each unit-tested, A/B'd):** (1) a paused operation resumed OUTSIDE the action it
+  paused in, so a press → form → Create was a derived write and Ctrl+Z undid the step before (removed a button's
+  binding) — `_handleSuspend` carries the action (questions / API calls / file reads / imports too). (2) Picking
+  "Ask with a form" in the editor crashed (`fieldsById is not defined` in SchemaField). (3) Renamed questions kept
+  the keys question / question_2, so `$form.values.name` read nothing — a key follows its label. (4) CREATE finds a
+  module by name grid-wide: a "New beverage" named Coffee placed the existing Coffee module — `newModule` (editor
+  checkbox "Always a new module"). (5) A form button's row wore a visible Board Category its siblings hide —
+  unasked fields bound empty, hidden flags copied. (6) Scroll to after a Create on a long (virtualized) board found
+  no row — inside a user's action it uses the targeted expand; automatic runs still never expand.
+- **Watched on prod by clicking:** test grid 2 — Add a button → nothing listening → built its listener in the editor
+  (On Button trigger on the field, form Name + Size via the builder, Create, Scroll to) → settings list it → double
+  press opens one form, button disabled meanwhile → Cancel writes nothing → Submit creates and scrolls → one Ctrl+Z
+  removes it; buttons on a panel, a row and a doc textblock report `$trigger.occurrence` label/role (a textblock's
+  label is empty — its words are its body); a form inside a loop asked twice ("About one", "About two") then
+  notified; two listeners on one button both ran. poms grid — all ten buttons open their forms (Where lists the
+  right containers); New task created in Todo and Ctrl+Z removed it; New author placed the shared Author module
+  with Board Category set, scrolled to it, Ctrl+Z removed it and kept the module. Debris deleted; poms panel 1
+  unchanged. **Not reachable:** a page's own radial inside a panel (its header handle is the panel's — buttons added
+  there land on the panel).
+- Client 6,747 pass (known: `bookReaderHeadOneRow`, DATE_DIFF across the clock change). Server tests pass except
+  `protectedGridsIntegration` (fails to parse, before today too).
 
 ---
 
