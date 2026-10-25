@@ -1322,7 +1322,9 @@ export function useDragDrop({
         // had stopped trusting `curTarget` for half the cases already.
         // In the headset a drag carried OUT of this window ends here, at the window's edge (the controller has left
         // the panel): this window takes no drop, and the app carries it into the window the trigger is let go over.
-        const leftWindow = inHeadset() && leftThroughEdge(t.clientX, t.clientY, window.innerWidth, window.innerHeight);
+        // The app also says when the controller's ray has left this window (window.__moduliOutside): the page only ever
+        // saw the last point inside, so a release out there would otherwise drop at that stale point.
+        const leftWindow = inHeadset() && (window.__moduliOutside === true || leftThroughEdge(t.clientX, t.clientY, window.innerWidth, window.innerHeight));
         const dropTarget = leftWindow ? null : _findDropTarget(t.clientX, t.clientY, payload.type, el);
         if (dropTarget?.el !== curTarget?.el) {
           curTarget?.stateRef?.current?.setIsOver?.(false);

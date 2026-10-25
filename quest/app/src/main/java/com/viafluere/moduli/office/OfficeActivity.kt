@@ -1234,7 +1234,13 @@ class OfficeActivity : AppSystemActivity() {
         val ctl = c.tryGetComponent<Controller>() ?: continue
         if (!ctl.isActive) continue
         val down = ctl.buttonState
-        if (down and (ButtonBits.ButtonTriggerR or ButtonBits.ButtonTriggerL) != 0) triggerDown = true
+        if (down and (ButtonBits.ButtonTriggerR or ButtonBits.ButtonTriggerL) != 0) {
+          triggerDown = true
+          // The ray of the hand holding the trigger: a drag follows THAT controller, not whichever comes first.
+          c.tryGetComponent<Transform>()?.transform?.let { pose ->
+            dragRay = PoseMath.tOf(pose) to PoseMath.rotate(PoseMath.qOf(pose), floatArrayOf(0f, 0f, 1f))
+          }
+        }
         if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
         if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
         if (down and ButtonBits.ButtonThumbRU != 0) reachDir += 1f
@@ -1246,7 +1252,7 @@ class OfficeActivity : AppSystemActivity() {
       // took the drop itself, then try the window the controller points at.
       if (triggerWasDown && !triggerDown) pendingDrag?.takeIf { !it.released }?.let { d ->
         d.released = true
-        val rays = controllerRays()
+        val rays = dragRay?.let { listOf(it) } ?: controllerRays()
         main.postDelayed({ if (pendingDrag === d) finishCrossDrag(rays) }, 250)
       }
       triggerWasDown = triggerDown
@@ -1294,6 +1300,8 @@ class OfficeActivity : AppSystemActivity() {
   // follows the controller once it leaves the window, and sits on the reader window it would drop into.
   private val ghostText = mutableStateOf("")
   private var ghost: Entity? = null
+  /** Origin and direction of the controller whose trigger is down (the one carrying a drag). */
+  private var dragRay: Pair<FloatArray, FloatArray>? = null
 
   private fun ensureGhost(): Entity {
     ghost?.let { return it }
@@ -1329,11 +1337,18 @@ class OfficeActivity : AppSystemActivity() {
     val d = pendingDrag
     val g = ghost ?: return
     if (d == null || d.released) { g.setComponent(Visible(false)); return }
-    val (o, dir) = controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
+    val (o, dir) = dragRay ?: controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
     val box = { pose: Pose -> PoseMath.rayBox(o, dir, pose, floatArrayOf(-READER_W / 2f, -READER_H / 2f, -0.03f), floatArrayOf(READER_W / 2f, READER_H / 2f, 0.03f)) }
     // Still pointing at the window it started in: that page draws its own pill.
     val src = readers[d.fromPanel]?.tryGetComponent<Transform>()?.transform
-    if (src != null && box(src) != null) { g.setComponent(Visible(false)); return }
+    val inside = src != null && box(src) != null
+    // The page keeps the last point it saw inside, so on release it would drop there: tell it the pointer has left.
+    if (d.outside != !inside) {
+      d.outside = !inside
+      Log.i(TAG, "drag ${d.occId}: pointer ${if (inside) "back in" else "left"} window ${d.fromPanel}")
+      readerWebs[d.fromPanel]?.evaluateJavascript("window.__moduliOutside=${!inside};document.documentElement.classList.toggle('moduli-drag-outside',${!inside})", null)
+    }
+    if (inside) { g.setComponent(Visible(false)); return }
     var best: Float? = null
     for ((id, e) in readers) {
       if (id == d.fromPanel || !readerWebs.containsKey(id)) continue
@@ -1355,6 +1370,7 @@ class OfficeActivity : AppSystemActivity() {
     var ended = false
     var dropped = false
     var released = false
+    var outside = false
   }
   private var pendingDrag: PendingDrag? = null
   private var triggerWasDown = false
@@ -1363,6 +1379,7 @@ class OfficeActivity : AppSystemActivity() {
     val occ = m.optString("occId")
     if (occ.isEmpty()) return
     pendingDrag = PendingDrag(m.optInt("_panel", -1), occ, m.optString("mode", "move"), m.optString("label"))
+    readerWebs[m.optInt("_panel", -1)]?.evaluateJavascript("window.__moduliOutside=false", null)
     ensureGhost()
     Log.i(TAG, "drag start ${occ} in window ${m.optInt("_panel", -1)}")
   }
