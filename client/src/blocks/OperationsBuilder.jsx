@@ -1133,6 +1133,11 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 {fl("its name")}
                 <ExprOrPath value={cfg.occurrenceLabel || ""} onChange={v => setCfg({ occurrenceLabel: v || undefined })} placeholder="$form.values.name" width={150} {...exprProps} />
               </div>
+              <label style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, paddingLeft: 4 }}>
+                <input type="checkbox" checked={!!cfg.newModule} onChange={e => setCfg({ newModule: e.target.checked || undefined })} />
+                Always a new module
+                <span style={{ fontSize: 9, color: "var(--text-faint)" }}>(off: an existing module with this name is placed instead)</span>
+              </label>
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
               {/* The three keys below are READ by the executor's CREATE and were
                   authorable only by seeds (2026-09-28: 12 meta, 3 signature and

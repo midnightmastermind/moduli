@@ -1906,7 +1906,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         : null;
 
       const templateList = Array.isArray($vars.$allTemplates) ? $vars.$allTemplates : [];
-      const existingTemplate = placeMod || templateList.find(t => t && !t.trashed && (t.label === name || t.name === name));
+      // `newModule` skips the find-by-name: a form button's "New <x>" named after something that already exists must
+      // still be a new thing, not a placement of whatever module happens to share the name.
+      const existingTemplate = placeMod || (cfg.newModule === true ? null
+        : templateList.find(t => t && !t.trashed && (t.label === name || t.name === name)));
 
       // Attach fields: every fieldId addressed by cfg.fields is auto-bound to
       // the module, plus anything in cfg.attachFields (explicit attach without

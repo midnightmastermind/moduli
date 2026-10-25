@@ -104,7 +104,7 @@ export function planFormButton({ container, containerModule, noun, occurrencesBy
   } else {
     const role = mostCommon(rows, (r) => modulesById?.[r.moduleId]?.role).value || "instance";
     const kind = mostCommon(rows.filter((r) => modulesById?.[r.moduleId]?.role === role), (r) => modulesById?.[r.moduleId]?.kind).value;
-    Object.assign(create, { role, ...(kind ? { kind } : {}), name: "$form.values.name" });
+    Object.assign(create, { role, ...(kind ? { kind } : {}), name: "$form.values.name", newModule: true });
   }
 
   const field = {

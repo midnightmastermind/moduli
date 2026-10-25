@@ -73,7 +73,7 @@ describe("planFormButton", () => {
   it("without a shared module, makes an occurrence of the instances' role and kind", () => {
     const create = stepOf(planFormButton({ ...world({ shared: false }), noun: "movie" }), "CREATE");
     expect(create.module).toBeUndefined();
-    expect(create).toMatchObject({ role: "artifact", kind: "movie", name: "$form.values.name" });
+    expect(create).toMatchObject({ role: "artifact", kind: "movie", name: "$form.values.name", newModule: true });
   });
 
   it("ends by scrolling to the new occurrence", () => {

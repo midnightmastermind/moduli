@@ -46,4 +46,12 @@ describe("CREATE module + occurrenceLabel", () => {
     expect(upd.moduleId).toBe("movieMod");
     expect(upd.patch.fieldBindings.map((b) => b.fieldId)).toEqual(["f1", "f2"]);
   });
+
+  it("finds an existing module by name unless newModule is set", () => {
+    const named = run({ name: "Movie", role: "instance", parent: "c1" }).filter((e) => e._effect === "CREATE_ITEM");
+    expect(named[0].instance.templateId).toBe("movieMod");
+    const fresh = run({ name: "Movie", role: "instance", parent: "c1", newModule: true }).filter((e) => e._effect === "CREATE_ITEM");
+    expect(fresh[0].instance.templateId).not.toBe("movieMod");
+    expect(fresh[0].template).toMatchObject({ label: "Movie", role: "instance" });
+  });
 });
