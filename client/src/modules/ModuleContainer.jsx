@@ -4,7 +4,7 @@
 // Handles doc containers, focused instance view, list view, sorting.
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
-import { formButtonItem } from "../ui/formButtonItem";
+import { buttonItem } from "../ui/buttonItem";
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { askChoice } from "../ui/ChoiceDialog";
 import { createPortal } from "react-dom";
@@ -1397,7 +1397,7 @@ function Container({
                 onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), formButtonItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
               />
             </div>
           </PopoverAnchor>
@@ -1463,7 +1463,7 @@ function Container({
                       onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                      extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), formButtonItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                      extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
                     />
                   </div>
                 </PopoverAnchor>
@@ -1588,7 +1588,7 @@ function Container({
                     onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                    extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), formButtonItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                    extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
                   />
                 </div>
               </PopoverAnchor>
