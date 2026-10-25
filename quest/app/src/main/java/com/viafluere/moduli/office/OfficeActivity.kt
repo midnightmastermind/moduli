@@ -678,7 +678,9 @@ class OfficeActivity : AppSystemActivity() {
     val size = sizes.optJSONObject(if (src != null) "" else modelFile(model))
     t.top = size?.optDouble("top", 1.0)?.toFloat() ?: 1.0f
     if (src == null && size != null) {
-      t.model = model; t.hx = size.optDouble("hx").toFloat(); t.hz = size.optDouble("hz").toFloat()
+      // The model FILE (a PC or Claude screen draws screen.glb): its see-through copy is "<file>-ghost", and
+      // "remotedesktop-ghost.glb" does not exist (it crashed the app).
+      t.model = modelFile(model); t.hx = size.optDouble("hx").toFloat(); t.hz = size.optDouble("hz").toFloat()
       t.bottom = size.optDouble("bottom", 0.0).toFloat()
     }
     t.handle = GrabHandle(frame, t.top + HANDLE_GAP, facesHead = false,
@@ -1150,7 +1152,7 @@ class OfficeActivity : AppSystemActivity() {
       player.spotifyUrl = spotify; player.spotifyTitle = title
       attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
       savePlaying(player, JSONObject().put("title", title).put("spotify", spotify))
-      Log.i(TAG, "playing $title on ${player.key} through Spotify")
+      Log.i(TAG, "playing $title on ${player.key} through Spotify: ${spotifyWebPlayer(spotify)}")
       return
     }
     if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file for this record")); return }
