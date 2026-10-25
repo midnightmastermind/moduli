@@ -15,6 +15,36 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-24 (2) — OFFICE: FOLDER SHELVES ARE TREES, SHELVES DELETE, DRAG BETWEEN WINDOWS; the codex keeps only notes
+
+User (on the Quest): record player's bar not findable · cannot drag (a press opened the radial menu) · folders as books,
+remembered · crashes with many record players · no page delete in the radial menu · bookmarks open as boards ·
+easy multi-delete · codex: delete Notion/Obsidian entry pages, condensed into lists · Echo VR keeps crashing.
+- **Crash = memory** (`logcat -b crash`: SIGSEGV in `vkUpdateDescriptorSets`, ~2GB RSS). Record/VHS players get a web
+  panel only while playing (⏹ removes it); every piece's ⚙/🗑 panels are made the first time its menu shows. The
+  control panel lists the decor in the room with a two-tap remove.
+- **A piece standing inside another's pointing box wins** (`standsInside`): the desk's box reached the player.
+- **Folder shelves**: `vr/shelfItems.folderShelfView` — subfolders that hold something are books (`folder:<id>`, count),
+  then what sits there; ⬆ and a path in the header; where each shelf stands is kept in localStorage
+  `moduli-vr-shelf-at:<grid>`. Select → tap books → Delete N (two taps); a folder deletes through the new
+  `helpers/folderDelete` (contents move up — the file tree's delete uses it too).
+- **Bookmarks** (`kind:"bookmark"` rows on a shelf) open as a browser window (`url:` reader, saved and restored);
+  `?read=` of a bookmark redirects to its page.
+- **Drag**: ReaderApp is wrapped in DragProvider; inside the headset the touch path is used (`_isTouch` true with
+  `window.ModuliNative`) and drag start/end are reported. Letting go over ANOTHER reader window: native finds the
+  point (u, v), the page answers `__moduliDropTarget` (`helpers/readerDropTarget`), the control panel runs
+  `runGroupDrop`, both windows reload. **None of this was tried on the headset** — whether controller input reaches a
+  panel as touch, and the panel's left/right (u), are unverified.
+- **Page delete** in the page radial menu (`askChoice`).
+- **`0432` (applied, poms)**: 1,093 entry pages (inventory 576, martial-arts stubs 235, groceries/budget 172,
+  tiny-home parts 110 — property lines only, ≤260 chars) → one "<folder> — list" page per group (a section per
+  source subfolder; each bullet keeps the properties, pictures, and "on <board>" when a board row has the name —
+  388 do); 66 empty pages deleted; 2,312 occurrences + modules removed; 1,240 notes kept (day logs kept). pm2 restarted.
+- **Echo VR**: no native crash in the logs — it quits itself ~30s after launch and the Store opens. Its servers were
+  shut down in Aug 2023; the official build cannot get past sign-in.
+
+---
+
 ### 2026-10-24 — A READER IS ONE PAGE, NOT THE GRID; codex pictures uploaded; office: grid screen, new-note screen, readers come back
 
 User (on the Quest): a book loads the whole grid · several pulled books all became the last one · broken images in the
