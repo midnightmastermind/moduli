@@ -4,6 +4,7 @@
 // Collapses to tab bar only while dragging so grid is accessible
 // ============================================================
 
+import { OPEN_OPERATION_EVENT } from "../helpers/buttonOperation.js";
 import React, { useState, useEffect } from "react";
 import { User, Settings2, Workflow, Link2, Keyboard, LayoutGrid, Palette, Share2 } from "lucide-react";
 
@@ -39,6 +40,12 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
   const requestedTab = typeof initialTab === "string" ? initialTab : initialTab?.id || null;
   const [activeTab, setActiveTab] = useState(requestedTab || "fields");
   useEffect(() => { if (requestedTab) setActiveTab(requestedTab); }, [initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // "New operation for this button" (Fields tab) opens the operation it made.
+  useEffect(() => {
+    const onOpen = () => setActiveTab("operations");
+    window.addEventListener(OPEN_OPERATION_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_OPERATION_EVENT, onOpen);
+  }, []);
   // `shown` follows `open` one frame late. App mounts this the first time it is
   // opened, i.e. already open — and a box that mounts open has nothing to
   // transition FROM, so the first open just appeared (user 2026-10-17: "should

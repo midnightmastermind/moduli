@@ -1,6 +1,7 @@
 // ui/commandCenter/OperationsTab.jsx
 // OperationsTab + OperationPill + OperationEditor + TriggerDataHint + OpItem + getTriggerVars
 
+import { takeRequestedOperation, OPEN_OPERATION_EVENT } from "../../helpers/buttonOperation.js";
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { DropColumn, SortableRow, useCategoryDropMonitor } from "./CategoryColumnDnd";
 import { orderColumn } from "../../helpers/categoryColumnSort";
@@ -1082,7 +1083,13 @@ export function OperationsTab() {
     return dupes;
   }, [gridOperations]);
 
-  const [selectedOpId, setSelectedOpId] = useState(null);
+  const [selectedOpId, setSelectedOpId] = useState(() => takeRequestedOperation());
+  // A button field's "New operation for this button" asks for the operation it made (helpers/buttonOperation).
+  useEffect(() => {
+    const onOpen = () => { const id = takeRequestedOperation(); if (id) { setSubTab("actions"); setSelectedOpId(id); } };
+    window.addEventListener(OPEN_OPERATION_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_OPERATION_EVENT, onOpen);
+  }, []);
   // The editor's unsaved working copy, so the header's Save can persist what is
   // on screen rather than discarding it (see that button).
   const workingCopyRef = useRef(null);
