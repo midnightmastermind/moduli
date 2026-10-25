@@ -9440,3 +9440,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    reader collapsed to its header strip and the page was not drawn at all (viewer canvas
    arrangement, UI sweep 2026-10-19). On a canvas it gets a page-sized height. */
 .canvas-surface [data-testid="book-reader"] { height: 480px !important; } /* !important: the reader sets height:100% inline */
+
+/* A drop aimed above everything in a doc: the first block steps down one line, so the gap is something to aim at
+   (Editor `dropGapTop`; user, 2026-10-25). */
+.ProseMirror.pm-drop-gap-top > :first-child { margin-top: 1.7em !important; transition: margin-top 120ms ease-out; }

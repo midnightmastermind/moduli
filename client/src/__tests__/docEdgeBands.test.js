@@ -20,3 +20,16 @@ describe("docEdgeBands", () => {
     expect(top).toBe(10); expect(bottom).toBe(10);
   });
 });
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+describe("side bands and the top gap", () => {
+  const src = readFileSync(join(process.cwd(), "src/ui/Editor.jsx"), "utf8");
+  it("a text block wraps only from its outer thirds, on desktop too (no headset condition)", () => {
+    expect(src).toMatch(/if \(textmapped && frac > SIDE_BAND && frac < 1 - SIDE_BAND\)/);
+  });
+  it("a touch drag paints the same drop line as a mouse drag, and the top gap opens for it", () => {
+    expect(src).toMatch(/registerDocTouchHover\(el, \(p\) => \{\s*if \(p\) \{ paintDropAt\(/);
+    expect(src).toMatch(/const dropGapTop = !!dragGap && dragGap\.pos === 0/);
+  });
+});

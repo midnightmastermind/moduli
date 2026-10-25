@@ -208,6 +208,8 @@ class OfficeActivity : AppSystemActivity() {
   /** The grid whose open readers have been put back (once per grid, after the room is built). */
   private var readersRestoredFor = ""
   private val readerHandles = HashMap<Int, GrabHandle>()
+  /** The web window last pressed: a physical keyboard's keys reach the activity's own window, never a panel's. */
+  private var keyTarget: WebView? = null
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
   private val pieceWindows = HashMap<String, Int>()
   /**
@@ -274,7 +276,10 @@ class OfficeActivity : AppSystemActivity() {
                           // Typing: Android ignored the keyboard for these windows ("showSoftInput … WebView is not
                           // served") — a label editor opened and took no keys. A press asks for focus first.
                           isFocusable = true; isFocusableInTouchMode = true
-                          setOnTouchListener { v, ev -> if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN && !v.hasFocus()) v.requestFocus(); false }
+                          setOnTouchListener { v, ev ->
+                            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { keyTarget = v as? WebView; if (!v.hasFocus()) v.requestFocus() }
+                            false
+                          }
                           webViewClient = WebViewClient()
                           webChromeClient = WebChromeClient()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
@@ -1464,6 +1469,15 @@ class OfficeActivity : AppSystemActivity() {
           readerWebs[drag.fromPanel]?.evaluateJavascript("window.__moduliMovedOut && window.__moduliMovedOut(${JSONObject.quote(drag.occId)})", null)
       }
     }, 1500)
+  }
+
+  /** A keyboard paired with the headset types into the window you last pointed at and pressed. */
+  override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+    val web = keyTarget
+    if (web != null && web.isAttachedToWindow && event.keyCode != android.view.KeyEvent.KEYCODE_BACK) {
+      if (web.dispatchKeyEvent(event)) return true
+    }
+    return super.dispatchKeyEvent(event)
   }
 
   // ── Readers: a page or a file opened from a shelf or a screen ────────────

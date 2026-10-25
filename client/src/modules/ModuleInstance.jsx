@@ -842,6 +842,9 @@ function InstanceInner({
           <div
             className="instance-label"
             onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
+            // In the headset a controller's two presses rarely make a double-click, so the label could not be renamed
+            // at all (user, 2026-10-25): there one click on it opens it for editing.
+            onClick={typeof window !== "undefined" && window.ModuliNative ? (e) => { e.stopPropagation(); startLabelEdit(); } : undefined}
             style={{
               // `0 0 auto` — NEVER SHRINK. This box is an item in a COLUMN
               // flex (`.instance-textcol`), so `flex-shrink` acts on its

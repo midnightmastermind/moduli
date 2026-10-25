@@ -24,7 +24,7 @@ import { ChoiceDialogHost } from "./ui/ChoiceDialog";
 import { DragProvider } from "./helpers/DragProvider.jsx";
 import { readerDropTarget } from "./helpers/readerDropTarget.js";
 import { panelPointToPage } from "./helpers/readerDropTarget.js";
-import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill } from "./helpers/dragSystem.js";
+import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill, clearDocTouchHover } from "./helpers/dragSystem.js";
 import { embedDeleteRegistry } from "./helpers/embedRegistry.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
@@ -151,6 +151,7 @@ function ReaderBody({ initial, occurrenceId }) {
     const end = () => {
       cur?.stateRef?.current?.setIsOver?.(false); cur?.stateRef?.current?.setClosestEdge?.(null); cur = null;
       pill?.remove(); pill = null;
+      clearDocTouchHover();
       if (inSession) { inSession = false; ctx()?.handleDragEnd(); }
     };
     window.__moduliRemoteDrag = {

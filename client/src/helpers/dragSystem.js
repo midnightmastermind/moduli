@@ -633,6 +633,26 @@ export function getDocTouchDrop(el) {
   return getDocTouchDropZone(el)?.fn || null;
 }
 
+// A doc's drop line for a TOUCH drag (a finger, or the headset's controller). A mouse drag paints it from the editor's
+// own `dragover`; a touch drag fires none, so with no registered target under the point the editor under it is handed
+// the point to paint the same line (Editor `paintDropAt`), and told when the drag moves off it or ends.
+const _docTouchHovers = new Map();
+let _docHoverFn = null;
+export function registerDocTouchHover(el, fn) {
+  _docTouchHovers.set(el, fn);
+  return () => { _docTouchHovers.delete(el); if (_docHoverFn === fn) _docHoverFn = null; };
+}
+function _docHoverAt(x, y) {
+  const target = document.elementFromPoint(x, y);
+  // The innermost editor that paints its own lines: nested doc-container editors register too, sub-editors do not.
+  let cur = target?.closest?.(".doc-editor") || null, fn = null;
+  while (cur && !fn) { fn = _docTouchHovers.get(cur) || null; if (!fn) cur = cur.parentElement?.closest?.(".doc-editor") || null; }
+  if (fn !== _docHoverFn) { _docHoverFn?.(null); _docHoverFn = fn; }
+  fn?.({ x, y, target });
+}
+/** The drag left the docs or ended: take the doc's drop line down. */
+export function clearDocTouchHover() { _docHoverFn?.(null); _docHoverFn = null; }
+
 /**
  * One hover step of a touch drag at (x, y): light the registered target under it (its closest edge too) and tell
  * the drag controller where the pointer is (the insertion line, autoscroll). `target` may be passed when the caller
@@ -652,7 +672,8 @@ export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dr
   const edges = cur?.edgesRef?.current;
   if (edges) cur.stateRef?.current?.setClosestEdge?.(_computeClosestEdge(cur.el, x, y, edges));
   dragCtx.handleDragMove(x, y);
-  if (cur) dragCtx.handleDragOver?.({ type: cur.type, id: cur.id, context: cur.contextRef.current, clientX: x, clientY: y });
+  if (cur) { clearDocTouchHover(); dragCtx.handleDragOver?.({ type: cur.type, id: cur.id, context: cur.contextRef.current, clientX: x, clientY: y }); }
+  else _docHoverAt(x, y);
   return cur;
 }
 
@@ -662,6 +683,7 @@ export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dr
  * takes it. Clears the hovered target's highlight either way. Returns { dropped, docDropped }.
  */
 export function touchDropStep({ x, y, payload, sourceEl = null, cur, dragCtx, skip = false }) {
+  clearDocTouchHover();
   const target = skip ? null : _findDropTarget(x, y, payload?.type, sourceEl);
   if (target?.el !== cur?.el) {
     cur?.stateRef?.current?.setIsOver?.(false);
@@ -1315,6 +1337,7 @@ export function useDragDrop({
 
       const onEnd = (e) => {
         if (inHeadset()) headsetMenuGuard(false);
+        clearDocTouchHover();
         // A tap or a plain scroll ends here without ever activating, so the
         // hold-window watcher has to come off on EVERY end, not just a drag's.
         stopHoldScrollWatch();

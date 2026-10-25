@@ -45,7 +45,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TaskListMarkdown } from "../docs/TaskListMarkdown";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../helpers/dragSystem";
+import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone, registerDocTouchHover } from "../helpers/dragSystem";
 import { embedDeleteRegistry, editorDom } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember, extractGroupMember } from "../helpers/wrapGroupOps";
 import { floatCountOf, afterAddingFloat } from "../docs/wrapRoles";
@@ -434,8 +434,8 @@ let _editorInstSeq = 0;
 export const EDGE_INSERT_PX = 12;
 /** The same band for a controller ray in the headset, which lands far less precisely than a mouse. */
 export const EDGE_INSERT_COARSE_PX = 28;
-/** In the headset, the part of a block's width (from each side) where a drop wraps beside it. */
-export const SIDE_BAND_COARSE = 1 / 3;
+/** The part of a text block's width (from each side) where a drop wraps beside it; the middle inserts. */
+export const SIDE_BAND = 1 / 3;
 
 /**
  * How far into a block (from its top / bottom) a drop means "above / below it" rather than "wrap beside it". Capped
@@ -2438,12 +2438,12 @@ const Editor = forwardRef(function Editor({
       return bail("top/bottom edge → plain insert", { hostOccId, y: input.clientY, top: Math.round(rect.top), bottom: Math.round(rect.bottom) });
     const frac = (input.clientX - rect.left) / rect.width;
     if (!textmapped && frac > 0.33 && frac < 0.67) return bail("non-text host, middle third → plain insert", { hostOccId, frac: frac.toFixed(2) });
-    // In the headset the sides are bands too: a wrap forms only near a block's left or right edge, the middle is a
-    // plain insert (user, 2026-10-25: "those drop bands should go on the sides too") — a ray over a text block picked
-    // a side everywhere, so a drop meant for above it wrapped instead.
-    if (textmapped && headsetDrop && frac > SIDE_BAND_COARSE && frac < 1 - SIDE_BAND_COARSE)
-      return bail("headset, middle of a text block → plain insert", { hostOccId, frac: frac.toFixed(2) });
-    const side = sideFromFrac(frac); // textmapped: pick a side ANYWHERE (no dead middle third)
+    // The sides are bands too: a wrap forms only near a block's left or right edge, the middle is a plain insert
+    // (user, 2026-10-25: "those drop bands should go on the sides too", then "on desktop too") — over a text block
+    // every point picked a side, so a drop meant for above it wrapped instead.
+    if (textmapped && frac > SIDE_BAND && frac < 1 - SIDE_BAND)
+      return bail("middle of a text block → plain insert", { hostOccId, frac: frac.toFixed(2) });
+    const side = sideFromFrac(frac);
     const anchorOffset = textmapped ? offsetFor(dom, input.clientY) : 0;
     return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !textmapped };
   }, [editor, isTextmappedHost, blockIndexAtY, offsetFor, textSideDrop]);
@@ -2497,6 +2497,12 @@ const Editor = forwardRef(function Editor({
       // fallback never need a forced elementFromPoint hit-test per frame
       // (dragover bubbles, so nested + page editors both run this every frame).
       const tgt = e.target instanceof Element ? e.target : null;
+      paintDropAt(x, y, tgt);
+    };
+    // The drop line at a point — for a mouse drag from `dragover`, for a touch drag (a finger or the headset's
+    // controller, which fire no dragover) from dragSystem's doc hover registry.
+    const paintDropAt = (x, y, tgt) => {
+      if (!editor?.view) return;
       const dx = x - lastGapX, dy = y - lastGapY;
       if (dragOverRaf || dx * dx + dy * dy < 16) return;
       dragOverRaf = requestAnimationFrame(() => {
@@ -2559,6 +2565,12 @@ const Editor = forwardRef(function Editor({
     // doc, where the host actually lives) never appeared.
     el.addEventListener("dragover", onDragOver);
     el.addEventListener("dragleave", onDragLeaveNative);
+    const unregisterTouchHover = registerDocTouchHover(el, (p) => {
+      if (p) { paintDropAt(p.x, p.y, p.target instanceof Element ? p.target : null); return; }
+      if (dragOverRaf) { cancelAnimationFrame(dragOverRaf); dragOverRaf = 0; }
+      lastGapX = -Infinity; lastGapY = -Infinity;
+      setDragGap(null); setWrapDrop(null);
+    });
     // A drop clears indicators via handleDocDrop on the OWNING editor; the
     // delegate-only editor's own lines are cleared by its zone fn running the
     // same handler, plus the shared document-level dragend/drop registry
@@ -3032,6 +3044,7 @@ const Editor = forwardRef(function Editor({
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
       unregisterDragEndClear();
+      unregisterTouchHover();
       cleanup?.();
       touchDropCleanup();
     };
@@ -3383,6 +3396,17 @@ const Editor = forwardRef(function Editor({
   }, [editor, occurrence, dispatch, socket]);
 
   // ── render ────────────────────────────────────────────────────
+  // A drop aimed above everything opens a gap one line tall at the top, so there is a place to aim at rather than a
+  // hairline above a block that would rather wrap (user, 2026-10-25: "we may need a gap appear when i drag to the top").
+  const dropGapTop = !!dragGap && dragGap.pos === 0 && dragGap.width == null;
+  useEffect(() => {
+    let dom = null;
+    try { dom = editor?.view?.dom || null; } catch { dom = null; }
+    if (!dom) return;
+    dom.classList.toggle("pm-drop-gap-top", dropGapTop);
+    return () => dom.classList.remove("pm-drop-gap-top");
+  }, [editor, dropGapTop]);
+
   return (
     <div
       ref={wrapperRef}
