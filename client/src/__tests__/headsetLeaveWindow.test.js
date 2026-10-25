@@ -1,0 +1,23 @@
+// @vitest-environment jsdom
+// A touch drag that ends at a reader window's edge in the headset has LEFT the window (2026-10-25: dragging a row
+// from one book to another dropped it at the source window's edge, and told the app the drop was taken).
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { leftThroughEdge, LEAVE_EDGE_PX } from "../helpers/dragSystem.js";
+
+describe("leftThroughEdge", () => {
+  it("near any edge is leaving; the middle is not", () => {
+    expect(leftThroughEdge(5, 300, 800, 600)).toBe(true);
+    expect(leftThroughEdge(790, 300, 800, 600)).toBe(true);
+    expect(leftThroughEdge(400, 3, 800, 600)).toBe(true);
+    expect(leftThroughEdge(400, 590, 800, 600)).toBe(true);
+    expect(leftThroughEdge(400, 300, 800, 600)).toBe(false);
+    expect(leftThroughEdge(LEAVE_EDGE_PX + 1, 300, 800, 600)).toBe(false);
+  });
+  it("is only used inside the headset, and a doc drop counts as dropped", () => {
+    const src = readFileSync(join(process.cwd(), "src/helpers/dragSystem.js"), "utf8");
+    expect(src).toMatch(/const leftWindow = inHeadset\(\) && leftThroughEdge\(/);
+    expect(src).toMatch(/dropped: !!curTarget \|\| docDropped/);
+  });
+});

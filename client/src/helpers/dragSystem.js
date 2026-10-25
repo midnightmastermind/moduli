@@ -106,6 +106,12 @@ export function bindPointerAsTouch(el, { onStart, onMove, onEnd }) {
   };
 }
 
+/** A touch that ends this close to the window's edge has left the window (headset: the controller moved off the panel). */
+export const LEAVE_EDGE_PX = 24;
+export function leftThroughEdge(x, y, w, h, edge = LEAVE_EDGE_PX) {
+  return x <= edge || y <= edge || x >= w - edge || y >= h - edge;
+}
+
 /** Tell the headset a drag started / ended in this window, so it can carry it into another window. */
 function _nativeDrag(msg) {
   try { if (typeof window !== "undefined" && window.ModuliNative) window.ModuliNative.postMessage(JSON.stringify(msg)); } catch { /* not in the headset */ }
@@ -1076,7 +1082,8 @@ export function useDragDrop({
         hitEveryMs = _HIT_TEST_INTERVAL;
 
         dragCtx.handleDragStart(payload, startX, startY, { mode });
-        _nativeDrag({ type: "dragStart", occId: payload?.occurrenceId || null, mode });
+        _nativeDrag({ type: "dragStart", occId: payload?.occurrenceId || null, mode, label: String(liveData?.label || liveData?.name || "").slice(0, 60) });
+        if (inHeadset()) console.log("[headsetDrag] start", payload?.occurrenceId || null, mode);
         dragPerf.mark("handleDragStart");
         dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
       };
@@ -1288,13 +1295,17 @@ export function useDragDrop({
         // where the thing lands. The `else` branch below already re-read the
         // point with its own `elementFromPoint` for doc drops — the drop path
         // had stopped trusting `curTarget` for half the cases already.
-        const dropTarget = _findDropTarget(t.clientX, t.clientY, payload.type, el);
+        // In the headset a drag carried OUT of this window ends here, at the window's edge (the controller has left
+        // the panel): this window takes no drop, and the app carries it into the window the trigger is let go over.
+        const leftWindow = inHeadset() && leftThroughEdge(t.clientX, t.clientY, window.innerWidth, window.innerHeight);
+        const dropTarget = leftWindow ? null : _findDropTarget(t.clientX, t.clientY, payload.type, el);
         if (dropTarget?.el !== curTarget?.el) {
           curTarget?.stateRef?.current?.setIsOver?.(false);
           curTarget?.stateRef?.current?.setClosestEdge?.(null);
           curTarget = dropTarget;
         }
 
+        let docDropped = false;
         if (curTarget) {
           // A1: Haptic double-tap on successful drop
           if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
@@ -1318,8 +1329,9 @@ export function useDragDrop({
           // No registered target under the finger — but doc-editor prose isn't
           // in the touch registry at all. Route drops landing on a doc straight
           // to the editor's touch handler (wrap-beside / embed insert).
-          const docEl = document.elementFromPoint(t.clientX, t.clientY)?.closest?.(".doc-editor");
+          const docEl = leftWindow ? null : document.elementFromPoint(t.clientX, t.clientY)?.closest?.(".doc-editor");
           const docZone = getDocTouchDrop(docEl);
+          if (docZone) docDropped = true;
           if (docZone) {
             if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
             docZone({ source: { data: payload }, clientX: t.clientX, clientY: t.clientY });
@@ -1329,7 +1341,8 @@ export function useDragDrop({
         // The drop handler has returned — the write is dispatched, the paint
         // is still a frame away. `end()` waits for that frame rather than
         // reporting the handler's return as though the user had seen it.
-        _nativeDrag({ type: "dragEnd", dropped: !!curTarget });
+        _nativeDrag({ type: "dragEnd", dropped: !!curTarget || docDropped });
+        if (inHeadset()) console.log("[headsetDrag] end", JSON.stringify({ x: Math.round(t.clientX), y: Math.round(t.clientY), w: window.innerWidth, h: window.innerHeight, leftWindow, dropped: !!curTarget || docDropped }));
         dragPerf.dropDone();
         curTarget = null;
         dragging = false;

@@ -83,6 +83,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val CONTROL_H = 0.9f
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
+    private const val GHOST_W = 0.42f
+    private const val GHOST_H = 0.08f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
     private const val PIECE_H = 0.75f
@@ -492,7 +494,7 @@ class OfficeActivity : AppSystemActivity() {
         for ((id, occ) in readerOcc.toList()) if (occ in ids) closeReader(id)
       }
       "dragStart" -> onDragStart(m)
-      "dragEnd" -> pendingDrag?.let { if (it.fromPanel == m.optInt("_panel", -1)) { it.ended = true; it.dropped = m.optBoolean("dropped") } }
+      "dragEnd" -> pendingDrag?.let { if (it.fromPanel == m.optInt("_panel", -1)) { it.ended = true; it.dropped = m.optBoolean("dropped"); Log.i(TAG, "drag end in window ${it.fromPanel}, taken there: ${it.dropped}") } }
       "placed" -> m.optJSONArray("panels")?.let { a -> for (i in 0 until a.length()) readerWebs[a.optInt(i)]?.reload() }
       // The new-note screen's button: the control panel (signed in, holds the grid) makes the page, then says "openNote".
       "newNote" -> send(JSONObject().put("type", "newNote").put("key", m.optString("key")))
@@ -1231,6 +1233,7 @@ class OfficeActivity : AppSystemActivity() {
         main.postDelayed({ if (pendingDrag === d) finishCrossDrag(rays) }, 250)
       }
       triggerWasDown = triggerDown
+      updateGhost()
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
       if (turnDir == 0f && growDir == 0f) return
@@ -1269,7 +1272,69 @@ class OfficeActivity : AppSystemActivity() {
 
   // ── Dragging from one reader window to another ───────────────────────────
   /** A drag a reader window reported starting (its page cannot see past its own edges). */
-  private class PendingDrag(val fromPanel: Int, val occId: String, val mode: String) {
+  // ── The drag ghost: what you carry between reader windows ─────────────────
+  // A drag's pill is part of its window's page, so it stops at that window's edge; this label floats in the room,
+  // follows the controller once it leaves the window, and sits on the reader window it would drop into.
+  private val ghostText = mutableStateOf("")
+  private var ghost: Entity? = null
+
+  private fun ensureGhost(): Entity {
+    ghost?.let { return it }
+    val id = nextPanelId++
+    registerPanel(ComposeViewPanelRegistration(
+        id,
+        composeViewCreator = { _, ctx ->
+          ComposeView(ctx).apply {
+            setContent {
+              Text(
+                  ghostText.value,
+                  color = androidx.compose.ui.graphics.Color.White,
+                  modifier = Modifier.fillMaxSize()
+                      .background(androidx.compose.ui.graphics.Color(0xE6202A36.toInt()))
+                      .padding(horizontal = 10.dp, vertical = 6.dp),
+              )
+            }
+          }
+        },
+        settingsCreator = {
+          UIPanelSettings(
+              shape = QuadShapeOptions(width = GHOST_W, height = GHOST_H),
+              style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
+              display = DpPerMeterDisplayOptions(),
+          )
+        },
+    ))
+    return Entity.create(listOf(Panel(id), Transform(Pose()), Visible(false))).also { ghost = it }
+  }
+
+  /** Each frame: show the ghost while a drag is out of its window, on the window it would land in if there is one. */
+  private fun updateGhost() {
+    val d = pendingDrag
+    val g = ghost ?: return
+    if (d == null || d.released) { g.setComponent(Visible(false)); return }
+    val (o, dir) = controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
+    val box = { pose: Pose -> PoseMath.rayBox(o, dir, pose, floatArrayOf(-READER_W / 2f, -READER_H / 2f, -0.03f), floatArrayOf(READER_W / 2f, READER_H / 2f, 0.03f)) }
+    // Still pointing at the window it started in: that page draws its own pill.
+    val src = readers[d.fromPanel]?.tryGetComponent<Transform>()?.transform
+    if (src != null && box(src) != null) { g.setComponent(Visible(false)); return }
+    var best: Float? = null
+    for ((id, e) in readers) {
+      if (id == d.fromPanel || !readerWebs.containsKey(id)) continue
+      val pose = e.tryGetComponent<Transform>()?.transform ?: continue
+      val dist = box(pose) ?: continue
+      if (best == null || dist < best) best = dist
+    }
+    val dist = best?.let { it - 0.04f } ?: 0.7f
+    val at = floatArrayOf(o[0] + dir[0] * dist, o[1] + dir[1] * dist, o[2] + dir[2] * dist)
+    val head = headPose()?.let { PoseMath.tOf(it) }
+    val q = if (head != null) PoseMath.yaw(PoseMath.yawToward(at, head) + 180f) else PoseMath.yaw(180f)
+    val text = if (best != null) "Drop here: ${d.label}" else d.label.ifEmpty { "Moving…" }
+    if (ghostText.value != text) ghostText.value = text
+    g.setComponent(Transform(PoseMath.sane(PoseMath.pose(at, q), "ghost")))
+    g.setComponent(Visible(true))
+  }
+
+  private class PendingDrag(val fromPanel: Int, val occId: String, val mode: String, val label: String = "") {
     var ended = false
     var dropped = false
     var released = false
@@ -1280,7 +1345,9 @@ class OfficeActivity : AppSystemActivity() {
   private fun onDragStart(m: JSONObject) {
     val occ = m.optString("occId")
     if (occ.isEmpty()) return
-    pendingDrag = PendingDrag(m.optInt("_panel", -1), occ, m.optString("mode", "move"))
+    pendingDrag = PendingDrag(m.optInt("_panel", -1), occ, m.optString("mode", "move"), m.optString("label"))
+    ensureGhost()
+    Log.i(TAG, "drag start ${occ} in window ${m.optInt("_panel", -1)}")
   }
 
   /**
@@ -1291,6 +1358,7 @@ class OfficeActivity : AppSystemActivity() {
   private fun finishCrossDrag(rays: List<Pair<FloatArray, FloatArray>>) {
     val drag = pendingDrag ?: return
     pendingDrag = null
+    ghost?.setComponent(Visible(false))
     if (drag.dropped) return
     var best: Triple<Int, Float, FloatArray>? = null
     for ((id, e) in readers) {
@@ -1304,7 +1372,7 @@ class OfficeActivity : AppSystemActivity() {
         }
       }
     }
-    val (toPanel, _, local) = best ?: return
+    val (toPanel, _, local) = best ?: run { Log.i(TAG, "drag ${drag.occId}: let go over no other window"); return }
     // The panel's face looks out of -z, so seen from the front its +x is on your left.
     val u = (0.5f - local[0] / READER_W).coerceIn(0f, 1f)
     val v = (0.5f - local[1] / READER_H).coerceIn(0f, 1f)
@@ -1314,7 +1382,7 @@ class OfficeActivity : AppSystemActivity() {
         val str = org.json.JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
         JSONObject(str)
       } catch (e: Exception) { return@evaluateJavascript }
-      if (target.optString("parentId").isEmpty()) return@evaluateJavascript
+      if (target.optString("parentId").isEmpty()) { Log.i(TAG, "drag ${drag.occId}: window $toPanel has no place at ($u, $v)"); return@evaluateJavascript }
       Log.i(TAG, "drag ${drag.occId} from window ${drag.fromPanel} into ${target.optString("parentId")} in window $toPanel")
       send(JSONObject().put("type", "placeInto").put("occId", drag.occId).put("mode", drag.mode)
           .put("parentId", target.optString("parentId")).put("index", target.optInt("index"))
