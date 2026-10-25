@@ -58,6 +58,12 @@ describe("planFormButton", () => {
     expect(create.itemIdVar).toBe("$newId");
   });
 
+  it("binds the fields it does not ask, keeping the instances' hidden flags", () => {
+    const create = stepOf(planFormButton({ ...world(), noun: "movie" }), "CREATE");
+    expect(create.fields.poster).toBeNull();
+    expect(create.fieldHidden).toEqual({ cat: true, secret: true });
+  });
+
   it("places the board's shared module and names the new occurrence from the form", () => {
     const create = stepOf(planFormButton({ ...world(), noun: "movie" }), "CREATE");
     expect(create.module).toBe("movieMod");
@@ -84,7 +90,7 @@ describe("planFormButton", () => {
   it("one instance agrees with nobody — its values are asked, not copied", () => {
     const create = stepOf(planFormButton({ ...world({ rows: 1 }), noun: "movie" }), "CREATE");
     expect(create.fields.title).toBe("$form.fields.title");
-    expect(create.fields.cat).toBeUndefined();
+    expect(create.fields.cat).toBeNull(); // bound, empty — not copied from the one row
     expect(create.module).toBeUndefined();
   });
 

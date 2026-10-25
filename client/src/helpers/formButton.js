@@ -76,22 +76,29 @@ export function planFormButton({ container, containerModule, noun, occurrencesBy
   const agreed = rows.length >= 2 ? agreedValues(rows, usable.map((b) => b.fieldId)) : {};
 
   const items = [{ key: "name", label: "Name", type: "text", required: true }];
+  // Every field the instances bind goes in the Create (a null value binds it empty), with their hidden flag, so the
+  // new occurrence has the same shape: a hidden Board Category stays hidden, a Poster slot is there to fill.
   const fields = {};
+  const fieldHidden = {};
   for (const b of usable) {
     const f = fieldsById[b.fieldId];
+    if (b.hidden === true) fieldHidden[b.fieldId] = true;
     if (b.fieldId in agreed) {
       const v = agreed[b.fieldId];
       fields[b.fieldId] = typeof v === "string" ? `literal:${v}` : v;
       continue;
     }
-    if (b.hidden === true || NO_INPUT_TYPES.has(f.type) || f.inputEnabled === false || (b.role && b.role !== "input")) continue;
+    if (b.hidden === true || NO_INPUT_TYPES.has(f.type) || f.inputEnabled === false || (b.role && b.role !== "input")) {
+      fields[b.fieldId] = null;
+      continue;
+    }
     items.push({ key: itemKey(f.name, items.map((i) => i.key)), label: f.name, fieldId: f.id });
     fields[f.id] = `$form.fields.${f.id}`;
   }
 
   const shared = rows.length >= 2 ? mostCommon(rows, (r) => r.moduleId) : { value: null, count: 0 };
   const placeShared = shared.value && shared.count >= 2 && shared.count * 2 >= rows.length && modulesById?.[shared.value];
-  const create = { type: "CREATE", parent: "$trigger.occurrenceId", itemIdVar: "$newId", fields };
+  const create = { type: "CREATE", parent: "$trigger.occurrenceId", itemIdVar: "$newId", fields, ...(Object.keys(fieldHidden).length ? { fieldHidden } : {}) };
   if (placeShared) {
     Object.assign(create, { module: shared.value, occurrenceLabel: "$form.values.name" });
   } else {
