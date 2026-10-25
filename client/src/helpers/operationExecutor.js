@@ -24,6 +24,7 @@ import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "..
 import { operationsBridge, byIdCached } from "../state/bindSocketToStore";
 import { analyzeAllOperations, analyzeOperationCached } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
+import { occurrenceDisplayLabel } from "./occurrenceLabel";
 import { bumpOpRun } from "./renderProbe";
 import { noteOpSweep } from "./opActivity";
 import { yieldToBrowser } from "./sliceWork";
@@ -2142,10 +2143,18 @@ export function executePipeline(operation, context, transaction, extraVars, exte
           flow: fdata?.flow ?? null,
         };
       }
+      // Name what was pressed / changed, not only where it sits: a button's operation reads the occurrence's own
+      // name (its placement label, else its module's), its role and kind, and the ids it lists (2026-10-25).
+      const occModule = (context.modulesById || {})[occSource.moduleId]
+        || (state?.modules || []).find((m) => m && m.id === occSource.moduleId) || null;
       enriched.occurrence = {
         id: occSource.id,
         moduleId: occSource.moduleId,
         parentId: occSource.parentId,
+        label: occurrenceDisplayLabel(occSource, occModule, ""),
+        role: occModule?.role || null,
+        kind: occModule?.kind || null,
+        occurrences: Array.isArray(occSource.occurrences) ? [...occSource.occurrences] : [],
         fields,
         // Ordered ancestor occurrence IDs (closest first). Lets a rebuild op
         // tell "the Schedule source changed" apart from "I just deleted my own

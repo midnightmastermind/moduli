@@ -111,7 +111,7 @@ const SHAPES = {
     keys: () => [
       {
         value: "occurrence", title: "occurrence", sub: "occurrence",
-        description: "The row the event happened to — id, moduleId, parentId, fields, _ancestors",
+        description: "The occurrence the event happened to (the one a button sits on) — id, label, role, kind, occurrences, fields, _ancestors",
         hasChildren: true, childShape: "occurrence",
       },
       ...TRIGGER_PROP_KEYS.map((k) => ({
