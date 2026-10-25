@@ -39,7 +39,8 @@ object GeckoEngine {
   /**
    * Firefox gives every site its own process (Fission) and keeps spares warm: on the headset that was five page
    * processes, ~700 MB, beside the app's own ~650 MB — and the room blacked out for seconds while the system freed
-   * memory. One shared page process, no spares. (GeckoView reads this file in a debuggable build, which this is.)
+   * memory. One shared page process, no spares. And no separate GPU process: low on memory, the system killed it
+   * first (it counts as a background process) and every browser screen went black and stayed black. (GeckoView reads this file in a debuggable build, which this is.)
    */
   private fun memoryConfig(ctx: Context): String {
     val f = java.io.File(ctx.filesDir, "geckoview-config.yaml")
@@ -51,6 +52,7 @@ object GeckoEngine {
         |  dom.ipc.processCount.webIsolated: 1
         |  dom.ipc.processPrelaunch.enabled: false
         |  browser.sessionhistory.max_total_viewers: 0
+        |  layers.gpu-process.enabled: false
         |""".trimMargin())
     return f.absolutePath
   }

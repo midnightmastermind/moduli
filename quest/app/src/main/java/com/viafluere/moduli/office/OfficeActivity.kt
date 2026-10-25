@@ -97,6 +97,9 @@ class OfficeActivity : AppSystemActivity() {
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
     private const val BROWSER_DP_PER_M = 1000f
+    /** A browser screen's texture at 0.7 of its page size: the page keeps its desktop width (1000 dp a metre) but each
+     *  screen holds half the graphics memory — at full size the room ran the headset out of memory and went black. */
+    private const val BROWSER_RES = 0.7f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
@@ -458,7 +461,7 @@ class OfficeActivity : AppSystemActivity() {
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
                 // 1000 dp a metre (the default is 500): a 1.6m screen is 1,600 page pixels wide, like a desktop monitor — at
                 // 800 a PC's desktop over Remote Desktop and most sites read zoomed in.
-                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M),
+                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M, resolutionScale = BROWSER_RES),
             )
           },
       )
@@ -584,7 +587,12 @@ class OfficeActivity : AppSystemActivity() {
       "newNote" -> send(JSONObject().put("type", "newNote").put("key", m.optString("key")))
       "openNote" -> {
         val at = things[m.optString("key")]?.frame?.tryGetComponent<Transform>()?.transform
-        openReader(m.optString("id"), near = at?.let { val p = PoseMath.tOf(it); floatArrayOf(p[0], 1.4f, p[2]) })
+        // In front of you, a little to the side of the screen: opened AT the screen it stood behind it, out of sight
+        // ("nothing happens when i click new note").
+        openReader(m.optString("id"), near = at?.let { pose ->
+          val p = PoseMath.tOf(pose); val h = headPose()?.let { PoseMath.tOf(it) } ?: return@let null
+          floatArrayOf(p[0] + (h[0] - p[0]) * 0.45f, 1.4f, p[2] + (h[2] - p[2]) * 0.45f)
+        })
       }
       "spawn" -> things[m.optString("key")]?.let { putInFront(it) }
       "mode" -> { store.mode = m.optString("mode", "mr"); applyMode(store.mode); send(JSONObject().put("type", "mode").put("mode", store.mode)) }
@@ -1130,7 +1138,7 @@ class OfficeActivity : AppSystemActivity() {
             UIPanelSettings(
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-                display = DpPerMeterDisplayOptions(dpPerMeter = SPOTIFY_DP_PER_M),
+                display = DpPerMeterDisplayOptions(dpPerMeter = SPOTIFY_DP_PER_M, resolutionScale = BROWSER_RES),
             )
           },
       )
