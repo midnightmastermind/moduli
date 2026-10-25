@@ -23,6 +23,8 @@ import { useTheme } from "./helpers/useTheme";
 import { ChoiceDialogHost } from "./ui/ChoiceDialog";
 import { DragProvider } from "./helpers/DragProvider.jsx";
 import { readerDropTarget } from "./helpers/readerDropTarget.js";
+import { panelPointToPage } from "./helpers/readerDropTarget.js";
+import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill } from "./helpers/dragSystem.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
 
@@ -124,6 +126,80 @@ function ReaderBody({ initial, occurrenceId }) {
     }));
     return () => { delete window.__moduliDropTarget; };
   }, [occurrenceId]);
+  // A drag the headset carries in from ANOTHER window runs here exactly as one begun here would: the same pill, the
+  // same highlight and insertion line, the same drop (a doc embeds it, a board lists it). `prepare` (at drag start,
+  // while it is still in its own window) brings the dragged row and its parent into this window's store — the drop
+  // writes both lists; `enter` / `move` / `drop` / `leave` follow the controller across this window's panel.
+  React.useEffect(() => {
+    let payload = null, ready = null, cur = null, pill = null, inSession = false;
+    const ctx = () => windowDragCtx();
+    const pt = (u, v, wM, hM) => panelPointToPage({ u, v, wM, hM, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
+    const load = async (id) => {
+      const r = await fetch(`/api/v1/occurrences/${encodeURIComponent(id)}/subtree`, { headers: sessionHeaders() });
+      if (!r.ok) return null;
+      const sub = await r.json();
+      for (const m of sub.modules || []) if (!has.mod(m.id)) dispatch(createModuleAction(m));
+      for (const o of sub.occurrences || []) if (!has.occ(o.id)) dispatch(createOccurrenceAction(o));
+      return (sub.occurrences || []).find((o) => o.id === id) || null;
+    };
+    const loadOne = async (id) => {
+      if (!id || has.occ(id)) return;
+      const r = await fetch(`/api/v1/occurrences/${encodeURIComponent(id)}`, { headers: sessionHeaders() });
+      if (r.ok) { const { occurrence } = await r.json(); if (occurrence && !has.occ(id)) dispatch(createOccurrenceAction(occurrence)); }
+    };
+    const end = () => {
+      cur?.stateRef?.current?.setIsOver?.(false); cur?.stateRef?.current?.setClosestEdge?.(null); cur = null;
+      pill?.remove(); pill = null;
+      if (inSession) { inSession = false; ctx()?.handleDragEnd(); }
+    };
+    window.__moduliRemoteDrag = {
+      prepare(json) {
+        const p = JSON.parse(json);
+        payload = { type: p.type, id: p.id, data: p.data, context: p.context || {}, occurrenceId: p.occurrenceId ?? null,
+          sourceWindowId: p.sourceWindowId || null, mode: p.mode || "move" };
+        const id = payload.occurrenceId;
+        ready = id ? load(id).then((o) => loadOne(o?.parentId || payload.context?.parentOccurrenceId)).catch(() => {}) : Promise.resolve();
+        console.log("[headsetDrag] remote prepare", id);
+      },
+      enter(label, u, v, wM, hM) {
+        if (!payload || !ctx()) return;
+        const { x, y } = pt(u, v, wM, hM);
+        ctx().handleDragStart(payload, x, y, { mode: payload.mode });
+        inSession = true;
+        pill = createDragPill(label, payload.mode);
+        document.body.appendChild(pill);
+        this.move(u, v, wM, hM);
+      },
+      move(u, v, wM, hM) {
+        if (!inSession) return;
+        const { x, y } = pt(u, v, wM, hM);
+        if (pill) pill.style.transform = `translate3d(${x - 40}px, ${y - 14}px, 0)`;
+        cur = touchHoverStep({ x, y, payload, cur, dragCtx: ctx() });
+      },
+      leave() { end(); },
+      // Waits for `prepare`'s rows; the headset reads the answer from window.__moduliRemoteDropped.
+      drop(u, v, wM, hM) {
+        window.__moduliRemoteDropped = null;
+        const go = () => {
+          let dropped = false;
+          try {
+            if (inSession) {
+              const { x, y } = pt(u, v, wM, hM);
+              ({ dropped } = touchDropStep({ x, y, payload, cur, dragCtx: ctx() }));
+              cur = null;
+            }
+          } finally {
+            end();
+            window.__moduliRemoteDropped = dropped;
+            console.log("[headsetDrag] remote drop", payload?.occurrenceId, dropped);
+          }
+        };
+        (ready || Promise.resolve()).then(go, go);
+      },
+      cancel() { end(); payload = null; ready = null; },
+    };
+    return () => { end(); delete window.__moduliRemoteDrag; };
+  }, [dispatch, has]);
   const gridRef = React.useRef(null);
   const occ = state.occurrences.find((o) => o.id === occurrenceId);
   const mod = occ && state.modules.find((m) => m.id === occ.moduleId);

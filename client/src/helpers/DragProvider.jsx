@@ -22,6 +22,7 @@ import {
   NATIVE_DND_MIME,
   getDocTouchDrop,
   setupAutoScroll,
+  setWindowDragCtx,
 } from "./dragSystem";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { nextStackIndex } from "./panelStack";
@@ -1543,6 +1544,9 @@ export function DragProvider({
   const hotContextValue = useMemo(() => ({
     panelOverCellId,
   }), [panelOverCellId]);
+
+  // A drag the headset carries in from another window drives this window's own drag controller (ReaderApp).
+  useEffect(() => { setWindowDragCtx(contextValue); return () => setWindowDragCtx(null); }, [contextValue]);
 
   return (
     <DragContext.Provider value={contextValue}>

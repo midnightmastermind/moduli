@@ -18,6 +18,24 @@ describe("leftThroughEdge", () => {
   it("is only used inside the headset, and a doc drop counts as dropped", () => {
     const src = readFileSync(join(process.cwd(), "src/helpers/dragSystem.js"), "utf8");
     expect(src).toMatch(/const leftWindow = inHeadset\(\) && \(window\.__moduliOutside === true \|\| leftThroughEdge\(/);
-    expect(src).toMatch(/dropped: !!curTarget \|\| docDropped/);
+    // A doc drop counts as dropped: touchDropStep answers dropped for the doc zone too, and dragEnd reports it.
+    expect(src).toMatch(/return \{ dropped: true, docDropped: true \}/);
+    expect(src).toMatch(/_nativeDrag\(\{ type: "dragEnd", dropped: _dropped \}\)/);
+  });
+});
+
+describe("a drag carried in from another headset window", () => {
+  it("runs the same hover and drop steps as a drag begun in this window", () => {
+    const reader = readFileSync(join(process.cwd(), "src/ReaderApp.jsx"), "utf8");
+    const drag = readFileSync(join(process.cwd(), "src/helpers/dragSystem.js"), "utf8");
+    expect(reader).toMatch(/touchHoverStep\(\{ x, y, payload, cur, dragCtx: ctx\(\) \}\)/);
+    expect(reader).toMatch(/touchDropStep\(\{ x, y, payload, cur, dragCtx: ctx\(\) \}\)/);
+    // ...and the window's own drag uses them too (control: they are not a second copy).
+    expect(drag).toMatch(/curTarget = touchHoverStep\(/);
+    expect(drag).toMatch(/= touchDropStep\(\{/);
+  });
+  it("does not start dragging a page in the headset", () => {
+    const drag = readFileSync(join(process.cwd(), "src/helpers/dragSystem.js"), "utf8");
+    expect(drag).toMatch(/if \(inHeadset\(\) && type === DragType\.PAGE\) return;/);
   });
 });

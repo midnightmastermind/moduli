@@ -13,6 +13,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.ComposeViewPanelRegistration
@@ -83,8 +85,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val CONTROL_H = 0.9f
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
-    private const val GHOST_W = 0.42f
-    private const val GHOST_H = 0.08f
+    private const val GHOST_W = 0.30f
+    private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
     private const val PIECE_H = 0.75f
@@ -553,7 +555,8 @@ class OfficeActivity : AppSystemActivity() {
       readersRestoredFor = store.gridId
       for (r in store.readers()) {
         val t = r.optJSONArray("t") ?: continue; val q = r.optJSONArray("q") ?: continue
-        openReader(r.optString("occ"), pose = PoseMath.pose(FloatArray(3) { t.optDouble(it).toFloat() }, FloatArray(4) { q.optDouble(it).toFloat() }))
+        openReader(r.optString("occ"), pose = PoseMath.pose(FloatArray(3) { t.optDouble(it).toFloat() }, FloatArray(4) { q.optDouble(it).toFloat() }),
+            scale = r.optDouble("s", 1.0).toFloat())
       }
     }
     val st = state
@@ -1217,7 +1220,8 @@ class OfficeActivity : AppSystemActivity() {
         if (h.update(head)) Log.i(TAG, "grabbed ${t.key}")
         if (h.held) held = t.key
       }
-      for (h in readerHandles.values) h.update(head)
+      var heldReader: Int? = null
+      for ((id, h) in readerHandles) { h.update(head); if (h.held) heldReader = id }
       showMenus()
       ghostSeats(head)
       updateBooks()
@@ -1259,6 +1263,11 @@ class OfficeActivity : AppSystemActivity() {
       updateGhost()
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
+      // A reader window you hold moves out / in and grows / shrinks with the same sticks as furniture.
+      heldReader?.let { id ->
+        if (reachDir != 0f) readerHandles[id]?.let { it.reach += reachDir * REACH_M_PER_S * dt }
+        if (growDir != 0f) scaleReader(id, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat())
+      }
       if (turnDir == 0f && growDir == 0f) return
       val target = held?.let { things[it] } ?: return
       if (turnDir != 0f) turn(target, turnDir * TURN_DEG_PER_S * dt, save = false)
@@ -1296,9 +1305,11 @@ class OfficeActivity : AppSystemActivity() {
   // ── Dragging from one reader window to another ───────────────────────────
   /** A drag a reader window reported starting (its page cannot see past its own edges). */
   // ── The drag ghost: what you carry between reader windows ─────────────────
-  // A drag's pill is part of its window's page, so it stops at that window's edge; this label floats in the room,
-  // follows the controller once it leaves the window, and sits on the reader window it would drop into.
-  private val ghostText = mutableStateOf("")
+  // A drag's pill is part of its window's page, so it stops at that window's edge. Between windows this floats the
+  // same pill in the room (its words and colours), at the distance of the window it left; over another reader window
+  // that window runs the drag itself (its own pill, highlight and drop — ReaderApp's __moduliRemoteDrag).
+  private val ghostTitle = mutableStateOf("")
+  private val ghostAction = mutableStateOf("")
   private var ghost: Entity? = null
   /** Origin and direction of the controller whose trigger is down (the one carrying a drag). */
   private var dragRay: Pair<FloatArray, FloatArray>? = null
@@ -1311,13 +1322,20 @@ class OfficeActivity : AppSystemActivity() {
         composeViewCreator = { _, ctx ->
           ComposeView(ctx).apply {
             setContent {
-              Text(
-                  ghostText.value,
-                  color = androidx.compose.ui.graphics.Color.White,
-                  modifier = Modifier.fillMaxSize()
-                      .background(androidx.compose.ui.graphics.Color(0xE6202A36.toInt()))
-                      .padding(horizontal = 10.dp, vertical = 6.dp),
-              )
+              // dragSystem._createDragPill: rgba(30,60,90,.92), a 1px rgba(100,160,255,.4) border, rounded, the item's
+              // name in white monospace over the action (Move / Copy / Copy-link) at 70%.
+              Column(
+                  Modifier.fillMaxSize()
+                      .background(androidx.compose.ui.graphics.Color(0xEB1E3C5A.toInt()), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                      .border(1.dp, androidx.compose.ui.graphics.Color(0x6664A0FF), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                      .padding(horizontal = 10.dp, vertical = 4.dp),
+              ) {
+                Text(ghostTitle.value, color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(ghostAction.value, color = androidx.compose.ui.graphics.Color(0xB3FFFFFF.toInt()), fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+              }
             }
           }
         },
@@ -1332,45 +1350,75 @@ class OfficeActivity : AppSystemActivity() {
     return Entity.create(listOf(Panel(id), Transform(Pose()), Visible(false))).also { ghost = it }
   }
 
-  /** Each frame: show the ghost while a drag is out of its window, on the window it would land in if there is one. */
+  /** Where `ray` meets a reader window other than `except`: (window, distance, u across, v down the panel). */
+  private fun readerUnder(ray: Pair<FloatArray, FloatArray>, except: Int?): Pair<Int, FloatArray>? {
+    val (o, d) = ray
+    var best: Pair<Int, FloatArray>? = null
+    for ((id, e) in readers) {
+      if (id == except || !readerWebs.containsKey(id)) continue
+      val pose = e.tryGetComponent<Transform>()?.transform ?: continue
+      val s = e.tryGetComponent<com.meta.spatial.toolkit.Scale>()?.scale?.x ?: 1f
+      val dist = PoseMath.rayBox(o, d, pose, floatArrayOf(-READER_W * s / 2f, -READER_H * s / 2f, -0.03f), floatArrayOf(READER_W * s / 2f, READER_H * s / 2f, 0.03f)) ?: continue
+      if (best != null && dist >= best.second[0]) continue
+      val hit = floatArrayOf(o[0] + d[0] * dist, o[1] + d[1] * dist, o[2] + d[2] * dist)
+      val local = PoseMath.toLocal(pose, PoseMath.pose(hit, floatArrayOf(1f, 0f, 0f, 0f))).first
+      // The panel's face looks out of -z, so seen from the front its +x is on your left.
+      val u = (0.5f - local[0] / (READER_W * s)).coerceIn(0f, 1f)
+      val v = (0.5f - local[1] / (READER_H * s)).coerceIn(0f, 1f)
+      best = id to floatArrayOf(dist, u, v)
+    }
+    return best
+  }
+
+  private fun remote(panel: Int, call: String) = readerWebs[panel]?.evaluateJavascript("window.__moduliRemoteDrag && window.__moduliRemoteDrag.$call", null)
+
+  /** Each frame of a drag: which window the controller points at; out of its own window the drag goes with it. */
   private fun updateGhost() {
     val d = pendingDrag
     val g = ghost ?: return
     if (d == null || d.released) { g.setComponent(Visible(false)); return }
-    val (o, dir) = dragRay ?: controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
-    val box = { pose: Pose -> PoseMath.rayBox(o, dir, pose, floatArrayOf(-READER_W / 2f, -READER_H / 2f, -0.03f), floatArrayOf(READER_W / 2f, READER_H / 2f, 0.03f)) }
-    // Still pointing at the window it started in: that page draws its own pill.
-    val src = readers[d.fromPanel]?.tryGetComponent<Transform>()?.transform
-    val inside = src != null && box(src) != null
+    val ray = dragRay ?: controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
+    val (o, dir) = ray
+    val srcPose = readers[d.fromPanel]?.tryGetComponent<Transform>()?.transform
+    val srcScale = readers[d.fromPanel]?.tryGetComponent<com.meta.spatial.toolkit.Scale>()?.scale?.x ?: 1f
+    val inside = srcPose != null && PoseMath.rayBox(o, dir, srcPose,
+        floatArrayOf(-READER_W * srcScale / 2f, -READER_H * srcScale / 2f, -0.03f), floatArrayOf(READER_W * srcScale / 2f, READER_H * srcScale / 2f, 0.03f)) != null
     // The page keeps the last point it saw inside, so on release it would drop there: tell it the pointer has left.
     if (d.outside != !inside) {
       d.outside = !inside
       Log.i(TAG, "drag ${d.occId}: pointer ${if (inside) "back in" else "left"} window ${d.fromPanel}")
-      readerWebs[d.fromPanel]?.evaluateJavascript("window.__moduliOutside=${!inside};document.documentElement.classList.toggle('moduli-drag-outside',${!inside})", null)
+      readerWebs[d.fromPanel]?.evaluateJavascript("window.__moduliOutside=${!inside}", null)
     }
-    if (inside) { g.setComponent(Visible(false)); return }
-    var best: Float? = null
-    for ((id, e) in readers) {
-      if (id == d.fromPanel || !readerWebs.containsKey(id)) continue
-      val pose = e.tryGetComponent<Transform>()?.transform ?: continue
-      val dist = box(pose) ?: continue
-      if (best == null || dist < best) best = dist
-    }
-    val dist = best?.let { it - 0.04f } ?: 0.7f
+    val over = if (inside) null else readerUnder(ray, d.fromPanel)
+    // Over another window: that window draws the drag. Entering a new one ends it in the last.
+    if (over?.first != d.overPanel) {
+      d.overPanel?.let { remote(it, "leave()") }
+      d.overPanel = over?.first
+      over?.let { (id, h) ->
+        Log.i(TAG, "drag ${d.occId}: over window $id")
+        remote(id, "enter(${JSONObject.quote(d.label)}, ${h[1]}, ${h[2]}, $READER_W, $READER_H)")
+      }
+    } else over?.let { (id, h) -> remote(id, "move(${h[1]}, ${h[2]}, $READER_W, $READER_H)") }
+    if (inside || over != null) { g.setComponent(Visible(false)); return }
+    // Between windows: the pill floats where the window you left is (not in your face), facing you.
+    val dist = srcPose?.let { p -> val c = PoseMath.tOf(p); kotlin.math.sqrt((c[0] - o[0]).let { it * it } + (c[1] - o[1]).let { it * it } + (c[2] - o[2]).let { it * it }) } ?: 1.2f
     val at = floatArrayOf(o[0] + dir[0] * dist, o[1] + dir[1] * dist, o[2] + dir[2] * dist)
     val head = headPose()?.let { PoseMath.tOf(it) }
     val q = if (head != null) PoseMath.yaw(PoseMath.yawToward(at, head) + 180f) else PoseMath.yaw(180f)
-    val text = if (best != null) "Drop here: ${d.label}" else d.label.ifEmpty { "Moving…" }
-    if (ghostText.value != text) ghostText.value = text
+    if (ghostTitle.value != d.label) ghostTitle.value = d.label
+    if (ghostAction.value != d.action) ghostAction.value = d.action
     g.setComponent(Transform(PoseMath.sane(PoseMath.pose(at, q), "ghost")))
     g.setComponent(Visible(true))
   }
 
-  private class PendingDrag(val fromPanel: Int, val occId: String, val mode: String, val label: String = "") {
+  /** A drag a reader window reported starting (its page cannot see past its own edges). */
+  private class PendingDrag(val fromPanel: Int, val occId: String, val mode: String, val label: String, val action: String) {
     var ended = false
     var dropped = false
     var released = false
     var outside = false
+    /** The other reader window the controller points at (it is running the drag), or null. */
+    var overPanel: Int? = null
   }
   private var pendingDrag: PendingDrag? = null
   private var triggerWasDown = false
@@ -1378,50 +1426,36 @@ class OfficeActivity : AppSystemActivity() {
   private fun onDragStart(m: JSONObject) {
     val occ = m.optString("occId")
     if (occ.isEmpty()) return
-    pendingDrag = PendingDrag(m.optInt("_panel", -1), occ, m.optString("mode", "move"), m.optString("label"))
-    readerWebs[m.optInt("_panel", -1)]?.evaluateJavascript("window.__moduliOutside=false", null)
+    val from = m.optInt("_panel", -1)
+    pendingDrag = PendingDrag(from, occ, m.optString("mode", "move"), m.optString("label").ifEmpty { "item" },
+        m.optString("action").ifEmpty { "Move" })
+    readerWebs[from]?.evaluateJavascript("window.__moduliOutside=false", null)
+    // Every other reader window gets ready to take it (loads the row and its parent) while you are still here.
+    m.optString("payload").takeIf { it.isNotEmpty() }?.let { p ->
+      for (id in readerWebs.keys) if (id != from) remote(id, "prepare(${JSONObject.quote(p)})")
+    }
     ensureGhost()
-    Log.i(TAG, "drag start ${occ} in window ${m.optInt("_panel", -1)}")
+    Log.i(TAG, "drag start $occ in window $from")
   }
 
-  /**
-   * The trigger was let go during a drag. When the page it started in did not take the drop, find the reader window
-   * the controller points at, ask that page where the point lands (`__moduliDropTarget`), and have the control panel
-   * place it there (it holds the grid). Both windows reload once it is written.
-   */
-  private fun finishCrossDrag(rays: List<Pair<FloatArray, FloatArray>>) {
+  /** The trigger was let go: the window under the controller (running the drag) drops it there. */
+  private fun finishCrossDrag(@Suppress("UNUSED_PARAMETER") rays: List<Pair<FloatArray, FloatArray>>) {
     val drag = pendingDrag ?: return
     pendingDrag = null
     ghost?.setComponent(Visible(false))
-    if (drag.dropped) return
-    var best: Triple<Int, Float, FloatArray>? = null
-    for ((id, e) in readers) {
-      if (id == drag.fromPanel || !readerWebs.containsKey(id)) continue
-      val pose = e.tryGetComponent<Transform>()?.transform ?: continue
-      for ((o, d) in rays) {
-        val dist = PoseMath.rayBox(o, d, pose, floatArrayOf(-READER_W / 2f, -READER_H / 2f, -0.03f), floatArrayOf(READER_W / 2f, READER_H / 2f, 0.03f)) ?: continue
-        if (best == null || dist < best.second) {
-          val hit = floatArrayOf(o[0] + d[0] * dist, o[1] + d[1] * dist, o[2] + d[2] * dist)
-          best = Triple(id, dist, PoseMath.toLocal(pose, PoseMath.pose(hit, floatArrayOf(1f, 0f, 0f, 0f))).first)
-        }
+    val over = drag.overPanel
+    for (id in readerWebs.keys) if (id != drag.fromPanel && id != over) remote(id, "cancel()")
+    if (drag.dropped) { over?.let { remote(it, "cancel()") }; return }
+    if (over == null) { Log.i(TAG, "drag ${drag.occId}: let go over no other window"); return }
+    val h = dragRay?.let { readerUnder(it, drag.fromPanel) }?.takeIf { it.first == over }?.second
+    remote(over, if (h != null) "drop(${h[1]}, ${h[2]}, $READER_W, $READER_H)" else "cancel()")
+    // The drop waits for the rows the window loaded; read its answer, then show both windows as they are now.
+    main.postDelayed({
+      readerWebs[over]?.evaluateJavascript("window.__moduliRemoteDropped") { r ->
+        Log.i(TAG, "drag ${drag.occId} from window ${drag.fromPanel} into window $over: dropped=$r")
+        remote(over, "cancel()")
       }
-    }
-    val (toPanel, _, local) = best ?: run { Log.i(TAG, "drag ${drag.occId}: let go over no other window"); return }
-    // The panel's face looks out of -z, so seen from the front its +x is on your left.
-    val u = (0.5f - local[0] / READER_W).coerceIn(0f, 1f)
-    val v = (0.5f - local[1] / READER_H).coerceIn(0f, 1f)
-    val js = "window.__moduliDropTarget ? window.__moduliDropTarget($u, $v, $READER_W, $READER_H) : null"
-    readerWebs[toPanel]?.evaluateJavascript(js) { raw ->
-      val target = try {
-        val str = org.json.JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
-        JSONObject(str)
-      } catch (e: Exception) { return@evaluateJavascript }
-      if (target.optString("parentId").isEmpty()) { Log.i(TAG, "drag ${drag.occId}: window $toPanel has no place at ($u, $v)"); return@evaluateJavascript }
-      Log.i(TAG, "drag ${drag.occId} from window ${drag.fromPanel} into ${target.optString("parentId")} in window $toPanel")
-      send(JSONObject().put("type", "placeInto").put("occId", drag.occId).put("mode", drag.mode)
-          .put("parentId", target.optString("parentId")).put("index", target.optInt("index"))
-          .put("panels", org.json.JSONArray().put(drag.fromPanel).put(toPanel)))
-    }
+    }, 1500)
   }
 
   // ── Readers: a page or a file opened from a shelf or a screen ────────────
@@ -1429,7 +1463,7 @@ class OfficeActivity : AppSystemActivity() {
    * Open a page or file to read. `near`: where you let go of a book — the reader opens there (at reading height),
    * facing you; otherwise in front of you.
    */
-  private fun openReader(occId: String, near: FloatArray? = null, pose: Pose? = null) {
+  private fun openReader(occId: String, near: FloatArray? = null, pose: Pose? = null, scale: Float = 1f) {
     val id = nextPanelId++
     // `read`: just that page or book, read on its own (ReaderApp) — not the whole grid. Each window keeps its own
     // page: as full app tabs they shared storage, and opening a second book turned the first into it too.
@@ -1448,6 +1482,21 @@ class OfficeActivity : AppSystemActivity() {
     readers[id] = e
     if (occId.isNotEmpty()) { readerOcc[id] = occId; saveReaders() }
     readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
+    readerHandleDy[id] = -(READER_H / 2f + HANDLE_GAP / 2f)
+    if (scale != 1f) scaleReader(id, scale)
+  }
+
+  /** How big each reader window is (1 = as made); kept with the open readers. */
+  private val readerScale = HashMap<Int, Float>()
+  /** Its handle's offset below the window's centre at scale 1. */
+  private val readerHandleDy = HashMap<Int, Float>()
+
+  private fun scaleReader(id: Int, factor: Float) {
+    val e = readers[id] ?: return
+    val s = ((readerScale[id] ?: 1f) * factor).coerceIn(SCALE_MIN, SCALE_MAX)
+    readerScale[id] = s
+    e.setComponent(Scale(Vector3(s)))
+    readerHandles[id]?.let { h -> readerHandleDy[id]?.let { h.dy = it * s }; h.follow() }
   }
 
   /** A reader at `p` — raised or lowered to reading height — turned to face you. */
@@ -1461,6 +1510,7 @@ class OfficeActivity : AppSystemActivity() {
     main.post {
       pieceWindows.entries.removeAll { it.value == id }
       readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy(); readerWebs.remove(id)
+      readerScale.remove(id); readerHandleDy.remove(id)
       if (readerOcc.remove(id) != null) saveReaders()
     }
   }
@@ -1471,7 +1521,7 @@ class OfficeActivity : AppSystemActivity() {
     val list = readerOcc.mapNotNull { (id, occ) ->
       val p = readers[id]?.tryGetComponent<Transform>()?.transform ?: return@mapNotNull null
       val t = PoseMath.tOf(p); val q = PoseMath.qOf(p)
-      JSONObject().put("occ", occ)
+      JSONObject().put("occ", occ).put("s", Math.round((readerScale[id] ?: 1f) * 1000) / 1000.0)
           .put("t", org.json.JSONArray(t.map { Math.round(it * 1000) / 1000.0 }))
           .put("q", org.json.JSONArray(q.map { Math.round(it * 1000) / 1000.0 }))
     }

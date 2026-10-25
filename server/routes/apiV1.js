@@ -488,11 +488,14 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
-  router.get("/occurrences/:id", authAndLimit({ requireScope: "read" }), async (req, res) => {
+  // Session JWT allowed: a headset reader window reads the row a drag from another window carries, and its parent.
+  // The warm cache first — it holds what clients see (a list written a moment ago may not be in Mongo yet).
+  router.get("/occurrences/:id", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
     try {
       const occ = await Occurrence.findOne({ id: req.params.id, userId: req.userId }).lean();
       if (!occ) return err(res, 404, "not_found", "Occurrence not found");
-      res.json({ occurrence: occ });
+      const cached = peekUserCache?.(req.userId, occ.gridId)?.occurrencesById?.[req.params.id];
+      res.json({ occurrence: cached ? { ...occ, ...cached } : occ });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

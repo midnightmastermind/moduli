@@ -142,6 +142,9 @@ function _nativeDrag(msg) {
 
 // Create a small pill element for mobile drag ghost — label on top, the action
 // verb (Move / Copy / Copy-link) underneath, mirroring the desktop native ghost.
+/** The pill a touch drag carries (exported for a drag carried in from another headset window). */
+export function createDragPill(label, mode) { return _createDragPill(label, mode); }
+
 function _createDragPill(label, mode) {
   const pill = document.createElement('div');
   Object.assign(pill.style, {
@@ -630,6 +633,73 @@ export function getDocTouchDrop(el) {
   return getDocTouchDropZone(el)?.fn || null;
 }
 
+/**
+ * One hover step of a touch drag at (x, y): light the registered target under it (its closest edge too) and tell
+ * the drag controller where the pointer is (the insertion line, autoscroll). `target` may be passed when the caller
+ * already hit-tested (it times that). Returns the new current target. Shared by a finger drag and a drag the headset
+ * carries into this window from another one (ReaderApp), so both look and land the same.
+ */
+export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dragCtx }) {
+  const hit = target !== undefined ? target : _findDropTarget(x, y, payload?.type, sourceEl);
+  if (hit?.el !== cur?.el) {
+    cur?.stateRef?.current?.setIsOver?.(false);
+    cur?.stateRef?.current?.setClosestEdge?.(null);
+    cur = hit;
+    hit?.stateRef?.current?.setIsOver?.(true);
+  }
+  // Optional chain is a shape difference, not a fallback: useDroppable entries register no edgesRef (no closest-edge
+  // behavior), useDragDrop entries always do.
+  const edges = cur?.edgesRef?.current;
+  if (edges) cur.stateRef?.current?.setClosestEdge?.(_computeClosestEdge(cur.el, x, y, edges));
+  dragCtx.handleDragMove(x, y);
+  if (cur) dragCtx.handleDragOver?.({ type: cur.type, id: cur.id, context: cur.contextRef.current, clientX: x, clientY: y });
+  return cur;
+}
+
+/**
+ * The drop of a touch drag at (x, y), decided at the release point: the registered target under it, else a doc
+ * editor's touch zone (doc prose is not in the touch registry). `skip`: the drag left this window, nothing here
+ * takes it. Clears the hovered target's highlight either way. Returns { dropped, docDropped }.
+ */
+export function touchDropStep({ x, y, payload, sourceEl = null, cur, dragCtx, skip = false }) {
+  const target = skip ? null : _findDropTarget(x, y, payload?.type, sourceEl);
+  if (target?.el !== cur?.el) {
+    cur?.stateRef?.current?.setIsOver?.(false);
+    cur?.stateRef?.current?.setClosestEdge?.(null);
+  }
+  if (target) {
+    // A1: Haptic double-tap on successful drop
+    if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
+    const endEdges = target.edgesRef?.current;
+    const edge = endEdges ? _computeClosestEdge(target.el, x, y, endEdges) : null;
+    target.stateRef?.current?.setIsOver?.(false);
+    target.stateRef?.current?.setClosestEdge?.(null);
+    dragCtx.handleDrop({
+      type: target.type, id: target.id,
+      context: { ...target.contextRef.current, instanceId: target.id, closestEdge: edge },
+      clientX: x, clientY: y,
+      source: payload,
+      // Lets DragProvider's .doc-editor guard route the drop to the editor's touch handler (on desktop the editor's
+      // own Pragmatic target already ran — touch has no equivalent).
+      isTouchDrop: true,
+    });
+    return { dropped: true, docDropped: false };
+  }
+  // No registered target under the finger — but doc-editor prose isn't in the touch registry at all. Route drops
+  // landing on a doc straight to the editor's touch handler (wrap-beside / embed insert).
+  const docEl = skip ? null : document.elementFromPoint(x, y)?.closest?.(".doc-editor");
+  const docZone = getDocTouchDrop(docEl);
+  if (!docZone) return { dropped: false, docDropped: false };
+  if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
+  docZone({ source: { data: payload }, clientX: x, clientY: y });
+  return { dropped: true, docDropped: true };
+}
+
+/** The drag controller (DragProvider) of this window, for a drag the headset carries in from another window. */
+let _windowDragCtx = null;
+export function setWindowDragCtx(ctx) { _windowDragCtx = ctx; }
+export function windowDragCtx() { return _windowDragCtx; }
+
 function _computeClosestEdge(el, clientX, clientY, allowedEdges) {
   const rect = el.getBoundingClientRect();
   const distances = {
@@ -1036,6 +1106,8 @@ export function useDragDrop({
       // hold did.
       const activateDrag = (cx, cy, via) => {
         stopHoldScrollWatch();
+        // In the headset only what is INSIDE a page drags, not the page itself (user, 2026-10-25).
+        if (inHeadset() && type === DragType.PAGE) return;
         // `via` separates the wait WE impose from the wait until the user moved.
         dragPerf.activate(holdScrolls, via);   // the wait is over; the work starts here
         dragPerf.mark("t0");
@@ -1105,7 +1177,11 @@ export function useDragDrop({
         hitEveryMs = _HIT_TEST_INTERVAL;
 
         dragCtx.handleDragStart(payload, startX, startY, { mode });
-        _nativeDrag({ type: "dragStart", occId: payload?.occurrenceId || null, mode, label: String(liveData?.label || liveData?.name || "").slice(0, 60) });
+        // The headset carries the drag into another window: it needs the whole drag (that window runs its own drop
+        // with it) and the pill's own words, so the label it floats in the room reads the same.
+        _nativeDrag({ type: "dragStart", occId: payload?.occurrenceId || null, mode,
+          label: clone?.firstChild?.textContent || "", action: clone?.lastChild?.textContent || "",
+          payload: serializePayload({ ...payload, mode }) });
         if (inHeadset()) console.log("[headsetDrag] start", payload?.occurrenceId || null, mode);
         dragPerf.mark("handleDragStart");
         dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
@@ -1206,6 +1282,8 @@ export function useDragDrop({
         // Pill follows finger at 60fps (cheap DOM update)
         if (clone) {
           clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
+          // Carried out of this window (headset): the app floats the same pill in the room instead.
+          clone.style.visibility = window.__moduliOutside === true ? "hidden" : "";
         }
 
         // A3+A4: Throttle hit-testing + cache when pointer barely moved
@@ -1231,29 +1309,7 @@ export function useDragDrop({
         hitCostMs = blendCost(hitCostMs, _hitMs);
         hitEveryMs = hitInterval(hitCostMs);
 
-        if (target?.el !== curTarget?.el) {
-          curTarget?.stateRef?.current?.setIsOver?.(false);
-          curTarget?.stateRef?.current?.setClosestEdge?.(null);
-          curTarget = target;
-          target?.stateRef?.current?.setIsOver?.(true);
-        }
-        // Optional chain is a shape difference, not a fallback: useDroppable
-        // entries register no edgesRef (no closest-edge behavior), useDragDrop
-        // entries always do.
-        const targetEdges = curTarget?.edgesRef?.current;
-        if (targetEdges) {
-          const edge = _computeClosestEdge(curTarget.el, t.clientX, t.clientY, targetEdges);
-          curTarget.stateRef?.current?.setClosestEdge?.(edge);
-        }
-
-        dragCtx.handleDragMove(t.clientX, t.clientY);
-        if (curTarget) {
-          dragCtx.handleDragOver?.({
-            type: curTarget.type, id: curTarget.id,
-            context: curTarget.contextRef.current,
-            clientX: t.clientX, clientY: t.clientY,
-          });
-        }
+        curTarget = touchHoverStep({ x: t.clientX, y: t.clientY, target, cur: curTarget, dragCtx });
         dragPerf.move(performance.now() - _pm0, _lastOver);
       };
 
@@ -1325,51 +1381,15 @@ export function useDragDrop({
         // The app also says when the controller's ray has left this window (window.__moduliOutside): the page only ever
         // saw the last point inside, so a release out there would otherwise drop at that stale point.
         const leftWindow = inHeadset() && (window.__moduliOutside === true || leftThroughEdge(t.clientX, t.clientY, window.innerWidth, window.innerHeight));
-        const dropTarget = leftWindow ? null : _findDropTarget(t.clientX, t.clientY, payload.type, el);
-        if (dropTarget?.el !== curTarget?.el) {
-          curTarget?.stateRef?.current?.setIsOver?.(false);
-          curTarget?.stateRef?.current?.setClosestEdge?.(null);
-          curTarget = dropTarget;
-        }
-
-        let docDropped = false;
-        if (curTarget) {
-          // A1: Haptic double-tap on successful drop
-          if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-          const endEdges = curTarget.edgesRef?.current;
-          const edge = endEdges
-            ? _computeClosestEdge(curTarget.el, t.clientX, t.clientY, endEdges)
-            : null;
-          curTarget.stateRef?.current?.setIsOver?.(false);
-          curTarget.stateRef?.current?.setClosestEdge?.(null);
-          dragCtx.handleDrop({
-            type: curTarget.type, id: curTarget.id,
-            context: { ...curTarget.contextRef.current, instanceId: curTarget.id, closestEdge: edge },
-            clientX: t.clientX, clientY: t.clientY,
-            source: payload,
-            // Lets DragProvider's .doc-editor guard route the drop to the
-            // editor's touch handler (on desktop the editor's own Pragmatic
-            // target already ran — touch has no equivalent).
-            isTouchDrop: true,
-          });
-        } else {
-          // No registered target under the finger — but doc-editor prose isn't
-          // in the touch registry at all. Route drops landing on a doc straight
-          // to the editor's touch handler (wrap-beside / embed insert).
-          const docEl = leftWindow ? null : document.elementFromPoint(t.clientX, t.clientY)?.closest?.(".doc-editor");
-          const docZone = getDocTouchDrop(docEl);
-          if (docZone) docDropped = true;
-          if (docZone) {
-            if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-            docZone({ source: { data: payload }, clientX: t.clientX, clientY: t.clientY });
-          }
-        }
+        const { dropped: _dropped } = touchDropStep({
+          x: t.clientX, y: t.clientY, payload, sourceEl: el, cur: curTarget, dragCtx, skip: leftWindow,
+        });
 
         // The drop handler has returned — the write is dispatched, the paint
         // is still a frame away. `end()` waits for that frame rather than
         // reporting the handler's return as though the user had seen it.
-        _nativeDrag({ type: "dragEnd", dropped: !!curTarget || docDropped });
-        if (inHeadset()) console.log("[headsetDrag] end", JSON.stringify({ x: Math.round(t.clientX), y: Math.round(t.clientY), w: window.innerWidth, h: window.innerHeight, leftWindow, dropped: !!curTarget || docDropped, by: e?.type || null }));
+        _nativeDrag({ type: "dragEnd", dropped: _dropped });
+        if (inHeadset()) console.log("[headsetDrag] end", JSON.stringify({ x: Math.round(t.clientX), y: Math.round(t.clientY), w: window.innerWidth, h: window.innerHeight, leftWindow, dropped: _dropped, by: e?.type || null }));
         dragPerf.dropDone();
         curTarget = null;
         dragging = false;
