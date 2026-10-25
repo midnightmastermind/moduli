@@ -90,10 +90,10 @@ class OfficeActivity : AppSystemActivity() {
     private const val GHOST_W = 0.30f
     /** The record player's Spotify card: tall enough for Spotify's full player (its track list and controls) — at 0.26m
      *  the embed was cut off (user, 2026-10-25). */
-    private const val SPOTIFY_W = 1.0f
+    private const val SPOTIFY_W = 0.62f
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
-    private const val SPOTIFY_H = 0.7f
+    private const val SPOTIFY_H = 0.56f
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
     private const val BROWSER_DP_PER_M = 1000f
@@ -1096,10 +1096,9 @@ class OfficeActivity : AppSystemActivity() {
     list.firstOrNull { it.optString("key") == t.key }?.let { t.decorEntry = it }
   }
 
-  /** Spotify's full web player for an embed link (`/embed/track/X` -> `/track/X`): the small embed player plays
-   *  30-second previews even when you are signed in; the web player plays whole songs for a signed-in account. */
-  private fun spotifyWebPlayer(url: String?): String =
-      (url ?: "https://open.spotify.com").replace("open.spotify.com/embed/", "open.spotify.com/")
+  /** The page the record player opens: Spotify's mini player (its embed), loaded on its own page so your Spotify
+   *  sign-in applies (inside a frame it played 30-second previews). Not the web app (user: "i want mini players"). */
+  private fun spotifyWebPlayer(url: String?): String = url ?: "https://open.spotify.com"
 
   /** The record player's Spotify window: the title and ⏹ over Spotify's own page, on Firefox's engine — the same
    *  profile as the browser screens, so once you are signed in to Spotify on any screen, songs play whole. (The
@@ -1114,14 +1113,6 @@ class OfficeActivity : AppSystemActivity() {
                   Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(t.spotifyTitle, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp))
-                    // Play / pause: the space bar is Spotify's own shortcut for it.
-                    Button(onClick = {
-                      t.gecko?.view?.let { v ->
-                        v.requestFocus()
-                        v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_SPACE))
-                        v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_SPACE))
-                      }
-                    }) { Text("⏯", fontSize = 22.sp) }
                     Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹", fontSize = 22.sp) }
                   }
                   AndroidView(

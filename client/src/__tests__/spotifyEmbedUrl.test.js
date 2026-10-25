@@ -21,7 +21,7 @@ describe("an album opened on a record shelf", () => {
   const modulesById = { A: { id: "A", kind: "album", role: "artifact" }, S: { id: "S", kind: "song", role: "artifact" }, P: { id: "P", kind: "artist", role: "artifact" } };
   const occurrencesById = {
     al: { id: "al", moduleId: "A", label: "STANS", fields: { songs: { value: ["s1", "s2"] }, artist: { value: "ar" }, url: { value: "https://open.spotify.com/album/X1" } } },
-    s1: { id: "s1", moduleId: "S", label: "Stan", fields: {} },
+    s1: { id: "s1", moduleId: "S", label: "Stan", fields: {}, meta: { searchProvider: "spotify", searchExternalId: "STAN123456" } },
     s2: { id: "s2", moduleId: "S", label: "Bad Guy", fields: {} },
     s3: { id: "s3", moduleId: "S", label: "Bonus", fields: { album: { value: "al" } } },
     ar: { id: "ar", moduleId: "P", label: "Eminem", fields: {} },
@@ -29,12 +29,12 @@ describe("an album opened on a record shelf", () => {
   it("lists its songs in its own order, then songs that name it — not the artist (control)", () => {
     expect(albumSongIds("al", { occurrencesById, modulesById })).toEqual(["s1", "s2", "s3"]);
   });
-  it("each song is a mini record that plays ITSELF (a Spotify search for it by its artist), never the whole album", () => {
+  it("each song is a mini record: its own track, else (no track at all) the album's mini player", () => {
     const items = albumShelfItems("al", { occurrencesById, modulesById });
     expect(items.map((i) => [i.title, i.mini, i.src, i.spotify])).toEqual([
-      ["Stan", true, null, "https://open.spotify.com/search/Eminem%20Stan"],
-      ["Bad Guy", true, null, "https://open.spotify.com/search/Eminem%20Bad%20Guy"],
-      ["Bonus", true, null, "https://open.spotify.com/search/Eminem%20Bonus"],
+      ["Stan", true, null, "https://open.spotify.com/embed/track/STAN123456"],
+      ["Bad Guy", true, null, "https://open.spotify.com/embed/album/X1"],
+      ["Bonus", true, null, "https://open.spotify.com/embed/album/X1"],
     ]);
   });
 });

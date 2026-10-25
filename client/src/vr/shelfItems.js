@@ -126,6 +126,10 @@ export function spotifyEmbedUrl(occ) {
     const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|track|playlist|artist|episode|show)\/([A-Za-z0-9]+)/.exec(v);
     if (m) return `https://open.spotify.com/embed/${m[1]}/${m[2]}`;
   }
+  // A song imported from Spotify keeps its track id in meta (1,437 songs on poms grid have no link field).
+  if (occ?.meta?.searchProvider === "spotify" && /^[A-Za-z0-9]{10,}$/.test(occ.meta.searchExternalId || "")) {
+    return `https://open.spotify.com/embed/track/${occ.meta.searchExternalId}`;
+  }
   return null;
 }
 
@@ -203,11 +207,12 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)) || albumCover,
       fileId: f?.occ?.id || null, fileKind: f ? "audio" : null,
       src: ref ? resolveFileRef(ref) : null,
-      // A mini record is ONE song: its own Spotify link, else Spotify's search for that song — never the album's
-      // link, which plays the whole album from the start (user, 2026-10-25). The album's is the last resort.
+      // A mini record is ONE song, in Spotify's mini player: its own track. Only a song with no Spotify track at all
+      // (one filled in from a track list) falls back to the album's player, then to a Spotify search (user,
+      // 2026-10-25: "i want mini players", not the web app).
       spotify: spotifyEmbedUrl(occ)
-        || spotifySearchUrl(occ.meta?.spotifyArtist || occ.meta?.mediaArtist || artistNamed(occ, ctx) || album.meta?.mediaArtist || artistNamed(album, ctx), (occurrenceDisplayLabel(occ, mod) || "").trim())
-        || albumSpotify,
+        || albumSpotify
+        || spotifySearchUrl(occ.meta?.spotifyArtist || occ.meta?.mediaArtist || artistNamed(occ, ctx) || album.meta?.mediaArtist || artistNamed(album, ctx), (occurrenceDisplayLabel(occ, mod) || "").trim()),
       mini: true,
     };
   });
