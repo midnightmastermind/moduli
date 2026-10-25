@@ -15,8 +15,9 @@
 
 import { ActionTypes } from "./actions";
 
-// Helper: split a flat modules array into role-based derived arrays
-function deriveRoleArrays(modules = []) {
+// Helper: split a flat modules array into role-based derived arrays (exported: an isolated reader window's store
+// needs the same lists — the drop handlers find containers in `state.containers`).
+export function deriveRoleArrays(modules = []) {
   const panels = [], containers = [], instances = [], pages = [], artifacts = [], textblocks = [];
   for (const m of modules) {
     if (m.trashed) continue;

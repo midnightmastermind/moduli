@@ -50,6 +50,62 @@ import { setDropOver, setDropEdge } from "./dropEdgeAttr";
 // query reads fine (the headset has no touchscreen) — so the touch path is the one that can drag there.
 const _isTouch = () => window.matchMedia("(pointer: coarse)").matches || (typeof window !== "undefined" && !!window.ModuliNative);
 
+const inHeadset = () => typeof window !== "undefined" && !!window.ModuliNative;
+
+/** A pointer event dressed as the touch event the touch-drag handlers read (one point; touches + changedTouches). */
+export function pointerAsTouch(e) {
+  const pt = { clientX: e.clientX, clientY: e.clientY, identifier: e.pointerId };
+  return {
+    touches: e.type === "pointerup" || e.type === "pointercancel" ? [] : [pt],
+    changedTouches: [pt],
+    cancelable: e.cancelable,
+    target: e.target,
+    preventDefault: () => e.preventDefault(),
+    stopPropagation: () => e.stopPropagation(),
+  };
+}
+
+/**
+ * Feed a non-touch pointer's press / move / release on `el` to the touch-drag handlers. The moves and the release are
+ * heard on the WINDOW while pressed, so they keep coming once the pointer leaves the handle (a drag always does).
+ * NOT pointer capture: capturing retargets the release to `el`, so the click lands on the handle's wrapper instead of
+ * the menu button inside it and a plain tap stopped opening the radial menu. The touch handlers read
+ * `touches.length === 1`, so an up event reports no touches. Returns the cleanup.
+ */
+export function bindPointerAsTouch(el, { onStart, onMove, onEnd }) {
+  let active = null;
+  const move = (e) => { if (e.pointerId === active) onMove(pointerAsTouch(e)); };
+  const up = (e) => {
+    if (e.pointerId !== active) return;
+    active = null;
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    onEnd(pointerAsTouch(e));
+  };
+  const down = (e) => {
+    if (e.pointerType === "touch" || (e.button !== undefined && e.button !== 0)) return;
+    active = e.pointerId;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    onStart(pointerAsTouch(e));
+  };
+  // A mouse press on an element can start the browser's own drag of it (or a text selection); neither is wanted.
+  const noNative = (e) => { if (active != null) e.preventDefault(); };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("dragstart", noNative);
+  el.addEventListener("selectstart", noNative);
+  return () => {
+    el.removeEventListener("pointerdown", down);
+    el.removeEventListener("dragstart", noNative);
+    el.removeEventListener("selectstart", noNative);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+  };
+}
+
 /** Tell the headset a drag started / ended in this window, so it can carry it into another window. */
 function _nativeDrag(msg) {
   try { if (typeof window !== "undefined" && window.ModuliNative) window.ModuliNative.postMessage(JSON.stringify(msg)); } catch { /* not in the headset */ }
@@ -1291,6 +1347,13 @@ export function useDragDrop({
       triggerEl.addEventListener('touchend', onEnd);
       triggerEl.addEventListener('touchcancel', onEnd);
 
+      // IN THE HEADSET a controller's trigger reaches the page as a MOUSE pointer, not a touch (user, 2026-10-25:
+      // "it keeps opening up a menu on the vr when i try to grab and move the drag handles") — so no touchstart ever
+      // fired, the press-and-release was a click, and the click opened the radial menu. A non-touch pointer press on
+      // the handle is fed to the same three handlers as a finger: pressed and moved, it drags; pressed and let go
+      // without moving, the click still opens the menu. Off everywhere else (a desktop mouse has Pragmatic's drag).
+      const pointerCleanup = inHeadset() ? bindPointerAsTouch(triggerEl, { onStart, onMove, onEnd }) : null;
+
       // A tablet with a mouse/trackpad reports pointer:coarse (primary) AND
       // any-pointer:fine. Register the desktop draggable too so MOUSE drags
       // work — HTML5 drag events never fire from touch on our elements because
@@ -1427,6 +1490,7 @@ export function useDragDrop({
         triggerEl.removeEventListener('touchmove', onMove);
         triggerEl.removeEventListener('touchend', onEnd);
         triggerEl.removeEventListener('touchcancel', onEnd);
+        pointerCleanup?.();
         el.removeEventListener('pointerdown', onPointerDownType, { capture: true });
         el.removeEventListener('dragstart', onNativeDragStart, { capture: true });
         mouseDragCleanup?.();

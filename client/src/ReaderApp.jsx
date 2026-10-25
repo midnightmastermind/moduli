@@ -9,7 +9,7 @@
 // the grid quietly (`join_grid_quiet` — no full_state), so a typed note saves and reaches the other tabs, and their
 // edits to this page come back here.
 import React, { useEffect, useReducer, useState } from "react";
-import { masterReducer } from "./state/masterReducer";
+import { masterReducer, deriveRoleArrays } from "./state/masterReducer";
 import { initialState } from "./state/initialState";
 import { socket } from "./socket";
 import {
@@ -34,6 +34,9 @@ export function readerState(sub) {
     grid: { _id: sub.gridId, id: sub.gridId, occurrences: [], meta: {} },
     occurrences: sub.occurrences || [],
     modules: sub.modules || [],
+    // The per-role lists the main app's store derives on load: without them a drop in this window found no
+    // container (`state.containers`) and did nothing.
+    ...deriveRoleArrays(sub.modules || []),
     fields: sub.fields || [],
     views: sub.views || [],
     folders: [], manifests: [], operations: [],

@@ -809,6 +809,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const { payload, target, position, pointer, mode, modifiers, dataTransfer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
   const { containerId, containerOccurrenceId, instanceId, dropTarget } = dropView(dropContext, ctx);
+  if (typeof window !== "undefined" && window.__dragDiag === true) {
+    console.log("[dragDiag] occurrence move", JSON.stringify({ kind: dropTarget.type, containerId, containerOccurrenceId, instanceId, ctxKeys: Object.keys(dropTarget.context || {}) }));
+  }
 
   if (dropTarget.dataTransfer) {
     const parsed = parseExternalDrop(dropTarget.dataTransfer);
@@ -1212,6 +1215,9 @@ export function handleOccurrenceMove(dropContext, ctx) {
 
   const isCopyMode = sessionRef.current.mode === 'copy';
   const isCopylinkMode = sessionRef.current.mode === 'copylink';
+  if (typeof window !== "undefined" && window.__dragDiag === true) {
+    console.log("[dragDiag] occurrence drop", { from: fromCOcc?.id || null, to: toCOcc?.id || null, toIndex, hovered: instanceId || null, edge: dropTarget.context?.closestEdge || null, insertAt: dropTarget.context?.insertAt ?? null });
+  }
   // The same PLACEMENT, not the same module: copy-linked containers share a module
   // (Sep 28's 3:00pm and Sep 29's 3:00pm are one module), so comparing modules
   // turned a move between two days' slots into an in-place reorder that went
