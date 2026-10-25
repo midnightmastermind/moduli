@@ -1523,7 +1523,7 @@ class OfficeActivity : AppSystemActivity() {
     for (t in things.values) {
       owned += t.frame.id
       t.handle?.entity?.id?.let { owned += it }
-      for (b in t.books) owned += b.entity.id
+      for (b in t.books) { owned += b.entity.id; b.shown?.id?.let { owned += it } }
     }
     for (h in readerHandles.values) owned += h.entity.id
     for (e in Query.where { has(Mesh.id) }.eval()) {
