@@ -663,7 +663,7 @@ class OfficeActivity : AppSystemActivity() {
           Transform(Pose()),
           Grabbable(true, GrabbableType.PIVOT_Y),
       ))
-      t.books += Book(item.optString("id"), title, item.optString("cover"), t.slots[i], PanelHtml.spineColor(title), e).apply {
+      t.books += Book(item.optString("id"), title, (if (item.isNull("cover")) "" else item.optString("cover")), t.slots[i], PanelHtml.spineColor(title), e).apply {
         folder = item.optBoolean("folder"); url = item.optString("url").takeIf { !item.isNull("url") } ?: ""
       }
     }
@@ -944,7 +944,8 @@ class OfficeActivity : AppSystemActivity() {
   private fun itemSrc(t: Thing, itemId: String): String {
     for (i in 0 until t.shelfItems.length()) {
       val it = t.shelfItems.optJSONObject(i) ?: continue
-      if (it.optString("id") == itemId) return it.optString("src")
+      // optString turns a JSON null into the word "null": a record with no audio file "played" a file called null.
+      if (it.optString("id") == itemId) return if (it.isNull("src")) "" else it.optString("src")
     }
     return ""
   }
