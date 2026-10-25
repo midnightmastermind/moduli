@@ -146,14 +146,8 @@ object PanelHtml {
   button{font-size:12vh;padding:3vh 8vw;border-radius:3vh;border:.6vh solid #ffd27a;background:#3a2616;color:#f4e9d8}
   #n{font-size:5vh;opacity:.7}
 </style></head><body><div id="w">
-  <button id="b">＋ New note</button>
-  <div id="n">Opens a new page in Notes</div>
-</div><script>$BRIDGE
-// In a script, not an onclick attribute: the key is a quoted JS string, and its quotes ended the attribute early
-// (the screen showed `this.disabled=false,3000);` as text).
-var b=document.getElementById('b');
-b.onclick=function(){b.disabled=true;send({type:'newNote',key:${js(key)}});setTimeout(function(){b.disabled=false},3000)};
-</script></body></html>"""
+  <div id="n">Making a new page in Notes…</div>
+</div><script>$BRIDGE</script></body></html>"""
 
   /** The spine colour of an item, as the shelf page picks it (the 3D book in your hand takes the same one). */
   fun spineColor(title: String): Int {

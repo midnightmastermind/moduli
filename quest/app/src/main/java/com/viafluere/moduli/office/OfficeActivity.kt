@@ -586,6 +586,16 @@ class OfficeActivity : AppSystemActivity() {
       // The new-note screen's button: the control panel (signed in, holds the grid) makes the page, then says "openNote".
       "newNote" -> send(JSONObject().put("type", "newNote").put("key", m.optString("key")))
       "openNote" -> {
+        // A note screen's own page: it shows it (no window).
+        val screen = things[m.optString("key")]?.takeIf { it.decorEntry?.optString("model") == "notepad" }
+        if (screen != null) {
+          val id = m.optString("id")
+          store.saveDecor(store.decor().map { e -> if (e.optString("key") == screen.key) JSONObject(e.toString()).put("noteId", id) else e })
+          screen.decorEntry = store.decor().firstOrNull { it.optString("key") == screen.key }
+          screen.panelUrl = "$origin/?read=${Uri.encode(id)}"
+          screen.web?.loadUrl(screen.panelUrl!!)
+          return
+        }
         val at = things[m.optString("key")]?.frame?.tryGetComponent<Transform>()?.transform
         // In front of you, a little to the side of the screen: opened AT the screen it stood behind it, out of sight
         // ("nothing happens when i click new note").
@@ -604,9 +614,13 @@ class OfficeActivity : AppSystemActivity() {
     control?.evaluateJavascript("window.__moduliNative && window.__moduliNative.onEvent(${JSONObject.quote(ev.toString())})", null)
   }
 
+  private val noteAsked = HashSet<String>()
+
   private fun onState(m: JSONObject) {
     val gridChanged = store.gridId != m.optString("gridId")
     state = m
+    for (t in things.values) if (t.decorEntry?.optString("model") == "notepad" && t.decorEntry?.optString("noteId").isNullOrEmpty() && noteAsked.add(t.key))
+      send(JSONObject().put("type", "newNote").put("key", t.key))
     m.optJSONArray("bookmarks")?.let { a ->
       val next = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { it.optString("title") to it.optString("url") } }
       if (next != bookmarkBar.toList()) { bookmarkBar.clear(); bookmarkBar.addAll(next) }
@@ -1033,7 +1047,13 @@ class OfficeActivity : AppSystemActivity() {
       // The whole grid, live: the app itself (its own panels and date — `local`), on a screen you place.
       "gridscreen" -> { t.panelUrl = "$origin/?local=1"; attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
-      "notepad" -> { t.html = PanelHtml.notepad(t.key); attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
+      // The note screen IS a note: a page of its own in Notes, written on right there (the user: "the screen for new
+      // page should just be a new page"). Made the first time (the control panel makes it — see onState), then kept.
+      "notepad" -> {
+        val note = entry.optString("noteId")
+        if (note.isNotEmpty()) t.panelUrl = "$origin/?read=${Uri.encode(note)}" else t.html = PanelHtml.notepad(t.key)
+        attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f)
+      }
       // A plain web browser on a screen: an address bar, back / forward / reload; it remembers its last page.
       "browser", "claude", "remotedesktop" -> {
         t.browser = true
