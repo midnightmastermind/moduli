@@ -15,6 +15,47 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-25 — BUTTONS ON ANY OCCURRENCE, FORMS ANYWHERE IN AN OPERATION, "ADD A FORM BUTTON"
+
+User: *"make sure that button field inputs work … i can place them on any occurance. the operation should be able to
+take in the occurance and fields"* · *"a form builder that asks for user prompts, that we can hook up to buttons … a
+button on the board called new movie … asking for information on the movie then … add the movie to the movie board
+(through an operation)"* · *"make sure forms can work in any part of the operation"*. Spec / plan:
+`docs/superpowers/{specs,plans}/2026-10-25-button-forms*.md`. Tasks 1–7b by account3 (stopped on "Prompt is too
+long"); Task 8, the fixes below and the prod check by this session.
+- **One button runner** (`helpers/buttonRun.js`): both click paths, busy until the operation finishes, a form's
+  cancel clears it. `$trigger.occurrence` now carries label / role / kind / children.
+- **A pause works inside IF, a loop or a called operation** — before, steps after a nested pause were silently
+  dropped (the executor's "MVP limitation"); applies to CALL_API / READ_FILE / IMPORT_* as well as questions.
+- **`ASK_FORM`** ("Ask with a form", `ui/FormModal`): one window, several answers → `$form.values.<key>` /
+  `$form.fields.<fieldId>`; its editor is the form builder (field inputs + free questions, required, defaults, ↑/↓).
+- **Buttons on panels and on doc textblocks** (a strip under the text); a button field's settings can make its
+  operation (`helpers/buttonOperation`).
+- **CREATE `module` + `occurrenceLabel`** — place an existing module and name the new occurrence (`label` was not
+  reused: on the server a CREATE's `label` is the module name in 9 live share steps). **NEW: `newModule`** (editor
+  checkbox "Always a new module") — CREATE finds a module BY NAME grid-wide, so a form button's "New beverage"
+  named "Coffee" would have placed the existing Coffee module. Found on prod: the second "Probe Form Item" got the
+  first one's module.
+- **"Add a form button…"** on a container's radial (`helpers/formButton.planFormButton` + `ui/formButtonItem`): asks
+  the noun (guessed from the container name), then one undo step writes a button field bound on the container and
+  an operation `ASK_FORM → CREATE → SCROLL_TO`. The form asks Name + the input fields the instances bind; values
+  every instance agrees on are fixed (needs 2+ instances); every other bound field is bound EMPTY and the
+  instances' hidden flags are copied (`fieldHidden`) — the first prod run showed Board Category as a visible chip
+  its siblings hide. 2+ instances sharing a module (≥ half) → a new placement of it; else their role/kind with
+  `newModule`. Nothing names movies or boards.
+- **CPS application doc** (account3): raw markdown already saved in a doc resolves when its editor opens.
+- **Watched on prod (test grid 2, Beverages, 5 instances):** radial → noun "beverage" prefilled → "New probe thing"
+  button on the container → press → form (Name) → Submit → a new instance listed in Beverages, Board Category
+  beverage, scrolled to; second run: all three bindings hidden like its siblings. Debris deleted through socket
+  events (occurrences, operations, fields; container bindings 0). **Not watched:** Ctrl+Z of a press, a form inside
+  a loop in the editor, buttons on a page / panel / doc textblock (plan Task 9 steps 3–4), the shared-module path
+  (test grid 2 has no board whose instances share a module — unit + executor tested only).
+- Client 6,749 pass (the 2 known failures: `bookReaderHeadOneRow`, DATE_DIFF across the clock change). Server
+  3,245 pass; `protectedGridsIntegration.test.js` fails to PARSE, and did so before today's commits too.
+  Two buttons made from one container both read "New <x>"; only the field name is made unique.
+
+---
+
 ### 2026-10-24 (2) — OFFICE: FOLDER SHELVES ARE TREES, SHELVES DELETE, DRAG BETWEEN WINDOWS; the codex keeps only notes
 
 User (on the Quest): record player's bar not findable · cannot drag (a press opened the radial menu) · folders as books,

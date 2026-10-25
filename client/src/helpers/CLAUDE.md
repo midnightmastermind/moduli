@@ -3,6 +3,12 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-10-25 — formButton.js NEW; buttonRun / buttonOperation / formItems)
+- `formButton.planFormButton({container, containerModule, noun, occurrencesById, modulesById, fieldsById, gridId})`
+  → `{field, operation, containerModule}` (pure); `agreedValues(rows, fieldIds)`; `addFormButton` (one action).
+  Radial item `ui/formButtonItem` (asks the noun through `operationsBridge.requestUserInput`, never window.prompt).
+- `operationActions` CREATE: `module`, `occurrenceLabel`, `newModule` (skip find-by-name).
+
 ## Recent Changes (2026-10-23 — exportMarkdown.js NEW)
 - `occurrenceToMarkdown(occId, {occurrencesById, modulesById, fieldsById})`, `tiptapToMarkdown(node, {embed, inline, headingBase})` (moved from DocToolbar), `fieldSummary`, `markdownFileName`, `downloadMarkdown`.
 
