@@ -1,7 +1,7 @@
 // "Add a form button" on a container: the planner reads the container's own instances and builds
 // a button field, an operation (form → Create → scroll to) and the binding. Nothing names movies.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { planFormButton, agreedValues, existingFormButton } from "../helpers/formButton.js";
+import { planFormButton, agreedValues } from "../helpers/formButton.js";
 import { executePipeline } from "../helpers/operationExecutor.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 
@@ -144,28 +144,11 @@ describe("the container radial carries it", () => {
     expect(src).toMatch(/exportMarkdownItem\(\{/); // control: the neighbour item is still there
   });
 
-  it("guesses the noun from the container's name", async () => {
-    const { nounGuess } = await import("../ui/formButtonItem.js");
-    expect(nounGuess("Movies")).toBe("movie");
-    expect(nounGuess("Bookmarks")).toBe("bookmark");
-    expect(nounGuess("Ideas")).toBe("idea");
-    expect(nounGuess("Movies")).not.toBe("movy"); // "ies" is not a rule English keeps
-    expect(nounGuess("Grass")).toBe("grass");
+  it("asks the noun with nothing filled in", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../ui/formButtonItem.js", import.meta.url), "utf8");
+    expect(src).toMatch(/key: "noun"/);
+    expect(src).not.toMatch(/default:/);
   });
 });
 
-describe("existingFormButton", () => {
-  const fieldsById = {
-    b1: { id: "b1", name: "New movie", type: "button", meta: { buttonLabel: "New movie", operationId: "op1" } },
-    t1: { id: "t1", name: "New movie", type: "text" },
-    b2: { id: "b2", name: "Log", type: "button", meta: { buttonLabel: "Log" } },
-  };
-  it("finds the container's button for the same noun", () => {
-    expect(existingFormButton({ fieldBindings: [{ fieldId: "b2" }, { fieldId: "b1" }] }, fieldsById, " Movie ")?.id).toBe("b1");
-  });
-  it("ignores other buttons, non-button fields and other containers", () => {
-    expect(existingFormButton({ fieldBindings: [{ fieldId: "b2" }, { fieldId: "t1" }] }, fieldsById, "movie")).toBeNull();
-    expect(existingFormButton({ fieldBindings: [{ fieldId: "b1" }] }, fieldsById, "book")).toBeNull();
-    expect(existingFormButton({}, fieldsById, "movie")).toBeNull();
-  });
-});

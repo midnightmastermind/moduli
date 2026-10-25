@@ -3,18 +3,10 @@
 // never window.prompt — a headset panel never shows one), then helpers/formButton writes the button, its operation
 // and the binding in one undo step.
 import { SquarePlus } from "lucide-react";
-import { addFormButton, existingFormButton } from "../helpers/formButton";
+import { addFormButton } from "../helpers/formButton";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { requestOpenOperation } from "../helpers/buttonOperation";
 import { toast } from "../state/notificationStore";
-
-/** A guess at the noun from the container's name: "Movies" → "movie". The user can change it in the window. */
-export function nounGuess(label) {
-  const s = String(label || "").trim().toLowerCase();
-  if (!s) return "";
-  if (/[^s]s$/.test(s)) return s.slice(0, -1);
-  return s;
-}
 
 export function formButtonItem({ occurrence, module, getOccMap, getModMap, fieldsById, gridId, dispatch, socket }) {
   if (!occurrence?.id || !module?.id) return null;
@@ -30,18 +22,11 @@ export function formButtonItem({ occurrence, module, getOccMap, getModMap, field
         answer = await ask({
           form: true, title: "Add a form button", submitLabel: "Add",
           items: [{ key: "noun", label: "What does it add?", type: "text", required: true,
-            default: nounGuess(module.label), help: "The button is named New <this>." }],
+            help: "The button is named New <this>." }],
         });
       } catch { return; } // cancelled
       const noun = String(answer?.noun || "").trim();
       if (!noun) return;
-      // A second "New <noun>" on one container would be the same button twice — open the one it has instead.
-      const existing = existingFormButton(module, fieldsById, noun);
-      if (existing) {
-        toast.info(`This container already has "${existing.meta?.buttonLabel || existing.name}" — opened its operation`);
-        if (existing.meta?.operationId) requestOpenOperation(existing.meta.operationId);
-        return;
-      }
       const plan = addFormButton({
         dispatch, socket, container: occurrence, containerModule: module, noun,
         occurrencesById: getOccMap?.() || {}, modulesById: getModMap?.() || {}, fieldsById: fieldsById || {}, gridId,
