@@ -1309,7 +1309,29 @@ class OfficeActivity : AppSystemActivity() {
       if (++frames % 36 != 0) return
       for (t in things.values) remember(t)
       saveReaders()
+      if (frames % 180 == 0) sweepStrayModels()
       backUpLayout()
+    }
+  }
+
+  /**
+   * A model in the room that no piece, book or grab bar owns cannot be grabbed or deleted (user, 2026-10-25: "one
+   * of the record players is stuck … wont let me drag or delete it"). The app makes models in exactly three places —
+   * a piece's frame, a shelf's books, a grab bar — so any other office model is a leftover: it is logged and removed.
+   */
+  private fun sweepStrayModels() {
+    val owned = HashSet<Long>()
+    for (t in things.values) {
+      owned += t.frame.id
+      t.handle?.entity?.id?.let { owned += it }
+      for (b in t.books) owned += b.entity.id
+    }
+    for (h in readerHandles.values) owned += h.entity.id
+    for (e in Query.where { has(Mesh.id) }.eval()) {
+      val uri = e.tryGetComponent<Mesh>()?.mesh?.toString() ?: continue
+      if (!uri.startsWith("apk:///office/") || e.id in owned) continue
+      Log.w(TAG, "stray model removed: ${uri.removePrefix("apk:///office/")} (entity ${e.id})")
+      e.destroy()
     }
   }
 
