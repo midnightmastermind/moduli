@@ -17,7 +17,8 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { GripVertical } from "lucide-react";
 import ActionPicker from "../ui/ActionPicker";
 import { arrayMove } from "../helpers/LayoutHelpers";
-import DrilldownPicker from "../ui/DrilldownPicker";
+import DrilldownPicker, { LocalVarShapesContext } from "../ui/DrilldownPicker";
+import FormItemsEditor from "./FormItemsEditor.jsx";
 import JsonStructureEditor from "../ui/JsonStructureEditor";
 import { useGridActions } from "../GridActionsContext";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
@@ -254,6 +255,32 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 // ADD_TO_VAR/etc. and every loop iteration var (`as`). Names always start with
 // `$`. The resulting array is consumed by buildPathConfig to keep path pickers
 // from rendering half-resolved chip chains for valid local refs.
+/**
+ * The drill tree of each local var whose shape a step declares (2026-10-25): an "Ask with a form" step's result
+ * var is { values: { <item key> }, fields: { <field id> } }. Read by the path picker via LocalVarShapesContext.
+ */
+export function collectLocalVarShapes(steps) {
+  const shapes = {};
+  const visit = (arr) => {
+    for (const step of Array.isArray(arr) ? arr : []) {
+      if (!step) continue;
+      if (step.type === "action" && step.config?.type === "ASK_FORM") {
+        const name = step.config.resultVar || "$form";
+        const tree = shapes[name] || { values: {}, fields: {} };
+        for (const it of Array.isArray(step.config.items) ? step.config.items : []) {
+          if (it?.key) tree.values[it.key] = {};
+          if (it?.fieldId) tree.fields[it.fieldId] = {};
+        }
+        shapes[name] = tree;
+      }
+      if (step.type === "loop") visit(step.body);
+      if (step.type === "if") { visit(step.then); visit(step.else); }
+    }
+  };
+  visit(steps);
+  return shapes;
+}
+
 export function collectLocalVars(steps) {
   const found = new Set();
   function visit(stepArr) {
@@ -402,9 +429,12 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
   // rule runs with `$share` (the Imports tab passes it).
   const localVars = useMemo(() => [...collectLocalVars(steps), ...(extraLocalVars || [])], [steps, extraLocalVars]);
 
+  const localVarShapes = useMemo(() => collectLocalVarShapes(steps), [steps]);
+
   const sharedProps = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources, foldersById: pickerFolders, gridId: pickerGridId };
 
   return (
+    <LocalVarShapesContext.Provider value={localVarShapes}>
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {/* STEPS — main code flow. The header doubles as the only top-level
           chrome now that Sources is gone. */}
@@ -423,6 +453,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
         </div>
       </div>
     </div>
+    </LocalVarShapesContext.Provider>
   );
 }
 
@@ -1973,7 +2004,10 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
         return <OptionRowsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} label={label} />;
       // A form's inputs (ASK_FORM). Never the expression box — the value is a list of objects.
       case "formItems":
-        return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(cfg[key] || []).length} inputs</span>;
+        return (
+          <FormItemsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} fieldsById={fieldsById}
+            renderExpr={(v, on) => <ExprOrPath value={v} onChange={on} placeholder="(none)" width={130} {...exprProps} />} />
+        );
       case "expr":
       default:
         return (

@@ -25,7 +25,7 @@
 // The picker is intentionally a single component used everywhere a path or an
 // entity reference is selected, so the visual language is consistent.
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, useContext, createContext } from "react";
 import { createPortal } from "react-dom";
 import { Z_PORTAL_MENU } from "../helpers/zLayers";
 import { ChevronRight } from "lucide-react";
@@ -439,8 +439,33 @@ function occurrenceMapItems(ctx) {
   });
 }
 
+// A LOCAL VAR WITH A KNOWN SHAPE (2026-10-25). An "Ask with a form" step's result is
+// { values: { <key> }, fields: { <field id> } }; the operations editor publishes that tree through
+// LocalVarShapesContext so a later step can pick `$form › fields › Release Year` instead of typing it.
+// The tree is { key: subtree } — an empty subtree is a leaf. A field id key reads as the field's name.
+export const LocalVarShapesContext = createContext(null);
+function localVarShapeItems(shape, ctx) {
+  const rest = shape.slice(3);
+  const colon = rest.indexOf(":");
+  const variable = rest.slice(0, colon);
+  const path = rest.slice(colon + 1);
+  let node = ctx?.localVarShapes?.[variable];
+  for (const seg of path ? path.split(".") : []) node = node?.[seg];
+  if (!node || typeof node !== "object") return [];
+  return Object.keys(node).map((k) => {
+    const kids = Object.keys(node[k] || {}).length > 0;
+    const fname = ctx?.fieldsById?.[k]?.name;
+    return {
+      value: k, title: fname || k, sub: kids ? "object" : (fname ? "field" : "value"),
+      description: `${variable}${path ? "." + path : ""}.${k}`, hasChildren: kids,
+      ...(kids ? { childShape: `lv:${variable}:${path ? path + "." : ""}${k}` } : {}),
+    };
+  });
+}
+
 function descendShape(shape, ctx) {
   if (!shape) return [];
+  if (shape.startsWith("lv:")) return localVarShapeItems(shape, ctx);
   if (shape === "fieldsMap") return fieldsMapItems(ctx);
   if (shape === "occurrenceMap") return occurrenceMapItems(ctx);
   if (
@@ -584,7 +609,9 @@ export function itemsForLevel(chain, ctx, categories, recordShape) {
       shape = BUILTIN_VAR_SHAPES[variable];
     } else {
       const src = findSourceForVarName(ctx, variable);
-      if (src) {
+      if (ctx.localVarShapes?.[variable]) {
+        shape = `lv:${variable}:`;
+      } else if (src) {
         shape = shapeForSourceEntityType(src.entityType);
       } else {
         // Anything else starting with `$` — local var, source we can't classify,
@@ -742,10 +769,15 @@ function Tile({ item, onBodyClick, onPickThis }) {
 export default function DrilldownPicker({
   value = "",
   onChange,
-  ctx = {},
+  ctx: ctxProp = {},
   config,
   mode = "path",
 }) {
+  const localVarShapes = useContext(LocalVarShapesContext);
+  const ctx = useMemo(
+    () => (localVarShapes && !ctxProp.localVarShapes ? { ...ctxProp, localVarShapes } : ctxProp),
+    [ctxProp, localVarShapes],
+  );
   const placeholder = config?.placeholder || (mode === "entity" ? "Pick reference" : "Pick path");
   const categories = config?.categories || CATEGORIES;
   const recordShape = config?.recordShape || null;
