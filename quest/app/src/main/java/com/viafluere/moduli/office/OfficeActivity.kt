@@ -207,6 +207,10 @@ class OfficeActivity : AppSystemActivity() {
     var card = -1
     var grabbedAt = 0L
     var placedScale = -1f
+    /** While held: what you see (the grabbed block stays in your hand; this is pushed out / pulled in along your
+     *  line of sight by the right thumbstick, like furniture), and how far. */
+    var shown: Entity? = null
+    var reach = 0f
   }
 
   private lateinit var store: PlacementStore
@@ -235,6 +239,8 @@ class OfficeActivity : AppSystemActivity() {
    * its bar, ⚙ or 🗑 and none can be grabbed — so reaching for a book never moves the shelf.
    */
   private var moveMode = false
+  /** The book / record / tape in your hand, if any (the right thumbstick pushes it out or pulls it in). */
+  private var heldBook: Book? = null
   /** Each model's height (tools/exportModels.mjs writes office/sizes.json), so its handle floats just above it. */
   private val sizes: JSONObject by lazy {
     try { JSONObject(assets.open("office/sizes.json").bufferedReader().readText()) } catch (e: Exception) { JSONObject() }
@@ -762,11 +768,28 @@ class OfficeActivity : AppSystemActivity() {
     cards[i].setComponent(Visible(false))
   }
 
+  /** The held thing as you see it: the grabbed block's pose, moved `reach` metres along the line from your head
+   *  through it (never nearer than 0.2m). */
+  private fun placeShown(b: Book) {
+    val e = b.shown ?: return
+    val at = b.entity.tryGetComponent<Transform>()?.transform ?: return
+    val head = headPose()
+    var p = PoseMath.tOf(at)
+    if (head != null && b.reach != 0f) {
+      val h = PoseMath.tOf(head)
+      val d = floatArrayOf(p[0] - h[0], p[1] - h[1], p[2] - h[2])
+      val len = kotlin.math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).takeIf { it > 1e-3f } ?: 1f
+      b.reach = b.reach.coerceIn(0.2f - len, 6f)
+      p = floatArrayOf(p[0] + d[0] / len * b.reach, p[1] + d[1] / len * b.reach, p[2] + d[2] / len * b.reach)
+    }
+    e.setComponent(Transform(PoseMath.sane(PoseMath.pose(p, PoseMath.qOf(at)), "OfficeActivity:placeShown")))
+  }
+
   /** The card floats just above the held thing, turned to face you. */
   private fun placeCard(t: Thing, b: Book) {
     val i = b.card
     if (i < 0) return
-    val at = b.entity.tryGetComponent<Transform>()?.transform ?: return
+    val at = (b.shown ?: b.entity).tryGetComponent<Transform>()?.transform ?: return
     val head = headPose() ?: return
     val p = floatArrayOf(at.t.x, at.t.y + b.slot.h * t.scale / 2f + CARD_H / 2f + 0.04f, at.t.z)
     cards[i].setComponent(Transform(PoseMath.sane(PoseMath.pose(p, PoseMath.yaw(PoseMath.yawToward(p, PoseMath.tOf(head)) + 180f)), "OfficeActivity:690")))
@@ -828,18 +851,26 @@ class OfficeActivity : AppSystemActivity() {
           b.held = true; b.grabbedAt = now
           // A book fills its slot (spine width = its thickness); a record sleeve and a tape are drawn at real size.
           val held = when (t.shelfAsset) { "record" -> "record"; "vhs" -> "vhs"; else -> "book" }
-          b.entity.setComponent(Mesh(Uri.parse("apk:///office/$held-${b.color}.glb"), hittable = MeshCollision.LineTest))
-          b.entity.setComponent(Scale(if (held == "book") Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s) else Vector3(s)))
+          b.reach = 0f
+          b.shown = Entity.create(listOf(
+              Mesh(Uri.parse("apk:///office/$held-${b.color}.glb")),
+              Scale(if (held == "book") Vector3(BOOK_DEPTH * s, b.slot.h * s, b.slot.w * s) else Vector3(s)),
+              Transform(b.entity.tryGetComponent<Transform>()?.transform ?: Pose()),
+          ))
+          heldBook = b
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, true)", null)
           b.card = showCard(b)
           Log.i(TAG, "took ${b.title} off ${t.key}")
           continue
         }
-        if (grabbed) { placeCard(t, b); continue }
+        if (grabbed) { placeShown(b); placeCard(t, b); continue }
         val rest = bookRestPose(t, b) ?: continue
         if (b.held) {
           b.held = false
-          val at = b.entity.tryGetComponent<Transform>()?.transform
+          // Where you let go is where you SEE it (pushed out or pulled in), not the block in your hand.
+          val at = b.shown?.tryGetComponent<Transform>()?.transform ?: b.entity.tryGetComponent<Transform>()?.transform
+          b.shown?.destroy(); b.shown = null
+          if (heldBook === b) heldBook = null
           val moved = at?.let { !PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } ?: false
           if (moved) {
             val p = at?.let { PoseMath.tOf(it) }
@@ -859,7 +890,6 @@ class OfficeActivity : AppSystemActivity() {
               else -> activateBook(t, b, near = p)
             }
           } else if (now - b.grabbedAt < BOOK_TAP_MS) { if (t.selecting) selectBook(t, b) else activateBook(t, b) }
-          b.entity.setComponent(Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest))
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
           hideCard(b)
           b.placedScale = -1f
@@ -1300,17 +1330,24 @@ class OfficeActivity : AppSystemActivity() {
    * A piece's bar, ⚙ and 🗑 show only while you point at it (or just did), hold it, or have its settings open — shown
    * all the time they blocked the view of the room. Hidden, the bar cannot be grabbed by accident either.
    */
+  /** A screen (a browser / PC / Claude screen, the grid or note screen, a page screen) moves without "Move
+   *  furniture" being on, like a reader window (user: "i need the screens to not be only when furniture is turned
+   *  on"). Furniture still needs the switch, so reaching for a book never moves the shelf. */
+  private fun isScreen(t: Thing): Boolean =
+      t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" } == true
+
   private fun showMenus() {
     val now = System.currentTimeMillis()
     // Each controller points at ONE piece: the nearest its ray meets. A ray across the room passes through several
     // pieces' boxes, and lighting them all up let a grab land on the wrong piece.
     val pointed = HashSet<String>()
-    for ((o, d) in if (moveMode) controllerRays() else emptyList()) {
+    for ((o, d) in controllerRays()) {
       var best: Thing? = null; var bestD = Float.MAX_VALUE
       val hits = ArrayList<Thing>()
       for (t in things.values) {
         // Sitting in a piece puts your controllers inside its box, which reads as pointing at it — skip it then.
         if (t.key == CONTROL || t.ghosted) continue
+        if (!moveMode && !isScreen(t)) continue
         val dist = hitDistance(t, o, d) ?: continue
         hits += t
         if (dist < bestD) { bestD = dist; best = t }
@@ -1325,7 +1362,7 @@ class OfficeActivity : AppSystemActivity() {
     if (pointed.isNotEmpty()) for (t in things.values) if (t.key !in pointed) t.lastHover = 0L
     for (t in things.values) {
       if (t.key == CONTROL) continue
-      val want = moveMode && (!t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows)
+      val want = (moveMode || isScreen(t)) && (!t.ghosted && now - t.lastHover < MENU_LINGER_MS || t.handle?.held == true || t.key in pieceWindows)
       if (want == t.menuShown) continue
       t.menuShown = want
       if (want && t.gear == null) {
@@ -1448,6 +1485,8 @@ class OfficeActivity : AppSystemActivity() {
       updateGhost()
       if (dt == 0f) return
       if (reachDir != 0f) held?.let { k -> things[k]?.handle?.let { it.reach += reachDir * REACH_M_PER_S * dt } }
+      // A book, record or tape in your hand: the same stick pushes it away / pulls it in.
+      if (reachDir != 0f && held == null && heldReader == null) heldBook?.let { it.reach += reachDir * REACH_M_PER_S * dt }
       // A reader window you hold moves out / in and grows / shrinks with the same sticks as furniture.
       heldReader?.let { id ->
         if (reachDir != 0f) readerHandles[id]?.let { it.reach += reachDir * REACH_M_PER_S * dt }
