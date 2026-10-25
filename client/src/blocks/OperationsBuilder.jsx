@@ -1118,6 +1118,21 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
                 {fl("parent")}
                 <ExprOrPath value={cfg.parent || ""} onChange={v => setCfg({ parent: v })} placeholder="$schedPageId" width={160} {...exprProps} />
               </div>
+              {/* Place an EXISTING module (a board's shared "Movie") instead of finding/minting one by name; the new
+                  occurrence gets its own name. When set, name/role/kind above are not used. */}
+              <div style={rowStyle}>
+                {fl("place module")}
+                <ModuleSelect
+                  single
+                  value={typeof cfg.module === "string" && modulesById?.[cfg.module] ? [cfg.module] : []}
+                  onChange={ids => setCfg({ module: ids[0] || undefined })}
+                  modulesById={modulesById}
+                  occurrencesById={occurrencesById}
+                  placeholder="(none — use the name)"
+                />
+                {fl("its name")}
+                <ExprOrPath value={cfg.occurrenceLabel || ""} onChange={v => setCfg({ occurrenceLabel: v || undefined })} placeholder="$form.values.name" width={150} {...exprProps} />
+              </div>
               <FieldsMapEditor cfg={cfg} setCfg={setCfg} fields={fields} exprProps={exprProps} />
               {/* The three keys below are READ by the executor's CREATE and were
                   authorable only by seeds (2026-09-28: 12 meta, 3 signature and

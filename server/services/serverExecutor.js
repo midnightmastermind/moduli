@@ -355,7 +355,13 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       // parent — a row nothing renders. Both are read; the server's own
       // name wins when a step carries both.
       const parentId   = await resolveExprAsync(cfg.parentId ?? cfg.parent, $vars, opts);
-      const label      = await resolveExprAsync(cfg.label ?? cfg.name, $vars, opts);
+      // `module` places an EXISTING module on this grid (no module minted); `occurrenceLabel` names the new row.
+      // (`label` stays the module name here — the share rules use it.) Same keys as the client CREATE.
+      const placeModId = cfg.module ? await resolveExprAsync(cfg.module, $vars, opts) : null;
+      const placeMod = typeof placeModId === "string" && placeModId
+        ? await Module.findOne({ id: placeModId, userId, gridId }).lean() : null;
+      const occLabel = cfg.occurrenceLabel ? await resolveExprAsync(cfg.occurrenceLabel, $vars, opts) : null;
+      const label      = (occLabel != null && occLabel !== "") ? String(occLabel) : await resolveExprAsync(cfg.label ?? cfg.name, $vars, opts);
       let externalId   = await resolveExprAsync(cfg.externalId, $vars, opts);
       // The editor has no externalId box. Inside a share rule, a row with none
       // is keyed on the share + THIS step (+ loop position), so re-sharing the
@@ -492,6 +498,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       const textmapVal = cfg.textmap ? await resolveExprAsync(cfg.textmap, $vars, opts) : null;
       const res = await mintOccurrence({
         userId, gridId, label, parentId, parentFolderId, fields, fieldBindings, externalId,
+        ...(placeMod ? { moduleId: placeMod.id } : {}),
         ...(isObject(textmapVal) ? { textmap: textmapVal } : {}),
         moduleRole, moduleKind, moduleFileRef,
         // A `fileRef` IS a module's identity when it has one — /ingest's own

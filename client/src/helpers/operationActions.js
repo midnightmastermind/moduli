@@ -1882,7 +1882,18 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         break;
       }
 
-      const name = resolveExpr(cfg.name, $vars) ?? cfg.name;
+      // PLACE AN EXISTING MODULE (2026-10-25): `module` names a module that exists → the new occurrence is a
+      // placement of it (a board's shared "Movie" module), no module is found by name or minted. `occurrenceLabel`
+      // is the new occurrence's own name. (`label` is not used for it: on the server a CREATE's `label` already
+      // means the module name — the share rules use it.) Absent or unknown module → the name path, unchanged.
+      const placeModId = cfg.module != null && cfg.module !== "" ? resolveExpr(cfg.module, $vars) : null;
+      const placeMod = typeof placeModId === "string" && placeModId
+        ? (context.modulesById?.[placeModId] || (context.state?.modules || []).find((m) => m?.id === placeModId) || null)
+        : null;
+      const occLabelRaw = cfg.occurrenceLabel != null && cfg.occurrenceLabel !== "" ? resolveExpr(cfg.occurrenceLabel, $vars) : null;
+      const occurrenceLabel = occLabelRaw == null || occLabelRaw === "" ? null : String(occLabelRaw);
+
+      const name = placeMod ? (placeMod.label || placeMod.name || placeMod.id) : (resolveExpr(cfg.name, $vars) ?? cfg.name);
       if (!name) break;
 
       // Resolve $var references inside meta values so authors can write
@@ -1895,7 +1906,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         : null;
 
       const templateList = Array.isArray($vars.$allTemplates) ? $vars.$allTemplates : [];
-      const existingTemplate = templateList.find(t => t && !t.trashed && (t.label === name || t.name === name));
+      const existingTemplate = placeMod || templateList.find(t => t && !t.trashed && (t.label === name || t.name === name));
 
       // Attach fields: every fieldId addressed by cfg.fields is auto-bound to
       // the module, plus anything in cfg.attachFields (explicit attach without
@@ -1940,7 +1951,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
               moduleId: templateId,
               patch: { fieldBindings: nextBindings },
             });
-            existingTemplate.fieldBindings = nextBindings;
+            // A placed module is the store's own object — never mutated here; the effect updates it.
+            if (existingTemplate !== placeMod) existingTemplate.fieldBindings = nextBindings;
           }
         }
       } else {
@@ -2097,7 +2109,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (Array.isArray($vars.$allOccurrences)) {
         $vars.$allOccurrences = [...$vars.$allOccurrences, instance];
       }
-      const newRole = cfg.role || "container";
+      const newRole = placeMod?.role || cfg.role || "container";
+      if (occurrenceLabel) instance.label = occurrenceLabel;
       if (newRole === "container" && Array.isArray($vars.$allContainers)) {
         $vars.$allContainers = [...$vars.$allContainers, instance];
       } else if (newRole === "panel" && Array.isArray($vars.$allPanels)) {
@@ -2124,6 +2137,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           // modulesById yet, and a row with no role is in no $allContainers /
           // $allPages slice — so a RUN_OPERATION callee could not FIND it.
           role: newRole,
+          ...(placeMod?.kind ? { kind: placeMod.kind } : {}),
+          ...(occurrenceLabel ? { label: occurrenceLabel } : {}),
           parentId,
           fields,
           textmap,
@@ -2185,10 +2200,14 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // A create that declares nothing is byte-identical to before.
       updates.push({
         _effect: "CREATE_ITEM",
-        template: templateRecord,
+        // A placed module rides as the template with `templateExists`, so the effect stamps its role/kind on the
+        // occurrence and mints nothing.
+        template: placeMod ? { id: placeMod.id, role: placeMod.role, kind: placeMod.kind, label: placeMod.label } : templateRecord,
+        ...(placeMod ? { templateExists: true } : {}),
         instance: {
           id: instanceId,
           templateId,
+          ...(occurrenceLabel ? { label: occurrenceLabel } : {}),
           parentId,
           fields,
           textmap,
