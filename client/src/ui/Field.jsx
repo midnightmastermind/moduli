@@ -13,7 +13,7 @@
 
 import { manualValues } from "../helpers/optionsResolver.js";
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
-import { applyManualOpUpdates } from "../helpers/manualOpRun";
+import { useButtonRunner } from "../helpers/buttonRun";
 import { useProviderSearch } from "../hooks/useProviderSearch";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin, ExternalLink, ArrowUpRight } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin, ExternalLink, ArrowUpRight, Loader2 } from "lucide-react";
 
 // Icon-name → lucide component lookup for display rules.
 // Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
@@ -57,7 +57,6 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { openOccurrenceInPanel, panelOccurrenceFor } from "../helpers/openOccurrenceInPanel";
 import { toast } from "../state/notificationStore";
-import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 import { formatDuration, splitDuration } from "../helpers/duration.js";
@@ -1113,6 +1112,54 @@ function FieldLinkOut({ href, name, tint = null }) {
   );
 }
 
+/**
+ * A `button` field: runs `meta.operationId` through the one button runner (helpers/buttonRun) for the occurrence it
+ * sits on. Busy (and refusing another press) until the operation has finished — a form it opens included.
+ */
+function ButtonFieldControl({ field, hostOccurrence, compact, disabled, operationsById, fieldsById, modulesById, getState, getOccMap, dispatch }) {
+  const { busy, run } = useButtonRunner();
+  const meta = field?.meta || {};
+  const opId = meta.operationId;
+  const op = opId && operationsById ? operationsById[opId] : null;
+  const buttonLabel = meta.buttonLabel || field?.name || "Run";
+  const tooltip = busy ? "Running…" : op ? `Run: ${op.name}` : (opId ? `Operation not found: ${opId}` : "No operation configured");
+  const enabled = !disabled && !!op && !busy;
+  const onClick = (e) => {
+    e.stopPropagation();
+    if (!op || busy) return;
+    run({
+      op, hostOccurrence, fieldId: field.id,
+      ctx: { state: getState(), fieldsById, operationsById, occurrencesById: getOccMap(), modulesById, dispatch },
+    }).then((r) => { if (!r.ran && r.reason === "no operation") toast.error(`${buttonLabel}: no operation to run`); });
+  };
+  const live = !!op && !disabled;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!enabled}
+      title={tooltip}
+      aria-busy={busy || undefined}
+      data-testid="button-field"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: compact ? "2px 8px" : "3px 10px",
+        borderRadius: 999,
+        fontSize: FIELD_FONT,
+        fontFamily: FIELD_FAMILY,
+        cursor: busy ? "progress" : enabled ? "pointer" : "not-allowed",
+        background: live ? "var(--accent-blue-bg)" : "var(--input-bg)",
+        border: `1px solid ${live ? "var(--accent-blue-border)" : "var(--border-subtle)"}`,
+        color: live ? "var(--accent-blue-text)" : "var(--text-faint)",
+        opacity: live ? (busy ? 0.75 : 1) : 0.55,
+      }}
+    >
+      {busy ? <Loader2 className="animate-spin" style={{ width: 9, height: 9 }} /> : <Play style={{ width: 9, height: 9 }} />}
+      {buttonLabel}
+    </button>
+  );
+}
+
 function Field({
   // Common
   field,
@@ -1715,52 +1762,12 @@ function Field({
   // `$trigger.occurrenceId` / `$trigger.instanceId` to know which row
   // was clicked.
   if (type === "button") {
-    const opId = meta?.operationId;
-    const op = opId && operationsById ? operationsById[opId] : null;
-    const buttonLabel = meta?.buttonLabel || name || "Run";
-    const tooltip = op ? `Run: ${op.name}` : (opId ? `Operation not found: ${opId}` : "No operation configured");
-    const enabled = !disabled && !!op;
-    const onClick = (e) => {
-      e.stopPropagation();
-      if (!op) return;
-      const occId = hostOccurrence?.id || null;
-      const transaction = {
-        type: "ButtonOp",
-        operationId: op.id,
-        occurrenceId: occId || null,
-        instanceId: occId || null,
-        fieldId: field.id,
-      };
-      const updates = runMatchingOperations(
-        Object.values(operationsById || {}),
-        "ButtonOp", transaction,
-        { state: resolveOpState(), fieldsById, operationsById, occurrencesById: getOccMap() },
-      );
-      // Display updates AND real effects — see helpers/manualOpRun.js.
-      applyManualOpUpdates(updates, { dispatch });
-    };
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={!enabled}
-        title={tooltip}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: compact ? "2px 8px" : "3px 10px",
-          borderRadius: 999,
-          fontSize: FIELD_FONT,
-          fontFamily: FIELD_FAMILY,
-          cursor: enabled ? "pointer" : "not-allowed",
-          background: enabled ? "var(--accent-blue-bg)" : "var(--input-bg)",
-          border: `1px solid ${enabled ? "var(--accent-blue-border)" : "var(--border-subtle)"}`,
-          color: enabled ? "var(--accent-blue-text)" : "var(--text-faint)",
-          opacity: enabled ? 1 : 0.55,
-        }}
-      >
-        <Play style={{ width: 9, height: 9 }} />
-        {buttonLabel}
-      </button>
+      <ButtonFieldControl
+        field={field} hostOccurrence={hostOccurrence} compact={compact} disabled={disabled}
+        operationsById={operationsById} fieldsById={fieldsById} modulesById={modulesById}
+        getState={resolveOpState} getOccMap={getOccMap} dispatch={dispatch}
+      />
     );
   }
 

@@ -77,12 +77,17 @@ describe("both hand-run surfaces go through the one helper", () => {
   // what stops one of the two drifting back.
   const read = (p) => require("node:fs").readFileSync(require("node:path").join(__dirname, p), "utf8");
 
-  it("the instance trigger widget calls applyManualOpUpdates", () => {
-    expect(read("../modules/ModuleInstance.jsx")).toMatch(/applyManualOpUpdates\(/);
+  // Both now press through helpers/buttonRun (2026-10-25), which is what calls applyManualOpUpdates.
+  it("the instance trigger widget presses through the button runner", () => {
+    expect(read("../modules/ModuleInstance.jsx")).toMatch(/useButtonRunner\(/);
   });
 
-  it("the button field calls applyManualOpUpdates", () => {
-    expect(read("../ui/Field.jsx")).toMatch(/applyManualOpUpdates\(/);
+  it("the button field presses through the button runner", () => {
+    expect(read("../ui/Field.jsx")).toMatch(/useButtonRunner\(/);
+  });
+
+  it("the button runner applies the run's effects", () => {
+    expect(read("../helpers/buttonRun.js")).toMatch(/applyManualOpUpdates\(/);
   });
 
   it("neither still filters the effects out by hand", () => {

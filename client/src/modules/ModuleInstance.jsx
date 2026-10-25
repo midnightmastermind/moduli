@@ -5,7 +5,6 @@
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { applyManualOpUpdates } from "../helpers/manualOpRun";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 
 // Stable empty array for selector fallbacks — a fresh [] per selector run
@@ -16,6 +15,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
+import { useButtonRunner } from "../helpers/buttonRun";
 import { resolveOccurrenceFields } from "../helpers/autoAppliedFields";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
@@ -48,7 +48,6 @@ import {
   DropAccepts,
 } from "../helpers/dragSystem";
 import { resolveInstanceStyle, styleToCSS } from "../helpers/StyleHelpers";
-import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 import { DocContent } from "./DocContent.jsx";
 import BoundBody from "./BoundBody.jsx";
@@ -623,23 +622,15 @@ function InstanceInner({
       .filter(w => w.op);
   }, [instance?.operationBindings, operationsById]);
 
+  // The row's "Run" widget presses through the same runner as a `button` field (helpers/buttonRun).
+  const { run: runButton } = useButtonRunner();
   const handleRunOperation = useCallback((op) => {
     if (!op) return;
-    const fieldsLookup = fieldsById || {};
-    const operationsLookup = operationsById || {};
-    const occLookup = getOccMap();
-    const transaction = { type: "ButtonOp", operationId: op.id, instanceId: id, occurrenceId: occurrence?.id };
-    const updates = runMatchingOperations(
-      Object.values(operationsLookup),
-      "ButtonOp",
-      transaction,
-      { state: getState(), fieldsById: fieldsLookup, operationsById: operationsLookup, occurrencesById: occLookup }
-    );
-    // Display updates AND real effects. This used to keep only the display
-    // half, so a CREATE / UPDATE / DELETE behind a "Run" widget computed and
-    // then vanished (helpers/manualOpRun.js has the measurement).
-    applyManualOpUpdates(updates, { dispatch });
-  }, [id, occurrence?.id, getState, fieldsById, operationsById, getOccMap, dispatch]);
+    runButton({
+      op, hostOccurrence: occurrence,
+      ctx: { state: getState(), fieldsById: fieldsById || {}, operationsById: operationsById || {}, occurrencesById: getOccMap(), dispatch },
+    });
+  }, [runButton, occurrence, getState, fieldsById, operationsById, getOccMap, dispatch]);
 
   // Context for derived field calculations (includes filter unit for target
   // scaling — switching the D/W/M/Y toggle should re-scale every progress
