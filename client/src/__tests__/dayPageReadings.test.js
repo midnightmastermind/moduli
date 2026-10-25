@@ -56,8 +56,11 @@ describe("Day Page: Readings (0402)", () => {
       ["refl15", "Morning Words", `# Morning Words\n\n${dayMarker("October 15")} passage`, "magic", true],
       ["refl16", "Morning Words", `# Morning Words\n\n${dayMarker("October 16")} passage`, "magic", true],
     ]);
-    // The mark goes out BEFORE the wait, so a second run on the same load imports nothing.
-    const marks = pre.filter((e) => JSON.stringify(e).includes(`readings`));
+    // The mark goes out BEFORE each day's wait, so a second run on the same load imports nothing. Since
+    // 2026-10-25 the caller waits for a called operation's pause, so day 1 is marked in the first batch and
+    // day 2 once day 1's read has come back (applied through the bridge).
+    expect(pre.filter((e) => JSON.stringify(e).includes(`readings`)).length).toBe(1);
+    const marks = [...pre, ...applied].filter((e) => JSON.stringify(e).includes(`readings`));
     expect(marks.length).toBe(2);
   });
 

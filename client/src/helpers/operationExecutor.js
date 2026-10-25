@@ -2436,8 +2436,51 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   // pipelines that means after every CALL_API / GET_USER_INPUT resume
   // has run. For synchronous pipelines the caller already has all
   // effects, so the callback fires immediately with the same array.
+  // A CALLED operation (RUN_OPERATION) hands a pause back to its caller instead of handling it: the caller's
+  // executeSteps chains "the rest of the caller" onto it, so the caller waits for the answer (2026-10-25).
+  if (contextWithExecutors._deferSuspend) return result;
   const onPipelineDone = contextWithExecutors._onPipelineDone;
   return _handleSuspend(result, { onPipelineDone, accumulated: [] });
+}
+
+// ── Pauses anywhere (2026-10-25) ────────────────────────────────────────────
+// A paused pipeline is a CHAIN of frames: { remainingSteps, $vars, context, transaction, next? }. The first frame is
+// where the pause happened; each enclosing level (an IF's rest, a loop's remaining iterations, a caller after its
+// RUN_OPERATION) is appended behind it. Resuming runs the frames in order, each with its own $vars, until one pauses
+// again — then the frames still waiting are chained behind that new pause.
+function endsInSuspend(list) {
+  const last = Array.isArray(list) && list.length ? list[list.length - 1] : null;
+  return !!(last && last._suspend === true);
+}
+
+function appendFrame(frame, tail) {
+  if (!frame) return tail;
+  return { ...frame, next: appendFrame(frame.next, tail) };
+}
+
+/** The pause `sentinel` with `frame` waiting behind every frame it already carries. Pure. */
+function chainFrame(sentinel, frame) {
+  if (!frame || (!frame.remainingSteps?.length && !frame.next)) return sentinel;
+  return { ...sentinel, continuation: appendFrame(sentinel.continuation, frame) };
+}
+
+/** Steps' results with the trailing pause chained to `frame` (the rest of the current level). */
+function suspendWithRest(results, frame) {
+  const last = results[results.length - 1];
+  return [...results.slice(0, -1), chainFrame(last, frame)];
+}
+
+/** Run a frame chain until it ends or pauses again. */
+function runFrameChain(frame) {
+  const out = [];
+  let cur = frame;
+  while (cur) {
+    const res = executeSteps(cur.remainingSteps || [], cur.$vars, cur.context, cur.transaction);
+    if (endsInSuspend(res)) return [...out, ...suspendWithRest(res, cur.next)];
+    out.push(...res);
+    cur = cur.next;
+  }
+  return out;
 }
 
 // If the steps returned a suspend continuation as the LAST entry, hand the
@@ -2564,12 +2607,7 @@ export function resumeContinuation(continuation, resultVar, value, { onPipelineD
     return [];
   }
   continuation.$vars[resultVar] = value;
-  const next = executeSteps(
-    continuation.remainingSteps,
-    continuation.$vars,
-    continuation.context,
-    continuation.transaction,
-  );
+  const next = runFrameChain(continuation);
   const handled = _handleSuspend(next, { onPipelineDone, accumulated });
   // Effects already applied during fireOperations for the pre-suspend chunk;
   // these are the post-resume effects so apply them now.
@@ -2691,25 +2729,17 @@ function executeSteps(steps, $vars, context, transaction) {
       // MVP limitation: only fires at the TOP level of pipeline.steps. Nested
       // suspends inside IF/LOOP bodies aren't supported yet — would need
       // bubbling through the recursive executeSteps calls below.
-      if (result.length === 1 && result[0] && result[0]._suspend === true) {
-        return [
-          ...updates,
-          {
-            // Spread the action's sentinel so type discriminators
-            // (_callApi / _importText) and Promise-error metadata
-            // (errorVar / onError) survive into _handleSuspend's
-            // branch selection. Was previously stripped to bare
-            // {_suspend, request, resultVar} which dropped every
-            // suspend through the GET_USER_INPUT branch by default.
-            ...result[0],
-            continuation: {
-              remainingSteps: stepsArr.slice(stepIdx + 1),
-              $vars,
-              context,
-              transaction,
-            },
-          },
-        ];
+      // A pause may come with effects before it (a called operation that wrote, then asked) and may already carry
+      // a frame chain (the callee's own rest) — this level's rest goes behind it.
+      if (endsInSuspend(result)) {
+        const sentinel = result[result.length - 1];
+        const rest = { remainingSteps: stepsArr.slice(stepIdx + 1), $vars, context, transaction };
+        // Spread the action's sentinel so type discriminators (_callApi / _importText) and Promise-error metadata
+        // (errorVar / onError) survive into _handleSuspend's branch selection.
+        const paused = sentinel.continuation
+          ? chainFrame(sentinel, rest)
+          : { ...sentinel, continuation: rest };
+        return [...updates, ...result.slice(0, -1), paused];
       }
       updates.push(...result);
     } else if (step.type === "if") {
@@ -2723,11 +2753,11 @@ function executeSteps(steps, $vars, context, transaction) {
         branch: branch ? "then" : "else",
         varsBefore,
       });
-      if (branch) {
-        updates.push(...executeSteps(step.then || [], $vars, context, transaction));
-      } else {
-        updates.push(...executeSteps(step.else || [], $vars, context, transaction));
+      const sub = executeSteps((branch ? step.then : step.else) || [], $vars, context, transaction);
+      if (endsInSuspend(sub)) {
+        return [...updates, ...suspendWithRest(sub, { remainingSteps: stepsArr.slice(stepIdx + 1), $vars, context, transaction })];
       }
+      updates.push(...sub);
     } else if (step.type === "loop") {
       // LOOP: iterate over any array expression or legacy typed collection.
       // step.overExpr = any expression resolving to an array (e.g. "$allItems", "$myArr")
@@ -2768,11 +2798,39 @@ function executeSteps(steps, $vars, context, transaction) {
             mutedHere = true;
           }
         }
-        updates.push(...executeSteps(step.body || [], $vars, context, transaction));
+        const sub = executeSteps(step.body || [], $vars, context, transaction);
+        if (endsInSuspend(sub)) {
+          // A pause inside the body: the rest of this iteration runs on resume, then the remaining items (frozen
+          // now — a loop iterates the collection it started with), then the steps after the loop.
+          if (mutedHere) log._mute -= 1;
+          const tail = [
+            { type: "loopRest", as: varName, items: items.slice(i + 1), body: step.body || [] },
+            ...stepsArr.slice(stepIdx + 1),
+          ];
+          return [...updates, ...suspendWithRest(sub, { remainingSteps: tail, $vars, context, transaction })];
+        }
+        updates.push(...sub);
         i += 1;
       }
       if (mutedHere) log._mute -= 1;
       if (loopEntry) loopEntry.ms = Math.round((performance.now() - _loopT0) * 10) / 10;
+      delete $vars[varName];
+    } else if (step.type === "loopRest") {
+      // The rest of a loop that paused: same body, the items it had not reached yet.
+      const varName = step.as || "$item";
+      const items = step.items || [];
+      for (let i = 0; i < items.length; i += 1) {
+        $vars[varName] = items[i];
+        const sub = executeSteps(step.body || [], $vars, context, transaction);
+        if (endsInSuspend(sub)) {
+          const tail = [
+            { type: "loopRest", as: varName, items: items.slice(i + 1), body: step.body || [] },
+            ...stepsArr.slice(stepIdx + 1),
+          ];
+          return [...updates, ...suspendWithRest(sub, { remainingSteps: tail, $vars, context, transaction })];
+        }
+        updates.push(...sub);
+      }
       delete $vars[varName];
     }
   }

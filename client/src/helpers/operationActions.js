@@ -4414,7 +4414,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // whether the shared overlay has rows the read model does not.)
       const cached = context._allItemsCache;
       const stale = Array.isArray(cached) && cached.length !== Object.keys(context.occurrencesById || {}).length;
-      const childContext = { ...context, _opCallDepth: depth + 1, ...(stale ? { _allItemsCache: null } : {}) };
+      // `_deferSuspend`: a pause in the callee comes back to this step instead of being handled by the callee, so the
+      // caller waits for it too (executeSteps chains the caller's rest behind it, 2026-10-25).
+      const childContext = { ...context, _opCallDepth: depth + 1, _deferSuspend: true, ...(stale ? { _allItemsCache: null } : {}) };
       if (subOp.pipeline && _execPipeline) {
         updates.push(..._execPipeline(subOp, childContext, transaction, childVars));
       } else if (_execOp) {
