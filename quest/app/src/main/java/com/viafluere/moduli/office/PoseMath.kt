@@ -68,10 +68,21 @@ object PoseMath {
   }
 
   /** Only the turn about the vertical axis of `q` (furniture stands upright). */
+  /**
+   * The level heading of `q`: its turn about the vertical, tilt dropped. Read off the SIDE axis, not the front: a
+   * piece tilted to face down (on the ceiling) has a front pointing at the floor, which has no heading at all, while
+   * its side axis stays level under any tilt about it.
+   */
   fun upright(q: FloatArray): FloatArray {
-    val f = rotate(q, floatArrayOf(0f, 0f, 1f))
-    val ang = Math.toDegrees(kotlin.math.atan2(f[0].toDouble(), f[2].toDouble())).toFloat()
+    val r = rotate(q, floatArrayOf(1f, 0f, 0f))
+    val ang = Math.toDegrees(kotlin.math.atan2(-r[2].toDouble(), r[0].toDouble())).toFloat()
     return yaw(ang)
+  }
+
+  /** A tilt of `deg` degrees about the piece's own side-to-side axis (its front goes down for positive `deg`). */
+  fun pitch(deg: Float): FloatArray {
+    val h = Math.toRadians(deg.toDouble()) / 2
+    return floatArrayOf(cos(h).toFloat(), sin(h).toFloat(), 0f, 0f)
   }
 
   /** The turn (degrees about the vertical) that points +z from `from` toward `to`. */

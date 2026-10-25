@@ -1059,8 +1059,18 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun turn(t: Thing, deg: Float, save: Boolean = true) {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
-    val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.upright(PoseMath.qOf(pose)))
+    // About the room's vertical, keeping any tilt.
+    val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.qOf(pose))
     t.frame.setComponent(Transform(PoseMath.sane(PoseMath.pose(PoseMath.tOf(pose), q), "OfficeActivity:1045")))
+    t.handle?.follow()
+    if (save) remember(t, force = true)
+  }
+
+  /** Tilt `t` about its own side axis — all the way over puts it on the ceiling, facing down at you. */
+  private fun tilt(t: Thing, deg: Float, save: Boolean = true) {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
+    val q = PoseMath.qMul(PoseMath.qOf(pose), PoseMath.pitch(deg))
+    t.frame.setComponent(Transform(PoseMath.sane(PoseMath.pose(PoseMath.tOf(pose), q), "tilt")))
     t.handle?.follow()
     if (save) remember(t, force = true)
   }
@@ -1241,6 +1251,7 @@ class OfficeActivity : AppSystemActivity() {
       var turnDir = 0f
       var growDir = 0f
       var reachDir = 0f
+      var tiltDir = 0f
       var triggerDown = false
       for (c in Query.where { has(Controller.id) }.eval()) {
         if (!c.isLocal()) continue
@@ -1260,6 +1271,8 @@ class OfficeActivity : AppSystemActivity() {
         if (down and ButtonBits.ButtonThumbRD != 0) reachDir -= 1f
         if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
         if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
+        if (down and ButtonBits.ButtonThumbLL != 0) tiltDir += 1f
+        if (down and ButtonBits.ButtonThumbLR != 0) tiltDir -= 1f
       }
       // A drag started in a reader window ends when the trigger is let go; give the page a moment to say whether it
       // took the drop itself, then try the window the controller points at.
@@ -1276,10 +1289,12 @@ class OfficeActivity : AppSystemActivity() {
       heldReader?.let { id ->
         if (reachDir != 0f) readerHandles[id]?.let { it.reach += reachDir * REACH_M_PER_S * dt }
         if (growDir != 0f) scaleReader(id, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat())
+        if (tiltDir != 0f) readerHandles[id]?.let { it.tilt = (it.tilt + tiltDir * TURN_DEG_PER_S * dt).coerceIn(-90f, 90f) }
       }
-      if (turnDir == 0f && growDir == 0f) return
+      if (turnDir == 0f && growDir == 0f && tiltDir == 0f) return
       val target = held?.let { things[it] } ?: return
       if (turnDir != 0f) turn(target, turnDir * TURN_DEG_PER_S * dt, save = false)
+      if (tiltDir != 0f) tilt(target, tiltDir * TURN_DEG_PER_S * dt, save = false)
       if (growDir != 0f) resize(target, Math.pow(GROW_PER_S.toDouble(), (growDir * dt).toDouble()).toFloat(), save = false)
     }
   }
