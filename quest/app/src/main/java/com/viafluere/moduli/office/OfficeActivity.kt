@@ -246,6 +246,36 @@ class OfficeActivity : AppSystemActivity() {
         web.loadUrl("$origin/?office")
       })
 
+  /**
+   * Present a WebView to sites as a desktop Chrome in every way they check: the user agent, no `X-Requested-With`
+   * header naming this app, and client-hint brands without "Android WebView". Google's sign-in refused it as "not
+   * secure" while any of those said embedded (user, 2026-10-25), which Chrome Remote Desktop needs.
+   */
+  private var chromeSupportLogged = false
+  private fun presentAsChrome(web: WebView) {
+    web.settings.userAgentString = desktopUserAgent(web.settings.userAgentString)
+    if (!chromeSupportLogged) {
+      chromeSupportLogged = true
+      Log.i(TAG, "web view as Chrome: no X-Requested-With " +
+          androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST) +
+          ", client-hint brands " + androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.USER_AGENT_METADATA))
+    }
+    try {
+      if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST))
+        androidx.webkit.WebSettingsCompat.setRequestedWithHeaderOriginAllowList(web.settings, emptySet())
+      if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.USER_AGENT_METADATA)) {
+        val full = Regex("Chrome/([0-9.]+)").find(web.settings.userAgentString)?.groupValues?.get(1) ?: "130.0.0.0"
+        val major = full.substringBefore('.')
+        fun brand(name: String, v: String) = androidx.webkit.UserAgentMetadata.BrandVersion.Builder()
+            .setBrand(name).setMajorVersion(v).setFullVersion(if (v == major) full else "$v.0.0.0").build()
+        androidx.webkit.WebSettingsCompat.setUserAgentMetadata(web.settings, androidx.webkit.UserAgentMetadata.Builder()
+            .setBrandVersionList(listOf(brand("Google Chrome", major), brand("Chromium", major), brand("Not_A Brand", "24")))
+            .setFullVersion(full).setPlatform("Linux").setPlatformVersion("6.0.0").setArchitecture("x86")
+            .setModel("").setMobile(false).setBitness(64).build())
+      }
+    } catch (e: Throwable) { Log.w(TAG, "could not present the web view as Chrome", e) }
+  }
+
   /** This WebView's Chrome presented as desktop Chrome (same version): sites gate their web apps on it. */
   private fun desktopUserAgent(current: String): String {
     val ver = Regex("Chrome/([0-9.]+)").find(current)?.groupValues?.get(1) ?: "130.0.0.0"
@@ -307,7 +337,7 @@ class OfficeActivity : AppSystemActivity() {
                           // Spotify's embedded player (a record with no audio file of its own): it runs in an iframe, needs
                           // the spotify.com sign-in cookie (a third-party cookie here) and protected media for full tracks.
                           android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                          settings.userAgentString = desktopUserAgent(settings.userAgentString)
+                          presentAsChrome(this)
                           webChromeClient = protectedMediaChrome()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
                           made = this
@@ -396,7 +426,7 @@ class OfficeActivity : AppSystemActivity() {
                           // WebView by its "; wv" marker. Cookies persist, so a sign-in lasts between visits.
                           // Desktop Chrome, not Android: Spotify's web player told an Android browser to get the app
                           // ("this browser is not supported", user 2026-10-25).
-                          settings.userAgentString = desktopUserAgent(settings.userAgentString)
+                          presentAsChrome(this)
                           android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                           webChromeClient = protectedMediaChrome()
                           webViewClient = object : WebViewClient() {

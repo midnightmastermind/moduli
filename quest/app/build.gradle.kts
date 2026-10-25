@@ -54,4 +54,7 @@ dependencies {
   implementation(libs.meta.spatial.sdk.toolkit)
   implementation(libs.meta.spatial.sdk.vr)
   implementation(libs.meta.spatial.sdk.mruk)
+  // Web-view settings the platform API lacks: drop the X-Requested-With header and set the client-hint brands (Google
+  // refuses to sign in a browser it recognises as embedded in an app).
+  implementation("androidx.webkit:webkit:1.12.1")
 }
