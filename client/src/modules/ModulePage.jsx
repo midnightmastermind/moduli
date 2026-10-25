@@ -7,7 +7,7 @@ import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
-import { askChoice } from "../ui/ChoiceDialog";
+import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
@@ -426,20 +426,11 @@ function Page({
     CommitHelpers.updateModule({ dispatch, socket, module: { ...pageModule, label: editLabel }, emit: true });
   }, [pageModule, editLabel, dispatch, socket]);
 
-  // Delete page (with confirmation)
-  // Asked in the app's own dialog, not window.confirm: a headset panel never shows a web confirm (so Delete did
-  // nothing there). A page shown alone (a reader window) has no panel to unpin it from, and needs none.
-  const handleDelete = useCallback(async () => {
-    if (!occurrence?.id) return;
-    const label = occurrence.label || pageModule?.label || "this page";
-    const pick = await askChoice({
-      title: `Delete "${label}"?`,
-      message: "This removes the page and everything on it.",
-      choices: [{ value: "delete", label: "Delete page", danger: true }],
-    });
-    if (pick !== "delete") return;
-    CommitHelpers.deletePage({ dispatch, socket, pageOccurrenceId: occurrence.id, panelOccurrenceId: panelOccurrence?.id || null, emit: true });
-  }, [occurrence, panelOccurrence, pageModule?.label, dispatch, socket]);
+  // Delete page — the same delete as the file tree, folder cards and the headset shelf (helpers/confirmDeleteOccurrence):
+  // out of every panel and list, undoable, its embeds removed.
+  const handleDelete = useCallback(() => {
+    confirmDeleteOccurrence({ occurrence, module: pageModule, dispatch, socket });
+  }, [occurrence, pageModule, dispatch, socket]);
 
   // Context menu
   const handleContextMenu = useCallback((e) => {

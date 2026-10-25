@@ -476,8 +476,21 @@ class OfficeActivity : AppSystemActivity() {
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       "addDecor" -> addDecor(m)
       // Folder shelves are trees and shelves can delete: the control panel (signed in, holds the grid) does both.
-      "openFolder", "shelfUp", "deleteItems" -> send(m)
+      "openFolder", "shelfUp" -> send(m)
+      "deleteItems" -> {
+        send(m)
+        // A book's reader may show its FILE rather than the row being deleted: close those too.
+        m.optJSONArray("items")?.let { a ->
+          val ids = (0 until a.length()).map { a.optString(it) }.toSet()
+          for ((id, occ) in readerOcc.toList()) if (occ in ids) closeReader(id)
+        }
+      }
       "shelfSelect" -> things[m.optString("key")]?.selecting = m.optBoolean("on")
+      // Something was deleted (a page from its menu, a book from a shelf): the reader windows showing it close.
+      "gone" -> m.optJSONArray("ids")?.let { a ->
+        val ids = (0 until a.length()).map { a.optString(it) }.toSet()
+        for ((id, occ) in readerOcc.toList()) if (occ in ids) closeReader(id)
+      }
       "dragStart" -> onDragStart(m)
       "dragEnd" -> pendingDrag?.let { if (it.fromPanel == m.optInt("_panel", -1)) { it.ended = true; it.dropped = m.optBoolean("dropped") } }
       "placed" -> m.optJSONArray("panels")?.let { a -> for (i in 0 until a.length()) readerWebs[a.optInt(i)]?.reload() }

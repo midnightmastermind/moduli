@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
 import { shelfItems, folderShelfView } from "./shelfItems.js";
 import { deleteFolderMoveUp } from "../helpers/folderDelete";
-import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
 import { withAction } from "../helpers/actionScope";
 import { runGroupDrop } from "../helpers/selectionDrag";
 import { decorLibrary } from "./decorLibrary.js";
@@ -248,12 +248,20 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
   useEffect(() => { sendState(); }, [officeKey, sendState]);
   const lastRows = useRef(0);
   const lastCount = useRef(0);
+  const lastIds = useRef(null);
   useEffect(() => {
     // Something removed (a page deleted): the shelves change at once — a book you just deleted must not sit there
     // for 5 seconds. Additions and edits still wait, so a busy grid does not resend the shelves every moment.
     const count = Object.keys(occurrencesById || {}).length;
     const removed = count < lastCount.current;
     lastCount.current = count;
+    // A page deleted anywhere (its radial menu, the file tree, a shelf) also closes the reader windows showing it.
+    const ids = new Set(Object.keys(occurrencesById || {}));
+    if (removed && lastIds.current) {
+      const gone = [...lastIds.current].filter((id) => !ids.has(id));
+      if (gone.length) post({ type: "gone", ids: gone });
+    }
+    lastIds.current = ids;
     const wait = removed ? 0 : Math.max(0, 5000 - (Date.now() - lastRows.current));
     const t = setTimeout(() => { lastRows.current = Date.now(); sendState(); }, wait);
     return () => clearTimeout(t);
@@ -327,7 +335,9 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
                 const folder = L.foldersById?.[String(id).slice(7)];
                 if (folder) deleteFolderMoveUp({ dispatch: L.dispatch, socket, folder, occurrencesById: L.occurrencesById, foldersById: L.foldersById, modulesById: L.modulesById });
               } else if (L.occurrencesById?.[id]) {
-                CommitHelpers.deleteOccurrence({ dispatch: L.dispatch, socket, occurrenceId: id, occurrence: L.occurrencesById[id] });
+                // The same delete as a page's own "Delete page" (helpers/confirmDeleteOccurrence) — the shelf has
+                // already asked (two taps).
+                deleteOccurrenceEverywhere({ occurrence: L.occurrencesById[id], dispatch: L.dispatch, socket });
               }
             }
           });

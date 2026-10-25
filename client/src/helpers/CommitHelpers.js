@@ -982,14 +982,6 @@ export function createPagePinnedToPanel({ dispatch, socket, gridId, userId, kind
   return occId;
 }
 
-export function deletePage({ dispatch, socket, pageOccurrenceId, panelOccurrenceId, emit = true }) {
-  if (!pageOccurrenceId) return;
-  dispatch?.(deleteOccurrenceAction(pageOccurrenceId));
-  if (shouldEmit(emit)) {
-    safeEmit(socket, "delete_page", { pageOccurrenceId, panelOccurrenceId });
-  }
-}
-
 export function movePage({ dispatch, socket, pageOccurrenceId, targetFolderId, sortOrder, emit = true }) {
   if (!pageOccurrenceId) return;
   const patch = { id: pageOccurrenceId };

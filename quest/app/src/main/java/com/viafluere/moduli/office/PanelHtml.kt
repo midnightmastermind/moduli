@@ -106,7 +106,7 @@ object PanelHtml {
   function del(){var n=count(); if(!n)return;
     if(!armed){armed=true;bar();clearTimeout(armT);armT=setTimeout(function(){armed=false;bar();},3000);return;}
     var ids=Object.keys(sel).map(function(id){var it=byId[id];return it&&it.f?id:(it&&it.r)||id;});
-    send({type:'deleteItems',key:key,ids:ids}); sel={}; armed=false; selecting=false; bar(); draw();
+    send({type:'deleteItems',key:key,ids:ids,items:Object.keys(sel)}); sel={}; armed=false; selecting=false; bar(); draw();
     send({type:'shelfSelect',key:key,on:false});}
   function hold(id,on){if(on)held[id]=1;else delete held[id];look(id);}
   function hover(id){var was=hoverId;hoverId=id;if(was)look(was);if(id)look(id);}

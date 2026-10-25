@@ -1177,52 +1177,6 @@ export function registerCrudHandlers(socket, {
     }
   });
 
-  // delete_page: Removes page occ from panel's occurrences[], deletes occurrence tree, trashes module
-  socket.on("delete_page", async ({ pageOccurrenceId, panelOccurrenceId } = {}) => {
-    try {
-      if (!userId || !pageOccurrenceId) return;
-      const uc = await getUc();
-
-      // 1. Remove from panel's occurrences[]
-      if (panelOccurrenceId) {
-        const panelOcc = uc.occurrencesById[panelOccurrenceId];
-        if (panelOcc) {
-          const updated = { ...panelOcc, occurrences: (panelOcc.occurrences || []).filter(id => id !== pageOccurrenceId) };
-          uc.occurrencesById[panelOccurrenceId] = updated;
-          await Occurrence.findOneAndUpdate({ id: panelOccurrenceId, userId }, { occurrences: updated.occurrences });
-          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updated });
-        }
-      }
-
-      // 2. Trash the module
-      const pageOcc = uc.occurrencesById[pageOccurrenceId];
-      if (pageOcc?.moduleId && uc.modulesById[pageOcc.moduleId]) {
-        uc.modulesById[pageOcc.moduleId].trashed = true;
-        await Module.findOneAndUpdate({ id: pageOcc.moduleId, userId }, { trashed: true });
-        socket.to(userRoom(userId)).emit("module_updated", { module: { id: pageOcc.moduleId, trashed: true } });
-      }
-
-      // 3. Recursively delete occurrence tree
-      const toDelete = new Set();
-      function collectDescendants(id) {
-        toDelete.add(id);
-        const occ = uc.occurrencesById?.[id];
-        if (occ?.occurrences) {
-          for (const childId of occ.occurrences) collectDescendants(childId);
-        }
-      }
-      collectDescendants(pageOccurrenceId);
-      for (const id of toDelete) {
-        delete uc.occurrencesById[id];
-        await Occurrence.findOneAndDelete({ id, userId });
-        socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId: id });
-      }
-    } catch (err) {
-      console.error("delete_page error:", err);
-      socket.emit("server_error", "Failed to delete page");
-    }
-  });
-
   // move_page: Updates page occurrence parentId + sortOrder (manifest tree drag)
   socket.on("move_page", async ({ pageOccurrenceId, targetFolderId, sortOrder } = {}) => {
     try {
