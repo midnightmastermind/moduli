@@ -18,6 +18,8 @@ dependencyResolutionManagement {
   repositories {
     mavenCentral()
     google()
+    // GeckoView (Firefox's engine) for the browser screens.
+    maven("https://maven.mozilla.org/maven2/")
   }
 }
 

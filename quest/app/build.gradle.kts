@@ -9,7 +9,7 @@ plugins {
 
 android {
   namespace = "com.viafluere.moduli.office"
-  compileSdk = 34
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.viafluere.moduli.office"
@@ -18,6 +18,8 @@ android {
     targetSdk = 34
     versionCode = 1
     versionName = "0.1"
+    // The Quest is arm64; GeckoView ships per-ABI native libraries.
+    ndk { abiFilters += "arm64-v8a" }
     // The Moduli site the office talks to.
     buildConfigField("String", "MODULI_URL", "\"https://viafluere.com\"")
   }
@@ -38,8 +40,9 @@ android {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
   }
-  kotlinOptions { jvmTarget = "17" }
 }
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
   implementation(libs.androidx.core.ktx)
@@ -57,4 +60,7 @@ dependencies {
   // Web-view settings the platform API lacks: drop the X-Requested-With header and set the client-hint brands (Google
   // refuses to sign in a browser it recognises as embedded in an app).
   implementation("androidx.webkit:webkit:1.12.1")
+  // Firefox's engine for the browser screens: the headset's WebView names this app in every request
+  // (X-Requested-With, no way to turn it off on HorizonOS), and Google refuses to sign in such a browser.
+  implementation("org.mozilla.geckoview:geckoview-arm64-v8a:152.0.20260713164047")
 }

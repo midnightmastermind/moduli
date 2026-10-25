@@ -367,9 +367,9 @@ class OfficeActivity : AppSystemActivity() {
     return "https://www.google.com/search?q=" + Uri.encode(a)
   }
 
-  /** A browser screen's panel: back / forward / reload and an address bar over a real WebView (no frame — most sites
-   *  refuse to be shown in one). The page it is on is kept on the decor entry, so it reopens there. */
-  @SuppressLint("SetJavaScriptEnabled")
+  /** A browser screen's panel: back / forward / reload and an address bar over Firefox's engine (GeckoBrowser — the
+   *  system WebView names this app in a header, and Google refuses to sign it in). No frame: most sites refuse to be
+   *  shown in one. The page it is on is kept on the decor entry, so it reopens there. */
   private fun browserPanel(id: Int, w: Float, h: Float, t: Thing, onClose: (() -> Unit)? = null): PanelRegistration =
       ComposeViewPanelRegistration(
           id,
@@ -377,12 +377,12 @@ class OfficeActivity : AppSystemActivity() {
             ComposeView(ctx).apply {
               setContent {
                 var address by remember { mutableStateOf(t.panelUrl ?: "") }
-                var web by remember { mutableStateOf<WebView?>(null) }
+                var web by remember { mutableStateOf<GeckoBrowser?>(null) }
                 Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF1D1D1D))) {
                   Row(Modifier.fillMaxWidth().padding(6.dp)) {
                     if (onClose != null) Button(onClick = onClose) { Text("Close") }
-                    Button(onClick = { web?.let { if (it.canGoBack()) it.goBack() } }) { Text("◀") }
-                    Button(onClick = { web?.let { if (it.canGoForward()) it.goForward() } }) { Text("▶") }
+                    Button(onClick = { web?.back() }) { Text("◀") }
+                    Button(onClick = { web?.forward() }) { Text("▶") }
                     Button(onClick = { web?.reload() }) { Text("⟳") }
                     androidx.compose.material3.OutlinedTextField(
                         value = address,
@@ -390,20 +390,20 @@ class OfficeActivity : AppSystemActivity() {
                         singleLine = true,
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
-                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { web?.loadUrl(addressToUrl(address)) }),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { web?.load(addressToUrl(address)) }),
                     )
-                    Button(onClick = { web?.loadUrl(addressToUrl(address)) }) { Text("Go") }
+                    Button(onClick = { web?.load(addressToUrl(address)) }) { Text("Go") }
                     // ☆ saves this page to the Bookmarks board (the control panel writes it), ★ when it is there.
                     val saved = bookmarkBar.any { it.second == address }
                     Button(onClick = {
-                      val w = web ?: return@Button
-                      if (!saved) send(JSONObject().put("type", "saveBookmark").put("url", w.url ?: address).put("title", w.title ?: ""))
+                      val g = web ?: return@Button
+                      if (!saved) send(JSONObject().put("type", "saveBookmark").put("url", g.url).put("title", g.title))
                     }) { Text(if (saved) "★" else "☆") }
                   }
                   // The bookmarks bar, under the address bar like any browser's.
                   Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 6.dp)) {
                     for ((title, url) in bookmarkBar) {
-                      androidx.compose.material3.TextButton(onClick = { web?.loadUrl(url) }) {
+                      androidx.compose.material3.TextButton(onClick = { web?.load(url) }) {
                         Text(title.ifEmpty { url }.take(24), maxLines = 1)
                       }
                     }
@@ -411,35 +411,14 @@ class OfficeActivity : AppSystemActivity() {
                   AndroidView(
                       modifier = Modifier.fillMaxSize(),
                       factory = { c ->
-                        WebView(c).apply {
-                          layoutParams = android.view.ViewGroup.LayoutParams(
-                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                              android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                          )
-                          settings.javaScriptEnabled = true
-                          settings.domStorageEnabled = true
-                          settings.databaseEnabled = true
-                          settings.mediaPlaybackRequiresUserGesture = false
-                          settings.loadWithOverviewMode = true
-                          settings.useWideViewPort = true
-                          // Present as ordinary Chrome: Google (and sites signing in through it) refuse an embedded
-                          // WebView by its "; wv" marker. Cookies persist, so a sign-in lasts between visits.
-                          // Desktop Chrome, not Android: Spotify's web player told an Android browser to get the app
-                          // ("this browser is not supported", user 2026-10-25).
-                          presentAsChrome(this)
-                          android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                          webChromeClient = protectedMediaChrome()
-                          webViewClient = object : WebViewClient() {
-                            override fun onPageFinished(view: WebView, url: String) {
-                              address = url
-                              main.post { rememberBrowserUrl(t, url) }
-                            }
-                          }
-                          t.web = this
-                          web = this
-                          loadUrl(t.panelUrl ?: "https://www.google.com")
-                        }
+                        val g = GeckoBrowser(c, t.panelUrl ?: "https://www.google.com", onUrl = { u ->
+                          address = u
+                          main.post { rememberBrowserUrl(t, u) }
+                        })
+                        web = g
+                        g.view
                       },
+                      onRelease = { web?.close() },
                   )
                 }
               }
