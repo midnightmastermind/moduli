@@ -239,18 +239,20 @@ class OfficeActivity : AppSystemActivity() {
         web.loadUrl("$origin/?office")
       })
 
-  /** A panel holding a WebView. `toolbar` adds a Close button above it (reader panels). */
+  /** A panel holding a WebView. `toolbar` adds Close and Reload above it (reader panels). */
   @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
   private fun webPanel(id: Int, w: Float, h: Float, toolbar: Boolean, onWeb: (WebView) -> Unit): PanelRegistration =
       ComposeViewPanelRegistration(
           id,
           composeViewCreator = { _, ctx ->
+            var made: WebView? = null
             ComposeView(ctx).apply {
               setContent {
                 Column(Modifier.fillMaxSize()) {
                   if (toolbar) {
                     Row(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF1D1D1D)).padding(6.dp)) {
                       Button(onClick = { closeReader(id) }) { Text("Close") }
+                      Button(onClick = { made?.reload() }, modifier = Modifier.padding(start = 6.dp)) { Text("⟳ Reload") }
                     }
                   }
                   AndroidView(
@@ -283,6 +285,7 @@ class OfficeActivity : AppSystemActivity() {
                           webViewClient = WebViewClient()
                           webChromeClient = WebChromeClient()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
+                          made = this
                           onWeb(this)
                         }
                       },
