@@ -90,10 +90,12 @@ class OfficeActivity : AppSystemActivity() {
     private const val GHOST_W = 0.30f
     /** The record player's Spotify card: tall enough for Spotify's full player (its track list and controls) — at 0.26m
      *  the embed was cut off (user, 2026-10-25). */
-    private const val SPOTIFY_W = 0.9f
+    private const val SPOTIFY_W = 1.0f
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
-    private const val SPOTIFY_H = 0.6f
+    private const val SPOTIFY_H = 0.7f
+    /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
+    private const val SPOTIFY_DP_PER_M = 720f
     private const val BROWSER_DP_PER_M = 1000f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
@@ -1078,7 +1080,15 @@ class OfficeActivity : AppSystemActivity() {
                   Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(t.spotifyTitle, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp))
-                    Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹") }
+                    // Play / pause: the space bar is Spotify's own shortcut for it.
+                    Button(onClick = {
+                      t.gecko?.view?.let { v ->
+                        v.requestFocus()
+                        v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_SPACE))
+                        v.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_SPACE))
+                      }
+                    }) { Text("⏯", fontSize = 22.sp) }
+                    Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹", fontSize = 22.sp) }
                   }
                   AndroidView(
                       modifier = Modifier.fillMaxSize(),
@@ -1095,7 +1105,7 @@ class OfficeActivity : AppSystemActivity() {
             UIPanelSettings(
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M),
+                display = DpPerMeterDisplayOptions(dpPerMeter = SPOTIFY_DP_PER_M),
             )
           },
       )
