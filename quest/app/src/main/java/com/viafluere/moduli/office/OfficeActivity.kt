@@ -267,6 +267,8 @@ class OfficeActivity : AppSystemActivity() {
                           settings.databaseEnabled = true
                           settings.mediaPlaybackRequiresUserGesture = false
                           setBackgroundColor(Color.TRANSPARENT)
+                          // A held trigger is a long press: it opened the page's menu and cancelled every drag.
+                          isLongClickable = false; isHapticFeedbackEnabled = false; setOnLongClickListener { true }
                           webViewClient = WebViewClient()
                           webChromeClient = WebChromeClient()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
@@ -417,6 +419,7 @@ class OfficeActivity : AppSystemActivity() {
     systemManager.registerSystem(SaveSystem())
     systemManager.registerSystem(InputSystem())
     systemManager.registerSystem(PoseCheck(::describeEntity))
+    FrameBisect(main, ::describeEntity).start()
     main.postDelayed({ if (!placed) placeAll() }, 1500)
   }
 

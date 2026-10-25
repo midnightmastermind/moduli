@@ -62,7 +62,30 @@ export function pointerAsTouch(e) {
     target: e.target,
     preventDefault: () => e.preventDefault(),
     stopPropagation: () => e.stopPropagation(),
+    type: e.type,
   };
+}
+
+/**
+ * IN THE HEADSET a held trigger is a LONG PRESS to the window's browser: ~0.5s in it fires `contextmenu` (the app's
+ * right-click menu opened) and cancels the press, so every drag ended half a second in, still inside its window
+ * (user, 2026-10-25: "the menu opens too with the drag … the drag stays in the window"). While a press on a drag
+ * handle is down — and briefly after, since the menu can arrive just behind the release — `contextmenu` is swallowed
+ * before the app's handlers see it.
+ */
+let _menuGuardUntil = 0;
+let _menuGuardDown = false;
+function _swallowMenu(e) {
+  if (!_menuGuardDown && performance.now() > _menuGuardUntil) return;
+  e.preventDefault();
+  e.stopPropagation();
+  console.log("[headsetDrag] long-press menu swallowed");
+}
+export function headsetMenuGuard(down) {
+  if (typeof window === "undefined") return;
+  if (!window.__moduliMenuGuard) { window.__moduliMenuGuard = true; window.addEventListener("contextmenu", _swallowMenu, true); }
+  _menuGuardDown = down;
+  if (!down) _menuGuardUntil = performance.now() + 600;
 }
 
 /**
@@ -1090,6 +1113,7 @@ export function useDragDrop({
 
       const onStart = (e) => {
         if (e.touches.length !== 1) return;
+        if (inHeadset()) headsetMenuGuard(true);
         // NO e.preventDefault() — triggerEl CSS touch-action:none handles OS gesture suppression
         const t = e.touches[0];
         startX = t.clientX;
@@ -1234,6 +1258,7 @@ export function useDragDrop({
       };
 
       const onEnd = (e) => {
+        if (inHeadset()) headsetMenuGuard(false);
         // A tap or a plain scroll ends here without ever activating, so the
         // hold-window watcher has to come off on EVERY end, not just a drag's.
         stopHoldScrollWatch();
@@ -1342,7 +1367,7 @@ export function useDragDrop({
         // is still a frame away. `end()` waits for that frame rather than
         // reporting the handler's return as though the user had seen it.
         _nativeDrag({ type: "dragEnd", dropped: !!curTarget || docDropped });
-        if (inHeadset()) console.log("[headsetDrag] end", JSON.stringify({ x: Math.round(t.clientX), y: Math.round(t.clientY), w: window.innerWidth, h: window.innerHeight, leftWindow, dropped: !!curTarget || docDropped }));
+        if (inHeadset()) console.log("[headsetDrag] end", JSON.stringify({ x: Math.round(t.clientX), y: Math.round(t.clientY), w: window.innerWidth, h: window.innerHeight, leftWindow, dropped: !!curTarget || docDropped, by: e?.type || null }));
         dragPerf.dropDone();
         curTarget = null;
         dragging = false;
