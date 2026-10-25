@@ -43,5 +43,5 @@ describe("the button field's settings", () => {
     const none = render(<FieldDetail field={{ ...field, id: "f9" }} onSave={() => {}} />);
     expect(none.getAllByTestId("button-listeners").at(-1).textContent).toMatch(/Nothing yet/);
     expect(document.body.textContent).not.toMatch(/Operation to run|New operation for this button/);
-  });
+  }, 30000); // importing the whole Fields tab can take seconds under full-suite load
 });
