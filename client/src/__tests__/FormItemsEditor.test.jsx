@@ -75,11 +75,11 @@ describe("FormItemsEditor", () => {
     fireEvent.change(labels()[0], { target: { value: "Name" } });
     fireEvent.change(labels()[1], { target: { value: "Name" } });
     expect(last().map((i) => i.key)).toEqual(["name", "name_2"]);
-    // a key set on purpose stays when the label changes
-    const kept = [{ key: "custom", label: "Name", type: "text" }];
+    // a question made before keys followed labels catches up on its next edit
+    const old = [{ key: "question", label: "Name", type: "text" }];
     const changes = vi.fn();
-    render(<FormItemsEditor value={kept} fieldsById={{}} onChange={changes} />);
-    fireEvent.change(screen.getAllByLabelText("Label").at(-1), { target: { value: "Full name" } });
-    expect(changes.mock.calls.at(-1)[0][0]).toMatchObject({ key: "custom", label: "Full name" });
+    render(<FormItemsEditor value={old} fieldsById={{}} onChange={changes} />);
+    fireEvent.change(screen.getAllByLabelText("Label").at(-1), { target: { value: "Name " } });
+    expect(changes.mock.calls.at(-1)[0][0]).toMatchObject({ key: "name" });
   });
 });

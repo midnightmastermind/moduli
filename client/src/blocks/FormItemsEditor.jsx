@@ -58,14 +58,11 @@ export default function FormItemsEditor({ value, onChange, fieldsById = {}, rend
     if (!f) return;
     onChange([...items, { key: itemKey(f.name, keys), label: f.name, fieldId }]);
   };
-  // A question's key follows its label while the key is still the one its label gave it ("Question" → "question",
-  // "Name" → "name"), so `$form.values.name` reads what the window calls Name. A key that no longer matches its label
-  // was set on purpose and stays.
+  // An item's key follows its label ("Name" → name, a second "Name" → name_2), so `$form.values.name` reads what
+  // the window calls Name. The editor offers no other way to name the answer, so the label is the name.
   const relabel = (idx, label) => {
-    const it = items[idx];
     const others = keys.filter((_, i) => i !== idx);
-    const follows = String(it.key || "").replace(/_\d+$/, "") === itemKey(it.label || "", []);
-    patch(idx, follows ? { label, key: itemKey(label, others) } : { label });
+    patch(idx, { label, key: itemKey(label, others) });
   };
   const addQuestion = () => onChange([...items, { key: itemKey("Question", keys), label: "Question", type: "text" }]);
   const move = (idx, dir) => {
