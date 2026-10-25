@@ -37,14 +37,14 @@ long"); Task 8, the fixes below and the prod check by this session.
   named "Coffee" would have placed the existing Coffee module. Found on prod: the second "Probe Form Item" got the
   first one's module.
 - **"Add a form button…"** on a container's radial (`helpers/formButton.planFormButton` + `ui/formButtonItem`): asks
-  the noun (guessed from the container name), then one undo step writes a button field bound on the container and
+  the noun (nothing filled in), then one undo step writes a button field bound on the container and
   an operation `ASK_FORM → CREATE → SCROLL_TO`. The form asks Name + the input fields the instances bind; values
   every instance agrees on are fixed (needs 2+ instances); every other bound field is bound EMPTY and the
   instances' hidden flags are copied (`fieldHidden`) — the first prod run showed Board Category as a visible chip
   its siblings hide. 2+ instances sharing a module (≥ half) → a new placement of it; else their role/kind with
   `newModule`. Nothing names movies or boards.
 - **CPS application doc** (account3): raw markdown already saved in a doc resolves when its editor opens.
-- **Watched on prod (test grid 2, Beverages, 5 instances):** radial → noun "beverage" prefilled → "New probe thing"
+- **Watched on prod (test grid 2, Beverages, 5 instances):** radial → noun typed → "New probe thing"
   button on the container → press → form (Name) → Submit → a new instance listed in Beverages, Board Category
   beverage, scrolled to; second run: all three bindings hidden like its siblings. Debris deleted through socket
   events (occurrences, operations, fields; container bindings 0). **Not watched:** Ctrl+Z of a press, a form inside
@@ -52,7 +52,7 @@ long"); Task 8, the fixes below and the prod check by this session.
   (test grid 2 has no board whose instances share a module — unit + executor tested only).
 - Client 6,749 pass (the 2 known failures: `bookReaderHeadOneRow`, DATE_DIFF across the clock change). Server
   3,245 pass; `protectedGridsIntegration.test.js` fails to PARSE, and did so before today's commits too.
-  Two buttons made from one container both read "New <x>"; only the field name is made unique.
+  A container can carry several form buttons; two for the same noun both read "New <x>" (only the field name is numbered).
 
 ---
 
