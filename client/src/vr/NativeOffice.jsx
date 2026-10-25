@@ -57,13 +57,15 @@ export function findBookmarksBoard({ occurrencesById, modulesById }) {
   return best;
 }
 
-/** The bookmarks bar: the board's first bookmarks, as { title, url }. Pure. */
+/** The bookmarks bar: the bookmarks saved from a browser screen's ☆ (`meta.browserBar`), newest first, as
+ *  { title, url }. Not the whole board — the user: "i dont need all my bookmarks on the browser screen, just the new
+ *  ones i add". Pure. */
 export function bookmarkBar({ occurrencesById, modulesById }) {
   const board = findBookmarksBoard({ occurrencesById, modulesById });
   const out = [];
   for (const id of board?.occurrences || []) {
     const occ = occurrencesById[id]; const mod = modulesById?.[occ?.moduleId];
-    if (mod?.kind !== "bookmark") continue;
+    if (mod?.kind !== "bookmark" || !occ.meta?.browserBar) continue;
     const url = occ.meta?.url || mod.fileRef;
     if (!url) continue;
     out.push({ title: (occ.label || mod.label || url).slice(0, 60), url });
@@ -314,7 +316,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           if (!board || !e.url) return;
           addBookmarkOccurrence({
             dispatch: L.dispatch, socket, gridId: L.gridId, userId: L.grid?.userId || localStorage.getItem("moduli-userId"),
-            containerOccurrence: board, url: e.url, label: e.title || null, index: 0,
+            containerOccurrence: board, url: e.url, label: e.title || null, index: 0, meta: { browserBar: true },
           });
           setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
         }

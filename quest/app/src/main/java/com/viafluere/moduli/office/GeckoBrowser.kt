@@ -42,6 +42,8 @@ class GeckoBrowser(
     startUrl: String,
     private val onUrl: (String) -> Unit,
     private val onTitle: (String) -> Unit = {},
+    /** The screen was pressed: a paired keyboard should type into it. */
+    private val onPressed: (GeckoView) -> Unit = {},
 ) {
   var canGoBack = false; private set
   var canGoForward = false; private set
@@ -67,7 +69,7 @@ class GeckoBrowser(
     isFocusable = true; isFocusableInTouchMode = true
     // A press asks for focus, so the headset keyboard types into the page (as the WebView windows do).
     setOnTouchListener { v, ev ->
-      if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN && !v.hasFocus()) v.requestFocus()
+      if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { onPressed(v as GeckoView); if (!v.hasFocus()) v.requestFocus() }
       false
     }
   }
@@ -91,6 +93,26 @@ class GeckoBrowser(
       override fun onNewSession(s: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
         s.loadUri(uri)
         return null
+      }
+    }
+    // Spotify (and every streaming site) plays through DRM — Widevine, which GeckoView refuses unless the app says
+    // yes ("protected content not enabled"). A screen is the user's own browser, so DRM and autoplay are allowed.
+    session.permissionDelegate = object : GeckoSession.PermissionDelegate {
+      override fun onContentPermissionRequest(
+          s: GeckoSession,
+          perm: GeckoSession.PermissionDelegate.ContentPermission,
+      ): GeckoResult<Int>? {
+        val allow = when (perm.permission) {
+          GeckoSession.PermissionDelegate.PERMISSION_MEDIA_KEY_SYSTEM_ACCESS,
+          GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_AUDIBLE,
+          GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE,
+          GeckoSession.PermissionDelegate.PERMISSION_STORAGE_ACCESS -> true
+          else -> false
+        }
+        Log.i("ModuliOffice", "gecko: permission ${perm.permission} for ${perm.uri} -> ${if (allow) "allow" else "deny"}")
+        return GeckoResult.fromValue(
+            if (allow) GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+            else GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
       }
     }
     session.contentDelegate = object : GeckoSession.ContentDelegate {

@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.viewinterop.AndroidView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.ComposeViewPanelRegistration
@@ -86,10 +88,12 @@ class OfficeActivity : AppSystemActivity() {
     private const val READER_W = 1.6f
     private const val READER_H = 1.0f
     private const val GHOST_W = 0.30f
-    private const val SPOTIFY_W = 0.56f
+    /** The record player's Spotify card: tall enough for Spotify's full player (its track list and controls) — at 0.26m
+     *  the embed was cut off (user, 2026-10-25). */
+    private const val SPOTIFY_W = 0.62f
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
-    private const val SPOTIFY_H = 0.26f
+    private const val SPOTIFY_H = 0.50f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
@@ -216,7 +220,7 @@ class OfficeActivity : AppSystemActivity() {
   private var readersRestoredFor = ""
   private val readerHandles = HashMap<Int, GrabHandle>()
   /** The web window last pressed: a physical keyboard's keys reach the activity's own window, never a panel's. */
-  private var keyTarget: WebView? = null
+  private var keyTarget: android.view.View? = null
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
   private val pieceWindows = HashMap<String, Int>()
   /**
@@ -330,7 +334,7 @@ class OfficeActivity : AppSystemActivity() {
                           // served") — a label editor opened and took no keys. A press asks for focus first.
                           isFocusable = true; isFocusableInTouchMode = true
                           setOnTouchListener { v, ev ->
-                            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { keyTarget = v as? WebView; if (!v.hasFocus()) v.requestFocus() }
+                            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { keyTarget = v; if (!v.hasFocus()) v.requestFocus() }
                             false
                           }
                           webViewClient = WebViewClient()
@@ -384,11 +388,22 @@ class OfficeActivity : AppSystemActivity() {
                     Button(onClick = { web?.back() }) { Text("◀") }
                     Button(onClick = { web?.forward() }) { Text("▶") }
                     Button(onClick = { web?.reload() }) { Text("⟳") }
+                    // White on the dark bar (the default ink is dark and the address read as empty), and a press
+                    // on it takes a paired keyboard back from the page.
                     androidx.compose.material3.OutlinedTextField(
                         value = address,
                         onValueChange = { address = it },
                         singleLine = true,
-                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = androidx.compose.ui.graphics.Color.White, fontSize = 16.sp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                            unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                            cursorColor = androidx.compose.ui.graphics.Color.White,
+                            focusedBorderColor = androidx.compose.ui.graphics.Color(0xFF64A0FF),
+                            unfocusedBorderColor = androidx.compose.ui.graphics.Color(0xFF888888),
+                        ),
+                        modifier = Modifier.weight(1f).widthIn(min = 240.dp).padding(horizontal = 6.dp)
+                            .onFocusChanged { if (it.isFocused) keyTarget = null },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
                         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { web?.load(addressToUrl(address)) }),
                     )
@@ -414,7 +429,7 @@ class OfficeActivity : AppSystemActivity() {
                         val g = GeckoBrowser(c, t.panelUrl ?: "https://www.google.com", onUrl = { u ->
                           address = u
                           main.post { rememberBrowserUrl(t, u) }
-                        })
+                        }, onPressed = { v -> keyTarget = v })
                         web = g
                         g.view
                       },

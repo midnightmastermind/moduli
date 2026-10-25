@@ -217,10 +217,10 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
   #w{position:absolute;inset:0;background:rgba(30,20,12,.88);border-radius:3vh;border:.6vh solid #ffd27a;box-sizing:border-box;
      display:flex;flex-direction:column;padding:1.6vh 2vw;gap:1.2vh}
   #r{display:flex;align-items:center;gap:2vw}
-  #t{flex:1;font-size:7vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #n{font-size:4.5vh;color:#d8c39a}
-  iframe{flex:1;width:100%;border:0;border-radius:2vh;background:#121212}
-  button{font-size:7vh;padding:0 2vw;border-radius:1.5vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
+  #t{flex:1;font-size:4.5vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #n{font-size:3vh;color:#d8c39a}
+  iframe{flex:1;min-height:0;width:100%;border:0;border-radius:2vh;background:#121212}
+  button{font-size:4.5vh;padding:0 2vw;border-radius:1.5vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
 </style></head><body><div id="w"><div id="r"><div id="t">${esc(title)}</div><span id="n">Spotify</span>
 <button onclick="send({type:'stopPlayer',key:${js(stopKey)}})">⏹</button></div>
 <iframe src="${esc(embedUrl)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen" loading="eager"></iframe></div>

@@ -131,13 +131,15 @@ describe("the new-note screen", () => {
 
 import { bookmarkBar, findBookmarksBoard } from "../vr/NativeOffice.jsx";
 describe("a browser screen's bookmarks bar", () => {
-  it("is the Bookmarks board's first bookmarks, in the board's order", () => {
+  it("is the bookmarks saved from a browser screen, in the board's order", () => {
     const modulesById = { bm: { id: "bm", role: "container", label: "Bookmarks" }, other: { id: "other", role: "container", label: "Bookmarks" },
       b: { id: "b", role: "artifact", kind: "bookmark", label: "Site", fileRef: "https://x.example" }, n: { id: "n", role: "instance", label: "note" } };
     const occurrencesById = {
-      board: { id: "board", moduleId: "bm", occurrences: ["o2", "o1", "note"] },
+      board: { id: "board", moduleId: "bm", occurrences: ["o2", "old", "o1", "note"] },
       empty: { id: "empty", moduleId: "other", occurrences: [] },
-      o1: { id: "o1", moduleId: "b", label: "First" }, o2: { id: "o2", moduleId: "b", meta: { url: "https://y.example" } },
+      o1: { id: "o1", moduleId: "b", label: "First", meta: { browserBar: true } },
+      o2: { id: "o2", moduleId: "b", meta: { url: "https://y.example", browserBar: true } },
+      old: { id: "old", moduleId: "b", label: "Imported", meta: { url: "https://old.example" } },
       note: { id: "note", moduleId: "n" },
     };
     expect(findBookmarksBoard({ occurrencesById, modulesById }).id).toBe("board");
