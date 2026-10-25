@@ -38,3 +38,20 @@ describe("an album opened on a record shelf", () => {
     ]);
   });
 });
+
+import { spotifySearchUrl, albumShelfItems as albumItems2 } from "../vr/shelfItems.js";
+describe("a song with no Spotify link", () => {
+  it("is searched on Spotify by the album's artist and its own title", () => {
+    expect(spotifySearchUrl("Aerosmith", "Jaded")).toBe("https://open.spotify.com/search/Aerosmith%20Jaded");
+    expect(spotifySearchUrl(null, "Jaded")).toBe("https://open.spotify.com/search/Jaded");
+    expect(spotifySearchUrl("Aerosmith", "")).toBeNull();
+  });
+  it("gets the search on the shelf when neither it nor its album has a link", () => {
+    const modulesById = { A: { id: "A", kind: "album", label: "Album" }, S: { id: "S", kind: "song", label: "Song" } };
+    const occurrencesById = {
+      al: { id: "al", moduleId: "A", label: "Just Push Play", meta: { mediaArtist: "Aerosmith" }, fields: { songs: { value: ["s1"] } } },
+      s1: { id: "s1", moduleId: "S", label: "Jaded", fields: {} },
+    };
+    expect(albumItems2("al", { occurrencesById, modulesById })[0].spotify).toBe("https://open.spotify.com/search/Aerosmith%20Jaded");
+  });
+});

@@ -129,6 +129,13 @@ export function spotifyEmbedUrl(occ) {
   return null;
 }
 
+/** Spotify's search for a song, when it has no Spotify link of its own (the record player opens it; you pick the
+ *  first hit). Null without a title. Pure. */
+export function spotifySearchUrl(artist, title) {
+  const q = [artist, title].filter((x) => typeof x === "string" && x.trim()).join(" ").trim();
+  return title && q ? `https://open.spotify.com/search/${encodeURIComponent(q)}` : null;
+}
+
 /** Whether a row's own fields name a song (cheap: no scan of the grid). */
 function namesSongs(occ, modulesById, occurrencesById) {
   for (const cell of Object.values(occ?.fields || {})) {
@@ -178,7 +185,7 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)) || albumCover,
       fileId: f?.occ?.id || null, fileKind: f ? "audio" : null,
       src: ref ? resolveFileRef(ref) : null,
-      spotify: spotifyEmbedUrl(occ) || albumSpotify,
+      spotify: spotifyEmbedUrl(occ) || albumSpotify || spotifySearchUrl(album.meta?.mediaArtist, (occurrenceDisplayLabel(occ, mod) || "").trim()),
       mini: true,
     };
   });

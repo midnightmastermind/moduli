@@ -94,6 +94,7 @@ class OfficeActivity : AppSystemActivity() {
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
     private const val SPOTIFY_H = 0.50f
+    private const val BROWSER_DP_PER_M = 1000f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
     private const val PIECE_W = 0.8f
@@ -179,6 +180,10 @@ class OfficeActivity : AppSystemActivity() {
     var bottom = 0f
     var ghosted = false
     var web: WebView? = null
+    /** A record player playing through Spotify: the page its Firefox-engine panel shows, and that panel's session. */
+    var spotifyUrl: String? = null
+    var spotifyTitle = ""
+    var gecko: GeckoBrowser? = null
     var html: String = ""
     var lastT = FloatArray(3)
     var lastQ = floatArrayOf(1f, 0f, 0f, 0f)
@@ -443,7 +448,9 @@ class OfficeActivity : AppSystemActivity() {
             UIPanelSettings(
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-                display = DpPerMeterDisplayOptions(),
+                // 1000 dp a metre (the default is 500): a 1.6m screen is 1,600 page pixels wide, like a desktop monitor — at
+                // 800 a PC's desktop over Remote Desktop and most sites read zoomed in.
+                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M),
             )
           },
       )
@@ -892,7 +899,8 @@ class OfficeActivity : AppSystemActivity() {
     applyScale(t)
     if (t.panel != null) { refreshPanel(t); return }
     val id = nextPanelId++
-    if (t.browser) registerPanel(browserPanel(id, w, h, t))
+    if (t.spotifyUrl != null) registerPanel(spotifyPanel(id, w, h, t))
+    else if (t.browser) registerPanel(browserPanel(id, w, h, t))
     else registerPanel(webPanel(id, w, h, toolbar = false) { web ->
       t.web = web
       val url = t.panelUrl
@@ -972,7 +980,12 @@ class OfficeActivity : AppSystemActivity() {
       }
       // Players get their (web) panel only while something plays — a room of idle players each holding a page
       // ran the headset out of memory and crashed the app.
-      "recordplayer", "vhsplayer" -> {}
+      "recordplayer", "vhsplayer" -> {
+        // A record left playing is still on the player when the app opens again.
+        entry.optJSONObject("playing")?.let { p ->
+          main.post { playRecord(t, p.optString("title"), p.optString("src"), p.optString("spotify")) }
+        }
+      }
       // The whole grid, live: the app itself (its own panels and date — `local`), on a screen you place.
       "gridscreen" -> { t.panelUrl = "$origin/?local=1"; attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
@@ -1030,22 +1043,77 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   /** A player stops: its panel (and the web page in it) goes, until something plays again. */
-  private fun stopPlayer(t: Thing) {
+  private fun stopPlayer(t: Thing, forget: Boolean = true) {
+    t.gecko?.close(); t.gecko = null; t.spotifyUrl = null
     t.panel?.destroy(); t.panel = null; t.web = null; t.html = ""
+    if (forget) savePlaying(t, null)
   }
+
+  /** What a player is playing, kept on its decor entry so it is still playing when the app opens again. */
+  private fun savePlaying(t: Thing, playing: JSONObject?) {
+    if (!t.key.startsWith("decor:")) return
+    val list = store.decor().map { e ->
+      if (e.optString("key") != t.key) e
+      else JSONObject(e.toString()).also { if (playing == null) it.remove("playing") else it.put("playing", playing) }
+    }
+    store.saveDecor(list)
+    list.firstOrNull { it.optString("key") == t.key }?.let { t.decorEntry = it }
+  }
+
+  /** The record player's Spotify window: the title and ⏹ over Spotify's own page, on Firefox's engine — the same
+   *  profile as the browser screens, so once you are signed in to Spotify on any screen, songs play whole. (The
+   *  plain web view it used before had no Spotify sign-in, and Spotify plays only a 30-second preview then.) */
+  private fun spotifyPanel(id: Int, w: Float, h: Float, t: Thing): PanelRegistration =
+      ComposeViewPanelRegistration(
+          id,
+          composeViewCreator = { _, ctx ->
+            ComposeView(ctx).apply {
+              setContent {
+                Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xEB1E140C))) {
+                  Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(t.spotifyTitle, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
+                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp))
+                    // Spotify plays previews until you are signed in; this opens its sign-in in this window.
+                    androidx.compose.material3.TextButton(onClick = {
+                      t.gecko?.load("https://accounts.spotify.com/login?continue=" + Uri.encode(t.spotifyUrl ?: "https://open.spotify.com"))
+                    }) { Text("Sign in", color = androidx.compose.ui.graphics.Color(0xFFFFD27A)) }
+                    Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹") }
+                  }
+                  AndroidView(
+                      modifier = Modifier.fillMaxSize(),
+                      factory = { c ->
+                        GeckoBrowser(c, t.spotifyUrl ?: "https://open.spotify.com", onUrl = {}, onPressed = { v -> keyTarget = v })
+                            .also { t.gecko = it }.view
+                      },
+                  )
+                }
+              }
+            }
+          },
+          settingsCreator = {
+            UIPanelSettings(
+                shape = QuadShapeOptions(width = w, height = h),
+                style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
+                display = DpPerMeterDisplayOptions(),
+            )
+          },
+      )
 
   /** A record dropped on a record player plays there: its audio file, else Spotify's player for it. */
   private fun playRecord(player: Thing, title: String, src: String, spotify: String = "") {
     if (src.isEmpty() && spotify.isNotEmpty()) {
       // Spotify's player needs more room than a now-playing card, so the player's window is made at that size.
-      stopPlayer(player)
-      player.html = PanelHtml.spotifyCard(title, spotify, player.key)
+      stopPlayer(player, forget = false)
+      player.spotifyUrl = spotify; player.spotifyTitle = title
       attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
+      savePlaying(player, JSONObject().put("title", title).put("spotify", spotify))
       Log.i(TAG, "playing $title on ${player.key} through Spotify")
       return
     }
     if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file for this record")); return }
+    if (player.spotifyUrl != null) stopPlayer(player, forget = false)
     showOnPanel(player, PanelHtml.playerCard(title, src, player.key, "Now playing"))
+    savePlaying(player, JSONObject().put("title", title).put("src", src))
     Log.i(TAG, "playing $title on ${player.key}")
   }
 
