@@ -136,6 +136,19 @@ export function spotifySearchUrl(artist, title) {
   return title && q ? `https://open.spotify.com/search/${encodeURIComponent(q)}` : null;
 }
 
+/** The name of the artist row a row's fields point at, or null. Pure. */
+function artistNamed(occ, { occurrencesById, modulesById } = {}) {
+  for (const cell of Object.values(occ?.fields || {})) {
+    const v = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
+    for (const id of Array.isArray(v) ? v : [v]) {
+      const a = typeof id === "string" ? occurrencesById?.[id] : null;
+      const m = a && modulesById?.[a.moduleId];
+      if (m?.kind === "artist") return (occurrenceDisplayLabel(a, m) || "").trim() || null;
+    }
+  }
+  return null;
+}
+
 /** Whether a row's own fields name a song (cheap: no scan of the grid). */
 function namesSongs(occ, modulesById, occurrencesById) {
   for (const cell of Object.values(occ?.fields || {})) {
@@ -190,7 +203,11 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)) || albumCover,
       fileId: f?.occ?.id || null, fileKind: f ? "audio" : null,
       src: ref ? resolveFileRef(ref) : null,
-      spotify: spotifyEmbedUrl(occ) || albumSpotify || spotifySearchUrl(album.meta?.mediaArtist, (occurrenceDisplayLabel(occ, mod) || "").trim()),
+      // A mini record is ONE song: its own Spotify link, else Spotify's search for that song — never the album's
+      // link, which plays the whole album from the start (user, 2026-10-25). The album's is the last resort.
+      spotify: spotifyEmbedUrl(occ)
+        || spotifySearchUrl(occ.meta?.spotifyArtist || occ.meta?.mediaArtist || artistNamed(occ, ctx) || album.meta?.mediaArtist || artistNamed(album, ctx), (occurrenceDisplayLabel(occ, mod) || "").trim())
+        || albumSpotify,
       mini: true,
     };
   });

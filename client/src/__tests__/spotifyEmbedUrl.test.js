@@ -29,12 +29,12 @@ describe("an album opened on a record shelf", () => {
   it("lists its songs in its own order, then songs that name it — not the artist (control)", () => {
     expect(albumSongIds("al", { occurrencesById, modulesById })).toEqual(["s1", "s2", "s3"]);
   });
-  it("each song is a mini record that plays the album through Spotify when it has no audio of its own", () => {
+  it("each song is a mini record that plays ITSELF (a Spotify search for it by its artist), never the whole album", () => {
     const items = albumShelfItems("al", { occurrencesById, modulesById });
     expect(items.map((i) => [i.title, i.mini, i.src, i.spotify])).toEqual([
-      ["Stan", true, null, "https://open.spotify.com/embed/album/X1"],
-      ["Bad Guy", true, null, "https://open.spotify.com/embed/album/X1"],
-      ["Bonus", true, null, "https://open.spotify.com/embed/album/X1"],
+      ["Stan", true, null, "https://open.spotify.com/search/Eminem%20Stan"],
+      ["Bad Guy", true, null, "https://open.spotify.com/search/Eminem%20Bad%20Guy"],
+      ["Bonus", true, null, "https://open.spotify.com/search/Eminem%20Bonus"],
     ]);
   });
 });

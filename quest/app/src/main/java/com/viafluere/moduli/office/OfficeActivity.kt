@@ -1078,10 +1078,6 @@ class OfficeActivity : AppSystemActivity() {
                   Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(t.spotifyTitle, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp))
-                    // Spotify plays previews until you are signed in; this opens its sign-in in this window.
-                    androidx.compose.material3.TextButton(onClick = {
-                      t.gecko?.load("https://accounts.spotify.com/login?continue=" + Uri.encode(t.spotifyUrl ?: "https://open.spotify.com"))
-                    }) { Text("Sign in", color = androidx.compose.ui.graphics.Color(0xFFFFD27A)) }
                     Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹") }
                   }
                   AndroidView(
