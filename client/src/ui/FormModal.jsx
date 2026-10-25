@@ -114,7 +114,7 @@ export default function FormModal({ request, onSubmit, onCancel }) {
         <div key={it.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ fontSize: 12, color: "var(--text-primary)" }}>
             <label htmlFor={`form-item-${it.key}`}>{it.label || it.key}</label>
-            {it.required && <span aria-hidden="true" style={{ color: "var(--accent-red, #f87171)" }}> *</span>}
+            {it.required && <span aria-hidden="true" style={{ color: "var(--danger-text)" }}> *</span>}
           </div>
           {it.field ? (
             <Field
@@ -146,7 +146,7 @@ export default function FormModal({ request, onSubmit, onCancel }) {
   return (
     <>
       {!drawer && createPortal(
-        <div onClick={onCancel} style={{ position: "fixed", inset: 0, zIndex: 1999, background: "rgba(0,0,0,0.5)" }} />,
+        <div onClick={onCancel} style={{ position: "fixed", inset: 0, zIndex: 1999, background: "var(--scrim)" }} />,
         document.body,
       )}
       <MenuSurface zIndex={2000} onClose={onCancel}

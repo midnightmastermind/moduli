@@ -84,7 +84,7 @@ export default function FormItemsEditor({ value, onChange, fieldsById = {}, rend
               <input aria-label="Label" style={{ ...inSt, flex: 1 }} value={it.label || ""}
                 onChange={(e) => patch(idx, { label: e.target.value })} />
               {it.fieldId ? (
-                <span style={{ fontSize: 10, color: field ? "var(--text-muted)" : "var(--accent-red, #f87171)" }}
+                <span style={{ fontSize: 10, color: field ? "var(--text-muted)" : "var(--danger-text)" }}
                   title={`Answer: $form.fields.${it.fieldId}`}>
                   {field ? `field · ${field.type}` : "field removed"}
                 </span>

@@ -89,7 +89,7 @@ describe("Field — button type (#46 polish)", () => {
     const field = { id: "fb6", type: "button", name: "Show", meta: { operationId: "op-show" } };
     const op = { id: "op-show", name: "Show Profile" };
     const { container } = renderWithCtx(
-      <Field field={field} hostOccurrence={{ id: "occ-row-7" }} />,
+      <Field field={field} hostOccurrence={{ id: "occ-row-7", moduleId: "mod-row-7" }} />,
       { operationsById: { "op-show": op } },
     );
 
@@ -104,7 +104,8 @@ describe("Field — button type (#46 polish)", () => {
       type: "ButtonOp",
       operationId: "op-show",
       occurrenceId: "occ-row-7",
-      instanceId: "occ-row-7",
+      // instanceId is the MODULE id, as on every other transaction (it carried the occurrence id until 2026-10-25).
+      instanceId: "mod-row-7",
       fieldId: "fb6",
     });
     expect(args[3]).toMatchObject({ fieldsById: expect.any(Object), operationsById: expect.any(Object) });
