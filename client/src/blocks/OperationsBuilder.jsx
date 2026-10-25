@@ -2025,7 +2025,7 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
       // A form's inputs (ASK_FORM). Never the expression box — the value is a list of objects.
       case "formItems":
         return (
-          <FormItemsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} fieldsById={fieldsById}
+          <FormItemsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} fieldsById={Object.fromEntries((fields || []).map(f => [f.id, f]))}
             renderExpr={(v, on) => <ExprOrPath value={v} onChange={on} placeholder="(none)" width={130} {...exprProps} />} />
         );
       case "expr":
