@@ -90,10 +90,10 @@ class OfficeActivity : AppSystemActivity() {
     private const val GHOST_W = 0.30f
     /** The record player's Spotify card: tall enough for Spotify's full player (its track list and controls) — at 0.26m
      *  the embed was cut off (user, 2026-10-25). */
-    private const val SPOTIFY_W = 0.62f
+    private const val SPOTIFY_W = 0.9f
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
-    private const val SPOTIFY_H = 0.50f
+    private const val SPOTIFY_H = 0.6f
     private const val BROWSER_DP_PER_M = 1000f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
@@ -1060,6 +1060,11 @@ class OfficeActivity : AppSystemActivity() {
     list.firstOrNull { it.optString("key") == t.key }?.let { t.decorEntry = it }
   }
 
+  /** Spotify's full web player for an embed link (`/embed/track/X` -> `/track/X`): the small embed player plays
+   *  30-second previews even when you are signed in; the web player plays whole songs for a signed-in account. */
+  private fun spotifyWebPlayer(url: String?): String =
+      (url ?: "https://open.spotify.com").replace("open.spotify.com/embed/", "open.spotify.com/")
+
   /** The record player's Spotify window: the title and ⏹ over Spotify's own page, on Firefox's engine — the same
    *  profile as the browser screens, so once you are signed in to Spotify on any screen, songs play whole. (The
    *  plain web view it used before had no Spotify sign-in, and Spotify plays only a 30-second preview then.) */
@@ -1082,7 +1087,7 @@ class OfficeActivity : AppSystemActivity() {
                   AndroidView(
                       modifier = Modifier.fillMaxSize(),
                       factory = { c ->
-                        GeckoBrowser(c, t.spotifyUrl ?: "https://open.spotify.com", onUrl = {}, onPressed = { v -> keyTarget = v })
+                        GeckoBrowser(c, spotifyWebPlayer(t.spotifyUrl), onUrl = {}, onPressed = { v -> keyTarget = v })
                             .also { t.gecko = it }.view
                       },
                   )
@@ -1094,7 +1099,7 @@ class OfficeActivity : AppSystemActivity() {
             UIPanelSettings(
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-                display = DpPerMeterDisplayOptions(),
+                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M),
             )
           },
       )
