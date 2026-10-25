@@ -55,3 +55,17 @@ describe("a song with no Spotify link", () => {
     expect(albumItems2("al", { occurrencesById, modulesById })[0].spotify).toBe("https://open.spotify.com/search/Aerosmith%20Jaded");
   });
 });
+
+import { albumSongIds as songIds3 } from "../vr/shelfItems.js";
+describe("an album's songs", () => {
+  it("are in track order when the songs carry one", () => {
+    const modulesById = { A: { id: "A", kind: "album" }, S: { id: "S", kind: "song" } };
+    const occurrencesById = {
+      al: { id: "al", moduleId: "A", fields: {} },
+      t3: { id: "t3", moduleId: "S", meta: { trackNumber: 3 }, fields: { a: { value: "al" } } },
+      t1: { id: "t1", moduleId: "S", meta: { trackNumber: 1 }, fields: { a: { value: "al" } } },
+      t2: { id: "t2", moduleId: "S", meta: { trackNumber: 2 }, fields: { a: { value: "al" } } },
+    };
+    expect(songIds3("al", { occurrencesById, modulesById })).toEqual(["t1", "t2", "t3"]);
+  });
+});

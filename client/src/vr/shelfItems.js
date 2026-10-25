@@ -156,10 +156,15 @@ export function albumSongIds(albumId, { occurrencesById, modulesById } = {}) {
     const v = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
     for (const id of Array.isArray(v) ? v : [v]) if (typeof id === "string" && !seen.has(id) && isSong(id)) { seen.add(id); out.push(id); }
   }
+  // Songs naming the album, in track order when they carry one (songs filled in from a track list do).
+  const naming = [];
   for (const o of Object.values(occurrencesById || {})) {
     if (seen.has(o.id) || !isSong(o.id)) continue;
-    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === albumId)) { seen.add(o.id); out.push(o.id); }
+    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === albumId)) { seen.add(o.id); naming.push(o); }
   }
+  const num = (o) => (Number.isFinite(o.meta?.trackNumber) ? o.meta.trackNumber : Infinity);
+  naming.sort((a, b) => num(a) - num(b));
+  for (const o of naming) out.push(o.id);
   return out;
 }
 
