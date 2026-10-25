@@ -13,7 +13,7 @@
 
 import { manualValues } from "../helpers/optionsResolver.js";
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
-import { useButtonRunner } from "../helpers/buttonRun";
+import { useButtonRunner, buttonListeners } from "../helpers/buttonRun";
 import { useProviderSearch } from "../hooks/useProviderSearch";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -1113,26 +1113,29 @@ function FieldLinkOut({ href, name, tint = null }) {
 }
 
 /**
- * A `button` field: runs `meta.operationId` through the one button runner (helpers/buttonRun) for the occurrence it
- * sits on. Busy (and refusing another press) until the operation has finished — a form it opens included.
+ * A `button` field: a press runs every operation LISTENING to it — an On Button trigger on this field
+ * (helpers/buttonRun.buttonListeners). The button picks no operation; until one listens, it does nothing and says so.
+ * Busy (and refusing another press) until the listeners have finished — a form one opens included.
  */
 function ButtonFieldControl({ field, hostOccurrence, compact, disabled, operationsById, fieldsById, modulesById, getState, getOccMap, dispatch }) {
   const { busy, run } = useButtonRunner();
   const meta = field?.meta || {};
-  const opId = meta.operationId;
-  const op = opId && operationsById ? operationsById[opId] : null;
-  const buttonLabel = meta.buttonLabel || field?.name || "Run";
-  const tooltip = busy ? "Running…" : op ? `Run: ${op.name}` : (opId ? `Operation not found: ${opId}` : "No operation configured");
-  const enabled = !disabled && !!op && !busy;
+  const listeners = useMemo(() => buttonListeners(field?.id, operationsById), [field?.id, operationsById]);
+  const buttonLabel = meta.buttonLabel || field?.name || "Button";
+  const tooltip = busy ? "Running…"
+    : listeners.length ? `Runs: ${listeners.map((o) => o.name).join(", ")}`
+      : "Nothing listens to this button yet — give an operation an On Button trigger on it";
+  const enabled = !disabled && !busy;
   const onClick = (e) => {
     e.stopPropagation();
-    if (!op || busy) return;
+    if (busy) return;
+    if (!listeners.length) { toast.info(`${buttonLabel}: nothing listens to this button yet`); return; }
     run({
-      op, hostOccurrence, fieldId: field.id,
+      field, hostOccurrence,
       ctx: { state: getState(), fieldsById, operationsById, occurrencesById: getOccMap(), modulesById, dispatch },
-    }).then((r) => { if (!r.ran && r.reason === "no operation") toast.error(`${buttonLabel}: no operation to run`); });
+    });
   };
-  const live = !!op && !disabled;
+  const live = listeners.length > 0 && !disabled;
   return (
     <button
       type="button"
@@ -1756,11 +1759,9 @@ function Field({
   // BUTTON FIELD — runs an operation when clicked (#46 polish 2026-05-23)
   // ══════════════════════════════════════════════════════════════
   // `field.type === "button"` is a special field shape: no value, no
-  // input, no display. Renders as a click-to-run button. The operation
-  // id lives at `field.meta.operationId`. Fires a `ButtonOp` transaction
-  // with the host occurrence as the trigger context — pipelines can read
-  // `$trigger.occurrenceId` / `$trigger.instanceId` to know which row
-  // was clicked.
+  // input, no display. A press runs every operation listening to it (an
+  // On Button trigger on this field); it picks no operation itself. The
+  // listeners read `$trigger.occurrence` to know which occurrence was pressed.
   if (type === "button") {
     return (
       <ButtonFieldControl

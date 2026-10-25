@@ -1,52 +1,47 @@
-// A button field's settings make its operation: one press of "New operation for this button".
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// A button field's settings list the operations LISTENING to it (an On Button trigger on that field); the button
+// itself picks no operation (user, 2026-10-25: "the button does nothing until we add a listener for it").
+import React from "react";
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { buttonListeners } from "../helpers/buttonRun.js";
 
-const calls = [];
-vi.mock("../helpers/CommitHelpers", () => ({
-  createOperation: (args) => calls.push(["createOperation", args, actionId()]),
-}));
-import { getActionId } from "../helpers/actionScope";
-const actionId = () => getActionId();
+const listen = (id, name, fieldId, extra = {}) => ({
+  id, name, enabled: true, triggerTypes: ["onButton"],
+  triggerObjects: [{ eventType: "onButton", subjectType: "field", targetId: fieldId }], ...extra,
+});
 
-import { makeButtonOperation, createButtonOperation, takeRequestedOperation } from "../helpers/buttonOperation.js";
-import { orderButtonOperationChoices } from "../ui/commandCenter/FieldsTab.jsx";
-
-beforeEach(() => { calls.length = 0; });
-
-describe("New operation for this button", () => {
-  const field = { id: "f9", name: "New movie", type: "button", meta: { buttonLabel: "Add movie" } };
-
-  it("an onButton operation on this field, named for the button", () => {
-    const op = makeButtonOperation(field, { gridId: "g", id: "op1" });
-    expect(op).toMatchObject({
-      id: "op1", gridId: "g", name: "Add movie", enabled: true, triggerTypes: ["onButton"],
-      triggerObjects: [{ eventType: "onButton", subjectType: "field", targetId: "f9" }],
-      pipeline: { sources: [], steps: [] },
-    });
-    expect(makeButtonOperation({ ...field, meta: {} }, { gridId: "g" }).name).toBe("New movie");
+describe("buttonListeners", () => {
+  const ops = {
+    a: listen("a", "Add movie", "f1"),
+    b: listen("b", "Other button", "f2"),
+    c: { id: "c", name: "Any button", enabled: true, triggerTypes: ["onButton"], triggerObjects: [{ eventType: "onButton", subjectType: "grid", targetId: "" }] },
+    d: listen("d", "Off", "f1", { enabled: false }),
+    e: listen("e", "Alarm", "f1", { alarm: { time: "1" } }),
+    g: listen("g", "Also add movie", "f1"),
+  };
+  it("is every enabled operation with an On Button trigger on THIS field", () => {
+    expect(buttonListeners("f1", ops).map((o) => o.id)).toEqual(["a", "g"]);
   });
-
-  it("creates it and points the field at it, in one action, then asks to open it", () => {
-    const onSave = vi.fn((f) => calls.push(["save", f, actionId()]));
-    const id = createButtonOperation({ field, gridId: "g", dispatch: () => {}, socket: null, onSave });
-    expect(calls.map((c) => c[0])).toEqual(["createOperation", "save"]);
-    expect(calls[0][1].operation.id).toBe(id);
-    expect(calls[1][1].meta).toMatchObject({ buttonLabel: "Add movie", operationId: id });
-    expect(calls[0][2]).toBeTruthy();
-    expect(calls[1][2]).toBe(calls[0][2]);
-    expect(takeRequestedOperation()).toBe(id);
-    expect(takeRequestedOperation()).toBe(null);
+  it("an unscoped On Button trigger is not a listener; nothing listens to an unknown field", () => {
+    expect(buttonListeners("f3", ops)).toEqual([]);
+    expect(buttonListeners(null, ops)).toEqual([]);
   });
 });
 
-describe("the operation picker", () => {
-  it("lists button operations first, then the rest under Other", () => {
-    const ops = [
-      { id: "a", name: "Zed", triggerTypes: ["onButton"] },
-      { id: "b", name: "Alpha", triggerTypes: ["onLoad"] },
-      { id: "c", name: "Beta", triggerTypes: ["onButton"] },
-      { id: "d", name: "Alarm", alarm: { time: "1" }, triggerTypes: ["onButton"] },
-    ];
-    expect(orderButtonOperationChoices(ops)).toEqual({ button: ["c", "a"], other: ["b"] });
+describe("the button field's settings", () => {
+  it("names its listeners and opens one on click; says so when none listen", async () => {
+    vi.resetModules();
+    const ops = { a: listen("a", "Add movie", "f1") };
+    vi.doMock("../GridActionsContext", async (orig) => ({ ...(await orig()), useGridActions: () => ({ modulesById: {}, fieldsById: {}, operationsById: ops, state: {} }) }));
+    const { FieldDetail } = await import("../ui/commandCenter/FieldsTab.jsx");
+    const { takeRequestedOperation } = await import("../helpers/buttonOperation.js");
+    const field = { id: "f1", name: "New movie", type: "button", meta: { buttonLabel: "New movie" } };
+    const { getByTestId, getByText } = render(<FieldDetail field={field} onSave={() => {}} />);
+    expect(getByTestId("button-listeners").textContent).toMatch(/Add movie/);
+    fireEvent.click(getByText("Add movie"));
+    expect(takeRequestedOperation()).toBe("a");
+    const none = render(<FieldDetail field={{ ...field, id: "f9" }} onSave={() => {}} />);
+    expect(none.getAllByTestId("button-listeners").at(-1).textContent).toMatch(/Nothing yet/);
+    expect(document.body.textContent).not.toMatch(/Operation to run|New operation for this button/);
   });
 });

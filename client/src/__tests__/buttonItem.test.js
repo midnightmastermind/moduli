@@ -3,19 +3,19 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
 describe("Add a button", () => {
-  it("makes the button with an empty operation, bound on the container, one action", async () => {
+  it("makes only the button, bound on the container, in one action — no operation", async () => {
     const CH = await import("../helpers/CommitHelpers.js");
+    const { getActionId } = await import("../helpers/actionScope.js");
     const calls = [];
-    const spies = ["createField", "createOperation", "updateModule"].map((k) => vi.spyOn(CH, k).mockImplementation((a) => calls.push([k, a])));
-    const { addBlankButton } = await import("../ui/buttonItem.js");
-    const op = addBlankButton({ containerModule: { id: "boardMod", fieldBindings: [{ fieldId: "x" }] }, label: "Mark all done", fieldsById: {}, gridId: "g" });
-    expect(op.pipeline.steps).toEqual([]);
-    expect(op.name).toBe("Mark all done");
-    expect(op.triggerObjects[0]).toMatchObject({ eventType: "onButton" });
-    const field = calls.find((c) => c[0] === "createField")[1].field;
-    expect(field.meta).toMatchObject({ buttonLabel: "Mark all done", operationId: op.id });
-    expect(op.triggerObjects[0].targetId).toBe(field.id);
-    expect(calls.find((c) => c[0] === "updateModule")[1].module.fieldBindings.map((b) => b.fieldId)).toEqual(["x", field.id]);
+    const spies = ["createField", "createOperation", "updateModule"].map((k) => vi.spyOn(CH, k).mockImplementation((a) => calls.push([k, a, getActionId()])));
+    const { addButton } = await import("../ui/buttonItem.js");
+    const field = addButton({ containerModule: { id: "boardMod", fieldBindings: [{ fieldId: "x" }] }, label: "Mark all done", fieldsById: {}, gridId: "g" });
+    expect(calls.map((c) => c[0])).toEqual(["createField", "updateModule"]);
+    expect(field).toMatchObject({ type: "button", meta: { buttonLabel: "Mark all done" } });
+    expect(field.meta.operationId).toBeUndefined();
+    expect(calls[1][1].module.fieldBindings.map((b) => b.fieldId)).toEqual(["x", field.id]);
+    expect(calls[0][2]).toBeTruthy();
+    expect(calls[1][2]).toBe(calls[0][2]);
     spies.forEach((sp) => sp.mockRestore());
   });
 

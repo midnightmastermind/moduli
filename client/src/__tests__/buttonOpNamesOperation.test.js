@@ -41,16 +41,14 @@ describe("ButtonOp matches only the operation it names", () => {
   });
 });
 
-import { buttonOperations } from "../ui/commandCenter/FieldsTab";
-
-describe("buttonOperations (the Fields tab's picker list)", () => {
-  it("lists only onButton operations, alarms excluded, by name", () => {
-    const ops = [
-      { id: "z", name: "Zeta", triggerTypes: ["onButton"] },
-      { id: "c", name: "Change", triggerTypes: ["onChange"] },
-      { id: "a", name: "Alpha", triggerType: "onButton" },
-      { id: "al", name: "Alarm", triggerTypes: ["onButton"], alarm: { time: "07:00" } },
-    ];
-    expect(buttonOperations(ops).map(o => o.id)).toEqual(["a", "z"]);
+describe("a button FIELD press runs its listeners", () => {
+  const onField = (id, fid) => op(id, { subjectType: "field", targetId: fid });
+  const fieldPress = { type: "ButtonOp", fieldId: "f1", occurrenceId: "o1" };
+  it("an op with an On Button trigger on that field hears it", () => {
+    expect(computeTriggerMatch(onField("a", "f1"), "ButtonOp", fieldPress)).toBeTruthy();
+  });
+  it("an op on another button, or on no button in particular, does not", () => {
+    expect(computeTriggerMatch(onField("b", "f2"), "ButtonOp", fieldPress)).toBeFalsy();
+    expect(computeTriggerMatch(op("c"), "ButtonOp", fieldPress)).toBeFalsy();
   });
 });

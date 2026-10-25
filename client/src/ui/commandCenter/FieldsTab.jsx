@@ -11,7 +11,8 @@ import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-reac
 import { useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { createButtonOperation, buttonTriggerFor } from "../../helpers/buttonOperation.js";
+import { requestOpenOperation } from "../../helpers/buttonOperation.js";
+import { buttonListeners } from "../../helpers/buttonRun.js";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
 import PrefillEditor from "./PrefillEditor";
 import FieldSelect from "../FieldSelect.jsx";
@@ -296,82 +297,42 @@ function AffixEditor({ local, setLocal }) {
   );
 }
 
-// The operations a button field can run: those with an onButton trigger.
-export function buttonOperations(operations) {
-  return (operations || [])
-    .filter(op => op && !op.alarm && (op.triggerTypes || [op.triggerType]).includes("onButton"))
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-}
-
 /**
- * The button's operation choices: On Button operations first (they run on a press as they are), then the rest
- * under "Other" — picking one of those gives it an On Button trigger for this field. Alarms are never offered.
+ * A button field's settings: its label, and the operations LISTENING to it (an On Button trigger on this field).
+ * A button picks no operation — an operation subscribes to the button (user, 2026-10-25). Click a listener to open it.
  */
-export function orderButtonOperationChoices(operations) {
-  const button = buttonOperations(operations).map((o) => o.id);
-  const taken = new Set(button);
-  const other = (operations || [])
-    .filter((op) => op && !op.alarm && !taken.has(op.id))
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-    .map((o) => o.id);
-  return { button, other };
-}
-
-function ButtonFieldConfig({ field, meta, operations, setMeta, onCreateOperation }) {
-  const { dispatch, socket } = useGridActions();
-  const byId = Object.fromEntries((operations || []).map((o) => [o.id, o]));
-  const { button, other } = orderButtonOperationChoices(operations);
-  const current = meta?.operationId || "";
-  const missing = current && !byId[current];
-  const pick = (id) => {
-    const op = byId[id];
-    const trigger = op && field ? buttonTriggerFor(op, field) : null;
-    if (trigger) {
-      // An operation from "Other" runs on a press only with an On Button trigger — given here, for this field.
-      CommitHelpers.updateOperation({ dispatch, socket, operation: {
-        ...op, triggerObjects: [...(op.triggerObjects || []), trigger],
-        triggerTypes: [...new Set([...(op.triggerTypes || []), "onButton"])],
-      } });
-    }
-    setMeta("operationId", id || null);
-  };
+function ButtonFieldConfig({ field, meta, operationsById, setMeta }) {
+  const listeners = buttonListeners(field?.id, operationsById);
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-      <div style={{ flex: "1 1 160px" }}>
-        <span style={labelStyle}>Operation to run</span>
-        <select value={current} onChange={(e) => pick(e.target.value)} style={inputStyle}>
-          <option value="">— none —</option>
-          {missing && <option value={current}>(operation not found)</option>}
-          {button.map(id => <option key={id} value={id}>{byId[id].name || id}</option>)}
-          {other.length > 0 && (
-            <optgroup label="Other (adds an On Button trigger)">
-              {other.map(id => <option key={id} value={id}>{byId[id].name || id}</option>)}
-            </optgroup>
-          )}
-        </select>
-        {onCreateOperation && (
-          <button type="button" onClick={onCreateOperation}
-            style={{ marginTop: 4, fontSize: 10, padding: "2px 8px", background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-default)", borderRadius: 3, cursor: "pointer" }}>
-            New operation for this button
-          </button>
-        )}
-      </div>
       <div style={{ flex: "1 1 120px" }}>
         <span style={labelStyle}>Button label</span>
         <input
           value={meta?.buttonLabel || ""}
-          placeholder="Run"
+          placeholder={field?.name || "Button"}
           onChange={(e) => setMeta("buttonLabel", e.target.value)}
           style={inputStyle}
         />
+      </div>
+      <div style={{ flex: "1 1 160px" }} data-testid="button-listeners">
+        <span style={labelStyle}>Listened to by</span>
+        {listeners.length ? listeners.map((op) => (
+          <button key={op.id} type="button" onClick={() => requestOpenOperation(op.id)}
+            style={{ display: "block", fontSize: 11, padding: "1px 0", background: "transparent", border: 0, color: "var(--accent-blue-text)", cursor: "pointer", textAlign: "left" }}>
+            {op.name || op.id}
+          </button>
+        )) : (
+          <span style={{ fontSize: 11, color: "var(--text-faint)" }}>
+            Nothing yet — add an On Button trigger on this field to an operation.
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
-  const { modulesById, fieldsById, operationsById, dispatch: actionsDispatch, socket: actionsSocket, state: actionsState } = useGridActions();
-  const gridIdForOps = actionsState?.gridId || null;
+  const { modulesById, fieldsById, operationsById } = useGridActions();
   const [local, setLocal] = useState(field);
   const [nameError, setNameError] = useState(null);
   useMemo(() => { setLocal(field); setNameError(null); }, [field.id]);
@@ -870,23 +831,9 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
         </div>
       )}
 
-      {/* Button — which operation a press runs. Field.jsx reads
-          meta.operationId + meta.buttonLabel, and until 2026-09-21 nothing in
-          the UI wrote them: a button field made here always read "No operation
-          configured". Only onButton operations are listed — a press matches
-          the op it names (operationExecutor matchesTrigger) and still needs
-          that trigger. */}
+      {/* Button — its label, and which operations listen to it (a button picks no operation). */}
       {local.type === "button" && (
-        <ButtonFieldConfig
-          field={local}
-          meta={local.meta}
-          operations={Object.values(operationsById || {})}
-          setMeta={setMeta}
-          onCreateOperation={() => createButtonOperation({
-            field: local, gridId: local.gridId || gridIdForOps, dispatch: actionsDispatch, socket: actionsSocket,
-            onSave: (next) => { setLocal(next); onSave?.(next); },
-          })}
-        />
+        <ButtonFieldConfig field={local} meta={local.meta} operationsById={operationsById} setMeta={setMeta} />
       )}
 
       {/* When — a date + time or a repeat. "Adds a reminder" makes every value an entry in the Alarms list

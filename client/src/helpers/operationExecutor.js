@@ -583,6 +583,14 @@ function matchesTrigger(t, operation, transactionType, transaction) {
     return { matched: true, triggerObject: forThisEvent[0] || null };
   }
 
+  // A press of a button FIELD (no operation named) runs the operations LISTENING to that button: an On Button
+  // trigger on that field. An On Button trigger on nothing in particular does not hear button fields (2026-10-25:
+  // "the button does nothing until we add a listener for it in the operations").
+  if (transactionType === "ButtonOp" && transaction?.fieldId) {
+    const to = forThisEvent.find((x) => x?.subjectType === "field" && x.targetId === transaction.fieldId);
+    return to ? { matched: true, triggerObject: to } : false;
+  }
+
   if (forThisEvent.length === 0) {
     return { matched: true, triggerObject: null };
   }
