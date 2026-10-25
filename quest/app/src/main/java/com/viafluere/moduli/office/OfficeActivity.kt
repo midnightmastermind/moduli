@@ -241,6 +241,20 @@ class OfficeActivity : AppSystemActivity() {
         web.loadUrl("$origin/?office")
       })
 
+  /** This WebView's Chrome presented as desktop Chrome (same version): sites gate their web apps on it. */
+  private fun desktopUserAgent(current: String): String {
+    val ver = Regex("Chrome/([0-9.]+)").find(current)?.groupValues?.get(1) ?: "130.0.0.0"
+    return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$ver Safari/537.36"
+  }
+
+  /** Grants protected media (Spotify's full tracks need DRM); every other permission a page asks for is refused. */
+  private fun protectedMediaChrome() = object : WebChromeClient() {
+    override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+      val ok = request.resources.filter { it == android.webkit.PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID }
+      if (ok.isNotEmpty()) request.grant(ok.toTypedArray()) else request.deny()
+    }
+  }
+
   /** A panel holding a WebView. `toolbar` adds Close and Reload above it (reader panels). */
   @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
   private fun webPanel(id: Int, w: Float, h: Float, toolbar: Boolean, onWeb: (WebView) -> Unit): PanelRegistration =
@@ -288,12 +302,8 @@ class OfficeActivity : AppSystemActivity() {
                           // Spotify's embedded player (a record with no audio file of its own): it runs in an iframe, needs
                           // the spotify.com sign-in cookie (a third-party cookie here) and protected media for full tracks.
                           android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                          webChromeClient = object : WebChromeClient() {
-                            override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
-                              val ok = request.resources.filter { it == android.webkit.PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID }
-                              if (ok.isNotEmpty()) request.grant(ok.toTypedArray()) else request.deny()
-                            }
-                          }
+                          settings.userAgentString = desktopUserAgent(settings.userAgentString)
+                          webChromeClient = protectedMediaChrome()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
                           made = this
                           onWeb(this)
@@ -379,9 +389,11 @@ class OfficeActivity : AppSystemActivity() {
                           settings.useWideViewPort = true
                           // Present as ordinary Chrome: Google (and sites signing in through it) refuse an embedded
                           // WebView by its "; wv" marker. Cookies persist, so a sign-in lasts between visits.
-                          settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                          // Desktop Chrome, not Android: Spotify's web player told an Android browser to get the app
+                          // ("this browser is not supported", user 2026-10-25).
+                          settings.userAgentString = desktopUserAgent(settings.userAgentString)
                           android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                          webChromeClient = WebChromeClient()
+                          webChromeClient = protectedMediaChrome()
                           webViewClient = object : WebViewClient() {
                             override fun onPageFinished(view: WebView, url: String) {
                               address = url
