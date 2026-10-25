@@ -42,7 +42,7 @@ object PanelHtml {
     for (i in 0 until items.length()) {
       val it = items.getJSONObject(i)
       data.put(JSONObject().put("id", it.optString("id")).put("t", it.optString("title")).put("c", it.optString("cover", ""))
-          .put("r", it.optString("rowId", "").ifEmpty { it.optString("id") }).put("f", it.optBoolean("folder")).put("n", it.optInt("count")))
+          .put("r", it.optString("rowId", "").ifEmpty { it.optString("id") }).put("f", it.optBoolean("folder")).put("n", it.optInt("count")).put("m", it.optBoolean("mini")))
     }
     val rects = JSONArray()
     for (sl in slots) rects.put(JSONArray().put(sl.leftPct.toDouble()).put(sl.bottomPct.toDouble()).put(sl.wPct.toDouble()).put(sl.hPct.toDouble()))
@@ -69,6 +69,8 @@ object PanelHtml {
   .it.hover{outline:.5vh solid #fff;outline-offset:-.5vh;box-shadow:0 0 2.5vh #fff;transform:translateY(-1vh)}
   #empty{padding:4vh 4vw;font-size:4.5vh;background:rgba(0,0,0,.5);margin:3vh;border-radius:1vh}
   /* A folder is a book you open: a darker spine with a folder mark and how much is inside. */
+  /* A song opened out of its album: a smaller record, centred in its slot (its handle-able proxy shrinks the same). */
+  .it.mini{transform:scale(.62);transform-origin:50% 50%}
   .it.fold{background:linear-gradient(#5a4632,#3b2c1d)!important;border:.4vh solid #c9a46a;box-sizing:border-box}
   .it.fold span:before{content:'📁 ';}
   .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
@@ -96,7 +98,7 @@ object PanelHtml {
   var byId={}; items.forEach(function(it){byId[it.id]=it;});
   var selecting=false, sel={}, armed=false, armT=null;
   function look(id){var d=nodes[id];if(!d)return;var it=byId[id]||{};
-    d.className='it'+(it.f?' fold':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
+    d.className='it'+(it.f?' fold':'')+(it.m?' mini':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
   function count(){return Object.keys(sel).length;}
   function bar(){var b=document.getElementById('delb'), s=document.getElementById('selb');
     s.textContent=selecting?'Done':'Select'; s.className=selecting?'on':'';

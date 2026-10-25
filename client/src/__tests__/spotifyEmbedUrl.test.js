@@ -15,3 +15,26 @@ describe("spotifyEmbedUrl", () => {
     expect(spotifyEmbedUrl({})).toBeNull();
   });
 });
+
+import { albumShelfItems, albumSongIds } from "../vr/shelfItems.js";
+describe("an album opened on a record shelf", () => {
+  const modulesById = { A: { id: "A", kind: "album", role: "artifact" }, S: { id: "S", kind: "song", role: "artifact" }, P: { id: "P", kind: "artist", role: "artifact" } };
+  const occurrencesById = {
+    al: { id: "al", moduleId: "A", label: "STANS", fields: { songs: { value: ["s1", "s2"] }, artist: { value: "ar" }, url: { value: "https://open.spotify.com/album/X1" } } },
+    s1: { id: "s1", moduleId: "S", label: "Stan", fields: {} },
+    s2: { id: "s2", moduleId: "S", label: "Bad Guy", fields: {} },
+    s3: { id: "s3", moduleId: "S", label: "Bonus", fields: { album: { value: "al" } } },
+    ar: { id: "ar", moduleId: "P", label: "Eminem", fields: {} },
+  };
+  it("lists its songs in its own order, then songs that name it — not the artist (control)", () => {
+    expect(albumSongIds("al", { occurrencesById, modulesById })).toEqual(["s1", "s2", "s3"]);
+  });
+  it("each song is a mini record that plays the album through Spotify when it has no audio of its own", () => {
+    const items = albumShelfItems("al", { occurrencesById, modulesById });
+    expect(items.map((i) => [i.title, i.mini, i.src, i.spotify])).toEqual([
+      ["Stan", true, null, "https://open.spotify.com/embed/album/X1"],
+      ["Bad Guy", true, null, "https://open.spotify.com/embed/album/X1"],
+      ["Bonus", true, null, "https://open.spotify.com/embed/album/X1"],
+    ]);
+  });
+});

@@ -20,7 +20,8 @@
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
-import { shelfItems, folderShelfView } from "./shelfItems.js";
+import { shelfItems, folderShelfView, albumShelfItems } from "./shelfItems.js";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { deleteFolderMoveUp } from "../helpers/folderDelete";
 import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
 import { withAction } from "../helpers/actionScope";
@@ -78,12 +79,21 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
   const wire = (i) => ({
     id: i.id, rowId: i.rowId || null, title: i.title, cover: i.cover, src: i.src || null, kind: i.fileKind || null,
     url: i.url || null, folder: !!i.folder, count: i.count || 0, spotify: i.spotify || null,
+    album: !!i.album, mini: !!i.mini,
   });
   return {
     type: "state",
     gridId: String(grid?._id || grid?.id || ""),
     origin: typeof window !== "undefined" ? window.location.origin : "",
     shelves: office.shelves.map((s) => {
+      // An album opened on this shelf ("album:<row>|<where the shelf was>"): its songs as mini records, ⬆ goes back.
+      const at = shelfAt[s.id];
+      if (typeof at === "string" && at.startsWith("album:")) {
+        const albumId = at.slice(6).split("|")[0];
+        const album = occurrencesById?.[albumId];
+        const title = album ? (occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album") : "Album";
+        return { id: s.id, title: s.title, asset: s.asset, items: albumShelfItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
+      }
       if (s.folderId) {
         // A folder shelf is a tree in the headset: its subfolders are books you open (and come back up from).
         const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
@@ -313,10 +323,18 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const id = newNotePage(live.current);
           if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
         }
+        else if (e?.type === "openAlbum") {
+          const shelfId = String(e.key || "").replace(/^shelf:/, "");
+          const prev = live.current.shelfAt[shelfId];
+          moveShelf(shelfId, `album:${e.id}|${typeof prev === "string" && !prev.startsWith("album:") ? prev : ""}`);
+        }
         else if (e?.type === "openFolder" || e?.type === "shelfUp") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
           const L = live.current;
           const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
+          const atNow = L.shelfAt[shelfId];
+          // Up from an open album: back to where the shelf was before it.
+          if (e.type === "shelfUp" && typeof atNow === "string" && atNow.startsWith("album:")) { moveShelf(shelfId, atNow.split("|")[1] || null); return; }
           if (!shelf?.folderId) return;
           if (e.type === "openFolder") moveShelf(shelfId, String(e.folderId || "").replace(/^folder:/, ""));
           else {

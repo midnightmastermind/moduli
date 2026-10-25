@@ -87,6 +87,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val READER_H = 1.0f
     private const val GHOST_W = 0.30f
     private const val SPOTIFY_W = 0.56f
+    /** A song's record, opened out of its album, is this much of an album's. */
+    private const val MINI_RECORD = 0.62f
     private const val SPOTIFY_H = 0.26f
     private const val GHOST_H = 0.075f
     /** A piece's own settings window (its ⚙), and the ⚙ button itself. */
@@ -186,6 +188,9 @@ class OfficeActivity : AppSystemActivity() {
     /** A folder book opens the folder on the shelf; a bookmark opens its page in a browser window. */
     var folder = false
     var url = ""
+    /** An album on a record shelf (dropped anywhere but a player it opens into its songs); a song in it is a mini record. */
+    var album = false
+    var mini = false
     var held = false
     /** The card (cover + title) floating over it while held: an index into `cards`, or -1. */
     var card = -1
@@ -621,7 +626,7 @@ class OfficeActivity : AppSystemActivity() {
       if (src != null) Uri.parse(if (src.startsWith("http")) src else origin + src) else Uri.parse("apk:///office/${modelFile(model)}.glb")
 
   /** Pieces drawn with another piece's model: the grid screen and the new-note screen are screens. */
-  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad", "browser", "claude" -> "screen"; else -> model }
+  private fun modelFile(model: String) = when (model) { "gridscreen", "notepad", "browser", "claude", "remotedesktop" -> "screen"; else -> model }
 
   private fun ensureThing(key: String, model: String, src: String? = null): Thing {
     things[key]?.let { return it }
@@ -687,6 +692,7 @@ class OfficeActivity : AppSystemActivity() {
       ))
       t.books += Book(item.optString("id"), title, (if (item.isNull("cover")) "" else item.optString("cover")), t.slots[i], PanelHtml.spineColor(title), e).apply {
         folder = item.optBoolean("folder"); url = item.optString("url").takeIf { !item.isNull("url") } ?: ""
+        album = item.optBoolean("album"); mini = item.optBoolean("mini")
       }
     }
     bookFront[t.key] = size.d / 2f + 0.01f + BOOK_PROXY_DEPTH / 2f
@@ -745,7 +751,8 @@ class OfficeActivity : AppSystemActivity() {
         if (b.held) continue
         val rest = bookRestPose(t, b) ?: continue
         val s = t.scale
-        val hw = b.slot.w * s / 2f; val hh = b.slot.h * s / 2f; val hd = BOOK_PROXY_DEPTH * s / 2f
+        val k = if (b.mini) MINI_RECORD else 1f
+        val hw = b.slot.w * s * k / 2f; val hh = b.slot.h * s * k / 2f; val hd = BOOK_PROXY_DEPTH * s / 2f
         val dist = PoseMath.rayBox(o, d, rest, floatArrayOf(-hw, -hh, -hd), floatArrayOf(hw, hh, hd)) ?: continue
         if (dist < bestD) { bestD = dist; best = t to b }
       }
@@ -812,6 +819,8 @@ class OfficeActivity : AppSystemActivity() {
               t.selecting -> selectBook(t, b)
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
+              // An album dropped anywhere but a player opens on its shelf: its songs, each a mini record.
+              t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
               else -> activateBook(t, b, near = p)
             }
           } else if (now - b.grabbedAt < BOOK_TAP_MS) { if (t.selecting) selectBook(t, b) else activateBook(t, b) }
@@ -821,7 +830,8 @@ class OfficeActivity : AppSystemActivity() {
           b.placedScale = -1f
         }
         if (b.placedScale != s) {
-          b.entity.setComponent(Scale(Vector3(b.slot.w * s, b.slot.h * s, BOOK_PROXY_DEPTH * s)))
+          val k = if (b.mini) MINI_RECORD else 1f
+          b.entity.setComponent(Scale(Vector3(b.slot.w * s * k, b.slot.h * s * k, BOOK_PROXY_DEPTH * s)))
           b.placedScale = s
         }
         val cur = b.entity.tryGetComponent<Transform>()?.transform
@@ -944,10 +954,15 @@ class OfficeActivity : AppSystemActivity() {
       // One button: a new note in Notes, opened beside it to write in (and on the Documents shelf).
       "notepad" -> { t.html = PanelHtml.notepad(t.key); attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H, OfficeSizes.SCREEN_Y, 0.025f) }
       // A plain web browser on a screen: an address bar, back / forward / reload; it remembers its last page.
-      "browser", "claude" -> {
+      "browser", "claude", "remotedesktop" -> {
         t.browser = true
-        // A Claude screen is a browser that starts at claude.ai (the native app cannot be put in a panel).
-        val home = if (entry.optString("model") == "claude") "https://claude.ai/new" else "https://www.google.com"
+        // A Claude screen is a browser that starts at claude.ai (the native app cannot be put in a panel); a PC screen
+        // starts at Chrome Remote Desktop — your Windows PC, controlled from here, through Google (no shared network).
+        val home = when (entry.optString("model")) {
+          "claude" -> "https://claude.ai/new"
+          "remotedesktop" -> "https://remotedesktop.google.com/access"
+          else -> "https://www.google.com"
+        }
         t.panelUrl = entry.optString("url").ifEmpty { home }
         attachPanel(t, OfficeSizes.SCREEN_W, OfficeSizes.SCREEN_H + 0.16f, OfficeSizes.SCREEN_Y, 0.025f)
       }

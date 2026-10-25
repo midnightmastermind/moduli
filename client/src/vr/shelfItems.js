@@ -129,6 +129,61 @@ export function spotifyEmbedUrl(occ) {
   return null;
 }
 
+/** Whether a row's own fields name a song (cheap: no scan of the grid). */
+function namesSongs(occ, modulesById, occurrencesById) {
+  for (const cell of Object.values(occ?.fields || {})) {
+    const v = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
+    for (const id of Array.isArray(v) ? v : [v]) if (typeof id === "string" && modulesById?.[occurrencesById?.[id]?.moduleId]?.kind === "song") return true;
+  }
+  return false;
+}
+
+/** The song rows an album row names (its Songs field, in its order), then any song naming the album. Pure. */
+export function albumSongIds(albumId, { occurrencesById, modulesById } = {}) {
+  const album = occurrencesById?.[albumId];
+  if (!album) return [];
+  const isSong = (id) => modulesById?.[occurrencesById?.[id]?.moduleId]?.kind === "song";
+  const out = [];
+  const seen = new Set();
+  for (const cell of Object.values(album.fields || {})) {
+    const v = cell && typeof cell === "object" && "value" in cell ? cell.value : cell;
+    for (const id of Array.isArray(v) ? v : [v]) if (typeof id === "string" && !seen.has(id) && isSong(id)) { seen.add(id); out.push(id); }
+  }
+  for (const o of Object.values(occurrencesById || {})) {
+    if (seen.has(o.id) || !isSong(o.id)) continue;
+    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === albumId)) { seen.add(o.id); out.push(o.id); }
+  }
+  return out;
+}
+
+/**
+ * An album opened on a record shelf: each of its songs as a mini record — its own audio file if it has one, else
+ * the album's Spotify player (a song row carries no Spotify link of its own). Pure.
+ */
+export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) {
+  const album = occurrencesById?.[albumId];
+  if (!album) return [];
+  const albumMod = modulesById?.[album.moduleId];
+  const ctx = { occurrencesById, modulesById };
+  const albumCover = coverUrl(album, albumMod, primaryMediaOf(album, ctx));
+  const albumSpotify = spotifyEmbedUrl(album);
+  return albumSongIds(albumId, ctx).map((id) => {
+    const occ = occurrencesById[id];
+    const mod = modulesById?.[occ.moduleId];
+    const f = filesOf(occ, ctx).find((e) => e.kind === "audio");
+    const ref = f ? modulesById?.[f.occ.moduleId]?.fileRef : null;
+    return {
+      id: f?.occ?.id || occ.id, rowId: occ.id,
+      title: (occurrenceDisplayLabel(occ, mod) || "").trim() || "Song",
+      cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)) || albumCover,
+      fileId: f?.occ?.id || null, fileKind: f ? "audio" : null,
+      src: ref ? resolveFileRef(ref) : null,
+      spotify: spotifyEmbedUrl(occ) || albumSpotify,
+      mini: true,
+    };
+  });
+}
+
 export function bookmarkUrl(occ, mod) {
   if (mod?.kind !== "bookmark") return null;
   const u = occ?.meta?.url || mod.fileRef || "";
@@ -168,6 +223,8 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       src: file?.ref ? resolveFileRef(file.ref) : null,
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
+      // An album on a record shelf opens into its songs when dropped anywhere but a record player.
+      album: shelf.asset === "record" && namesSongs(occ, modulesById, occurrencesById),
     });
   }
   return out;
