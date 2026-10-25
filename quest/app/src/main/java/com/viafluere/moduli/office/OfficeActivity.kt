@@ -1735,8 +1735,11 @@ class OfficeActivity : AppSystemActivity() {
     ))
     readers[id] = e
     if (occId.isNotEmpty()) { readerOcc[id] = occId; saveReaders() }
-    readerHandles[id] = GrabHandle(e, -(READER_H / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
-    readerHandleDy[id] = -(READER_H / 2f + HANDLE_GAP / 2f)
+    // Under THIS window: a bookmark's browser window is taller (its address bar), and a bar placed for a page window
+    // sat behind its bottom edge — the window could not be moved.
+    val h = if (occId.startsWith("url:")) READER_H + 0.16f else READER_H
+    readerHandles[id] = GrabHandle(e, -(h / 2f + HANDLE_GAP / 2f), facesHead = true, widthScale = 1.5f).also { it.follow() }
+    readerHandleDy[id] = -(h / 2f + HANDLE_GAP / 2f)
     if (scale != 1f) scaleReader(id, scale)
   }
 

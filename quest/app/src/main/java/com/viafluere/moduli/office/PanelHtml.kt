@@ -14,6 +14,10 @@ object PanelHtml {
 
   private fun js(s: String): String = JSONObject.quote(s)
 
+  /** A JS string inside a double-quoted HTML attribute (onclick="…"): js()'s own quotes would end the attribute,
+   *  so they are written as &quot; (the browser turns them back before running the code). */
+  private fun ja(s: String): String = esc(js(s))
+
   /** Panel height above the shelf itself, for the title and buttons. */
   const val HEADER_M = 0.14f
 
@@ -84,7 +88,7 @@ object PanelHtml {
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
   <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
-  <button onclick="send({type:'piece',key:${js("shelf:$id")}})">⚙</button></div>
+  <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>
 <script>$BRIDGE
   var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")};
@@ -142,9 +146,14 @@ object PanelHtml {
   button{font-size:12vh;padding:3vh 8vw;border-radius:3vh;border:.6vh solid #ffd27a;background:#3a2616;color:#f4e9d8}
   #n{font-size:5vh;opacity:.7}
 </style></head><body><div id="w">
-  <button onclick="this.disabled=true;send({type:'newNote',key:${js(key)}});setTimeout(()=>this.disabled=false,3000)">＋ New note</button>
+  <button id="b">＋ New note</button>
   <div id="n">Opens a new page in Notes</div>
-</div><script>$BRIDGE</script></body></html>"""
+</div><script>$BRIDGE
+// In a script, not an onclick attribute: the key is a quoted JS string, and its quotes ended the attribute early
+// (the screen showed `this.disabled=false,3000);` as text).
+var b=document.getElementById('b');
+b.onclick=function(){b.disabled=true;send({type:'newNote',key:${js(key)}});setTimeout(function(){b.disabled=false},3000)};
+</script></body></html>"""
 
   /** The spine colour of an item, as the shelf page picks it (the 3D book in your hand takes the same one). */
   fun spineColor(title: String): Int {
@@ -194,7 +203,7 @@ img{width:100vw;height:100vh;object-fit:cover;display:block}</style></head>
   /** A record playing on the record player (with a stop button), or a tape running on a screen (status only). */
   fun playerCard(title: String, audioSrc: String, stopKey: String, note: String = ""): String {
     val audio = if (audioSrc.isNotEmpty()) """<audio src="${esc(audioSrc)}" autoplay controls></audio>""" else ""
-    val stop = if (stopKey.isNotEmpty()) """<button onclick="send({type:'stopPlayer',key:${js(stopKey)}})">⏹</button>""" else ""
+    val stop = if (stopKey.isNotEmpty()) """<button onclick="send({type:'stopPlayer',key:${ja(stopKey)}})">⏹</button>""" else ""
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width">
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Georgia,serif;color:#f4e9d8}
@@ -222,7 +231,7 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
   iframe{flex:1;min-height:0;width:100%;border:0;border-radius:2vh;background:#121212}
   button{font-size:4.5vh;padding:0 2vw;border-radius:1.5vh;border:1px solid #a88;background:#3a2616;color:#f4e9d8}
 </style></head><body><div id="w"><div id="r"><div id="t">${esc(title)}</div><span id="n">Spotify</span>
-<button onclick="send({type:'stopPlayer',key:${js(stopKey)}})">⏹</button></div>
+<button onclick="send({type:'stopPlayer',key:${ja(stopKey)}})">⏹</button></div>
 <iframe src="${esc(embedUrl)}" allow="autoplay; clipboard-write; encrypted-media; fullscreen" loading="eager"></iframe></div>
 <script>$BRIDGE</script></body></html>"""
 
@@ -235,7 +244,7 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
   #bar span{font-size:4vh;background:rgba(0,0,0,.6);padding:.4vh 1vw;border-radius:1vh}
   button{font-size:4vh;padding:.4vh 1.6vw;border-radius:1vh;border:1px solid #555;background:rgba(20,20,20,.8);color:#eee}
 </style></head><body><video src="${esc(src)}" autoplay controls></video>
-<div id="bar"><span>${esc(title)}</span><button onclick="send({type:'stopVideo',key:${js(screenKey)}})">⏹</button></div>
+<div id="bar"><span>${esc(title)}</span><button onclick="send({type:'stopVideo',key:${ja(screenKey)}})">⏹</button></div>
 <script>$BRIDGE</script></body></html>"""
 
   /** A screen: the picture the control panel took of a page or of the grid. */
@@ -244,7 +253,7 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
     val label = screen.optString("label", "Screen")
     val target = if (screen.optString("source") == "grid") "" else screen.optString("pageOccId", "")
     val img = if (image.isNullOrEmpty()) """<div id="wait">${esc(label)}<br><small>picture on its way…</small></div>"""
-              else """<img src="${esc(image)}" onclick="send({type:'open',id:${js(target)},title:${js(label)}})">"""
+              else """<img src="${esc(image)}" onclick="send({type:'open',id:${ja(target)},title:${ja(label)}})">"""
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width">
 <style>
   html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:sans-serif;overflow:hidden}
@@ -253,8 +262,8 @@ ${if (note.isNotEmpty()) """<div id="n">${esc(note)}</div>""" else ""}$audio</di
   #bar{position:fixed;right:1vw;bottom:1vh;display:flex;gap:1vw}
   button{font-size:4vh;padding:.4vh 1.6vw;border-radius:1vh;border:1px solid #555;background:rgba(20,20,20,.8);color:#eee}
 </style></head><body>$img
-<div id="bar"><button onclick="send({type:'refreshScreen',id:${js(id)}})">⟳</button>
-<button onclick="send({type:'piece',key:${js("screen:$id")}})">⚙</button></div>
+<div id="bar"><button onclick="send({type:'refreshScreen',id:${ja(id)}})">⟳</button>
+<button onclick="send({type:'piece',key:${ja("screen:$id")}})">⚙</button></div>
 <script>$BRIDGE</script></body></html>"""
   }
 }
