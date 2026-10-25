@@ -41,6 +41,9 @@ function alignStyle(align, width) {
   }
 }
 
+/** How long an embed whose row is not here yet waits before saying so. */
+export const MISSING_MARKER_MS = 3000;
+
 export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos, deleteNode }) {
   // Per-slice selectors — a full useGridActions() re-rendered EVERY embed on
   // every occurrence write (doc pages mount one of these per embedded module).
@@ -61,6 +64,15 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const width = node.attrs.width || null;
   const occurrence = useGridActionsSelector(s => (occurrenceId ? s.occurrencesById?.[occurrenceId] : undefined));
   const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
+  // An embed can be in the doc a moment before its row reaches this store (a drop carried in from another headset
+  // window places the node first). The "embed: <id>" marker said "broken" for that second (user, 2026-10-25): it
+  // waits MISSING_MARKER_MS, holding a quiet line's height, and shows only if the row still has not arrived.
+  const [missingLong, setMissingLong] = useState(false);
+  useEffect(() => {
+    if (mod) { setMissingLong(false); return undefined; }
+    const t = setTimeout(() => setMissingLong(true), MISSING_MARKER_MS);
+    return () => clearTimeout(t);
+  }, [!!mod]);
   const occView = occurrence?.viewId ? viewsById?.[occurrence.viewId] : null;
 
   // Register deleteNode so DragProvider can remove this embed on drag-out (move mode).
@@ -357,6 +369,9 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     return items;
   }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket, wrapKey, moduleOfOcc, canPill]);
 
+  if (!mod && !missingLong) {
+    return <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}><div style={{ minHeight: 24 }} aria-hidden /></NodeViewWrapper>;
+  }
   if (!mod) {
     return (
       <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
