@@ -13,6 +13,7 @@
 // ============================================================
 
 import { answersToResult } from "./formItems.js";
+import { captureAction, retainAction, releaseAction, runInAction } from "./actionScope";
 import { BlockType } from "./blockTypes";
 import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
@@ -2507,6 +2508,17 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
   const pre = result.slice(0, -1);
   const nextAccumulated = [...accumulated, ...pre];
 
+  // The rest of the pipeline runs LATER (after the answer / response arrives), outside whatever action was open
+  // when it paused. Carry that action across, so a button press → form → Create is one undo step rather than a
+  // derived write Ctrl+Z skips (2026-10-25: the press's new occurrence was skipped and undo took the step before).
+  // Retained so the action's close signal waits for the continuation.
+  const captured = captureAction();
+  retainAction(captured);
+  let released = false;
+  const release = () => { if (!released) { released = true; releaseAction(captured); } };
+  const resumeIn = (...args) => { try { return runInAction(captured, () => resumeContinuation(...args)); } finally { release(); } };
+  const stopIn = () => { try { if (onPipelineDone) runInAction(captured, () => onPipelineDone(nextAccumulated)); } finally { release(); } };
+
   // CALL_API path: the action attached a ready Promise via request.fetch.
   // No external bridge needed; we just await it and resume.
   if (last._callApi && last.request?.fetch) {
@@ -2515,13 +2527,13 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
       if (value && value.__apiError) {
         const errVarName = last.errorVar || "$apiError";
         const errPayload = { status: value.status, message: value.message || null, body: value.body ?? null };
-        resumeContinuation(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
+        resumeIn(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
       } else {
-        resumeContinuation(last.continuation, last.resultVar || "$apiResponse", value, { onPipelineDone, accumulated: nextAccumulated });
+        resumeIn(last.continuation, last.resultVar || "$apiResponse", value, { onPipelineDone, accumulated: nextAccumulated });
       }
     }).catch((err) => {
       console.warn("[CALL_API] request failed:", err);
-      if (onPipelineDone) onPipelineDone(nextAccumulated);
+      stopIn();
     });
     return pre;
   }
@@ -2538,15 +2550,15 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
     const readFn = operationsBridge.readFileText;
     const read = typeof readFn === "function" ? readFn(last.request) : Promise.reject(new Error("files can only be read in the page"));
     Promise.resolve(read).then((value) => {
-      resumeContinuation(last.continuation, last.resultVar || "$fileText", value, { onPipelineDone, accumulated: nextAccumulated });
+      resumeIn(last.continuation, last.resultVar || "$fileText", value, { onPipelineDone, accumulated: nextAccumulated });
     }).catch((err) => {
       const msg = String(err?.message || err);
       if (last.onError === "fail") {
         console.warn("[READ_FILE] failed:", err);
-        if (onPipelineDone) onPipelineDone(nextAccumulated);
+        stopIn();
         return;
       }
-      resumeContinuation(last.continuation, last.resultVar || "$fileText", { text: "", found: false, error: msg }, { onPipelineDone, accumulated: nextAccumulated });
+      resumeIn(last.continuation, last.resultVar || "$fileText", { text: "", found: false, error: msg }, { onPipelineDone, accumulated: nextAccumulated });
     });
     return pre;
   }
@@ -2555,19 +2567,19 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
     const importFn = operationsBridge.importText;
     if (typeof importFn !== "function") {
       console.warn("[IMPORT_*] operationsBridge.importText not set — dropping the rest of the pipeline.");
-      if (onPipelineDone) onPipelineDone(nextAccumulated);
+      stopIn();
       return pre;
     }
     Promise.resolve(importFn(last.request)).then((value) => {
-      resumeContinuation(last.continuation, last.resultVar || "$importResult", value, { onPipelineDone, accumulated: nextAccumulated });
+      resumeIn(last.continuation, last.resultVar || "$importResult", value, { onPipelineDone, accumulated: nextAccumulated });
     }).catch((err) => {
       if (last.onError === "continue") {
         const errVarName = last.errorVar || "$importError";
         const errPayload = { status: 0, message: String(err?.message || err) };
-        resumeContinuation(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
+        resumeIn(last.continuation, errVarName, errPayload, { onPipelineDone, accumulated: nextAccumulated });
       } else {
         console.warn("[IMPORT_*] request failed:", err);
-        if (onPipelineDone) onPipelineDone(nextAccumulated);
+        stopIn();
       }
     });
     return pre;
@@ -2579,20 +2591,20 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
   const ask = operationsBridge.requestUserInput;
   if (typeof ask !== "function") {
     console.warn("[GET_USER_INPUT] operationsBridge.requestUserInput not set — dropping the rest of the pipeline.");
-    if (onPipelineDone) onPipelineDone(nextAccumulated);
+    stopIn();
     return pre;
   }
   Promise.resolve(ask(last.request)).then((value) => {
     // A form answers with { key: value }; the operation reads { values, fields } (fields keyed by field id).
     const bound = last.request?.form ? answersToResult(last.request.items, value) : value;
-    resumeContinuation(last.continuation, last.resultVar || "$userInput", bound, { onPipelineDone, accumulated: nextAccumulated });
+    resumeIn(last.continuation, last.resultVar || "$userInput", bound, { onPipelineDone, accumulated: nextAccumulated });
   }).catch((err) => {
     // Cancellation is the common case (user closed the modal) and should
     // stay silent. Anything else is a real bug we'd want to see.
     if (err && err.message && !/cancel/i.test(err.message)) {
       console.warn("[GET_USER_INPUT] continuation failed:", err);
     }
-    if (onPipelineDone) onPipelineDone(nextAccumulated);
+    stopIn();
   });
   return pre;
 }

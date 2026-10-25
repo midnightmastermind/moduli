@@ -1,6 +1,6 @@
 // helpers/formButton.js — "Add a form button" on a container (2026-10-25).
 //
-// One gesture makes "New <noun>": a button field bound on the container, and an operation that
+// One gesture makes a button (its text is whatever the user types) bound on the container, and an operation that
 //   1. asks with a form (Name + the input fields the container's instances use),
 //   2. creates an occurrence in the container the button was pressed on — a new placement of the board's
 //      shared module when its instances share one, else an occurrence of their role/kind — writing each form
@@ -53,11 +53,11 @@ function mostCommon(rows, pick) {
 }
 
 /**
- * Plan the field, operation and container binding for "New <noun>". Pure.
+ * Plan the field, operation and container binding for a button whose text is `label`. Pure.
  * @returns {{ field, operation, containerModule }}  containerModule = the module with the button bound
  */
-export function planFormButton({ container, containerModule, noun, occurrencesById, modulesById, fieldsById, gridId, folderId = null }) {
-  const label = `New ${String(noun || "item").trim() || "item"}`;
+export function planFormButton({ container, containerModule, label: rawLabel, occurrencesById, modulesById, fieldsById, gridId, folderId = null }) {
+  const label = String(rawLabel || "").trim() || "New item";
   const rows = leafRows(container, occurrencesById, modulesById);
 
   // Every field the rows bind, first-seen order, with the binding that first named it.
