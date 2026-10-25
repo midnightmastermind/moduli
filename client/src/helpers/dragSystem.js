@@ -672,8 +672,10 @@ export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dr
   const edges = cur?.edgesRef?.current;
   if (edges) cur.stateRef?.current?.setClosestEdge?.(_computeClosestEdge(cur.el, x, y, edges));
   dragCtx.handleDragMove(x, y);
-  if (cur) { clearDocTouchHover(); dragCtx.handleDragOver?.({ type: cur.type, id: cur.id, context: cur.contextRef.current, clientX: x, clientY: y }); }
-  else _docHoverAt(x, y);
+  if (cur) dragCtx.handleDragOver?.({ type: cur.type, id: cur.id, context: cur.contextRef.current, clientX: x, clientY: y });
+  // Over a doc its editor paints its own lines (the gap, the top spacer, the wrap sides) whatever registered target
+  // is also there — a doc page registers itself as one, so gating on "no target" meant a doc never painted any.
+  _docHoverAt(x, y);
   return cur;
 }
 

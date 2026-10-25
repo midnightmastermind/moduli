@@ -819,7 +819,12 @@ function InstanceInner({
             onChange={(e) => setLabelDraft(e.target.value)}
             onBlur={commitInlineLabel}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commitInlineLabel(); }
+              if (e.key === "Enter") {
+                e.preventDefault(); commitInlineLabel();
+                // In the headset the keyboard follows focus, and after the rename focus fell back to the doc (itself
+                // editable), so the keyboard came straight back up (user, 2026-10-25). Let go of focus there.
+                if (typeof window !== "undefined" && window.ModuliNative) setTimeout(() => document.activeElement?.blur?.(), 0);
+              }
               if (e.key === "Escape") { setLabelDraft(label ?? ""); setIsEditingLabel(false); }
               e.stopPropagation();
             }}
