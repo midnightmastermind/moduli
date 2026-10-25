@@ -26,6 +26,7 @@ import PastValuesDialog from "../ui/PastValuesDialog";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 
 import { useGridActionsSelector } from "../GridActionsContext";
+import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -458,6 +459,7 @@ function Panel({
   }, [module, socket, dispatch]);
 
   // Occurrence for this panel
+  const panelFieldsById = useGridActionsSelector(s => s.fieldsById);
   const panelOccurrence = useMemo(() => {
     // Was a full scan of every occurrence on the grid, re-running on each of
     // the load sweep's writes because `occurrencesById` changes identity per
@@ -1286,6 +1288,20 @@ function Panel({
                   hover-hide + Local/Root nav bar are gone — the tree toggles
                   live in the header itself now). */}
               {pageHeader}
+              {/* The panel's OWN fields (a button on a panel runs its operation with the panel as $trigger.occurrence). */}
+              {panelOccurrence && (
+                <OccurrenceFields
+                  occurrence={panelOccurrence}
+                  module={module}
+                  grid={state?.grid}
+                  fieldsById={panelFieldsById}
+                  occurrencesById={occurrencesById}
+                  position="under"
+                  state={state}
+                  dispatch={dispatch}
+                  socket={socket}
+                />
+              )}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
                 {/* The sidebar is on the RIGHT only (user, 2026-08-21: "put this on

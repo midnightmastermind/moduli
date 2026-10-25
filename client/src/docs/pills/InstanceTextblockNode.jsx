@@ -8,6 +8,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { disarmDraggableUntilHandle } from "../../helpers/dragSystem";
+import { buttonBindings } from "../../helpers/buttonBindings.js";
+import Field from "../../ui/Field.jsx";
 import { useGridActions } from "../../GridActionsContext";
 import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
@@ -49,7 +51,7 @@ function innerProseMirror(domNode) {
 let _nvInstSeq = 0;
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
-  const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
+  const { occurrencesById, modulesById, fieldsById, dispatch, socket } = useGridActions() || {};
 
   const { instanceId, occurrenceId } = node.attrs;
   // The store first, then the provisional registry: a block minted a moment ago
@@ -586,6 +588,15 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           <div style={{ minHeight: 22, padding: "4px 8px" }} aria-hidden="true" />
         ) : (
           <span style={{ opacity: 0.25, fontSize: 12, padding: "4px 8px", display: "block" }}>—</span>
+        )}
+        {/* Its BUTTON fields, under the text (2026-10-25: a button on any occurrence). The other fields stay off a
+            doc textblock — its text is its body, and a paragraph growing pills would be noise. */}
+        {occurrence && buttonBindings(instance, fieldsById).length > 0 && (
+          <div className="textblock-buttons" style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 4px" }}>
+            {buttonBindings(instance, fieldsById).map((b) => (
+              <Field key={b.fieldId} field={fieldsById[b.fieldId]} binding={b} compact hostOccurrence={occurrence} />
+            ))}
+          </div>
         )}
       </div>
     </NodeViewWrapper>
