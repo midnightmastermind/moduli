@@ -26,6 +26,7 @@ import { readerDropTarget } from "./helpers/readerDropTarget.js";
 import { panelPointToPage } from "./helpers/readerDropTarget.js";
 import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill, clearDocTouchHover } from "./helpers/dragSystem.js";
 import { embedDeleteRegistry } from "./helpers/embedRegistry.js";
+import { installHeadsetScroll } from "./helpers/headsetScroll.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
 
@@ -132,6 +133,9 @@ function ReaderBody({ initial, occurrenceId }) {
   // while it is still in its own window) brings the dragged row and its parent into this window's store — the drop
   // writes both lists; `enter` / `move` / `drop` / `leave` follow the controller across this window's panel.
   React.useEffect(() => {
+    // A headset window logs every step of a drop (the editor's DLOG), so a drop that places nothing says why.
+    if (window.ModuliNative) window.__dragDiag = true;
+    const unScroll = window.ModuliNative ? installHeadsetScroll() : null;
     let payload = null, ready = null, cur = null, pill = null, inSession = false;
     const ctx = () => windowDragCtx();
     const pt = (u, v, wM, hM) => panelPointToPage({ u, v, wM, hM, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
@@ -180,20 +184,31 @@ function ReaderBody({ initial, occurrenceId }) {
       },
       leave() { end(); },
       // Waits for `prepare`'s rows; the headset reads the answer from window.__moduliRemoteDropped.
+      // "Dropped" means PLACED HERE: a drop handler can take the drop and still place nothing (a doc's drop bailed),
+      // and on a move the window it came from then took its copy out — the row vanished from both (user,
+      // 2026-10-25). So the answer is whether this window now shows it in one more place than before.
       drop(u, v, wM, hM) {
         window.__moduliRemoteDropped = null;
+        const id = payload?.occurrenceId;
+        const shownIn = () => (ref.current.occurrences || []).reduce((n, o) =>
+          n + ((o.occurrences || []).includes(id) ? 1 : 0) + (id && o.textmap && JSON.stringify(o.textmap).includes(id) ? 1 : 0), 0);
         const go = () => {
-          let dropped = false;
+          let taken = false;
+          const before = id ? shownIn() : 0;
           try {
             if (inSession) {
               const { x, y } = pt(u, v, wM, hM);
-              ({ dropped } = touchDropStep({ x, y, payload, cur, dragCtx: ctx() }));
+              ({ dropped: taken } = touchDropStep({ x, y, payload, cur, dragCtx: ctx() }));
               cur = null;
             }
           } finally {
             end();
-            window.__moduliRemoteDropped = dropped;
-            console.log("[headsetDrag] remote drop", payload?.occurrenceId, dropped);
+            // The doc saves its text a moment after the drop; give the store that moment, then count.
+            setTimeout(() => {
+              const placed = taken && !!id && shownIn() > before;
+              window.__moduliRemoteDropped = placed;
+              console.log("[headsetDrag] remote drop", id, { taken, placed });
+            }, 1200);
           }
         };
         (ready || Promise.resolve()).then(go, go);
@@ -209,7 +224,7 @@ function ReaderBody({ initial, occurrenceId }) {
       console.log("[headsetDrag] moved out", occId, del ? "embed removed" : "no embed here");
       del?.();
     };
-    return () => { end(); delete window.__moduliRemoteDrag; delete window.__moduliMovedOut; };
+    return () => { end(); unScroll?.(); delete window.__moduliRemoteDrag; delete window.__moduliMovedOut; };
   }, [dispatch, has]);
   const gridRef = React.useRef(null);
   const occ = state.occurrences.find((o) => o.id === occurrenceId);

@@ -335,7 +335,7 @@ export function sideEdgeAt(view, doc, clientX, clientY) {
   return hit;
 }
 
-export function nearestDocBoundary(view, doc, wrapEl, clientY) {
+export function nearestDocBoundary(view, doc, wrapEl, clientY, { firstTopBand = false } = {}) {
   if (!view || !doc || !wrapEl || doc.childCount === 0) return null;
   const wrapRect = wrapEl.getBoundingClientRect();
   const blocks = [];
@@ -356,6 +356,14 @@ export function nearestDocBoundary(view, doc, wrapEl, clientY) {
   }
   const last = blocks[blocks.length - 1];
   gutters.push({ pos: last.end, lo: last.bottom, hi: Math.max(last.bottom, wrapRect.bottom) });
+  // A DRAG over the top third of the first block means the very top (docEdgeBands: the drop goes there too). Only
+  // the editor's padding above it counted, a few px nobody hits (user, 2026-10-25: "the line gap still doesnt show
+  // up at the top").
+  const first = blocks[0];
+  if (firstTopBand && clientY <= first.top + (first.bottom - first.top) / 3) {
+    const g = gutters[0];
+    return { pos: g.pos, top: (g.lo + g.hi) / 2 - wrapRect.top, height: g.hi - g.lo };
+  }
   let best = null, bestDist = Infinity;
   for (const g of gutters) {
     const mid = (g.lo + g.hi) / 2;
@@ -2544,7 +2552,7 @@ const Editor = forwardRef(function Editor({
           setDragGap(null);
         } else {
           setWrapDrop(null);
-          const b = nearestDocBoundary(editor.view, editor.state.doc, el, y);
+          const b = nearestDocBoundary(editor.view, editor.state.doc, el, y, { firstTopBand: true });
           setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
         }
       });
@@ -2660,7 +2668,7 @@ const Editor = forwardRef(function Editor({
         // inline → keep the raw caret position.
         const dropY = (dropInput || lastNativeEvent)?.clientY;
         let insertPos = isBlockDrop && dropY != null
-          ? (nearestDocBoundary(editor?.view, editor?.state?.doc, el, dropY)?.pos ?? resolveInsertPos(dropInput || lastNativeEvent, true))
+          ? (nearestDocBoundary(editor?.view, editor?.state?.doc, el, dropY, { firstTopBand: true })?.pos ?? resolveInsertPos(dropInput || lastNativeEvent, true))
           : resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
         DLOG("isBlockDrop", isBlockDrop, "initial insertPos", insertPos);
 

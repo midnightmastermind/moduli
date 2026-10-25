@@ -1483,7 +1483,7 @@ class OfficeActivity : AppSystemActivity() {
         if (r == "true" && drag.mode == "move")
           readerWebs[drag.fromPanel]?.evaluateJavascript("window.__moduliMovedOut && window.__moduliMovedOut(${JSONObject.quote(drag.occId)})", null)
       }
-    }, 1500)
+    }, 2500)
   }
 
   /** A keyboard paired with the headset types into the window you last pointed at and pressed. */
