@@ -853,6 +853,8 @@ class OfficeActivity : AppSystemActivity() {
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
               // An album dropped anywhere but a player opens on its shelf: its songs, each a mini record.
+              // A song's mini record does something only on a record player; let go anywhere else, it goes back.
+              b.mini -> Log.i(TAG, "${b.title} put back (not on a record player)")
               t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
               else -> activateBook(t, b, near = p)
             }
