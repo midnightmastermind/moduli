@@ -335,7 +335,7 @@ export function sideEdgeAt(view, doc, clientX, clientY) {
   return hit;
 }
 
-export function nearestDocBoundary(view, doc, wrapEl, clientY, { firstTopBand = false } = {}) {
+export function nearestDocBoundary(view, doc, wrapEl, clientY, { firstTopBand = false, clientX = null } = {}) {
   if (!view || !doc || !wrapEl || doc.childCount === 0) return null;
   const wrapRect = wrapEl.getBoundingClientRect();
   const blocks = [];
@@ -360,7 +360,11 @@ export function nearestDocBoundary(view, doc, wrapEl, clientY, { firstTopBand = 
   // the editor's padding above it counted, a few px nobody hits (user, 2026-10-25: "the line gap still doesnt show
   // up at the top").
   const first = blocks[0];
-  if (firstTopBand && clientY <= first.top + (first.bottom - first.top) / 3) {
+  // ...in its middle third across (the outer thirds are where a drop wraps beside it — detectSideHost).
+  const firstRect = (() => { try { return view.nodeDOM(first.off)?.getBoundingClientRect?.(); } catch { return null; } })();
+  const inMiddle = clientX == null || !firstRect || firstRect.width <= 0
+    || ((clientX - firstRect.left) / firstRect.width > SIDE_BAND && (clientX - firstRect.left) / firstRect.width < 1 - SIDE_BAND);
+  if (firstTopBand && inMiddle && clientY <= first.top + (first.bottom - first.top) / 3) {
     const g = gutters[0];
     return { pos: g.pos, top: (g.lo + g.hi) / 2 - wrapRect.top, height: g.hi - g.lo };
   }
@@ -2282,6 +2286,16 @@ const Editor = forwardRef(function Editor({
       return null;
     };
     if (!editor?.view || !input || input.clientX == null) return bail("no editor/input");
+    // A point left or right of the content (the window's margin — where a headset ray lands when you aim at "the
+    // side") is that block's outer edge: it missed posAtCoords and fell back to the top line (user, 2026-10-25).
+    {
+      let pr = null;
+      try { pr = editor.view.dom.getBoundingClientRect(); } catch { pr = null; }
+      if (pr && pr.width > 8 && (input.clientX < pr.left + 2 || input.clientX > pr.right - 2)
+          && input.clientY >= pr.top && input.clientY <= pr.bottom) {
+        input = { ...input, clientX: Math.min(pr.right - 3, Math.max(pr.left + 3, input.clientX)), target: null };
+      }
+    }
     const res = editor.view.posAtCoords({ left: input.clientX, top: input.clientY });
     if (!res) return bail("posAtCoords miss", { x: input.clientX, y: input.clientY });
     const $p = editor.state.doc.resolve(res.pos);
@@ -2441,10 +2455,13 @@ const Editor = forwardRef(function Editor({
     // block is the only way to put something above everything, so it gets a third of the block (user, 2026-10-25:
     // "i cant drag above everything inside of a page … it will either put it on the left or right as a wrap").
     const headsetDrop = typeof window !== "undefined" && !!window.ModuliNative;
-    const { top: topBand, bottom: bottomBand } = docEdgeBands({ height: rect.height, first: topPos === 0, coarse: headsetDrop });
+    const frac = (input.clientX - rect.left) / rect.width;
+    // The first block's tall "very top" band is its MIDDLE third only: across the whole width it swallowed the sides,
+    // so a drop beside a tall first block lit the top line and never wrapped (user, 2026-10-25).
+    const midX = frac > SIDE_BAND && frac < 1 - SIDE_BAND;
+    const { top: topBand, bottom: bottomBand } = docEdgeBands({ height: rect.height, first: topPos === 0 && midX, coarse: headsetDrop });
     if (input.clientY < rect.top + topBand || input.clientY > rect.bottom - bottomBand)
       return bail("top/bottom edge → plain insert", { hostOccId, y: input.clientY, top: Math.round(rect.top), bottom: Math.round(rect.bottom) });
-    const frac = (input.clientX - rect.left) / rect.width;
     if (!textmapped && frac > 0.33 && frac < 0.67) return bail("non-text host, middle third → plain insert", { hostOccId, frac: frac.toFixed(2) });
     // The sides are bands too: a wrap forms only near a block's left or right edge, the middle is a plain insert
     // (user, 2026-10-25: "those drop bands should go on the sides too", then "on desktop too") — over a text block
@@ -2552,7 +2569,7 @@ const Editor = forwardRef(function Editor({
           setDragGap(null);
         } else {
           setWrapDrop(null);
-          const b = nearestDocBoundary(editor.view, editor.state.doc, el, y, { firstTopBand: true });
+          const b = nearestDocBoundary(editor.view, editor.state.doc, el, y, { firstTopBand: true, clientX: x });
           setDragGap((prev) => (b && prev && prev.pos === b.pos ? prev : b));
         }
       });
@@ -2668,7 +2685,7 @@ const Editor = forwardRef(function Editor({
         // inline → keep the raw caret position.
         const dropY = (dropInput || lastNativeEvent)?.clientY;
         let insertPos = isBlockDrop && dropY != null
-          ? (nearestDocBoundary(editor?.view, editor?.state?.doc, el, dropY, { firstTopBand: true })?.pos ?? resolveInsertPos(dropInput || lastNativeEvent, true))
+          ? (nearestDocBoundary(editor?.view, editor?.state?.doc, el, dropY, { firstTopBand: true, clientX: (dropInput || lastNativeEvent)?.clientX ?? null })?.pos ?? resolveInsertPos(dropInput || lastNativeEvent, true))
           : resolveInsertPos(dropInput || lastNativeEvent, isBlockDrop);
         DLOG("isBlockDrop", isBlockDrop, "initial insertPos", insertPos);
 

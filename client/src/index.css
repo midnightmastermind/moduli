@@ -4911,8 +4911,8 @@ input.artifact-thumb-info-name--editing {
 .wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] [data-dnd-handle] { z-index: 6; }
 /* IMAGE neighbor only: lift its handle out of flow so the in-flow handle row doesn't
    push the image DOWN (the gap above it). Plain handle, no backing. */
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row .module-drag-handle,
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row [data-dnd-handle] {
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row:has(.artifact-card) .module-drag-handle,
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row:has(.artifact-card) [data-dnd-handle] {
   position: absolute;
   top: 3px;
   left: 3px;
@@ -4930,7 +4930,10 @@ input.artifact-thumb-info-name--editing {
    soft drop shadow so the image reads as a clean floating figure rather than a
    tinted box. The inner artifact-card is transparent/borderless so the
    .instance-row IS the single visual box. */
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row {
+/* PICTURE / FILE floats only (`:has(.artifact-card)`): a plain row in a float — a wrapped instance — keeps its own
+   row look (handle beside the label, its padding). Unscoped, its handle sat on the label and its padding was gone
+   (user, 2026-10-25: "fix the styling of that wrapped instance. its way off the mark"). */
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-row:has(.artifact-card) {
   position: relative;
   padding: 0 !important;
   background: rgba(var(--figure-well) / 0.5) !important;
@@ -4954,7 +4957,7 @@ input.artifact-thumb-info-name--editing {
 /* Kill the "little space on top of the image": the label+handle FLEX GROUP (first child
    of .instance-content) was reserving a row ABOVE the artifact-card. Lift the whole group
    out of flow (absolute, top-left) so the image starts flush at the very top of the box. */
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content > div:first-child:not(.instance-body) {
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content:has(.artifact-card) > div:first-child:not(.instance-body) {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -4970,8 +4973,8 @@ input.artifact-thumb-info-name--editing {
   padding: 0 !important;
   gap: 0 !important;
 }
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content,
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-body {
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content:has(.artifact-card),
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-body:has(.artifact-card) {
   padding: 0 !important;
   align-items: stretch !important;
   justify-content: flex-start !important;

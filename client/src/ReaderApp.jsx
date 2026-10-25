@@ -138,7 +138,14 @@ function ReaderBody({ initial, occurrenceId }) {
     const unScroll = window.ModuliNative ? installHeadsetScroll() : null;
     let payload = null, ready = null, cur = null, pill = null, inSession = false;
     const ctx = () => windowDragCtx();
-    const pt = (u, v, wM, hM) => panelPointToPage({ u, v, wM, hM, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
+    // Aimed at "the side" a ray lands in the window's margin, outside the doc: that counts as the content's edge
+    // (otherwise nothing there answers — no side line, and the drop fell back to the top).
+    const pt = (u, v, wM, hM) => {
+      const p = panelPointToPage({ u, v, wM, hM, innerWidth: window.innerWidth, innerHeight: window.innerHeight });
+      const pm = document.querySelector(".doc-editor .ProseMirror")?.getBoundingClientRect();
+      if (pm && pm.width > 40 && p.y >= pm.top && p.y <= pm.bottom) p.x = Math.min(pm.right - 4, Math.max(pm.left + 4, p.x));
+      return p;
+    };
     const load = async (id) => {
       const r = await fetch(`/api/v1/occurrences/${encodeURIComponent(id)}/subtree`, { headers: sessionHeaders() });
       if (!r.ok) return null;
