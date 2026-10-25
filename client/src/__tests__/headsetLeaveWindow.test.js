@@ -17,7 +17,7 @@ describe("leftThroughEdge", () => {
   });
   it("is only used inside the headset, and a doc drop counts as dropped", () => {
     const src = readFileSync(join(process.cwd(), "src/helpers/dragSystem.js"), "utf8");
-    expect(src).toMatch(/const leftWindow = inHeadset\(\) && leftThroughEdge\(/);
+    expect(src).toMatch(/const leftWindow = inHeadset\(\) && \(window\.__moduliOutside === true \|\| leftThroughEdge\(/);
     expect(src).toMatch(/dropped: !!curTarget \|\| docDropped/);
   });
 });
