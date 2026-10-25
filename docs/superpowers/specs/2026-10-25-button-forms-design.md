@@ -71,10 +71,14 @@ Everything stays an operation — nothing about movies or boards is written into
 
 - The form is a pipeline step, not a separate record. "Hook a form to a button" = the button's operation starts with
   a form step. The generator builds that shape.
-- The generated Create makes a NEW instance row (its own module, like the board's "+ › Item"), bound to the form's
-  fields, plus the values every existing row of the container agrees on (e.g. Board Category = movie) written as
-  fixed values, so feeds and filters treat it like its siblings. Its parent is `$trigger.occurrenceId` — the container
-  placement the button was pressed on.
+- The generated operation MATCHES THE BOARD and shows every part as a step (user, 2026-10-25: *"match the boards but
+  that should be built out via the operation (new occurance, what fields get added with what data, and putting focus
+  on that new occurance after)"*): the form, then a Create that places the board's shared module when its rows share
+  one (Movies → a new movie card named by the form) or else makes a row of the same role/kind as its siblings, with
+  each form field and each value every existing row agrees on (e.g. Board Category = movie) listed in the step, then
+  a "scroll to" step that focuses the new occurrence. Its parent is `$trigger.occurrenceId` — the container placement
+  the button was pressed on. Create gains two keys for this: `module` (place an existing module) and `label` (the new
+  occurrence's own name).
 - The name of the new row is the form's first text item when its key is `name` (the generator always adds a required
   "Name" item first).
 - Panels show their own bound fields in the panel header (like containers do under their label).

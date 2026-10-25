@@ -244,6 +244,26 @@ it("useButtonRunner ignores a second run while the first is pending", async () =
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
 - [ ] **Step 5: Commit** `feat(buttons): a button's settings can make its operation`.
 
+### Task 7b: Create can place an existing module and name the new occurrence
+
+**Files:**
+- Modify: `client/src/helpers/operationActions.js` CREATE (~1848-2120), `client/src/blocks/actionConfigSchema.js`
+  CREATE entry (two new keys in its "more" section), `server/utils/serverExecutor.js` CREATE (same two keys)
+- Test: `client/src/__tests__/createPlacesModule.test.js`
+
+**Interfaces:**
+- Produces: CREATE `module` (expr → an existing module id; when it resolves to a module that exists, the new
+  occurrence PLACES it — no module is minted, `role`/`kind`/`name` lookup are skipped) and `label` (expr → the new
+  occurrence's own `label`, its placement name). Both optional; absent = today's behaviour exactly.
+
+- [ ] **Step 1: Failing tests** — CREATE `{ module: "movieMod", label: "$form.values.name", parent: "c1", fields:
+  {f1: "7"} }` emits one CREATE_ITEM whose occurrence has `moduleId: "movieMod"`, `label: "Dune"`, fields f1=7, and NO
+  CREATE_MODULE effect; a `module` that does not exist falls back to the name path; without the keys the emitted
+  effects are byte-identical to before (snapshot of an existing CREATE config).
+- [ ] **Step 2: Run** — FAIL. **Step 3: Implement** (client + server executor). **Step 4: Run** — PASS, plus
+  `src/__tests__/operationExecutor.test.js`. **Step 5: Commit** `feat(ops): Create can place an existing module and
+  name the new occurrence`.
+
 ### Task 8: "Add a form button" on a container
 
 **Files:**
@@ -259,10 +279,18 @@ it("useButtonRunner ignores a second run while the first is pending", async () =
   userId }) -> { field, operation, binding }` (pure):
   - `field` = `{ name: "New <noun>", type: "button", meta: { buttonLabel: "New <noun>", operationId: operation.id } }`
     (name made unique against `fieldsById`);
-  - `operation.pipeline.steps` = `[ASK_FORM { title: "New <noun>", items: [Name (key "name", required), one item
-    per INPUT-role, non-hidden, non-button field the container's rows bind (sibling bindings)] },
-    CREATE { role:"instance", name:"$form.values.name", parent:"$trigger.occurrenceId",
-    fields: { ...per form field "$form.fields.<fid>", ...agreed values as literals } }]`;
+  - `operation.pipeline.steps` — every part visible and editable in the operation (user, 2026-10-25: *"built out
+    via the operation (new occurance, what fields get added with what data, and putting focus on that new occurance
+    after)"*):
+    1. `ASK_FORM { title: "New <noun>", items: [Name (key "name", required), one item per INPUT-role, non-hidden,
+       non-button field the container's rows bind (sibling bindings)] }`
+    2. `CREATE` MATCHING THE BOARD: when at least half the container's rows share one module (the Movies board's
+       shared "Movie" module), `{ module: "<that module id>", label: "$form.values.name", parent:
+       "$trigger.occurrenceId", itemIdVar: "$newId", fields: {...} }` — a new placement of the same module, named by
+       the form; otherwise `{ role: <the rows' role>, kind: <their kind>, name: "$form.values.name", parent:
+       "$trigger.occurrenceId", itemIdVar: "$newId", fields: {...} }`. `fields` = one entry per form field
+       (`"$form.fields.<fid>"`) plus the agreed values as literals.
+    3. `SCROLL_TO { itemIdExpr: "$newId" }` — the new occurrence is scrolled to and flashed.
   - agreed values = fields every row of the container holds with the SAME value (`agreedValues(rows, fieldIds)`,
     exported) — written as fixed values, not asked;
   - `binding` = a visible `{ fieldId, role:"input" }` added to `containerModule.fieldBindings`.
@@ -272,8 +300,10 @@ it("useButtonRunner ignores a second run while the first is pending", async () =
 - [ ] **Step 1: Failing tests** — a container with two rows binding Title(text), Year(number), Board
   Category(select, both "movie"), Poster(media) and a hidden field: the form asks Name, Title, Year (not Board
   Category, not Poster, not the hidden one); the CREATE writes Board Category "movie" as a literal and Title/Year from
-  `$form.fields`; parent is `$trigger.occurrenceId`. Empty container → form is just Name. A second "New movie" field
-  name gets a unique name.
+  `$form.fields`; parent is `$trigger.occurrenceId`; when both rows share module "movieMod" the CREATE carries
+  `module: "movieMod"` and `label: "$form.values.name"`, and when they do not it carries their role/kind and
+  `name`; the last step is SCROLL_TO `$newId`. Empty container → form is just Name and CREATE uses role instance. A
+  second "New movie" field name gets a unique name.
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
 - [ ] **Step 5: Commit** `feat(buttons): "Add a form button" builds New <X> from the container's own instances`.
 
