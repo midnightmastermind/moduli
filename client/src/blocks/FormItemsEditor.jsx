@@ -58,6 +58,15 @@ export default function FormItemsEditor({ value, onChange, fieldsById = {}, rend
     if (!f) return;
     onChange([...items, { key: itemKey(f.name, keys), label: f.name, fieldId }]);
   };
+  // A question's key follows its label while the key is still the one its label gave it ("Question" → "question",
+  // "Name" → "name"), so `$form.values.name` reads what the window calls Name. A key that no longer matches its label
+  // was set on purpose and stays.
+  const relabel = (idx, label) => {
+    const it = items[idx];
+    const others = keys.filter((_, i) => i !== idx);
+    const follows = String(it.key || "").replace(/_\d+$/, "") === itemKey(it.label || "", []);
+    patch(idx, follows ? { label, key: itemKey(label, others) } : { label });
+  };
   const addQuestion = () => onChange([...items, { key: itemKey("Question", keys), label: "Question", type: "text" }]);
   const move = (idx, dir) => {
     const to = idx + dir;
@@ -79,10 +88,11 @@ export default function FormItemsEditor({ value, onChange, fieldsById = {}, rend
       {items.map((it, idx) => {
         const field = it.fieldId ? fieldsById[it.fieldId] : null;
         return (
-          <div key={it.key} style={rowSt}>
+          <div key={idx} style={rowSt}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <input aria-label="Label" style={{ ...inSt, flex: 1 }} value={it.label || ""}
-                onChange={(e) => patch(idx, { label: e.target.value })} />
+                title={`Answer: $form.values.${it.key}`}
+                onChange={(e) => relabel(idx, e.target.value)} />
               {it.fieldId ? (
                 <span style={{ fontSize: 10, color: field ? "var(--text-muted)" : "var(--danger-text)" }}
                   title={`Answer: $form.fields.${it.fieldId}`}>
