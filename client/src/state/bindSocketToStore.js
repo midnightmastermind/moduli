@@ -2048,6 +2048,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // costs a handful of cheap lookups and gives up silently.
         if (!effect.itemId) break;
         const { itemId, block } = effect;
+        // A scroll the USER caused (a button press → form → Create, applied inside their action) may open the one
+        // long list holding its row — the targeted expand, which grows only that list. An automatic run (the on-load
+        // "scroll to now") never expands: that once opened the 1,202-row People board on every load (2026-09-26).
+        const fromGesture = !!getActionId();
         // ...AND IT GIVES UP THE MOMENT THE USER TAKES OVER. The poll runs for
         // ~6s, the ops arrive in waves over most of a minute on the device, and
         // the target can land while a finger is already down — reported from
@@ -2058,7 +2062,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         autoScrollWhenReady({
           // A courtesy scroll must never open every long list to find its
           // target (expandWindows: false — see jumpToOccurrence).
-          jump: () => jumpToOccurrence(itemId, { scrollBlock: block || "center", expandWindows: false }),
+          jump: () => jumpToOccurrence(itemId, { scrollBlock: block || "center", expandWindows: fromGesture }),
           isUserBusy: () => typeof window !== "undefined" && !!window.__moduli_interacting,
           schedule: (fn, ms) => setTimeout(fn, ms),
           unschedule: (t) => clearTimeout(t),
