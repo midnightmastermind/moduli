@@ -5,7 +5,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
 const src = readFileSync(new URL("../state/bindSocketToStore.js", import.meta.url), "utf8");
-const block = src.slice(src.indexOf('case "SCROLL_TO": {'), src.indexOf('case "SET_FILTER": {'));
+const block = src.slice(src.indexOf('case "SCROLL_TO": {'), src.indexOf('case "SET_FILTER": {'))
+  .replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 describe("SCROLL_TO effect", () => {
   it("expands only for a gesture", () => {
