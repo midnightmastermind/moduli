@@ -687,7 +687,7 @@ class OfficeActivity : AppSystemActivity() {
     val at = b.entity.tryGetComponent<Transform>()?.transform ?: return
     val head = headPose() ?: return
     val p = floatArrayOf(at.t.x, at.t.y + b.slot.h * t.scale / 2f + CARD_H / 2f + 0.04f, at.t.z)
-    cards[i].setComponent(Transform(PoseMath.pose(p, PoseMath.yaw(PoseMath.yawToward(p, PoseMath.tOf(head)) + 180f))))
+    cards[i].setComponent(Transform(PoseMath.sane(PoseMath.pose(p, PoseMath.yaw(PoseMath.yawToward(p, PoseMath.tOf(head)) + 180f)), "OfficeActivity:690")))
   }
 
   /**
@@ -783,7 +783,7 @@ class OfficeActivity : AppSystemActivity() {
         }
         val cur = b.entity.tryGetComponent<Transform>()?.transform
         if (cur == null || !PoseMath.near(PoseMath.tOf(cur), PoseMath.tOf(rest), 0.002f) ||
-            !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(rest), 0.002f)) b.entity.setComponent(Transform(rest))
+            !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(rest), 0.002f)) b.entity.setComponent(Transform(PoseMath.sane(rest, "OfficeActivity:786")))
       }
     }
   }
@@ -825,7 +825,7 @@ class OfficeActivity : AppSystemActivity() {
     t.panelAt = floatArrayOf(y, z)
     t.panel = Entity.create(listOf(
         Panel(id),
-        Transform(PoseMath.pose(floatArrayOf(0f, y, z), PoseMath.yaw(180f))),
+        Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0f, y, z), PoseMath.yaw(180f)), "OfficeActivity:828")),
         TransformParent(t.frame),
     ))
 
@@ -991,7 +991,7 @@ class OfficeActivity : AppSystemActivity() {
       t.key.startsWith("decor:") -> 1.2f
       else -> 1.8f
     }
-    t.frame.setComponent(Transform(spawnPose(dist, 0f)))
+    t.frame.setComponent(Transform(PoseMath.sane(spawnPose(dist, 0f), "OfficeActivity:994")))
     t.handle?.follow()
     remember(t, force = true)
   }
@@ -1005,7 +1005,7 @@ class OfficeActivity : AppSystemActivity() {
       return
     }
     if (t.key == CONTROL) {
-      t.frame.setComponent(Transform(spawnPose(1.3f, 1.25f, -0.7f, panel = true)))
+      t.frame.setComponent(Transform(PoseMath.sane(spawnPose(1.3f, 1.25f, -0.7f, panel = true), "OfficeActivity:1008")))
       t.handle?.follow()
       remember(t, force = true)
       return
@@ -1013,7 +1013,7 @@ class OfficeActivity : AppSystemActivity() {
     val i = things.keys.indexOf(t.key)
     val side = if (t.key == "fireplace") 0f else ((i % 5) - 2) * 1.3f
     val dist = if (t.key == "fireplace") 2.8f else 2.2f
-    t.frame.setComponent(Transform(spawnPose(dist, 0f, side)))
+    t.frame.setComponent(Transform(PoseMath.sane(spawnPose(dist, 0f, side), "OfficeActivity:1016")))
     t.handle?.follow()
     remember(t, force = true)
   }
@@ -1022,7 +1022,7 @@ class OfficeActivity : AppSystemActivity() {
   private fun restore(t: Thing): Boolean {
     val s = store.get(t.key)?.takeIf { it.space == PlacementStore.STAGE } ?: return false
     val pose = PoseMath.pose(s.t, s.q)
-    t.frame.setComponent(Transform(pose))
+    t.frame.setComponent(Transform(PoseMath.sane(pose, "OfficeActivity:1025")))
     t.lastT = PoseMath.tOf(pose); t.lastQ = PoseMath.qOf(pose)
     t.scale = s.scale; t.lastScale = s.scale
     applyScale(t)
@@ -1042,7 +1042,7 @@ class OfficeActivity : AppSystemActivity() {
   private fun turn(t: Thing, deg: Float, save: Boolean = true) {
     val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return
     val q = PoseMath.qMul(PoseMath.yaw(deg), PoseMath.upright(PoseMath.qOf(pose)))
-    t.frame.setComponent(Transform(PoseMath.pose(PoseMath.tOf(pose), q)))
+    t.frame.setComponent(Transform(PoseMath.sane(PoseMath.pose(PoseMath.tOf(pose), q), "OfficeActivity:1045")))
     t.handle?.follow()
     if (save) remember(t, force = true)
   }
@@ -1060,7 +1060,7 @@ class OfficeActivity : AppSystemActivity() {
     // (it stayed full size, floating above a shrunken TV).
     t.panel?.let { p ->
       p.setComponent(Scale(Vector3(t.scale)))
-      p.setComponent(Transform(PoseMath.pose(floatArrayOf(0f, t.panelAt[0] * t.scale, t.panelAt[1] * t.scale), PoseMath.yaw(180f))))
+      p.setComponent(Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0f, t.panelAt[0] * t.scale, t.panelAt[1] * t.scale), PoseMath.yaw(180f)), "OfficeActivity:1063")))
     }
     t.handle?.dy = if (t.handleBelow) -(t.top * t.scale + HANDLE_GAP / 2f) else t.top * t.scale + HANDLE_GAP
     if (!t.handleBelow) t.handle?.minY = -t.bottom * t.scale
@@ -1341,7 +1341,7 @@ class OfficeActivity : AppSystemActivity() {
     }
     val e = Entity.create(listOf(
         Panel(id),
-        Transform(pose ?: near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true)),
+        Transform(PoseMath.sane(pose ?: near?.let { readerPoseAt(it) } ?: spawnPose(1.1f, 1.45f, 0.3f, panel = true), "OfficeActivity:1344")),
     ))
     readers[id] = e
     if (occId.isNotEmpty()) { readerOcc[id] = occId; saveReaders() }
@@ -1401,7 +1401,7 @@ class OfficeActivity : AppSystemActivity() {
     ))
     return Entity.create(listOf(
         Panel(id),
-        Transform(PoseMath.pose(floatArrayOf(0.28f, 0f, 0f), PoseMath.yaw(180f))),
+        Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0.28f, 0f, 0f), PoseMath.yaw(180f)), "OfficeActivity:1404")),
         TransformParent(handle.entity),
     ))
   }
@@ -1437,7 +1437,7 @@ class OfficeActivity : AppSystemActivity() {
     ))
     return Entity.create(listOf(
         Panel(id),
-        Transform(PoseMath.pose(floatArrayOf(0.28f + GEAR_M / 2f + 0.015f + TRASH_W / 2f, 0f, 0f), PoseMath.yaw(180f))),
+        Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0.28f + GEAR_M / 2f + 0.015f + TRASH_W / 2f, 0f, 0f), PoseMath.yaw(180f)), "OfficeActivity:1440")),
         TransformParent(handle.entity),
     ))
   }
@@ -1471,7 +1471,7 @@ class OfficeActivity : AppSystemActivity() {
       } ?: ""
       web.loadUrl("$origin/?office&piece=${Uri.encode(key)}$extra")
     })
-    val e = Entity.create(listOf(Panel(id), Transform(spawnPose(1.0f, 1.35f, 0.35f, panel = true))))
+    val e = Entity.create(listOf(Panel(id), Transform(PoseMath.sane(spawnPose(1.0f, 1.35f, 0.35f, panel = true), "OfficeActivity:1474"))))
     readers[id] = e
     readerHandles[id] = GrabHandle(e, -(PIECE_H / 2f + HANDLE_GAP / 2f), facesHead = true).also { it.follow() }
     pieceWindows[key] = id

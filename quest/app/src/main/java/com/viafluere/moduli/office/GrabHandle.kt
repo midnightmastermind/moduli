@@ -74,7 +74,7 @@ class GrabHandle(
       }
       val q = if (facesHead && head != null) PoseMath.yaw(PoseMath.yawToward(t, PoseMath.tOf(head)) + 180f)
               else PoseMath.upright(PoseMath.qOf(tp))
-      target.setComponent(Transform(PoseMath.pose(t, q)))
+      target.setComponent(Transform(PoseMath.sane(PoseMath.pose(t, q), "GrabHandle:77")))
       return started
     }
     held = false
@@ -92,7 +92,7 @@ class GrabHandle(
     val cur = entity.tryGetComponent<Transform>()?.transform
     if (cur == null || !PoseMath.near(PoseMath.tOf(cur), PoseMath.tOf(want), 0.002f) ||
         !PoseMath.near(PoseMath.qOf(cur), PoseMath.qOf(want), 0.002f)) {
-      entity.setComponent(Transform(want))
+      entity.setComponent(Transform(PoseMath.sane(want, "GrabHandle:95")))
     }
   }
 

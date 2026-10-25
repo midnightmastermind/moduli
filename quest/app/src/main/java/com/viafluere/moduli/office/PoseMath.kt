@@ -35,6 +35,25 @@ object PoseMath {
   fun qOf(p: Pose) = floatArrayOf(p.q.w, p.q.x, p.q.y, p.q.z)
   fun pose(t: FloatArray, q: FloatArray) = Pose(Vector3(t[0], t[1], t[2]), Quaternion(q[0], q[1], q[2], q[3]))
 
+  /**
+   * A pose the compositor will accept. OpenXR rejects a panel layer whose position is not finite or whose rotation is
+   * not a unit quaternion (within ~1%) — and it rejects the WHOLE FRAME (XR_ERROR_POSE_INVALID), which shows as a
+   * black screen until the bad pose goes away (2026-10-25: every frame discarded from the moment the room was placed).
+   * Non-finite → the origin / no turn; any rotation is normalised. The first bad pose per `what` is logged.
+   */
+  fun sane(p: Pose, what: String): Pose {
+    val t = tOf(p); val q = qOf(p)
+    val tOk = t.all { it.isFinite() }
+    val n = kotlin.math.sqrt(q.fold(0f) { a, x -> a + x * x })
+    val qOk = q.all { it.isFinite() } && n > 1e-6f
+    if (tOk && qOk && kotlin.math.abs(n - 1f) < 1e-4f) return p
+    if (!tOk || !qOk || kotlin.math.abs(n - 1f) > 0.005f) {
+      if (reported.add(what)) android.util.Log.w("ModuliOffice", "bad pose for $what: t=${t.toList()} q=${q.toList()} |q|=$n — fixed")
+    }
+    return pose(if (tOk) t else floatArrayOf(0f, 0f, 0f), if (qOk) floatArrayOf(q[0] / n, q[1] / n, q[2] / n, q[3] / n) else floatArrayOf(1f, 0f, 0f, 0f))
+  }
+  private val reported = java.util.Collections.synchronizedSet(HashSet<String>())
+
   /** `world` expressed in the frame `origin`. */
   fun toLocal(origin: Pose, world: Pose): Pair<FloatArray, FloatArray> {
     val oq = qOf(origin); val inv = qConj(oq)
