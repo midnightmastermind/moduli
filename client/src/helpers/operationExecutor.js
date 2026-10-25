@@ -12,6 +12,7 @@
 //   "fieldId:occId"     — occurrence-specific display value
 // ============================================================
 
+import { answersToResult } from "./formItems.js";
 import { BlockType } from "./blockTypes";
 import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
@@ -2582,7 +2583,9 @@ function _handleSuspend(result, { onPipelineDone, accumulated = [] } = {}) {
     return pre;
   }
   Promise.resolve(ask(last.request)).then((value) => {
-    resumeContinuation(last.continuation, last.resultVar || "$userInput", value, { onPipelineDone, accumulated: nextAccumulated });
+    // A form answers with { key: value }; the operation reads { values, fields } (fields keyed by field id).
+    const bound = last.request?.form ? answersToResult(last.request.items, value) : value;
+    resumeContinuation(last.continuation, last.resultVar || "$userInput", bound, { onPipelineDone, accumulated: nextAccumulated });
   }).catch((err) => {
     // Cancellation is the common case (user closed the modal) and should
     // stay silent. Anything else is a real bug we'd want to see.

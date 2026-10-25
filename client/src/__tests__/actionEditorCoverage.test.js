@@ -54,7 +54,7 @@ describe("action coverage", () => {
   });
 
   it("every declared field names a key and a kind the renderer knows", () => {
-    const KINDS = new Set(["var", "expr", "path", "text", "number", "select", "bool", "list", "field", "fieldMap", "kv", "options", "modules"]);
+    const KINDS = new Set(["var", "expr", "path", "text", "number", "select", "bool", "list", "field", "fieldMap", "kv", "options", "modules", "formItems"]);
     const bad = [];
     for (const [action, schema] of Object.entries(ACTION_CONFIG_SCHEMA)) {
       for (const f of schema.fields || []) {

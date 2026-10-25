@@ -272,6 +272,7 @@ export const ACTION_TREE = [
     children: [
       { value: "CALL_API",       title: "Call API",       sub: "HTTP fetch",       description: "Outbound HTTP. Suspends until response." },
       { value: "GET_USER_INPUT", title: "Ask the user",   sub: "modal prompt",     description: "Suspend the pipeline for user input." },
+      { value: "ASK_FORM",       title: "Ask with a form", sub: "several answers",  description: "One window with several inputs; answers land in $form.values / $form.fields." },
       { value: "IMPORT_HTML",     title: "Import HTML",     sub: "HTML → a Moduli subtree",     description: "Convert HTML into containers / textblocks / artifacts and place the result." },
       { value: "IMPORT_MARKDOWN", title: "Import markdown", sub: "markdown → a Moduli subtree", description: "Convert markdown into containers / textblocks / artifacts and place the result." },
       { value: "READ_FILE",       title: "Read file",       sub: "a book's text",               description: "Read a PDF or e-book's text — all, one page, or from one marker to the next." },

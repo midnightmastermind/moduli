@@ -39,6 +39,7 @@ import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
+import FormModal from "./ui/FormModal";
 import { ChoiceDialogHost } from "./ui/ChoiceDialog";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { DefinitionHost } from "./ui/DefinitionCard.jsx";
@@ -1277,11 +1278,20 @@ export default function App() {
             via operationsBridge.requestUserInput. Chained questions render
             sequentially from the queue. */}
         <ChoiceDialogHost />
-        <UserInputModal
-          request={currentInput?.request}
-          onSubmit={handleInputSubmit}
-          onCancel={handleInputCancel}
-        />
+        {/* "Ask with a form" rides the same queue — a request with `form: true` is the form window. */}
+        {currentInput?.request?.form ? (
+          <FormModal
+            request={currentInput.request}
+            onSubmit={handleInputSubmit}
+            onCancel={handleInputCancel}
+          />
+        ) : (
+          <UserInputModal
+            request={currentInput?.request}
+            onSubmit={handleInputSubmit}
+            onCancel={handleInputCancel}
+          />
+        )}
 
         {/* Image picker modal — single global host; call sites (occurrence
             dropdown rows, media-role field inputs, the artifact image

@@ -2694,6 +2694,56 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       }];
     }
 
+    case "ASK_FORM": {
+      // One window, several answers (2026-10-25). Suspends like GET_USER_INPUT; the request carries `form: true` and
+      // the items (defaults resolved here, a field item's grid field attached with its options resolved against the
+      // pressed occurrence). On submit `_handleSuspend` binds { values, fields } at resultVar (default "$form").
+      // cfg: { title, submitLabel, items: [{ key, label, fieldId?, type?, options?, required?, default?, help? }] }
+      const fieldsMap = context.fieldsById || {};
+      const host = $vars.$trigger?.occurrence?.id
+        ? (context.occurrencesById?.[$vars.$trigger.occurrence.id] || $vars.$trigger.occurrence)
+        : null;
+      const items = [];
+      for (const raw of Array.isArray(cfg.items) ? cfg.items : []) {
+        if (!raw?.key) continue;
+        const item = { ...raw };
+        if (raw.fieldId) {
+          let field = fieldsMap[raw.fieldId];
+          if (!field || field.trashed) {
+            console.warn(`[ASK_FORM] item "${raw.key}" names field ${raw.fieldId}, which no longer exists — left out of the form.`);
+            continue;
+          }
+          if (field.type === "select" || field.type === "occurrence") {
+            let resolved = { options: [], totalMatched: 0 };
+            try {
+              resolved = resolveOptions(field, {
+                occurrencesById: context.occurrencesById || {}, modulesById: context.modulesById || {},
+                fieldsById: fieldsMap, foldersById: context.foldersById || {},
+              }, host) || resolved;
+            } catch { /* a pool that cannot resolve shows no choices, never a crash */ }
+            field = { ...field, meta: { ...field.meta, _resolvedOptions: resolved.options, _totalMatched: resolved.totalMatched } };
+          }
+          item.field = field;
+          if (!item.label) item.label = field.name;
+        }
+        if (raw.default !== undefined && raw.default !== "") item.default = resolveExpr(raw.default, $vars);
+        if (Array.isArray(raw.options)) {
+          item.options = raw.options.map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+        }
+        items.push(item);
+      }
+      return [{
+        _suspend: true,
+        request: {
+          form: true,
+          title: cfg.title ? String(resolveExpr(cfg.title, $vars) ?? "") : "",
+          submitLabel: cfg.submitLabel || "Submit",
+          items,
+        },
+        resultVar: cfg.resultVar || "$form",
+      }];
+    }
+
     case "CALL_API": {
       // Outbound HTTP from a pipeline. Per docs/api-plan.md §2. Suspends
       // the pipeline (same _suspend pattern GET_USER_INPUT uses), the

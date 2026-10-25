@@ -333,6 +333,16 @@ export const ACTION_CONFIG_SCHEMA = {
     hint: "Pauses the operation until the person answers. Cancelling stops the rest of it.",
   },
 
+  ASK_FORM: {
+    fields: [
+      { key: "title", kind: "expr", label: "title", optional: true, placeholder: "New movie" },
+      { key: "submitLabel", kind: "text", label: "button", optional: true, placeholder: "Submit" },
+      { key: "items", kind: "formItems", label: "inputs" },
+      { key: "resultVar", kind: "var", label: "→ $", optional: true, defaultsTo: "$form" },
+    ],
+    hint: "Opens one window and waits. Answers: $form.values.<key>, and $form.fields.<field id> for field inputs. Cancelling stops the rest.",
+  },
+
   // ── 2026-09-27: the fifteen the ACTION PICKER had never offered ───────────
   // They are all implemented by `executeActionItem` and 7 of them run in live
   // pipelines (`SET_FILTER` is what `Grid: Snap Filter To Today` uses to move

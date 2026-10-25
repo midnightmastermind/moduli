@@ -260,9 +260,19 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
   const loopItems = [];
   const opts = { userId };
 
+  // A form needs someone in the app to fill it in. The steps after it read its answers, so the run STOPS there
+  // rather than carrying on with nothing (2026-10-25). Reported in `unsupported` and `stoppedAt`.
+  let stoppedAt = null;
   async function executeStep(step) {
+    if (stoppedAt) return;
     const cfg = step?.config || {};
     const type = cfg.type;
+    if (type === "ASK_FORM") {
+      console.warn(`[serverExecutor] "${op?.name || op?.id}": a form needs someone in the app — stopped at "Ask with a form".`);
+      unsupported.push(type);
+      stoppedAt = step?.id || type;
+      return;
+    }
 
     if (type === "INIT_VAR" || type === "SET_VAR") {
       $vars[cfg.name] = await resolveExprAsync(cfg.expr ?? cfg.value, $vars, opts);
@@ -677,5 +687,6 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
     scope: { ...$vars },
     effects,
     unsupported,
+    ...(stoppedAt ? { stoppedAt } : {}),
   };
 }

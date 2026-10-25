@@ -1971,6 +1971,9 @@ function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps, fields =
       // A select prompt's choices: [{ value, label }] (strings are read as both).
       case "options":
         return <OptionRowsEditor value={cfg[key]} onChange={next => setCfg({ [key]: next })} label={label} />;
+      // A form's inputs (ASK_FORM). Never the expression box — the value is a list of objects.
+      case "formItems":
+        return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{(cfg[key] || []).length} inputs</span>;
       case "expr":
       default:
         return (
