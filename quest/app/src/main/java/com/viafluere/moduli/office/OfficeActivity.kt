@@ -271,6 +271,10 @@ class OfficeActivity : AppSystemActivity() {
                           setBackgroundColor(Color.TRANSPARENT)
                           // A held trigger is a long press: it opened the page's menu and cancelled every drag.
                           isLongClickable = false; isHapticFeedbackEnabled = false; setOnLongClickListener { true }
+                          // Typing: Android ignored the keyboard for these windows ("showSoftInput … WebView is not
+                          // served") — a label editor opened and took no keys. A press asks for focus first.
+                          isFocusable = true; isFocusableInTouchMode = true
+                          setOnTouchListener { v, ev -> if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN && !v.hasFocus()) v.requestFocus(); false }
                           webViewClient = WebViewClient()
                           webChromeClient = WebChromeClient()
                           addJavascriptInterface(Bridge(id), "ModuliNative")
@@ -1362,8 +1366,9 @@ class OfficeActivity : AppSystemActivity() {
       if (best != null && dist >= best.second[0]) continue
       val hit = floatArrayOf(o[0] + d[0] * dist, o[1] + d[1] * dist, o[2] + d[2] * dist)
       val local = PoseMath.toLocal(pose, PoseMath.pose(hit, floatArrayOf(1f, 0f, 0f, 0f))).first
-      // The panel's face looks out of -z, so seen from the front its +x is on your left.
-      val u = (0.5f - local[0] / (READER_W * s)).coerceIn(0f, 1f)
+      // Measured on the headset: with the old "+x is on your left" reading a drag in the target window ran backwards
+      // (user, 2026-10-25: "dragging right moved it left"), so +x is the panel's right as you face it.
+      val u = (0.5f + local[0] / (READER_W * s)).coerceIn(0f, 1f)
       val v = (0.5f - local[1] / (READER_H * s)).coerceIn(0f, 1f)
       best = id to floatArrayOf(dist, u, v)
     }
@@ -1454,6 +1459,9 @@ class OfficeActivity : AppSystemActivity() {
       readerWebs[over]?.evaluateJavascript("window.__moduliRemoteDropped") { r ->
         Log.i(TAG, "drag ${drag.occId} from window ${drag.fromPanel} into window $over: dropped=$r")
         remote(over, "cancel()")
+        // A move: the window it left takes its own copy out (a doc there only lets go of an embed it holds itself).
+        if (r == "true" && drag.mode == "move")
+          readerWebs[drag.fromPanel]?.evaluateJavascript("window.__moduliMovedOut && window.__moduliMovedOut(${JSONObject.quote(drag.occId)})", null)
       }
     }, 1500)
   }

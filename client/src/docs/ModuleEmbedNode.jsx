@@ -113,7 +113,11 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   const removeRow = useCallback(() => {
     const hostId = hostOccurrenceIdOf(editor);
     if (embedRemoval(occurrence, hostId) !== "delete") {
-      deleteNode?.();
+      // In a wrap a bare deleteNode left a one-member group, which the schema repairs with an EMPTY moduleEmbed —
+      // drawn as "embed: missing" (user, 2026-10-25). Detach the member so the group stays valid or flattens.
+      const member = editor?.state?.doc ? findGroupMember(editor.state.doc, occurrenceId) : null;
+      if (member) detachGroupMember(editor, member.groupPos, occurrenceId);
+      else deleteNode?.();
       // An uploaded file unlinked from the last place it showed outside Files: ask about the file.
       offerFileDeleteAfterUnlink({ occurrence: occurrence || { id: occurrenceId }, hostId, getState, getOccMap, dispatch, socket });
       return;

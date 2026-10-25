@@ -10,7 +10,8 @@ describe("detectSideHost edge bands", () => {
     const side = src.indexOf("non-text host, middle third → plain insert");
     expect(band).toBeGreaterThan(0);
     expect(band).toBeLessThan(side);
-    expect(src).toMatch(/Math\.min\(EDGE_INSERT_PX, rect\.height \/ 3\)/);
+    expect(src).toMatch(/docEdgeBands\(\{ height: rect\.height, first: topPos === 0,/);
+    expect(src).toMatch(/Math\.min\(coarse \? EDGE_INSERT_COARSE_PX : EDGE_INSERT_PX, height \/ 3\)/);
     expect(src).toMatch(/export const EDGE_INSERT_PX = 12;/);
   });
 });

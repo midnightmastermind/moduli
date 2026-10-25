@@ -432,6 +432,20 @@ let _editorInstSeq = 0;
 
 // Top/bottom band of a block where a drop inserts above/below instead of wrapping beside it.
 export const EDGE_INSERT_PX = 12;
+/** The same band for a controller ray in the headset, which lands far less precisely than a mouse. */
+export const EDGE_INSERT_COARSE_PX = 28;
+/** In the headset, the part of a block's width (from each side) where a drop wraps beside it. */
+export const SIDE_BAND_COARSE = 1 / 3;
+
+/**
+ * How far into a block (from its top / bottom) a drop means "above / below it" rather than "wrap beside it". Capped
+ * at a third of the block so a short block keeps a middle to wrap on — except the top of the doc's FIRST block, which
+ * is always at least a third: it is the only place a drop goes above everything. Pure.
+ */
+export function docEdgeBands({ height, first = false, coarse = false }) {
+  const band = Math.min(coarse ? EDGE_INSERT_COARSE_PX : EDGE_INSERT_PX, height / 3);
+  return { top: first ? Math.max(band, height / 3) : band, bottom: band };
+}
 
 /**
  * Where an editor popup ("/" palette, "@" picker, doc link, "=", embed) opens, relative to the
@@ -2415,11 +2429,20 @@ const Editor = forwardRef(function Editor({
     // dropped on another's top edge wrapped the two together instead of
     // reordering (Firefox, Wrap Lab, 2026-10-02). The band is capped at a
     // third of the block so a short block still has a middle to wrap on.
-    const edgeBand = Math.min(EDGE_INSERT_PX, rect.height / 3);
-    if (input.clientY < rect.top + edgeBand || input.clientY > rect.bottom - edgeBand)
+    // A controller ray in the headset cannot hit a 12px band: there the band is wider. And the top of the FIRST
+    // block is the only way to put something above everything, so it gets a third of the block (user, 2026-10-25:
+    // "i cant drag above everything inside of a page … it will either put it on the left or right as a wrap").
+    const headsetDrop = typeof window !== "undefined" && !!window.ModuliNative;
+    const { top: topBand, bottom: bottomBand } = docEdgeBands({ height: rect.height, first: topPos === 0, coarse: headsetDrop });
+    if (input.clientY < rect.top + topBand || input.clientY > rect.bottom - bottomBand)
       return bail("top/bottom edge → plain insert", { hostOccId, y: input.clientY, top: Math.round(rect.top), bottom: Math.round(rect.bottom) });
     const frac = (input.clientX - rect.left) / rect.width;
     if (!textmapped && frac > 0.33 && frac < 0.67) return bail("non-text host, middle third → plain insert", { hostOccId, frac: frac.toFixed(2) });
+    // In the headset the sides are bands too: a wrap forms only near a block's left or right edge, the middle is a
+    // plain insert (user, 2026-10-25: "those drop bands should go on the sides too") — a ray over a text block picked
+    // a side everywhere, so a drop meant for above it wrapped instead.
+    if (textmapped && headsetDrop && frac > SIDE_BAND_COARSE && frac < 1 - SIDE_BAND_COARSE)
+      return bail("headset, middle of a text block → plain insert", { hostOccId, frac: frac.toFixed(2) });
     const side = sideFromFrac(frac); // textmapped: pick a side ANYWHERE (no dead middle third)
     const anchorOffset = textmapped ? offsetFor(dom, input.clientY) : 0;
     return { hostPos: topPos, hostOccId, side, anchorOffset, anchorIndex: null, hostRect: rect, columnOnly: !textmapped };

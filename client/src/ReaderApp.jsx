@@ -25,6 +25,7 @@ import { DragProvider } from "./helpers/DragProvider.jsx";
 import { readerDropTarget } from "./helpers/readerDropTarget.js";
 import { panelPointToPage } from "./helpers/readerDropTarget.js";
 import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill } from "./helpers/dragSystem.js";
+import { embedDeleteRegistry } from "./helpers/embedRegistry.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
 
@@ -198,7 +199,16 @@ function ReaderBody({ initial, occurrenceId }) {
       },
       cancel() { end(); payload = null; ready = null; },
     };
-    return () => { end(); delete window.__moduliRemoteDrag; };
+    // The other half of a MOVE carried out of this window: the window it landed in has embedded it, and an embed in
+    // a doc here is removed only by this doc's editor (in one window the cross-doc drop does this itself, through
+    // embedDeleteRegistry — which only holds the editors mounted HERE). A row listed by a board here is unlisted by
+    // the drop itself (it loaded that board).
+    window.__moduliMovedOut = (occId) => {
+      const del = embedDeleteRegistry.get(occId);
+      console.log("[headsetDrag] moved out", occId, del ? "embed removed" : "no embed here");
+      del?.();
+    };
+    return () => { end(); delete window.__moduliRemoteDrag; delete window.__moduliMovedOut; };
   }, [dispatch, has]);
   const gridRef = React.useRef(null);
   const occ = state.occurrences.find((o) => o.id === occurrenceId);
