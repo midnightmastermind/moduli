@@ -127,6 +127,18 @@ export function planFormButton({ container, containerModule, noun, occurrencesBy
   return { field, operation, containerModule: nextModule };
 }
 
+/** The button field this container already carries for "New <noun>" (case/space-insensitive), else null. */
+export function existingFormButton(containerModule, fieldsById, noun) {
+  const want = `new ${String(noun || "").trim()}`.replace(/\s+/g, " ").toLowerCase();
+  for (const b of containerModule?.fieldBindings || []) {
+    const f = fieldsById?.[b?.fieldId];
+    if (!f || f.trashed || f.type !== "button") continue;
+    const label = String(f.meta?.buttonLabel || f.name || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (label === want) return f;
+  }
+  return null;
+}
+
 /** Write the plan — one undo step. Returns the plan. */
 export function addFormButton({ dispatch, socket, ...args }) {
   const plan = planFormButton(args);
