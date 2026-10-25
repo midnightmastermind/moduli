@@ -27,6 +27,7 @@ import { panelPointToPage } from "./helpers/readerDropTarget.js";
 import { touchHoverStep, touchDropStep, windowDragCtx, createDragPill, clearDocTouchHover } from "./helpers/dragSystem.js";
 import { embedDeleteRegistry } from "./helpers/embedRegistry.js";
 import { installHeadsetScroll } from "./helpers/headsetScroll.js";
+import * as CommitHelpers from "./helpers/CommitHelpers.js";
 
 const BOOK_KINDS = new Set(["pdf", "ebook"]);
 
@@ -213,6 +214,18 @@ function ReaderBody({ initial, occurrenceId }) {
             // The doc saves its text a moment after the drop; give the store that moment, then count.
             setTimeout(() => {
               const placed = taken && !!id && shownIn() > before;
+              // A MOVE into a doc here: this doc owns it now (the rule a move inside one window follows). The editor
+              // checks the doc it left by that doc's text, which this window never loaded — so the row kept its old
+              // owner, and deleting that doc would have taken it from here.
+              if (placed && payload?.mode === "move") {
+                const holder = (ref.current.occurrences || []).find((o) => o.id !== id && o.textmap && JSON.stringify(o.textmap).includes(id));
+                const row = (ref.current.occurrences || []).find((o) => o.id === id);
+                const listed = (ref.current.occurrences || []).some((o) => (o.occurrences || []).includes(id));
+                if (holder && row && row.parentId !== holder.id && !listed) {
+                  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id, parentId: holder.id }, emit: true });
+                  console.log("[headsetDrag] owner", id, "→", holder.id);
+                }
+              }
               window.__moduliRemoteDropped = placed;
               console.log("[headsetDrag] remote drop", id, { taken, placed });
             }, 1200);
