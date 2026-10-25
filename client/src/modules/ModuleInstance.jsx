@@ -4,6 +4,7 @@
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
+import { buttonItem } from "../ui/buttonItem";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 
@@ -1182,7 +1183,7 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
-                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById })].filter(Boolean)}
+                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }), buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean)}
                 />
               </div>
             </PopoverAnchor>

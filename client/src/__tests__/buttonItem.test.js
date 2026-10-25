@@ -30,4 +30,10 @@ describe("Add a button", () => {
     expect(src.match(/buttonItem\(\{/g)?.length).toBe(3);
     expect(src).toMatch(/exportMarkdownItem\(\{/); // control
   });
+
+  it("pages, panels, rows and doc textblocks offer it too", () => {
+    for (const f of ["../modules/ModulePage.jsx", "../modules/ModulePanel.jsx", "../modules/ModuleInstance.jsx", "../docs/pills/InstanceTextblockNode.jsx"]) {
+      expect(readFileSync(new URL(f, import.meta.url), "utf8")).toMatch(/buttonItem\(\{/);
+    }
+  });
 });

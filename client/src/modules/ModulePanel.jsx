@@ -6,6 +6,7 @@
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext, useSyncExternalStore } from "react";
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
+import { buttonItem } from "../ui/buttonItem";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
@@ -1123,6 +1124,7 @@ function Panel({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
+                      extraItems={[buttonItem({ occurrence: panelOccurrence, module, fieldsById: panelFieldsById, gridId: state?.grid?._id, dispatch, socket })].filter(Boolean)}
                     />
                   </div>
                 </PopoverAnchor>

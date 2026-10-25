@@ -4,6 +4,7 @@
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
+import { buttonItem } from "../ui/buttonItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
@@ -769,7 +770,7 @@ function Page({
                 onTemplate={openTemplates}
                 onDelete={handleDelete}
                 deleteLabel="Delete page"
-                extraItems={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById })].filter(Boolean)}
+                extraItems={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence, module: pageModule, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
                 size="sm"
                 forceDirection="down"
               />

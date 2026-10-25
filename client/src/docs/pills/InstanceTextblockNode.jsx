@@ -13,6 +13,7 @@ import Field from "../../ui/Field.jsx";
 import { useGridActions } from "../../GridActionsContext";
 import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
+import { buttonItem } from "../../ui/buttonItem";
 import InstanceForm from "../../ui/InstanceForm";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { X } from "lucide-react";
@@ -538,6 +539,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
             onSettings={instance ? () => setSettingsOpen(true) : undefined}
             onDelete={handleDeleteBlock}
             deleteLabel={isProvisionalTextblock(occurrenceId) || embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
+            extraItems={[buttonItem({ occurrence, module: instance, fieldsById, gridId: occurrence?.gridId, dispatch, socket })].filter(Boolean)}
           />
         </div>
         </PopoverAnchor>

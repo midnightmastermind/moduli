@@ -1,5 +1,5 @@
 // ui/buttonItem.js
-// The container radial's "Add a button…" item: asks for the button's text (through the app's own form window, never
+// The radial "Add a button…" item (containers, pages, panels, rows, doc textblocks): asks for the button's text (through the app's own form window, never
 // window.prompt — a headset panel never shows one) and binds a new button field on the container. Nothing else: a
 // button does nothing until an operation LISTENS to it with an On Button trigger on that field (user, 2026-10-25:
 // "the button does nothing until we add a listener for it in the operations").
@@ -29,7 +29,7 @@ export function buttonItem({ occurrence, module, fieldsById, gridId, dispatch, s
       } catch { return; } // cancelled
       const label = String(answer?.label || "").trim();
       if (!label) return;
-      addButton({ dispatch, socket, containerModule: module, label, fieldsById, gridId });
+      addButton({ dispatch, socket, containerModule: module, label, fieldsById, gridId: gridId || occurrence.gridId });
       toast.success(`Added "${label}" — give an operation an On Button trigger on it to make it do something`);
     },
   };
@@ -37,7 +37,7 @@ export function buttonItem({ occurrence, module, fieldsById, gridId, dispatch, s
 
 /** A button field bound on the container — one undo step. Returns the field. */
 export function addButton({ dispatch, socket, containerModule, label, fieldsById, gridId }) {
-  const field = { id: uid(), gridId, name: uniqueFieldName(fieldsById, label), type: "button", meta: { buttonLabel: label } };
+  const field = { id: uid(), gridId: gridId || containerModule?.gridId, name: uniqueFieldName(fieldsById, label), type: "button", meta: { buttonLabel: label } };
   withAction("Added button", () => {
     CommitHelpers.createField({ dispatch, socket, field });
     CommitHelpers.updateModule({ dispatch, socket, module: {
