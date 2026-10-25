@@ -416,6 +416,7 @@ class OfficeActivity : AppSystemActivity() {
     } else room.load()
     systemManager.registerSystem(SaveSystem())
     systemManager.registerSystem(InputSystem())
+    systemManager.registerSystem(PoseCheck(::describeEntity))
     main.postDelayed({ if (!placed) placeAll() }, 1500)
   }
 
@@ -1179,6 +1180,19 @@ class OfficeActivity : AppSystemActivity() {
    * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
    * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
    */
+  /** Names an entity for the pose check: the piece (and which part of it), else its panel or model. */
+  private fun describeEntity(e: Entity): String {
+    for (t in things.values) {
+      val part = when (e) { t.frame -> "frame"; t.panel -> "panel"; t.handle?.entity -> "handle"; t.gear -> "gear"; else -> t.books.firstOrNull { it.entity == e }?.let { "book '${it.title}'" } }
+      if (part != null) return "${t.key} ($part, scale ${t.scale})"
+    }
+    readers.entries.firstOrNull { it.value == e }?.let { return "reader window ${it.key}" }
+    readerHandles.entries.firstOrNull { it.value.entity == e }?.let { return "reader handle ${it.key}" }
+    if (e == ghost) return "drag label"
+    cards.indexOf(e).takeIf { it >= 0 }?.let { return "card $it" }
+    return "entity ${e.id} panel=${PoseCheck.panelId(e)} mesh=${PoseCheck.meshName(e)}"
+  }
+
   inner class InputSystem : SystemBase() {
     private var ran = false
     private var lastNs = 0L
