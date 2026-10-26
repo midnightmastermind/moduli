@@ -15,13 +15,20 @@ import { applyManualOpUpdates } from "./manualOpRun";
 import { withAction } from "./actionScope";
 
 /** The ButtonOp transaction for a press of `op` on `hostOccurrence` (the button field `fieldId`, when there is one). */
-export function buttonTransaction({ op, hostOccurrence, fieldId = null }) {
+export function buttonTransaction({ op, hostOccurrence, fieldId = null, panel = null }) {
   return {
     type: "ButtonOp",
     operationId: op?.id || null,
     occurrenceId: hostOccurrence?.id || null,
     instanceId: hostOccurrence?.moduleId || null,
     fieldId: fieldId || null,
+    // The panel it was pressed in (helpers/pressPanel): $trigger.panelViewId is what UPDATE_VIEW changes to show
+    // another page there; $trigger.panelPageId the page it shows now.
+    ...(panel?.panelOccurrenceId ? {
+      panelOccurrenceId: panel.panelOccurrenceId,
+      panelViewId: panel.panelViewId || null,
+      panelPageId: panel.panelPageId || null,
+    } : null),
   };
 }
 
@@ -30,12 +37,12 @@ export function buttonTransaction({ op, hostOccurrence, fieldId = null }) {
  * modulesById?, dispatch }. Resolves { ran: true } once the pipeline has finished (paused ones included), or
  * { ran: false, reason } when there was nothing to run.
  */
-export function runButtonOperation({ op, hostOccurrence, fieldId = null, ctx = {} }) {
+export function runButtonOperation({ op, hostOccurrence, fieldId = null, panel = null, ctx = {} }) {
   if (!op) return Promise.resolve({ ran: false, reason: "no operation" });
   return new Promise((resolve) => {
     let finished = false;
     const finish = () => { if (!finished) { finished = true; resolve({ ran: true }); } };
-    const transaction = buttonTransaction({ op, hostOccurrence, fieldId });
+    const transaction = buttonTransaction({ op, hostOccurrence, fieldId, panel });
     const label = op.name || "button";
     try {
       withAction(`Pressed ${label}`, () => {
@@ -68,12 +75,12 @@ export function buttonListeners(fieldId, operationsById) {
  * A press of the button field `field` on `hostOccurrence`: every listener runs, under ONE action (one undo step).
  * Resolves once all have finished (forms included), or { ran: false, reason: "no listener" } when none listens.
  */
-export function runButtonPress({ field, hostOccurrence, ctx = {} }) {
+export function runButtonPress({ field, hostOccurrence, panel = null, ctx = {} }) {
   const listeners = buttonListeners(field?.id, ctx.operationsById);
   if (!listeners.length) return Promise.resolve({ ran: false, reason: "no listener" });
   let runs = [];
   withAction(`Pressed ${field?.meta?.buttonLabel || field?.name || "button"}`, () => {
-    runs = listeners.map((op) => runButtonOperation({ op, hostOccurrence, fieldId: field.id, ctx }));
+    runs = listeners.map((op) => runButtonOperation({ op, hostOccurrence, fieldId: field.id, panel, ctx }));
   });
   return Promise.all(runs).then(() => ({ ran: true, count: listeners.length }));
 }

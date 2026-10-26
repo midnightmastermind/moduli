@@ -183,7 +183,9 @@ export function getTriggerVars(eventType, subjectType) {
     if (eventType === "onPomoStart") base.push("$trigger.pomoNumber", "$trigger.phase", "$trigger.slotLabel", "$trigger.targetContainerId");
   }
   // A button press hands its operation the occurrence the button sits on (and the button field itself).
-  if (eventType === "onButton") base.push("$trigger.occurrenceId", "$trigger.occurrence", "$trigger.fieldId");
+  if (eventType === "onButton") base.push("$trigger.occurrenceId", "$trigger.occurrence", "$trigger.fieldId",
+    // The panel it was pressed in: its view (UPDATE_VIEW shows another page there) and the page it shows now.
+    "$trigger.panelOccurrenceId", "$trigger.panelViewId", "$trigger.panelPageId");
   if (subjectType === "module" || subjectType === "item") {
     base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label", "$trigger.occurrenceId");
     if (["onAdd", "onCreate", "onDelete", "onRemove"].includes(eventType)) base.push("$trigger.containerId");

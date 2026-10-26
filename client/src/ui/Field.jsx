@@ -14,6 +14,7 @@
 import { manualValues } from "../helpers/optionsResolver.js";
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
 import { useButtonRunner, buttonListeners } from "../helpers/buttonRun";
+import { pressPanel } from "../helpers/pressPanel";
 import { useProviderSearch } from "../hooks/useProviderSearch";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -1130,9 +1131,12 @@ function ButtonFieldControl({ field, hostOccurrence, compact, disabled, operatio
     e.stopPropagation();
     if (busy) return;
     if (!listeners.length) { toast.info(`${buttonLabel}: nothing listens to this button yet`); return; }
+    const state = getState();
     run({
       field, hostOccurrence,
-      ctx: { state: getState(), fieldsById, operationsById, occurrencesById: getOccMap(), modulesById, dispatch },
+      // The panel it was pressed in, so its operation can change what that panel shows.
+      panel: pressPanel(e.currentTarget, state),
+      ctx: { state, fieldsById, operationsById, occurrencesById: getOccMap(), modulesById, dispatch },
     });
   };
   const live = listeners.length > 0 && !disabled;

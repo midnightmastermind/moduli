@@ -32,6 +32,7 @@ import {
   updateOccurrence,
   updateOccurrenceFilterOverride,
   ensureModuleBindingsForOccurrenceFields,
+  updateView,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit, peekOfflineQueue } from "../helpers/offlineQueue";
 import { applyQueuedEditsToPayload } from "../helpers/queuedEdits.js";
@@ -1982,9 +1983,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         });
         break;
 
-      case "UPDATE_VIEW":
-        safeEmit(socket, "update_view", { view: { id: effect.viewId, ...effect.patch } });
+      case "UPDATE_VIEW": {
+        // Through updateView, like a page picked by hand: the panel changes AT ONCE (it only emitted, so a button's
+        // "show the Albums board here" waited for the server's echo) and Back remembers where it was.
+        const existing = (state.views || []).find((v) => v?.id === effect.viewId) || { id: effect.viewId };
+        updateView({ dispatch: socketDispatch, socket, view: { ...existing, ...effect.patch, id: effect.viewId }, emit: true });
         break;
+      }
 
       case "CREATE_OCCURRENCE_AT":
         // PREPEND_OCCURRENCE variant — position 0
