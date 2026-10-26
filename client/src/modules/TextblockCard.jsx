@@ -75,7 +75,9 @@ export default function TextblockCard({ occurrence, module, onEmptyBlur = null }
   const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
   const eager = isInline || !!link || !hasContent;
   const blocks = useMemo(() => (eager ? [] : textmapBlocks(occurrence.textmap)), [eager, occurrence?.textmap]);
-  const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id });
+  // A text row on a board becomes an editor when it is pressed, not when it scrolls by (a 250-row board made 250
+  // editors on the way down). Docs render text through DocContent, which keeps going live on view.
+  const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id, onUse: true });
 
   // Block-wrap (project_block_wrap_redesign): when this textblock is a wrapGroup
   // HOST, the wrap CSS clips `.textblock-card` to the L via the `--wrap-host-clip`

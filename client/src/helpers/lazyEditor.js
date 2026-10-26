@@ -59,9 +59,10 @@ export function __resetForTest() {
  * @param {boolean} opts.eager         mount the real editor immediately
  * @param {string}  opts.occurrenceId  key for forceLiveNow
  * @param {number}  opts.rootMargin    px ahead of the viewport to go live
+ * @param {boolean} opts.onUse         go live only when used (pressed / forced), never on scroll
  * @returns {{ live: boolean, ref: object, goLive: () => void }}
  */
-export function useLazyEditor({ eager = false, occurrenceId = null, rootMargin = 700 } = {}) {
+export function useLazyEditor({ eager = false, occurrenceId = null, rootMargin = 700, onUse = false } = {}) {
   const [live, setLive] = useState(eager);
   const ref = useRef(null);
   const goLive = useCallback(() => setLive(true), []);
@@ -77,6 +78,10 @@ export function useLazyEditor({ eager = false, occurrenceId = null, rootMargin =
 
   useEffect(() => {
     if (live) return undefined;
+    // `onUse`: live only when used (a press, or forceLiveNow) — never from scrolling. A board of text rows (the Lookup
+    // board: 250) made an editor for every row it scrolled past; on desktop Firefox scrolling it was "glitchy and
+    // slow" (measured at 4x CPU: 50ms frames, 600ms stalls, 12s busy — almost all TipTap setting up editors).
+    if (onUse) return undefined;
     const el = ref.current;
     // No element, or no IntersectionObserver (jsdom, old engines) -> mount eagerly
     // rather than render a placeholder that could never be replaced.
@@ -86,7 +91,7 @@ export function useLazyEditor({ eager = false, occurrenceId = null, rootMargin =
     }, { rootMargin: `${rootMargin}px` });
     io.observe(el);
     return () => io.disconnect();
-  }, [live, rootMargin]);
+  }, [live, rootMargin, onUse]);
 
   return { live, ref, goLive };
 }

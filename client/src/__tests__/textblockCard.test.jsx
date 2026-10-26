@@ -79,7 +79,9 @@ describe("TextblockCard — card context", () => {
     expect(jumpToOccurrence).toHaveBeenCalledWith("target-9");
   });
 
-  it("shows a plain-text placeholder before intersection, and the editor after", () => {
+  // A board row becomes an editor when USED, never from scrolling (2026-10-26: the 250-row Lookup board made an editor
+  // per row it scrolled past and went blank / jumped while scrolling in Firefox). Its placeholder is real text.
+  it("shows a plain-text placeholder, and stays one when it scrolls into view (no editor until used)", () => {
     render(
       <TextblockCard
         occurrence={{ id: "o3", textmap: textmap("first line", "second line") }}
@@ -91,9 +93,8 @@ describe("TextblockCard — card context", () => {
     expect(screen.getByText("first line")).toBeInTheDocument();
     expect(screen.getByText("second line")).toBeInTheDocument();
     expect(screen.queryByTestId("editor")).toBeNull();
-
-    act(() => observed[0].fire());
-    expect(screen.getByTestId("editor")).toBeInTheDocument();
+    // Nothing is observed: scrolling it into view makes no editor.
+    expect(observed.length).toBe(0);
   });
 
   it("goes live on pointerdown without waiting for intersection", () => {
