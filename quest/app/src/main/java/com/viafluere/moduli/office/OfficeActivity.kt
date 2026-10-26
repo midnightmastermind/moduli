@@ -586,7 +586,10 @@ class OfficeActivity : AppSystemActivity() {
       "decorSetting" -> setDecorScreen(m.optString("key"), m.optString("screenId").takeIf { !m.isNull("screenId") && it.isNotEmpty() })
       "playQueue" -> things[m.optString("key")]?.let { p ->
         val a = m.optJSONArray("items") ?: org.json.JSONArray()
-        playQueue(p, m.optString("title"), (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { o -> o.optString("title") to o.optString("url") } })
+        val items = (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { o -> o.optString("title") to o.optString("url") } }
+        val fallback = m.optString("fallback")
+        if (items.isEmpty() && fallback.isNotEmpty()) playRecord(p, m.optString("title"), "", fallback)
+        else playQueue(p, m.optString("title"), items)
       }
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       // The shelf's search box: the books follow the matches it shows.
@@ -930,9 +933,11 @@ class OfficeActivity : AppSystemActivity() {
             } }
             when {
               t.selecting -> selectBook(t, b)
-              // An album with no audio file and no Spotify album link plays as its songs (asked of the control panel).
-              player != null && t.shelfAsset == "record" && b.album && itemSrc(t, b.itemId).isEmpty() && itemField(t, b.itemId, "spotify").isEmpty() ->
-                send(JSONObject().put("type", "albumQueue").put("key", player.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }).put("title", b.title))
+              // An album plays as its songs, one at a time with ⏮ ⏭ (asked of the control panel); Spotify's own album
+              // player only when none of its songs has a Spotify track.
+              player != null && t.shelfAsset == "record" && b.album && itemSrc(t, b.itemId).isEmpty() ->
+                send(JSONObject().put("type", "albumQueue").put("key", player.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId })
+                    .put("title", b.title).put("fallback", itemField(t, b.itemId, "spotify")))
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
               // An album dropped anywhere but a player opens on its shelf: its songs, each a mini record.
@@ -1236,7 +1241,7 @@ class OfficeActivity : AppSystemActivity() {
       Log.i(TAG, "playing $title on ${player.key} through Spotify: ${spotifyWebPlayer(spotify)}")
       return
     }
-    if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file for this record")); return }
+    if (src.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No audio file or Spotify track for this record")); return }
     if (player.spotifyUrl != null) stopPlayer(player, forget = false)
     showOnPanel(player, PanelHtml.playerCard(title, src, player.key, "Now playing"))
     savePlaying(player, JSONObject().put("title", title).put("src", src))

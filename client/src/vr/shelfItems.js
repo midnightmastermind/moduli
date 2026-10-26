@@ -210,9 +210,9 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
       // A mini record is ONE song, in Spotify's mini player: its own track. Only a song with no Spotify track at all
       // (one filled in from a track list) falls back to the album's player, then to a Spotify search (user,
       // 2026-10-25: "i want mini players", not the web app).
-      spotify: spotifyEmbedUrl(occ)
-        || albumSpotify
-        || spotifySearchUrl(occ.meta?.spotifyArtist || occ.meta?.mediaArtist || artistNamed(occ, ctx) || album.meta?.mediaArtist || artistNamed(album, ctx), (occurrenceDisplayLabel(occ, mod) || "").trim()),
+      // ONLY its own track: the album's link played the album from track 1 ("playing the wrong song in the album").
+      // A song with no Spotify track says so on the player instead.
+      spotify: spotifyEmbedUrl(occ),
       mini: true,
     };
   });

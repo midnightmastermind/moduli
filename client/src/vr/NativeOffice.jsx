@@ -328,7 +328,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         else if (e?.type === "albumQueue") {
           // An album dropped on a record player with no Spotify album link: its songs, one after another.
           const items = albumQueue(e.id, live.current);
-          post({ type: "playQueue", key: e.key, title: e.title || "", items });
+          post({ type: "playQueue", key: e.key, title: e.title || "", items, fallback: e.fallback || "" });
         }
         else if (e?.type === "openAlbum") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");

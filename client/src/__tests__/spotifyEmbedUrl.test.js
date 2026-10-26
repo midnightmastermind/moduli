@@ -29,30 +29,25 @@ describe("an album opened on a record shelf", () => {
   it("lists its songs in its own order, then songs that name it — not the artist (control)", () => {
     expect(albumSongIds("al", { occurrencesById, modulesById })).toEqual(["s1", "s2", "s3"]);
   });
-  it("each song is a mini record: its own track, else (no track at all) the album's mini player", () => {
+  it("each song is a mini record that plays only its own track — never the album's (which starts at track 1)", () => {
     const items = albumShelfItems("al", { occurrencesById, modulesById });
     expect(items.map((i) => [i.title, i.mini, i.src, i.spotify])).toEqual([
       ["Stan", true, null, "https://open.spotify.com/embed/track/STAN123456"],
-      ["Bad Guy", true, null, "https://open.spotify.com/embed/album/X1"],
-      ["Bonus", true, null, "https://open.spotify.com/embed/album/X1"],
+      ["Bad Guy", true, null, null],
+      ["Bonus", true, null, null],
     ]);
   });
 });
 
 import { spotifySearchUrl, albumShelfItems as albumItems2 } from "../vr/shelfItems.js";
 describe("a song with no Spotify link", () => {
-  it("is searched on Spotify by the album's artist and its own title", () => {
-    expect(spotifySearchUrl("Aerosmith", "Jaded")).toBe("https://open.spotify.com/search/Aerosmith%20Jaded");
-    expect(spotifySearchUrl(null, "Jaded")).toBe("https://open.spotify.com/search/Jaded");
-    expect(spotifySearchUrl("Aerosmith", "")).toBeNull();
-  });
-  it("gets the search on the shelf when neither it nor its album has a link", () => {
+  it("has nothing to play on Spotify (not a search, not its album)", () => {
     const modulesById = { A: { id: "A", kind: "album", label: "Album" }, S: { id: "S", kind: "song", label: "Song" } };
     const occurrencesById = {
-      al: { id: "al", moduleId: "A", label: "Just Push Play", meta: { mediaArtist: "Aerosmith" }, fields: { songs: { value: ["s1"] } } },
+      al: { id: "al", moduleId: "A", label: "Just Push Play", meta: { mediaArtist: "Aerosmith" }, fields: { songs: { value: ["s1"] }, u: { value: "https://open.spotify.com/album/AL1" } } },
       s1: { id: "s1", moduleId: "S", label: "Jaded", fields: {} },
     };
-    expect(albumItems2("al", { occurrencesById, modulesById })[0].spotify).toBe("https://open.spotify.com/search/Aerosmith%20Jaded");
+    expect(albumItems2("al", { occurrencesById, modulesById })[0].spotify).toBeNull();
   });
 });
 
