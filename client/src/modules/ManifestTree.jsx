@@ -9,6 +9,8 @@ import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useR
 import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
+import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
+import { renameTarget } from "../helpers/sharedModule";
 import { clampToViewport } from "../helpers/clampToViewport.js";
 import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon, ExternalLink, FilePlus, Pin } from "lucide-react";
 import { buildRenameItem } from "./pageCardRename";
@@ -169,7 +171,9 @@ function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modul
   }, [mod?.role, mod?.fileRef, mod?.meta?.mimeType, mod?.meta?.originalName, mod?.label]);
   // Don't leak the raw occurrence UUID as a label — render "Untitled" when
   // the module has no label set and the textmap has no heading to fall back on.
-  const label = mod?.label || "Untitled";
+  // The placement's own name first: copies of one template share a module, so every day column of the Day Page
+  // read "Day Page" here while each carries its date as its own name (user, 2026-10-26).
+  const label = occurrenceDisplayLabel(occ, mod, "Untitled");
   const heading = getDocHeading(occ.textmap);
   const displayLabel = heading || label;
   const isActive = occ.id === activeOccurrenceId;
@@ -184,9 +188,14 @@ function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modul
   const commitRename = useCallback(() => {
     setIsRenaming(false);
     const trimmed = renameValue.trim();
-    if (!trimmed || trimmed === (mod?.label || "")) return;
-    CommitHelpers.updateModule({ dispatch, socket, module: { id: mod.id, label: trimmed }, emit: true });
-  }, [renameValue, mod, dispatch, socket]);
+    if (!trimmed || trimmed === label) return;
+    // A placement with its own name (or one of several sharing the module) is renamed itself, not every copy.
+    if ((occ.label && occ.label.trim()) || renameTarget({ module: mod, occurrence: occ }) === "occurrence") {
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, label: trimmed }, emit: true });
+    } else {
+      CommitHelpers.updateModule({ dispatch, socket, module: { id: mod.id, label: trimmed }, emit: true });
+    }
+  }, [renameValue, mod, occ, label, dispatch, socket]);
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -328,7 +337,7 @@ function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modul
           onClick={() => onSelect(occ.id)}
           onDoubleClick={canRename ? ((e) => {
             e.stopPropagation();
-            setRenameValue(mod?.label || "");
+            setRenameValue(label);
             setIsRenaming(true);
           }) : undefined}
           isActive={isActive}
@@ -362,7 +371,7 @@ function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modul
         <ContextMenu
           ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
             { label: "Open", icon: ExternalLink, onClick: () => onSelect?.(occ.id) },
-            ...(canRename ? [{ label: "Rename", icon: Pencil, onClick: () => { setRenameValue(mod?.label || ""); setIsRenaming(true); } }] : []),
+            ...(canRename ? [{ label: "Rename", icon: Pencil, onClick: () => { setRenameValue(label); setIsRenaming(true); } }] : []),
             ...(onSetDefault ? [{ label: "Set as default page", icon: Pin, onClick: () => onSetDefault(occ.id) }] : []),
             { separator: true },
             { label: "Delete", icon: Trash2, danger: true, onClick: () => confirmDeleteOccurrence({ occurrence: occ, module: mod, dispatch, socket }) },
