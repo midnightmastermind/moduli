@@ -282,3 +282,31 @@ export function treeToCells(tree) {
   }
   return { rows: ys.length - 1, cols: xs.length - 1, cells };
 }
+
+/**
+ * This window's layout, with each slot whose panel no longer exists handed to a grid panel the layout does not
+ * place yet (in the grid's order); a slot with no such panel is left (the mosaic leaves it out). Each window keeps its
+ * own layout, but the panels themselves are shared — so a panel deleted and another added on one device left the
+ * other's layout one panel short (user, 2026-10-26: "i deleted and readded a panel is desktop and now the vr grid page
+ * only has 3 panels instead of 4"). Returns the same tree when nothing changes. Pure.
+ */
+export function fillMissingLeaves(tree, panelIds) {
+  if (!tree || !Array.isArray(panelIds)) return tree;
+  const exists = new Set(panelIds);
+  const placed = new Set(allPanelOccIds(tree));
+  const spare = panelIds.filter((id) => !placed.has(id));
+  if (!spare.length) return tree;
+  let changed = false;
+  const walk = (n) => {
+    if (!n) return n;
+    if (isLeaf(n)) {
+      if (exists.has(n.panelOccId) || !spare.length) return n;
+      changed = true;
+      return { ...n, panelOccId: spare.shift() };
+    }
+    const children = n.children.map(walk);
+    return children.every((c, i) => c === n.children[i]) ? n : { ...n, children };
+  };
+  const out = walk(tree);
+  return changed ? out : tree;
+}

@@ -18,7 +18,7 @@ import Panel from "./modules/ModulePanel";
 import GridMosaic from "./modules/GridMosaic";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
-import { allPanelOccIds, treeToCells } from "./helpers/bspTree";
+import { allPanelOccIds, fillMissingLeaves, treeToCells } from "./helpers/bspTree";
 import { trackLastPanel, getLastPanelId } from "./helpers/lastPanel";
 
 import { GridDataContext } from "./GridDataContext";
@@ -567,7 +567,11 @@ function GridInner() {
 
   // Opt-in BSP / "mosaic" layout. When present the grid renders as a split-tree
   // mosaic (GridMosaic) instead of the rows×cols CSS grid below.
-  const layoutTree = grid?.meta?.layoutTree || null;
+  // A slot whose panel was deleted on another device takes a panel this window is not showing (one added there).
+  const rawLayoutTree = grid?.meta?.layoutTree || null;
+  const gridPanelIds = grid?.occurrences;
+  const layoutTree = useMemo(() => fillMissingLeaves(rawLayoutTree, (gridPanelIds || []).filter((id) => occurrencesById?.[id])),
+    [rawLayoutTree, gridPanelIds, occurrencesById]);
 
   // Animation hook moved to App.jsx — captureAllPositions wraps undo, onUndoAnimation handles FLIP
   const rows = grid?.rows ?? 1;
