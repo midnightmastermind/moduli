@@ -96,27 +96,67 @@ class GeckoBrowser(
     }
   }
 
+  private lateinit var mainNav: GeckoSession.NavigationDelegate
+  /** The popup showing in this screen (a sign-in window), or null. */
+  private var popup: GeckoSession? = null
+
+  private fun openPopup(): GeckoSession {
+    val p = GeckoSession(
+        GeckoSessionSettings.Builder()
+            .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
+            .viewportMode(GeckoSessionSettings.VIEWPORT_MODE_DESKTOP)
+            .build(),
+    )
+    p.permissionDelegate = session.permissionDelegate
+    p.navigationDelegate = object : GeckoSession.NavigationDelegate {
+      override fun onLocationChange(s: GeckoSession, u: String?, perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
+        if (u != null) onUrl(u)
+      }
+      // A popup's own popups take its place (rare; one level is enough for sign-in).
+      override fun onNewSession(s: GeckoSession, uri: String): GeckoResult<GeckoSession>? { s.loadUri(uri); return null }
+    }
+    p.contentDelegate = object : GeckoSession.ContentDelegate {
+      override fun onCloseRequest(s: GeckoSession) { view.post { closePopup() } }
+      override fun onCrash(s: GeckoSession) { view.post { closePopup() } }
+      override fun onKill(s: GeckoSession) { view.post { closePopup() } }
+    }
+    popup?.let { closePopup() }
+    popup = p
+    // GeckoView opens the returned session itself (keeping window.opener); this screen shows it once it is open.
+    // Wait for that: setSession on a session not yet open would open it here, without its opener.
+    fun showWhenOpen(tries: Int) {
+      if (popup !== p) return
+      if (p.isOpen) { view.releaseSession(); view.setSession(p); return }
+      if (tries > 0) view.postDelayed({ showWhenOpen(tries - 1) }, 50)
+    }
+    view.post { showWhenOpen(60) }
+    Log.i("ModuliOffice", "gecko: popup opened")
+    return p
+  }
+
+  private fun closePopup() {
+    val p = popup ?: return
+    popup = null
+    try { view.releaseSession(); view.setSession(session) } catch (_: Throwable) {}
+    try { p.close() } catch (_: Throwable) {}
+    onUrl(url)
+    Log.i("ModuliOffice", "gecko: popup closed")
+  }
+
   init {
-    session.navigationDelegate = object : GeckoSession.NavigationDelegate {
+    mainNav = object : GeckoSession.NavigationDelegate {
       override fun onLocationChange(s: GeckoSession, u: String?, perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>, hasUserGesture: Boolean) {
         if (u != null) { url = u; onUrl(u) }
       }
       override fun onCanGoBack(s: GeckoSession, v: Boolean) { canGoBack = v }
       override fun onCanGoForward(s: GeckoSession, v: Boolean) { canGoForward = v }
-      // A link meant for a new window (target=_blank, window.open — sign-in pages use them) opens in this screen:
-      // a panel has no tabs.
-      override fun onLoadRequest(s: GeckoSession, req: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny>? {
-        if (req.target == GeckoSession.NavigationDelegate.TARGET_WINDOW_NEW) {
-          s.loadUri(req.uri)
-          return GeckoResult.fromValue(AllowOrDeny.DENY)
-        }
-        return GeckoResult.fromValue(AllowOrDeny.ALLOW)
-      }
-      override fun onNewSession(s: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-        s.loadUri(uri)
-        return null
-      }
+      // A new window (target=_blank, window.open) is a real popup: it takes this screen until it closes, then the
+      // page that opened it is back. Loading it in place lost the opener — "Continue with Google" on claude.ai
+      // stopped on accounts.google.com/gsi/transform, blank, with no page left to hand the sign-in back to.
+      override fun onNewSession(s: GeckoSession, uri: String): GeckoResult<GeckoSession>? =
+          GeckoResult.fromValue(openPopup())
     }
+    session.navigationDelegate = mainNav
     // Spotify (and every streaming site) plays through DRM — Widevine, which GeckoView refuses unless the app says
     // yes ("protected content not enabled"). A screen is the user's own browser, so DRM and autoplay are allowed.
     session.permissionDelegate = object : GeckoSession.PermissionDelegate {
@@ -152,9 +192,10 @@ class GeckoBrowser(
     session.loadUri(url)
   }
 
-  fun load(u: String) = session.loadUri(u)
-  fun back() = session.goBack()
+  fun load(u: String) { closePopup(); session.loadUri(u) }
+  /** Back from a popup closes it (back to the page that opened it). */
+  fun back() { if (popup != null) closePopup() else session.goBack() }
   fun forward() = session.goForward()
-  fun reload() = session.reload()
-  fun close() { try { view.releaseSession(); session.close() } catch (_: Throwable) {} }
+  fun reload() = (popup ?: session).reload()
+  fun close() { try { popup?.close(); view.releaseSession(); session.close() } catch (_: Throwable) {} }
 }
