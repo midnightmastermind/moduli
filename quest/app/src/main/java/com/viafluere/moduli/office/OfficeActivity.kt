@@ -342,7 +342,7 @@ class OfficeActivity : AppSystemActivity() {
 
   /** A panel holding a WebView. `toolbar` adds Close and Reload above it (reader panels). */
   @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
-  private fun webPanel(id: Int, w: Float, h: Float, toolbar: Boolean, onWeb: (WebView) -> Unit): PanelRegistration =
+  private fun webPanel(id: Int, w: Float, h: Float, toolbar: Boolean, dpPerMeter: Float = 500f, onWeb: (WebView) -> Unit): PanelRegistration =
       ComposeViewPanelRegistration(
           id,
           composeViewCreator = { _, ctx ->
@@ -404,7 +404,7 @@ class OfficeActivity : AppSystemActivity() {
                 rendering = PANEL_RENDER,
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-                display = DpPerMeterDisplayOptions(),
+                display = if (dpPerMeter == 500f) DpPerMeterDisplayOptions() else DpPerMeterDisplayOptions(dpPerMeter = dpPerMeter, resolutionScale = BROWSER_RES),
             )
           },
       )
@@ -1097,7 +1097,9 @@ class OfficeActivity : AppSystemActivity() {
     val id = nextPanelId++
     if (t.spotifyUrl != null) registerPanel(spotifyPanel(id, w, h, t))
     else if (t.browser) registerPanel(browserPanel(id, w, h, t))
-    else registerPanel(webPanel(id, w, h, toolbar = false) { web ->
+    // The grid screen is the whole app: at the panels' 500 dp a metre a 1.6m screen is an 800px-wide window, so the
+    // app laid out zoomed in and cut off. At a browser screen's density it is a desktop-width window, as in a browser.
+    else registerPanel(webPanel(id, w, h, toolbar = false, dpPerMeter = if (t.decorEntry?.optString("model") == "gridscreen") BROWSER_DP_PER_M else 500f) { web ->
       t.web = web
       val url = t.panelUrl
       if (url != null) web.loadUrl(url) else web.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
