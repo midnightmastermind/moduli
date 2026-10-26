@@ -2946,6 +2946,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           content: String(content), format, parentId, title, htmlOpts, timeoutMs,
           shape: cfg.shape === "reader" ? "reader" : "magic",
           embed: cfg.embed !== false && cfg.embed !== "false",
+          // An operation's import of the same content into the same place is made once, however many runs reach it
+          // (server utils/importDedupe — the day page's readings were landing 2-3 times).
+          dedupe: true,
         },
         resultVar,
         errorVar,

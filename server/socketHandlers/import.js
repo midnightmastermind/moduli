@@ -80,6 +80,13 @@ export const READER_TIMEOUT_MS = 6000;
 // import route); re-exported so existing importers keep resolving.
 export { buildImportShape } from "../services/importShape.js";
 import { buildImportShape } from "../services/importShape.js";
+import { importDedupeKey, runDeduped } from "../utils/importDedupe.js";
+import { createSerialByKey } from "../utils/serialByKey.js";
+
+// One embed write at a time per doc parent: embedRootInDocParent reads the parent's text, appends, and writes it back,
+// so two imports finishing together each wrote the text without the other's embed (Oct 25: three readings imported,
+// two shown).
+const embedSerial = createSerialByKey();
 
 export function registerImportHandlers(socket, {
   io, userRoom, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -107,7 +114,7 @@ export function registerImportHandlers(socket, {
   socket.on("import_text", async (payload = {}, ack) => {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
-      title = "", htmlOpts = {}, requestId = null, shape = "magic", embed = false,
+      title = "", htmlOpts = {}, requestId = null, shape = "magic", embed = false, dedupe = false,
     } = payload;
     const userId = socket.userId;
 
@@ -123,56 +130,66 @@ export function registerImportHandlers(socket, {
         return reply({ ok: false, error: "content (non-empty string) required" });
       }
 
-      const format = resolveImportFormat(content, rawFormat);
-      const markdown = contentToMarkdown({ content, format, title, htmlOpts });
+      const dedupeKey = dedupe && parentId ? importDedupeKey({ userId, gridId, parentId, shape, title, content }) : null;
+      const work = async () => {
+        const format = resolveImportFormat(content, rawFormat);
+        const markdown = contentToMarkdown({ content, format, title, htmlOpts });
 
-      // SHAPE, so "add this as a page" mints the tree you were actually reading.
-      // Absent = magic, which is byte-identical to what the drag/paste import
-      // has always produced.
-      const result = await buildImportShape({
-        shape, gridId, userId, markdown, title, parentId, dryRun: false,
-      });
+        // SHAPE, so "add this as a page" mints the tree you were actually reading.
+        // Absent = magic, which is byte-identical to what the drag/paste import
+        // has always produced.
+        const result = await buildImportShape({
+          shape, gridId, userId, markdown, title, parentId, dryRun: false,
+        });
 
-      // Persist to the DB + warm cache so the import survives a reload, THEN broadcast.
-      const uc = await getUC(userId, gridId);
-      await persistImportResult({ result, userId, uc });
-
-      // LIST the root in its destination, not just parent it. `markdownToModuli`
-      // pushes its own root when it persists, but `planReaderShape` is a pure
-      // planner — so without this the reader shape lands parented, complete and
-      // INVISIBLE. The linker's `$ne` guard makes the magic case a no-op, so one
-      // call serves both shapes instead of a per-shape branch that would drift.
-      const linkedParent = await linkRootIntoParent({
-        parentId, childId: result.rootOccurrenceId, userId,
-      });
-      publishLinkedParent(uc, linkedParent);
-
-      // Broadcast each created entity so all connected tabs (this one + others) sync.
-      for (const m of result.modules) {
-        io.to(userRoom(userId)).emit("module_created", { module: m });
-      }
-      for (const o of result.occurrences) {
-        io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
-      }
-
-      // After the rows exist on every tab: a doc parent draws its text, not its list: an operation's Import asks for the root to be
-      // embedded too (utils/embedRootInDocParent). Drag/paste imports place their own embed.
-      if (embed && parentId) {
-        const embedded = await embedRootInDocParent({ parentId, childId: result.rootOccurrenceId, userId });
-        if (embedded) {
-          if (uc?.occurrencesById?.[parentId]) uc.occurrencesById[parentId] = { ...uc.occurrencesById[parentId], textmap: embedded.textmap };
-          io.to(userRoom(socket.userId)).emit("occurrence_updated", { occurrence: { ...(uc?.occurrencesById?.[parentId] || {}), id: parentId, textmap: embedded.textmap } });
+        if (dedupeKey) {
+          const root = result.occurrences.find((o) => o.id === result.rootOccurrenceId);
+          if (root) root.meta = { ...(root.meta || {}), importKey: dedupeKey };
         }
-      }
+        // Persist to the DB + warm cache so the import survives a reload, THEN broadcast.
+        const uc = await getUC(userId, gridId);
+        await persistImportResult({ result, userId, uc });
 
-      reply({
-        ok: true,
-        rootOccurrenceId: result.rootOccurrenceId,
-        stats: result.stats,
-        detectedFormat: format,
-        // markdown is omitted to keep payload small — server logs / DB
-        // have it if needed. Caller asks via REST when they want it.
-      });
+        // LIST the root in its destination, not just parent it. `markdownToModuli`
+        // pushes its own root when it persists, but `planReaderShape` is a pure
+        // planner — so without this the reader shape lands parented, complete and
+        // INVISIBLE. The linker's `$ne` guard makes the magic case a no-op, so one
+        // call serves both shapes instead of a per-shape branch that would drift.
+        const linkedParent = await linkRootIntoParent({
+          parentId, childId: result.rootOccurrenceId, userId,
+        });
+        publishLinkedParent(uc, linkedParent);
+
+        // Broadcast each created entity so all connected tabs (this one + others) sync.
+        for (const m of result.modules) {
+          io.to(userRoom(userId)).emit("module_created", { module: m });
+        }
+        for (const o of result.occurrences) {
+          io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
+        }
+
+        // After the rows exist on every tab: a doc parent draws its text, not its list: an operation's Import asks for the root to be
+        // embedded too (utils/embedRootInDocParent). Drag/paste imports place their own embed.
+        if (embed && parentId) {
+          const embedded = await embedSerial(`${userId}:${parentId}`, () => embedRootInDocParent({ parentId, childId: result.rootOccurrenceId, userId }));
+          if (embedded) {
+            if (uc?.occurrencesById?.[parentId]) uc.occurrencesById[parentId] = { ...uc.occurrencesById[parentId], textmap: embedded.textmap };
+            io.to(userRoom(socket.userId)).emit("occurrence_updated", { occurrence: { ...(uc?.occurrencesById?.[parentId] || {}), id: parentId, textmap: embedded.textmap } });
+          }
+        }
+
+        return {
+          ok: true,
+          rootOccurrenceId: result.rootOccurrenceId,
+          stats: result.stats,
+          detectedFormat: format,
+          // markdown is omitted to keep payload small — server logs / DB
+          // have it if needed. Caller asks via REST when they want it.
+        };
+      };
+      const out = dedupeKey ? await runDeduped(dedupeKey, { gridId, parentId }, work) : await work();
+      if (out?.reused) console.log(`import_text: duplicate of an import already in "${title}"'s place — reused ${out.rootOccurrenceId}`);
+      reply(out);
     } catch (err) {
       console.error("import_text error:", err);
       reply({ ok: false, error: err?.message || "internal error" });

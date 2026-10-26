@@ -2878,7 +2878,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // same flow, which the existing store handlers absorb — pipeline
   // callers only need the root id to chain MOVE_OCCURRENCE / UPDATE
   // steps against the imported subtree.
-  operationsBridge.importText = ({ content, format = "auto", parentId = null, title = "Imported", htmlOpts = {}, timeoutMs = 60000, shape = "magic", embed = false } = {}) => {
+  operationsBridge.importText = ({ content, format = "auto", parentId = null, title = "Imported", htmlOpts = {}, timeoutMs = 60000, shape = "magic", embed = false, dedupe = false } = {}) => {
     return new Promise((resolve, reject) => {
       if (!content) { reject(new Error("IMPORT: content required")); return; }
       const stateNow = stateRef?.current || {};
@@ -2902,7 +2902,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       };
       socket.on("import_text_result", onResult);
       socket.emit("import_text", {
-        content, format, gridId, parentId, title, htmlOpts, requestId, shape, embed,
+        content, format, gridId, parentId, title, htmlOpts, requestId, shape, embed, dedupe,
       });
     });
   };
