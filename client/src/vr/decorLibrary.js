@@ -27,7 +27,7 @@ export const BUILTIN_DECOR = [
   { key: "rug", title: "Rug" },
   { key: "candle", title: "Candle" },
   { key: "gridscreen", title: "Grid screen" },
-  { key: "notepad", title: "New note screen" },
+  { key: "notepad", title: "New note" },
   { key: "browser", title: "Browser screen" },
   { key: "claude", title: "Claude screen" },
   { key: "remotedesktop", title: "PC screen (Remote Desktop)" },
