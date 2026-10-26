@@ -241,6 +241,8 @@ class OfficeActivity : AppSystemActivity() {
   /** The grid whose open readers have been put back (once per grid, after the room is built). */
   private var readersRestoredFor = ""
   private val readerHandles = HashMap<Int, GrabHandle>()
+  /** A bookmark window's browser (closed with its window). */
+  private val readerGecko = HashMap<Int, GeckoBrowser>()
   /** The web window last pressed: a physical keyboard's keys reach the activity's own window, never a panel's. */
   private var keyTarget: android.view.View? = null
   /** Open settings windows, by piece key (one per piece; its ⚙ opens and closes it). */
@@ -456,6 +458,9 @@ class OfficeActivity : AppSystemActivity() {
                           main.post { rememberBrowserUrl(t, u) }
                         }, onPressed = { v -> keyTarget = v })
                         web = g
+                        // Kept where closing the screen or window can shut it (and its sound) down.
+                        t.gecko = g
+                        t.key.removePrefix("reader:").takeIf { t.key.startsWith("reader:") }?.toIntOrNull()?.let { readerGecko[it] = g }
                         g.view
                       },
                       onRelease = { web?.close() },
@@ -985,6 +990,8 @@ class OfficeActivity : AppSystemActivity() {
 
   private fun deleteEntity(key: String) {
     val t = things.remove(key) ?: return
+    t.gecko?.close(); t.gecko = null
+    t.web?.let { w -> try { w.loadUrl("about:blank"); w.destroy() } catch (_: Throwable) {} }
     t.handle?.destroy()
     t.panel?.destroy()
     t.gear?.destroy()
@@ -1350,7 +1357,7 @@ class OfficeActivity : AppSystemActivity() {
    *  furniture" being on, like a reader window (user: "i need the screens to not be only when furniture is turned
    *  on"). Furniture still needs the switch, so reaching for a book never moves the shelf. */
   private fun isScreen(t: Thing): Boolean =
-      t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" } == true
+      t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" || it == "window" } == true
 
   private fun showMenus() {
     val now = System.currentTimeMillis()
@@ -1790,7 +1797,10 @@ class OfficeActivity : AppSystemActivity() {
   private fun closeReader(id: Int) {
     main.post {
       pieceWindows.entries.removeAll { it.value == id }
-      readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy(); readerWebs.remove(id)
+      // Its page stops too: a closed window kept playing a video's sound (the panel went, its browser did not).
+      readerGecko.remove(id)?.close()
+      readerWebs.remove(id)?.let { w -> try { w.loadUrl("about:blank"); w.destroy() } catch (_: Throwable) {} }
+      readerHandles.remove(id)?.destroy(); readers.remove(id)?.destroy()
       readerScale.remove(id); readerHandleDy.remove(id)
       if (readerOcc.remove(id) != null) saveReaders()
     }
