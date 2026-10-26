@@ -1508,7 +1508,9 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const core = await import("../generated/officeCore.mjs");
       // Shallow copies: the app's helpers memoise on a map's identity, and these maps are changed in place.
       const ctx = {
-        grid: { ...grid, id: grid._id.toString() },
+        // The grid as the app receives it (through JSON): read straight from Mongo its ids and dates are objects, and
+        // the feed filters then matched nothing — every shelf came back empty (measured 2026-10-26). It is small.
+        grid: JSON.parse(JSON.stringify({ ...grid, id: grid._id.toString() })),
         occurrencesById: { ...uc.occurrencesById }, modulesById: { ...uc.modulesById }, foldersById: { ...uc.foldersById },
         shelfAt: shelfAt && typeof shelfAt === "object" ? shelfAt : {}, origin: String(origin || ""),
       };
