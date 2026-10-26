@@ -16,18 +16,24 @@ Step 0 (shipped `passiveWindow`): no grid drawn, no ops/feeds/schedules/reminder
   helpers memoise on object identity (`cachedParentMap`, music shelf cache) and the server mutates its maps in place.
 
 ## Tasks
-1. ☐ `vr/officeState.js`: move `nativeOfficeState`, `bookmarkBar`, `findBookmarksBoard`, `findDayPage`,
+1. ☑ `vr/officeState.js`: move `nativeOfficeState`, `bookmarkBar`, `findBookmarksBoard`, `findDayPage`,
    `findNotesFolder` out of NativeOffice (pure; `origin` passed in). NativeOffice imports them. officeCore exports.
-2. ☐ Server `POST /api/v1/vr/office/state` `{ gridId, shelfAt, origin }` → the state message (session JWT).
+2. ☑ Server `POST /api/v1/vr/office/state` `{ gridId, shelfAt, origin }` → the state message (session JWT).
    Test with a small fixture against the generated bundle; a test that the bundle is current (rebuild + compare).
-3. ☐ Server `POST /api/v1/vr/office/action`: `albumQueue` (read), `deleteItems`, `shelfReorder`, `newNote`,
+3. ☑ (as `/vr/office/plan`: albumQueue, shelfReorder, folderDelete planned on the server; the writes stay the app's own events from the panel — undo/transactions unchanged. newNote/saveBookmark/placeInto run in the panel with what it has or fetches) Server `POST /api/v1/vr/office/action`: `albumQueue` (read), `deleteItems`, `shelfReorder`, `newNote`,
    `saveBookmark`, `placeInto` — each the same write the client helper makes, done on the server through the
    existing handlers' code paths (cache + Mongo + broadcast + transactions).
-4. ☐ `OfficePanelApp` (like ReaderApp): `/?office` inside `window.ModuliNative` boots it instead of App. No
+4. ☑ `OfficePanelApp` (like ReaderApp): `/?office` inside `window.ModuliNative` boots it instead of App. No
    full_state. Socket joined quietly (`join_grid_quiet`); any occurrence/folder/grid event → refetch state
    (debounced; removals at once, as now). Menu UI = NativeOffice's, fed by the server state. Piece windows
    (`&piece=`) need shelf/screen settings — ShelfSettings uses FeedSection (needs field/occurrence lists): fetch
    `GET /fields` and the occurrence options it needs, or keep piece windows on the full app for now (rarely open).
-5. ☐ Screen pictures (`screenPicture`) render pages off screen — needs page rows: move to the grid screen or fetch
+5. ☐ (remote panel skips them; poms has 0 office screens) Screen pictures (`screenPicture`) render pages off screen — needs page rows: move to the grid screen or fetch
    the page subtree (`/occurrences/:id/subtree`, ReaderApp's).
 6. ☐ Measure on the headset: app memory with the room loaded, before/after.
+
+## Status 2026-10-26
+Shipped: state (byte-identical to the app's answer on poms; ~0.35-0.5s server compute; a fingerprint makes an
+unchanged answer a few bytes — the full one is 1.5 MB), plans, OfficePanelApp booted from main.jsx when
+`window.ModuliNative && ?office && !piece`. The grid record must go through JSON before the shared code reads it
+(its Date/ObjectId values made every feed empty). **Not yet watched on the headset** (task 6).
