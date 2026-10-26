@@ -1495,7 +1495,7 @@ function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, sh
       }
       if (s.folderId) {
         const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
-        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp };
+        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
       }
       if (s.asset === "record") {
         const v = musicShelfView(s, at2, ctx);

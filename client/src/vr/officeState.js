@@ -70,7 +70,8 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
       if (s.folderId) {
         // A folder shelf is a tree in the headset: its subfolders are books you open (and come back up from).
         const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
-        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp };
+        // `folderable`: a new folder can be made where the shelf stands (its ＋📁 button).
+        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
       }
       if (s.asset === "record") {
         // A record crate is artists → albums → songs, A–Z.

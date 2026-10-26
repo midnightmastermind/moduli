@@ -3,6 +3,9 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
+import { useDoubleTap } from "../hooks/useDoubleTap";
+import { pageTwin } from "../helpers/pageTwin";
+import { operationsBridge } from "../state/bindSocketToStore";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
@@ -420,12 +423,21 @@ function Page({
     setEditLabel(pageModule?.label || "");
     setIsEditing(true);
   }, [pageModule?.label]);
+  // A double tap a headset controller can hit (hooks/useDoubleTap): the ray moves between two trigger presses.
+  const titleDoubleTap = useDoubleTap(startEdit);
 
   const commitLabel = useCallback(() => {
     setIsEditing(false);
     if (!pageModule || editLabel === pageModule.label) return;
-    CommitHelpers.updateModule({ dispatch, socket, module: { ...pageModule, label: editLabel }, emit: true });
-  }, [pageModule, editLabel, dispatch, socket]);
+    // Its one section of the same name is renamed with it (helpers/pageTwin), one undo step.
+    const twin = occurrence?.id && editLabel.trim()
+      ? pageTwin(occurrence, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) })
+      : null;
+    withAction("Renamed", () => {
+      CommitHelpers.updateModule({ dispatch, socket, module: { ...pageModule, label: editLabel }, emit: true });
+      if (twin) CommitHelpers.renameTwin({ dispatch, socket, twin, label: editLabel.trim() });
+    });
+  }, [pageModule, editLabel, dispatch, socket, occurrence]);
 
   // Delete page — the same delete as the file tree, folder cards and the headset shelf (helpers/confirmDeleteOccurrence):
   // out of every panel and list, undoable, its embeds removed.
@@ -879,7 +891,7 @@ function Page({
             ) : (
               <span
                 style={{ flex: 1, minWidth: 0, overflow: "hidden", fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
-                onDoubleClick={startEdit}
+                onClick={titleDoubleTap}
               >
                 <AutoMarquee>{pageModule.label || "Untitled"}</AutoMarquee>
               </span>

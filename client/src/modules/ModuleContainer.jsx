@@ -3,6 +3,7 @@
 // Renders a container header and its instances.
 // Handles doc containers, focused instance view, list view, sorting.
 
+import { useDoubleTap } from "../hooks/useDoubleTap";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
@@ -393,6 +394,8 @@ function Container({
   // The embedded variant uses contentEditable directly; this is only for the
   // standard variant which renders a plain text span.
   const [isEditingLabel, setIsEditingLabel] = useState(false);
+  // The title opens for editing on a double tap a headset controller can hit (hooks/useDoubleTap).
+  const labelDoubleTap = useDoubleTap(useCallback((e) => { e.stopPropagation?.(); setIsEditingLabel(true); }, []));
   const [labelDraft, setLabelDraft] = useState(module.label ?? "");
   useEffect(() => { setLabelDraft(module.label ?? ""); }, [module.label, module.id]);
   const commitInlineLabel = useCallback(() => {
@@ -1641,7 +1644,7 @@ function Container({
               ) : (
                 <span
                   className="container-header-label"
-                  onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
+                  onClick={!headerBinding ? labelDoubleTap : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
                   style={{
                     flex: "1 1 auto", minWidth: 0, overflow: "hidden",

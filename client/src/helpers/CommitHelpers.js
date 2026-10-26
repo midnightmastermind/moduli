@@ -1,4 +1,5 @@
 // helpers/CommitHelpers.js
+import { pageTwin, twinRenameWrite } from "./pageTwin";
 import { renameTarget } from "./sharedModule.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { operationsBridge } from "../state/bindSocketToStore";
@@ -192,7 +193,28 @@ export function renameFileTile({ dispatch, socket, module, occurrence, label }) 
  */
 // `allowEmpty` — an unnamed container is legitimate (its header can show a bound field
 // instead); only a deliberate gesture (Container settings › Label) may clear the name.
-export function renameContainer({ dispatch, socket, module, occurrence, label, meta, allowEmpty = false }) {
+export function renameContainer(args) {
+  const { dispatch, socket, module, occurrence, label, allowEmpty = false } = args;
+  const next = (label ?? "").trim();
+  if ((!next && !allowEmpty) || !module?.id) return;
+  // A page holding only this section, under the same name, is renamed with it (helpers/pageTwin).
+  const twin = occurrence?.id && next
+    ? pageTwin(occurrence, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) })
+    : null;
+  withAction("Renamed", () => {
+    _renameContainer(args);
+    if (twin) renameTwin({ dispatch, socket, twin, label: next });
+  });
+}
+
+/** Write a page twin's new name (helpers/pageTwin): its own label, else its module's. */
+export function renameTwin({ dispatch, socket, twin, label }) {
+  const w = twinRenameWrite(twin, label);
+  if (w.occurrence) _updateOccurrence({ dispatch, socket, occurrence: w.occurrence });
+  else updateModule({ dispatch, socket, module: w.module, emit: true });
+}
+
+function _renameContainer({ dispatch, socket, module, occurrence, label, meta, allowEmpty = false }) {
   const next = (label ?? "").trim();
   if ((!next && !allowEmpty) || !module?.id) return;
   // Shared module (a template's container and every day's copy of it): the name

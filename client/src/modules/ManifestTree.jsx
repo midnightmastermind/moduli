@@ -11,6 +11,9 @@ import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { renameTarget } from "../helpers/sharedModule";
+import { pageTwin } from "../helpers/pageTwin";
+import { withAction } from "../helpers/actionScope";
+import { operationsBridge } from "../state/bindSocketToStore";
 import { clampToViewport } from "../helpers/clampToViewport.js";
 import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon, ExternalLink, FilePlus, Pin } from "lucide-react";
 import { buildRenameItem } from "./pageCardRename";
@@ -189,12 +192,17 @@ function DocNodeImpl({ occ, depth, isAnchor, parentOccId, occurrencesById, modul
     setIsRenaming(false);
     const trimmed = renameValue.trim();
     if (!trimmed || trimmed === label) return;
-    // A placement with its own name (or one of several sharing the module) is renamed itself, not every copy.
-    if ((occ.label && occ.label.trim()) || renameTarget({ module: mod, occurrence: occ }) === "occurrence") {
-      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, label: trimmed }, emit: true });
-    } else {
-      CommitHelpers.updateModule({ dispatch, socket, module: { id: mod.id, label: trimmed }, emit: true });
-    }
+    // A page's one section of the same name (or the page of a lone section) is renamed with it (helpers/pageTwin).
+    const twin = pageTwin(occ, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) });
+    withAction("Renamed", () => {
+      // A placement with its own name (or one of several sharing the module) is renamed itself, not every copy.
+      if ((occ.label && occ.label.trim()) || renameTarget({ module: mod, occurrence: occ }) === "occurrence") {
+        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, label: trimmed }, emit: true });
+      } else {
+        CommitHelpers.updateModule({ dispatch, socket, module: { id: mod.id, label: trimmed }, emit: true });
+      }
+      if (twin) CommitHelpers.renameTwin({ dispatch, socket, twin, label: trimmed });
+    });
   }, [renameValue, mod, occ, label, dispatch, socket]);
 
   useEffect(() => {

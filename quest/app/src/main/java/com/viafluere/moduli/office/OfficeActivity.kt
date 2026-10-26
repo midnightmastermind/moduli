@@ -617,7 +617,7 @@ class OfficeActivity : AppSystemActivity() {
       }
       "addDecor" -> addDecor(m)
       // Folder shelves are trees and shelves can delete: the control panel (signed in, holds the grid) does both.
-      "openFolder", "shelfUp" -> send(m)
+      "openFolder", "shelfUp", "newFolder" -> send(m)
       "deleteItems" -> {
         send(m)
         // Off the shelf at once: the control panel's next state (every shelf rebuilt) took seconds to arrive.

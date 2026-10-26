@@ -78,6 +78,7 @@ object PanelHtml {
   /* Its title, big enough to read at that size (a song's name was too small to see). */
   .it.mini span{font-size:1.5vh;max-height:100%;background:rgba(0,0,0,.7)}
   .it.fold{border:.4vh solid #c9a46a;box-sizing:border-box}
+  ${if (asset == "record") RECORD_LABELS else ""}
   /* A folder with no picture is a plain leather spine; one with a picture (an artist on the record crate) shows it. */
   .it.fold:not(.pic){background:linear-gradient(#5a4632,#3b2c1d)!important}
   .it.fold span:before{content:'📁 ';}
@@ -86,6 +87,7 @@ object PanelHtml {
   .it.sel{outline:.6vh solid #ff6b6b!important;outline-offset:-.6vh;box-shadow:0 0 2vh #ff6b6b!important}
   #path{font-size:1.3vh;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.on{background:#7a2e2e}
+  #nf{font-size:2.2vh;width:14vw;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   #q{font-size:2.2vh;width:16vw;min-width:0;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   button.danger{background:#8a2020;border-color:#f99}
 </style></head><body>
@@ -93,11 +95,15 @@ object PanelHtml {
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <input id="q" placeholder="🔍 Search" oninput="search()">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
+  ${if (shelf.optBoolean("folderable")) """<button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
   <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>
 <script>$BRIDGE
   var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")};
+  // A new folder where the shelf stands: a name box (no prompt — a web prompt never shows inside a headset panel).
+  function newFolder(){ var b=document.getElementById('nfbox'); b.style.display=b.style.display==='none'?'inline':'none'; if(b.style.display!=='none') document.getElementById('nf').focus(); }
+  function addFolder(){ var i=document.getElementById('nf'); var n=(i.value||'').trim(); if(!n) return; send({type:'newFolder',key:key,name:n}); i.value=''; document.getElementById('nfbox').style.display='none'; }
   var colors=${JSONArray(SPINE_COLORS)};
   function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
   // `all` is everything on the shelf; `items` what shows (the search's matches). The app lays its books over `items`.
@@ -159,6 +165,11 @@ object PanelHtml {
     for (ch in title) h = h * 31 + ch.code
     return kotlin.math.abs(h) % SPINE_COLORS.size
   }
+
+  /** Records are wide squares, not spines: their titles can be read from across the room (user, 2026-10-26: "make the
+   *  music labels alot bigger on vr"). Artist folders, albums and the mini records of an album's songs alike. */
+  private const val RECORD_LABELS = ".it span,.it.mini span{font-size:2.6vh;line-height:1.1;padding:.5vh;max-height:70%;background:rgba(0,0,0,.72)}" +
+      ".it.fold i{font-size:2.2vh;top:.6vh;text-shadow:0 0 .6vh #000}"
 
   /** The card floating over a book / record / tape in your hand: its cover (when it has one) and its title. */
   fun heldCard(title: String, cover: String): String {

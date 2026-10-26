@@ -61,7 +61,7 @@ import { applyWindowLayout, readWindowLayout, incomingPanelUpdate } from "../hel
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, findOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -2753,6 +2753,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.markDerivedOcc = _markOpEmitted;
   operationsBridge.removeLocalOcc = (occurrenceId) => { dropLocalOcc(occurrenceId); };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
+  // Any occurrence by id: the overlay, else the store (getLocalOcc is the overlay alone — the stale-write checks read it
+  // as "touched here", so it must not start answering for every row).
+  operationsBridge.findOcc = (occurrenceId) => (occurrenceId
+    ? localOccsById[occurrenceId] || (stateRef.current?.occurrences || []).find((o) => o?.id === occurrenceId) || null
+    : null);
   // Which occurrences LIST this child, and where. An upload's placement is
   // written before the server has the file's row, so the server drops it as an
   // unknown child; artifactUpload re-links it here once the upload lands.
@@ -3336,6 +3341,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onFeedClaimEvent);
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
+    operationsBridge.findOcc = null;
     operationsBridge.getParentsListing = null;
     operationsBridge.getLocalMod = null;
     operationsBridge.getLinkedOccs = null;

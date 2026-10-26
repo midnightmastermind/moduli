@@ -31,7 +31,7 @@ export { BOOKMARK_BAR_MAX, findBookmarksBoard, bookmarkBar, nativeOfficeState, f
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
-import { addBookmarkOccurrence, movePage } from "../helpers/CommitHelpers.js";
+import { addBookmarkOccurrence, movePage, createFolder } from "../helpers/CommitHelpers.js";
 import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -278,6 +278,21 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
           const prev = live.current.shelfAt[shelfId];
           moveShelf(shelfId, `album:${e.id}|${typeof prev === "string" && !prev.startsWith("album:") ? prev : ""}`);
+        }
+        else if (e?.type === "newFolder") {
+          // The shelf's ＋📁: a folder named as typed, in the folder the shelf stands in (user, 2026-10-26: "we need a way
+          // to make new folders on the shelf"). It shows on the shelf as a book you open.
+          const shelfId = String(e.key || "").replace(/^shelf:/, "");
+          const L = live.current;
+          const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
+          const name = String(e.name || "").trim() || "New folder";
+          if (!shelf?.folderId) return;
+          const at = L.shelfAt[shelfId];
+          const parentId = typeof at === "string" && at && !at.includes(":") ? at : shelf.folderId;
+          createFolder({ dispatch: L.dispatch, socket, emit: true, folder: {
+            id: crypto.randomUUID(), name, parentId, gridId: L.gridId, userId: L.grid?.userId || localStorage.getItem("moduli-userId"), folderType: "normal",
+          } });
+          setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
         }
         else if (e?.type === "openFolder" || e?.type === "shelfUp") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");

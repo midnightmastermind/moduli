@@ -21,6 +21,8 @@
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { withAction } from "../helpers/actionScope";
 import { renameTarget } from "../helpers/sharedModule.js";
+import { pageTwin } from "../helpers/pageTwin";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 /**
  * @returns a context-menu item, or null when there is nothing to rename.
@@ -51,7 +53,14 @@ export function buildRenameItem({ module, occurrence = null, dispatch, socket, o
       withAction("Renamed", () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, label: own }, emit: true }));
       return true;
     }
-    withAction("Renamed", () => CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label }, emit: true }));
+    // Its one section of the same name is renamed with it (helpers/pageTwin).
+    const twin = occurrence?.id
+      ? pageTwin(occurrence, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) })
+      : null;
+    withAction("Renamed", () => {
+      CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label }, emit: true });
+      if (twin) CommitHelpers.renameTwin({ dispatch, socket, twin, label });
+    });
     return true;
   };
 
