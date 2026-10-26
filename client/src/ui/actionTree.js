@@ -196,7 +196,7 @@ export const ACTION_TREE = [
           { value: "MARK_COMPLETE",      title: "Mark complete",     sub: "boolean field = true/false", description: "Tick a completion field." },
           { value: "UPDATE_MODULE",      title: "Update module",     sub: "patch module record",   description: "JSON patch the template." },
           { value: "UPDATE_STYLE",       title: "Set style",         sub: "ownStyle.bg / color / ...", description: "Set per-module style overrides." },
-          { value: "UPDATE_VIEW",        title: "Update view",       sub: "viewId.activeOccurrenceId", description: "Switch a view's active occurrence." },
+          { value: "UPDATE_VIEW",        title: "Show page in panel", sub: "switch what a panel shows", description: "Show another page in a panel — with a button, the panel it was pressed in ($trigger.panelViewId)." },
           { value: "APPEND_TO_DOC",      title: "Append to doc",     sub: "paragraph to textmap",  description: "Add a paragraph to an occurrence's TipTap doc." },
           { value: "SET_TEXTMAP",        title: "Set textmap",       sub: "replace the whole doc", description: "Replace an occurrence's textmap outright (a doc's body)." },
           { value: "REMOVE_CHILD",       title: "Remove child",      sub: "unlist, do NOT delete", description: "Take a child out of a parent's list. The occurrence survives — the sibling of Add child." },

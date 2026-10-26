@@ -1586,10 +1586,11 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
     case "UPDATE_VIEW":
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
-          {fl("view:")}
-          <ExprInput value={cfg.viewId || ""} onChange={v => setCfg({ viewId: v })} placeholder="viewId or $var.id" width={160} />
-          {fl("activeOccurrenceId:")}
-          <ExprInput value={cfg.activeOccurrenceId || ""} onChange={v => setCfg({ activeOccurrenceId: v })} placeholder="$lastCreatedOccurrenceId or occId" width={160} />
+          {/* With a button, $trigger.panelViewId is the panel it was pressed in (helpers/pressPanel). */}
+          {fl("panel:")}
+          <ExprInput value={cfg.viewId || ""} onChange={v => setCfg({ viewId: v })} placeholder="$trigger.panelViewId" width={160} />
+          {fl("show page:")}
+          <ExprInput value={cfg.activeOccurrenceId || ""} onChange={v => setCfg({ activeOccurrenceId: v })} placeholder="a page's id, or $var.id" width={160} />
         </div>
       );
 
