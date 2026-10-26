@@ -8,6 +8,7 @@
 //
 // Runs the op directly (like useScheduler), so the transaction matcher never
 // sees these trigger types. Writes are derived (not undo steps — nobody did them).
+import { isPassiveWindow } from "../helpers/passiveWindow.js";
 import { useEffect, useMemo, useRef } from "react";
 import { executePipeline, opRunsOnGrid } from "../helpers/operationExecutor";
 import { runDerived } from "../helpers/actionScope";
@@ -65,6 +66,7 @@ export function usePanelLoadTriggers({ state, dispatch, fieldsById, operationsBy
     if (!ops.length) return;
     const timer = setTimeout(() => {
       if (isSnapshotMode()) return;
+      if (isPassiveWindow()) return; // the headset's control panel (helpers/passiveWindow)
       const present = presentInPanels({ grid: state?.grid, occurrencesById, viewsById, modulesById });
       for (const op of ops) {
         (op.triggerObjects || []).forEach((t, i) => {
@@ -97,6 +99,7 @@ export function usePanelLoadTriggers({ state, dispatch, fieldsById, operationsBy
     const seen = new Map(); // element -> true while intersecting
     const io = new IntersectionObserver((entries) => {
       if (isSnapshotMode()) return;
+      if (isPassiveWindow()) return; // the headset's control panel (helpers/passiveWindow)
       for (const e of entries) {
         const id = e.target.getAttribute("data-occ-id") || e.target.getAttribute("data-occurrence-id");
         if (!e.isIntersecting) { seen.delete(e.target); continue; }

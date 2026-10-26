@@ -2,6 +2,7 @@
 // Keeps the Alarms list in step with Reminder field values (helpers/reminderSync.js). Runs a beat after
 // the store settles, so a burst of writes is one plan. Every tab computes the same deterministic ids, so
 // two tabs racing produce the same writes, never duplicates.
+import { isPassiveWindow } from "../helpers/passiveWindow.js";
 import { useEffect, useRef } from "react";
 import { isSnapshotMode } from "../state/snapshotMode.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -17,6 +18,7 @@ export function useReminderSync({ state, dispatch, socket, modulesById }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       if (isSnapshotMode()) return; // a boot snapshot is on screen; the real load re-runs this
+      if (isPassiveWindow()) return; // the headset's control panel (helpers/passiveWindow)
       const { create, update, remove } = planReminderOps({
         fields: fields || [], occurrences: occurrences || [], operations: operations || [], modulesById: modulesById || {}, gridId, complete,
       });

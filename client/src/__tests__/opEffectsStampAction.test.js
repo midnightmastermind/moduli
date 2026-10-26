@@ -21,8 +21,10 @@ describe("op effects stamp the user's action", () => {
   });
 
   it("control: the effect writes still exist, through safeEmit", () => {
-    for (const ev of ["create_occurrence", "create_folder", "update_view", "update_occurrence_hidden"]) {
+    for (const ev of ["create_occurrence", "create_folder", "update_occurrence_hidden"]) {
       expect(src).toMatch(new RegExp(`safeEmit\\(\\s*socket,\\s*["']${ev}["']`));
     }
+    // A panel switch goes through CommitHelpers.updateView (2026-10-26, the music drill-down), which emits with safeEmit.
+    expect(src).toMatch(/updateView\(\{\s*dispatch: socketDispatch,\s*socket,/);
   });
 });

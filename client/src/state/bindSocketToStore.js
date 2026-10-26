@@ -53,6 +53,7 @@ import { loadBootSnapshot, saveBootSnapshot } from "../helpers/bootSnapshot.js";
 import { applyViewOverlay, recordViewPage } from "../helpers/bootViewOverlay";
 import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
 import { incomingGridPatch, isLocalLayout, currentPanelIds } from "../helpers/localLayout.js";
+import { isPassiveWindow } from "../helpers/passiveWindow.js";
 import { getWindowId } from "../helpers/windowId.js";
 import { applyWindowLayout, readWindowLayout, incomingPanelUpdate } from "../helpers/windowLayout.js";
 
@@ -200,6 +201,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
       if (isSnapshotMode()) return;
+      if (isPassiveWindow()) return;
       if (!_isSyncLeader && socket?.connected) return;
       try {
         const state = stateRef.current || {};
@@ -503,6 +505,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function runLoadSweep(payload) {
+    if (isPassiveWindow()) return; // the headset's control panel runs no operations (helpers/passiveWindow)
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
     const fieldsById = {};
@@ -2188,6 +2191,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   function fireOperations(transactionType, transaction) {
     if (isSnapshotMode()) return; // the grid on screen is a boot snapshot (state/snapshotMode)
+    if (isPassiveWindow()) return; // the headset's control panel (helpers/passiveWindow)
     // During a drop batch (beginDropBatch active), collect top-level fires instead
     // of executing them synchronously. endDropBatch flushes them after rAF so the
     // browser paints the visual drop result before any operation work runs.

@@ -1,4 +1,5 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
+import { isPassiveWindow } from "./helpers/passiveWindow";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
 import { armHaptics } from "./helpers/haptics.js";
@@ -1238,7 +1239,8 @@ export default function App() {
             window.addEventListener("touchend", done, { passive: true });
           }}>
           {state.grid?._id ? (
-            <Grid />
+            // The headset's control panel draws no grid (helpers/passiveWindow); the office menu is all it shows.
+            isPassiveWindow() ? null : <Grid />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
               <Spinner size="xl" />

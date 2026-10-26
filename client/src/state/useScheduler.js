@@ -22,6 +22,7 @@
 //     on every fire is expensive. The scheduler surfaces this at the
 //     console (soft warn) so the author can see what their op is doing.
 // ============================================================
+import { isPassiveWindow } from "../helpers/passiveWindow.js";
 import { useEffect, useRef } from "react";
 import { isSnapshotMode } from "./snapshotMode.js";
 
@@ -106,6 +107,7 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
 
     const tick = () => {
       if (isSnapshotMode()) return; // a boot snapshot is on screen (state/snapshotMode)
+      if (isPassiveWindow()) return; // the headset's control panel (helpers/passiveWindow)
       // Not inside the Quest app's windows (its control panel, readers): an alarm rang in a reader with no way to
       // stop it there. Scheduled operations and alarms run in the user's ordinary tabs.
       if (inQuestApp()) return;
