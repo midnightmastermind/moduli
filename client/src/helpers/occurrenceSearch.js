@@ -176,6 +176,8 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     for (let f = foldersById[cursor], n = 0; f && n < 64; n++) { chain.unshift(f.name || "Folder"); f = f.parentId ? foldersById[f.parentId] : null; }
     pathLabels.unshift(...chain);
   }
+  // A page and the board on it often share a name: "Lookup › Lookup" reads as one step.
+  for (let i = pathLabels.length - 1; i > 0; i--) if (pathLabels[i].trim().toLowerCase() === pathLabels[i - 1].trim().toLowerCase()) pathLabels.splice(i, 1);
   // The one board / doc on a page that has the page's own name IS the page to the user: search lists the page alone
   // ("we have like 15 lookups in the search").
   const parentOcc = occurrencesById[homeOf(occ.id)];

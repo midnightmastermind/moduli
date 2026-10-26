@@ -22,7 +22,7 @@ describe("search results", () => {
   const hits = searchOccurrences(index, "lookup").results.map((h) => h.entry);
   it("a path starts at Root, through the folders", () => {
     expect(hits.find((e) => e.occId === "page").pathLabels).toEqual(["Root", "Documents", "Notes"]);
-    expect(hits.find((e) => e.occId === "r1").pathLabels).toEqual(["Root", "Documents", "Notes", "Lookup", "Lookup"]);
+    expect(hits.find((e) => e.occId === "r1").pathLabels).toEqual(["Root", "Documents", "Notes", "Lookup"]);   // page + its same-named board: one step
   });
   it("the one board on a page with the page's own name is listed once (as the page)", () => {
     expect(hits.map((e) => e.occId)).not.toContain("board");
