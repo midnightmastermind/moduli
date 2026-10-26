@@ -91,6 +91,12 @@ if (isSharePath) {
       <Page />
     </React.Suspense>
   );
+} else if (typeof window !== "undefined" && window.ModuliNative && params.has("office") && !params.get("piece")) {
+  // The headset's control panel: the office alone, without the grid (vr/OfficePanelApp). A piece's own settings
+  // window (`&piece=`) still opens the full app — its shelf settings edit queries over the grid's fields.
+  import("./vr/OfficePanelApp.jsx").then(({ default: OfficePanelApp }) => {
+    root.render(<OfficePanelApp />);
+  });
 } else if (readOcc) {
   import("./ReaderApp.jsx").then(({ default: ReaderApp }) => {
     root.render(<ReaderApp occurrenceId={readOcc} />);

@@ -5,6 +5,7 @@ import { readOffice } from "./officeConfig.js";
 import { shelfItems, folderShelfView, albumShelfItems, musicShelfView } from "./shelfItems.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { decorLibrary } from "./decorLibrary.js";
+import { sortOrderForDrop, sortOrderAtEnd } from "../helpers/treeOrder.js";
 
 /** How many bookmarks a browser screen's bar shows (the board's first ones — a new one goes to the top). */
 export const BOOKMARK_BAR_MAX = 40;
@@ -111,3 +112,28 @@ export function findNotesFolder(foldersById) {
   return (notes.find((f) => foldersById[f.parentId]?.name === "Documents") || notes[0] || null)?.id || null;
 }
 
+
+/**
+ * A book let go on its folder shelf: before / after another book (the file tree's order), or onto a folder book
+ * (filed inside it). The page moves as [{ id, folder, sortOrder }], in order. Ties (pages never ordered are all 0)
+ * are numbered in the order shown first, or a midpoint lands nowhere. Pure.
+ */
+export function planShelfReorder({ shelf, at, id, targetId, edge }, { occurrencesById, modulesById, foldersById }) {
+  if (!shelf?.folderId || !occurrencesById?.[id]) return [];
+  const ctx = { occurrencesById, modulesById, foldersById, asset: shelf.asset };
+  const here = folderShelfView(shelf.folderId, at, ctx).at || shelf.folderId;
+  const pagesIn = (folderId) => Object.values(occurrencesById).filter((o) => o?.parentId === folderId && o.id !== id
+    && ["page", "artifact"].includes(modulesById?.[o.moduleId]?.role) && modulesById?.[o.moduleId]?.kind !== "folder");
+  if (String(targetId || "").startsWith("folder:")) {
+    const dest = String(targetId).slice(7);
+    return [{ id, folder: dest, sortOrder: sortOrderAtEnd(pagesIn(dest)) }];
+  }
+  const moves = [];
+  const title = (o) => (o.label || modulesById?.[o.moduleId]?.label || "");
+  let sibs = pagesIn(here).sort((a, b) => ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || title(a).localeCompare(title(b)));
+  if (new Set(sibs.map((o) => o.sortOrder ?? 0)).size < sibs.length) {
+    sibs = sibs.map((o, i) => { moves.push({ id: o.id, folder: here, sortOrder: i }); return { ...o, sortOrder: i }; });
+  }
+  moves.push({ id, folder: here, sortOrder: sortOrderForDrop(sibs, targetId, edge === "before" ? "top" : "bottom", id) });
+  return moves;
+}

@@ -41,7 +41,7 @@ describe("a folder's own page", () => {
     const src = fs.readFileSync(path.join(process.cwd(), "src/modules/ManifestTree.jsx"), "utf8");
     const body = src.slice(src.indexOf("const handleDelete = useCallback"));
     expect(body.slice(0, 1500)).toMatch(/deleteFolderMoveUp\(/);
-    const helper = fs.readFileSync(path.join(process.cwd(), "src/helpers/folderDelete.js"), "utf8");
+    const helper = fs.readFileSync(path.join(process.cwd(), "src/helpers/folderDeletePlan.js"), "utf8");
     expect(helper).toMatch(/deleteOccIds[\s\S]*isFolderPage\(o, modulesById\)/);
   });
 });

@@ -1515,12 +1515,49 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         shelfAt: shelfAt && typeof shelfAt === "object" ? shelfAt : {}, origin: String(origin || ""),
       };
       const state = core.nativeOfficeState(ctx);
-      res.json({
+      const body = {
         ...state,
         dayPageId: core.findDayPage(ctx),
         notesFolderId: core.findNotesFolder(ctx.foldersById),
         bookmarksBoardId: core.findBookmarksBoard(ctx)?.id || null,
-      });
+        // What the light control panel keeps (client OfficePanelApp): the office's own settings and the folders.
+        grid: { id: ctx.grid.id, _id: ctx.grid.id, userId: String(grid.userId), meta: { vrOffice: grid.meta?.vrOffice || null, vrLayout: grid.meta?.vrLayout || null } },
+        folders: Object.values(ctx.foldersById),
+      };
+      // The panel asks again whenever anything on the grid changes; an answer it already has is sent as "unchanged"
+      // (a fingerprint of the whole answer), so a busy grid does not resend megabytes of shelves to the headset.
+      const json = JSON.stringify(body);
+      const hash = crypto.createHash("sha1").update(json).digest("hex");
+      if (req.body?.hash && req.body.hash === hash) return res.json({ unchanged: true, hash });
+      res.type("application/json").send(json.slice(0, -1) + `,"hash":"${hash}"}`);
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // POST /vr/office/plan { gridId, type, ... } — the office's actions that read across the grid, planned here with the
+  // app's code; the panel then sends the writes through the app's usual events (undo, transactions as always).
+  //   albumQueue   { id }                                  → { items }
+  //   shelfReorder { shelfId, at, id, targetId, edge }     → { moves: [{ id, folder, sortOrder }] }
+  //   folderDelete { folderId }                            → { plan }
+  router.post("/vr/office/plan", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, type } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean().catch(() => null);
+      if (!grid) return err(res, 404, "not_found", "Grid not found");
+      const uc = await getUserCache(req.userId, gridId);
+      const core = await import("../generated/officeCore.mjs");
+      const ctx = {
+        grid: JSON.parse(JSON.stringify({ ...grid, id: grid._id.toString() })),
+        occurrencesById: { ...uc.occurrencesById }, modulesById: { ...uc.modulesById }, foldersById: { ...uc.foldersById },
+      };
+      const b = req.body;
+      if (type === "albumQueue") return res.json({ items: core.albumQueue(b.id, ctx) });
+      if (type === "shelfReorder") {
+        const shelf = core.readOffice(ctx.grid).shelves.find((s) => s.id === b.shelfId);
+        return res.json({ moves: core.planShelfReorder({ shelf, at: b.at, id: b.id, targetId: b.targetId, edge: b.edge }, ctx) });
+      }
+      if (type === "folderDelete") return res.json({ plan: core.planFolderDelete(ctx.foldersById[b.folderId], ctx) });
+      return err(res, 400, "validation_error", "unknown plan type");
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

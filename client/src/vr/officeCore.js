@@ -5,4 +5,5 @@ export { shelfItems, folderShelfView, albumShelfItems, albumQueue, musicShelfVie
 export { readOffice } from "./officeConfig.js";
 export { decorLibrary } from "./decorLibrary.js";
 export { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
-export { nativeOfficeState, bookmarkBar, findBookmarksBoard, findDayPage, findNotesFolder, BOOKMARK_BAR_MAX } from "./officeState.js";
+export { nativeOfficeState, bookmarkBar, findBookmarksBoard, findDayPage, findNotesFolder, BOOKMARK_BAR_MAX, planShelfReorder } from "./officeState.js";
+export { planFolderDelete } from "../helpers/folderDeletePlan";

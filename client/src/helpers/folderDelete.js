@@ -6,31 +6,16 @@
 // A protected folder (Templates / Files / Imports) is refused, before anything is written.
 import * as CommitHelpers from "./CommitHelpers";
 import { withAction } from "./actionScope";
-import { isProtectedFolder } from "./protectedFolders";
-
-const isFolderPage = (occ, modulesById) => {
-  const m = modulesById?.[occ?.moduleId];
-  return m?.role === "page" && m?.kind === "folder";
-};
-
-/** What deleting `folder` does. Pure. Null when it may not be deleted. */
-export function planFolderDelete(folder, { occurrencesById, foldersById, modulesById }) {
-  if (!folder?.id || isProtectedFolder(folder)) return null;
-  const occs = Object.values(occurrencesById || {}).filter((o) => o?.parentId === folder.id);
-  return {
-    deleteOccIds: occs.filter((o) => isFolderPage(o, modulesById)).map((o) => o.id),
-    moveOccIds: occs.filter((o) => !isFolderPage(o, modulesById)).map((o) => o.id),
-    moveFolderIds: Object.values(foldersById || {}).filter((f) => f?.parentId === folder.id).map((f) => f.id),
-    parentId: folder.parentId || null,
-  };
-}
+import { planFolderDelete } from "./folderDeletePlan";
+export { planFolderDelete } from "./folderDeletePlan";
 
 /** Delete `folder`, moving its contents up. Returns false when refused. One undo step. */
-export function deleteFolderMoveUp({ dispatch, socket, folder, occurrencesById, foldersById, modulesById }) {
-  const plan = planFolderDelete(folder, { occurrencesById, foldersById, modulesById });
+export function deleteFolderMoveUp({ dispatch, socket, folder, occurrencesById, foldersById, modulesById, plan: given = undefined }) {
+  // `plan`: worked out elsewhere (the headset's control panel holds no grid; the server plans it).
+  const plan = given !== undefined ? given : planFolderDelete(folder, { occurrencesById, foldersById, modulesById });
   if (!plan) return false;
   withAction("Deleted folder", () => {
-    for (const id of plan.deleteOccIds) CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: id, occurrence: occurrencesById[id] });
+    for (const id of plan.deleteOccIds) CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: id, occurrence: occurrencesById?.[id] });
     for (const id of plan.moveOccIds) CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id, parentId: plan.parentId }, emit: true });
     for (const id of plan.moveFolderIds) CommitHelpers.updateFolder({ dispatch, socket, folder: { id, parentId: plan.parentId }, emit: true });
     CommitHelpers.deleteFolder({ dispatch, socket, folderId: folder.id, emit: true });

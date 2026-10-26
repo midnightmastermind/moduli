@@ -20,19 +20,18 @@
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
-import { folderShelfView, albumQueue } from "./shelfItems.js";
+import { albumQueue } from "./shelfItems.js";
 import { deleteFolderMoveUp } from "../helpers/folderDelete";
 import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
 import { withAction } from "../helpers/actionScope";
 import { runGroupDrop } from "../helpers/selectionDrag";
 import { decorLibrary } from "./decorLibrary.js";
-import { nativeOfficeState, findBookmarksBoard, findDayPage, findNotesFolder } from "./officeState.js";
+import { nativeOfficeState, findBookmarksBoard, findDayPage, findNotesFolder, planShelfReorder } from "./officeState.js";
 export { BOOKMARK_BAR_MAX, findBookmarksBoard, bookmarkBar, nativeOfficeState, findDayPage, findNotesFolder } from "./officeState.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
 import { addBookmarkOccurrence, movePage } from "../helpers/CommitHelpers.js";
-import { sortOrderForDrop, sortOrderAtEnd } from "../helpers/treeOrder.js";
 import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -116,7 +115,14 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, fold
   );
 }
 
-export default function NativeOffice({ grid, occurrencesById, modulesById, foldersById, dispatch }) {
+/**
+ * `remote` (OfficePanelApp): the panel holds no grid — the server answers what the office shows and plans the actions
+ * that read across the grid (docs/superpowers/plans/2026-10-26-office-panel-without-the-grid.md):
+ *   remote.state(shelfAt) → the state message + { dayPageId, notesFolderId, bookmarksBoardId, decor }
+ *   remote.plan(type, body), remote.occurrence(id), remote.subtree(id)
+ * `rowsVersion` / `removedIds`: what changed on the grid (its socket events), so the shelves are sent again.
+ */
+export default function NativeOffice({ grid, occurrencesById, modulesById, foldersById, dispatch, remote = null, rowsVersion = 0, removedIds = null }) {
   const gridId = grid?._id || grid?.id;
   const office = useMemo(() => readOffice(grid), [grid]);
   const live = useRef({});
@@ -157,19 +163,46 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
 
   // ── State to the headset: settings at once, contents at most every few seconds ──
   const lastSent = useRef("");
+  const [extra, setExtra] = useState(null);
+  const extraRef = useRef(null);
+  const stateSeq = useRef(0);
   const sendState = useCallback(() => {
+    if (remote) {
+      const seq = ++stateSeq.current;
+      remote.state(live.current.shelfAt).then((st) => {
+        if (!st || seq !== stateSeq.current) return;
+        const { dayPageId, notesFolderId, bookmarksBoardId, grid: _g, folders: _f, hash: _h, ...msg } = st;
+        extraRef.current = { dayPageId, notesFolderId, bookmarksBoardId, decor: msg.decor };
+        setExtra(extraRef.current);
+        const json = JSON.stringify(msg);
+        if (json === lastSent.current) return;
+        lastSent.current = json;
+        post(msg);
+      }).catch((e) => console.warn("[office] state failed", e));
+      return;
+    }
     const msg = nativeOfficeState({ ...live.current, origin: window.location.origin }, pageLabel);
     const json = JSON.stringify(msg);
     if (json === lastSent.current) return;
     lastSent.current = json;
     post(msg);
-  }, [pageLabel]);
+  }, [pageLabel, remote]);
   const officeKey = JSON.stringify(office) + JSON.stringify(shelfAt);
   useEffect(() => { sendState(); }, [officeKey, sendState]);
   const lastRows = useRef(0);
   const lastCount = useRef(0);
   const lastIds = useRef(null);
+  // Remote: the grid's socket events say something changed (OfficePanelApp counts them).
   useEffect(() => {
+    if (!remote) return undefined;
+    const removed = !!removedIds?.length;
+    if (removed) post({ type: "gone", ids: removedIds });
+    const wait = removed ? 0 : Math.max(0, 5000 - (Date.now() - lastRows.current));
+    const t = setTimeout(() => { lastRows.current = Date.now(); sendState(); }, wait);
+    return () => clearTimeout(t);
+  }, [remote, rowsVersion, removedIds, sendState]);
+  useEffect(() => {
+    if (remote) return undefined;
     // Something removed (a page deleted): the shelves change at once — a book you just deleted must not sit there
     // for 5 seconds. Additions and edits still wait, so a busy grid does not resend the shelves every moment.
     const count = Object.keys(occurrencesById || {}).length;
@@ -185,15 +218,16 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     const wait = removed ? 0 : Math.max(0, 5000 - (Date.now() - lastRows.current));
     const t = setTimeout(() => { lastRows.current = Date.now(); sendState(); }, wait);
     return () => clearTimeout(t);
-  }, [occurrencesById, sendState]);
+  }, [remote, occurrencesById, sendState]);
 
   // ── Screen pictures, one at a time, after the room is up ──
   const paint = useCallback(async (id) => {
+    if (remote) return; // a remote panel holds no pages to picture (a page screen is drawn by the headset's own panel)
     const screen = readOffice(live.current.grid).screens.find((s) => s.id === id);
     if (!screen) return;
     const canvas = await screenPicture(screen, { picture, snapshotPage, occurrencesById: live.current.occurrencesById }).catch(() => null);
     if (canvas) post({ type: "screenImage", id, image: canvas.toDataURL("image/jpeg", 0.82) });
-  }, [picture, snapshotPage]);
+  }, [picture, snapshotPage, remote]);
   const screensKey = JSON.stringify(office.screens.map((s) => [s.id, s.source, s.pageOccId]));
   useEffect(() => {
     let cancelled = false;
@@ -220,12 +254,13 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         else if (e?.type === "saveBookmark") {
           // A browser screen's ☆: the page goes to the top of the Bookmarks board (and so onto every browser's bar).
           const L = live.current;
-          const board = findBookmarksBoard(L);
-          if (!board || !e.url) return;
-          addBookmarkOccurrence({
+          if (!e.url) return;
+          const add = (board) => board && addBookmarkOccurrence({
             dispatch: L.dispatch, socket, gridId: L.gridId, userId: L.grid?.userId || localStorage.getItem("moduli-userId"),
             containerOccurrence: board, url: e.url, label: e.title || null, index: 0, meta: { browserBar: true },
           });
+          if (remote) { const bid = extraRef.current?.bookmarksBoardId; if (bid) remote.occurrence(bid).then(add); }
+          else add(findBookmarksBoard(L));
           setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
         }
         else if (e?.type === "newNote") {
@@ -235,8 +270,9 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         }
         else if (e?.type === "albumQueue") {
           // An album dropped on a record player with no Spotify album link: its songs, one after another.
-          const items = albumQueue(e.id, live.current);
-          post({ type: "playQueue", key: e.key, title: e.title || "", items, fallback: e.fallback || "" });
+          const send = (items) => post({ type: "playQueue", key: e.key, title: e.title || "", items: items || [], fallback: e.fallback || "" });
+          if (remote) remote.plan("albumQueue", { id: e.id }).then((r) => send(r?.items));
+          else send(albumQueue(e.id, live.current));
         }
         else if (e?.type === "openAlbum") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
@@ -267,58 +303,69 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
           const L = live.current;
           const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
-          if (!shelf?.folderId || !L.occurrencesById?.[e.id]) return;
-          const here = folderShelfView(shelf.folderId, L.shelfAt[shelfId], { ...L, asset: shelf.asset }).at || shelf.folderId;
-          const pagesIn = (folderId) => Object.values(L.occurrencesById).filter((o) => o?.parentId === folderId && o.id !== e.id
-            && ["page", "artifact"].includes(L.modulesById?.[o.moduleId]?.role) && L.modulesById?.[o.moduleId]?.kind !== "folder");
-          withAction("Moved on shelf", () => {
-            const move = (id, folder, sortOrder) => movePage({ dispatch: L.dispatch, socket, pageOccurrenceId: id, targetFolderId: folder, sortOrder });
-            if (String(e.targetId || "").startsWith("folder:")) {
-              const dest = String(e.targetId).slice(7);
-              move(e.id, dest, sortOrderAtEnd(pagesIn(dest)));
-              return;
-            }
-            const title = (o) => (o.label || L.modulesById?.[o.moduleId]?.label || "");
-            let sibs = pagesIn(here).sort((a, b) => ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || title(a).localeCompare(title(b)));
-            // Ties (pages never ordered are all 0): number them in the order shown first, or a midpoint lands nowhere.
-            if (new Set(sibs.map((o) => o.sortOrder ?? 0)).size < sibs.length) {
-              sibs = sibs.map((o, i) => { move(o.id, here, i); return { ...o, sortOrder: i }; });
-            }
-            move(e.id, here, sortOrderForDrop(sibs, e.targetId, e.edge === "before" ? "top" : "bottom", e.id));
-          });
-          setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+          if (!shelf?.folderId) return;
+          const apply = (moves) => {
+            withAction("Moved on shelf", () => {
+              for (const m of moves || []) movePage({ dispatch: L.dispatch, socket, pageOccurrenceId: m.id, targetFolderId: m.folder, sortOrder: m.sortOrder });
+            });
+            setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+          };
+          const ask = { shelfId, at: L.shelfAt[shelfId], id: e.id, targetId: e.targetId, edge: e.edge };
+          if (remote) remote.plan("shelfReorder", ask).then((r) => apply(r?.moves));
+          else if (L.occurrencesById?.[e.id]) apply(planShelfReorder({ ...ask, shelf }, L));
         }
         else if (e?.type === "deleteItems") {
           // The shelf's Select → Delete: rows go the way any delete goes; a folder book deletes the folder and
           // moves what it held up a level (helpers/folderDelete). One undo step for the lot.
           const L = live.current;
-          withAction("Deleted from shelf", () => {
-            for (const id of e.ids || []) {
-              if (String(id).startsWith("folder:")) {
-                const folder = L.foldersById?.[String(id).slice(7)];
-                if (folder) deleteFolderMoveUp({ dispatch: L.dispatch, socket, folder, occurrencesById: L.occurrencesById, foldersById: L.foldersById, modulesById: L.modulesById });
-              } else if (L.occurrencesById?.[id]) {
-                // The same delete as a page's own "Delete page" (helpers/confirmDeleteOccurrence) — the shelf has
-                // already asked (two taps).
-                deleteOccurrenceEverywhere({ occurrence: L.occurrencesById[id], dispatch: L.dispatch, socket });
+          const ids = e.ids || [];
+          const folderIds = ids.filter((id) => String(id).startsWith("folder:")).map((id) => String(id).slice(7));
+          // A remote panel holds no folder contents: the server plans each folder delete first.
+          const plans = remote
+            ? Promise.all(folderIds.map((fid) => remote.plan("folderDelete", { folderId: fid }).then((r) => [fid, r?.plan || null])))
+            : Promise.resolve(folderIds.map((fid) => [fid, undefined]));
+          plans.then((planned) => {
+            withAction("Deleted from shelf", () => {
+              for (const [fid, plan] of planned) {
+                const folder = L.foldersById?.[fid];
+                if (folder && plan !== null) deleteFolderMoveUp({ dispatch: L.dispatch, socket, folder, plan, occurrencesById: L.occurrencesById, foldersById: L.foldersById, modulesById: L.modulesById });
               }
-            }
+              for (const id of ids) {
+                if (String(id).startsWith("folder:")) continue;
+                // The same delete as a page's own "Delete page" (helpers/confirmDeleteOccurrence) — the shelf has
+                // already asked (two taps). A remote panel knows the row by its id alone, which is all the delete sends.
+                const occurrence = L.occurrencesById?.[id] || (remote ? { id } : null);
+                if (occurrence) deleteOccurrenceEverywhere({ occurrence, dispatch: L.dispatch, socket });
+              }
+            });
+            setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
           });
-          setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
         }
         else if (e?.type === "placeInto") {
           // A drag carried from one reader window into another (the headset found where it landed): the same write a
           // drop inside one window makes. Then both windows reload to show it.
           const L = live.current;
-          const dest = L.occurrencesById?.[e.parentId];
-          if (!dest || !L.occurrencesById?.[e.occId]) return;
-          runGroupDrop({
-            ids: [e.occId], dest, insertAt: Number.isInteger(e.index) ? e.index : undefined,
-            mode: e.mode === "copy" || e.mode === "copylink" ? e.mode : "move",
-            ctx: { dispatch: L.dispatch, socket, occurrencesById: L.occurrencesById,
-              state: { modulesById: L.modulesById, gridId: L.gridId, grid: L.grid, userId: L.grid?.userId || localStorage.getItem("moduli-userId") } },
+          const run = (occurrencesById, modulesById) => {
+            const dest = occurrencesById?.[e.parentId];
+            if (!dest || !occurrencesById?.[e.occId]) return;
+            runGroupDrop({
+              ids: [e.occId], dest, insertAt: Number.isInteger(e.index) ? e.index : undefined,
+              mode: e.mode === "copy" || e.mode === "copylink" ? e.mode : "move",
+              ctx: { dispatch: L.dispatch, socket, occurrencesById,
+                state: { modulesById, gridId: L.gridId, grid: L.grid, userId: L.grid?.userId || localStorage.getItem("moduli-userId") } },
+            });
+            setTimeout(() => post({ type: "placed", panels: e.panels || [] }), 1500);
+          };
+          if (!remote) { run(L.occurrencesById, L.modulesById); return; }
+          // Remote: the destination's subtree and the moved row, fetched for this one drop.
+          Promise.all([remote.subtree(e.parentId), remote.subtree(e.occId)]).then(([a, b]) => {
+            const occs = {}; const mods = {};
+            for (const sub of [a, b]) {
+              for (const o of sub?.occurrences || []) occs[o.id] = o;
+              for (const m of sub?.modules || []) mods[m.id] = m;
+            }
+            run(occs, mods);
           });
-          setTimeout(() => post({ type: "placed", panels: e.panels || [] }), 1500);
         }
         else if (e?.type === "decorList") setDecorInRoom(Array.isArray(e.list) ? e.list : []);
         else if (e?.type === "mode") setMode(e.mode);
@@ -329,7 +376,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     };
     post({ type: "ready" });
     return () => { delete window.__moduliNative; };
-  }, [paint, sendState, save, moveShelf]);
+  }, [paint, sendState, save, moveShelf, remote]);
 
   const addAShelf = async (asset) => {
     const { meta, shelf: s } = addShelf(grid, asset);
@@ -340,13 +387,15 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     await save(meta); post({ type: "spawn", key: "screen:" + s.id });
   };
   // A "today board" is a screen showing the Day Page (the one in use, not its template).
-  const dayPageId = useMemo(() => findDayPage({ occurrencesById, modulesById, foldersById }), [occurrencesById, modulesById, foldersById]);
+  const localDayPageId = useMemo(() => (remote ? null : findDayPage({ occurrencesById, modulesById, foldersById })), [remote, occurrencesById, modulesById, foldersById]);
+  const dayPageId = remote ? extra?.dayPageId || null : localDayPageId;
   const addTodayBoard = async () => {
     if (!dayPageId) return;
     const { meta, screen: s } = addScreen(grid, { source: "page", pageOccId: dayPageId });
     await save(meta); post({ type: "spawn", key: "screen:" + s.id });
   };
-  const decor = useMemo(() => decorLibrary({ grid, occurrencesById, modulesById }), [grid, occurrencesById, modulesById]);
+  const localDecor = useMemo(() => (remote ? [] : decorLibrary({ grid, occurrencesById, modulesById })), [remote, grid, occurrencesById, modulesById]);
+  const decor = remote ? extra?.decor || [] : localDecor;
 
   const section = { borderTop: "1px solid var(--border-subtle)", paddingTop: 10, marginTop: 12 };
   return (

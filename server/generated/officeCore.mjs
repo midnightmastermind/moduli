@@ -1407,6 +1407,26 @@ function decorLibrary(ctx) {
   return [...BUILTIN_DECOR, ...decorModels(ctx)];
 }
 
+// src/helpers/treeOrder.js
+function sortOrderForDrop(siblings, targetId, edge, draggedId = null) {
+  const sorted = (siblings || []).filter((s) => s && s.id !== draggedId).slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const idx = sorted.findIndex((s) => s.id === targetId);
+  if (idx === -1) {
+    const max = sorted.reduce((m, s) => Math.max(m, s.sortOrder ?? 0), -1);
+    return max + 1;
+  }
+  const mine = sorted[idx].sortOrder ?? 0;
+  if (edge === "top") {
+    const prev = sorted[idx - 1];
+    return prev ? ((prev.sortOrder ?? 0) + mine) / 2 : mine - 1;
+  }
+  const next = sorted[idx + 1];
+  return next ? (mine + (next.sortOrder ?? 0)) / 2 : mine + 1;
+}
+function sortOrderAtEnd(siblings) {
+  return (siblings || []).reduce((m, s) => Math.max(m, s?.sortOrder ?? 0), -1) + 1;
+}
+
 // src/vr/officeState.js
 var BOOKMARK_BAR_MAX = 40;
 function findBookmarksBoard({ occurrencesById, modulesById }) {
@@ -1517,6 +1537,48 @@ function findNotesFolder(foldersById) {
   const notes = all.filter((f) => f?.name === "Notes");
   return (notes.find((f) => foldersById[f.parentId]?.name === "Documents") || notes[0] || null)?.id || null;
 }
+function planShelfReorder({ shelf, at: at2, id, targetId, edge }, { occurrencesById, modulesById, foldersById }) {
+  if (!shelf?.folderId || !occurrencesById?.[id]) return [];
+  const ctx = { occurrencesById, modulesById, foldersById, asset: shelf.asset };
+  const here = folderShelfView(shelf.folderId, at2, ctx).at || shelf.folderId;
+  const pagesIn = (folderId) => Object.values(occurrencesById).filter((o) => o?.parentId === folderId && o.id !== id && ["page", "artifact"].includes(modulesById?.[o.moduleId]?.role) && modulesById?.[o.moduleId]?.kind !== "folder");
+  if (String(targetId || "").startsWith("folder:")) {
+    const dest = String(targetId).slice(7);
+    return [{ id, folder: dest, sortOrder: sortOrderAtEnd(pagesIn(dest)) }];
+  }
+  const moves = [];
+  const title = (o) => o.label || modulesById?.[o.moduleId]?.label || "";
+  let sibs = pagesIn(here).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || title(a).localeCompare(title(b)));
+  if (new Set(sibs.map((o) => o.sortOrder ?? 0)).size < sibs.length) {
+    sibs = sibs.map((o, i) => {
+      moves.push({ id: o.id, folder: here, sortOrder: i });
+      return { ...o, sortOrder: i };
+    });
+  }
+  moves.push({ id, folder: here, sortOrder: sortOrderForDrop(sibs, targetId, edge === "before" ? "top" : "bottom", id) });
+  return moves;
+}
+
+// src/helpers/protectedFolders.js
+function isProtectedFolder(folder) {
+  return !!folder?.meta?.protected;
+}
+
+// src/helpers/folderDeletePlan.js
+var isFolderPage = (occ, modulesById) => {
+  const m = modulesById?.[occ?.moduleId];
+  return m?.role === "page" && m?.kind === "folder";
+};
+function planFolderDelete(folder, { occurrencesById, foldersById, modulesById }) {
+  if (!folder?.id || isProtectedFolder(folder)) return null;
+  const occs = Object.values(occurrencesById || {}).filter((o) => o?.parentId === folder.id);
+  return {
+    deleteOccIds: occs.filter((o) => isFolderPage(o, modulesById)).map((o) => o.id),
+    moveOccIds: occs.filter((o) => !isFolderPage(o, modulesById)).map((o) => o.id),
+    moveFolderIds: Object.values(foldersById || {}).filter((f) => f?.parentId === folder.id).map((f) => f.id),
+    parentId: folder.parentId || null
+  };
+}
 export {
   BOOKMARK_BAR_MAX,
   albumQueue,
@@ -1530,6 +1592,8 @@ export {
   musicShelfView,
   nativeOfficeState,
   occurrenceDisplayLabel,
+  planFolderDelete,
+  planShelfReorder,
   readOffice,
   shelfItems
 };
