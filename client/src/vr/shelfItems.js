@@ -258,8 +258,20 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
-      album: shelf.asset === "record" && namesSongs(occ, modulesById, occurrencesById),
+      // (An album row, or a row whose fields name songs. The albums filled in from track lists are named BY their
+      // songs, so their own fields name none.)
+      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)),
     });
   }
   return out;
+}
+
+/**
+ * An album with no Spotify link of its own, as a queue for the record player: each song that has a Spotify track,
+ * in order, as { title, url }. Pure.
+ */
+export function albumQueue(albumId, ctx = {}) {
+  return albumShelfItems(albumId, ctx)
+    .filter((i) => typeof i.spotify === "string" && i.spotify.includes("/embed/track/"))
+    .map((i) => ({ title: i.title, url: i.spotify }));
 }

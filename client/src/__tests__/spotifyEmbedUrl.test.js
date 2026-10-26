@@ -69,3 +69,20 @@ describe("an album's songs", () => {
     expect(songIds3("al", { occurrencesById, modulesById })).toEqual(["t1", "t2", "t3"]);
   });
 });
+
+import { albumQueue, shelfItems as shelfItems4 } from "../vr/shelfItems.js";
+describe("an album with no Spotify link", () => {
+  const modulesById = { A: { id: "A", kind: "album", role: "artifact" }, S: { id: "S", kind: "song", role: "artifact" } };
+  const occurrencesById = {
+    al: { id: "al", moduleId: "A", label: "Just Push Play", meta: { mediaArtist: "Aerosmith" }, fields: {} },
+    t2: { id: "t2", moduleId: "S", label: "Jaded", meta: { trackNumber: 2, searchProvider: "spotify", searchExternalId: "JADED12345" }, fields: { a: { value: "al" } } },
+    t1: { id: "t1", moduleId: "S", label: "Beyond Beautiful", meta: { trackNumber: 1 }, fields: { a: { value: "al" }, u: { value: "https://open.spotify.com/track/BEYOND1234" } } },
+    t3: { id: "t3", moduleId: "S", label: "No Track", meta: { trackNumber: 3 }, fields: { a: { value: "al" } } },
+  };
+  it("plays as a queue of its songs' own tracks, in order (a song with no track is left out)", () => {
+    expect(albumQueue("al", { occurrencesById, modulesById })).toEqual([
+      { title: "Beyond Beautiful", url: "https://open.spotify.com/embed/track/BEYOND1234" },
+      { title: "Jaded", url: "https://open.spotify.com/embed/track/JADED12345" },
+    ]);
+  });
+});

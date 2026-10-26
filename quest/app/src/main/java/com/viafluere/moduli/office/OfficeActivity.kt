@@ -162,6 +162,8 @@ class OfficeActivity : AppSystemActivity() {
     val books = ArrayList<Book>()
     var slots: List<ShelfLayout.Slot> = emptyList()
     var shelfItems: org.json.JSONArray = org.json.JSONArray()
+    /** The shelf's search: the ids it matched, in order (null = no search, every item). */
+    var filterIds: List<String>? = null
     var page = 0
     var shelfSize: OfficeSizes.Shelf? = null
     /** "book" | "record" | "vhs": what you hold when you take something off this shelf. */
@@ -197,6 +199,11 @@ class OfficeActivity : AppSystemActivity() {
     var spotifyUrl: String? = null
     var spotifyTitle = ""
     var gecko: GeckoBrowser? = null
+    /** An album playing as its songs (it has no Spotify album link): the songs (title, url) and which one is on. */
+    var queue: List<Pair<String, String>> = emptyList()
+    var queueAt = 0
+    /** What the Spotify window's header shows (it changes as the queue moves). */
+    val nowPlaying = androidx.compose.runtime.mutableStateOf("")
     var html: String = ""
     var lastT = FloatArray(3)
     var lastQ = floatArrayOf(1f, 0f, 0f, 0f)
@@ -577,7 +584,16 @@ class OfficeActivity : AppSystemActivity() {
       "stopPlayer" -> things[m.optString("key")]?.let { stopPlayer(it) }
       "stopVideo" -> things[m.optString("key")]?.let { t -> t.videoPlaying = false; refreshPanel(t) }
       "decorSetting" -> setDecorScreen(m.optString("key"), m.optString("screenId").takeIf { !m.isNull("screenId") && it.isNotEmpty() })
+      "playQueue" -> things[m.optString("key")]?.let { p ->
+        val a = m.optJSONArray("items") ?: org.json.JSONArray()
+        playQueue(p, m.optString("title"), (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let { o -> o.optString("title") to o.optString("url") } })
+      }
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
+      // The shelf's search box: the books follow the matches it shows.
+      "shelfFilter" -> things[m.optString("key")]?.let { t ->
+        t.filterIds = m.optJSONArray("ids")?.let { a -> (0 until a.length()).map { a.optString(it) } }
+        t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) }
+      }
       "addDecor" -> addDecor(m)
       // Folder shelves are trees and shelves can delete: the control panel (signed in, holds the grid) does both.
       "openFolder", "shelfUp" -> send(m)
@@ -736,6 +752,7 @@ class OfficeActivity : AppSystemActivity() {
     if (t.panel != null && html == t.html) return
     t.html = html
     t.selecting = false
+    t.filterIds = null
     attachPanel(t, size.w - 0.06f, size.h + PanelHtml.HEADER_M, (size.h + PanelHtml.HEADER_M) / 2f, size.d / 2f + 0.01f)
     buildBooks(t, size)
   }
@@ -746,8 +763,14 @@ class OfficeActivity : AppSystemActivity() {
     for (b in t.books) b.entity.destroy()
     t.books.clear()
     val start = t.page * t.slots.size
+    // Searching, the books are the matches (the shelf page draws the same list).
+    val list: List<JSONObject> = t.filterIds?.let { ids ->
+      val byId = HashMap<String, JSONObject>()
+      for (k in 0 until t.shelfItems.length()) t.shelfItems.optJSONObject(k)?.let { byId[it.optString("id")] = it }
+      ids.mapNotNull { byId[it] }
+    } ?: (0 until t.shelfItems.length()).mapNotNull { t.shelfItems.optJSONObject(it) }
     for (i in t.slots.indices) {
-      val item = t.shelfItems.optJSONObject(start + i) ?: break
+      val item = list.getOrNull(start + i) ?: break
       val title = item.optString("title")
       val e = Entity.create(listOf(
           Mesh(Uri.parse("apk:///office/bookproxy.glb"), hittable = MeshCollision.LineTest),
@@ -907,6 +930,9 @@ class OfficeActivity : AppSystemActivity() {
             } }
             when {
               t.selecting -> selectBook(t, b)
+              // An album with no audio file and no Spotify album link plays as its songs (asked of the control panel).
+              player != null && t.shelfAsset == "record" && b.album && itemSrc(t, b.itemId).isEmpty() && itemField(t, b.itemId, "spotify").isEmpty() ->
+                send(JSONObject().put("type", "albumQueue").put("key", player.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }).put("title", b.title))
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
               player != null -> playTape(player, b.title, b.itemId, itemSrc(t, b.itemId))
               // An album dropped anywhere but a player opens on its shelf: its songs, each a mini record.
@@ -1046,7 +1072,11 @@ class OfficeActivity : AppSystemActivity() {
       "recordplayer", "vhsplayer" -> {
         // A record left playing is still on the player when the app opens again.
         entry.optJSONObject("playing")?.let { p ->
-          main.post { playRecord(t, p.optString("title"), p.optString("src"), p.optString("spotify")) }
+          val q = p.optJSONArray("queue")
+          main.post {
+            if (q != null) playQueue(t, p.optString("title"), (0 until q.length()).mapNotNull { q.optJSONObject(it)?.let { o -> o.optString("title") to o.optString("url") } }, p.optInt("at"))
+            else playRecord(t, p.optString("title"), p.optString("src"), p.optString("spotify"))
+          }
         }
       }
       // The whole grid, live: the app itself (its own panels and date — `local`), on a screen you place.
@@ -1140,8 +1170,13 @@ class OfficeActivity : AppSystemActivity() {
               setContent {
                 Column(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xEB1E140C))) {
                   Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text(t.spotifyTitle, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
+                    Text(t.nowPlaying.value, color = androidx.compose.ui.graphics.Color(0xFFF4E9D8), fontSize = 18.sp, maxLines = 1,
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp))
+                    // An album playing as its songs: back / on through them.
+                    if (t.queue.size > 1) {
+                      Button(onClick = { main.post { stepQueue(t, -1) } }) { Text("⏮", fontSize = 22.sp) }
+                      Button(onClick = { main.post { stepQueue(t, 1) } }) { Text("⏭", fontSize = 22.sp) }
+                    }
                     Button(onClick = { main.post { stopPlayer(t) } }) { Text("⏹", fontSize = 22.sp) }
                   }
                   AndroidView(
@@ -1166,7 +1201,32 @@ class OfficeActivity : AppSystemActivity() {
       )
 
   /** A record dropped on a record player plays there: its audio file, else Spotify's player for it. */
+  /** An album with no Spotify album link plays as its songs, one at a time, with ⏮ ⏭ (the control panel sends them). */
+  private fun playQueue(player: Thing, title: String, items: List<Pair<String, String>>, at: Int = 0) {
+    if (items.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No Spotify tracks for this album")); return }
+    val i = at.coerceIn(0, items.size - 1)
+    stopPlayer(player, forget = false)
+    player.queue = items; player.queueAt = i; player.spotifyTitle = title
+    player.spotifyUrl = items[i].second
+    player.nowPlaying.value = "$title · ${i + 1}/${items.size} ${items[i].first}"
+    attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
+    savePlaying(player, JSONObject().put("title", title).put("at", i)
+        .put("queue", org.json.JSONArray(items.map { JSONObject().put("title", it.first).put("url", it.second) })))
+    Log.i(TAG, "playing $title on ${player.key} as ${items.size} songs, song ${i + 1}: ${items[i].second}")
+  }
+
+  private fun stepQueue(t: Thing, d: Int) {
+    if (t.queue.size < 2) return
+    val i = (t.queueAt + d + t.queue.size) % t.queue.size
+    t.queueAt = i; t.spotifyUrl = t.queue[i].second
+    t.nowPlaying.value = "${t.spotifyTitle} · ${i + 1}/${t.queue.size} ${t.queue[i].first}"
+    t.gecko?.load(t.queue[i].second)
+    t.decorEntry?.optJSONObject("playing")?.let { p -> savePlaying(t, JSONObject(p.toString()).put("at", i)) }
+  }
+
   private fun playRecord(player: Thing, title: String, src: String, spotify: String = "") {
+    player.queue = emptyList()
+    player.nowPlaying.value = title
     if (src.isEmpty() && spotify.isNotEmpty()) {
       // Spotify's player needs more room than a now-playing card, so the player's window is made at that size.
       stopPlayer(player, forget = false)

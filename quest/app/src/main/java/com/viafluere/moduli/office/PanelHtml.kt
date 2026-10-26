@@ -82,10 +82,12 @@ object PanelHtml {
   .it.sel{outline:.6vh solid #ff6b6b!important;outline-offset:-.6vh;box-shadow:0 0 2vh #ff6b6b!important}
   #path{font-size:1.3vh;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   button.on{background:#7a2e2e}
+  #q{font-size:2.2vh;width:16vw;min-width:0;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   button.danger{background:#8a2020;border-color:#f99}
 </style></head><body>
 <div id="head">${if (canUp) """<button onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
+  <input id="q" placeholder="🔍 Search" oninput="search()">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
   <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
@@ -94,8 +96,16 @@ object PanelHtml {
   var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")};
   var colors=${JSONArray(SPINE_COLORS)};
   function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
-  var per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null;
+  // `all` is everything on the shelf; `items` what shows (the search's matches). The app lays its books over `items`.
+  var all=items, q='', per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null;
   function go(d){page=(page+d+pages)%pages;draw();send({type:'shelfPage',key:key,page:page});}
+  var searchT=null;
+  function search(){clearTimeout(searchT);searchT=setTimeout(function(){
+    var v=document.getElementById('q').value.trim().toLowerCase(); if(v===q)return; q=v;
+    items=v?all.filter(function(it){return String(it.t||'').toLowerCase().indexOf(v)>=0;}):all;
+    pages=Math.max(1,Math.ceil(items.length/per)); page=0; draw();
+    send({type:'shelfFilter',key:key,page:0,ids:v?items.map(function(it){return it.id;}):null});
+  },300);}
   // Pointing and holding change ONE spine's look, never the page: draw() rebuilds every spine and reloads every
   // cover, which made pointing along a shelf lag (it ran on each move from one book to the next).
   var nodes={};
@@ -120,8 +130,8 @@ object PanelHtml {
   function hover(id){var was=hoverId;hoverId=id;if(was)look(was);if(id)look(id);}
   function draw(){
     var box=document.getElementById('rows'); box.innerHTML=''; nodes={};
-    document.getElementById('pg').textContent=items.length.toLocaleString()+' · page '+(page+1)+' of '+pages;
-    if(!items.length){box.innerHTML='<div id="empty">Press ⚙ to choose what this shelf holds.</div>';return;}
+    document.getElementById('pg').textContent=(q?items.length.toLocaleString()+' of '+all.length.toLocaleString():items.length.toLocaleString())+' · page '+(page+1)+' of '+pages;
+    if(!items.length){box.innerHTML='<div id="empty">'+(q?'Nothing here matches “'+q.replace(/</g,'&lt;')+'”.':'Press ⚙ to choose what this shelf holds.')+'</div>';return;}
     items.slice(page*per,page*per+per).forEach(function(it,i){
       var r=rects[i], d=document.createElement('div'); nodes[it.id]=d; look(it.id);
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';

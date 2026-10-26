@@ -20,7 +20,7 @@
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
-import { shelfItems, folderShelfView, albumShelfItems } from "./shelfItems.js";
+import { shelfItems, folderShelfView, albumShelfItems, albumQueue } from "./shelfItems.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { deleteFolderMoveUp } from "../helpers/folderDelete";
 import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
@@ -324,6 +324,11 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           // The new-note screen's button: a doc page in Notes (it is on the Documents shelf), opened beside the screen.
           const id = newNotePage(live.current);
           if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
+        }
+        else if (e?.type === "albumQueue") {
+          // An album dropped on a record player with no Spotify album link: its songs, one after another.
+          const items = albumQueue(e.id, live.current);
+          post({ type: "playQueue", key: e.key, title: e.title || "", items });
         }
         else if (e?.type === "openAlbum") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
