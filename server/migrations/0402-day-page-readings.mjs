@@ -230,7 +230,8 @@ export async function up({ gridId, models, log, dryRun }) {
   }
   const gate = build.pipeline.steps.find((s) => s.type === "if")?.condition || null;
   log(`+ op ${CALLER}${reading ? ` with ${reading.title}` : " (no readings yet)"}`);
-  if (!dryRun) await Operation.create({ ...common, id: uid(), name: CALLER, priority: 6,
+  // The Day Page the build is for: $activePeriodDates reads the dates of this page, not the toolbar's (0444).
+  if (!dryRun) await Operation.create({ ...common, id: uid(), name: CALLER, priority: 6, targetOccurrenceId: build.targetOccurrenceId || null,
     description: "Imports each shown day's passage of every reading in $readings into that day's Day Page column.",
     triggerObjects: (build.triggerObjects || []).map((t) => ({ ...t, priority: 6 })),
     triggerTypes: build.triggerTypes || ["onLoad", "onFilterChange"], triggerType: "onLoad",
