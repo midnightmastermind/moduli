@@ -39,3 +39,18 @@ describe("search results", () => {
     expect(kindLabel("page", "folder")).toBe("Folder");
   });
 });
+
+describe("search results (2)", () => {
+  it("a page a panel lists still shows its folders; a text block shows its words; path-only rows are capped per board", () => {
+    const mods = { ...modulesById, pan: { id: "pan", role: "panel", label: "Panel" } };
+    const occs = { ...occurrencesById, panel: { id: "panel", moduleId: "pan", occurrences: ["page"] },
+      r1: { ...occurrencesById.r1, label: "", textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "what does pome mean" }] }] } } };
+    for (let i = 2; i <= 9; i++) { occs["r" + i] = { id: "r" + i, moduleId: "row", parentId: "board", label: "", textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "item " + i }] }] } }; occs.board.occurrences.push("r" + i); }
+    const index = buildSearchIndex({ occurrencesById: occs, modulesById: mods, foldersById });
+    const hits = searchOccurrences(index, "lookup").results.map((h) => h.entry);
+    expect(hits.find((e) => e.occId === "page").pathLabels).toEqual(["Root", "Documents", "Notes"]);
+    const pome = searchOccurrences(index, "pome").results[0].entry;
+    expect(pome.label).toBe("what does pome mean");
+    expect(hits.filter((e) => e.role === "textblock").length).toBe(3);
+  });
+});

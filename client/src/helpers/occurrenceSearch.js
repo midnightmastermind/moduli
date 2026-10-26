@@ -144,7 +144,15 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
   const ancestorIds = [];
   const pathLabels = [];
   let pageOccId = module.role === "page" ? occ.id : null;
-  let cursor = parentOf(occ.id);
+  // A panel listing a page (its page history) is not where the page LIVES: walk through the page's own home (its
+  // folder) instead, or a page shown in a panel lost its folders from the path.
+  const homeOf = (id) => {
+    const lister = parentOf(id);
+    const lo = lister && occurrencesById[lister];
+    if (lo && modulesById[lo.moduleId]?.role === "panel" && occurrencesById[id]?.parentId) return occurrencesById[id].parentId;
+    return lister;
+  };
+  let cursor = homeOf(occ.id);
   let guard = 0;
   while (cursor && guard++ < 64) {
     const anc = occurrencesById[cursor];
@@ -154,7 +162,7 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     if (ancMod && ancMod.role !== "panel") pathLabels.unshift(labelOf(anc, modulesById));
     if (!pageOccId && ancMod?.role === "page") pageOccId = anc.id;
     dateBits.push(...datesForOcc(anc, fieldsById));
-    cursor = parentOf(cursor);
+    cursor = homeOf(cursor);
   }
   // The chain ended at a FOLDER (cursor names no occurrence): it is reachable through that
   // folder's page, where its top shows as a card — the opener drills into it
@@ -170,7 +178,7 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
   }
   // The one board / doc on a page that has the page's own name IS the page to the user: search lists the page alone
   // ("we have like 15 lookups in the search").
-  const parentOcc = occurrencesById[parentOf(occ.id)];
+  const parentOcc = occurrencesById[homeOf(occ.id)];
   const parentMod = parentOcc && modulesById[parentOcc.moduleId];
   const sameAsPage = module.role === "container" && parentMod?.role === "page"
     && (parentOcc.occurrences || []).length === 1
@@ -194,7 +202,9 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
   }
   if (body.length > BODY_CHAR_CAP) body = body.slice(0, BODY_CHAR_CAP);
 
-  const label = labelOf(occ, modulesById);
+  // A text block has no name — its words are its content: it is listed by its first words, not "Untitled".
+  let label = labelOf(occ, modulesById);
+  if ((!label || label === "Untitled") && module.role === "textblock" && body) label = body.replace(/\s+/g, " ").trim().slice(0, 90);
   return {
     occId: occ.id,
     label,
@@ -244,6 +254,7 @@ const TIER_FIELD        = 2;
 const TIER_PATH         = 3;
 const TIER_BODY         = 4;
 const TIER_MISS         = Infinity;
+const PATH_HITS_PER_PARENT = 3;
 
 const WHY_SOURCE_BY_TIER = { [TIER_FIELD]: "field", [TIER_PATH]: "path", [TIER_BODY]: "body" };
 
@@ -324,7 +335,16 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
     a.entry.label.localeCompare(b.entry.label) ||
     a.entry.occId.localeCompare(b.entry.occId));
 
-  return { results: scored.slice(0, limit), total: scored.length };
+  // Rows that match ONLY through their path (they sit in a board of that name) are capped per board, or a 250-row
+  // Lookup board buried every real match for "lookup".
+  const perParent = new Map();
+  const kept = scored.filter((h) => {
+    if (h.tier !== TIER_PATH) return true;
+    const k = h.entry.ancestorIds[0] || "";
+    const n = (perParent.get(k) || 0) + 1; perParent.set(k, n);
+    return n <= PATH_HITS_PER_PARENT;
+  });
+  return { results: kept.slice(0, limit), total: kept.length };
 }
 
 // ── Cached access ────────────────────────────────────────────────────────
