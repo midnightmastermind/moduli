@@ -159,7 +159,7 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     if (!anc) break;
     const ancMod = modulesById[anc.moduleId];
     ancestorIds.push(cursor);
-    if (ancMod && ancMod.role !== "panel") pathLabels.unshift(labelOf(anc, modulesById));
+    if (ancMod && ancMod.role !== "panel") { const l = labelOf(anc, modulesById); if (l && l !== "Untitled") pathLabels.unshift(l); }
     if (!pageOccId && ancMod?.role === "page") pageOccId = anc.id;
     dateBits.push(...datesForOcc(anc, fieldsById));
     cursor = homeOf(cursor);
@@ -335,12 +335,12 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
     a.entry.label.localeCompare(b.entry.label) ||
     a.entry.occId.localeCompare(b.entry.occId));
 
-  // Rows that match ONLY through their path (they sit in a board of that name) are capped per board, or a 250-row
+  // Rows that match ONLY through their path (they sit on a page of that name) are capped per page, or a 250-row
   // Lookup board buried every real match for "lookup".
   const perParent = new Map();
   const kept = scored.filter((h) => {
     if (h.tier !== TIER_PATH) return true;
-    const k = h.entry.ancestorIds[0] || "";
+    const k = h.entry.pageOccId || h.entry.ancestorIds[0] || "";
     const n = (perParent.get(k) || 0) + 1; perParent.set(k, n);
     return n <= PATH_HITS_PER_PARENT;
   });
