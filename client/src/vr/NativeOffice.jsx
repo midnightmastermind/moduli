@@ -20,7 +20,7 @@
 // NativePiece — that piece's settings alone. This main panel keeps only what is about the room.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readOffice, addShelf, addScreen, removeShelf, removeScreen, SHELF_ASSETS, ASSET_LABELS } from "./officeConfig.js";
-import { shelfItems, folderShelfView, albumShelfItems, albumQueue } from "./shelfItems.js";
+import { shelfItems, folderShelfView, albumShelfItems, albumQueue, musicShelfView } from "./shelfItems.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { deleteFolderMoveUp } from "../helpers/folderDelete";
 import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
@@ -30,7 +30,8 @@ import { decorLibrary } from "./decorLibrary.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
-import { addBookmarkOccurrence } from "../helpers/CommitHelpers.js";
+import { addBookmarkOccurrence, movePage } from "../helpers/CommitHelpers.js";
+import { sortOrderForDrop, sortOrderAtEnd } from "../helpers/treeOrder.js";
 import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -94,12 +95,21 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
         const albumId = at.slice(6).split("|")[0];
         const album = occurrencesById?.[albumId];
         const title = album ? (occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album") : "Album";
-        return { id: s.id, title: s.title, asset: s.asset, items: albumShelfItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
+        // Its songs A–Z on the shelf (the record player still plays them in track order).
+        const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+        const prev = at.split("|")[1] || "";
+        const artist = prev.startsWith("artist:") ? [prev.slice(7)] : [];
+        return { id: s.id, title: s.title, asset: s.asset, items: songs.map(wire), path: [s.title, ...artist, title], canUp: true };
       }
       if (s.folderId) {
         // A folder shelf is a tree in the headset: its subfolders are books you open (and come back up from).
         const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
         return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp };
+      }
+      if (s.asset === "record") {
+        // A record crate is artists → albums → songs, A–Z.
+        const v = musicShelfView(s, at, ctx);
+        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path, canUp: v.canUp };
       }
       return { id: s.id, title: s.title, asset: s.asset, items: shelfItems(s, ctx).map(wire), path: [], canUp: false };
     }),
@@ -342,6 +352,9 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const atNow = L.shelfAt[shelfId];
           // Up from an open album: back to where the shelf was before it.
           if (e.type === "shelfUp" && typeof atNow === "string" && atNow.startsWith("album:")) { moveShelf(shelfId, atNow.split("|")[1] || null); return; }
+          // A record crate's artists: open one, or go back up to all of them.
+          if (e.type === "openFolder" && String(e.folderId || "").startsWith("artist:")) { moveShelf(shelfId, String(e.folderId)); return; }
+          if (e.type === "shelfUp" && typeof atNow === "string" && atNow.startsWith("artist:")) { moveShelf(shelfId, null); return; }
           if (!shelf?.folderId) return;
           if (e.type === "openFolder") moveShelf(shelfId, String(e.folderId || "").replace(/^folder:/, ""));
           else {
@@ -349,6 +362,33 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
             const up = at && at !== shelf.folderId ? L.foldersById?.[at]?.parentId : null;
             moveShelf(shelfId, up && up !== shelf.folderId ? up : null);
           }
+        }
+        else if (e?.type === "shelfReorder") {
+          // A book let go on its folder shelf: before / after another book (that order is the file tree's), or onto
+          // a folder book (filed inside it). One undo step.
+          const shelfId = String(e.key || "").replace(/^shelf:/, "");
+          const L = live.current;
+          const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
+          if (!shelf?.folderId || !L.occurrencesById?.[e.id]) return;
+          const here = folderShelfView(shelf.folderId, L.shelfAt[shelfId], { ...L, asset: shelf.asset }).at || shelf.folderId;
+          const pagesIn = (folderId) => Object.values(L.occurrencesById).filter((o) => o?.parentId === folderId && o.id !== e.id
+            && ["page", "artifact"].includes(L.modulesById?.[o.moduleId]?.role) && L.modulesById?.[o.moduleId]?.kind !== "folder");
+          withAction("Moved on shelf", () => {
+            const move = (id, folder, sortOrder) => movePage({ dispatch: L.dispatch, socket, pageOccurrenceId: id, targetFolderId: folder, sortOrder });
+            if (String(e.targetId || "").startsWith("folder:")) {
+              const dest = String(e.targetId).slice(7);
+              move(e.id, dest, sortOrderAtEnd(pagesIn(dest)));
+              return;
+            }
+            const title = (o) => (o.label || L.modulesById?.[o.moduleId]?.label || "");
+            let sibs = pagesIn(here).sort((a, b) => ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || title(a).localeCompare(title(b)));
+            // Ties (pages never ordered are all 0): number them in the order shown first, or a midpoint lands nowhere.
+            if (new Set(sibs.map((o) => o.sortOrder ?? 0)).size < sibs.length) {
+              sibs = sibs.map((o, i) => { move(o.id, here, i); return { ...o, sortOrder: i }; });
+            }
+            move(e.id, here, sortOrderForDrop(sibs, e.targetId, e.edge === "before" ? "top" : "bottom", e.id));
+          });
+          setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
         }
         else if (e?.type === "deleteItems") {
           // The shelf's Select → Delete: rows go the way any delete goes; a folder book deletes the folder and

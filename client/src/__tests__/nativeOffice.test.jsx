@@ -148,3 +148,26 @@ describe("a browser screen's bookmarks bar", () => {
     ]);
   });
 });
+
+import { musicShelfView } from "../vr/shelfItems.js";
+describe("a record crate as a tree", () => {
+  const modulesById = { A: { id: "A", kind: "album", role: "artifact" }, P: { id: "P", kind: "artist", role: "artifact" }, pg: { id: "pg", role: "page" } };
+  const occurrencesById = {
+    page: { id: "page", moduleId: "pg" },
+    b: { id: "b", moduleId: "A", label: "Blue", parentId: "page", meta: { mediaArtist: "Zed" }, fields: {} },
+    a: { id: "a", moduleId: "A", label: "apple", parentId: "page", fields: { ar: { value: "ar1" } } },
+    c: { id: "c", moduleId: "A", label: "Crimson", parentId: "page", fields: { ar: { value: "ar1" } } },
+    ar1: { id: "ar1", moduleId: "P", label: "ABBA", fields: {} },
+  };
+  const shelf = { id: "s1", title: "Records", asset: "record", feed: { enabled: true, conditions: [], roles: ["artifact"], scope: "page", limit: 1 } };
+  it("is artists A–Z at the top, each a folder book with its count — the whole feed, not its limit", () => {
+    const v = musicShelfView(shelf, null, { occurrencesById, modulesById, grid: {} });
+    expect(v.items.map((i) => [i.title, i.folder, i.count])).toEqual([["ABBA", true, 2], ["Zed", true, 1]]);
+    expect(v.canUp).toBe(false);
+  });
+  it("in an artist, its albums A–Z", () => {
+    const v = musicShelfView(shelf, "artist:ABBA", { occurrencesById, modulesById, grid: {} });
+    expect(v.items.map((i) => i.title)).toEqual(["apple", "Crimson"]);
+    expect(v.canUp).toBe(true);
+  });
+});

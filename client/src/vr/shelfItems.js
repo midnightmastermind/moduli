@@ -64,13 +64,14 @@ export function folderShelfItems(rootId, { grid, occurrencesById, modulesById, f
     const title = (occurrenceDisplayLabel(occ, mod) || mod?.meta?.originalName || "").trim();
     if (!title) continue;
     out.push({
-      id: occ.id, rowId: occ.id, title, cover: coverUrl(occ, mod, null),
+      id: occ.id, rowId: occ.id, title, cover: coverUrl(occ, mod, null), sortOrder: occ.sortOrder ?? 0,
       fileId: isFile ? occ.id : null, fileKind: isFile ? mod.kind : null,
       src: isFile && mod.fileRef ? resolveFileRef(mod.fileRef) : null,
     });
   }
   // Up to 3,000: a Documents shelf holds the whole codex (~2,500 notes).
-  return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 3000);
+  // The file tree's order (sortOrder — dragging books on the shelf or rows in the tree writes it), then title.
+  return out.sort((a, b) => (a.sortOrder - b.sortOrder) || a.title.localeCompare(b.title)).slice(0, 3000);
 }
 
 /**
@@ -276,4 +277,44 @@ export function albumQueue(albumId, ctx = {}) {
   return albumShelfItems(albumId, ctx)
     .filter((i) => typeof i.spotify === "string" && i.spotify.includes("/embed/track/"))
     .map((i) => ({ title: i.title, url: i.spotify }));
+}
+
+/** The artist a music row belongs to: a field naming an artist row, else what an import recorded. Pure. */
+function artistOfRow(occ, ctx) {
+  return artistNamed(occ, ctx) || occ?.meta?.mediaArtist || occ?.meta?.spotifyArtist || null;
+}
+
+const musicCache = new WeakMap();
+/**
+ * A record crate as a TREE (user, 2026-10-26: "organized by artist then album then song alphabetically in a folder
+ * structure like Notes"): standing at the top, each artist is a folder book (A–Z); in an artist (`at` =
+ * "artist:<name>"), its albums A–Z, then its songs that belong to no album here, A–Z. An album opens into its songs
+ * as before. The whole feed, not its 200-row limit. Pure (cached per occurrence map).
+ */
+export function musicShelfView(shelf, at, ctx = {}) {
+  const { occurrencesById } = ctx;
+  let byShelf = occurrencesById && musicCache.get(occurrencesById);
+  if (!byShelf && occurrencesById) { byShelf = new Map(); musicCache.set(occurrencesById, byShelf); }
+  let index = byShelf?.get(shelf.id);
+  if (!index) {
+    const items = shelfItems({ ...shelf, feed: { ...(shelf.feed || {}), limit: 100000 } }, ctx);
+    const artists = new Map();
+    for (const it of items) {
+      const occ = occurrencesById?.[it.rowId];
+      const name = (artistOfRow(occ, ctx) || "Unknown artist").trim();
+      if (!artists.has(name)) artists.set(name, { albums: [], songs: [] });
+      (it.album ? artists.get(name).albums : artists.get(name).songs).push(it);
+    }
+    const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+    for (const v of artists.values()) { v.albums.sort(byTitle); v.songs.sort(byTitle); }
+    index = { artists };
+    byShelf?.set(shelf.id, index);
+  }
+  const key = typeof at === "string" && at.startsWith("artist:") ? at.slice(7) : null;
+  const here = key && index.artists.get(key);
+  if (here) return { items: [...here.albums, ...here.songs], path: [shelf.title, key], canUp: true };
+  const items = [...index.artists.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: "base" }))
+    .map(([name, v]) => ({ id: "artist:" + name, rowId: null, folder: true, count: v.albums.length + v.songs.length, title: name, cover: v.albums[0]?.cover || null }));
+  return { items, path: [], canUp: false };
 }

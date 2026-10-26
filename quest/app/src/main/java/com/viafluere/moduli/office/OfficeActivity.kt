@@ -96,6 +96,8 @@ class OfficeActivity : AppSystemActivity() {
     /** A song's record, opened out of its album, is this much of an album's. */
     private const val MINI_RECORD = 0.62f
     private const val SPOTIFY_H = 0.56f
+    /** Holding a carried book over a folder book (or ⬆) this long opens it. */
+    private const val DRAG_OPEN_MS = 900L
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
     /**
@@ -162,6 +164,12 @@ class OfficeActivity : AppSystemActivity() {
     val books = ArrayList<Book>()
     var slots: List<ShelfLayout.Slot> = emptyList()
     var shelfItems: org.json.JSONArray = org.json.JSONArray()
+    /** Books still in a hand while the shelf went to another folder (released, they are let go of there). */
+    val carried = ArrayList<Book>()
+    /** The shelf as the control panel last sent it (a delete takes books off it at once, before the next one). */
+    var shelfJson: JSONObject? = null
+    /** The shelf stands in a folder below its top (its ⬆ shows). */
+    var canUp = false
     /** The shelf's search: the ids it matched, in order (null = no search, every item). */
     var filterIds: List<String>? = null
     var page = 0
@@ -229,6 +237,11 @@ class OfficeActivity : AppSystemActivity() {
      *  line of sight by the right thumbstick, like furniture), and how far. */
     var shown: Entity? = null
     var reach = 0f
+    /** Pressed in Select mode: it was selected on the press and is not carried. */
+    var selectGrab = false
+    /** While carried over its shelf: what it is over ("up", "folder:<id>") and since when (a held dwell opens it). */
+    var overWhat: String? = null
+    var overSince = 0L
   }
 
   private lateinit var store: PlacementStore
@@ -602,6 +615,9 @@ class OfficeActivity : AppSystemActivity() {
       "openFolder", "shelfUp" -> send(m)
       "deleteItems" -> {
         send(m)
+        // Off the shelf at once: the control panel's next state (every shelf rebuilt) took seconds to arrive.
+        m.optJSONArray("items")?.let { a -> dropFromShelves((0 until a.length()).map { a.optString(it) }.toSet()) }
+        m.optJSONArray("ids")?.let { a -> dropFromShelves((0 until a.length()).map { a.optString(it) }.toSet()) }
         // A book's reader may show its FILE rather than the row being deleted: close those too.
         m.optJSONArray("items")?.let { a ->
           val ids = (0 until a.length()).map { a.optString(it) }.toSet()
@@ -612,6 +628,7 @@ class OfficeActivity : AppSystemActivity() {
       // Something was deleted (a page from its menu, a book from a shelf): the reader windows showing it close.
       "gone" -> m.optJSONArray("ids")?.let { a ->
         val ids = (0 until a.length()).map { a.optString(it) }.toSet()
+        dropFromShelves(ids)
         for ((id, occ) in readerOcc.toList()) if (occ in ids) closeReader(id)
       }
       "dragStart" -> onDragStart(m)
@@ -736,6 +753,20 @@ class OfficeActivity : AppSystemActivity() {
     return t
   }
 
+  /** Take these rows (or files) off every shelf showing them, now. */
+  private fun dropFromShelves(ids: Set<String>) {
+    if (ids.isEmpty()) return
+    for (t in things.values.toList()) {
+      val sj = t.shelfJson ?: continue
+      val items = sj.optJSONArray("items") ?: continue
+      val keep = org.json.JSONArray()
+      for (i in 0 until items.length()) items.optJSONObject(i)?.let { it ->
+        if (it.optString("id") !in ids && (it.isNull("rowId") || it.optString("rowId") !in ids)) keep.put(it)
+      }
+      if (keep.length() != items.length()) ensureShelf(JSONObject(sj.toString()).put("items", keep))
+    }
+  }
+
   private fun ensureShelf(s: JSONObject) {
     val asset = s.optString("asset", "book").let { if (it in OfficeSizes.SHELVES) it else "book" }
     val key = "shelf:" + s.optString("id")
@@ -747,6 +778,8 @@ class OfficeActivity : AppSystemActivity() {
     t.shelfAsset = asset
     t.slots = ShelfLayout.slots(asset, size)
     t.shelfItems = s.optJSONArray("items") ?: org.json.JSONArray()
+    t.canUp = s.optBoolean("canUp")
+    t.shelfJson = s
     val pages = maxOf(1, (t.shelfItems.length() + t.slots.size - 1) / t.slots.size)
     t.page = t.page.coerceIn(0, pages - 1)
     val html = PanelHtml.shelf(s, t.slots, size.h, t.page)
@@ -763,7 +796,8 @@ class OfficeActivity : AppSystemActivity() {
   // ── Books you can take off a shelf ───────────────────────────────────────
   /** Lay a grabbable book over each spine on the shelf's current page (the old ones go). */
   private fun buildBooks(t: Thing, size: OfficeSizes.Shelf) {
-    for (b in t.books) b.entity.destroy()
+    // A book in your hand stays there (the shelf may have opened a folder under it); the rest go.
+    for (b in t.books) if (b.held) t.carried += b else b.entity.destroy()
     t.books.clear()
     val start = t.page * t.slots.size
     // Searching, the books are the matches (the shelf page draws the same list).
@@ -887,6 +921,53 @@ class OfficeActivity : AppSystemActivity() {
     return PoseMath.pose(floatArrayOf(pose.t.x + w[0], pose.t.y + w[1], pose.t.z + w[2]), PoseMath.qOf(pose))
   }
 
+  /** Where `p` is in the shelf's own frame, unscaled (the slots' frame). */
+  private fun shelfLocal(t: Thing, p: FloatArray): FloatArray? {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return null
+    val (l, _) = PoseMath.toLocal(pose, PoseMath.pose(p, floatArrayOf(1f, 0f, 0f, 0f)))
+    val s = t.scale.takeIf { it > 0f } ?: 1f
+    return floatArrayOf(l[0] / s, l[1] / s, l[2] / s)
+  }
+
+  /** Is a point (shelf frame) at the front of the shelf, over its books or its header? */
+  private fun overShelf(t: Thing, l: FloatArray): Boolean {
+    val size = t.shelfSize ?: return false
+    return kotlin.math.abs(l[0]) <= size.w / 2f + 0.05f && l[1] in -0.05f..(size.h + PanelHtml.HEADER_M + 0.05f) &&
+        l[2] in (-size.d / 2f - 0.05f)..(size.d / 2f + 0.4f)
+  }
+
+  /** The book on this page whose spine a point (shelf frame) is over, and whether it is in the left half of it. */
+  private fun bookAt(t: Thing, l: FloatArray, except: Book): Pair<Book, Boolean>? {
+    val hit = t.books.filter { it !== except }.minByOrNull { b ->
+      val dx = kotlin.math.abs(l[0] - b.slot.x); val dy = kotlin.math.abs(l[1] - b.slot.y)
+      if (dx <= b.slot.w / 2f + 0.02f && dy <= b.slot.h / 2f + 0.03f) dx + dy else Float.MAX_VALUE
+    } ?: return null
+    val dx = kotlin.math.abs(l[0] - hit.slot.x); val dy = kotlin.math.abs(l[1] - hit.slot.y)
+    if (dx > hit.slot.w / 2f + 0.02f || dy > hit.slot.h / 2f + 0.03f) return null
+    return hit to (l[0] < hit.slot.x)
+  }
+
+  /**
+   * Carrying a book over its shelf: held a moment over a folder book, the folder opens; over the ⬆ in the header,
+   * the shelf goes up a level — so a book can be taken into another folder (and let go of there).
+   */
+  private fun dragOverShelf(t: Thing, b: Book, now: Long) {
+    val size = t.shelfSize ?: return
+    val p = (b.shown ?: b.entity).tryGetComponent<Transform>()?.transform?.let { PoseMath.tOf(it) } ?: return
+    val l = shelfLocal(t, p)?.takeIf { overShelf(t, it) }
+    val what = when {
+      l == null -> null
+      t.canUp && l[1] >= size.h && l[0] <= -(size.w - 0.06f) / 2f + 0.14f -> "up"
+      else -> bookAt(t, l, except = b)?.first?.takeIf { it.folder }?.let { "folder:" + it.itemId }
+    }
+    if (what != b.overWhat) { b.overWhat = what; b.overSince = now; return }
+    if (what == null || now - b.overSince < DRAG_OPEN_MS) return
+    b.overSince = Long.MAX_VALUE / 2  // once per stay
+    if (what == "up") send(JSONObject().put("type", "shelfUp").put("key", t.key))
+    else send(JSONObject().put("type", "openFolder").put("key", t.key).put("folderId", what.removePrefix("folder:")))
+    Log.i(TAG, "carrying ${b.title}: ${if (what == "up") "up a level" else "into $what"}")
+  }
+
   /**
    * Every frame: a resting book stays on its slot; take one off the shelf and it turns into a solid book in your
    * hand (its spine hides); let go of it away from the shelf — or just tap it — and it opens to read, then goes back.
@@ -895,12 +976,16 @@ class OfficeActivity : AppSystemActivity() {
     val now = System.currentTimeMillis()
     hoverBooks()
     for (t in things.values) {
-      if (t.books.isEmpty()) continue
+      if (t.books.isEmpty() && t.carried.isEmpty()) continue
       val s = t.scale
-      for (b in t.books) {
+      for (b in (t.books + t.carried)) {
         val grabbed = b.entity.tryGetComponent<Grabbable>()?.isGrabbed == true
+        // Select mode: the press selects (at once — no book in the hand, no card); letting go does nothing.
+        if (grabbed && !b.held && t.selecting) { b.held = true; b.selectGrab = true; selectBook(t, b); continue }
+        if (grabbed && b.selectGrab) continue
+        if (!grabbed && b.selectGrab) { b.held = false; b.selectGrab = false; b.placedScale = -1f }
         if (grabbed && !b.held) {
-          b.held = true; b.grabbedAt = now
+          b.held = true; b.grabbedAt = now; b.overWhat = null
           // A book fills its slot (spine width = its thickness); a record sleeve and a tape are drawn at real size.
           val held = when (t.shelfAsset) { "record" -> "record"; "vhs" -> "vhs"; else -> "book" }
           b.reach = 0f
@@ -915,15 +1000,31 @@ class OfficeActivity : AppSystemActivity() {
           Log.i(TAG, "took ${b.title} off ${t.key}")
           continue
         }
-        if (grabbed) { placeShown(b); placeCard(t, b); continue }
-        val rest = bookRestPose(t, b) ?: continue
+        if (grabbed) { placeShown(b); placeCard(t, b); dragOverShelf(t, b, now); continue }
+        val carried = b in t.carried
+        val rest = if (carried) null else (bookRestPose(t, b) ?: continue)
         if (b.held) {
           b.held = false
           // Where you let go is where you SEE it (pushed out or pulled in), not the block in your hand.
           val at = b.shown?.tryGetComponent<Transform>()?.transform ?: b.entity.tryGetComponent<Transform>()?.transform
           b.shown?.destroy(); b.shown = null
           if (heldBook === b) heldBook = null
-          val moved = at?.let { !PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } ?: false
+          b.overWhat = null
+          // Let go over its own shelf: onto another book (placed there) or a folder book (filed inside); anywhere
+          // else on the shelf it just goes back.
+          // Still at its own slot (a tap, or a pull that came back): not a drop at all.
+          val atRest = rest != null && at?.let { PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } != false
+          val onShelf = if (atRest) null else at?.let { shelfLocal(t, PoseMath.tOf(it)) }?.takeIf { overShelf(t, it) }
+          val moved = !atRest && onShelf == null
+          if (onShelf != null) {
+            bookAt(t, onShelf, except = b)?.let { (target, before) ->
+              val id = itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
+              val targetId = if (target.folder) target.itemId else itemField(t, target.itemId, "rowId").ifEmpty { target.itemId }
+              if (!b.folder) send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", targetId)
+                  .put("edge", if (target.folder) "into" else if (before) "before" else "after"))
+              Log.i(TAG, "${b.title} let go on ${target.title} (${if (target.folder) "into" else if (before) "before" else "after"})")
+            }
+          }
           if (moved) {
             val p = at?.let { PoseMath.tOf(it) }
             val player = p?.let { when (t.shelfAsset) {
@@ -947,11 +1048,14 @@ class OfficeActivity : AppSystemActivity() {
               t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
               else -> activateBook(t, b, near = p)
             }
-          } else if (now - b.grabbedAt < BOOK_TAP_MS) { if (t.selecting) selectBook(t, b) else activateBook(t, b) }
+          } else if (atRest && now - b.grabbedAt < BOOK_TAP_MS) activateBook(t, b)
           t.web?.evaluateJavascript("hold(${JSONObject.quote(b.itemId)}, false)", null)
           hideCard(b)
           b.placedScale = -1f
+          // A book carried in from another folder of the shelf is done with now.
+          if (carried) { t.carried.remove(b); b.entity.destroy(); continue }
         }
+        if (rest == null) continue
         if (b.placedScale != s) {
           val k = if (b.mini) MINI_RECORD else 1f
           b.entity.setComponent(Scale(Vector3(b.slot.w * s * k, b.slot.h * s * k, BOOK_PROXY_DEPTH * s)))
@@ -1028,8 +1132,8 @@ class OfficeActivity : AppSystemActivity() {
     t.panel?.destroy()
     t.gear?.destroy()
     t.trash?.destroy()
-    for (b in t.books) b.entity.destroy()
-    t.books.clear()
+    for (b in t.books + t.carried) { b.entity.destroy(); b.shown?.destroy() }
+    t.books.clear(); t.carried.clear()
     pieceWindows[key]?.let { closeReader(it) }
     t.frame.destroy()
   }
@@ -1629,7 +1733,7 @@ class OfficeActivity : AppSystemActivity() {
     for (t in things.values) {
       owned += t.frame.id
       t.handle?.entity?.id?.let { owned += it }
-      for (b in t.books) { owned += b.entity.id; b.shown?.id?.let { owned += it } }
+      for (b in t.books + t.carried) { owned += b.entity.id; b.shown?.id?.let { owned += it } }
     }
     for (h in readerHandles.values) owned += h.entity.id
     for (e in Query.where { has(Mesh.id) }.eval()) {
