@@ -171,3 +171,16 @@ describe("a record crate as a tree", () => {
     expect(v.canUp).toBe(true);
   });
 });
+
+describe("an artist on the record crate", () => {
+  it("shows the artist's own picture", () => {
+    const modulesById = { A: { id: "A", kind: "album", role: "artifact" }, P: { id: "P", kind: "artist", role: "artifact" }, pg: { id: "pg", role: "page" } };
+    const occurrencesById = {
+      page: { id: "page", moduleId: "pg" },
+      a: { id: "a", moduleId: "A", label: "Arrival", parentId: "page", cover: null, fields: { ar: { value: "ar1" } }, meta: { cover: "https://x/album.jpg" } },
+      ar1: { id: "ar1", moduleId: "P", label: "ABBA", fields: {}, meta: { cover: "https://x/abba.jpg" } },
+    };
+    const shelf = { id: "s2", title: "Records", asset: "record", feed: { enabled: true, conditions: [], roles: ["artifact"], scope: "page", limit: 5 } };
+    expect(musicShelfView(shelf, null, { occurrencesById, modulesById, grid: {} }).items[0].cover).toBe("https://x/abba.jpg");
+  });
+});

@@ -77,7 +77,9 @@ object PanelHtml {
   .it.mini{transform:scale(.62);transform-origin:50% 50%}
   /* Its title, big enough to read at that size (a song's name was too small to see). */
   .it.mini span{font-size:1.5vh;max-height:100%;background:rgba(0,0,0,.7)}
-  .it.fold{background:linear-gradient(#5a4632,#3b2c1d)!important;border:.4vh solid #c9a46a;box-sizing:border-box}
+  .it.fold{border:.4vh solid #c9a46a;box-sizing:border-box}
+  /* A folder with no picture is a plain leather spine; one with a picture (an artist on the record crate) shows it. */
+  .it.fold:not(.pic){background:linear-gradient(#5a4632,#3b2c1d)!important}
   .it.fold span:before{content:'📁 ';}
   .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
   /* Select mode: tap books to pick them, then Delete. */
@@ -114,7 +116,7 @@ object PanelHtml {
   var byId={}; items.forEach(function(it){byId[it.id]=it;});
   var selecting=false, sel={}, armed=false, armT=null;
   function look(id){var d=nodes[id];if(!d)return;var it=byId[id]||{};
-    d.className='it'+(it.f?' fold':'')+(it.m?' mini':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
+    d.className='it'+(it.f?' fold':'')+(it.f&&it.c?' pic':'')+(it.m?' mini':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
   function count(){return Object.keys(sel).length;}
   function bar(){var b=document.getElementById('delb'), s=document.getElementById('selb');
     s.textContent=selecting?'Done':'Select'; s.className=selecting?'on':'';

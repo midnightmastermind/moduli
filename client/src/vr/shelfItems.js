@@ -299,10 +299,19 @@ export function musicShelfView(shelf, at, ctx = {}) {
   if (!index) {
     const items = shelfItems({ ...shelf, feed: { ...(shelf.feed || {}), limit: 100000 } }, ctx);
     const artists = new Map();
+    // Each artist's own picture (its artist row's cover), by name — an artist known only by name takes it too.
+    const pictures = new Map();
+    for (const o of Object.values(occurrencesById || {})) {
+      const m = ctx.modulesById?.[o?.moduleId];
+      if (m?.kind !== "artist") continue;
+      const name = (occurrenceDisplayLabel(o, m) || "").trim();
+      const pic = coverUrl(o, m, null);
+      if (name && pic && !pictures.has(name)) pictures.set(name, pic);
+    }
     for (const it of items) {
       const occ = occurrencesById?.[it.rowId];
       const name = (artistOfRow(occ, ctx) || "Unknown artist").trim();
-      if (!artists.has(name)) artists.set(name, { albums: [], songs: [] });
+      if (!artists.has(name)) artists.set(name, { albums: [], songs: [], picture: pictures.get(name) || null });
       (it.album ? artists.get(name).albums : artists.get(name).songs).push(it);
     }
     const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
@@ -315,6 +324,6 @@ export function musicShelfView(shelf, at, ctx = {}) {
   if (here) return { items: [...here.albums, ...here.songs], path: [shelf.title, key], canUp: true };
   const items = [...index.artists.entries()]
     .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: "base" }))
-    .map(([name, v]) => ({ id: "artist:" + name, rowId: null, folder: true, count: v.albums.length + v.songs.length, title: name, cover: v.albums[0]?.cover || null }));
+    .map(([name, v]) => ({ id: "artist:" + name, rowId: null, folder: true, count: v.albums.length + v.songs.length, title: name, cover: v.picture || v.albums[0]?.cover || null }));
   return { items, path: [], canUp: false };
 }
