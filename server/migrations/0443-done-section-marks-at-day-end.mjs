@@ -43,18 +43,25 @@ export async function up({ gridId, models, log, dryRun }) {
   const section = await Occurrence.findOne({ gridId, id: DONE_SECTION }).lean();
   if (!section) throw new Error("no Done section on this grid");
   if (await Operation.exists({ gridId, name: "Tasks: Mark Done" })) { log("  already there"); return; }
-  for (const n of ["Done", "Done Since"]) if (await Field.exists({ gridId, name: n })) throw new Error(`a field named ${n} already exists`);
+  // A first run that stopped part way may have made the two fields already; anything else by those names is refused.
+  const existing = {};
+  for (const [n, t] of [["Done", "boolean"], ["Done Since", "date"]]) {
+    const f = await Field.findOne({ gridId, name: n }).lean();
+    if (f && (f.type !== t || !String(f.meta?.note || "").includes("Done section"))) throw new Error(`a field named ${n} already exists`);
+    existing[n] = f;
+  }
   const completed = await Field.findOne({ gridId, name: "Completed" }).lean();
   const stampOp = await Operation.findOne({ gridId, name: "Schedule: Stamp Completed On" }).lean();
   log(`  fields Done + Done Since (category of Completed) · filter "Done IS false" on Done (${(section.occurrences || []).length} rows, all stay visible until the first run after midnight) · op Tasks: Mark Done`);
   if (dryRun) return;
 
-  const doneId = randomUUID(), sinceId = randomUUID();
-  await Field.create({ id: doneId, userId, gridId, name: "Done", type: "boolean", folderId: completed?.folderId || null, meta: { note: "Set by Tasks: Mark Done on rows in the Tasks page's Done section since an earlier day." } });
-  await Field.create({ id: sinceId, userId, gridId, name: "Done Since", type: "date", folderId: completed?.folderId || null, meta: { note: "The day a row was first seen in the Tasks page's Done section." } });
+  const doneId = existing.Done?.id || randomUUID(), sinceId = existing["Done Since"]?.id || randomUUID();
+  if (!existing.Done) await Field.create({ id: doneId, userId, gridId, name: "Done", type: "boolean", folderId: completed?.folderId || null, meta: { note: "Set by Tasks: Mark Done on rows in the Tasks page's Done section since an earlier day." } });
+  if (!existing["Done Since"]) await Field.create({ id: sinceId, userId, gridId, name: "Done Since", type: "date", folderId: completed?.folderId || null, meta: { note: "The day a row was first seen in the Tasks page's Done section." } });
   await Occurrence.updateOne({ gridId, id: DONE_SECTION }, {
     $push: { filters: { id: randomUUID(), fieldId: doneId, active: true, showNav: true, comparator: "IS", hides: false } },
-    $set: { [`filterOverride.${doneId}`]: false, updatedAt: new Date() },
+    // filterOverride is null on this section, and Mongo cannot set a key inside null: write the whole object.
+    $set: { filterOverride: { ...(section.filterOverride || {}), [doneId]: false }, updatedAt: new Date() },
   });
   await Operation.create({
     id: randomUUID(), userId, gridId, name: "Tasks: Mark Done", folderId: stampOp?.folderId || null, enabled: true,
