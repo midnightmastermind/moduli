@@ -38,6 +38,35 @@ const MARK = "embedNewCheckIn";
 
 const isAction = (s, t) => s?.type === "action" && (s.actionType || s.config?.type) === t;
 
+const embedNode = { type: "moduleEmbed", attrs: { occurrenceId: "$newCheckIn" } };
+const act = (id, config) => ({ id: `${MARK}-${id}`, type: "action", actionType: config.type, config });
+const cond = (id, rules) => ({ id: `${MARK}-${id}`, operator: "AND", rules: rules.map(([l, c, r], i) => ({ id: `${MARK}-${id}-${i}`, left: l, comparator: c, right: r ?? null })) });
+
+/** The new Check In's embed, written into the column just above its Reflections section (else at the end). */
+export function insertBeforeReflectionsSteps() {
+  return [
+    act("init", { type: "INIT_VAR", name: "$colBody", expr: "json:[]" }),
+    act("reflInit", { type: "INIT_VAR", name: "$reflSec", expr: "literal:" }),
+    act("reflFind", { type: "FIND", over: "$allOccurrences", itemVar: "$reflSec", predicate: { operator: "AND", rules: [
+      { id: `${MARK}-rf1`, left: "parentId", comparator: "IS", right: "$col.id" },
+      { id: `${MARK}-rf2`, left: "identitySignature", comparator: "IS", right: "daypage:reflections" },
+    ] } }),
+    act("placedInit", { type: "INIT_VAR", name: "$placed", expr: "literal:" }),
+    { id: `${MARK}-loop`, type: "loop", overExpr: "$col.textmap.content", as: "$node", body: [
+      { id: `${MARK}-before`, type: "if",
+        condition: cond("before", [["$reflSec", "IS_NOT_EMPTY"], ["$placed", "IS_EMPTY"], ["$node.attrs.occurrenceId", "IS", "$reflSec.id"]]),
+        then: [
+          act("pushNew", { type: "PUSH_TO_ARRAY", name: "$colBody", value: embedNode }),
+          act("placed", { type: "SET_VAR", name: "$placed", expr: "literal:yes" }),
+        ], else: [] },
+      act("pushNode", { type: "PUSH_TO_ARRAY", name: "$colBody", value: "$node" }),
+    ] },
+    { id: `${MARK}-tail`, type: "if", condition: cond("tail", [["$placed", "IS_EMPTY"]]),
+      then: [act("push", { type: "PUSH_TO_ARRAY", name: "$colBody", value: embedNode })], else: [] },
+    act("write", { type: "UPDATE", path: "$col.textmap", value: { type: "doc", content: "$colBody" } }),
+  ];
+}
+
 /** The steps inserted after the COPY_LINK. */
 export function embedSteps() {
   return [{
@@ -46,15 +75,10 @@ export function embedSteps() {
       { id: `${MARK}-body`, left: "$col.textmap.content", comparator: "IS_NOT_EMPTY", right: null },
       { id: `${MARK}-new`, left: "$newCheckIn", comparator: "IS_NOT_EMPTY", right: null },
     ] },
-    then: [
-      { id: `${MARK}-init`, type: "action", actionType: "INIT_VAR",
-        config: { type: "INIT_VAR", name: "$colBody", expr: "$col.textmap.content" } },
-      { id: `${MARK}-push`, type: "action", actionType: "PUSH_TO_ARRAY",
-        config: { type: "PUSH_TO_ARRAY", name: "$colBody",
-          value: { type: "moduleEmbed", attrs: { occurrenceId: "$newCheckIn" } } } },
-      { id: `${MARK}-write`, type: "action", actionType: "UPDATE",
-        config: { type: "UPDATE", path: "$col.textmap", value: { type: "doc", content: "$colBody" } } },
-    ],
+    // Just above the day's Reflections section, so it sits under the Emotions Wheel and after the day's earlier
+    // check-ins — where Day Page: Build puts them on its next run (it keeps Reflections last). Appended at the very
+    // end it showed BELOW Reflections until a reload (user, 2026-10-26). No Reflections section → at the end.
+    then: insertBeforeReflectionsSteps(),
     else: [],
   }];
 }

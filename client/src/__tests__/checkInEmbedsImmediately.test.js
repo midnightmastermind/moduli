@@ -6,11 +6,12 @@ import { executePipeline } from "../helpers/operationExecutor";
 import { embedNewCheckIn, embedSteps }
   from "../../../server/migrations/0343-a-check-in-appears-the-moment-it-is-picked.mjs";
 
-const COL = "occ-col", WHEEL = "occ-wheel", CI = "occ-checkin";
+const COL = "occ-col", WHEEL = "occ-wheel", CI = "occ-checkin", REFL = "occ-refl", OLD = "occ-old-checkin";
 
-function run(colTextmap) {
+function run(colTextmap, { reflections = false } = {}) {
   const occurrencesById = {
-    [COL]: { id: COL, moduleId: "m-col", occurrences: [WHEEL, CI], textmap: colTextmap, fields: {} },
+    [COL]: { id: COL, moduleId: "m-col", occurrences: [WHEEL, CI, ...(reflections ? [REFL] : [])], textmap: colTextmap, fields: {} },
+    ...(reflections ? { [REFL]: { id: REFL, moduleId: "m-refl", parentId: COL, identitySignature: "daypage:reflections", fields: {} } } : {}),
     [WHEEL]: { id: WHEEL, moduleId: "m-wheel", fields: {} },
     [CI]: { id: CI, moduleId: "m-ci", parentId: COL, fields: {} },
   };
@@ -18,6 +19,7 @@ function run(colTextmap) {
     "m-col": { id: "m-col", role: "container", kind: "doc", label: "Friday" },
     "m-wheel": { id: "m-wheel", role: "container", label: "Emotions Wheel" },
     "m-ci": { id: "m-ci", role: "instance", label: "Check In" },
+    "m-refl": { id: "m-refl", role: "container", kind: "doc", label: "Reflections" },
   };
   const grid = { _id: "g" };
   const ctx = {
@@ -48,6 +50,13 @@ describe("0343 — a picked emotion's Check In is embedded in the same run", () 
     const tm = writes[0].textmap || writes[0].occurrence.textmap;
     expect(tm.content.map((n) => n.attrs?.occurrenceId || n.type))
       .toEqual(["paragraph", WHEEL, CI]);
+  });
+
+  // User 2026-10-26: "the moods i select need to show up underneath the emotions wheel not underneath reflections".
+  it("goes just above Reflections — under the wheel and after the day's earlier check-ins", () => {
+    const writes = run({ type: "doc", content: [...body, { type: "moduleEmbed", attrs: { occurrenceId: OLD } }, { type: "moduleEmbed", attrs: { occurrenceId: REFL } }] }, { reflections: true });
+    const tm = writes[0].textmap || writes[0].occurrence.textmap;
+    expect(tm.content.map((n) => n.attrs?.occurrenceId || n.type)).toEqual(["paragraph", WHEEL, OLD, CI, REFL]);
   });
 
   // THE CONTROL: the wheel and the rest survive — a write of ONLY the check-in
