@@ -238,6 +238,14 @@ export default function GridMosaic({
   // touch path asks this instead (helpers/mosaicTouch): the pane under the point and its nearest edge, the same
   // decision a pane's own target makes.
   const [touchHint, setTouchHint] = useState(null);
+  // A touch drag of a panel also mounts the perimeter band and the layouts bar (they mount for a Pragmatic drag
+  // below): `touchDrag` is where the drag is, and the band answers it through `bandTouchRef` (user, 2026-10-26: in the
+  // headset "the panels … dont let me go to the right or left sides of the grid, and the layout shape panel isnt
+  // being shown").
+  // Only the dragged panel's id is state here (set once at the start, cleared at the end): the pointer itself goes to
+  // the band through its ref, so moving it does not re-render every pane.
+  const [touchDragId, setTouchDragId] = useState(null);
+  const bandTouchRef = useRef(null);
   useEffect(() => {
     const at = (x, y, draggedId) => {
       const el = document.elementFromPoint(x, y)?.closest?.("[data-mosaic-pane]");
@@ -248,18 +256,24 @@ export default function GridMosaic({
     };
     return setMosaicTouchHandler({
       hover: (x, y, id) => {
+        setTouchDragId((cur) => (cur === id ? cur : id));
+        bandTouchRef.current?.move?.(x, y);
+        // The band (an edge of the grid, or the layouts bar) wins over the pane under it.
+        if (bandTouchRef.current?.over?.(x, y)) { setTouchHint(null); return true; }
         const hit = at(x, y, id);
         setTouchHint((cur) => (cur?.leafId === hit?.leafId && cur?.edge === hit?.edge ? cur : hit));
         return !!hit;
       },
       drop: (x, y, id) => {
-        const hit = at(x, y, id);
+        setTouchDragId(null);
         setTouchHint(null);
+        if (bandTouchRef.current?.drop?.(x, y, id)) return true;
+        const hit = at(x, y, id);
         if (!hit) return false;
         handlePaneDrop(id, hit.leafId, hit.edge);
         return true;
       },
-      clear: () => setTouchHint(null),
+      clear: () => { setTouchHint(null); setTouchDragId(null); },
     });
   }, [panes, handlePaneDrop]);
 
@@ -347,14 +361,15 @@ export default function GridMosaic({
         </div>
       ))}
 
-      {dragOccId && (
+      {(dragOccId || touchDragId) && (
         <SnapBand
           rootRef={rootRef}
           size={size}
           tree={tree}
-          dragOccId={dragOccId}
+          dragOccId={dragOccId || touchDragId}
           onSnapDrop={handlePerimeterDrop}
           onLayoutDrop={handleLayoutDrop}
+          touchRef={bandTouchRef}
         />
       )}
     </div>
@@ -367,7 +382,7 @@ export default function GridMosaic({
 // FOUR STRIPS RATHER THAN ONE FULL-SIZE OVERLAY, because a full-size overlay
 // would be the element under the pointer everywhere and would steal the
 // interior drops that split a pane. The interior has no element at all here.
-function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onLayoutDrop }) {
+function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onLayoutDrop, touchRef = null }) {
   const [zone, setZone] = useState(null);
   // The Windows 11 snap-layouts bar. OPENED by dragging into the top edge's
   // middle (never by hovering — user 2026-10-01), and it stays open while the
@@ -411,6 +426,47 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop, onLayoutDrop }) 
     if (!next) return null;
     return paneRect(paneFraction(next, dragOccId), size.w, size.h);
   }, [zone, layoutPick, tree, dragOccId, size.w, size.h]);
+
+  // ── A TOUCH drag (no Pragmatic events): the same decisions from the pointer's position ──
+  // What is under (x, y): a zone of the layouts bar, the bar itself, an edge zone of the grid, or nothing.
+  const touchAt = useCallback((x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const zoneEl = el?.closest?.(".mosaic-snap-layout-zone");
+    if (zoneEl) {
+      const layout = layoutsForCount(tree ? allPanelOccIds(tree).length : 0)
+        .find((l) => l.id === zoneEl.closest(".mosaic-snap-layout")?.getAttribute("data-layout"));
+      const zoneIndex = Number(zoneEl.getAttribute("data-zone-index"));
+      if (layout && Number.isInteger(zoneIndex)) return { pick: { layout, zoneIndex } };
+    }
+    if (el?.closest?.(".mosaic-snap-layouts")) return { bar: true };
+    const r = rootRef.current?.getBoundingClientRect();
+    if (!r) return {};
+    return { zone: zoneAt({ x: x - r.left, y: y - r.top, w: size.w, h: size.h, band: SNAP_BAND }) };
+  }, [rootRef, size.w, size.h, tree]);
+  const touchMove = useCallback((x, y) => {
+    const hit = touchAt(x, y);
+    if (hit.pick) { setLayoutPick((cur) => (cur?.layout?.id === hit.pick.layout.id && cur?.zoneIndex === hit.pick.zoneIndex ? cur : hit.pick)); setZone(null); return; }
+    setLayoutPick(null);
+    if (hit.bar) { setZone(null); return; }
+    const z = hit.zone || null;
+    setZone((cur) => (JSON.stringify(cur) === JSON.stringify(z) ? cur : z));
+    if (opensSnapLayouts(z)) setLayoutsOpen(true);
+    else if (!z) setLayoutsOpen(false);
+  }, [touchAt]);
+  if (touchRef) {
+    touchRef.current = {
+      move: touchMove,
+      over: (x, y) => { const hit = touchAt(x, y); return !!(hit.pick || hit.bar || hit.zone); },
+      drop: (x, y, id) => {
+        const hit = touchAt(x, y);
+        if (hit.pick) { pickLayout(id, hit.pick.layout, hit.pick.zoneIndex); return true; }
+        if (hit.bar) { closeLayouts(); return true; }
+        if (hit.zone && !opensSnapLayouts(hit.zone)) { setZone(null); onSnapDrop?.(id, hit.zone); return true; }
+        if (hit.zone) return true;   // the top middle opens the bar; letting go there picks nothing (as on Windows)
+        return false;
+      },
+    };
+  }
 
   const strips = useMemo(() => ([
     { key: "top", style: { left: 0, top: 0, width: "100%", height: SNAP_BAND } },
@@ -518,6 +574,7 @@ function SnapLayoutZone({ layout, zoneIndex, onHover, onPick }) {
     <div
       ref={ref}
       className={`mosaic-snap-layout-zone${over ? " is-over" : ""}`}
+      data-zone-index={zoneIndex}
       data-region={zone.region ? `${zone.region.col}-${zone.region.row}${zone.region.span ? `-${Math.round(zone.region.span * 3)}of3` : ""}` : undefined}
       style={{ left: pct(zone.x), top: pct(zone.y), width: pct(zone.w), height: pct(zone.h) }}
     />
