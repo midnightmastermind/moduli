@@ -156,6 +156,9 @@ class OfficeActivity : AppSystemActivity() {
     var scale = 1f
     var lastScale = 1f
     var panel: Entity? = null
+    /** The panel's size at scale 1 (metres). */
+    var panelW = 0f
+    var panelH = 0f
     /** Where the panel sits on the piece at scale 1 (height, distance out front). */
     var panelAt = floatArrayOf(0f, 0f)
     /** The ⚙ beside the handle that opens this piece's own settings window. */
@@ -253,6 +256,8 @@ class OfficeActivity : AppSystemActivity() {
   private var state: JSONObject? = null
   private val things = LinkedHashMap<String, Thing>()
   private val readers = HashMap<Int, Entity>()
+  /** A piece's web panel by its panel id (screens, the grid screen, shelves): what a drag that starts there needs. */
+  private val panelThings = HashMap<Int, Thing>()
   /** Each reader window's page (a drag carried into it asks the page where it landed). */
   private val readerWebs = HashMap<Int, WebView>()
   /** What each open reader shows (books and pages, not settings windows) — saved, so they are there next time. */
@@ -1095,6 +1100,8 @@ class OfficeActivity : AppSystemActivity() {
     applyScale(t)
     if (t.panel != null) { refreshPanel(t); return }
     val id = nextPanelId++
+    t.panelW = w; t.panelH = h
+    panelThings[id] = t
     if (t.spotifyUrl != null) registerPanel(spotifyPanel(id, w, h, t))
     else if (t.browser) registerPanel(browserPanel(id, w, h, t))
     // The grid screen is the whole app: at the panels' 500 dp a metre a 1.6m screen is an 800px-wide window, so the
@@ -1832,6 +1839,28 @@ class OfficeActivity : AppSystemActivity() {
     return best
   }
 
+  /**
+   * Where window `panelId` is in the room and its half size: a reader window, or a piece's panel (the grid screen is
+   * one). A drag that started on the grid screen read as "outside its window" every frame, because only reader windows
+   * were looked up — so the carried preview showed for the whole drag (user, 2026-10-26).
+   */
+  private fun windowBox(panelId: Int): Triple<Pose, Float, Float>? {
+    readers[panelId]?.let { e ->
+      val pose = e.tryGetComponent<Transform>()?.transform ?: return null
+      val s = e.tryGetComponent<com.meta.spatial.toolkit.Scale>()?.scale?.x ?: 1f
+      return Triple(pose, READER_W * s / 2f, READER_H * s / 2f)
+    }
+    val t = panelThings[panelId] ?: return null
+    if (t.panel == null || t.panelW <= 0f) return null
+    val frame = t.frame.tryGetComponent<Transform>()?.transform ?: return null
+    val s = t.scale
+    val pose = PoseMath.toWorld(frame, floatArrayOf(0f, t.panelAt[0] * s, t.panelAt[1] * s), PoseMath.yaw(180f))
+    return Triple(pose, t.panelW * s / 2f, t.panelH * s / 2f)
+  }
+
+  /** The page of window `panelId`: a reader window's, or a piece's panel's. */
+  private fun webOf(panelId: Int): WebView? = readerWebs[panelId] ?: panelThings[panelId]?.web
+
   private fun remote(panel: Int, call: String) = readerWebs[panel]?.evaluateJavascript("window.__moduliRemoteDrag && window.__moduliRemoteDrag.$call", null)
 
   /** Each frame of a drag: which window the controller points at; out of its own window the drag goes with it. */
@@ -1841,15 +1870,15 @@ class OfficeActivity : AppSystemActivity() {
     if (d == null || d.released) { g.setComponent(Visible(false)); return }
     val ray = dragRay ?: controllerRays().firstOrNull() ?: run { g.setComponent(Visible(false)); return }
     val (o, dir) = ray
-    val srcPose = readers[d.fromPanel]?.tryGetComponent<Transform>()?.transform
-    val srcScale = readers[d.fromPanel]?.tryGetComponent<com.meta.spatial.toolkit.Scale>()?.scale?.x ?: 1f
-    val inside = srcPose != null && PoseMath.rayBox(o, dir, srcPose,
-        floatArrayOf(-READER_W * srcScale / 2f, -READER_H * srcScale / 2f, -0.03f), floatArrayOf(READER_W * srcScale / 2f, READER_H * srcScale / 2f, 0.03f)) != null
+    val src = windowBox(d.fromPanel)
+    val srcPose = src?.first
+    val inside = src != null && PoseMath.rayBox(o, dir, src.first,
+        floatArrayOf(-src.second, -src.third, -0.03f), floatArrayOf(src.second, src.third, 0.03f)) != null
     // The page keeps the last point it saw inside, so on release it would drop there: tell it the pointer has left.
     if (d.outside != !inside) {
       d.outside = !inside
       Log.i(TAG, "drag ${d.occId}: pointer ${if (inside) "back in" else "left"} window ${d.fromPanel}")
-      readerWebs[d.fromPanel]?.evaluateJavascript("window.__moduliOutside=${!inside}", null)
+      webOf(d.fromPanel)?.evaluateJavascript("window.__moduliOutside=${!inside}", null)
     }
     val over = if (inside) null else readerUnder(ray, d.fromPanel)
     // Over another window: that window draws the drag. Entering a new one ends it in the last.
@@ -1891,7 +1920,7 @@ class OfficeActivity : AppSystemActivity() {
     val from = m.optInt("_panel", -1)
     pendingDrag = PendingDrag(from, occ, m.optString("mode", "move"), m.optString("label").ifEmpty { "item" },
         m.optString("action").ifEmpty { "Move" })
-    readerWebs[from]?.evaluateJavascript("window.__moduliOutside=false", null)
+    webOf(from)?.evaluateJavascript("window.__moduliOutside=false", null)
     // Every other reader window gets ready to take it (loads the row and its parent) while you are still here.
     m.optString("payload").takeIf { it.isNotEmpty() }?.let { p ->
       for (id in readerWebs.keys) if (id != from) remote(id, "prepare(${JSONObject.quote(p)})")
@@ -1918,7 +1947,7 @@ class OfficeActivity : AppSystemActivity() {
         remote(over, "cancel()")
         // A move: the window it left takes its own copy out (a doc there only lets go of an embed it holds itself).
         if (r == "true" && drag.mode == "move")
-          readerWebs[drag.fromPanel]?.evaluateJavascript("window.__moduliMovedOut && window.__moduliMovedOut(${JSONObject.quote(drag.occId)})", null)
+          webOf(drag.fromPanel)?.evaluateJavascript("window.__moduliMovedOut && window.__moduliMovedOut(${JSONObject.quote(drag.occId)})", null)
       }
     }, 2500)
   }

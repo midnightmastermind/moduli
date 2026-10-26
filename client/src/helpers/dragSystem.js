@@ -43,6 +43,7 @@ import { dragPerf } from "./dragPerf";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { hitInterval, blendCost } from "./hitTestBudget";
 import { setDropOver, setDropEdge } from "./dropEdgeAttr";
+import { mosaicTouchHover, mosaicTouchDrop, mosaicTouchClear } from "./mosaicTouch";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
@@ -660,6 +661,8 @@ export function clearDocTouchHover() { _docHoverFn?.(null); _docHoverFn = null; 
  * carries into this window from another one (ReaderApp), so both look and land the same.
  */
 export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dragCtx }) {
+  // A panel over a mosaic: the mosaic draws where it would land (helpers/mosaicTouch).
+  mosaicTouchHover(x, y, payload);
   const hit = target !== undefined ? target : _findDropTarget(x, y, payload?.type, sourceEl);
   if (hit?.el !== cur?.el) {
     cur?.stateRef?.current?.setIsOver?.(false);
@@ -686,6 +689,11 @@ export function touchHoverStep({ x, y, payload, sourceEl = null, target, cur, dr
  */
 export function touchDropStep({ x, y, payload, sourceEl = null, cur, dragCtx, skip = false }) {
   clearDocTouchHover();
+  if (skip) mosaicTouchClear();
+  else if (mosaicTouchDrop(x, y, payload)) {
+    cur?.stateRef?.current?.setIsOver?.(false);
+    return { dropped: true, docDropped: false };
+  }
   const target = skip ? null : _findDropTarget(x, y, payload?.type, sourceEl);
   if (target?.el !== cur?.el) {
     cur?.stateRef?.current?.setIsOver?.(false);
@@ -1333,7 +1341,7 @@ export function useDragDrop({
         hitCostMs = blendCost(hitCostMs, _hitMs);
         hitEveryMs = hitInterval(hitCostMs);
 
-        curTarget = touchHoverStep({ x: t.clientX, y: t.clientY, target, cur: curTarget, dragCtx });
+        curTarget = touchHoverStep({ x: t.clientX, y: t.clientY, payload, target, cur: curTarget, dragCtx });
         dragPerf.move(performance.now() - _pm0, _lastOver);
       };
 

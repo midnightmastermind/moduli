@@ -11,6 +11,7 @@
 
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { setMosaicTouchHandler, nearestEdge } from "../helpers/mosaicTouch";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
 import Panel from "./ModulePanel";
@@ -233,6 +234,35 @@ export default function GridMosaic({
     persist(next);
   }, [persist]);
 
+  // A panel dragged by TOUCH (the headset's controller is one) never reaches the Pragmatic pane targets below; the
+  // touch path asks this instead (helpers/mosaicTouch): the pane under the point and its nearest edge, the same
+  // decision a pane's own target makes.
+  const [touchHint, setTouchHint] = useState(null);
+  useEffect(() => {
+    const at = (x, y, draggedId) => {
+      const el = document.elementFromPoint(x, y)?.closest?.("[data-mosaic-pane]");
+      if (!el || !rootRef.current?.contains(el)) return null;
+      const pane = panes.find((p) => p.panelOccId === el.getAttribute("data-mosaic-pane"));
+      if (!pane || pane.panelOccId === draggedId) return null;
+      return { leafId: pane.leafId, edge: nearestEdge(el.getBoundingClientRect(), x, y) };
+    };
+    return setMosaicTouchHandler({
+      hover: (x, y, id) => {
+        const hit = at(x, y, id);
+        setTouchHint((cur) => (cur?.leafId === hit?.leafId && cur?.edge === hit?.edge ? cur : hit));
+        return !!hit;
+      },
+      drop: (x, y, id) => {
+        const hit = at(x, y, id);
+        setTouchHint(null);
+        if (!hit) return false;
+        handlePaneDrop(id, hit.leafId, hit.edge);
+        return true;
+      },
+      clear: () => setTouchHint(null),
+    });
+  }, [panes, handlePaneDrop]);
+
   // The band is MOUNTED ONLY WHILE A PANEL IS BEING DRAGGED. At rest it would
   // sit over the outermost 48px of every edge pane and swallow splitter grabs
   // and panel clicks there — and the styling's own promise is that it must not
@@ -272,6 +302,7 @@ export default function GridMosaic({
             addInstanceToContainer={addInstanceToContainer}
             sizesRef={sizesRef}
             onPaneDrop={handlePaneDrop}
+            touchEdge={touchHint?.leafId === pane.leafId ? touchHint.edge : null}
           />
         );
       })}
@@ -503,7 +534,7 @@ function paneRect(frac, w, h) {
 
 // A single pane: positioned wrapper + the panel filling it + a Pragmatic drop
 // target that accepts panel drags (closest edge → split direction).
-function MosaicPane({ pane, panel, dispatch, socket, fullscreenPanelId, setFullscreenPanelId, addContainerToPanel, addInstanceToContainer, sizesRef, onPaneDrop }) {
+function MosaicPane({ pane, panel, dispatch, socket, fullscreenPanelId, setFullscreenPanelId, addContainerToPanel, addInstanceToContainer, sizesRef, onPaneDrop, touchEdge = null }) {
   const ref = useRef(null);
   const [edgeHint, setEdgeHint] = useState(null);
 
@@ -550,7 +581,7 @@ function MosaicPane({ pane, panel, dispatch, socket, fullscreenPanelId, setFulls
           setFullscreenPanelId={setFullscreenPanelId}
         />
       </ErrorBoundary>
-      {edgeHint && <EdgeHint edge={edgeHint} />}
+      {(edgeHint || touchEdge) && <EdgeHint edge={edgeHint || touchEdge} />}
     </div>
   );
 }
