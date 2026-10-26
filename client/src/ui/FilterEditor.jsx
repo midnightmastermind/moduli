@@ -167,15 +167,18 @@ export default function FilterEditor({ occurrence, dispatch, socket, onClose, fo
               return null;
             })()}
 
-            {/* Row 3: allow-blank toggle + condition summary */}
+            {/* Row 3: blanks + condition summary. Part of the filter itself (user, 2026-10-26: "since the filter is a
+                query, wouldnt we just add that to the query"). It was an "allow blank" box nothing read; a row with no
+                value has always passed, and still does unless this is ticked. */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, color: "var(--text-faint)" }}>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}
+                title="While the filter has a value, rows with no value for this field are hidden">
                 <input
                   type="checkbox"
-                  checked={!!f.allowBlank}
-                  onChange={e => update(idx, { allowBlank: e.target.checked })}
+                  checked={!!f.hideEmpty}
+                  onChange={e => update(idx, { hideEmpty: e.target.checked })}
                 />
-                allow blank
+                hide rows with no value
               </label>
               <span>
                 {f.condition

@@ -1,6 +1,6 @@
 // 0435 — the music drill-down's board filters hide rows with no value (user, 2026-10-26: an album with no artist
-// showed under every artist). Turns on the filter's own "Hide blanks" switch (filters[].hideEmpty) on the Albums
-// board's Artist filter and the Songs board's Album filter — the same switch Filter › Local Filters shows.
+// showed under every artist). Turns on the filter's own "hide rows with no value" setting (filters[].hideEmpty) on the Albums
+// board's Artist filter and the Songs board's Album filter — the box in the filter's editor.
 export const id = "0435-drilldown-filters-hide-blanks";
 export const describe = "Turns on Hide blanks for the Albums board's Artist filter and the Songs board's Album filter (0434). Deletes nothing.";
 export const touches = ["occurrences"];

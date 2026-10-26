@@ -293,18 +293,6 @@ export default function FiltersSection({ occurrence }) {
     });
   };
 
-  // Toggle .hideEmpty on a declared filter entry: rows with no value for the field are hidden while it has one.
-  const setDeclaredHideEmpty = (fieldId, hideEmpty) => {
-    const nextFilters = (occurrence?.filters || []).map(f =>
-      f.fieldId === fieldId ? { ...f, hideEmpty } : f
-    );
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: occurrence.id, filters: nextFilters },
-      emit: true,
-    });
-  };
-
   // Toggle .showNav on a declared filter entry.
   const setDeclaredShowNav = (fieldId, showNav) => {
     const nextFilters = (occurrence?.filters || []).map(f =>
@@ -604,10 +592,6 @@ export default function FiltersSection({ occurrence }) {
             </span>
             <Switch label="Active" checked={active} onChange={onActive} title={isDeclared ? "Toggle to enable/disable this filter" : "Toggle off to remove this local filter"} />
             <Switch label="Nav" checked={navOn} onChange={onNav} />
-            {isDeclared && (
-              <Switch label="Hide blanks" checked={!!row.filter?.hideEmpty} onChange={(v) => setDeclaredHideEmpty(row.fieldId, v)}
-                title="Hide rows with no value for this field while the filter has one" />
-            )}
             <button
               type="button"
               title="Edit this filter"
