@@ -126,6 +126,8 @@ export function spotifyEmbedUrl(occ) {
     const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|track|playlist|artist|episode|show)\/([A-Za-z0-9]+)/.exec(v);
     if (m) return `https://open.spotify.com/embed/${m[1]}/${m[2]}`;
   }
+  // An album's Spotify album found later (looked up through MusicBrainz) is kept in meta.
+  if (/^[A-Za-z0-9]{22}$/.test(occ?.meta?.spotifyAlbumId || "")) return `https://open.spotify.com/embed/album/${occ.meta.spotifyAlbumId}`;
   // A song imported from Spotify keeps its track id in meta (1,437 songs on poms grid have no link field).
   if (occ?.meta?.searchProvider === "spotify" && /^[A-Za-z0-9]{10,}$/.test(occ.meta.searchExternalId || "")) {
     return `https://open.spotify.com/embed/track/${occ.meta.searchExternalId}`;

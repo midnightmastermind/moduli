@@ -935,7 +935,8 @@ class OfficeActivity : AppSystemActivity() {
               t.selecting -> selectBook(t, b)
               // An album plays as its songs, one at a time with ⏮ ⏭ (asked of the control panel); Spotify's own album
               // player only when none of its songs has a Spotify track.
-              player != null && t.shelfAsset == "record" && b.album && itemSrc(t, b.itemId).isEmpty() ->
+              // (With a Spotify album link it is Spotify's own album player, the case below.)
+              player != null && t.shelfAsset == "record" && b.album && itemSrc(t, b.itemId).isEmpty() && itemField(t, b.itemId, "spotify").isEmpty() ->
                 send(JSONObject().put("type", "albumQueue").put("key", player.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId })
                     .put("title", b.title).put("fallback", itemField(t, b.itemId, "spotify")))
               player != null && t.shelfAsset == "record" -> playRecord(player, b.title, itemSrc(t, b.itemId), itemField(t, b.itemId, "spotify"))
@@ -1215,11 +1216,13 @@ class OfficeActivity : AppSystemActivity() {
   private fun playQueue(player: Thing, title: String, items: List<Pair<String, String>>, at: Int = 0) {
     if (items.isEmpty()) { showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "No Spotify tracks for this album")); return }
     val i = at.coerceIn(0, items.size - 1)
-    stopPlayer(player, forget = false)
+    val g = player.gecko
+    val reuse = player.spotifyUrl != null && g != null && player.panel != null
+    if (!reuse) stopPlayer(player, forget = false)
     player.queue = items; player.queueAt = i; player.spotifyTitle = title
     player.spotifyUrl = items[i].second
     player.nowPlaying.value = "$title · ${i + 1}/${items.size} ${items[i].first}"
-    attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
+    if (reuse) g!!.load(spotifyWebPlayer(items[i].second)) else attachPanel(player, SPOTIFY_W, SPOTIFY_H, 0.24f + SPOTIFY_H / 2f, 0f)
     savePlaying(player, JSONObject().put("title", title).put("at", i)
         .put("queue", org.json.JSONArray(items.map { JSONObject().put("title", it.first).put("url", it.second) })))
     Log.i(TAG, "playing $title on ${player.key} as ${items.size} songs, song ${i + 1}: ${items[i].second}")
@@ -1238,6 +1241,16 @@ class OfficeActivity : AppSystemActivity() {
     player.queue = emptyList()
     player.nowPlaying.value = title
     if (src.isEmpty() && spotify.isNotEmpty()) {
+      // Already showing Spotify: the new record plays in the SAME window. Making a new one left the old window's
+      // player going (the header said the new song, the old one kept playing).
+      val g = player.gecko
+      if (player.spotifyUrl != null && g != null && player.panel != null) {
+        player.spotifyUrl = spotify
+        g.load(spotifyWebPlayer(spotify))
+        savePlaying(player, JSONObject().put("title", title).put("spotify", spotify))
+        Log.i(TAG, "playing $title on ${player.key} through Spotify (same window): ${spotifyWebPlayer(spotify)}")
+        return
+      }
       // Spotify's player needs more room than a now-playing card, so the player's window is made at that size.
       stopPlayer(player, forget = false)
       player.spotifyUrl = spotify; player.spotifyTitle = title

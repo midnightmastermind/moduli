@@ -75,6 +75,8 @@ object PanelHtml {
   /* A folder is a book you open: a darker spine with a folder mark and how much is inside. */
   /* A song opened out of its album: a smaller record, centred in its slot (its handle-able proxy shrinks the same). */
   .it.mini{transform:scale(.62);transform-origin:50% 50%}
+  /* Its title, big enough to read at that size (a song's name was too small to see). */
+  .it.mini span{font-size:1.5vh;max-height:100%;background:rgba(0,0,0,.7)}
   .it.fold{background:linear-gradient(#5a4632,#3b2c1d)!important;border:.4vh solid #c9a46a;box-sizing:border-box}
   .it.fold span:before{content:'📁 ';}
   .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}

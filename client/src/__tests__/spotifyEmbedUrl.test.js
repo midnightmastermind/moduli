@@ -81,3 +81,9 @@ describe("an album with no Spotify link", () => {
     ]);
   });
 });
+
+describe("an album's Spotify album found later", () => {
+  it("is read from meta.spotifyAlbumId", () => {
+    expect(spotifyEmbedUrl({ meta: { spotifyAlbumId: "34hq1FBvredIMga6KyZnF2" }, fields: {} })).toBe("https://open.spotify.com/embed/album/34hq1FBvredIMga6KyZnF2");
+  });
+});
