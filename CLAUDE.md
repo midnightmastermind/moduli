@@ -15,6 +15,34 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-26 — THE HEADSET WAS KILLED FOR MEMORY: the control panel no longer loads the grid
+
+User (on the Quest 3S): the app slow, shelves "lose connection", drops do nothing. Measured over adb: the
+**low-memory killer** reaped the app (`oom_reaper reaped process … (AndroidUI)`) at ~1.9 GB main + 0.7 GB Gecko; a
+kill reloads every window. Every WebView page runs in the app's own process (no sandboxed renderer on the Quest),
+so the pages share one ~900 MB JS heap. The control panel (`/?office`) was a whole Moduli tab — 22,885 elements, the
+grid drawn under its menu, every op re-run — beside the grid screen (23,050), which is the same again.
+- **`helpers/passiveWindow`**: in the headset `/?office` draws no grid and runs no ops / feed sync / schedules /
+  reminders (then superseded for the main panel by the next item; still guards a piece window).
+- **`vr/OfficePanelApp` + server `POST /api/v1/vr/office/state` and `/plan`** (user chose "Server answers it"):
+  `vr/officeState.js` (pure) + `vr/officeCore.js`, bundled for Node by `npm run build:office-core` into
+  `server/generated/officeCore.mjs` (committed; `officeCoreBundleCurrent.test.js` fails when stale). The server
+  answers from the warm cache with shallow-copied maps (helpers memoise on identity); **the grid record must go
+  through JSON first** — its Date/ObjectId values made every feed empty. Byte-identical to the app's answer on
+  poms; a sha1 fingerprint turns an unchanged answer into a few bytes (the full one is 1.5 MB). Album queue, shelf
+  reorder and folder delete are PLANNED on the server; the writes stay the app's own events (undo unchanged).
+  Plan + status: `docs/superpowers/plans/2026-10-26-office-panel-without-the-grid.md`.
+- **Measured after, room loaded:** control panel 87 elements; app PSS **2.70 → 1.86 GB**, page memory 1.25 →
+  0.76 GB. Left: window surfaces ~0.69 GB (21 panels), the Gecko tab process ~0.66 GB.
+- Also: mosaic panels rearrange by touch (`helpers/mosaicTouch`); the carried drag preview shows only once a drag
+  leaves its window, the grid screen included (`windowBox`); a copied row keeps its own label; thumbstick scroll
+  glides; a deleted/added panel on another device does not change this device's panels (`occurrences` is layout).
+- Same day: day columns named "Day Page - <date>" (`0439`); readings import once (server `importDedupe`, `0439`
+  cleanup, `0440` $board, `0444` target); Check In above Reflections (`0441`); Current Streak no target, Last Seen
+  hidden (`0442`); Tasks › Done marks Done after its day (`0443`); Trackers fill the row (`0438`).
+
+---
+
 ### 2026-10-25 — A BUTTON RUNS WHAT LISTENS TO IT; forms anywhere in an operation; New … buttons on poms grid
 
 User: buttons on any occurrence that hand their operation the pressed occurrence, and a form builder hooked to them
