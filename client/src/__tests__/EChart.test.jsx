@@ -127,9 +127,9 @@ describe("EChart gestures", () => {
     Element.prototype.releasePointerCapture = function () {};
   });
 
-  it("wheel UP zooms in about the pointer", async () => {
+  it("Ctrl + wheel UP zooms in about the pointer", async () => {
     const { host, onViewChange } = await renderChart();
-    act(() => { host.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, bubbles: true, cancelable: true })); });
+    act(() => { host.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, clientX: 50, clientY: 50, bubbles: true, cancelable: true })); });
     const next = onViewChange.mock.calls.at(-1)[0];
     expect(next.zoom).toBeGreaterThan(1);
     // Zoomed about the box's top-left quadrant, so the centre must move AWAY
@@ -137,11 +137,21 @@ describe("EChart gestures", () => {
     expect(next.cx).toBeGreaterThan(50);
   });
 
-  it("wheel is NON-PASSIVE so the page does not scroll under the chart", async () => {
+  it("Ctrl + wheel is NON-PASSIVE so the page does not scroll under a zoom", async () => {
     const { host } = await renderChart();
-    const e = new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, bubbles: true, cancelable: true });
+    const e = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, clientX: 50, clientY: 50, bubbles: true, cancelable: true });
     act(() => { host.dispatchEvent(e); });
     expect(e.defaultPrevented).toBe(true);
+  });
+
+  // User 2026-10-26: "make it so the graph zoom isnt triggered by the scroll wheel".
+  it("the plain wheel scrolls the page and leaves the zoom alone", async () => {
+    const { host, onViewChange } = await renderChart();
+    const before = onViewChange.mock.calls.length;
+    const e = new WheelEvent("wheel", { deltaY: -100, clientX: 50, clientY: 50, bubbles: true, cancelable: true });
+    act(() => { host.dispatchEvent(e); });
+    expect(e.defaultPrevented).toBe(false);
+    expect(onViewChange.mock.calls.length).toBe(before);
   });
 
   it("a one-pointer drag PANS once zoomed", async () => {

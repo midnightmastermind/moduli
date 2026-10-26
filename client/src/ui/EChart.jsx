@@ -267,7 +267,11 @@ export default function EChart({
     };
     const emit = (next) => { viewRef.current = next; onViewChangeRef.current?.(next); };
 
+    // The plain wheel scrolls the page past the chart (user, 2026-10-26: "make it so the graph zoom isnt triggered by
+    // the scroll wheel"). Ctrl + wheel still zooms — that is also what a trackpad pinch sends — as do a touch pinch and
+    // double-click to reset.
     const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const { fx, fy } = pctOf(e);
       emit(zoomAt(viewRef.current, wheelFactor(e.deltaY), fx, fy));
