@@ -72,7 +72,14 @@ export function chapterMarkers(count) {
 }
 
 /** PURE. The caller: every shown day × every reading → the callee. */
-export function readingsPipeline({ readings, gateCondition = null }) {
+/** The INIT_VAR steps of `buildSteps` that a gate condition reads ($board for "came from the Day Page"). Pure. */
+export function gateInits(buildSteps, gateCondition) {
+  const json = JSON.stringify(gateCondition || {});
+  return (buildSteps || []).filter((st) => st?.config?.type === "INIT_VAR" && st.config.name
+    && new RegExp(`\\${st.config.name}(?![A-Za-z0-9_])`).test(json));
+}
+
+export function readingsPipeline({ readings, gateCondition = null, gateVars = [] }) {
   const body = [
     iff(all(r("$activePeriodCount", "LESS_OR_EQUAL", 7)), [
       loop("$activePeriodDates", "$day", [
@@ -104,6 +111,10 @@ export function readingsPipeline({ readings, gateCondition = null }) {
     sources: [],
     steps: [
       act({ type: "INIT_VAR", name: "$readings", expr: `json:${JSON.stringify(readings)}` }),
+      // The gate was copied from Day Page: Build, and so must the variables it reads: without $board the
+      // "came from the Day Page" arm compared against nothing, so the Day Page's own date arrows imported no
+      // reading (2026-10-26, fixed on poms by 0440).
+      ...gateVars.map((st) => act({ ...st.config })),
       ...(gateCondition ? [iff(gateCondition, body)] : body),
     ],
   };
@@ -223,6 +234,6 @@ export async function up({ gridId, models, log, dryRun }) {
     description: "Imports each shown day's passage of every reading in $readings into that day's Day Page column.",
     triggerObjects: (build.triggerObjects || []).map((t) => ({ ...t, priority: 6 })),
     triggerTypes: build.triggerTypes || ["onLoad", "onFilterChange"], triggerType: "onLoad",
-    pipeline: readingsPipeline({ readings: reading ? [reading] : [], gateCondition: gate }) });
+    pipeline: readingsPipeline({ readings: reading ? [reading] : [], gateCondition: gate, gateVars: gateInits(build.pipeline.steps, gate) }) });
   log("done. Restart the server (pm2).");
 }
