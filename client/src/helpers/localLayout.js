@@ -50,7 +50,9 @@ export function currentPanelIds() { return panelIdsGetter(); }
 export function keepLocal() { return false; }
 
 // ── Incoming: another device's layout must not reshape this one either ──────
-const LAYOUT_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "activeFilterValues", "activeFilterId"];
+// `occurrences` is the grid's panel list: which panels a device shows is part of its layout, so a panel added or
+// removed on another device does not appear or vanish here (user, 2026-10-26).
+const LAYOUT_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences", "activeFilterValues", "activeFilterId"];
 const LAYOUT_META_KEYS = ["layoutTree", "layoutRules"];
 
 /**

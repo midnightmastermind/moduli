@@ -823,7 +823,8 @@ export default function App() {
       g = { ...g, occurrences: [...(g.occurrences || []), occId] };
     }
     for (const occId of removeIds) {
-      CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occId, grid: g, emit: true });
+      // Off THIS device's layout only; the panel itself stays for any device that still shows it.
+      LayoutHelpers.removePanelFromGrid({ dispatch, socket, grid: g, occurrenceId: occId, emit: true });
       g = { ...g, occurrences: (g.occurrences || []).filter((id) => id !== occId) };
     }
     for (const occId of added) {

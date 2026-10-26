@@ -202,7 +202,7 @@ export default function GridMosaic({
     if (plan.removeIds.length) {
       const names = plan.removeIds.map((id) => `"${panelByOccId[id]?.label || "a panel"}"`).join(", ");
       const ok = typeof window === "undefined" || window.confirm(
-        `This layout has room for ${layout.zones.length} panels, so ${names} will be removed from the grid.\n\nTheir pages stay in your files.`);
+        `This layout has room for ${layout.zones.length} panels, so ${names} will be removed from this device's layout.\n\nOther devices keep them; their pages stay in your files.`);
       if (!ok) return;
     }
     let next = plan.tree;

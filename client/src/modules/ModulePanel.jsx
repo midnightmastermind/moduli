@@ -41,6 +41,7 @@ import {
   splitPanel,
   unsplitPanel,
   applyLocalSort,
+  removePanelFromGrid,
 } from "../helpers/LayoutHelpers";
 import {
   useDragDrop,
@@ -630,8 +631,11 @@ function Panel({
     // single menu item can do on this grid; it must never be one stray click.
     const name = module?.label || "this panel";
     if (typeof window !== "undefined"
-      && !window.confirm(`Remove the panel "${name}" from the grid?\n\nIts pages stay in your files; the panel itself is removed.`)) return;
-    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: panelOccurrence.id, grid: state?.grid, emit: true });
+      && !window.confirm(`Remove the panel "${name}" from this device's layout?\n\nOther devices keep it; its pages stay in your files.`)) return;
+    // Which panels show is LAYOUT, and every device keeps its own (user, 2026-10-26: "the layout thats saved via device
+    // should not be affected when panels are added and removed on another device"). So this takes the panel off THIS
+    // device's list and leaves the panel itself, which another device may still be showing.
+    removePanelFromGrid({ dispatch, socket, grid: state?.grid, occurrenceId: panelOccurrence.id, emit: true });
   }, [panelOccurrence, dispatch, socket, state?.grid, module?.label]);
 
   const handlePanelContextMenu = useCallback((e) => {
