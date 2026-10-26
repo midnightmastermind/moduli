@@ -25,6 +25,7 @@ import { hasSession } from "./helpers/authStorage.js";
 import { PROMO_PATHS } from "./promo/promoPaths.js";
 import { operationsBridge } from "./state/bindSocketToStore";
 import { installStaleChunkReload } from "./helpers/staleChunkReload.js";
+import { installHeadsetScroll } from "./helpers/headsetScroll.js";
 
 // READ_FILE (operations) reads a pdf / e-book's text in the page. Wired here, not in the executor,
 // so pdf.js and foliate stay out of the load-sweep worker's bundle.
@@ -47,6 +48,11 @@ if (globalThis.crypto && typeof globalThis.crypto.randomUUID !== "function") {
 
 installScrollFlag();
 installStaleChunkReload();
+// In the Quest app every Moduli page (the grid screen, the control panel, readers) scrolls faster under a thumbstick.
+if (typeof window !== "undefined" && window.ModuliNative && !window.__moduliHeadsetScroll) {
+  window.__moduliHeadsetScroll = true;
+  installHeadsetScroll();
+}
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 // Check for preview mode — iframe thumbnails pass ?previewOcc=<occId>

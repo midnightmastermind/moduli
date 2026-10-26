@@ -136,7 +136,8 @@ function ReaderBody({ initial, occurrenceId }) {
   React.useEffect(() => {
     // A headset window logs every step of a drop (the editor's DLOG), so a drop that places nothing says why.
     if (window.ModuliNative) window.__dragDiag = true;
-    const unScroll = window.ModuliNative ? installHeadsetScroll() : null;
+    // main.jsx installs it for every page in the headset; only a reader mounted some other way installs it here.
+    const unScroll = window.ModuliNative && !window.__moduliHeadsetScroll ? (window.__moduliHeadsetScroll = true, installHeadsetScroll()) : null;
     let payload = null, ready = null, cur = null, pill = null, inSession = false;
     const ctx = () => windowDragCtx();
     // Aimed at "the side" a ray lands in the window's margin, outside the doc: that counts as the content's edge

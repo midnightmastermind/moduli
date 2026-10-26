@@ -60,6 +60,8 @@ import com.meta.spatial.toolkit.Visible
 import com.meta.spatial.toolkit.Transform
 import com.meta.spatial.toolkit.TransformParent
 import com.meta.spatial.toolkit.UIPanelSettings
+import com.meta.spatial.toolkit.UIPanelRenderOptions
+import com.meta.spatial.toolkit.PanelRenderMode
 import com.meta.spatial.vr.LocomotionSystem
 import com.meta.spatial.vr.VRFeature
 import org.json.JSONObject
@@ -96,6 +98,12 @@ class OfficeActivity : AppSystemActivity() {
     private const val SPOTIFY_H = 0.56f
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
+    /**
+     * Every panel is drawn as a surface in the room, not as its own compositor layer. The headset takes at most 16
+     * layers a frame; with 17 panels showing it threw the WHOLE frame away (XR_ERROR_LAYER_LIMIT_EXCEEDED — the room
+     * went black), and as menus, cards and players came and went the count crossed 16 back and forth: the flicker.
+     */
+    private val PANEL_RENDER = UIPanelRenderOptions(PanelRenderMode.Mesh())
     private const val BROWSER_DP_PER_M = 1000f
     /** A browser screen's texture at 0.7 of its page size: the page keeps its desktop width (1000 dp a metre) but each
      *  screen holds half the graphics memory — at full size the room ran the headset out of memory and went black. */
@@ -371,6 +379,7 @@ class OfficeActivity : AppSystemActivity() {
           },
           settingsCreator = {
             UIPanelSettings(
+                rendering = PANEL_RENDER,
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
                 display = DpPerMeterDisplayOptions(),
@@ -457,6 +466,7 @@ class OfficeActivity : AppSystemActivity() {
           },
           settingsCreator = {
             UIPanelSettings(
+                rendering = PANEL_RENDER,
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
                 // 1000 dp a metre (the default is 500): a 1.6m screen is 1,600 page pixels wide, like a desktop monitor — at
@@ -1140,6 +1150,7 @@ class OfficeActivity : AppSystemActivity() {
           },
           settingsCreator = {
             UIPanelSettings(
+                rendering = PANEL_RENDER,
                 shape = QuadShapeOptions(width = w, height = h),
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
                 display = DpPerMeterDisplayOptions(dpPerMeter = SPOTIFY_DP_PER_M, resolutionScale = BROWSER_RES),
@@ -1594,6 +1605,7 @@ class OfficeActivity : AppSystemActivity() {
         },
         settingsCreator = {
           UIPanelSettings(
+                rendering = PANEL_RENDER,
               shape = QuadShapeOptions(width = GHOST_W, height = GHOST_H),
               style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
               display = DpPerMeterDisplayOptions(),
@@ -1814,6 +1826,7 @@ class OfficeActivity : AppSystemActivity() {
         },
         settingsCreator = {
           UIPanelSettings(
+                rendering = PANEL_RENDER,
               shape = QuadShapeOptions(width = GEAR_M, height = GEAR_M),
               style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
               display = DpPerMeterDisplayOptions(),
@@ -1850,6 +1863,7 @@ class OfficeActivity : AppSystemActivity() {
         },
         settingsCreator = {
           UIPanelSettings(
+                rendering = PANEL_RENDER,
               shape = QuadShapeOptions(width = TRASH_W, height = GEAR_M),
               style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
               display = DpPerMeterDisplayOptions(),

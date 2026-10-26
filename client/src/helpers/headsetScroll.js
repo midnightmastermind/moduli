@@ -2,7 +2,8 @@
 // "scrolling down a page is way too slow"). It reaches the page as wheel events; each one scrolls the nearest
 // scrollable box under it SCROLL_GAIN times as far.
 
-export const SCROLL_GAIN = 3;
+// 3 was still "tremendously slow with the joysticks" (user, 2026-10-25).
+export const SCROLL_GAIN = 6;
 
 /** The nearest box at or above `el` that can scroll in the wheel's direction. Pure apart from computed styles. */
 export function scrollableFor(el, dy, win = window) {

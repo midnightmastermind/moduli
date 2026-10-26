@@ -21,6 +21,9 @@ import org.mozilla.geckoview.GeckoView
  * Moduli's own windows (control panel, shelves, readers) stay on WebView: they talk to the app through
  * `addJavascriptInterface`, which GeckoView does not have.
  */
+/** How many times further a thumbstick scrolls a browser screen. */
+private const val SCROLL_GAIN = 5f
+
 object GeckoEngine {
   private var runtime: GeckoRuntime? = null
 
@@ -89,6 +92,21 @@ class GeckoBrowser(
         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
     )
     isFocusable = true; isFocusableInTouchMode = true
+    // A thumbstick scroll reaches the page as a scroll event; Firefox moves it a few lines, which in the headset was
+    // "tremendously slow". The event is handed on SCROLL_GAIN times as big.
+    var rescaled = false
+    setOnGenericMotionListener { v, ev ->
+      if (rescaled || ev.actionMasked != android.view.MotionEvent.ACTION_SCROLL) return@setOnGenericMotionListener false
+      val coords = android.view.MotionEvent.PointerCoords().also { ev.getPointerCoords(0, it) }
+      coords.setAxisValue(android.view.MotionEvent.AXIS_VSCROLL, coords.getAxisValue(android.view.MotionEvent.AXIS_VSCROLL) * SCROLL_GAIN)
+      coords.setAxisValue(android.view.MotionEvent.AXIS_HSCROLL, coords.getAxisValue(android.view.MotionEvent.AXIS_HSCROLL) * SCROLL_GAIN)
+      val props = android.view.MotionEvent.PointerProperties().also { ev.getPointerProperties(0, it) }
+      val big = android.view.MotionEvent.obtain(ev.downTime, ev.eventTime, ev.action, 1, arrayOf(props), arrayOf(coords),
+          ev.metaState, ev.buttonState, 1f, 1f, ev.deviceId, ev.edgeFlags, ev.source, ev.flags)
+      rescaled = true
+      try { v.dispatchGenericMotionEvent(big) } finally { rescaled = false; big.recycle() }
+      true
+    }
     // A press asks for focus, so the headset keyboard types into the page (as the WebView windows do).
     setOnTouchListener { v, ev ->
       if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) { onPressed(v as GeckoView); if (!v.hasFocus()) v.requestFocus() }
