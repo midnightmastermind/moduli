@@ -727,7 +727,7 @@ export function getLocalFilterConditions(occ) {
       continue;
     }
     if (!f.fieldId) continue;
-    out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS" });
+    out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS", ...(f.hideEmpty ? { hideEmpty: true } : null) });
   }
   return out;
 }
@@ -756,7 +756,15 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // Persistent semantics: occurrence with no value for this field passes (e.g. recurring habits).
       // "" is no value too: a date cleared through its chip stores the native input's empty string,
       // and counting it as a date hid the row from every day.
-      if (leftVal == null || leftVal === "") continue;
+      if (leftVal == null || leftVal === "") {
+        // "Hide blanks" (the filter's own switch): a row with no value is hidden while the filter HAS one — an
+        // album with no artist must not show under every artist (user, 2026-10-26). Without it, persistent.
+        if (cond.hideEmpty) {
+          const rv = cond.value !== undefined && cond.value !== null && cond.value !== "" ? cond.value : effectiveFilters?.[fieldId];
+          if (rv != null && rv !== "" && !(typeof rv === "object" && !Array.isArray(rv) && rv.value == null && !rv.dates?.length)) return false;
+        }
+        continue;
+      }
       const rightVal = cond.value !== undefined && cond.value !== null && cond.value !== ""
         ? cond.value
         : effectiveFilters?.[fieldId];
