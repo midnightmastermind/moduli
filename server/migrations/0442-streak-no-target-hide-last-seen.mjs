@@ -7,7 +7,7 @@
 //    starts hidden). The values and the operation are kept; the eye in Settings › Fields shows it again.
 export const id = "0442-streak-no-target-hide-last-seen";
 export const describe = "Clears Current Streak's target (no more '0/1'); hides the Last Seen field on every module binding it and in the grid's default field visibility. Values kept.";
-export const touches = ["fields", "modules", "grids"];
+export const touches = ["fields", "modules"];
 
 export async function up({ gridId, models, log, dryRun }) {
   const { Field, Module, Grid } = models;
