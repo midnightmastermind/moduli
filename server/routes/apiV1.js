@@ -1494,6 +1494,34 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ office: clean });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+  // POST /vr/office/state { gridId, shelfAt, origin } — what the headset's office shows (shelves with their items,
+  // screens, decor, bookmarks bar), worked out here from the warm cache with the app's own code
+  // (generated/officeCore.mjs, bundled from client/src/vr/officeCore.js), so the headset's control panel does not
+  // have to load the whole grid to answer it (docs/superpowers/plans/2026-10-26-office-panel-without-the-grid.md).
+  router.post("/vr/office/state", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, shelfAt = {}, origin = "" } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean().catch(() => null);
+      if (!grid) return err(res, 404, "not_found", "Grid not found");
+      const uc = await getUserCache(req.userId, gridId);
+      const core = await import("../generated/officeCore.mjs");
+      // Shallow copies: the app's helpers memoise on a map's identity, and these maps are changed in place.
+      const ctx = {
+        grid: { ...grid, id: grid._id.toString() },
+        occurrencesById: { ...uc.occurrencesById }, modulesById: { ...uc.modulesById }, foldersById: { ...uc.foldersById },
+        shelfAt: shelfAt && typeof shelfAt === "object" ? shelfAt : {}, origin: String(origin || ""),
+      };
+      const state = core.nativeOfficeState(ctx);
+      res.json({
+        ...state,
+        dayPageId: core.findDayPage(ctx),
+        notesFolderId: core.findNotesFolder(ctx.foldersById),
+        bookmarksBoardId: core.findBookmarksBoard(ctx)?.id || null,
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // PUT /vr/layout { gridId, layout: { poses, decor } } — a BACKUP of where the Quest app placed things on this grid
   // (it keeps its own copy on the headset; this is what it restores from when that copy is gone). Writes
   // `meta.vrLayout` ALONE, for the same reason /vr/office writes only its key.

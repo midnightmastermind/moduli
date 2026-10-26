@@ -72,7 +72,8 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "lint": "eslint \"src/**/*.{js,jsx}\"",
-    "lint:fix": "eslint \"src/**/*.{js,jsx}\" --fix"
+    "lint:fix": "eslint \"src/**/*.{js,jsx}\" --fix",
+    "build:office-core": "esbuild src/vr/officeCore.js --bundle --platform=node --format=esm --log-level=warning --outfile=../server/generated/officeCore.mjs"
   },
   "eslintConfig": {
     "extends": [
