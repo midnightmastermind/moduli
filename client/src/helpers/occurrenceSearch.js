@@ -115,7 +115,22 @@ function datesForOcc(occ, fieldsById) {
  * Feed copies ARE indexed: they live on a real page, so hiding them would make
  * a board item you can see unfindable.
  */
-export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, parentOf }) {
+/** What kind of thing a result is, in words (user, 2026-10-26: "the search should say what kind of occurance it
+ *  is"). Pure. */
+export function kindLabel(role, kind) {
+  const PAGE = { board: "Board page", doc: "Doc page", canvas: "Canvas page", table: "Table page", folder: "Folder", list: "Board page" };
+  const CONTAINER = { board: "Board", doc: "Doc", canvas: "Canvas", table: "Table", graph: "Graph", list: "Board" };
+  const ARTIFACT = { bookmark: "Bookmark", image: "Image", video: "Video", audio: "Audio", pdf: "PDF", ebook: "Book file", markdown: "Note file",
+    code: "Code file", quote: "Quote", song: "Song", album: "Album", artist: "Artist", movie: "Movie", book: "Book", model: "3D model" };
+  if (role === "page") return PAGE[kind] || "Page";
+  if (role === "container") return CONTAINER[kind] || "Container";
+  if (role === "textblock") return kind === "inline" ? "Inline text" : "Text block";
+  if (role === "artifact") return ARTIFACT[kind] || "File";
+  if (role === "instance") return "Item";
+  return role ? role[0].toUpperCase() + role.slice(1) : "";
+}
+
+export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, parentOf, foldersById = null }) {
   const module = modulesById[occ.moduleId];
   if (!module) return null;
   if (module.role === "panel") return null;
@@ -145,6 +160,21 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
   // folder's page, where its top shows as a card — the opener drills into it
   // (openOccurrenceInPanel.folderHomeOf). It was listed as "not on a page" and opened nothing.
   if (!pageOccId && cursor && !occurrencesById[cursor]) pageOccId = folderPageIndex(occurrencesById).get(cursor) || null;
+  // …and the FOLDERS above it, up to Root, so every path starts there (user, 2026-10-26: "only some of them show the
+  // ancestory (should start with root)"). The walk above stops at the first folder; a page filed in Documents/Notes
+  // showed no path at all.
+  if (cursor && !occurrencesById[cursor] && foldersById) {
+    const chain = [];
+    for (let f = foldersById[cursor], n = 0; f && n < 64; n++) { chain.unshift(f.name || "Folder"); f = f.parentId ? foldersById[f.parentId] : null; }
+    pathLabels.unshift(...chain);
+  }
+  // The one board / doc on a page that has the page's own name IS the page to the user: search lists the page alone
+  // ("we have like 15 lookups in the search").
+  const parentOcc = occurrencesById[parentOf(occ.id)];
+  const parentMod = parentOcc && modulesById[parentOcc.moduleId];
+  const sameAsPage = module.role === "container" && parentMod?.role === "page"
+    && (parentOcc.occurrences || []).length === 1
+    && labelOf(parentOcc, modulesById).trim().toLowerCase() === labelOf(occ, modulesById).trim().toLowerCase();
 
   // Fields: names + values, and the pairs a result row shows as "why it matched".
   const fieldPairs = [];
@@ -173,6 +203,8 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     pageOccId,
     role: module.role,
     kind: module.kind,
+    kindLabel: kindLabel(module.role, module.kind),
+    sameAsPage,
     fieldPairs,
     haystacks: {
       label: label.toLowerCase(),
@@ -185,10 +217,10 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
 }
 
 /** Index every indexable occurrence on the grid. */
-export function buildSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null } = {}) {
+export function buildSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null, foldersById = null } = {}) {
   const parentBy = buildParentMap(occurrencesById);
   const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? null;
-  const ctx = { occurrencesById, modulesById, fieldsById, parentOf };
+  const ctx = { occurrencesById, modulesById, fieldsById, parentOf, foldersById };
 
   const entries = [];
   const byId = new Map();
@@ -258,6 +290,7 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
       if (!entry.ancestorIds.includes(scopeRootId)) continue;
     }
     if (keep && !keep(entry.occId)) continue;
+    if (entry.sameAsPage) continue;
     let score = 0;
     let worstTier = -1;
     let why = null;
@@ -305,16 +338,17 @@ const _entryCache = new WeakMap();
 let _lastArgs = null;
 let _lastIndex = null;
 
-export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null } = {}) {
+export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null, foldersById = null } = {}) {
   if (_lastArgs
     && _lastArgs.occurrencesById === occurrencesById
     && _lastArgs.modulesById === modulesById
     && _lastArgs.fieldsById === fieldsById
+    && _lastArgs.foldersById === foldersById
     && _lastArgs.gridId === gridId) return _lastIndex;
 
   const parentBy = buildParentMap(occurrencesById);
   const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? null;
-  const ctx = { occurrencesById, modulesById, fieldsById, parentOf };
+  const ctx = { occurrencesById, modulesById, fieldsById, parentOf, foldersById };
 
   const entries = [];
   const byId = new Map();
@@ -326,6 +360,7 @@ export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsB
     const reusable = cached
       && cached.modulesById === modulesById
       && cached.fieldsById === fieldsById
+      && cached.foldersById === foldersById
       && cached.ancestors.every(a => occurrencesById[a.id] === a);
 
     let entry;
@@ -338,6 +373,7 @@ export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsB
           entry,
           modulesById,
           fieldsById,
+          foldersById,
           ancestors: entry.ancestorIds.map(id => occurrencesById[id]).filter(Boolean),
         });
       }
@@ -347,7 +383,7 @@ export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsB
     byId.set(entry.occId, entry);
   }
 
-  _lastArgs = { occurrencesById, modulesById, fieldsById, gridId };
+  _lastArgs = { occurrencesById, modulesById, fieldsById, gridId, foldersById };
   _lastIndex = { entries, byId };
   return _lastIndex;
 }

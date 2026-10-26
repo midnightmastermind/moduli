@@ -43,6 +43,7 @@ function Row({ hit, term, active, onPick, onHover }) {
         <div className="occ-search-row-label">
           {segments.map((seg, i) => (seg.hit ? <mark key={i}>{seg.text}</mark> : <span key={i}>{seg.text}</span>))}
         </div>
+        {entry.kindLabel && <div className="occ-search-row-kind" style={{ fontSize: "0.72em", opacity: 0.65, textTransform: "uppercase", letterSpacing: "0.04em" }}>{entry.kindLabel}</div>}
         {entry.pathLabels.length > 0 ? (
           <div className="occ-search-row-path">{entry.pathLabels.join(" › ")}</div>
         ) : !entry.pageOccId ? (
@@ -78,6 +79,9 @@ export default function OccurrenceSearch({
   const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const gridId = useGridActionsSelector(s => s.grid?._id || s.state?.grid?._id || null);
+  // Folders, so a result's path starts at Root (the folders it sits in).
+  const folders = useGridActionsSelector(s => s.state?.folders || s.folders || null);
+  const foldersById = useMemo(() => (Array.isArray(folders) ? Object.fromEntries(folders.map((f) => [f.id, f])) : folders), [folders]);
   // The grid object carries the filters (active filter + its values); read at query time.
   const grid = useGridActionsSelector(s => s.grid || s.state?.grid || null);
 
@@ -95,12 +99,13 @@ export default function OccurrenceSearch({
       modulesById: getModMap(),
       fieldsById,
       gridId,
+      foldersById,
     });
     const keep = keepFilters ? makeFilterKeeper({ grid, occurrencesById: getOccMap(), modulesById: getModMap() }) : null;
     return searchOccurrences(index, term, { scopeRootId, keep });
     // getOccMap/getModMap are stable getters — read at compute time, not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsById, gridId, scopeRootId, keepFilters, grid]);
+  }, [fieldsById, gridId, scopeRootId, keepFilters, grid, foldersById]);
 
   const hits = useMemo(() => runSearch(debounced), [runSearch, debounced]);
 
