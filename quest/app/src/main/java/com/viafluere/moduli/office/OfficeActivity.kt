@@ -1162,7 +1162,10 @@ class OfficeActivity : AppSystemActivity() {
 
   /** The page the record player opens: Spotify's mini player (its embed), loaded on its own page so your Spotify
    *  sign-in applies (inside a frame it played 30-second previews). Not the web app (user: "i want mini players"). */
-  private fun spotifyWebPlayer(url: String?): String = url ?: "https://open.spotify.com"
+  private fun spotifyWebPlayer(url: String?): String =
+      // #autoplay: the built-in helper (assets/spotify-autoplay) presses play, so a dropped record or the next song
+      // of an album starts by itself.
+      (url ?: "https://open.spotify.com").substringBefore('#') + "#autoplay"
 
   /** The record player's Spotify window: the title and ⏹ over Spotify's own page, on Firefox's engine — the same
    *  profile as the browser screens, so once you are signed in to Spotify on any screen, songs play whole. (The
@@ -1187,7 +1190,9 @@ class OfficeActivity : AppSystemActivity() {
                   AndroidView(
                       modifier = Modifier.fillMaxSize(),
                       factory = { c ->
-                        GeckoBrowser(c, spotifyWebPlayer(t.spotifyUrl), onUrl = {}, onPressed = { v -> keyTarget = v })
+                        GeckoBrowser(c, spotifyWebPlayer(t.spotifyUrl), onUrl = {}, onPressed = { v -> keyTarget = v },
+                            // A song of an album that played to its end: the next one starts.
+                            onMediaEnded = { main.post { if (t.queue.size > 1 && t.queueAt < t.queue.size - 1) stepQueue(t, 1) } })
                             .also { t.gecko = it }.view
                       },
                   )
@@ -1225,7 +1230,7 @@ class OfficeActivity : AppSystemActivity() {
     val i = (t.queueAt + d + t.queue.size) % t.queue.size
     t.queueAt = i; t.spotifyUrl = t.queue[i].second
     t.nowPlaying.value = "${t.spotifyTitle} · ${i + 1}/${t.queue.size} ${t.queue[i].first}"
-    t.gecko?.load(t.queue[i].second)
+    t.gecko?.load(spotifyWebPlayer(t.queue[i].second))
     t.decorEntry?.optJSONObject("playing")?.let { p -> savePlaying(t, JSONObject(p.toString()).put("at", i)) }
   }
 

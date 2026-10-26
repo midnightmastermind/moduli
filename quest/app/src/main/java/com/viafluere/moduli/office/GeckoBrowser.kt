@@ -37,7 +37,14 @@ object GeckoEngine {
               .remoteDebuggingEnabled(BuildConfig.DEBUG)
               .consoleOutput(BuildConfig.DEBUG)
               .build(),
-      ).also { runtime = it }
+      ).also { r ->
+        runtime = r
+        // The record player's helper: presses Spotify's play button when a song opens with #autoplay.
+        try {
+          r.webExtensionController.ensureBuiltIn("resource://android/assets/spotify-autoplay/", "spotify-autoplay@moduli")
+              .accept({ Log.i("ModuliOffice", "gecko: record player helper ready") }, { e -> Log.w("ModuliOffice", "gecko: record player helper failed: $e") })
+        } catch (e: Throwable) { Log.w("ModuliOffice", "gecko: record player helper failed: $e") }
+      }
 
   /**
    * Firefox gives every site its own process (Fission) and keeps spares warm: on the headset that was five page
@@ -69,7 +76,29 @@ class GeckoBrowser(
     private val onTitle: (String) -> Unit = {},
     /** The screen was pressed: a paired keyboard should type into it. */
     private val onPressed: (GeckoView) -> Unit = {},
+    /** What it plays came to its end (a song on the record player: the queue moves on). */
+    private val onMediaEnded: (() -> Unit)? = null,
 ) {
+  /** The last position the page reported for what it plays, and when (ms). */
+  private var pos: org.mozilla.geckoview.MediaSession.PositionState? = null
+  private var posAt = 0L
+  private var endedFor: String? = null
+
+  /** Played to its end: the position, carried forward from the last report, is within 1.5s of the length. */
+  private fun nearEnd(): Boolean {
+    val p = pos ?: return false
+    if (p.duration <= 1.0) return false
+    val now = p.position + (System.currentTimeMillis() - posAt) / 1000.0 * (if (p.playbackRate > 0) p.playbackRate else 1.0)
+    return now >= p.duration - 1.5
+  }
+
+  private fun ended(why: String) {
+    if (onMediaEnded == null || endedFor == url || !nearEnd()) return
+    endedFor = url
+    Log.i("ModuliOffice", "gecko: song ended ($why) on $url")
+    view.post { onMediaEnded.invoke() }
+  }
+
   var canGoBack = false; private set
   var canGoForward = false; private set
   var url: String = startUrl; private set
@@ -195,6 +224,18 @@ class GeckoBrowser(
             else GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
       }
     }
+    // The page's media (Spotify's mini player): its length and position, to know when a song has ended.
+    if (onMediaEnded != null) session.mediaSessionDelegate = object : org.mozilla.geckoview.MediaSession.Delegate {
+      override fun onPositionState(s: GeckoSession, m: org.mozilla.geckoview.MediaSession, state: org.mozilla.geckoview.MediaSession.PositionState) {
+        pos = state; posAt = System.currentTimeMillis()
+        // A song left playing reaches its length with no event after: check once it should have.
+        val left = ((state.duration - state.position) * 1000).toLong()
+        if (state.duration > 1 && left in 0..3_600_000) view.postDelayed({ ended("position") }, left + 1500)
+      }
+      override fun onPause(s: GeckoSession, m: org.mozilla.geckoview.MediaSession) = ended("pause")
+      override fun onStop(s: GeckoSession, m: org.mozilla.geckoview.MediaSession) = ended("stop")
+      override fun onDeactivated(s: GeckoSession, m: org.mozilla.geckoview.MediaSession) = ended("deactivated")
+    }
     session.contentDelegate = object : GeckoSession.ContentDelegate {
       override fun onTitleChange(s: GeckoSession, t: String?) { title = t ?: ""; onTitle(title) }
       override fun onCrash(s: GeckoSession) { Log.w("ModuliOffice", "gecko: content crashed, reopening"); reopen() }
@@ -210,7 +251,7 @@ class GeckoBrowser(
     session.loadUri(url)
   }
 
-  fun load(u: String) { closePopup(); session.loadUri(u) }
+  fun load(u: String) { closePopup(); pos = null; endedFor = null; session.loadUri(u) }
   /** Back from a popup closes it (back to the page that opened it). */
   fun back() { if (popup != null) closePopup() else session.goBack() }
   fun forward() = session.goForward()
