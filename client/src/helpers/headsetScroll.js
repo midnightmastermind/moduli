@@ -17,6 +17,39 @@ export function scrollableFor(el, dy, win = window) {
   return win.document.scrollingElement || null;
 }
 
+// Each thumbstick tick used to jump the whole distance at once, so a held stick read as jagged steps (user,
+// 2026-10-26: "scroll seems glitchy and jagged with the joysticks"). A tick now adds to where the box is headed and the
+// box eases there over the next frames; ticks arriving meanwhile extend the same glide.
+export const GLIDE = 0.25;   // share of the remaining distance covered each frame
+const glides = new WeakMap();
+
+/** The next scrollTop on the way from `at` to `target` (pure). */
+export function glideStep(at, target, share = GLIDE) {
+  const left = target - at;
+  if (Math.abs(left) < 1) return target;
+  const step = left * share;
+  return at + (Math.abs(step) < 1 ? Math.sign(left) : step);
+}
+
+function glide(box, dy, win = window) {
+  let g = glides.get(box);
+  const max = box.scrollHeight - box.clientHeight;
+  if (!g) { g = { target: box.scrollTop, raf: 0 }; glides.set(box, g); }
+  // A reversed stick starts from where the box is now, not from the end of the old glide.
+  if (Math.sign(dy) !== Math.sign(g.target - box.scrollTop) && g.raf) g.target = box.scrollTop;
+  g.target = Math.max(0, Math.min(max, g.target + dy));
+  if (g.raf) return;
+  const frame = () => {
+    const next = glideStep(box.scrollTop, g.target);
+    const before = box.scrollTop;
+    box.scrollTop = next;
+    // Done, or the box stopped moving (its end, or something else took the scroll): let go.
+    if (next === g.target || box.scrollTop === before) { g.raf = 0; g.target = box.scrollTop; return; }
+    g.raf = win.requestAnimationFrame(frame);
+  };
+  g.raf = win.requestAnimationFrame(frame);
+}
+
 /** Install once in a headset window. Returns the cleanup. */
 export function installHeadsetScroll(win = window) {
   let logged = false;
@@ -27,7 +60,7 @@ export function installHeadsetScroll(win = window) {
     const box = scrollableFor(e.target instanceof win.Element ? e.target : null, px, win);
     if (!box) return;
     e.preventDefault();
-    box.scrollTop += px * SCROLL_GAIN;
+    glide(box, px * SCROLL_GAIN);
     if (!logged) { logged = true; console.log("[headsetScroll] wheel", { deltaY: e.deltaY, mode: e.deltaMode }); }
   };
   win.addEventListener("wheel", onWheel, { passive: false, capture: true });

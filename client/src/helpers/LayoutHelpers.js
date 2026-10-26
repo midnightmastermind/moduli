@@ -778,6 +778,9 @@ export function copyInstanceToContainer({
     },
     timestamp: new Date(),
     fields: copiedFields,
+    // The row's own name comes with it: copies share the module, and a row named on its placement ("Clean Hotel
+    // Room" over the module "Clean") came out under the module's name (user, 2026-10-26). Copy-link already did this.
+    ...(typeof sourceOccurrence?.label === "string" && sourceOccurrence.label.trim() ? { label: sourceOccurrence.label } : {}),
     parentId: toContainer._occurrence?.id || null,
     ...(placementMetaFor(sourceOccurrence, initialMeta)),
   };
