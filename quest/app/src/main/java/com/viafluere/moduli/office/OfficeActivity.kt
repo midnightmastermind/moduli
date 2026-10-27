@@ -110,6 +110,11 @@ class OfficeActivity : AppSystemActivity() {
      */
     private val PANEL_RENDER = UIPanelRenderOptions(PanelRenderMode.Mesh())
     private const val BROWSER_DP_PER_M = 1000f
+    /** The PC screen (Chrome Remote Desktop) draws the PC's desktop at full size, 1920 x 1080 plus a 22px bar, and its
+     *  "Scale to fit" does not shrink it in this engine: at 1000 dp a metre the page was 1608 x 948 and the right and
+     *  bottom fell off, and the remote cursor was placed as if scaled (measured 2026-10-27). 1200 dp a metre gives the
+     *  page ~1920 x 1160. Only that screen: the others keep their text size. */
+    private const val REMOTE_DP_PER_M = 1200f
     /** A browser screen's texture at 0.7 of its page size: the page keeps its desktop width (1000 dp a metre) but each
      *  screen holds half the graphics memory — at full size the room ran the headset out of memory and went black. */
     private const val BROWSER_RES = 0.7f
@@ -518,7 +523,9 @@ class OfficeActivity : AppSystemActivity() {
                 style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
                 // 1000 dp a metre (the default is 500): a 1.6m screen is 1,600 page pixels wide, like a desktop monitor — at
                 // 800 a PC's desktop over Remote Desktop and most sites read zoomed in.
-                display = DpPerMeterDisplayOptions(dpPerMeter = BROWSER_DP_PER_M, resolutionScale = BROWSER_RES),
+                display = DpPerMeterDisplayOptions(
+                    dpPerMeter = if (t.decorEntry?.optString("model") == "remotedesktop") REMOTE_DP_PER_M else BROWSER_DP_PER_M,
+                    resolutionScale = BROWSER_RES),
             )
           },
       )

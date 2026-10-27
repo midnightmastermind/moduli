@@ -1,10 +1,31 @@
 {
   "manifest_version": 2,
   "name": "Moduli record player",
-  "version": "1.0",
+  "version": "1.2",
   "description": "Starts Spotify's mini player when the office's record player opens a song (#autoplay).",
-  "browser_specific_settings": { "gecko": { "id": "spotify-autoplay@moduli" } },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "spotify-autoplay@moduli"
+    }
+  },
   "content_scripts": [
-    { "matches": ["https://open.spotify.com/embed/*"], "js": ["autoplay.js"], "run_at": "document_idle" }
+    {
+      "matches": [
+        "https://open.spotify.com/embed/*"
+      ],
+      "js": [
+        "autoplay.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://remotedesktop.google.com/*"
+      ],
+      "js": [
+        "pagesize.js"
+      ],
+      "run_at": "document_idle"
+    }
   ]
 }
