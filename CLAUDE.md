@@ -40,6 +40,7 @@ appointment thats the same with a diff date, i copy the original appointment, an
 - **A Copy / Copy-link drop in its own container makes the copy** (`dropHandlers.handleOccurrenceMove`; it reordered
   the original). No index shift for a copy, so a drop on the row's own bottom edge lands right after it. To reorder a
   Copy-mode row (Routines bank) switch it to Move — the user's pick. Test `copyIntoSameContainer` (4).
+- **`0450`**: all 35 rows under the Tasks page drag as Copy-link (user), set on the occurrence (`dragMode`), not the shared modules.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---
