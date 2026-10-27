@@ -71,6 +71,9 @@ object PanelHtml {
   .it.held span{visibility:hidden}
   /* The book a controller points at: the one a grab will take. */
   .it.hover{outline:.5vh solid #fff;outline-offset:-.5vh;box-shadow:0 0 2.5vh #fff;transform:translateY(-1vh)}
+  /* Where a carried book will be dropped (a folder book, or the ⬆): lit while the controller aims at it. */
+  .it.drop{outline:.7vh solid #6cf!important;outline-offset:-.7vh;box-shadow:0 0 3vh #6cf!important;transform:translateY(-1vh)}
+  #upb.drop{background:#1f5f99;border-color:#6cf;box-shadow:0 0 2.5vh #6cf}
   #empty{padding:4vh 4vw;font-size:4.5vh;background:rgba(0,0,0,.5);margin:3vh;border-radius:1vh}
   /* A folder is a book you open: a darker spine with a folder mark and how much is inside. */
   /* A song opened out of its album: a smaller record, centred in its slot (its handle-able proxy shrinks the same). */
@@ -91,7 +94,7 @@ object PanelHtml {
   #q{font-size:2.2vh;width:16vw;min-width:0;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   button.danger{background:#8a2020;border-color:#f99}
 </style></head><body>
-<div id="head">${if (canUp) """<button onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
+<div id="head">${if (canUp) """<button id="upb" onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <input id="q" placeholder="🔍 Search" oninput="search()">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
@@ -107,7 +110,7 @@ object PanelHtml {
   var colors=${JSONArray(SPINE_COLORS)};
   function hash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return Math.abs(h);}
   // `all` is everything on the shelf; `items` what shows (the search's matches). The app lays its books over `items`.
-  var all=items, q='', per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null;
+  var all=items, q='', per=rects.length, pages=Math.max(1,Math.ceil(items.length/per)), page=Math.min($page,pages-1), held={}, hoverId=null, dropId=null;
   function go(d){page=(page+d+pages)%pages;draw();send({type:'shelfPage',key:key,page:page});}
   var searchT=null;
   function search(){clearTimeout(searchT);searchT=setTimeout(function(){
@@ -122,7 +125,7 @@ object PanelHtml {
   var byId={}; items.forEach(function(it){byId[it.id]=it;});
   var selecting=false, sel={}, armed=false, armT=null;
   function look(id){var d=nodes[id];if(!d)return;var it=byId[id]||{};
-    d.className='it'+(it.f?' fold':'')+(it.f&&it.c?' pic':'')+(it.m?' mini':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''));}
+    d.className='it'+(it.f?' fold':'')+(it.f&&it.c?' pic':'')+(it.m?' mini':'')+(sel[id]?' sel':'')+(held[id]?' held':(id===hoverId?' hover':''))+(id===dropId?' drop':'');}
   function count(){return Object.keys(sel).length;}
   function bar(){var b=document.getElementById('delb'), s=document.getElementById('selb');
     s.textContent=selecting?'Done':'Select'; s.className=selecting?'on':'';
@@ -138,6 +141,9 @@ object PanelHtml {
     send({type:'shelfSelect',key:key,on:false});}
   function hold(id,on){if(on)held[id]=1;else delete held[id];look(id);}
   function hover(id){var was=hoverId;hoverId=id;if(was)look(was);if(id)look(id);}
+  // Called by the app while a book is carried: 'up' lights the ⬆, an item id lights that folder book, null clears.
+  function dropOn(w){var was=dropId;dropId=w;var u=document.getElementById('upb');if(u)u.classList.toggle('drop',w==='up');
+    if(was&&was!=='up')look(was);if(w&&w!=='up')look(w);}
   function draw(){
     var box=document.getElementById('rows'); box.innerHTML=''; nodes={};
     document.getElementById('pg').textContent=(q?items.length.toLocaleString()+' of '+all.length.toLocaleString():items.length.toLocaleString())+' · page '+(page+1)+' of '+pages;

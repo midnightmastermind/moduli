@@ -183,6 +183,8 @@ class OfficeActivity : AppSystemActivity() {
     var selecting = false
     /** The book a controller is pointing at on this shelf (its spine lights up), or null. */
     var hoverBook: String? = null
+    /** What the shelf page lights as the drop target of a carried book ('up', an item id, or null). */
+    var dropShown: String? = null
     /** A decor piece's own entry (model, and a VHS player's screenId), and the base its panel page loads against
      *  (null = the Moduli origin; the window's view is an app asset). */
     var decorEntry: JSONObject? = null
@@ -244,6 +246,8 @@ class OfficeActivity : AppSystemActivity() {
     var selectGrab = false
     /** While carried over its shelf: what it is over ("up", "folder:<id>") and since when (a held dwell opens it). */
     var overWhat: String? = null
+    /** The drop target the controller aims at this frame ('up' / 'folder:<id>'), or null. */
+    var aimWhat: String? = null
     var overSince = 0L
   }
 
@@ -959,20 +963,62 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   /**
+   * Where a controller ray meets the front of the shelf (shelf frame, unscaled), or null. A carried book sits at your
+   * hand — well in front of the shelf — so its own position never reached the ⬆ or a folder book (user, 2026-10-27:
+   * "dragging a folder to the move up folder button doesnt highlight the button … nor completes the drop").
+   */
+  private fun aimLocal(t: Thing): FloatArray? {
+    val pose = t.frame.tryGetComponent<Transform>()?.transform ?: return null
+    val s = t.scale.takeIf { it > 0f } ?: 1f
+    val qi = PoseMath.qConj(PoseMath.qOf(pose)); val origin = PoseMath.tOf(pose)
+    val zf = bookFront[t.key] ?: 0.2f
+    for ((o, d) in controllerRays()) {
+      val lo = PoseMath.rotate(qi, floatArrayOf(o[0] - origin[0], o[1] - origin[1], o[2] - origin[2])).map { it / s }
+      val ld = PoseMath.rotate(qi, d)
+      if (kotlin.math.abs(ld[2]) < 1e-4f) continue
+      val k = (zf - lo[2]) / ld[2]
+      if (k <= 0f) continue
+      val l = floatArrayOf(lo[0] + ld[0] * k, lo[1] + ld[1] * k, zf)
+      if (overShelf(t, l)) return l
+    }
+    return null
+  }
+
+  /** The drop target a controller aims at while carrying `b`: "up" (the ⬆), "folder:<id>", or null. */
+  private fun aimTarget(t: Thing, b: Book): String? {
+    val l = aimLocal(t) ?: return null
+    if (overUp(t, l)) return "up"
+    bookAt(t, l, except = b)?.first?.takeIf { it.folder && it.itemId != b.itemId }?.let { return "folder:" + it.itemId }
+    // Carried in from another folder: aimed anywhere at this shelf, it is filed here. (Not a book of this page: a
+    // tap on it, the ray still on the shelf, must stay a tap.)
+    return if (b in t.carried) "here" else null
+  }
+
+  /** Light the drop target on the shelf page (or clear it). */
+  private fun showDrop(t: Thing, what: String?) {
+    val show = what?.takeIf { it != "here" }?.removePrefix("folder:")
+    if (show == t.dropShown) return
+    t.dropShown = show
+    t.web?.evaluateJavascript("dropOn(${if (show == null) "null" else JSONObject.quote(show)})", null)
+  }
+
+  /**
    * Carrying a book over its shelf: held a moment over a folder book, the folder opens; over the ⬆ in the header,
    * the shelf goes up a level — so a book can be taken into another folder (and let go of there).
    */
   private fun dragOverShelf(t: Thing, b: Book, now: Long) {
     val size = t.shelfSize ?: return
     val p = (b.shown ?: b.entity).tryGetComponent<Transform>()?.transform?.let { PoseMath.tOf(it) } ?: return
+    b.aimWhat = aimTarget(t, b)
+    showDrop(t, b.aimWhat)
     val l = shelfLocal(t, p)?.takeIf { overShelf(t, it) }
-    val what = when {
+    val what = b.aimWhat ?: when {
       l == null -> null
       overUp(t, l) -> "up"
       else -> bookAt(t, l, except = b)?.first?.takeIf { it.folder }?.let { "folder:" + it.itemId }
     }
     if (what != b.overWhat) { b.overWhat = what; b.overSince = now; return }
-    if (what == null || now - b.overSince < DRAG_OPEN_MS) return
+    if (what == null || what == "here" || now - b.overSince < DRAG_OPEN_MS) return
     b.overSince = Long.MAX_VALUE / 2  // once per stay
     if (what == "up") send(JSONObject().put("type", "shelfUp").put("key", t.key))
     else send(JSONObject().put("type", "openFolder").put("key", t.key).put("folderId", what.removePrefix("folder:")))
@@ -1024,10 +1070,20 @@ class OfficeActivity : AppSystemActivity() {
           // Let go over its own shelf: onto another book (placed there) or a folder book (filed inside); anywhere
           // else on the shelf it just goes back.
           // Still at its own slot (a tap, or a pull that came back): not a drop at all.
-          val atRest = rest != null && at?.let { PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } != false
-          val onShelf = if (atRest) null else at?.let { shelfLocal(t, PoseMath.tOf(it)) }?.takeIf { overShelf(t, it) }
-          val moved = !atRest && onShelf == null
-          if (onShelf != null) {
+          // Aimed at a lit drop target (the ⬆ or a folder book) when let go: that is the drop, wherever the book is.
+          val aim = b.aimWhat
+          b.aimWhat = null
+          showDrop(t, null)
+          val atRest = aim == null && rest != null && at?.let { PoseMath.near(PoseMath.tOf(it), PoseMath.tOf(rest), BOOK_PULL_M) } != false
+          val onShelf = if (atRest || aim != null) null else at?.let { shelfLocal(t, PoseMath.tOf(it)) }?.takeIf { overShelf(t, it) }
+          val moved = !atRest && aim == null && onShelf == null
+          if (aim != null) {
+            val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
+            if (aim == "up") send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "up"))
+            else if (aim == "here") send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "end"))
+            else send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", aim.removePrefix("folder:")).put("edge", "into"))
+            Log.i(TAG, "${b.title} dropped by aim on $aim")
+          } else if (onShelf != null) {
             val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
             val hit = bookAt(t, onShelf, except = b)
             if (overUp(t, onShelf)) {
