@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-27 — A COPY-LINK SHARES EVERY FIELD; slots are plain copies; appointments are copy-linked into their start slot
+
+User (account2's session, finished here): *"copylink should always share the same fields and values"* · *"the
+original timeslots shouldnt have a date anyway"* · *"just copy the timeslots … from the original"* · *"for
+appointments, if it has a date in the appointments container, it should be copylinked to the schedule. if i want a new
+appointment thats the same with a diff date, i copy the original appointment, and change the date"* · start slot only.
+- **Fan-out shares everything** — `utils/filterFields.js` + client `helpers/linkedFanFields.js` (the Date / Time Slot
+  exclusion) deleted; server `update_occurrence` and `CommitHelpers.updateOccurrence` fan the whole field map.
+- **`0445`** cleared the stray Date on 59 slot/Todo copies (the 0271 class). **`0446`**: Build Day + Combine Days copy
+  the template slot with `COPY_LINK linked:false` (still stamps `meta.copyLinkSource`, which their FINDs use); 1,887 slot
+  copies in 49 groups lost their link. A slot shares nothing with other days now.
+- **`0447`**: `Schedule: Place Dated Work` copy-links an appointment (binds Schedule Type, Date + Time Slot, not a
+  feed copy, not `meta.datedWork`) into that day's slot for its Time Slot — START slot only, so trackers count it once.
+  The copy carries `meta.datedWork`; the sweep DELETES such a copy whose original moved, and UNLISTS an original the
+  old op listed in a slot it is not homed in. onChange Date added. Builder runs the same transform
+  (`copyLinkAppointments`). An appointment HOMED in a slot (Keith's Oct 26 follow-up is) is left as it is.
+- Tests: `placeDatedWork.behavioral` (21; 9 fail on the old op), `scheduleSlotsArePlainCopies`,
+  `linkedContainersCarryNoDate`, `linkedFanSharesAllFields`. Client 6,818 / server 3,250 pass (known failures only).
+- **Open:** due-date tasks into Todo are still the original listed in each outstanding day's Todo.
+- **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
+
+---
+
 ### 2026-10-26 — THE HEADSET WAS KILLED FOR MEMORY: the control panel no longer loads the grid
 
 User (on the Quest 3S): the app slow, shelves "lose connection", drops do nothing. Measured over adb: the
