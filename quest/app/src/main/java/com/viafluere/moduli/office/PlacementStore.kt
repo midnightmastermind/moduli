@@ -84,6 +84,14 @@ class PlacementStore(context: Context) {
 
   fun clearPoses() { prefs.edit().remove("poses:$gridId").apply() }
 
+  /** True the first time it is asked for `flag` on this grid, false ever after (one-time changes to saved data). */
+  fun once(flag: String): Boolean {
+    val k = "once:$flag:$gridId"
+    if (gridId.isEmpty() || prefs.getBoolean(k, false)) return false
+    prefs.edit().putBoolean(k, true).apply()
+    return true
+  }
+
   fun decor(): List<JSONObject> {
     val a = JSONArray(prefs.getString("decor:$gridId", "[]") ?: "[]")
     return (0 until a.length()).map { a.getJSONObject(it) }

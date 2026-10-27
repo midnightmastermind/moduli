@@ -756,6 +756,11 @@ class OfficeActivity : AppSystemActivity() {
         wanted["screen:" + s.optString("id")] = { ensureScreen(s) }
       }
     }
+    // Once: the windows already placed become open windows, where they stand (user, 2026-10-27: "replace the
+    // window i have placed with that"). The key stays, so each keeps its place; new painted windows stay possible.
+    if (store.once("openwindow-swap")) store.saveDecor(store.decor().map { e ->
+      if (e.optString("model") == "window") JSONObject(e.toString()).put("model", "openwindow").put("title", "Open window") else e
+    })
     for (d in store.decor()) {
       val key = d.optString("key")
       wanted[key] = { decorPanel(ensureThing(key, d.optString("model"), d.optString("src").ifEmpty { null }), d) }
