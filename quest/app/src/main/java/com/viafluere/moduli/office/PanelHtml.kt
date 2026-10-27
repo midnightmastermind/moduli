@@ -32,7 +32,7 @@ object PanelHtml {
    * over each slot (OfficeActivity), so the spines here are what you SEE and the books what you HOLD: `hold(id, on)`
    * hides the spine of a book in your hand, and a page change is reported (`shelfPage`) so the books follow it.
    */
-  fun shelf(shelf: JSONObject, slots: List<ShelfLayout.Slot>, shelfHeightM: Float, page: Int): String {
+  fun shelf(shelf: JSONObject, slots: List<ShelfLayout.Slot>, shelfHeightM: Float, page: Int, moving: Int = 0): String {
     val id = shelf.optString("id")
     val asset = shelf.optString("asset", "book")
     val title = shelf.optString("title", "Shelf")
@@ -85,7 +85,12 @@ object PanelHtml {
   /* A folder with no picture is a plain leather spine; one with a picture (an artist on the record crate) shows it. */
   .it.fold:not(.pic){background:linear-gradient(#5a4632,#3b2c1d)!important}
   .it.fold span:before{content:'📁 ';}
-  .it.fold i{position:absolute;top:.4vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
+  .it.fold i{position:absolute;top:2.6vh;left:0;right:0;text-align:center;font-style:normal;font-size:.9vh;color:#f4e9d8}
+  /* What marks a folder at a glance (user, 2026-10-27: "we need something on the book that shows if its a folder"):
+     a gold FOLDER band across the top, in plain text, and a thicker gold edge. */
+  .it.fold{border-width:.7vh}
+  .it.fold:after{content:'FOLDER';position:absolute;top:0;left:0;right:0;padding:.35vh 0;background:#d9b06a;color:#2a1a0c;
+      font:700 1vh/1 Arial,sans-serif;letter-spacing:.15vh;text-align:center}
   /* Select mode: tap books to pick them, then Delete. */
   .it.sel{outline:.6vh solid #ff6b6b!important;outline-offset:-.6vh;box-shadow:0 0 2vh #ff6b6b!important}
   #path{font-size:1.3vh;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -99,7 +104,8 @@ object PanelHtml {
   <input id="q" placeholder="🔍 Search" oninput="search()">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
   ${if (shelf.optBoolean("folderable")) """<button onclick="send({type:'newNote',key:key})">＋📝</button><button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
-  <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
+  ${if (moving > 0) """<button class="on" onclick="send({type:'moveHere',key:key})">Move $moving here</button><button onclick="send({type:'moveCancel',key:key})">✕</button>""" else ""}
+  <button id="selb" onclick="toggleSel()">Select</button><button id="movb" style="display:none" onclick="mv()"></button><button id="openb" style="display:none" onclick="opn()"></button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>
 <script>$BRIDGE
@@ -129,7 +135,18 @@ object PanelHtml {
   function count(){return Object.keys(sel).length;}
   function bar(){var b=document.getElementById('delb'), s=document.getElementById('selb');
     s.textContent=selecting?'Done':'Select'; s.className=selecting?'on':'';
-    var n=count(); b.style.display=selecting&&n?'':'none'; b.textContent=armed?('Sure? delete '+n):('Delete '+n);}
+    var n=count(); b.style.display=selecting&&n?'':'none'; b.textContent=armed?('Sure? delete '+n):('Delete '+n);
+    var m=document.getElementById('movb'), o=document.getElementById('openb');
+    if(m){m.style.display=selecting&&n&&FOLDERABLE?'':'none'; m.textContent='Move '+n;}
+    var books=Object.keys(sel).filter(function(id){var it=byId[id];return !(it&&it.f);}).length;
+    if(o){o.style.display=selecting&&books?'':'none'; o.textContent='Open '+books;}}
+  function endSel(){var was=sel;sel={};selecting=false;armed=false;for(var k in was)look(k);bar();send({type:'shelfSelect',key:key,on:false});}
+  // Move: the app keeps the picked set while you go to where it should go (tap folders, ⬆), then "Move N here".
+  function mv(){var ids=Object.keys(sel).map(function(id){var it=byId[id];return it&&it.f?id:(it&&it.r)||id;});
+    if(!ids.length)return; send({type:'moveStart',key:key,ids:ids}); endSel();}
+  // Open: each picked book in its own window (folders are skipped — a shelf shows one folder at a time).
+  function opn(){var items=Object.keys(sel).filter(function(id){var it=byId[id];return !(it&&it.f);});
+    if(!items.length)return; send({type:'openItems',key:key,items:items}); endSel();}
   function toggleSel(){selecting=!selecting; if(!selecting){var was=sel;sel={};for(var k in was)look(k);} armed=false; bar();
     send({type:'shelfSelect',key:key,on:selecting});}
   // Called by the app when a book is tapped in select mode (the 3D book over the spine takes the tap).

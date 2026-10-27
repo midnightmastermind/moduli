@@ -372,6 +372,33 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           if (remote) remote.plan("shelfReorder", ask).then((r) => apply(r?.moves));
           else if (L.occurrencesById?.[e.id]) apply(planShelfReorder({ ...ask, shelf }, L));
         }
+        else if (e?.type === "moveItems") {
+          // Select → Move → "Move N here": every picked item goes to the folder the shelf now stands in (rows by the
+          // same plan a single drop uses, folders by planFolderMove). One undo step for the lot.
+          const shelfId = String(e.key || "").replace(/^shelf:/, "");
+          const L = live.current;
+          const shelf = readOffice(L.grid).shelves.find((x) => x.id === shelfId);
+          if (!shelf?.folderId) return;
+          const at = L.shelfAt[shelfId];
+          const ids = (e.ids || []).map(String);
+          const rows = ids.filter((id) => !id.startsWith("folder:"));
+          const folders = ids.filter((id) => id.startsWith("folder:"));
+          const plans = rows.map((id) => {
+            const ask = { shelfId, at, id, targetId: "", edge: "end" };
+            if (remote) return remote.plan("shelfReorder", ask).then((r) => r?.moves || []);
+            return Promise.resolve(L.occurrencesById?.[id] ? (planShelfReorder({ ...ask, shelf }, L) || []) : []);
+          });
+          Promise.all(plans).then((all) => {
+            withAction("Moved on shelf", () => {
+              for (const moves of all) for (const m of moves) movePage({ dispatch: L.dispatch, socket, pageOccurrenceId: m.id, targetFolderId: m.folder, sortOrder: m.sortOrder });
+              for (const id of folders) {
+                const moved = planFolderMove({ shelfId, at, id, targetId: "", edge: "end", shelf }, L);
+                if (moved) updateFolder({ dispatch: L.dispatch, socket, folder: moved });
+              }
+            });
+            setTimeout(() => { lastSent.current = ""; sendState([shelfId]); }, 350);
+          });
+        }
         else if (e?.type === "deleteItems") {
           // The shelf's Select → Delete: rows go the way any delete goes; a folder book deletes the folder and
           // moves what it held up a level (helpers/folderDelete). One undo step for the lot.

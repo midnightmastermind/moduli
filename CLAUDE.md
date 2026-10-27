@@ -62,6 +62,13 @@ appointment thats the same with a diff date, i copy the original appointment, an
   headset log: every release "put back"). Aimed at the ⬆ or a folder book it lights blue and the release drops there;
   a book carried in from another folder drops "here" when aimed anywhere at the shelf; all else unchanged. APK built
   and installed; NOT tried in the headset.
+- **VR shelf, round 3 (user):** ⬆ is at the shelf frame's **+x** end (column 0 sits at panelW/2 — tested at -x it lit over
+  Select); hover ⬆ 1s per level (`DRAG_UP_MS`); a folder pulled off the shelf opens; folder spines carry a gold
+  **FOLDER** band (text, no emoji). **Select → Move N** keeps the set natively (`Thing.moving`, survives the shelf
+  page rebuilding per folder) until **Move N here** → control panel `moveItems` (rows by `planShelfReorder`, folders by
+  `planFolderMove`, one undo step). **Select → Open N** opens each book in its own window side by side
+  (`openItems`, `spawnPose`). Renaming a note: works on desktop in `?read=` (title double tap, section headings are
+  click-to-edit); the headset case is not reproduced — asked the user what they see.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---

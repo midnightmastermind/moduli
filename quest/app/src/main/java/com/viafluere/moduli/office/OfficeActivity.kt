@@ -98,8 +98,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val SPOTIFY_H = 0.56f
     /** Holding a carried book over a folder book (or ⬆) this long opens it. */
     private const val DRAG_OPEN_MS = 900L
-    /** Held on the ⬆ this long, the shelf goes up a level (user: 0.9s "is to quick … i end up passing my mark"). */
-    private const val DRAG_UP_MS = 2000L
+    /** Held on the ⬆ this long, the shelf goes up a level (user: 0.9s was too quick, 2s too slow — 1s). */
+    private const val DRAG_UP_MS = 1000L
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
     /**
@@ -183,6 +183,8 @@ class OfficeActivity : AppSystemActivity() {
     var shelfAsset = "book"
     /** Select mode on a shelf (its Select button): a tap picks a book for Delete instead of opening it. */
     var selecting = false
+    /** Items picked with Select → Move, kept while you go to where they should go (folder ids keep their folder: prefix). */
+    var moving: List<String> = emptyList()
     /** The book a controller is pointing at on this shelf (its spine lights up), or null. */
     var hoverBook: String? = null
     /** What the shelf page lights as the drop target of a carried book ('up', an item id, or null). */
@@ -637,6 +639,27 @@ class OfficeActivity : AppSystemActivity() {
         }
       }
       "shelfSelect" -> things[m.optString("key")]?.selecting = m.optBoolean("on")
+      // Select → Move: keep the picked set; the shelf shows "Move N here" until it is used or cancelled.
+      "moveStart" -> things[m.optString("key")]?.let { t ->
+        t.moving = m.optJSONArray("ids")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+        t.shelfJson?.let { ensureShelf(it) }
+      }
+      "moveHere" -> things[m.optString("key")]?.let { t ->
+        if (t.moving.isNotEmpty()) send(JSONObject().put("type", "moveItems").put("key", t.key).put("ids", org.json.JSONArray(t.moving)))
+        Log.i(TAG, "move ${t.moving.size} into where ${t.key} stands")
+        t.moving = emptyList(); t.shelfJson?.let { ensureShelf(it) }
+      }
+      "moveCancel" -> things[m.optString("key")]?.let { t -> t.moving = emptyList(); t.shelfJson?.let { ensureShelf(it) } }
+      // Select → Open: each picked book in its own window, side by side in front of you.
+      "openItems" -> things[m.optString("key")]?.let { t ->
+        val ids = m.optJSONArray("items")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+        ids.forEachIndexed { i, id ->
+          val side = (i - (ids.size - 1) / 2f) * 0.8f
+          val url = bookUrl(t, id)
+          openReader(if (url.isNotEmpty()) "url:$url" else id, pose = spawnPose(1.1f, 1.4f, side, panel = true))
+        }
+        Log.i(TAG, "opened ${ids.size} from ${t.key}")
+      }
       // Something was deleted (a page from its menu, a book from a shelf): the reader windows showing it close.
       "gone" -> m.optJSONArray("ids")?.let { a ->
         val ids = (0 until a.length()).map { a.optString(it) }.toSet()
@@ -794,7 +817,7 @@ class OfficeActivity : AppSystemActivity() {
     t.shelfJson = s
     val pages = maxOf(1, (t.shelfItems.length() + t.slots.size - 1) / t.slots.size)
     t.page = t.page.coerceIn(0, pages - 1)
-    val html = PanelHtml.shelf(s, t.slots, size.h, t.page)
+    val html = PanelHtml.shelf(s, t.slots, size.h, t.page, t.moving.size)
     // The control panel resends its state on every change anywhere in the grid; a shelf whose contents did not
     // change keeps its page (reloading it repainted every cover and rebuilt every book — part of the lag).
     if (t.panel != null && html == t.html) return
@@ -1330,6 +1353,15 @@ class OfficeActivity : AppSystemActivity() {
           .minByOrNull { it.second }?.first
 
   /** A string the shelf's item carries (a JSON null is "", not the word "null"). */
+  /** A shelf item's bookmark address ("" for anything else) — what a book's `url` is built from. */
+  private fun bookUrl(t: Thing, itemId: String): String {
+    for (i in 0 until t.shelfItems.length()) {
+      val item = t.shelfItems.optJSONObject(i) ?: continue
+      if (item.optString("id") == itemId) return if (item.isNull("url")) "" else item.optString("url")
+    }
+    return ""
+  }
+
   private fun itemField(t: Thing, itemId: String, key: String): String {
     for (i in 0 until t.shelfItems.length()) {
       val it = t.shelfItems.optJSONObject(i) ?: continue
