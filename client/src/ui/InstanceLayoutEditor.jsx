@@ -2,13 +2,16 @@
 //
 // The placement's ROW LAYOUT, in its Layout settings (user, 2026-10-15): the label,
 // the cover and each field sit in nested boxes; each box lays its items out as
-// columns (side by side) or rows (stacked), can wrap or not, and items and boxes are
-// moved with ↑/↓ arrows (helpers/instanceLayout.stepItem) — drag-and-drop could not
-// reach the top, and boxes could not be reordered at all (user, 2026-10-20). A field chip, clicked, opens its own styling: hide its name, width,
+// columns (side by side) or rows (stacked), can wrap or not, and fields and boxes are
+// DRAGGED (user, 2026-10-27: "the arrows are too slow"), with a blue line where the
+// drop lands — before/after any item, the top of any box, inside an empty box
+// (helpers/instanceLayout.moveNode). Pointer events, so touch and the headset's
+// controller drag too. A field chip, clicked, opens its own styling: hide its name, width,
 // size, colour, own line. Stored on `occurrence.meta.instanceLayout`
 // (helpers/instanceLayout); a copy of the placement carries it.
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import LayoutDragOverlay from "./LayoutDragOverlay";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import * as L from "../helpers/instanceLayout";
@@ -16,13 +19,62 @@ import * as L from "../helpers/instanceLayout";
 const box = { border: "1px dashed var(--border-default)", borderRadius: 6, padding: 6, display: "flex", gap: 6, minHeight: 32 };
 const chipBase = { fontSize: 13, padding: "3px 4px 3px 10px", borderRadius: 999, border: "1px solid var(--border-default)", background: "var(--input-bg)", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 4 };
 const tiny = { fontSize: 12, padding: "2px 7px", border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", color: "var(--text-muted)", cursor: "pointer" };
-const arrow = { fontSize: 12, lineHeight: 1, padding: "2px 5px", border: "1px solid var(--border-default)", borderRadius: 4, background: "transparent", color: "var(--text-primary)", cursor: "pointer" };
+const DRAG_START_PX = 5;
+
+const parsePath = (s) => (s ? s.split(".").map(Number) : []);
+
+// Where a drop at (x, y) lands: { path, index, line } or null. `line` is the blue bar's
+// screen rect. Reads the DOM the editor renders: items carry data-li="<path>|<index>",
+// each box's item list carries data-lg="<path>" and data-dir.
+export function dropTargetAt(root, x, y, draggedEl) {
+  const el = document.elementFromPoint?.(x, y);
+  if (!el || !root?.contains(el) || draggedEl?.contains(el)) return null;
+  const hit = el.closest("[data-li],[data-lg]");
+  if (!hit || !root.contains(hit)) return null;
+  const T = 3;
+  if (hit.hasAttribute("data-li")) {
+    const [p, i] = hit.getAttribute("data-li").split("|");
+    const list = hit.parentElement;
+    const row = list?.getAttribute("data-dir") === "row";
+    const r = hit.getBoundingClientRect();
+    const before = row ? x < r.left + r.width / 2 : y < r.top + r.height / 2;
+    const index = Number(i) + (before ? 0 : 1);
+    const line = row
+      ? { left: (before ? r.left : r.right) - T / 2 - 2, top: r.top, width: T, height: r.height }
+      : { left: r.left, top: (before ? r.top : r.bottom) - T / 2 - 2, width: r.width, height: T };
+    return { path: parsePath(p), index, line };
+  }
+  const row = hit.getAttribute("data-dir") === "row";
+  const kids = [...hit.children].filter((c) => c.hasAttribute("data-li") && c !== draggedEl);
+  const rects = kids.map((c) => c.getBoundingClientRect());
+  let index = 0;
+  rects.forEach((r, k) => {
+    const isBefore = row ? (r.bottom < y || (r.top <= y && r.left + r.width / 2 < x)) : r.top + r.height / 2 < y;
+    if (isBefore) index = Number(kids[k].getAttribute("data-li").split("|")[1]) + 1;
+  });
+  const b = hit.getBoundingClientRect();
+  const prev = rects[kids.findIndex((c) => Number(c.getAttribute("data-li").split("|")[1]) === index - 1)];
+  const line = !kids.length || index === 0
+    ? { left: b.left, top: b.top, width: row && kids.length ? T : b.width, height: row && kids.length ? (rects[0]?.height || 20) : T }
+    : row
+      ? { left: prev.right + 1, top: prev.top, width: T, height: prev.height }
+      : { left: b.left, top: prev.bottom + 1, width: b.width, height: T };
+  return { path: parsePath(hit.getAttribute("data-lg")), index, line };
+}
 
 export default function InstanceLayoutEditor({ occurrence }) {
   const { dispatch, socket, modulesById, fieldsById, occurrencesById } = useGridActions() || {};
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const stored = occurrence?.meta?.instanceLayout || null;
   const [selected, setSelected] = useState(null);
+  // Drag: `pending` is the press (not yet a drag), `drag` the live drag
+  // { key, label, x, y, target }. Kept in refs for the window listeners.
+  const rootRef = useRef(null);
+  const pending = useRef(null);
+  const suppressClick = useRef(false);
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  const layoutRef = useRef(null);
 
   const fieldIds = useMemo(() => L.layoutFieldIds(module, fieldsById || {}), [module, fieldsById]);
   const hasCover = useMemo(() => (module?.fieldBindings || []).some((b) => b.role === "media" || b.role === "files"), [module?.fieldBindings]);
@@ -33,6 +85,44 @@ export default function InstanceLayoutEditor({ occurrence }) {
     if (next == null) delete meta.instanceLayout; else meta.instanceLayout = next;
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, meta }, emit: true });
   };
+
+  const startDrag = (e, path, index, label) => {
+    if (e.button != null && e.button !== 0) return;
+    e.stopPropagation();
+    pending.current = { path, index, label, key: `${path.join(".")}|${index}`, x0: e.clientX, y0: e.clientY, el: e.currentTarget.closest("[data-li]") };
+  };
+  useEffect(() => {
+    const move = (e) => {
+      const p = pending.current;
+      if (!p) return;
+      if (!dragRef.current && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < DRAG_START_PX) return;
+      e.preventDefault();
+      const target = dropTargetAt(rootRef.current, e.clientX, e.clientY, p.el);
+      dragRef.current = { key: p.key, label: p.label, x: e.clientX, y: e.clientY, target };
+      setDrag(dragRef.current);
+    };
+    const up = () => {
+      const p = pending.current, d = dragRef.current;
+      pending.current = null; dragRef.current = null;
+      if (!p || !d) return;
+      suppressClick.current = true;
+      setTimeout(() => { suppressClick.current = false; }, 0);
+      setDrag(null);
+      const lay = layoutRef.current;
+      if (d.target && lay) {
+        const next = L.moveNode(lay, p.path, p.index, d.target.path, d.target.index);
+        if (next !== lay) write(next);
+      }
+    };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  });
 
   if (!occurrence?.id) return null;
   if (!stored) {
@@ -46,6 +136,7 @@ export default function InstanceLayoutEditor({ occurrence }) {
   }
 
   const layout = { ...stored, tree: L.resolveTree(stored, avail).tree };
+  layoutRef.current = layout;
   // Same name, same fields: every day's copy of this routine (often on its own cloned module).
   const twins = L.sameShapeTargets(occurrence, { occurrencesById: occurrencesById || {}, modulesById: modulesById || {}, fieldsById: fieldsById || {} });
   const applyAll = () => {
@@ -54,25 +145,15 @@ export default function InstanceLayoutEditor({ occurrence }) {
     CommitHelpers.applyInstanceLayout({ dispatch, socket, layout: stored, occurrenceIds: twins, occurrencesById });
   };
   const nameOf = (key) => key === L.LABEL ? "Label" : key === L.COVER ? "Cover" : (fieldsById?.[L.fieldIdOf(key)]?.name || "Field");
-  // ↑/↓ on an item (a field or a box) at `index` of the group at `path`.
-  const step = (path, index, dir) => (e) => {
-    e.stopPropagation();
-    const next = L.stepItem(layout, path, index, dir);
-    if (next !== layout) write(next);
-  };
-  const arrows = (path, index, label) => (
-    <span style={{ display: "inline-flex", gap: 2 }}>
-      <button type="button" style={arrow} title={`Move ${label} up`} aria-label={`Move ${label} up`} onClick={step(path, index, -1)}>↑</button>
-      <button type="button" style={arrow} title={`Move ${label} down`} aria-label={`Move ${label} down`} onClick={step(path, index, +1)}>↓</button>
-    </span>
-  );
-
   const renderGroup = (g, path) => {
     const row = g.dir === "row";
     return (
-      <div key={path.join(".") || "root"} data-layout-path={path.join(".")} style={{ ...box, flexDirection: "column" }}>
-        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
-          {path.length > 0 && arrows(path.slice(0, -1), path[path.length - 1], "this box")}
+      <div key={path.join(".") || "root"} data-layout-path={path.join(".")}
+        {...(path.length ? { "data-li": `${path.slice(0, -1).join(".")}|${path[path.length - 1]}` } : {})}
+        style={{ ...box, flexDirection: "column", ...(path.length && drag?.key === `${path.slice(0, -1).join(".")}|${path[path.length - 1]}` ? { opacity: 0.35 } : null) }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", ...(path.length ? { cursor: "grab", touchAction: "none" } : null) }}
+          onPointerDown={path.length ? (e) => { if (!e.target.closest("button")) startDrag(e, path.slice(0, -1), path[path.length - 1], "Box"); } : undefined}>
+          {path.length > 0 && <span title="Drag to move this box" style={{ cursor: "grab", color: "var(--text-muted)", fontSize: 13, padding: "0 2px" }}>⠿</span>}
           <button type="button" style={tiny} title="Lay these out side by side or stacked"
             onClick={() => write(L.toggleDir(layout, path))}>{row ? "Columns" : "Rows"}</button>
           {row && (
@@ -89,13 +170,14 @@ export default function InstanceLayoutEditor({ occurrence }) {
           {path.length > 0 && <button type="button" style={tiny} title="Remove this box (its items move out)"
             onClick={() => write(L.removeGroup(layout, path))}>×</button>}
         </div>
-        <div style={{ display: "flex", flexDirection: row ? "row" : "column", flexWrap: row ? "wrap" : "nowrap", gap: 6, alignItems: row ? "flex-start" : "stretch" }}>
+        <div data-lg={path.join(".")} data-dir={row ? "row" : "col"}
+          style={{ display: "flex", flexDirection: row ? "row" : "column", flexWrap: row ? "wrap" : "nowrap", gap: 6, alignItems: row ? "flex-start" : "stretch", minHeight: 22 }}>
           {g.items.map((it, i) => typeof it === "object" ? renderGroup(it, [...path, i]) : (
-            <span key={it} data-layout-key={it}
-              onClick={() => setSelected(selected === it ? null : it)}
-              style={{ ...chipBase, ...(selected === it ? { borderColor: "rgb(96,165,250)" } : null), ...(row ? null : { alignSelf: "flex-start" }) }}>
+            <span key={it} data-layout-key={it} data-li={`${path.join(".")}|${i}`}
+              onPointerDown={(e) => startDrag(e, path, i, nameOf(it))}
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } setSelected(selected === it ? null : it); }}
+              style={{ ...chipBase, padding: "3px 10px", cursor: "grab", touchAction: "none", ...(selected === it ? { borderColor: "rgb(96,165,250)" } : null), ...(row ? null : { alignSelf: "flex-start" }), ...(drag?.key === `${path.join(".")}|${i}` ? { opacity: 0.35 } : null) }}>
               {nameOf(it)}
-              {arrows(path, i, nameOf(it))}
             </span>
           ))}
         </div>
@@ -113,10 +195,11 @@ export default function InstanceLayoutEditor({ occurrence }) {
   const row = { display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 6 };
 
   return (
-    <div style={{ padding: "6px 12px" }} data-testid="instance-layout-editor">
+    <div ref={rootRef} style={{ padding: "6px 12px" }} data-testid="instance-layout-editor">
+      <LayoutDragOverlay drag={drag} chipStyle={chipBase} />
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>Row layout</div>
-        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>↑/↓ move items in and out of boxes · click a field to style it</span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>drag fields and boxes to arrange them · click a field to style it</span>
         {twins.length > 0 && (
           <button type="button" style={{ ...tiny, marginLeft: "auto" }} onClick={applyAll}
             title="Every other instance with this name and these fields gets this layout">Apply to all {twins.length}</button>

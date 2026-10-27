@@ -97,37 +97,28 @@ export function moveItem(layout, key, path, index = null) {
 }
 
 /**
- * Step the item at `index` of the group at `path` one place up (dir -1) or down (dir +1) — the
- * arrows in the row-layout editor (user, 2026-10-20: drag-and-drop could not put anything at the
- * top, and boxes could not be reordered at all). Every place stays reachable with arrows alone:
- *   - next to an ordinary item: the two swap;
- *   - a FIELD next to a box: it steps INTO that box (its top going down, its bottom going up);
- *   - a BOX next to a box: they swap (a box is never nested by an arrow);
- *   - at either end of a box: the item steps OUT into the parent box, just before/after it.
- * Returns the same layout object when there is nowhere to go (the first item of the root, up).
+ * Move the item (a field key or a box) at `fromIndex` of the group at `fromPath` to slot
+ * `toIndex` of the group at `toPath` — the row-layout editor's drag and drop (user,
+ * 2026-10-27: "the arrows are too slow"). Slot 0 is the top of a box, so the top is always
+ * reachable. A box can never go inside itself. Both groups are resolved BEFORE anything is
+ * removed, so a path written against the old tree still names the right box. Returns the
+ * same layout object when nothing would change.
  */
-export function stepItem(layout, path, index, dir) {
+export function moveNode(layout, fromPath, fromIndex, toPath, toIndex) {
   const next = clone(layout);
-  const g = groupAt(next.tree, path);
-  if (!g || index < 0 || index >= g.items.length || (dir !== -1 && dir !== 1)) return layout;
-  const item = g.items[index];
-  const to = index + dir;
-  if (to < 0 || to >= g.items.length) {
-    if (!path.length) return layout;
-    const parent = groupAt(next.tree, path.slice(0, -1));
-    const at = path[path.length - 1];
-    g.items.splice(index, 1);
-    parent.items.splice(dir < 0 ? at : at + 1, 0, item);
-    return next;
+  const src = groupAt(next.tree, fromPath);
+  const dst = groupAt(next.tree, toPath);
+  if (!src || !dst || fromIndex < 0 || fromIndex >= src.items.length) return layout;
+  const item = src.items[fromIndex];
+  if (isGroup(item)) {
+    const self = [...fromPath, fromIndex];
+    if (toPath.length >= self.length && self.every((v, i) => toPath[i] === v)) return layout;
   }
-  const neighbour = g.items[to];
-  if (isGroup(neighbour) && !isGroup(item)) {
-    g.items.splice(index, 1);
-    if (dir > 0) neighbour.items.unshift(item); else neighbour.items.push(item);
-    return next;
-  }
-  g.items[index] = neighbour;
-  g.items[to] = item;
+  let at = Math.max(0, Math.min(toIndex ?? dst.items.length, dst.items.length));
+  if (src === dst && (at === fromIndex || at === fromIndex + 1)) return layout;
+  src.items.splice(fromIndex, 1);
+  if (src === dst && fromIndex < at) at -= 1;
+  dst.items.splice(at, 0, item);
   return next;
 }
 
@@ -136,7 +127,8 @@ export function addGroup(layout, path) {
   const next = clone(layout);
   const g = groupAt(next.tree, path);
   if (!g) return layout;
-  g.items.push({ dir: g.dir === "row" ? "col" : "row", items: [] });
+  // First in the box it was made in, so it shows up where you are looking (user, 2026-10-27).
+  g.items.unshift({ dir: g.dir === "row" ? "col" : "row", items: [] });
   return next;
 }
 

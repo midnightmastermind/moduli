@@ -47,6 +47,12 @@ appointment thats the same with a diff date, i copy the original appointment, an
   drawer (z 1101) and holds the phone's only date picker. Measured at 1024–1600 and 360/390: one line, no overlap.
 - **Panel resize handles fatter** (user): painted line 3 → 5px (touch 7), desktop grab band 6 → 10px in both layouts
   (in the mosaic `SPLITTER` is also the gap between panels, so that gap grew 4px).
+- **Row-layout editor: drag and drop instead of ↑/↓** (user: "the arrows are too slow"). `instanceLayout.moveNode`
+  (from path/index → to path/index; slot 0 = top of a box; a box never into itself; `stepItem` removed) +
+  pointer-event drag in `ui/InstanceLayoutEditor` (`dropTargetAt` reads `data-li` / `data-lg`), a blue drop line +
+  floating chip in `ui/LayoutDragOverlay` (PORTALLED — the settings popup is transformed, so a fixed line inside it
+  drew 73/234px off). **+ Box puts the new box FIRST** in its box. Watched on prod data with a real mouse
+  (Routines row `kTrgMA-LajDz`): line on the target edge, drop to the top, dragged back → layout identical.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---

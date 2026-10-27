@@ -46,7 +46,7 @@ describe("instance layout", () => {
   });
   it("addGroup adds a group running the other way; toggleDir flips one", () => {
     const n = L.addGroup(exercise, [2]);
-    expect(n.tree.items[2].items.at(-1)).toEqual({ dir: "col", items: [] });
+    expect(n.tree.items[2].items[0]).toEqual({ dir: "col", items: [] });   // first in its box (2026-10-27)
     expect(L.toggleDir(n, [2]).tree.items[2].dir).toBe("col");
   });
   it("removeGroup puts its items where it was; the root cannot be removed", () => {
@@ -102,39 +102,45 @@ describe("moveItem into a later sibling box", () => {
   });
 });
 
-import { stepItem } from "../helpers/instanceLayout";
-describe("stepItem (the editor's arrows)", () => {
-  const L0 = () => ({ tree: { dir: "col", items: ["label", "f:a", { dir: "row", items: ["f:b", "f:c"] }, "f:d"] } });
-  it("swaps with an ordinary neighbour", () => {
-    expect(stepItem(L0(), [], 1, -1).tree.items.slice(0, 2)).toEqual(["f:a", "label"]);
+import { moveNode } from "../helpers/instanceLayout";
+describe("moveNode (the editor's drag and drop)", () => {
+  const L0 = () => ({ tree: { dir: "col", items: ["label", "f:a", { dir: "row", items: ["f:b", "f:c"] }, "f:d", { dir: "row", items: [] }] } });
+  it("drops a field at the very top", () => {
+    expect(moveNode(L0(), [], 3, [], 0).tree.items.slice(0, 2)).toEqual(["f:d", "label"]);
   });
-  it("can bring a field all the way to the top", () => {
-    let l = L0();
-    l = stepItem(l, [], 3, -1);                   // f:d steps into the box (its bottom)
-    expect(l.tree.items[2].items).toEqual(["f:b", "f:c", "f:d"]);
-    for (let i = 2; i > 0; i--) l = stepItem(l, [2], i, -1); // up to the box's top
-    l = stepItem(l, [2], 0, -1);                  // out of the box, above it
-    l = stepItem(l, [], 2, -1); l = stepItem(l, [], 1, -1);
-    expect(l.tree.items[0]).toBe("f:d");
+  it("drops a field from inside a box to the top of the root", () => {
+    const l = moveNode(L0(), [2], 1, [], 0).tree;
+    expect(l.items[0]).toBe("f:c");
+    expect(l.items[3].items).toEqual(["f:b"]);
   });
-  it("a field next to a box steps into it: its top going down, its bottom going up", () => {
-    expect(stepItem(L0(), [], 1, +1).tree.items[1].items).toEqual(["f:a", "f:b", "f:c"]);
-    expect(stepItem(L0(), [], 3, -1).tree.items[2].items).toEqual(["f:b", "f:c", "f:d"]);
+  it("drops a field into a box, at its top", () => {
+    expect(moveNode(L0(), [], 1, [2], 0).tree.items[1].items).toEqual(["f:a", "f:b", "f:c"]);
   });
-  it("at a box's end a field steps out into the parent, next to the box", () => {
-    const up = stepItem(L0(), [2], 0, -1).tree.items;
-    expect(up.slice(1, 3)).toEqual(["f:a", "f:b"]);
-    const down = stepItem(L0(), [2], 1, +1).tree.items;
-    expect(down.slice(2, 4)).toEqual([{ dir: "row", items: ["f:b"] }, "f:c"]);
+  it("drops a field into an EMPTY box", () => {
+    expect(moveNode(L0(), [], 0, [4], 0).tree.items[3].items).toEqual(["label"]);
   });
-  it("a box swaps with a box (never nests) and moves past fields", () => {
-    const l = { tree: { dir: "col", items: [{ dir: "row", items: ["f:a"] }, { dir: "row", items: ["f:b"] }] } };
-    expect(stepItem(l, [], 1, -1).tree.items.map((g) => g.items[0])).toEqual(["f:b", "f:a"]);
-    expect(stepItem(L0(), [], 2, -1).tree.items.slice(1, 3)).toEqual([{ dir: "row", items: ["f:b", "f:c"] }, "f:a"]);
+  it("reorders within a box, counting the slot the item leaves", () => {
+    expect(moveNode(L0(), [], 0, [], 2).tree.items.slice(0, 2)).toEqual(["f:a", "label"]);
   });
-  it("returns the same layout when there is nowhere to go", () => {
+  it("moves a whole box", () => {
+    const l = moveNode(L0(), [], 2, [], 0).tree;
+    expect(l.items[0]).toEqual({ dir: "row", items: ["f:b", "f:c"] });
+  });
+  it("moves a box into another box", () => {
+    expect(moveNode(L0(), [], 2, [4], 0).tree.items[3].items[0]).toEqual({ dir: "row", items: ["f:b", "f:c"] });
+  });
+  it("never puts a box inside itself", () => {
     const l = L0();
-    expect(stepItem(l, [], 0, -1)).toBe(l);
-    expect(stepItem(l, [], 3, +1)).toBe(l);
+    expect(moveNode(l, [], 2, [2], 0)).toBe(l);
+  });
+  it("a drop on its own slot changes nothing", () => {
+    const l = L0();
+    expect(moveNode(l, [], 1, [], 1)).toBe(l);
+    expect(moveNode(l, [], 1, [], 2)).toBe(l);
+  });
+  it("is pure", () => {
+    const l = L0(); const before = JSON.stringify(l);
+    moveNode(l, [], 3, [], 0);
+    expect(JSON.stringify(l)).toBe(before);
   });
 });
