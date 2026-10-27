@@ -166,3 +166,19 @@ describe("snap layouts sized to the panels on screen", () => {
     }
   });
 });
+
+describe("the user's own layout is offered (user 2026-10-27)", () => {
+  it("4 panels: two over one on the left 2/3, one full-height on the right — offered first, and it builds", () => {
+    const l = layoutsForCount(4)[0];
+    expect(l.id).toBe("two-over-one-beside");
+    const ids = ["routines", "tasks", "trackers", "schedule"];
+    const t = treeFromZones(l.zones, ids);
+    expect(paneFraction(t, "schedule")).toMatchObject({ y: 0 });
+    expect(paneFraction(t, "schedule").x).toBeCloseTo(2 / 3);
+    expect(paneFraction(t, "schedule").h).toBeCloseTo(1);
+    expect(paneFraction(t, "trackers").w).toBeCloseTo(2 / 3);
+    expect(paneFraction(t, "trackers").y).toBeCloseTo(0.5);
+    expect(paneFraction(t, "tasks").x).toBeCloseTo(1 / 3);
+    expect(layoutsForCount(3).some((x) => x.id === "two-over-one-beside")).toBe(false);
+  });
+});

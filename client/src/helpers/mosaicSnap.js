@@ -334,6 +334,14 @@ function generatedLayouts(n) {
   return out;
 }
 
+// Layouts drawn from a user's own grid, offered first for their panel count. They are whole-layout picks (zones with
+// `region: null`), so they live beside SNAP_LAYOUTS rather than in it.
+//   "two-over-one-beside" (user 2026-10-27): a 2/3 left column holding a row of two over one wide panel, and a full-height
+//   1/3 column on the right — Routines | Tasks over Trackers, Schedule beside.
+const USER_LAYOUTS = [
+  { id: "two-over-one-beside", zones: [G(0, 0, 1 / 3, 0.5), G(1 / 3, 0, 1 / 3, 0.5), G(0, 0.5, 2 / 3, 0.5), G(2 / 3, 0, 1 / 3, 1)] },
+];
+
 const zoneKey = (z) => [z.x, z.y, z.w, z.h].map((v) => v.toFixed(4)).join(",");
 const pictureKey = (l) => l.zones.map(zoneKey).sort().join("|");
 
@@ -347,7 +355,7 @@ export function layoutsForCount(count) {
   const n = Math.max(0, Math.floor(count || 0));
   const seen = new Set();
   const out = [];
-  for (const l of [...SNAP_LAYOUTS, ...generatedLayouts(Math.min(n, 8))]) {
+  for (const l of [...USER_LAYOUTS, ...SNAP_LAYOUTS, ...generatedLayouts(Math.min(n, 8))]) {
     if (l.zones.length !== n) continue;
     const k = pictureKey(l);
     if (seen.has(k)) continue;
