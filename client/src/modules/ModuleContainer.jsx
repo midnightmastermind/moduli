@@ -386,8 +386,8 @@ function Container({
   });
 
   const commitLabel = useCallback(() => {
-    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: draft?.label, allowEmpty: true });
-  }, [draft?.label, module, containerOccurrence, dispatch, socket]);
+    CommitHelpers.renameContainer({ dispatch, socket, lookup: { getOcc: (id) => getOccMap()[id], getMod: (id) => modulesById?.[id] }, module, occurrence: containerOccurrence, label: draft?.label, allowEmpty: true });
+  }, [draft?.label, module, containerOccurrence, dispatch, socket, getOccMap, modulesById]);
 
   // Inline label editor (standard non-embedded header) — double-click flips
   // the label span into an <input>; Enter / blur commits, Escape cancels.
@@ -399,9 +399,9 @@ function Container({
   const [labelDraft, setLabelDraft] = useState(module.label ?? "");
   useEffect(() => { setLabelDraft(module.label ?? ""); }, [module.label, module.id]);
   const commitInlineLabel = useCallback(() => {
-    CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: labelDraft });
+    CommitHelpers.renameContainer({ dispatch, socket, lookup: { getOcc: (id) => getOccMap()[id], getMod: (id) => modulesById?.[id] }, module, occurrence: containerOccurrence, label: labelDraft });
     setIsEditingLabel(false);
-  }, [labelDraft, module, containerOccurrence, dispatch, socket]);
+  }, [labelDraft, module, containerOccurrence, dispatch, socket, getOccMap, modulesById]);
 
   const commitIteration = useCallback((nextIteration) => {
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, iteration: nextIteration }, emit: true });
@@ -1523,7 +1523,7 @@ function Container({
                       if (parsed) meta.headingLevel = parsed.level;
                       // renameContainer writes nothing when neither the name, the level nor a
                       // placement label changed — and clears an op-written placement label.
-                      CommitHelpers.renameContainer({ dispatch, socket, module, occurrence: containerOccurrence, label: next, meta: parsed ? meta : undefined });
+                      CommitHelpers.renameContainer({ dispatch, socket, lookup: { getOcc: (id) => getOccMap()[id], getMod: (id) => modulesById?.[id] }, module, occurrence: containerOccurrence, label: next, meta: parsed ? meta : undefined });
                       // The hashes never stay in the text — they became the level.
                       if (parsed) e.currentTarget.textContent = next;
                     }}

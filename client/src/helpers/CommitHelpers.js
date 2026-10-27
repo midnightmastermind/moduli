@@ -193,17 +193,27 @@ export function renameFileTile({ dispatch, socket, module, occurrence, label }) 
 // `allowEmpty` — an unnamed container is legitimate (its header can show a bound field
 // instead); only a deliberate gesture (Container settings › Label) may clear the name.
 export function renameContainer(args) {
-  const { dispatch, socket, module, occurrence, label, allowEmpty = false } = args;
+  const { dispatch, socket, module, occurrence, label, allowEmpty = false, lookup = null } = args;
   const next = (label ?? "").trim();
   if ((!next && !allowEmpty) || !module?.id) return;
   // A page holding only this section, under the same name, is renamed with it (helpers/pageTwin).
-  const twin = occurrence?.id && next
-    ? pageTwin(occurrence, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) })
-    : null;
+  const twin = occurrence?.id && next ? pageTwin(occurrence, twinLookup(lookup)) : null;
   withAction("Renamed", () => {
     _renameContainer(args);
     if (twin) renameTwin({ dispatch, socket, twin, label: next });
   });
+}
+
+/**
+ * Row lookups for pageTwin: the caller's own maps first (`{ getOcc, getMod }`), then the main app's bridge. A reader
+ * window (ReaderApp, the headset's book windows) has its own store and never fills the bridge, so a section renamed
+ * there left its page — and the shelf book — on the old name (user, 2026-10-27).
+ */
+export function twinLookup(lookup) {
+  return {
+    getOcc: (id) => lookup?.getOcc?.(id) ?? operationsBridge.findOcc?.(id),
+    getMod: (id) => lookup?.getMod?.(id) ?? operationsBridge.getLocalMod?.(id),
+  };
 }
 
 /** Write a page twin's new name (helpers/pageTwin): its own label, else its module's. */

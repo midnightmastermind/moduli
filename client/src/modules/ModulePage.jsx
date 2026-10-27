@@ -5,7 +5,6 @@
 
 import { useDoubleTap } from "../hooks/useDoubleTap";
 import { pageTwin } from "../helpers/pageTwin";
-import { operationsBridge } from "../state/bindSocketToStore";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
@@ -431,13 +430,13 @@ function Page({
     if (!pageModule || editLabel === pageModule.label) return;
     // Its one section of the same name is renamed with it (helpers/pageTwin), one undo step.
     const twin = occurrence?.id && editLabel.trim()
-      ? pageTwin(occurrence, { getOcc: (id) => operationsBridge.findOcc?.(id), getMod: (id) => operationsBridge.getLocalMod?.(id) })
+      ? pageTwin(occurrence, CommitHelpers.twinLookup({ getOcc: (id) => getOccMap()[id], getMod: (id) => modulesById?.[id] }))
       : null;
     withAction("Renamed", () => {
       CommitHelpers.updateModule({ dispatch, socket, module: { ...pageModule, label: editLabel }, emit: true });
       if (twin) CommitHelpers.renameTwin({ dispatch, socket, twin, label: editLabel.trim() });
     });
-  }, [pageModule, editLabel, dispatch, socket, occurrence]);
+  }, [pageModule, editLabel, dispatch, socket, occurrence, getOccMap, modulesById]);
 
   // Delete page — the same delete as the file tree, folder cards and the headset shelf (helpers/confirmDeleteOccurrence):
   // out of every panel and list, undoable, its embeds removed.

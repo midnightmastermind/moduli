@@ -69,6 +69,10 @@ appointment thats the same with a diff date, i copy the original appointment, an
   `planFolderMove`, one undo step). **Select → Open N** opens each book in its own window side by side
   (`openItems`, `spawnPose`). Renaming a note: works on desktop in `?read=` (title double tap, section headings are
   click-to-edit); the headset case is not reproduced — asked the user what they see.
+- **A section renamed in a reader window now renames its page twin too** (`CommitHelpers.twinLookup`): `pageTwin` read
+  rows only through `operationsBridge`, which ReaderApp (the headset's book windows) never fills, so renaming "Uses"'s
+  heading there left the page — and the shelf book — on "Uses". ModuleContainer / ModulePage pass their own maps; the
+  bridge is the fallback. Test `renameTwinWithoutBridge`. The page itself renamed to match through `update_module`.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---
