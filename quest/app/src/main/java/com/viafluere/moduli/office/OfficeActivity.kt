@@ -248,6 +248,7 @@ class OfficeActivity : AppSystemActivity() {
     var overWhat: String? = null
     /** The drop target the controller aims at this frame ('up' / 'folder:<id>'), or null. */
     var aimWhat: String? = null
+    var aimLogAt = 0L
     var overSince = 0L
   }
 
@@ -994,6 +995,12 @@ class OfficeActivity : AppSystemActivity() {
     return if (b in t.carried) "here" else null
   }
 
+  /** Is a controller ray on `b`'s own spine (its slot on the shelf)? */
+  private fun aimingAt(t: Thing, b: Book): Boolean {
+    val l = aimLocal(t) ?: return false
+    return kotlin.math.abs(l[0] - b.slot.x) <= b.slot.w / 2f + 0.02f && kotlin.math.abs(l[1] - b.slot.y) <= b.slot.h / 2f + 0.03f
+  }
+
   /** Light the drop target on the shelf page (or clear it). */
   private fun showDrop(t: Thing, what: String?) {
     val show = what?.takeIf { it != "here" }?.removePrefix("folder:")
@@ -1011,6 +1018,11 @@ class OfficeActivity : AppSystemActivity() {
     val p = (b.shown ?: b.entity).tryGetComponent<Transform>()?.transform?.let { PoseMath.tOf(it) } ?: return
     b.aimWhat = aimTarget(t, b)
     showDrop(t, b.aimWhat)
+    if (now - b.aimLogAt > 500) {
+      b.aimLogAt = now
+      val a = aimLocal(t)
+      Log.i(TAG, "aim ${b.title}: ${a?.joinToString { "%.3f".format(it) } ?: "off the shelf"} size w=${"%.3f".format(size.w)} h=${"%.3f".format(size.h)} canUp=${t.canUp} up<=x ${"%.3f".format(-(size.w - 0.06f) / 2f + 0.14f)} -> ${b.aimWhat}")
+    }
     val l = shelfLocal(t, p)?.takeIf { overShelf(t, it) }
     val what = b.aimWhat ?: when {
       l == null -> null
@@ -1097,6 +1109,9 @@ class OfficeActivity : AppSystemActivity() {
               send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", targetId)
                   .put("edge", if (target.folder) "into" else if (before) "before" else "after"))
               Log.i(TAG, "${b.title} let go on ${target.title} (${if (target.folder) "into" else if (before) "before" else "after"})")
+            } else if (b.folder && b !in t.carried && aimingAt(t, b)) {
+              // Let go of a folder while pointing at it: open it (not re-file it where it already is).
+              activateBook(t, b)
             } else if (b in t.carried || b.folder) {
               // Let go on the shelf on no book — after carrying it into another folder (an empty one has no book to
               // drop on): it is filed where the shelf stands now.
@@ -1127,7 +1142,10 @@ class OfficeActivity : AppSystemActivity() {
               t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
               // A folder book pulled off the shelf goes back: a folder opens with a tap, not a pull (a pull meant to
               // move it opened it and left the shelf inside an empty folder — "the shelf crashed", 2026-10-27).
-              b.folder -> Log.i(TAG, "${b.title} put back (a folder opens with a tap)")
+              // Let go while still pointing at itself: open it, however long it was held (user, 2026-10-27: "i
+              // also cant drill into folders anymore" — a 0.35s tap was the only way in).
+              b.folder && aimingAt(t, b) -> activateBook(t, b)
+              b.folder -> Log.i(TAG, "${b.title} put back (pointed away from it)")
               else -> activateBook(t, b, near = p)
             }
           } else if (atRest && now - b.grabbedAt < BOOK_TAP_MS) activateBook(t, b)
