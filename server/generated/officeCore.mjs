@@ -1458,7 +1458,7 @@ function bookmarkBar({ occurrencesById, modulesById }) {
   }
   return out;
 }
-function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, shelfAt = {}, origin = "" }, pageLabel = null) {
+function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, shelfAt = {}, origin = "" }, pageLabel = null, only = null) {
   pageLabel = pageLabel || ((id) => {
     const o = occurrencesById?.[id];
     return o ? o.label || modulesById?.[o.moduleId]?.label || "Page" : null;
@@ -1479,31 +1479,34 @@ function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, sh
     album: !!i.album,
     mini: !!i.mini
   });
+  const wanted = Array.isArray(only) && only.length ? new Set(only) : null;
+  const shelves = (wanted ? office.shelves.filter((s) => wanted.has(s.id)) : office.shelves).map((s) => {
+    const at2 = shelfAt[s.id];
+    if (typeof at2 === "string" && at2.startsWith("album:")) {
+      const albumId = at2.slice(6).split("|")[0];
+      const album = occurrencesById?.[albumId];
+      const title = album ? occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album" : "Album";
+      const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, void 0, { sensitivity: "base" }));
+      const prev = at2.split("|")[1] || "";
+      const artist = prev.startsWith("artist:") ? [prev.slice(7)] : [];
+      return { id: s.id, title: s.title, asset: s.asset, items: songs.map(wire), path: [s.title, ...artist, title], canUp: true };
+    }
+    if (s.folderId) {
+      const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
+      return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
+    }
+    if (s.asset === "record") {
+      const v = musicShelfView(s, at2, ctx);
+      return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path, canUp: v.canUp };
+    }
+    return { id: s.id, title: s.title, asset: s.asset, items: shelfItems(s, ctx).map(wire), path: [], canUp: false };
+  });
+  if (wanted) return { type: "state", partial: true, gridId: String(grid?._id || grid?.id || ""), origin, shelves };
   return {
     type: "state",
     gridId: String(grid?._id || grid?.id || ""),
     origin,
-    shelves: office.shelves.map((s) => {
-      const at2 = shelfAt[s.id];
-      if (typeof at2 === "string" && at2.startsWith("album:")) {
-        const albumId = at2.slice(6).split("|")[0];
-        const album = occurrencesById?.[albumId];
-        const title = album ? occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album" : "Album";
-        const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, void 0, { sensitivity: "base" }));
-        const prev = at2.split("|")[1] || "";
-        const artist = prev.startsWith("artist:") ? [prev.slice(7)] : [];
-        return { id: s.id, title: s.title, asset: s.asset, items: songs.map(wire), path: [s.title, ...artist, title], canUp: true };
-      }
-      if (s.folderId) {
-        const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
-        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
-      }
-      if (s.asset === "record") {
-        const v = musicShelfView(s, at2, ctx);
-        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path, canUp: v.canUp };
-      }
-      return { id: s.id, title: s.title, asset: s.asset, items: shelfItems(s, ctx).map(wire), path: [], canUp: false };
-    }),
+    shelves,
     screens: office.screens.map((s) => ({
       id: s.id,
       source: s.source,
@@ -1544,6 +1547,10 @@ function planShelfReorder({ shelf, at: at2, id, targetId, edge }, { occurrencesB
   const here = folderShelfView(shelf.folderId, at2, ctx).at || shelf.folderId;
   const pagesIn = (folderId) => Object.values(occurrencesById).filter((o) => o?.parentId === folderId && o.id !== id && ["page", "artifact"].includes(modulesById?.[o.moduleId]?.role) && modulesById?.[o.moduleId]?.kind !== "folder");
   if (edge === "end") return [{ id, folder: here, sortOrder: sortOrderAtEnd(pagesIn(here)) }];
+  if (edge === "up") {
+    const up = here !== shelf.folderId ? foldersById?.[here]?.parentId : null;
+    return up ? [{ id, folder: up, sortOrder: sortOrderAtEnd(pagesIn(up)) }] : [];
+  }
   if (String(targetId || "").startsWith("folder:")) {
     const dest = String(targetId).slice(7);
     return [{ id, folder: dest, sortOrder: sortOrderAtEnd(pagesIn(dest)) }];

@@ -3,7 +3,7 @@
 // there, and then move the folder to a diff place in the tree").
 import { describe, it, expect } from "vitest";
 import { folderShelfView } from "../vr/shelfItems.js";
-import { planFolderMove, planShelfReorder } from "../vr/officeState.js";
+import { planFolderMove, planShelfReorder, nativeOfficeState } from "../vr/officeState.js";
 
 const foldersById = {
   root: { id: "root", name: "Documents", parentId: "top" },
@@ -42,5 +42,34 @@ describe("planFolderMove", () => {
   it("never moves a folder into itself or a folder inside it", () => {
     expect(planFolderMove({ shelf, at: "a", id: "folder:a", targetId: "", edge: "end" }, ctx)).toBeNull();
     expect(planFolderMove({ shelf, at: "a", id: "folder:a", targetId: "folder:a1", edge: "into" }, ctx)).toBeNull();
+  });
+});
+
+describe("up a level (let go on the shelf's ⬆)", () => {
+  it("a book goes to the folder above where the shelf stands", () => {
+    const occ = { ...occurrencesById, n2: { id: "n2", moduleId: "m", parentId: "a1", sortOrder: 0 } };
+    expect(planShelfReorder({ shelf, at: "a1", id: "n2", targetId: "", edge: "up" }, { ...ctx, occurrencesById: occ }))
+      .toEqual([{ id: "n2", folder: "a", sortOrder: expect.any(Number) }]);
+  });
+  it("a folder goes to the folder above", () => {
+    expect(planFolderMove({ shelf, at: "a", id: "folder:a1", targetId: "", edge: "up" }, ctx).parentId).toBe("root");
+  });
+  it("nothing goes above the shelf's own folder", () => {
+    expect(planShelfReorder({ shelf, at: null, id: "n", targetId: "", edge: "up" }, ctx)).toEqual([]);
+    expect(planFolderMove({ shelf, at: null, id: "folder:a", targetId: "", edge: "up" }, ctx)).toBeNull();
+  });
+});
+
+describe("one shelf's state", () => {
+  const grid = { id: "g", meta: { vrOffice: { shelves: [
+    { id: "s", title: "Docs", asset: "book", folderId: "root" },
+    { id: "t", title: "Other", asset: "book", folderId: "a" },
+  ], screens: [] } } };
+  it("answers just the shelves asked for", () => {
+    const part = nativeOfficeState({ grid, ...ctx }, null, ["s"]);
+    expect(part.partial).toBe(true);
+    expect(part.shelves.map((x) => x.id)).toEqual(["s"]);
+    expect(part.screens).toBeUndefined();
+    expect(nativeOfficeState({ grid, ...ctx }).shelves.map((x) => x.id)).toEqual(["s", "t"]);
   });
 });

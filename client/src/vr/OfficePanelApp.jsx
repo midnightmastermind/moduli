@@ -41,10 +41,15 @@ export default function OfficePanelApp() {
   // asking again after a reload still gets it.
   const lastState = useRef(null);
   const remote = useMemo(() => ({
-    state: (shelfAt) => postJson("/api/v1/vr/office/state", {
-      gridId, shelfAt, origin: window.location.origin, hash: lastState.current?.hash || null,
+    // `only` (shelf ids): just those shelves, for a change on one shelf (a small answer, not the whole office).
+    state: (shelfAt, only = null) => postJson("/api/v1/vr/office/state", {
+      gridId, shelfAt, origin: window.location.origin, hash: only ? null : (lastState.current?.hash || null), only,
     }).then((st) => {
       if (st?.unchanged) return lastState.current;
+      if (st?.partial) {
+        if (Array.isArray(st.folders)) setFolders(st.folders);
+        return st;
+      }
       lastState.current = st;
       if (st?.grid) setGrid((g) => (g && JSON.stringify(g.meta) === JSON.stringify(st.grid.meta) ? g : st.grid));
       if (Array.isArray(st?.folders)) setFolders(st.folders);

@@ -934,6 +934,12 @@ class OfficeActivity : AppSystemActivity() {
     return floatArrayOf(l[0] / s, l[1] / s, l[2] / s)
   }
 
+  /** Is a point (shelf frame) over the header's ⬆ (the shelf is inside a folder)? */
+  private fun overUp(t: Thing, l: FloatArray): Boolean {
+    val size = t.shelfSize ?: return false
+    return t.canUp && l[1] >= size.h && l[0] <= -(size.w - 0.06f) / 2f + 0.14f
+  }
+
   /** Is a point (shelf frame) at the front of the shelf, over its books or its header? */
   private fun overShelf(t: Thing, l: FloatArray): Boolean {
     val size = t.shelfSize ?: return false
@@ -962,7 +968,7 @@ class OfficeActivity : AppSystemActivity() {
     val l = shelfLocal(t, p)?.takeIf { overShelf(t, it) }
     val what = when {
       l == null -> null
-      t.canUp && l[1] >= size.h && l[0] <= -(size.w - 0.06f) / 2f + 0.14f -> "up"
+      overUp(t, l) -> "up"
       else -> bookAt(t, l, except = b)?.first?.takeIf { it.folder }?.let { "folder:" + it.itemId }
     }
     if (what != b.overWhat) { b.overWhat = what; b.overSince = now; return }
@@ -1024,7 +1030,11 @@ class OfficeActivity : AppSystemActivity() {
           if (onShelf != null) {
             val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
             val hit = bookAt(t, onShelf, except = b)
-            if (hit != null) {
+            if (overUp(t, onShelf)) {
+              // Let go on the ⬆: one level up (user, 2026-10-27: "move the folder or book up a level").
+              send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "up"))
+              Log.i(TAG, "${b.title} let go on ⬆: up a level")
+            } else if (hit != null) {
               val (target, before) = hit
               val targetId = if (target.folder) target.itemId else itemField(t, target.itemId, "rowId").ifEmpty { target.itemId }
               // A folder book moves the folder (control panel: into a folder book, else to where the shelf stands).
@@ -1059,6 +1069,9 @@ class OfficeActivity : AppSystemActivity() {
               // A song's mini record does something only on a record player; let go anywhere else, it goes back.
               b.mini -> Log.i(TAG, "${b.title} put back (not on a record player)")
               t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
+              // A folder book pulled off the shelf goes back: a folder opens with a tap, not a pull (a pull meant to
+              // move it opened it and left the shelf inside an empty folder — "the shelf crashed", 2026-10-27).
+              b.folder -> Log.i(TAG, "${b.title} put back (a folder opens with a tap)")
               else -> activateBook(t, b, near = p)
             }
           } else if (atRest && now - b.grabbedAt < BOOK_TAP_MS) activateBook(t, b)

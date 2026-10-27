@@ -100,7 +100,7 @@ object PanelHtml {
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>
 <script>$BRIDGE
-  var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")};
+  var items=$data, rects=$rects, asset=${js(asset)}, key=${js("shelf:$id")}, FOLDERABLE=${shelf.optBoolean("folderable")}, CANUP=$canUp;
   // A new folder where the shelf stands: a name box (no prompt — a web prompt never shows inside a headset panel).
   function newFolder(){ var b=document.getElementById('nfbox'); b.style.display=b.style.display==='none'?'inline':'none'; if(b.style.display!=='none') document.getElementById('nf').focus(); }
   function addFolder(){ var i=document.getElementById('nf'); var n=(i.value||'').trim(); if(!n) return; send({type:'newFolder',key:key,name:n}); i.value=''; document.getElementById('nfbox').style.display='none'; }
@@ -141,7 +141,7 @@ object PanelHtml {
   function draw(){
     var box=document.getElementById('rows'); box.innerHTML=''; nodes={};
     document.getElementById('pg').textContent=(q?items.length.toLocaleString()+' of '+all.length.toLocaleString():items.length.toLocaleString())+' · page '+(page+1)+' of '+pages;
-    if(!items.length){box.innerHTML='<div id="empty">'+(q?'Nothing here matches “'+q.replace(/</g,'&lt;')+'”.':'Press ⚙ to choose what this shelf holds.')+'</div>';return;}
+    if(!items.length){box.innerHTML='<div id="empty">'+(q?'Nothing here matches “'+q.replace(/</g,'&lt;')+'”.':(FOLDERABLE&&CANUP?'This folder is empty. Drop a book here, ＋📝 for a note, or ⬆ to go back.':'Press ⚙ to choose what this shelf holds.'))+'</div>';return;}
     items.slice(page*per,page*per+per).forEach(function(it,i){
       var r=rects[i], d=document.createElement('div'); nodes[it.id]=d; look(it.id);
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';

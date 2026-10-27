@@ -166,12 +166,27 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
   const [extra, setExtra] = useState(null);
   const extraRef = useRef(null);
   const stateSeq = useRef(0);
-  const sendState = useCallback(() => {
+  // The last whole state sent (remote): a one-shelf answer is merged into it.
+  const fullMsg = useRef(null);
+  const sendState = useCallback((only = null) => {
     if (remote) {
-      const seq = ++stateSeq.current;
-      remote.state(live.current.shelfAt).then((st) => {
-        if (!st || seq !== stateSeq.current) return;
+      // A one-shelf ask does not cancel a whole one in flight (it would drop the other shelves' news).
+      const partial = Array.isArray(only) && only.length && fullMsg.current;
+      const seq = partial ? stateSeq.current : ++stateSeq.current;
+      remote.state(live.current.shelfAt, partial ? only : null).then((st) => {
+        if (!st) return;
+        if (st.partial) {
+          const base = fullMsg.current;
+          if (!base) return;
+          const merged = { ...base, shelves: base.shelves.map((x) => st.shelves.find((y) => y.id === x.id) || x) };
+          fullMsg.current = merged;
+          lastSent.current = JSON.stringify(merged);
+          post(merged);
+          return;
+        }
+        if (seq !== stateSeq.current) return;
         const { dayPageId, notesFolderId, bookmarksBoardId, grid: _g, folders: _f, hash: _h, ...msg } = st;
+        fullMsg.current = msg;
         extraRef.current = { dayPageId, notesFolderId, bookmarksBoardId, decor: msg.decor };
         setExtra(extraRef.current);
         const json = JSON.stringify(msg);
@@ -187,8 +202,21 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
     lastSent.current = json;
     post(msg);
   }, [pageLabel, remote]);
-  const officeKey = JSON.stringify(office) + JSON.stringify(shelfAt);
-  useEffect(() => { sendState(); }, [officeKey, sendState]);
+  // The office's settings changed: everything. Only where a shelf stands changed (a folder opened, ⬆): that shelf.
+  const officeJson = JSON.stringify(office);
+  const shelfAtJson = JSON.stringify(shelfAt);
+  const prevKeys = useRef(null);
+  useEffect(() => {
+    const prev = prevKeys.current;
+    prevKeys.current = { office: officeJson, shelfAt };
+    if (prev && prev.office === officeJson) {
+      const ids = [...new Set([...Object.keys(prev.shelfAt || {}), ...Object.keys(shelfAt || {})])]
+        .filter((id) => (prev.shelfAt || {})[id] !== (shelfAt || {})[id]);
+      if (ids.length) { sendState(ids); return; }
+    }
+    sendState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [officeJson, shelfAtJson, sendState]);
   const lastRows = useRef(0);
   const lastCount = useRef(0);
   const lastIds = useRef(null);
@@ -273,7 +301,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const at = shelfId ? L.shelfAt[shelfId] : null;
           const inFolder = shelf?.folderId ? (typeof at === "string" && at && !at.includes(":") ? at : shelf.folderId) : null;
           const id = newNotePage(L, inFolder);
-          if (inFolder) setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
+          if (inFolder) setTimeout(() => { lastSent.current = ""; sendState([shelfId]); }, 350);
           if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
         }
         else if (e?.type === "albumQueue") {
@@ -300,7 +328,7 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           createFolder({ dispatch: L.dispatch, socket, emit: true, folder: {
             id: crypto.randomUUID(), name, parentId, gridId: L.gridId, userId: L.grid?.userId || localStorage.getItem("moduli-userId"), folderType: "normal",
           } });
-          setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
+          setTimeout(() => { lastSent.current = ""; sendState([shelfId]); }, 350);
         }
         else if (e?.type === "openFolder" || e?.type === "shelfUp") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
@@ -331,14 +359,14 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
             withAction("Moved on shelf", () => {
               for (const m of moves || []) movePage({ dispatch: L.dispatch, socket, pageOccurrenceId: m.id, targetFolderId: m.folder, sortOrder: m.sortOrder });
             });
-            setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+            setTimeout(() => { lastSent.current = ""; sendState([shelfId]); }, 350);
           };
           const ask = { shelfId, at: L.shelfAt[shelfId], id: e.id, targetId: e.targetId, edge: e.edge };
           // A folder book: the folder itself moves (into another folder book, or to where the shelf stands).
           if (String(e.id || "").startsWith("folder:")) {
             const moved = planFolderMove({ ...ask, shelf }, L);
             if (moved) withAction("Moved folder on shelf", () => updateFolder({ dispatch: L.dispatch, socket, folder: moved }));
-            setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+            setTimeout(() => { lastSent.current = ""; sendState([shelfId]); }, 350);
             return;
           }
           if (remote) remote.plan("shelfReorder", ask).then((r) => apply(r?.moves));

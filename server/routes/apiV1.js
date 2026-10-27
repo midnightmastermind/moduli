@@ -1514,6 +1514,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         occurrencesById: { ...uc.occurrencesById }, modulesById: { ...uc.modulesById }, foldersById: { ...uc.foldersById },
         shelfAt: shelfAt && typeof shelfAt === "object" ? shelfAt : {}, origin: String(origin || ""),
       };
+      // `only`: the shelves one change touched (a folder made or opened, a book moved) — just those, and no fingerprint.
+      const only = Array.isArray(req.body?.only) ? req.body.only.map(String).slice(0, 50) : null;
+      if (only?.length) {
+        const part = core.nativeOfficeState(ctx, null, only);
+        return res.json({ ...part, folders: Object.values(ctx.foldersById) });
+      }
       const state = core.nativeOfficeState(ctx);
       const body = {
         ...state,
