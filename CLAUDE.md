@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-27 (2) — THE HEADSET'S GRID SCREEN WAS REWRITING THE DESKTOP'S LAYOUT; the user's layout is a snap pick
+
+User: the desktop's 2 columns (Routines | Tasks over Trackers, Schedule right) *"keeps changing to a 2 by 2 grid"*.
+The stored `meta.layoutTree` was a 2x2 written by a headset window (the grid screen lays the grid out for its own
+screen). Picked up from account2 (session limit mid-restore). A window with `window.ModuliNative` now keeps panel
+pages local and sends grid writes with `keepLayout`; the server (`utils/gridLayoutKeys.withStoredLayout`) keeps the
+stored layout keys and applies the rest. The stored tree was put back (ratio 2:1), pm2 restarted. A desktop that
+saved the 2x2 in its own localStorage (`helpers/windowLayout`) keeps it until rearranged once. And the layout is now
+the first snap-bar pick for 4 panels (`mosaicSnap` USER_LAYOUTS, *"that layout should be one of the suggested
+layouts"*). Also committed: the PC screen's page at 1200 dp/m (Remote Desktop cut off), **not yet confirmed on the
+headset**.
+
+---
+
 ### 2026-10-27 — A COPY-LINK SHARES EVERY FIELD; slots are plain copies; appointments are copy-linked into their start slot
 
 User (account2's session, finished here): *"copylink should always share the same fields and values"* · *"the
