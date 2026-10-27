@@ -30,7 +30,7 @@ appointment thats the same with a diff date, i copy the original appointment, an
   feed copy, not `meta.datedWork`) into that day's slot for its Time Slot — START slot only, so trackers count it once.
   The copy carries `meta.datedWork`; the sweep DELETES such a copy whose original moved, and UNLISTS an original the
   old op listed in a slot it is not homed in. onChange Date added. Builder runs the same transform
-  (`copyLinkAppointments`). An appointment HOMED in a slot (Keith's Oct 26 follow-up is) is left as it is.
+  (`copyLinkAppointments`). The 15 appointments that were HOMED in a slot (weekly PT + "Appointment" series, both Keith) were moved to Tasks › Appointments by **`0448`** (user's pick); each gets its linked copy when its day is on screen. Deleting a Schedule copy stays non-lasting and Tasks rows keep their own drag mode (user).
 - Tests: `placeDatedWork.behavioral` (21; 9 fail on the old op), `scheduleSlotsArePlainCopies`,
   `linkedContainersCarryNoDate`, `linkedFanSharesAllFields`. Client 6,818 / server 3,250 pass (known failures only).
 - **Due-date tasks stay as they are** (user, after weighing copy-links): the task itself is listed in each outstanding day's Todo, so a tick anywhere completes it and trackers count it once.
