@@ -1816,6 +1816,7 @@ class OfficeActivity : AppSystemActivity() {
       for ((id, h) in readerHandles) { h.update(head); if (h.held) heldReader = id }
       showMenus()
       placeMenuButtons()
+      animateFlames()
       ghostSeats(head)
       updateBooks()
 
@@ -1911,6 +1912,7 @@ class OfficeActivity : AppSystemActivity() {
     for (h in readerHandles.values) owned += h.entity.id
     // The VR apartment's sky is the room's, not a piece's (RoomAnchor).
     if (::room.isInitialized) room.skyEntityId?.let { owned += it }
+    for (f in flames) owned += f.id
     for (e in Query.where { has(Mesh.id) }.eval()) {
       val uri = e.tryGetComponent<Mesh>()?.mesh?.toString() ?: continue
       if (!uri.startsWith("apk:///office/") || e.id in owned) continue
@@ -2287,6 +2289,41 @@ class OfficeActivity : AppSystemActivity() {
   }
 
   /** Puts each shown ⚙ and 🗑 beside its bar (see gearButton for why they are not parented to it). */
+  // ── The fireplace's moving fire (user, 2026-10-27: "id like a fireplace that moves") ────────────────────────────
+  /** Five flames across the firebox: model (flame-0..2, quest/tools/flames.py), x, depth, size, phase. */
+  private val FLAME_LAYOUT = listOf(
+      floatArrayOf(0f, 0f, -0.1f, 1f, 0f), floatArrayOf(1f, -0.12f, -0.11f, 0.95f, 1.7f), floatArrayOf(1f, 0.12f, -0.11f, 0.9f, 3.1f),
+      floatArrayOf(2f, -0.21f, -0.12f, 0.8f, 4.4f), floatArrayOf(2f, 0.2f, -0.12f, 0.85f, 5.6f),
+  )
+  /** The firebox floor and where the flames stand (fireplace model frame, quest/tools/realFurniture.mjs). */
+  private val FLAME_BASE_Y = 0.17f
+  private val flames = ArrayList<Entity>()
+  private var flameParent: Entity? = null
+
+  /** Keeps the flames in the fireplace and makes each flicker and sway, every frame. */
+  private fun animateFlames() {
+    val fp = things["fireplace"]?.frame
+    if (fp !== flameParent) {
+      for (f in flames) f.destroy(); flames.clear(); flameParent = fp
+      if (fp != null) for (l in FLAME_LAYOUT) flames += Entity.create(listOf(
+          Mesh(Uri.parse("apk:///office/flame-${l[0].toInt()}.glb"), hittable = MeshCollision.NoCollision),
+          Transform(Pose(Vector3(l[1], FLAME_BASE_Y, l[2]))),
+          Scale(Vector3(l[3], l[3], 1f)),
+          TransformParent(fp),
+      ))
+    }
+    if (flames.isEmpty()) return
+    val t = System.nanoTime() / 1e9f
+    for ((i, f) in flames.withIndex()) {
+      val l = FLAME_LAYOUT[i]; val p = l[4]
+      val sy = 1f + 0.22f * kotlin.math.sin(t * 7.3f + p) + 0.1f * kotlin.math.sin(t * 13.1f + p * 2f) + 0.05f * kotlin.math.sin(t * 23f + p * 3f)
+      val sx = 1f + 0.08f * kotlin.math.sin(t * 5.1f + p * 1.3f)
+      val sway = 0.012f * kotlin.math.sin(t * 3.7f + p)
+      f.setComponent(Scale(Vector3(l[3] * sx, l[3] * sy, 1f)))
+      f.setComponent(Transform(Pose(Vector3(l[1] + sway, FLAME_BASE_Y, l[2]))))
+    }
+  }
+
   private fun placeMenuButtons() {
     val now = System.currentTimeMillis()
     for (t in things.values) {

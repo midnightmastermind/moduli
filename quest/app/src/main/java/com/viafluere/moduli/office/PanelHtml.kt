@@ -98,7 +98,18 @@ object PanelHtml {
   #nf{font-size:2.2vh;width:14vw;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   #q{font-size:2.2vh;width:16vw;min-width:0;padding:.3vh .8vw;border-radius:.8vh;border:1px solid #a88;background:#1e140c;color:#f4e9d8}
   button.danger{background:#8a2020;border-color:#f99}
-</style></head><body>
+  /* Book shelves: real-looking spines (user, 2026-10-27: the books looked flat). A rounded spine (light along one
+     edge, dark at the sides), a faint leather grain, two gilt bands, and the title in gold running down the spine;
+     books stand a little taller or shorter than each other. Records and tapes are unchanged. */
+  body.bk .it{align-items:center;border-radius:.3vh .7vh .7vh .3vh;box-shadow:.25vh 0 .6vh rgba(0,0,0,.65),inset 0 0 0 .12vh rgba(0,0,0,.35)}
+  body.bk .it:before{content:'';position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(0,0,0,.5) 0%,rgba(255,255,255,.2) 16%,rgba(255,255,255,.06) 34%,rgba(0,0,0,.06) 68%,rgba(0,0,0,.55) 100%),
+                 repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 .25vh,rgba(0,0,0,.035) .25vh .5vh)}
+  body.bk .it em{position:absolute;left:6%;right:6%;height:.45vh;border-top:.2vh solid #c9a24a;border-bottom:.2vh solid #c9a24a;pointer-events:none}
+  body.bk .it em.t{top:7%} body.bk .it em.b{bottom:7%}
+  body.bk .it span{writing-mode:vertical-rl;width:auto;max-height:72%;background:rgba(0,0,0,.28);color:#ecd9a6;
+      font:600 .95vh/1.1 Georgia,serif;letter-spacing:.05vh;text-shadow:0 0 .25vh #000;padding:.4vh .15vh;border-radius:.3vh;position:relative}
+</style></head><body${if (asset == "book") " class=\"bk\"" else ""}>
 <div id="head">${if (canUp) """<button id="upb" onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <input id="q" placeholder="🔍 Search" oninput="search()">
@@ -170,6 +181,9 @@ object PanelHtml {
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';
       d.style.backgroundColor=asset==='vhs' ? '#151515' : colors[hash(it.t)%colors.length];
       if(it.c) d.style.backgroundImage='url("'+it.c.replace(/"/g,'%22')+'")';
+      // A book shelf: books of slightly different heights, standing on the shelf, with gilt bands on the spine.
+      if(asset==='book'&&!it.f){ d.style.height=(r[3]*(0.86+0.14*((hash(it.t)>>3)%8)/7))+'%';
+        var t=document.createElement('em'); t.className='t'; d.appendChild(t); var b=document.createElement('em'); b.className='b'; d.appendChild(b); }
       var s=document.createElement('span'); s.textContent=it.t; d.appendChild(s);
       if(it.f){var c=document.createElement('i'); c.textContent=it.n; d.appendChild(c);}
       d.onclick=function(){ if(selecting) return tapItem(it.id);
