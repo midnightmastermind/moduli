@@ -1,7 +1,6 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import { bumpChangedFieldTimestamps } from "../utils/fieldTimestamps.js";
 import { setMaxListeners } from "node:events";
-import { withoutPerPlacementFields } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
@@ -685,18 +684,18 @@ export function registerOccurrenceHandlers(socket, {
         });
       }
 
-      // Propagate to copy-linked occurrences — EXCEPT the fields the grid
-      // FILTERS on, which are per-PLACEMENT and must be free to differ.
-      //
-      // Sharing them is what put a Todo copy in the "Wednesday, August 26th"
-      // column carrying a Date of 2026-08-29, and what re-dates the template's
-      // copy-link SOURCE every morning so `0145`/`0271` keep having to clear
-      // the same occurrence. See utils/filterFields.js for the measurement.
+      // Propagate to copy-linked occurrences: a copy-link group shares every
+      // field and value, Date included. Until 2026-10-27 Date and Time Slot were
+      // held back, because Schedule slot and Todo copies carried a Date and a
+      // shared one hid them on every other day; those dates are cleared (0445)
+      // and slots take their day from the day column above them.
       if (next.linkedGroupId) {
         const linkedOccs = Object.values(uc.occurrencesById || {}).filter(
           o => o.linkedGroupId === next.linkedGroupId && o.id !== id
         );
-        const fanFields = withoutPerPlacementFields(occurrence.fields, uc.filterFieldIds, uc.placementFieldIds);
+        // A copy-link group shares EVERY field and value (user, 2026-10-27). Slots and
+        // the Todo carry no Date of their own — the day column above them does.
+        const fanFields = occurrence.fields;
         for (const linked of linkedOccs) {
           const patch = {};
           if (fanFields && Object.keys(fanFields).length > 0) {

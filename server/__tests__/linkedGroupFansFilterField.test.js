@@ -82,14 +82,14 @@ describe("update_occurrence fan-out across a copy-link group", () => {
     }
     uc = {
       occurrencesById: Object.fromEntries([...db.occurrences].map(([k, v]) => [k, { ...v }])),
-      modulesById: {}, viewsById: {}, foldersById: {}, manifestsById: {},
+      modulesById: { "mod-todo": { id: "mod-todo", role: "container" } }, viewsById: {}, foldersById: {}, manifestsById: {},
       fieldsById: {}, operationsById: {}, gridsById: {},
       // What `state.js` derives from the grid document at load, so the write
       // path never queries for it.
-      filterFieldIds: new Set([DATE]),
+
       // What `state.js` derives from the stored PIPELINES: a field an operation
       // stamps from the destination container is per-placement too.
-      placementFieldIds: new Set([SLOT]),
+
     };
     socket = {
       id: "s1", userId: "u1", data: { activeGridId: "g1" },
@@ -105,97 +105,36 @@ describe("update_occurrence fan-out across a copy-link group", () => {
     registerOccurrenceHandlers(socket, { io: { to: () => ({ emit: () => {} }), sockets: { adapter: { rooms: new Map() } } }, ...deps });
   });
 
-  it("CONTROL: the fan-out works at all — shared state reaches every member", () => {
-    // Without this the test below cannot distinguish "the date is excluded"
-    // from "nothing propagates", which would make the whole file vacuous.
-    return fire("update_occurrence")({
+  // A COPY-LINK GROUP SHARES EVERY FIELD AND VALUE (user, 2026-10-27): "copylink
+  // should always share the same fields and values". Until then Date and Time
+  // Slot were held back because Schedule slot / Todo copies carried a Date; those
+  // dates are cleared (0429) and a slot's day comes from its day column.
+  it("shares an ordinary field with every member", async () => {
+    await fire("update_occurrence")({
       occurrence: { id: "todo-aug29", fields: { [DONE]: { value: true, flow: "replace" } } },
-    }).then(() => {
-      expect(val("todo-src", DONE)).toBe(true);
-      expect(val("todo-aug26", DONE)).toBe(true);
     });
+    expect(val("todo-src", DONE)).toBe(true);
+    expect(val("todo-aug26", DONE)).toBe(true);
   });
 
-  it("THE DEFECT: a Date written on one member overwrites every other member's", async () => {
-    expect(val("todo-aug26", DATE)).toBe("2026-08-26");   // before: correct for its column
-    await fire("update_occurrence")({
-      occurrence: { id: "todo-aug29", fields: { [DATE]: { value: "2026-08-29", flow: "replace" } } },
-    });
-    // The Aug-26 copy now claims to be an Aug-29 row — the exact live shape.
-    expect(val("todo-aug26", DATE)).toBe("2026-08-26");
-  });
-
-  it("THE RECURRENCE: the fan-out re-dates the copy-link SOURCE that 0145/0271 clear", async () => {
-    await fire("update_occurrence")({
-      occurrence: { id: "todo-aug29", fields: { [DATE]: { value: "2026-08-29", flow: "replace" } } },
-    });
-    // A dated source stamps every copy it ever mints — `dated-copy-link-source`.
-    expect(val("todo-src", DATE)).toBe("2026-08-26");
-  });
-
-  it("a non-filter field on the same write still reaches everyone", async () => {
-    // The fix must be narrow: only the fields the grid FILTERS on are
-    // per-placement. Everything else is what the feature is for.
+  it("shares the Date and the Time Slot too", async () => {
     await fire("update_occurrence")({
       occurrence: { id: "todo-aug29", fields: {
-        [DATE]: { value: "2026-08-29", flow: "replace" },
-        [DONE]: { value: true, flow: "replace" },
+        [DATE]: { value: "2026-11-02", flow: "replace" },
+        [SLOT]: { value: "3:00pm", flow: "replace" },
       } },
     });
-    expect(val("todo-aug26", DONE)).toBe(true);
-    expect(val("todo-aug26", DATE)).toBe("2026-08-26");
+    expect(val("todo-src", DATE)).toBe("2026-11-02");
+    expect(val("todo-aug26", DATE)).toBe("2026-11-02");
+    expect(val("todo-aug26", SLOT)).toBe("3:00pm");
   });
 
-  it("FAILS OPEN: with no known filter fields it behaves exactly as before", async () => {
-    // The direction of the failure is a decision. A cache that has not been
-    // populated yet must not silently stop a copy-link group sharing state —
-    // that is a worse failure than the one being fixed, and it would be
-    // invisible. So an unknown set propagates everything, as it always did.
-    uc.filterFieldIds = undefined;
+  it("an unlinked row is not touched", async () => {
+    db.occurrences.set("other", { id: "other", userId: "u1", gridId: "g1", fields: {} });
+    uc.occurrencesById.other = { id: "other", userId: "u1", gridId: "g1", fields: {} };
     await fire("update_occurrence")({
-      occurrence: { id: "todo-aug29", fields: { [DATE]: { value: "2026-08-29", flow: "replace" } } },
+      occurrence: { id: "todo-aug29", fields: { [DATE]: { value: "2026-11-02", flow: "replace" } } },
     });
-    expect(val("todo-aug26", DATE)).toBe("2026-08-29");
-  });
-
-  it("a write carrying ONLY filter fields propagates nothing rather than an empty patch", async () => {
-    const before = { ...db.occurrences.get("todo-aug26").fields };
-    await fire("update_occurrence")({
-      occurrence: { id: "todo-aug29", fields: { [DATE]: { value: "2030-01-01", flow: "replace" } } },
-    });
-    expect(db.occurrences.get("todo-aug26").fields).toEqual(before);
-    expect(val("todo-aug29", DATE)).toBe("2030-01-01");   // the sender still writes
-  });
-
-
-// ── The second kind of per-placement field (2026-09-06) ─────────────────────
-//
-// `Time Slot` decides which SLOT a row sits in — the filter fields' argument
-// one level down — and it was still being shared. All eight members of the
-// Todo group were nulled within five seconds at the day rollover, twice in one
-// day, because one member's write reached the rest INCLUDING the master, whose
-// value is its identity: `Schedule: Build Schedule` FINDs the Todo container BY
-// `fields.<Time Slot>.value IS "Todo"`.
-
-  it("does NOT fan a Time Slot write across the group", async () => {
-    await handlers.get("update_occurrence")[0]({
-      occurrence: { id: "todo-aug26", fields: { [SLOT]: { value: null, flow: "replace" } } },
-    });
-    // The master keeps its identity marker — the thing that was being erased.
-    expect(uc.occurrencesById["todo-src"].fields[SLOT].value).toBe("Todo");
-    expect(uc.occurrencesById["todo-aug29"].fields[SLOT].value).toBe("Todo");
-  });
-
-  it("still fans an ordinary field on the same write", async () => {
-    // THE CONTROL. Without it, "Time Slot does not fan" is also satisfied by a
-    // fan-out that has stopped working — which is the feature, not the fix.
-    await handlers.get("update_occurrence")[0]({
-      occurrence: { id: "todo-aug26", fields: {
-        [SLOT]: { value: null, flow: "replace" },
-        [DONE]: { value: true, flow: "replace" },
-      }},
-    });
-    expect(uc.occurrencesById["todo-src"].fields[SLOT].value).toBe("Todo");
-    expect(uc.occurrencesById["todo-src"].fields[DONE].value).toBe(true);
+    expect(val("other", DATE)).toBeUndefined();
   });
 });

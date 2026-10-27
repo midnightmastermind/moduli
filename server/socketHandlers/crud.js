@@ -1,7 +1,6 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import { setMaxListeners } from "node:events";
-import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
 import { refusedDuplicateCreates, refusedByStoredSiblings, adoptableHolders } from "../utils/duplicateSignature.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
@@ -96,24 +95,6 @@ export function registerCrudHandlers(socket, {
   async function writeGridPatch(gridId, patch) {
     const updated = await Grid.findOneAndUpdate({ _id: gridId, userId }, patch);
     if (!updated) return null;
-    try {
-      const uc = ensureUserCache(userId, gridId);
-      if (uc) {
-        const src = uc.gridFilterSource || {};
-        if (patch.activeFilterValues !== undefined) src.activeFilterValues = patch.activeFilterValues;
-        if (patch.namedFilters !== undefined) src.namedFilters = patch.namedFilters;
-        uc.gridFilterSource = src;
-        // Only recompute when the patch actually touched a filter — an
-        // unrelated grid write (a layout resize, a rename) must not clobber a
-        // set that state.js derived from the full document.
-        if (patch.activeFilterValues !== undefined || patch.namedFilters !== undefined) {
-          uc.filterFieldIds = filterFieldIdsOf({
-            activeFilterValues: src.activeFilterValues,
-            namedFilters: src.namedFilters,
-          });
-        }
-      }
-    } catch { /* the refresh must never break the write it follows */ }
     return updated;
   }
 
@@ -728,11 +709,6 @@ export function registerCrudHandlers(socket, {
       };
       const before = uc.operationsById[id] || null;
       uc.operationsById[id] = opData;
-      // A pipeline that stamps a field from the destination container makes
-      // that field per-placement, so the fan-out must stop sharing it. Refresh
-      // here rather than on every grid write: this is the only place the
-      // pipelines change. Never allowed to break the write it follows.
-      try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
       try {
         await Operation.findOneAndUpdate({ id, userId }, opData, { upsert: true });
       } catch (upsertErr) {
@@ -786,11 +762,6 @@ export function registerCrudHandlers(socket, {
         next = { ...next, schedule: { ...next.schedule, lastFiredAt: storedFired } };
       }
       uc.operationsById[id] = next;
-      // A pipeline that stamps a field from the destination container makes
-      // that field per-placement, so the fan-out must stop sharing it. Refresh
-      // here rather than on every grid write: this is the only place the
-      // pipelines change. Never allowed to break the write it follows.
-      try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
       try {
         await Operation.findOneAndUpdate({ id, userId }, next, { upsert: true });
       } catch (upsertErr) {

@@ -10,7 +10,6 @@ import { recordViewPage } from "./bootViewOverlay";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend";
 import { buildParentMap } from "./dragHitTesting";
-import { linkedFanFields } from "./linkedFanFields";
 import { normalizeFieldBindings } from "./siblingFieldBindings.js";
 import {
   createGridAction,
@@ -527,12 +526,8 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     ?? null;
   if (linkedGroupId && (occurrence.fields || occurrence.textmap !== undefined)) {
     const siblings = operationsBridge.getLinkedOccs?.(linkedGroupId, occurrence.id) || [];
-    // Per-placement fields (Date, Time Slot) stay on the row that was edited —
-    // the server never fans them out, so sharing them here showed a value on
-    // the siblings that vanished on the next sync. See helpers/linkedFanFields.
-    const fanFields = occurrence.fields
-      ? linkedFanFields(occurrence.fields, operationsBridge.getFilterContext?.()?.state)
-      : null;
+    // A copy-link group shares every field and value (user, 2026-10-27).
+    const fanFields = occurrence.fields || null;
     for (const sib of siblings) {
       const patch = { id: sib.id };
       if (fanFields && Object.keys(fanFields).length) patch.fields = { ...(sib.fields || {}), ...fanFields };
