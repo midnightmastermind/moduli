@@ -32,6 +32,7 @@ import { nanoid } from "nanoid";
 import { stripeSlotPaint } from "../migrations/0349-schedule-slots-alternate-shades.mjs";
 import { greyIdleStripes } from "../migrations/0416-schedule-idle-two-greys.mjs";
 import { closeSlotShades } from "../migrations/0426-schedule-slot-shades-closer.mjs";
+import { darkenSlotShades } from "../migrations/0452-schedule-slot-shades-darker.mjs";
 import Grid from "../models/Grid.js";
 import Occurrence from "../models/Occurrence.js";
 import Field from "../models/Field.js";
@@ -8857,7 +8858,7 @@ export async function createLiveData(userId, options = {}) {
     schedule: { kind: "interval", every: 5, unit: "minute", lastFiredAt: null },
     // Alternate slots take a second shade (0349) — the migration's transform,
     // so the seed and poms grid cannot drift. 0426 brings each pair of shades close.
-    pipeline: closeSlotShades(greyIdleStripes(stripeSlotPaint({
+    pipeline: darkenSlotShades(closeSlotShades(greyIdleStripes(stripeSlotPaint({
       sources: [],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}` } },
@@ -9005,7 +9006,7 @@ export async function createLiveData(userId, options = {}) {
           ],
         },
       ],
-    }).pipeline).pipeline,
+    }).pipeline).pipeline).pipeline).pipeline,
   }).save();
 
 
