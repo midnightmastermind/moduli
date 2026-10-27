@@ -1,6 +1,8 @@
 // quest/tools/exportModels.mjs — writes the office furniture (client/src/vr/decorMakers.js)
 // as .glb files into the Quest app's assets, so both offices hold the same pieces.
 //   node quest/tools/exportModels.mjs
+// Since 2026-10-27 most furniture and the shelf books are realistic models from quest/tools/realFurniture.mjs:
+// running this again overwrites them with the blocky ones, so run realFurniture.mjs after it.
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

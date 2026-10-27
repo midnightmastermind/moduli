@@ -1,0 +1,14 @@
+{
+  "name": "moduli-quest-tools",
+  "private": true,
+  "type": "module",
+  "description": "Model tools for the Quest office (realFurniture.mjs). npm install here first.",
+  "dependencies": {
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/extensions": "^4",
+    "@gltf-transform/functions": "^4",
+    "meshoptimizer": "^0.22.0",
+    "meshoptimizer": "^0.22",
+    "sharp": "^0.34"
+  }
+}
