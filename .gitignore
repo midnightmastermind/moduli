@@ -52,3 +52,4 @@ server/cache/
 # Bangle watch config holds an API token
 bangle/moduliclock.json
 bangle/*:Zone.Identifier
+__pycache__/
