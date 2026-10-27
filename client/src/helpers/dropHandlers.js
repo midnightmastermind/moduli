@@ -1197,7 +1197,10 @@ export function handleOccurrenceMove(dropContext, ctx) {
       if (edge === 'top' || edge === 'left') toIndex = hoveredIndex;
       else if (edge === 'bottom' || edge === 'right') toIndex = hoveredIndex + 1;
       else toIndex = hoveredIndex;
-      if (fromCOcc && fromCOcc.id === toCOcc.id) {
+      // A MOVE within one list removes the row first, so a later index shifts
+      // down by one. A copy leaves the original where it is: no shift.
+      const leavesOriginal = sessionRef.current.mode === "copy" || sessionRef.current.mode === "copylink";
+      if (fromCOcc && fromCOcc.id === toCOcc.id && !leavesOriginal) {
         const fromIndex = LayoutHelpers.getTargetIndexInOccurrences(draggedInstanceId, fromCOcc.occurrences || [], occurrencesById);
         if (fromIndex !== -1 && fromIndex < hoveredIndex) {
           toIndex = Math.max(0, toIndex - 1);
@@ -1279,21 +1282,11 @@ export function handleOccurrenceMove(dropContext, ctx) {
     return page && page !== base ? `${page} › ${base}` : base;
   };
 
-  if ((isCopylinkMode || isCopyMode) && sameContainer) {
-    if (fromCOcc) {
-      // Index by OCCURRENCE id (not module id) — a list can hold multiple
-      // occurrences of the same module, so a module-id match returns the wrong
-      // (first) one and the reorder no-ops.
-      const fromIndex = (fromCOcc.occurrences || []).indexOf(occurrenceId);
-      if (fromIndex !== -1) {
-        if (toIndex === null) { clearSession(); return; }
-        if (fromIndex !== toIndex) {
-          LayoutHelpers.reorderInstancesInContainer({ dispatch, socket, containerOccurrence: fromCOcc, fromIndex, toIndex, emit: true });
-          toast.success(`Reordered "${_occName(occurrenceId)}" in ${_contName(fromC, fromCOcc)}: #${fromIndex + 1} → #${toIndex + 1}`);
-        }
-      }
-    }
-  } else if (isCopylinkMode) {
+  // A Copy / Copy-link drop in its OWN container makes the copy there, like any
+  // other copy (user, 2026-10-27: "the app also isnt letting me copy into the
+  // same container"). It used to reorder the original. To reorder a Copy-mode
+  // row, switch it to Move.
+  if (isCopylinkMode) {
     LayoutHelpers.copylinkInstanceToContainer({
       dispatch, socket, gridId, sourceInstanceId: draggedInstanceId, sourceOccurrenceId: occurrenceId,
       toContainer: toCOcc ? { ...toC, _occurrence: toCOcc } : toC,
