@@ -1031,7 +1031,8 @@ class OfficeActivity : AppSystemActivity() {
     }
     if (what != b.overWhat) { b.overWhat = what; b.overSince = now; return }
     if (what == null || what == "here" || now - b.overSince < DRAG_OPEN_MS) return
-    b.overSince = Long.MAX_VALUE / 2  // once per stay
+    // A folder opens once per stay; held on the ⬆ the shelf keeps climbing, a level every DRAG_OPEN_MS.
+    b.overSince = if (what == "up") now else Long.MAX_VALUE / 2
     if (what == "up") send(JSONObject().put("type", "shelfUp").put("key", t.key))
     else send(JSONObject().put("type", "openFolder").put("key", t.key).put("folderId", what.removePrefix("folder:")))
     Log.i(TAG, "carrying ${b.title}: ${if (what == "up") "up a level" else "into $what"}")
@@ -1091,7 +1092,9 @@ class OfficeActivity : AppSystemActivity() {
           val moved = !atRest && aim == null && onShelf == null
           if (aim != null) {
             val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
-            if (aim == "up") send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "up"))
+            // The ⬆ is not a drop: hovering on it takes the shelf up a level (dragOverShelf); letting go there
+            // puts the book back (user, 2026-10-27: "i dont want it to drop in the next level by dropping it there").
+            if (aim == "up") Log.i(TAG, "${b.title} let go on ⬆: put back")
             else if (aim == "here") send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "end"))
             else send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", aim.removePrefix("folder:")).put("edge", "into"))
             Log.i(TAG, "${b.title} dropped by aim on $aim")
@@ -1099,9 +1102,7 @@ class OfficeActivity : AppSystemActivity() {
             val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
             val hit = bookAt(t, onShelf, except = b)
             if (overUp(t, onShelf)) {
-              // Let go on the ⬆: one level up (user, 2026-10-27: "move the folder or book up a level").
-              send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "up"))
-              Log.i(TAG, "${b.title} let go on ⬆: up a level")
+              Log.i(TAG, "${b.title} let go on ⬆: put back")
             } else if (hit != null) {
               val (target, before) = hit
               val targetId = if (target.folder) target.itemId else itemField(t, target.itemId, "rowId").ifEmpty { target.itemId }
