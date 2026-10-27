@@ -53,6 +53,7 @@ appointment thats the same with a diff date, i copy the original appointment, an
   floating chip in `ui/LayoutDragOverlay` (PORTALLED — the settings popup is transformed, so a fixed line inside it
   drew 73/234px off). **+ Box puts the new box FIRST** in its box. Watched on prod data with a real mouse
   (Routines row `kTrgMA-LajDz`): line on the target edge, drop to the top, dragged back → layout identical.
+- **`0451`**: Routines areas other than Physical + Financial hold their habits directly (user): 21 inner containers deleted, 52 habits moved up in order, each area's New routine creates in the area without asking Where.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---
