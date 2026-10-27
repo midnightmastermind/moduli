@@ -33,7 +33,7 @@ appointment thats the same with a diff date, i copy the original appointment, an
   (`copyLinkAppointments`). An appointment HOMED in a slot (Keith's Oct 26 follow-up is) is left as it is.
 - Tests: `placeDatedWork.behavioral` (21; 9 fail on the old op), `scheduleSlotsArePlainCopies`,
   `linkedContainersCarryNoDate`, `linkedFanSharesAllFields`. Client 6,818 / server 3,250 pass (known failures only).
-- **Open:** due-date tasks into Todo are still the original listed in each outstanding day's Todo.
+- **Due-date tasks stay as they are** (user, after weighing copy-links): the task itself is listed in each outstanding day's Todo, so a tick anywhere completes it and trackers count it once.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---
