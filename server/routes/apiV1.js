@@ -1410,7 +1410,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const { gridId } = req.query;
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
-      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }, { "meta.sharePresets": 1 }).lean().catch(() => null);
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }, { "meta.sharePresets": 1, "shareLog.rules.created.occurrenceId": 1 }).lean().catch(() => null);
       if (!grid) return err(res, 404, "not_found", `grid ${gridId} not found`);
       const presets = grid.meta?.sharePresets;
       // SUGGESTED presets — one per board the grid already files things into
@@ -1428,11 +1428,17 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         (async () => {
           const { searchDestinations } = await import("../services/destinationSearch.js");
           const { suggestPresets } = await import("../services/sharePresetSuggest.js");
-          const [dests, fields] = await Promise.all([
+          // Where shares have landed: the parents of the rows the share log says were created.
+          const createdIds = [...new Set((grid.shareLog || []).flatMap((e) => (e.rules || []).flatMap((r) => (r.created || []).map((c) => c.occurrenceId))).filter(Boolean))];
+          const landedIn = createdIds.length
+            ? [...new Set((await Occurrence.find({ userId: req.userId, gridId, id: { $in: createdIds } }, { parentId: 1 }).lean()).map((o) => o.parentId).filter(Boolean))]
+            : [];
+          const [dests, shared, fields] = await Promise.all([
             searchDestinations({ userId: req.userId, gridId, q: "", limit: 60 }),
+            searchDestinations({ userId: req.userId, gridId, ids: landedIn, limit: 30 }),
             Field.find({ userId: req.userId, gridId }, { id: 1, name: 1, type: 1 }).lean(),
           ]);
-          return suggestPresets(dests, fields);
+          return suggestPresets([...shared, ...dests], fields, { prefer: shared.map((d) => d.id) });
         })().catch((e) => { console.warn("[share/presets] suggestions failed:", e.message); return []; }),
         new Promise((resolve) => setTimeout(() => resolve([]), SUGGEST_TIMEOUT_MS)),
       ]);

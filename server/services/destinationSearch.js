@@ -17,9 +17,16 @@ const DEST_ROLES = ["container", "page"];
 const escapeRx = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const CRUMB_DEPTH = 4;
 
-export async function searchDestinations({ userId, gridId, q = "", limit = 50 }) {
+export async function searchDestinations({ userId, gridId, q = "", limit = 50, ids = null }) {
   const query = { userId, gridId, role: { $in: DEST_ROLES } };
   if (q) query.label = { $regex: escapeRx(q), $options: "i" };
+  // `ids`: these destination occurrences exactly (the boards shares landed in), whatever their size.
+  if (Array.isArray(ids)) {
+    if (!ids.length) return [];
+    const occs = await Occurrence.find({ userId, gridId, id: { $in: ids.slice(0, limit) } }).lean();
+    const mods = await Module.find({ userId, gridId, role: { $in: DEST_ROLES }, id: { $in: [...new Set(occs.map((o) => o.moduleId))] } }).lean();
+    return describeHits({ userId, gridId, hits: occs, byId: new Map(mods.map((m) => [m.id, m])) });
+  }
   // AN EMPTY QUERY HAS NO RELEVANCE SIGNAL, so alphabetical order is arbitrary —
   // and on the real grid it is actively wrong. Measured on poms: `q: ""` returned
   // `"We Say We're Exactly the Same"` and then 59 empty schedule slots all named
@@ -57,6 +64,11 @@ export async function searchDestinations({ userId, gridId, q = "", limit = 50 })
     ]);
   }
 
+  return describeHits({ userId, gridId, hits, byId });
+}
+
+/** Crumbs and shape for found destination occurrences (`byId`: their modules). */
+async function describeHits({ userId, gridId, hits, byId }) {
   // CRUMBS, WITHOUT LOADING THE GRID. Walk up one LEVEL at a time with an
   // `$in` over just the parents actually reached — at most CRUMB_DEPTH small
   // queries. Fetching every occurrence to resolve ancestor labels would

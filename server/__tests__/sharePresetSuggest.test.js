@@ -241,3 +241,15 @@ describe("a kindless board that binds fields is still a board", () => {
   });
 });
 
+
+describe("boards shares landed in come first", () => {
+  it("a small board you share into is suggested over bigger ones past the cap", async () => {
+    const { suggestPresets } = await import("../services/sharePresetSuggest.js");
+    const big = Array.from({ length: 14 }, (_, i) => ({ id: `b${i}`, label: `Big ${i}`, childCount: 100 + i,
+      shape: { role: "instance", kind: null, bindFields: ["f"], autoFields: {} } }));
+    const appts = { id: "appts", label: "Appointments", childCount: 3, shape: { role: "instance", kind: null, bindFields: ["f"], autoFields: {} } };
+    const fields = [{ id: "f", name: "Date", type: "date" }];
+    expect(suggestPresets([...big, appts], fields).map((p) => p.name)).not.toContain("Appointments");
+    expect(suggestPresets([...big, appts], fields, { prefer: ["appts"] })[0].name).toBe("Appointments");
+  });
+});

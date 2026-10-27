@@ -95,7 +95,10 @@ export function mappingForField(field) {
  * @param {object[]} fields        the grid's Field docs (id, name, type)
  * @returns {object[]} presets in the client's own preset shape
  */
-export function suggestPresets(destinations = [], fields = [], { max = MAX_SUGGESTIONS } = {}) {
+export function suggestPresets(destinations = [], fields = [], { max = MAX_SUGGESTIONS, prefer = [] } = {}) {
+  // `prefer`: boards your shares have already landed in come first, however small (user, 2026-10-27: "we need to
+  // have an appointments preset" — Appointments holds a handful of rows and the biggest-first order cut it).
+  const preferred = new Set(prefer || []);
   const fieldById = new Map((fields || []).filter((f) => f?.id).map((f) => [f.id, f]));
   const seen = new Set();
   const out = [];
@@ -113,7 +116,7 @@ export function suggestPresets(destinations = [], fields = [], { max = MAX_SUGGE
       && (d.shape.kind || (Array.isArray(d.shape.bindFields) && d.shape.bindFields.length > 0)))
     // Biggest first: the board you have filed 994 things into is the one you
     // are most likely filing the next thing into.
-    .sort((a, b) => (b.childCount || 0) - (a.childCount || 0));
+    .sort((a, b) => (preferred.has(b.id) - preferred.has(a.id)) || ((b.childCount || 0) - (a.childCount || 0)));
 
   for (const d of usable) {
     if (out.length >= max) break;
