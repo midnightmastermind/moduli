@@ -1,8 +1,11 @@
 package com.viafluere.moduli.office
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.meta.spatial.core.Color4
+import com.meta.spatial.core.Entity
+import com.meta.spatial.core.Pose
 import com.meta.spatial.core.SystemManager
 import com.meta.spatial.mruk.AnchorProceduralMesh
 import com.meta.spatial.mruk.AnchorProceduralMeshConfig
@@ -11,11 +14,19 @@ import com.meta.spatial.mruk.MRUKLabel
 import com.meta.spatial.mruk.MRUKRoom
 import com.meta.spatial.mruk.MRUKSceneEventListener
 import com.meta.spatial.mruk.SceneModel
+import com.meta.spatial.runtime.AlphaMode
 import com.meta.spatial.toolkit.Material
+import com.meta.spatial.toolkit.Mesh
+import com.meta.spatial.toolkit.MeshCollision
+import com.meta.spatial.toolkit.Transform
 
 /**
- * The scanned room (the headset's Space Setup), through Meta's MR Utility Kit — used ONLY to build the VR cabin from
- * your room's own walls, floor and ceiling (textures from quest/tools/cabinTextures.py).
+ * The scanned room (the headset's Space Setup), through Meta's MR Utility Kit — used ONLY to build the VR room from
+ * your room's own walls, floor and ceiling.
+ *
+ * VR mode is a high-rise apartment at sunset (user, 2026-10-27): every scanned wall becomes floor-to-ceiling windows
+ * at the room's real size, a city skyline at sunset outside (assets/office/skydome.glb, quest/tools/skyDome.py),
+ * light oak floor and white ceiling (quest/tools/apartmentTextures.py). Mixed reality is unchanged.
  *
  * It used to be the frame every placement was saved in, but the scan was found on one start and missing on the
  * next, and each miss scattered the room. Placement is in the boundary-tied STAGE space now (OfficeActivity).
@@ -23,6 +34,7 @@ import com.meta.spatial.toolkit.Material
 class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEventListener {
   val feature = MRUKFeature(context, systemManager)
   private var walls: AnchorProceduralMesh? = null
+  private var sky: Entity? = null
   private var wantWalls = false
   private var listening = false
   private var captureAsked = false
@@ -41,35 +53,45 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
   }
 
   /**
-   * VR mode: draw the room's walls, floor and ceiling as a log cabin (passthrough is off, so this is the room you
-   * see). With no room scan, ask the headset for one — once — and draw the cabin when it is done.
+   * VR mode: draw the room's walls (as windows), floor and ceiling, and the sunset sky outside (passthrough is off, so
+   * this is the room you see). With no room scan, ask the headset for one — once — and draw the room when it is done.
    */
   fun showWalls(show: Boolean) {
     wantWalls = show
-    if (!show) { walls?.destroy(); walls = null; return }
+    if (!show) { walls?.destroy(); walls = null; sky?.destroy(); sky = null; return }
     if (walls != null) return
     if (feature.rooms.isEmpty()) {
       if (captureAsked) return
       captureAsked = true
-      Log.i(TAG, "VR cabin: no room scan, asking the headset for one")
+      Log.i(TAG, "VR room: no room scan, asking the headset for one")
       feature.requestSceneCapture().whenComplete { _, _ -> load { if (wantWalls) showWalls(true) } }
       return
     }
-    // Each texture tiles; repeat counts are per surface, so a wall shows ~3 log courses across and 2 tiles up.
-    fun wood(tex: Int, u: Float, v: Float) = Material().apply {
+    fun surface(tex: Int, u: Float, v: Float, masked: Boolean = false) = Material().apply {
       baseTextureAndroidResourceId = tex
       repeatU = u; repeatV = v
       baseColor = Color4(1f, 1f, 1f, 1f)
-      roughness = 0.9f
+      roughness = 0.8f
+      // The window wall: frames and sill solid, the panes (alpha 0 in the texture) open onto the sky.
+      if (masked) alphaMode = AlphaMode.MASKED.mode
     }
     walls = AnchorProceduralMesh(
         feature,
         mapOf(
-            MRUKLabel.FLOOR to AnchorProceduralMeshConfig(wood(R.drawable.cabin_floor, 3f, 3f), false),
-            MRUKLabel.WALL_FACE to AnchorProceduralMeshConfig(wood(R.drawable.cabin_logs, 3f, 2f), false),
-            MRUKLabel.CEILING to AnchorProceduralMeshConfig(wood(R.drawable.cabin_ceiling, 3f, 3f), false),
+            MRUKLabel.FLOOR to AnchorProceduralMeshConfig(surface(R.drawable.apartment_floor, 3f, 3f), false),
+            // repeatV 1: one texture spans the wall's height, so the sill sits at about waist height on every wall;
+            // repeatU 3: three window bays across each wall.
+            MRUKLabel.WALL_FACE to AnchorProceduralMeshConfig(surface(R.drawable.apartment_window, 3f, 1f, masked = true), false),
+            MRUKLabel.CEILING to AnchorProceduralMeshConfig(surface(R.drawable.apartment_ceiling, 2f, 2f), false),
         ),
     )
+    // The sky: an unlit inside-out sphere, 120m out, centred on the room origin.
+    if (sky == null) {
+      sky = Entity.create(listOf(
+          Mesh(Uri.parse("apk:///office/skydome.glb"), hittable = MeshCollision.NoCollision),
+          Transform(Pose()),
+      ))
+    }
   }
 
   override fun onRoomAdded(room: MRUKRoom) { if (wantWalls) showWalls(true) }

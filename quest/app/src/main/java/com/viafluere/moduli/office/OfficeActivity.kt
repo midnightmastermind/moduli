@@ -2283,12 +2283,14 @@ class OfficeActivity : AppSystemActivity() {
     if (!sceneReady) return
     val vr = mode == "vr"
     scene.enablePassthrough(!vr)
-    // VR is a log cabin: warm, firelit light. Mixed reality keeps neutral light to match your real room.
+    // VR is a high-rise apartment at sunset: a low orange sun from where the sunset is in the sky photo (about 30°
+    // right of straight ahead, just above the horizon — quest/tools/skyDome.py), and a cool blue-grey fill from the
+    // sky. Mixed reality keeps neutral light to match your real room.
     if (vr) scene.setLightingEnvironment(
-        ambientColor = Vector3(0.42f, 0.30f, 0.20f),
-        sunColor = Vector3(2.2f, 1.6f, 1.1f),
-        sunDirection = -Vector3(1.0f, 3.0f, -2.0f),
-        environmentIntensity = 0.3f,
+        ambientColor = Vector3(0.38f, 0.38f, 0.46f),
+        sunColor = Vector3(2.6f, 1.5f, 0.9f),
+        sunDirection = -Vector3(0.48f, 0.25f, -0.87f),
+        environmentIntensity = 0.35f,
     ) else scene.setLightingEnvironment(
         ambientColor = Vector3(0.35f),
         sunColor = Vector3(3.0f, 2.8f, 2.6f),

@@ -77,6 +77,25 @@ appointment thats the same with a diff date, i copy the original appointment, an
 
 ---
 
+### 2026-10-27 — VR MODE IS A HIGH-RISE APARTMENT AT SUNSET (built, not yet seen on the headset)
+
+User: realistic furniture and *"the room to be surrounded like im in a sky scraper apartment with windows on every side
+to a sunset skyline"*, fitted to the real room. Sky: chose Poly Haven's **Joburg Central Sunset** (CC0; a real sunset
+skyline, but shot a few floors up, so a rooftop sits below the horizon). No free 360° photo from skyscraper height exists
+there (997 skies searched).
+- `RoomAnchor.showWalls`: the scanned walls use `apartment_window.png` (repeatV 1: plaster + stone sill at ~34% of the
+  wall, bronze frames to the ceiling, panes alpha 0, material `AlphaMode.MASKED`); oak floor, white ceiling
+  (`quest/tools/apartmentTextures.py`). The log-cabin textures are no longer used.
+- The sky is `assets/office/skydome.glb` (`quest/tools/skyDome.py <jpg> [--yaw]`): an inside-out sphere, r=120m, the
+  4096x2048 photo embedded, `KHR_materials_unlit`. Built as our own model because `mesh://box` did not show on the
+  headset. Shown/destroyed with the walls (VR mode only).
+- VR lighting: low orange sun from the sunset's direction (~30° right of -Z), blue-grey fill.
+- APK built and copied to Windows Downloads; the headset was not connected. **Not watched on the headset**: whether
+  MASKED works on the MRUK wall mesh, the dome's orientation, the sill height. Furniture models and the tracked
+  keyboard not started.
+
+---
+
 ### 2026-10-26 — THE HEADSET WAS KILLED FOR MEMORY: the control panel no longer loads the grid
 
 User (on the Quest 3S): the app slow, shelves "lose connection", drops do nothing. Measured over adb: the
