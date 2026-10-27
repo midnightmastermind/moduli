@@ -151,6 +151,9 @@ class OfficeActivity : AppSystemActivity() {
   /** One thing in the room: its frame (a model you can grab) and, for shelves and screens, a web panel on its front. */
   class Thing(val key: String, val frame: Entity) {
     var handle: GrabHandle? = null
+    /** The 🗑 reads "Sure?" while armed; a second press within 3s deletes (pressTrash). */
+    var trashArmed = false
+    var trashArmedAt = 0L
     /** The piece's height at scale 1 (the model, or its web panel when that stands taller). */
     var top = 1f
     /** A panel's handle hangs below it (its origin is its centre); furniture's floats above. */
@@ -1687,12 +1690,16 @@ class OfficeActivity : AppSystemActivity() {
   private fun isScreen(t: Thing): Boolean =
       t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" || it == "window" } == true
 
+  /** Per controller, the piece whose menu its ray holds (see showMenus). */
+  private val stickyPointed = HashMap<Int, String?>()
+
   private fun showMenus() {
     val now = System.currentTimeMillis()
     // Each controller points at ONE piece: the nearest its ray meets. A ray across the room passes through several
     // pieces' boxes, and lighting them all up let a grab land on the wrong piece.
     val pointed = HashSet<String>()
-    for ((o, d) in controllerRays()) {
+    for ((ri, ray) in controllerRays().withIndex()) {
+      val (o, d) = ray
       var best: Thing? = null; var bestD = Float.MAX_VALUE
       val hits = ArrayList<Thing>()
       for (t in things.values) {
@@ -1707,6 +1714,11 @@ class OfficeActivity : AppSystemActivity() {
       // box, which reaches up to the big one's bar — so the ray met the desk first and the player's bar never showed.
       // Of the pieces hit, one standing inside another's box wins over that box.
       best?.let { outer -> hits.filter { it !== outer && standsInside(it, outer) }.minByOrNull { footprint(it) }?.let { best = it } }
+      // Once a piece's menu is up, it keeps it while this ray still touches the piece: a small move onto a
+      // neighbour no longer switches the selection (user, 2026-10-27: "one little move and its pointing at a diff
+      // piece of furniture").
+      stickyPointed[ri]?.let { k -> hits.firstOrNull { it.key == k }?.let { best = it } }
+      stickyPointed[ri] = best?.key
       best?.let { it.lastHover = now; pointed += it.key }
     }
     // Pointing at another piece hides the last one at once; the linger is only for pointing at nothing.
@@ -1793,6 +1805,7 @@ class OfficeActivity : AppSystemActivity() {
       var heldReader: Int? = null
       for ((id, h) in readerHandles) { h.update(head); if (h.held) heldReader = id }
       showMenus()
+      placeMenuButtons()
       ghostSeats(head)
       updateBooks()
 
@@ -1809,7 +1822,13 @@ class OfficeActivity : AppSystemActivity() {
         val ctl = c.tryGetComponent<Controller>() ?: continue
         if (!ctl.isActive) continue
         val down = ctl.buttonState
-        if (down and (ButtonBits.ButtonTriggerR or ButtonBits.ButtonTriggerL) != 0) {
+        val trig = down and (ButtonBits.ButtonTriggerR or ButtonBits.ButtonTriggerL) != 0
+        // A fresh press on this controller: a ⚙ or 🗑 its ray meets takes it.
+        if (trig && c.id !in triggersHeld) c.tryGetComponent<Transform>()?.transform?.let { pose ->
+          pressMenuButton(PoseMath.tOf(pose), PoseMath.rotate(PoseMath.qOf(pose), floatArrayOf(0f, 0f, 1f)))
+        }
+        if (trig) triggersHeld += c.id else triggersHeld -= c.id
+        if (trig) {
           triggerDown = true
           // The ray of the hand holding the trigger: a drag follows THAT controller, not whichever comes first.
           c.tryGetComponent<Transform>()?.transform?.let { pose ->
@@ -1875,6 +1894,8 @@ class OfficeActivity : AppSystemActivity() {
     for (t in things.values) {
       owned += t.frame.id
       t.handle?.entity?.id?.let { owned += it }
+      t.gear?.id?.let { owned += it }
+      t.trash?.id?.let { owned += it }
       for (b in t.books + t.carried) { owned += b.entity.id; b.shown?.id?.let { owned += it } }
     }
     for (h in readerHandles.values) owned += h.entity.id
@@ -2179,27 +2200,14 @@ class OfficeActivity : AppSystemActivity() {
   /** A small panel holding one ⚙ button, riding just right of `t`'s handle and facing out of the piece's front. */
   private fun gearButton(t: Thing): Entity? {
     val handle = t.handle ?: return null
-    val id = nextPanelId++
-    registerPanel(ComposeViewPanelRegistration(
-        id,
-        composeViewCreator = { _, ctx ->
-          ComposeView(ctx).apply {
-            setContent { Button(onClick = { main.post { togglePiece(t.key) } }, modifier = Modifier.fillMaxSize()) { Text("⚙") } }
-          }
-        },
-        settingsCreator = {
-          UIPanelSettings(
-                rendering = PANEL_RENDER,
-              shape = QuadShapeOptions(width = GEAR_M, height = GEAR_M),
-              style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-              display = DpPerMeterDisplayOptions(),
-          )
-        },
-    ))
+    // A model, not a panel: on a panel the cursor hid and the click never arrived (user, 2026-10-27). Pressed through
+    // pressMenuButton. Placed beside the bar every frame (placeMenuButtons), not parented to it.
     return Entity.create(listOf(
-        Panel(id),
-        Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0.28f, 0f, 0f), PoseMath.yaw(180f)), "OfficeActivity:1404")),
-        TransformParent(handle.entity),
+        Mesh(Uri.parse("apk:///office/menu_gear.glb"), hittable = MeshCollision.LineTest),
+        Transform(PoseMath.sane(PoseMath.toWorld(handlePose(handle), GEAR_LOCAL, PoseMath.yaw(180f)), "OfficeActivity:1404")),
+        // Exactly like the grab bar (GrabHandle): grabbable, which is what keeps the cursor showing on it. It is put
+        // back beside the bar every frame (placeMenuButtons), so a grab cannot carry it off.
+        Grabbable(true, GrabbableType.PIVOT_Y),
     ))
   }
 
@@ -2209,35 +2217,77 @@ class OfficeActivity : AppSystemActivity() {
    */
   private fun trashButton(t: Thing): Entity? {
     val handle = t.handle ?: return null
-    val id = nextPanelId++
-    registerPanel(ComposeViewPanelRegistration(
-        id,
-        composeViewCreator = { _, ctx ->
-          ComposeView(ctx).apply {
-            setContent {
-              var armed by remember { mutableStateOf(false) }
-              LaunchedEffect(armed) { if (armed) { kotlinx.coroutines.delay(3000); armed = false } }
-              Button(
-                  onClick = { if (armed) main.post { removePiece(t.key) } else armed = true },
-                  modifier = Modifier.fillMaxSize(),
-              ) { Text(if (armed) "Sure?" else "🗑") }
-            }
-          }
-        },
-        settingsCreator = {
-          UIPanelSettings(
-                rendering = PANEL_RENDER,
-              shape = QuadShapeOptions(width = TRASH_W, height = GEAR_M),
-              style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeTransparent),
-              display = DpPerMeterDisplayOptions(),
-          )
-        },
-    ))
     return Entity.create(listOf(
-        Panel(id),
-        Transform(PoseMath.sane(PoseMath.pose(floatArrayOf(0.28f + GEAR_M / 2f + 0.015f + TRASH_W / 2f, 0f, 0f), PoseMath.yaw(180f)), "OfficeActivity:1440")),
-        TransformParent(handle.entity),
+        Mesh(Uri.parse("apk:///office/menu_trash.glb"), hittable = MeshCollision.LineTest),
+        Transform(PoseMath.sane(PoseMath.toWorld(handlePose(handle), TRASH_LOCAL, PoseMath.yaw(180f)), "OfficeActivity:1440")),
+        // Exactly like the grab bar (GrabHandle): grabbable, which is what keeps the cursor showing on it. It is put
+        // back beside the bar every frame (placeMenuButtons), so a grab cannot carry it off.
+        Grabbable(true, GrabbableType.PIVOT_Y),
     ))
+  }
+
+  private val GEAR_LOCAL get() = floatArrayOf(0.28f, 0f, 0f)
+  private val TRASH_LOCAL get() = floatArrayOf(0.28f + GEAR_M / 2f + 0.015f + TRASH_W / 2f, 0f, 0f)
+
+  private fun handlePose(h: GrabHandle): Pose = h.entity.tryGetComponent<Transform>()?.transform ?: Pose()
+
+  private var lastMenuPress = 0L
+  /** Controllers whose trigger is down, so a press is acted on once, when it starts. */
+  private val triggersHeld = HashSet<Long>()
+
+  private fun pressGear(t: Thing) {
+    val now = System.currentTimeMillis(); if (now - lastMenuPress < 400) return; lastMenuPress = now
+    Log.i(TAG, "gear pressed ${t.key}")
+    togglePiece(t.key)
+  }
+
+  private fun setTrashArmed(t: Thing, armed: Boolean) {
+    t.trashArmed = armed
+    t.trash?.setComponent(Mesh(Uri.parse("apk:///office/menu_${if (armed) "sure" else "trash"}.glb"), hittable = MeshCollision.LineTest))
+  }
+
+  /** First press arms the 🗑 ("Sure?"), a second within 3s deletes the piece. */
+  private fun pressTrash(t: Thing) {
+    val now = System.currentTimeMillis(); if (now - lastMenuPress < 400) return; lastMenuPress = now
+    Log.i(TAG, "trash pressed ${t.key} armed=${t.trashArmed}")
+    if (t.trashArmed && now - t.trashArmedAt < 3000) { removePiece(t.key); return }
+    setTrashArmed(t, true); t.trashArmedAt = now
+  }
+
+  /**
+   * A trigger press on a shown ⚙ or 🗑, found from the controller's own ray. The panels' own clicks never arrive in
+   * the headset (the cursor reaches them and hides, the press goes nowhere — user, 2026-10-27), so the app does it.
+   * Returns true when a button took the press.
+   */
+  private fun pressMenuButton(o: FloatArray, d: FloatArray): Boolean {
+    var best: Pair<Thing, Boolean>? = null; var bestD = Float.MAX_VALUE
+    val half = floatArrayOf(GEAR_M / 2f, GEAR_M / 2f, 0.03f)
+    for (t in things.values) {
+      if (!t.menuShown) continue
+      for ((e, isTrash) in listOf(t.gear to false, t.trash to true)) {
+        val pose = e?.tryGetComponent<Transform>()?.transform ?: continue
+        val hx = if (isTrash) TRASH_W / 2f else half[0]
+        val hit = PoseMath.rayBox(o, d, pose, floatArrayOf(-hx, -half[1], -half[2]), floatArrayOf(hx, half[1], half[2])) ?: continue
+        if (hit < bestD) { bestD = hit; best = t to isTrash }
+      }
+    }
+    val (t, isTrash) = best ?: return false
+    if (isTrash) pressTrash(t) else pressGear(t)
+    return true
+  }
+
+  /** Puts each shown ⚙ and 🗑 beside its bar (see gearButton for why they are not parented to it). */
+  private fun placeMenuButtons() {
+    val now = System.currentTimeMillis()
+    for (t in things.values) {
+      if (t.trashArmed && now - t.trashArmedAt > 3000) setTrashArmed(t, false)
+      if (!t.menuShown) continue
+      val h = t.handle ?: continue
+      val hp = handlePose(h)
+      val sx = h.widthScale
+      t.gear?.setComponent(Transform(PoseMath.sane(PoseMath.toWorld(hp, GEAR_LOCAL.also { it[0] *= sx }, PoseMath.yaw(180f)), "OfficeActivity:gear")))
+      t.trash?.setComponent(Transform(PoseMath.sane(PoseMath.toWorld(hp, TRASH_LOCAL.also { it[0] *= sx }, PoseMath.yaw(180f)), "OfficeActivity:trash")))
+    }
   }
 
   /**
@@ -2245,6 +2295,7 @@ class OfficeActivity : AppSystemActivity() {
    * grid's office, so the control panel removes it from there too (else the next state would bring it back).
    */
   private fun removePiece(key: String) {
+    Log.i(TAG, "remove piece $key")
     if (key.startsWith("shelf:") || key.startsWith("screen:")) send(JSONObject().put("type", "remove").put("key", key))
     deleteThing(key)
   }

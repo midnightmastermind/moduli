@@ -18,6 +18,10 @@
   <!-- The room: walls, floor and furniture the headset has scanned. -->
   <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
   <uses-permission android:name="com.oculus.permission.USE_SCENE" />
+  <!-- Open the office when the Quest starts (BootReceiver). SYSTEM_ALERT_WINDOW is what lets it open from the
+       background; grant it once: adb shell appops set com.viafluere.moduli.office SYSTEM_ALERT_WINDOW allow -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
   <application android:allowBackup="false" android:label="@string/app_name" android:usesCleartextTraffic="false">
     <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|questpro|quest3|quest3s" />
     <meta-data android:name="com.oculus.handtracking.version" android:value="V2.0" />
@@ -36,5 +40,11 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+    <receiver android:name="com.viafluere.moduli.office.BootReceiver" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="com.viafluere.moduli.office.TEST_BOOT" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

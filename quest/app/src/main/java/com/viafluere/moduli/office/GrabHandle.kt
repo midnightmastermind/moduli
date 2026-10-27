@@ -28,7 +28,7 @@ class GrabHandle(
     val target: Entity,
     var dy: Float,
     private val facesHead: Boolean,
-    widthScale: Float = 1f,
+    val widthScale: Float = 1f,
     var minY: Float? = null,
 ) {
   // The bar is one of the app's own models (tools/exportModels.mjs), drawn the way the furniture is — the SDK's
