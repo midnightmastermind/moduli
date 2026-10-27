@@ -34,6 +34,12 @@ appointment thats the same with a diff date, i copy the original appointment, an
 - Tests: `placeDatedWork.behavioral` (21; 9 fail on the old op), `scheduleSlotsArePlainCopies`,
   `linkedContainersCarryNoDate`, `linkedFanSharesAllFields`. Client 6,818 / server 3,250 pass (known failures only).
 - **Due-date tasks stay as they are** (user, after weighing copy-links): the task itself is listed in each outstanding day's Todo, so a tick anywhere completes it and trackers count it once.
+- **`0449`**: `Schedule: Clear Date on Move-Out` cleared Date + Time Slot on ANY move ending outside the Schedule, so
+  moving an appointment Appointments → Done wiped it (user). It now also needs the FROM container
+  (`$trigger.fromContainerId`) under the Schedule page. Test `clearDateOnlyLeavingSchedule` (old shape reproduces it).
+- **A Copy / Copy-link drop in its own container makes the copy** (`dropHandlers.handleOccurrenceMove`; it reordered
+  the original). No index shift for a copy, so a drop on the row's own bottom edge lands right after it. To reorder a
+  Copy-mode row (Routines bank) switch it to Move — the user's pick. Test `copyIntoSameContainer` (4).
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---
