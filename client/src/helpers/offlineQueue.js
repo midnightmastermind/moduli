@@ -3,7 +3,7 @@
 
 import { getActionId, getActionLabel } from "./actionScope";
 import { isSnapshotMode } from "../state/snapshotMode.js";
-import { keepLocal } from "./localLayout.js";
+import { keepLocal, isHeadsetWindow } from "./localLayout.js";
 
 const queue = [];
 
@@ -52,6 +52,8 @@ export function safeEmit(socket, event, data) {
   // "This device only" layout (the VR office): panel pages, the split layout and the
   // date filter stay in this tab (helpers/localLayout).
   if (keepLocal(event, data)) return;
+  // A headset window's grid write keeps the server's stored layout (helpers/localLayout isHeadsetWindow).
+  if (event === "update_grid" && isHeadsetWindow()) data = { ...data, keepLayout: true };
   // `window.__emitDiag = true` records every write with the stack that made it
   // (window.__emitLog) — for "who sent this?" when a value is overwritten.
   if (typeof window !== "undefined" && window.__emitDiag) {

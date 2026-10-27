@@ -11,6 +11,7 @@ import Operation from "../models/Operation.js";
 import Folder from "../models/Folder.js";
 import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
+import { withStoredLayout } from "../utils/gridLayoutKeys.js";
 import { isProtectedGrid } from "../utils/protectedGrids.js";
 import { assertNotProtectedFolder } from "../utils/protectedFolders.js";
 import { classifyFileDelete, filesFolderIdSet } from "../utils/filesFolder.js";
@@ -103,9 +104,16 @@ export function registerCrudHandlers(socket, {
       if (!userId) return;
       const { gridId } = payload || {};
       if (!gridId) return console.log("❌ update_grid missing gridId");
-      const { grid: gridPatchFromNested, ...rest } = payload || {};
+      const { grid: gridPatchFromNested, keepLayout, ...rest } = payload || {};
       const { gridId: _ignored, ...restWithoutId } = rest || {};
-      const updatePatch = gridPatchFromNested || restWithoutId || {};
+      let updatePatch = gridPatchFromNested || restWithoutId || {};
+      // A window inside the headset lays the grid out for its own screen: its write keeps the stored layout.
+      if (keepLayout) {
+        const stored = await Grid.findOne({ _id: gridId, userId }, { meta: 1 }).lean();
+        if (!stored) return;
+        updatePatch = withStoredLayout(updatePatch, stored);
+        if (!Object.keys(updatePatch).length) return;
+      }
       // NO upsert: a patch for a grid that no longer exists (deleted, or
       // dropped by a reseed while a stale tab was still connected) must not
       // resurrect it as a zombie doc — that's how duplicate "Live Grid"s were

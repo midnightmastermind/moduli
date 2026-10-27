@@ -45,9 +45,22 @@ export function isLayoutWrite(event, data) {
 /** The occurrence ids that are panels on this grid (read at call time), or null. */
 export function currentPanelIds() { return panelIdsGetter(); }
 
-/** True when this write must stay in this tab. Never now: a window's layout writes go to the server as the default
- *  for new devices; other windows ignore them as they arrive. */
-export function keepLocal() { return false; }
+/** A window inside the headset app (the grid screen, readers, the control panel): it has the native bridge. */
+export function isHeadsetWindow() {
+  return typeof window !== "undefined" && !!window.ModuliNative;
+}
+
+/**
+ * True when this write must stay in this tab. A desktop window's layout writes go to the server as the default for
+ * new devices (other windows ignore them as they arrive). A HEADSET window lays the grid out for its own small screen,
+ * and that must never become the default (user, 2026-10-27: the desktop's 2-column layout kept turning into a 2x2
+ * grid — the headset's grid screen had written its own). So there the panels' pages stay local, and its grid writes
+ * carry `keepLayout` (offlineQueue) so the server keeps its stored layout and takes only the rest.
+ */
+export function keepLocal(event, data) {
+  if (!isHeadsetWindow()) return false;
+  return event === "update_view" || (event === "update_occurrence" && isLayoutWrite(event, data));
+}
 
 // ── Incoming: another device's layout must not reshape this one either ──────
 // `occurrences` is the grid's panel list: which panels a device shows is part of its layout, so a panel added or
