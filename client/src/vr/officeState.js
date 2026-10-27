@@ -125,6 +125,8 @@ export function planShelfReorder({ shelf, at, id, targetId, edge }, { occurrence
   const here = folderShelfView(shelf.folderId, at, ctx).at || shelf.folderId;
   const pagesIn = (folderId) => Object.values(occurrencesById).filter((o) => o?.parentId === folderId && o.id !== id
     && ["page", "artifact"].includes(modulesById?.[o.moduleId]?.role) && modulesById?.[o.moduleId]?.kind !== "folder");
+  // Let go on the shelf but on no book: filed where the shelf stands now (a folder opened while carrying it).
+  if (edge === "end") return [{ id, folder: here, sortOrder: sortOrderAtEnd(pagesIn(here)) }];
   if (String(targetId || "").startsWith("folder:")) {
     const dest = String(targetId).slice(7);
     return [{ id, folder: dest, sortOrder: sortOrderAtEnd(pagesIn(dest)) }];
@@ -137,4 +139,21 @@ export function planShelfReorder({ shelf, at, id, targetId, edge }, { occurrence
   }
   moves.push({ id, folder: here, sortOrder: sortOrderForDrop(sibs, targetId, edge === "before" ? "top" : "bottom", id) });
   return moves;
+}
+
+/**
+ * A folder book carried on its shelf: into another folder book (`edge` "into"), or let go anywhere else on the shelf
+ * (it goes into the folder the shelf stands in — folders sit by name, so there is no position to keep). Returns the
+ * folder with its new parent, or null for no move (same place, into itself or a folder inside it, outside the shelf).
+ * Pure.
+ */
+export function planFolderMove({ shelf, at, id, targetId, edge }, { occurrencesById, modulesById, foldersById }) {
+  const folderId = String(id || "").replace(/^folder:/, "");
+  const folder = foldersById?.[folderId];
+  if (!shelf?.folderId || !folder) return null;
+  const here = folderShelfView(shelf.folderId, at, { occurrencesById, modulesById, foldersById, asset: shelf.asset }).at || shelf.folderId;
+  const dest = edge === "into" && String(targetId || "").startsWith("folder:") ? String(targetId).slice(7) : here;
+  if (!foldersById?.[dest] || dest === folder.parentId) return null;
+  for (let f = dest, n = 0; f && n < 64; n++, f = foldersById?.[f]?.parentId) if (f === folderId) return null;
+  return { ...folder, parentId: dest };
 }

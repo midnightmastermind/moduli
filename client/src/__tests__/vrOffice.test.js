@@ -203,10 +203,13 @@ describe("a folder shelf as a tree (the headset)", () => {
   };
   const ctx = { occurrencesById, modulesById, foldersById };
 
-  it("at the root: folders that hold something first (with what is under them), then what sits there", () => {
+  // An EMPTY folder is a book too (2026-10-27): a folder just made from the shelf's ＋📁 has to be there to put
+  // things in. This test used to expect it hidden.
+  it("at the root: folders first (with what is under them, empty ones too), then what sits there", () => {
     const v = folderShelfView("docs", null, ctx);
-    expect(v.items.map((i) => i.title)).toEqual(["Notes", "Top page"]);
-    expect(v.items[0]).toMatchObject({ id: "folder:notes", folder: true, count: 2 });
+    expect(v.items.map((i) => i.title)).toEqual(["Empty", "Notes", "Top page"]);
+    expect(v.items[0]).toMatchObject({ folder: true, count: 0 });
+    expect(v.items[1]).toMatchObject({ id: "folder:notes", folder: true, count: 2 });
     expect(v.canUp).toBe(false);
     expect(v.path.map((p) => p.title)).toEqual(["Documents"]);
   });

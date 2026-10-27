@@ -1022,12 +1022,20 @@ class OfficeActivity : AppSystemActivity() {
           val onShelf = if (atRest) null else at?.let { shelfLocal(t, PoseMath.tOf(it)) }?.takeIf { overShelf(t, it) }
           val moved = !atRest && onShelf == null
           if (onShelf != null) {
-            bookAt(t, onShelf, except = b)?.let { (target, before) ->
-              val id = itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
+            val id = if (b.folder) b.itemId else itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }
+            val hit = bookAt(t, onShelf, except = b)
+            if (hit != null) {
+              val (target, before) = hit
               val targetId = if (target.folder) target.itemId else itemField(t, target.itemId, "rowId").ifEmpty { target.itemId }
-              if (!b.folder) send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", targetId)
+              // A folder book moves the folder (control panel: into a folder book, else to where the shelf stands).
+              send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", targetId)
                   .put("edge", if (target.folder) "into" else if (before) "before" else "after"))
               Log.i(TAG, "${b.title} let go on ${target.title} (${if (target.folder) "into" else if (before) "before" else "after"})")
+            } else if (b in t.carried || b.folder) {
+              // Let go on the shelf on no book — after carrying it into another folder (an empty one has no book to
+              // drop on): it is filed where the shelf stands now.
+              send(JSONObject().put("type", "shelfReorder").put("key", t.key).put("id", id).put("targetId", "").put("edge", "end"))
+              Log.i(TAG, "${b.title} let go on an empty spot: filed here")
             }
           }
           if (moved) {

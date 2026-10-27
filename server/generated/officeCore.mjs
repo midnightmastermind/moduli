@@ -1166,6 +1166,7 @@ function folderShelfView(rootId, at2, { grid, occurrencesById, modulesById, fold
     const c = childOf(parent);
     if (c) counts.set(c, (counts.get(c) || 0) + 1);
   }
+  for (const f of Object.values(foldersById || {})) if (f?.parentId === here && under.has(f.id) && !counts.has(f.id)) counts.set(f.id, 0);
   const folders = [...counts.entries()].map(([fid, count]) => ({ id: "folder:" + fid, rowId: null, folder: true, count, title: foldersById?.[fid]?.name || "Folder", cover: null, fileId: null, fileKind: null, src: null })).sort((a, b) => a.title.localeCompare(b.title));
   const path = [];
   for (let f = here, n = 0; f && n < 64; n++) {
@@ -1542,6 +1543,7 @@ function planShelfReorder({ shelf, at: at2, id, targetId, edge }, { occurrencesB
   const ctx = { occurrencesById, modulesById, foldersById, asset: shelf.asset };
   const here = folderShelfView(shelf.folderId, at2, ctx).at || shelf.folderId;
   const pagesIn = (folderId) => Object.values(occurrencesById).filter((o) => o?.parentId === folderId && o.id !== id && ["page", "artifact"].includes(modulesById?.[o.moduleId]?.role) && modulesById?.[o.moduleId]?.kind !== "folder");
+  if (edge === "end") return [{ id, folder: here, sortOrder: sortOrderAtEnd(pagesIn(here)) }];
   if (String(targetId || "").startsWith("folder:")) {
     const dest = String(targetId).slice(7);
     return [{ id, folder: dest, sortOrder: sortOrderAtEnd(pagesIn(dest)) }];

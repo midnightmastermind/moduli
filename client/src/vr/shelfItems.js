@@ -76,7 +76,7 @@ export function folderShelfItems(rootId, { grid, occurrencesById, modulesById, f
 
 /**
  * A folder shelf seen as a TREE (the headset): standing in folder `at` (default the shelf's root), its subfolders
- * that hold anything are books of their own (`folder: true`, `count` = what is under them) and come first, then what
+ * (empty ones too) are books of their own (`folder: true`, `count` = what is under them) and come first, then what
  * sits directly in `at`. `path` is root..at by name, `canUp` whether there is a level above inside the shelf. A
  * folder `at` that is not under the root (deleted, moved) falls back to the root. Pure.
  */
@@ -103,6 +103,8 @@ export function folderShelfView(rootId, at, { grid, occurrencesById, modulesById
     const c = childOf(parent);
     if (c) counts.set(c, (counts.get(c) || 0) + 1);
   }
+  // An EMPTY subfolder is a book too (count 0): a folder just made on the shelf has to be there to put things in.
+  for (const f of Object.values(foldersById || {})) if (f?.parentId === here && under.has(f.id) && !counts.has(f.id)) counts.set(f.id, 0);
   const folders = [...counts.entries()]
     .map(([fid, count]) => ({ id: "folder:" + fid, rowId: null, folder: true, count, title: foldersById?.[fid]?.name || "Folder", cover: null, fileId: null, fileKind: null, src: null }))
     .sort((a, b) => a.title.localeCompare(b.title));

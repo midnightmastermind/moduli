@@ -95,7 +95,7 @@ object PanelHtml {
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
   <input id="q" placeholder="🔍 Search" oninput="search()">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
-  ${if (shelf.optBoolean("folderable")) """<button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
+  ${if (shelf.optBoolean("folderable")) """<button onclick="send({type:'newNote',key:key})">＋📝</button><button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
   <button id="selb" onclick="toggleSel()">Select</button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>
 <div id="rows"></div>

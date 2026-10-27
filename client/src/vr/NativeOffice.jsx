@@ -26,12 +26,12 @@ import { deleteOccurrenceEverywhere } from "../helpers/confirmDeleteOccurrence";
 import { withAction } from "../helpers/actionScope";
 import { runGroupDrop } from "../helpers/selectionDrag";
 import { decorLibrary } from "./decorLibrary.js";
-import { nativeOfficeState, findBookmarksBoard, findDayPage, findNotesFolder, planShelfReorder } from "./officeState.js";
+import { nativeOfficeState, findBookmarksBoard, findDayPage, findNotesFolder, planShelfReorder, planFolderMove } from "./officeState.js";
 export { BOOKMARK_BAR_MAX, findBookmarksBoard, bookmarkBar, nativeOfficeState, findDayPage, findNotesFolder } from "./officeState.js";
 import { officeBtn as btn, useOfficeSave, usePagePictures, screenPicture, ShelfSettings, ScreenSettings } from "./officeShared.jsx";
 import { setLocalLayout } from "../helpers/localLayout.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
-import { addBookmarkOccurrence, movePage, createFolder } from "../helpers/CommitHelpers.js";
+import { addBookmarkOccurrence, movePage, createFolder, updateFolder } from "../helpers/CommitHelpers.js";
 import { socket } from "../socket";
 import { sessionHeaders } from "../helpers/authStorage";
 
@@ -60,8 +60,8 @@ export async function saveLayoutBackup(gridId, layout) {
 }
 
 /** Make a new note: a doc page in Notes, named for now. Returns its occurrence id, or null. */
-function newNotePage({ grid, foldersById, dispatch }) {
-  const folderId = findNotesFolder(foldersById);
+function newNotePage({ grid, foldersById, dispatch }, inFolder = null) {
+  const folderId = (inFolder && foldersById?.[inFolder] ? inFolder : null) || findNotesFolder(foldersById);
   if (!folderId) return null;
   const label = "Note — " + new Date().toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return createPageInFolder({ folderId, kind: "doc", label, state: { userId: grid?.userId || localStorage.getItem("moduli-userId"), grid }, dispatch, socket });
@@ -265,7 +265,15 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         }
         else if (e?.type === "newNote") {
           // The new-note screen's button: a doc page in Notes (it is on the Documents shelf), opened beside the screen.
-          const id = newNotePage(live.current);
+          // From a folder shelf's ＋📝 it goes into the folder that shelf is standing in (user, 2026-10-27: "create a new
+          // folder, put a note or two in there").
+          const L = live.current;
+          const shelfId = String(e.key || "").startsWith("shelf:") ? String(e.key).slice(6) : null;
+          const shelf = shelfId ? readOffice(L.grid).shelves.find((x) => x.id === shelfId) : null;
+          const at = shelfId ? L.shelfAt[shelfId] : null;
+          const inFolder = shelf?.folderId ? (typeof at === "string" && at && !at.includes(":") ? at : shelf.folderId) : null;
+          const id = newNotePage(L, inFolder);
+          if (inFolder) setTimeout(() => { lastSent.current = ""; sendState(); }, 600);
           if (id) setTimeout(() => post({ type: "openNote", id, key: e.key }), 1200);
         }
         else if (e?.type === "albumQueue") {
@@ -326,6 +334,13 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
             setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
           };
           const ask = { shelfId, at: L.shelfAt[shelfId], id: e.id, targetId: e.targetId, edge: e.edge };
+          // A folder book: the folder itself moves (into another folder book, or to where the shelf stands).
+          if (String(e.id || "").startsWith("folder:")) {
+            const moved = planFolderMove({ ...ask, shelf }, L);
+            if (moved) withAction("Moved folder on shelf", () => updateFolder({ dispatch: L.dispatch, socket, folder: moved }));
+            setTimeout(() => { lastSent.current = ""; sendState(); }, 300);
+            return;
+          }
           if (remote) remote.plan("shelfReorder", ask).then((r) => apply(r?.moves));
           else if (L.occurrencesById?.[e.id]) apply(planShelfReorder({ ...ask, shelf }, L));
         }
