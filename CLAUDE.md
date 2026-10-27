@@ -54,6 +54,14 @@ appointment thats the same with a diff date, i copy the original appointment, an
   drew 73/234px off). **+ Box puts the new box FIRST** in its box. Watched on prod data with a real mouse
   (Routines row `kTrgMA-LajDz`): line on the target edge, drop to the top, dragged back → layout identical.
 - **`0451`**: Routines areas other than Physical + Financial hold their habits directly (user): 21 inner containers deleted, 52 habits moved up in order, each area's New routine creates in the area without asking Where.
+- **Panel "Up one level"** (↑ beside Back, `helpers/panelUp.upTarget`): a page → the nearest page above it, else its
+  folder's folder page; a folder page → the parent folder's page. A folder never opened has no folder page, so Up
+  mints it (`importsFolder.ensureFolderPageOcc`). Watched on prod: Routines → Up → Tasks folder page → Back → Routines.
+- **VR shelf drops aim with the controller ray** (`OfficeActivity.aimLocal/aimTarget/showDrop`, `PanelHtml dropOn`):
+  the held book sits at the hand, outside the shelf's drop zone, so the ⬆ and folder books were never targets (the
+  headset log: every release "put back"). Aimed at the ⬆ or a folder book it lights blue and the release drops there;
+  a book carried in from another folder drops "here" when aimed anywhere at the shelf; all else unchanged. APK built
+  and installed; NOT tried in the headset.
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---

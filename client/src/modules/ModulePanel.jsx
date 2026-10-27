@@ -54,6 +54,7 @@ import {
 
 import {
   ChevronLeft,
+  ArrowUp,
   Copy,
   Link2,
   Unlink,
@@ -91,6 +92,7 @@ import { openPanelOnRootFolderPage, ensureFolderPageOcc } from "../helpers/impor
 import { useMinWidth } from "../hooks/useMinWidth";
 import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W } from "../helpers/rootTreeLayout";
 import { PAGEABLE_CONTAINER_KINDS } from "../helpers/folderPages";
+import { upTarget } from "../helpers/panelUp";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -515,6 +517,22 @@ function Panel({
       dispatch, socket, view: { ...currentView, activeOccurrenceId: target }, emit: true,
     });
   }, [currentView, occurrencesById, dispatch, socket]);
+  // Up one level: the page or folder page above the one shown (helpers/panelUp).
+  const upId = useMemo(
+    () => (currentView?.activeOccurrenceId ? upTarget(currentView.activeOccurrenceId, { occurrencesById, modulesById, foldersById }) : null),
+    [currentView?.activeOccurrenceId, occurrencesById, modulesById, foldersById],
+  );
+  const goUpHere = useCallback((e) => {
+    e?.stopPropagation();
+    if (!currentView?.id || !upId) return;
+    // A folder opened for the first time has no folder page yet: make it (the same mint the imports use).
+    const target = upId.id || ensureFolderPageOcc({
+      folderId: upId.folderId, label: foldersById?.[upId.folderId]?.name, gridId: module.gridId,
+      occurrencesById, dispatch, socket, userId: module.userId,
+    });
+    if (!target) return;
+    CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: target }, emit: true });
+  }, [currentView, upId, foldersById, occurrencesById, module.gridId, module.userId, dispatch, socket]);
   const currentViewType = currentView?.viewType || "board";
 
   const handleViewTypeChange = useCallback((e) => {
@@ -1243,6 +1261,16 @@ function Panel({
                     aria-label="Back to the previous page"
                   >
                     <ChevronLeft size={10} />
+                  </button>
+                )}
+                {upId && (
+                  <button
+                    className="panel-stack-btn-inline"
+                    onClick={goUpHere}
+                    title="Up one level"
+                    aria-label="Up one level"
+                  >
+                    <ArrowUp size={10} />
                   </button>
                 )}
                 {setFullscreenPanelId && (
