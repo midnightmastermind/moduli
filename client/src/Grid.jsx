@@ -275,8 +275,8 @@ function GridRender({
             top: 0,
             bottom: 0,
             left: `${getColPosition(i)}%`,
-            // Touch: fat invisible lane (finger-sized); desktop keeps the slim 6px.
-            width: isTouch ? 28 : 6,
+            // Touch: fat invisible lane (finger-sized); desktop 10px (was 6 — user, 2026-10-27).
+            width: isTouch ? 28 : 10,
             transform: 'translateX(-50%)',
             cursor: "col-resize",
             // touch-action:none is the actual gesture claim on touch — React's
@@ -310,7 +310,7 @@ function GridRender({
             left: 0,
             right: 0,
             top: `${getRowPosition(i)}%`,
-            height: isTouch ? 28 : 6,
+            height: isTouch ? 28 : 10,
             transform: 'translateY(-50%)',
             cursor: "row-resize",
             touchAction: "none",

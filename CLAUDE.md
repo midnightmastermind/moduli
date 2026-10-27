@@ -41,6 +41,12 @@ appointment thats the same with a diff date, i copy the original appointment, an
   the original). No index shift for a copy, so a drop on the row's own bottom edge lands right after it. To reorder a
   Copy-mode row (Routines bank) switch it to Move — the user's pick. Test `copyIntoSameContainer` (4).
 - **`0450`**: all 35 rows under the Tasks page drag as Copy-link (user), set on the occurrence (`dragMode`), not the shared modules.
+- **Toolbar clock** (`ui/ToolbarClock.jsx`, written out — "Tuesday, October 27 9:05 AM", ticks on the minute) just
+  left of the account button; on a phone it sits before the pills, and Undo / Reload / Command Center moved from the
+  phone toolbar into the side menu (user). Filters stays on the phone toolbar: its popup (z 1100) opens under the
+  drawer (z 1101) and holds the phone's only date picker. Measured at 1024–1600 and 360/390: one line, no overlap.
+- **Panel resize handles fatter** (user): painted line 3 → 5px (touch 7), desktop grab band 6 → 10px in both layouts
+  (in the mosaic `SPLITTER` is also the gap between panels, so that gap grew 4px).
 - **Migration numbering:** account2 wrote `0429-linked-…`; `0429` was taken and the runner was at `0444` — renumbered.
 
 ---

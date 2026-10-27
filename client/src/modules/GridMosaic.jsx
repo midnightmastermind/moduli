@@ -29,7 +29,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 // pane underneath and opened its long-press menu instead of resizing.
 // Static per load: pointer coarseness doesn't change at runtime.
 const IS_COARSE = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)")?.matches;
-const SPLITTER = IS_COARSE ? 28 : 6; // px hit band (visual nub styled separately)
+const SPLITTER = IS_COARSE ? 28 : 10; // px hit band (visual nub styled separately) — 6 -> 10 (user, 2026-10-27: "a little bit fatter")
 
 // How deep the perimeter snap band reaches in from the grid's outer edge. Wide
 // enough to aim at with a dragged panel, narrow enough that the middle of every
@@ -355,8 +355,8 @@ export default function GridMosaic({
           <div style={{
             background: "var(--grid-line, rgba(160,170,182,0.55))",
             borderRadius: 2,
-            width: s.dir === "v" ? (IS_COARSE ? 5 : 3) : "100%",
-            height: s.dir === "v" ? "100%" : (IS_COARSE ? 5 : 3),
+            width: s.dir === "v" ? (IS_COARSE ? 7 : 5) : "100%",
+            height: s.dir === "v" ? "100%" : (IS_COARSE ? 7 : 5),
           }} />
         </div>
       ))}

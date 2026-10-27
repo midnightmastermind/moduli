@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import AlarmDropdown from "./ui/AlarmDropdown";
+import ToolbarClock from "./ui/ToolbarClock";
 import MiniGridMap from "./mobile/MiniGridMap";
 
 import { Button } from "@/components/ui/button";
@@ -364,6 +365,11 @@ const gridOptions = useMemo(
             </>
           )}
 
+          {/* Undo / Reload / Command Center — on the desktop toolbar; on a phone
+              they live in the side menu (user, 2026-10-27), which leaves the
+              phone toolbar room for the clock. */}
+          {!isMobileLayout && (
+            <>
           {/* Undo — beside the command center, and ALWAYS VISIBLE rather than
               desktop-only: the keyboard shortcut already covers desktop, and
               this exists for the surface that has no keyboard. Disabled rather
@@ -403,6 +409,9 @@ const gridOptions = useMemo(
             <Terminal className="h-3.5 w-3.5" />
           </Button>
 
+            </>
+          )}
+
           {/* Desktop-only: Hide toolbar + Account */}
           {!isMobileLayout && (
             <>
@@ -416,6 +425,7 @@ const gridOptions = useMemo(
                 <EyeOff className="h-3 w-3" />
               </Button>
 
+              <ToolbarClock />
               <Popover open={accountOpen} onOpenChange={setAccountOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -465,9 +475,10 @@ const gridOptions = useMemo(
             </>
           )}
 
-          {/* Mobile-only: status + notification pills, then the drawer toggle. */}
+          {/* Mobile-only: the clock, status + notification pills, then the drawer toggle. */}
           {isMobileLayout && (
             <div className="flex items-center gap-1 shrink-0">
+              <ToolbarClock />
               <SocketStatusBanner />
             <OpActivityPill />
               <TransactionNotificationStack compact />
@@ -538,6 +549,44 @@ const gridOptions = useMemo(
                 </SelectContent>
               </Select>
             </div>
+
+            <div style={{ height: 1, background: "var(--border-default)" }} />
+
+            {/* Undo / Reload / Command Center — off the phone toolbar, here instead. */}
+            <button
+              onClick={() => { setDrawerOpen(false); onUndo?.(); }}
+              disabled={!canUndo || undoBusy}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
+                background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer", opacity: canUndo && !undoBusy ? 1 : 0.4,
+                fontSize: 12, fontFamily: "var(--font-mono)",
+              }}
+            >
+              <Undo2 size={14} style={{ opacity: 0.7 }} />
+              {canUndo ? "Undo" : "Nothing to undo"}
+            </button>
+            <button
+              onClick={() => { setDrawerOpen(false); (onReload ? onReload() : window.location.reload()); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
+                background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-mono)",
+              }}
+            >
+              <RotateCw size={14} style={{ opacity: 0.7 }} />
+              Reload
+            </button>
+            <button
+              onClick={() => { setDrawerOpen(false); onCommandCenter?.(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
+                background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
+                fontSize: 12, fontFamily: "var(--font-mono)",
+              }}
+            >
+              <Terminal size={14} style={{ opacity: 0.7 }} />
+              Command Center
+            </button>
 
             <div style={{ height: 1, background: "var(--border-default)" }} />
 

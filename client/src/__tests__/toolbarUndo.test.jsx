@@ -56,9 +56,13 @@ describe("Toolbar undo button", () => {
   });
 
   // The whole point: it is not gated behind the desktop-only block.
-  it("is offered on a mobile layout, where there is no Ctrl+Z", () => {
-    render(<Toolbar {...base} onUndo={() => {}} canUndo isMobileLayout />);
-    expect(screen.getByTitle("Undo (Ctrl+Z)")).toBeTruthy();
+  it("is offered on a mobile layout, where there is no Ctrl+Z — in the side menu (user, 2026-10-27)", () => {
+    const onUndo = vi.fn();
+    render(<Toolbar {...base} onUndo={onUndo} canUndo isMobileLayout />);
+    expect(screen.queryByTitle("Undo (Ctrl+Z)")).toBeNull();      // off the phone toolbar
+    fireEvent.click(screen.getByTitle("Open menu"));
+    fireEvent.click(screen.getByText("Undo"));
+    expect(onUndo).toHaveBeenCalled();
   });
 });
 
@@ -90,8 +94,12 @@ describe("Toolbar reload button", () => {
     expect(screen.getByTitle("Reload").disabled).toBe(false);
   });
 
-  it("is offered on a mobile layout too", () => {
-    render(<Toolbar {...base} onReload={() => {}} isMobileLayout />);
-    expect(screen.getByTitle("Reload")).toBeTruthy();
+  it("is offered on a mobile layout too — in the side menu", () => {
+    const onReload = vi.fn();
+    render(<Toolbar {...base} onReload={onReload} isMobileLayout />);
+    expect(screen.queryByTitle("Reload")).toBeNull();
+    fireEvent.click(screen.getByTitle("Open menu"));
+    fireEvent.click(screen.getByText("Reload"));
+    expect(onReload).toHaveBeenCalled();
   });
 });

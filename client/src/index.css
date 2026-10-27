@@ -8325,13 +8325,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .grid-resize-handle--col::before {
   top: 0; bottom: 0;
   left: 50%;
-  width: 3px;
+  width: 5px;
   transform: translateX(-50%);
 }
 .grid-resize-handle--row::before {
   left: 0; right: 0;
   top: 50%;
-  height: 3px;
+  height: 5px;
   transform: translateY(-50%);
 }
 /* Grabbing one should say so. The line is the affordance now, so it brightens
