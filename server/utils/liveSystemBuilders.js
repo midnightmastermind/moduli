@@ -7,6 +7,7 @@
 import { uid } from "./operationBuilders.js";
 import { completionGateOrRule } from "./completionGate.js";
 import { TEMPLATES_FOLDER_NAME } from "./protectedFolders.js";
+import { copyLinkAppointments, withDateTrigger } from "../migrations/0447-appointments-copy-linked-into-schedule.mjs";
 
 // The day-column's no-time bucket. This ONE constant is both the container's
 // label and its Time Slot identity-marker value — the ops FIND it by the marker,
@@ -4222,9 +4223,9 @@ export function makeSchedulePlaceDatedWorkOp({
   const P = 2; // after Build Schedule (1), before the trackers (3)
   const f = (fid) => `fields.${fid}.value`;
 
-  return {
+  const op = {
     id: uid(), userId, gridId, name: "Schedule: Place Dated Work",
-    description: "Multi-parent each appointment into every half-hour slot it spans, and each due-dated task into the Due container of every day it is still outstanding. Sweeps its own stale placements. Idempotent.",
+    description: "Copy-link each appointment into its start slot, and each due-dated task into the Due container of every day it is still outstanding. Sweeps its own stale placements. Idempotent.",
     // Same wiring as Build Schedule: the built-in date vars resolve through the
     // SCHEDULE PAGE's filter cascade, so an on-page date switch (which never
     // touches the grid filter) is seen.
@@ -4483,4 +4484,8 @@ export function makeSchedulePlaceDatedWorkOp({
       ],
     },
   };
+  // Appointments are copy-linked into their start slot (0447 — one transform,
+  // shared with the migration, so a reseed and a migrated grid cannot drift).
+  const { pipeline } = copyLinkAppointments(op.pipeline, { scheduleFormatFieldId, timeslotFieldId });
+  return { ...op, pipeline, triggerObjects: withDateTrigger(op, dateFieldId) };
 }

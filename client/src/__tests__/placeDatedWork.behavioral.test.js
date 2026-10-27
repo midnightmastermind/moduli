@@ -138,100 +138,116 @@ beforeEach(() => {
 // ============================================================
 // PHASE 1 — appointments
 // ============================================================
-describe("Place Dated Work — an appointment covers every slot it spans", () => {
-  it("a 2:00pm–3:00pm appointment lands in BOTH the 2:00pm and 2:30pm slots", () => {
+describe("Place Dated Work — an appointment is copy-linked into its start slot", () => {
+  // 0447 (user, 2026-10-27): an appointment with a date is COPY-LINKED into the
+  // Schedule — one linked copy in the slot of its Time Slot (start slot only, so
+  // a tracker counts it once). Re-dating or re-timing either side moves both.
+  const copiesOf = (src) => Object.values(occurrencesById).filter((o) => o?.meta?.copyLinkSource === src);
+  const slotOf = (copy) => occurrencesById[copy.parentId]?.label;
+  const retime = (id, fid, value) => {
+    occurrencesById[id] = { ...occurrencesById[id], fields: { ...occurrencesById[id].fields, [fid]: { value, flow: "in" } } };
+  };
+
+  it("a 2:00pm–3:00pm appointment gets ONE linked copy, in the 2:00pm slot", () => {
     occ("appt-therapy", {
       role: "instance", moduleId: APPT_TPL, label: "Therapy with Keith",
       fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm", [DURATION]: 60 },
     });
     run(placeOp());
-
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).toContain("appt-therapy");
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:30pm"))).toContain("appt-therapy");
-    // Half-open: the slot it ENDS on is free.
-    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).not.toContain("appt-therapy");
-    expect(childrenOf(slotAt(dayCol.slotIds, "1:30pm"))).not.toContain("appt-therapy");
+    const copies = copiesOf("appt-therapy");
+    expect(copies).toHaveLength(1);
+    expect(slotOf(copies[0])).toBe("2:00pm");
+    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).toContain(copies[0].id);
+    // the original stays where it lives, and is not listed in any slot
+    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).not.toContain("appt-therapy");
+    expect(childrenOf(slotAt(dayCol.slotIds, "2:30pm"))).toEqual([]);
   });
 
-  it("places ONE occurrence in several parents — never a copy per slot", () => {
-    occ("appt-group", {
-      role: "instance", moduleId: APPT_TPL, label: "Peer Support Group",
-      fields: { [DATE]: DAY, [TIMESLOT]: "6:00pm", [DURATION]: 120 },
-    });
-    const before = Object.keys(occurrencesById).length;
+  it("the copy is LINKED to the original and carries its fields", () => {
+    occ("appt-link", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "6:00pm", [DURATION]: 120 } });
     run(placeOp());
-
-    for (const l of ["6:00pm", "6:30pm", "7:00pm", "7:30pm"]) {
-      expect(childrenOf(slotAt(dayCol.slotIds, l)), l).toContain("appt-group");
-    }
-    // The whole point of multi-parenting: no new rows exist, so ticking it in
-    // one slot is ticking THE appointment.
-    expect(Object.keys(occurrencesById).length).toBe(before);
+    const [copy] = copiesOf("appt-link");
+    expect(copy.moduleId).toBe(APPT_TPL);
+    expect(copy.linkedGroupId).toBeTruthy();
+    expect(copy.linkedGroupId).toBe(occurrencesById["appt-link"].linkedGroupId);
+    expect(copy.fields[DATE].value).toBe(DAY);
+    expect(copy.fields[TIMESLOT].value).toBe("6:00pm");
   });
 
   it("places an appointment made with its OWN module — the 2026-08-24 defect", () => {
-    // User: *"my aug 24th task didnt get put into the schedule"* / *"its not a
-    // due date, its a normal date."* `Therapy with Keith` carried module
-    // `jb0tg0odtt` rather than the shared `Appointment`, because it was created
-    // by hand. The predicate named ONE template id, so it was skipped — and it
-    // was the only appointment that had ever fallen on a "today", which is why
-    // the op reported no error and had never once placed anything.
     occ("appt-own", {
       role: "instance", moduleId: APPT_TPL2, label: "Therapy with Keith",
       fields: { [DATE]: DAY, [TIMESLOT]: "3:00pm", [DURATION]: 60 },
     });
     run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).toContain("appt-own");
-    expect(childrenOf(slotAt(dayCol.slotIds, "3:30pm"))).toContain("appt-own");
-  });
-
-  it("SWEEPS one of its own module too — or a moved one is listed forever", () => {
-    // The keep-test IS the placement decision. If the sweep still matched on the
-    // module while placement matched on the binding, this row would be placed at
-    // 3:00pm and never unlinked when it moved.
-    occ("appt-own2", {
-      role: "instance", moduleId: APPT_TPL2,
-      fields: { [DATE]: DAY, [TIMESLOT]: "3:00pm", [DURATION]: 30 },
-    });
-    run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).toContain("appt-own2");
-
-    occurrencesById["appt-own2"] = {
-      ...occurrencesById["appt-own2"],
-      fields: { ...occurrencesById["appt-own2"].fields, [TIMESLOT]: { value: "5:00pm", flow: "in" } },
-    };
-    run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "5:00pm"))).toContain("appt-own2");
-    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).not.toContain("appt-own2");
+    expect(copiesOf("appt-own").map(slotOf)).toEqual(["3:00pm"]);
   });
 
   it("is idempotent — a second run adds nothing", () => {
     occ("appt-1", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "9:00am", [DURATION]: 60 } });
     run(placeOp());
-    const after1 = childrenOf(slotAt(dayCol.slotIds, "9:00am")).slice();
     run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "9:00am"))).toEqual(after1);
+    expect(copiesOf("appt-1")).toHaveLength(1);
   });
 
-  it("moving the appointment SWEEPS the slots it no longer covers", () => {
+  it("never copies its own copy (the copy sits under the Schedule)", () => {
+    occ("appt-2", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "9:00am", [DURATION]: 30 } });
+    run(placeOp());
+    const [copy] = copiesOf("appt-2");
+    run(placeOp());
+    expect(copiesOf(copy.id)).toEqual([]);
+  });
+
+  it("re-timing it moves the copy: the old one is deleted, a new one made", () => {
     occ("appt-move", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm", [DURATION]: 60 } });
     run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).toContain("appt-move");
-
-    // The user edits the time.
-    occurrencesById["appt-move"] = {
-      ...occurrencesById["appt-move"],
-      fields: { ...occurrencesById["appt-move"].fields, [TIMESLOT]: { value: "4:00pm", flow: "in" } },
-    };
+    const [old] = copiesOf("appt-move");
+    retime("appt-move", TIMESLOT, "4:00pm");
+    retime(old.id, TIMESLOT, "4:00pm");      // a copy-link shares the field
     run(placeOp());
+    expect(occurrencesById[old.id]).toBeUndefined();
+    expect(copiesOf("appt-move").map(slotOf)).toEqual(["4:00pm"]);
+  });
 
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).not.toContain("appt-move");
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:30pm"))).not.toContain("appt-move");
-    expect(childrenOf(slotAt(dayCol.slotIds, "4:00pm"))).toContain("appt-move");
+  it("re-dating it to another day removes it from this day", () => {
+    occ("appt-redate", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm", [DURATION]: 30 } });
+    run(placeOp());
+    const [old] = copiesOf("appt-redate");
+    retime("appt-redate", DATE, OTHER_DAY);
+    retime(old.id, DATE, OTHER_DAY);
+    run(placeOp());
+    expect(copiesOf("appt-redate")).toEqual([]);
+  });
+
+  it("a plain COPY of the original with a new date leaves the original's copy alone", () => {
+    // The user's workflow: copy the original, change the date — the op links the new one in.
+    occ("appt-orig", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "3:00pm", [DURATION]: 30 } });
+    occ("appt-next", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: OTHER_DAY, [TIMESLOT]: "3:00pm", [DURATION]: 30 } });
+    run(placeOp());
+    expect(copiesOf("appt-orig").map(slotOf)).toEqual(["3:00pm"]);
+    expect(copiesOf("appt-next")).toEqual([]);   // its day is not on screen
+  });
+
+  it("unlists an ORIGINAL left listed in a slot by the old placement", () => {
+    occ("appt-old", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm", [DURATION]: 60 } });
+    for (const l of ["2:00pm", "2:30pm"]) occurrencesById[slotAt(dayCol.slotIds, l)].occurrences = ["appt-old"];
+    run(placeOp());
+    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).not.toContain("appt-old");
+    expect(childrenOf(slotAt(dayCol.slotIds, "2:30pm"))).not.toContain("appt-old");
+    expect(occurrencesById["appt-old"]).toBeTruthy();   // unlisted, never deleted
+    expect(copiesOf("appt-old").map(slotOf)).toEqual(["2:00pm"]);
+  });
+
+  it("leaves an appointment made IN a slot alone — not copied, not unlisted", () => {
+    const slot = slotAt(dayCol.slotIds, "2:00pm");
+    occ("appt-here", { role: "instance", moduleId: APPT_TPL, parentId: slot, fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm", [DURATION]: 30 } });
+    occurrencesById[slot].occurrences = ["appt-here"];
+    run(placeOp());
+    expect(childrenOf(slot)).toContain("appt-here");
+    expect(copiesOf("appt-here")).toEqual([]);
   });
 
   it("leaves a NON-appointment sitting in a slot alone", () => {
-    // A dragged task is not this op's to move. The sweep must be narrow.
     occ("task-dragged", { role: "instance", moduleId: "mod-task", fields: { [DATE]: DAY, [TIMESLOT]: "2:00pm" } });
     const slot = slotAt(dayCol.slotIds, "2:00pm");
     occurrencesById[slot].occurrences = ["task-dragged"];
@@ -242,7 +258,7 @@ describe("Place Dated Work — an appointment covers every slot it spans", () =>
   it("ignores an appointment on a different day", () => {
     occ("appt-other", { role: "instance", moduleId: APPT_TPL, fields: { [DATE]: OTHER_DAY, [TIMESLOT]: "2:00pm", [DURATION]: 60 } });
     run(placeOp());
-    expect(childrenOf(slotAt(dayCol.slotIds, "2:00pm"))).not.toContain("appt-other");
+    expect(copiesOf("appt-other")).toEqual([]);
   });
 });
 
