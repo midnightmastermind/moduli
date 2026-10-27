@@ -340,6 +340,13 @@ function generatedLayouts(n) {
 //   1/3 column on the right — Routines | Tasks over Trackers, Schedule beside.
 const USER_LAYOUTS = [
   { id: "two-over-one-beside", zones: [G(0, 0, 1 / 3, 0.5), G(1 / 3, 0, 1 / 3, 0.5), G(0, 0.5, 2 / 3, 0.5), G(2 / 3, 0, 1 / 3, 1)] },
+  // The same the other way round (user, 2026-10-27: "that one the other way as well"): the full-height column on the
+  // left, the pair over the wide one on the right 2/3.
+  { id: "one-beside-two-over-one", zones: [G(0, 0, 1 / 3, 1), G(1 / 3, 0, 1 / 3, 0.5), G(2 / 3, 0, 1 / 3, 0.5), G(1 / 3, 0.5, 2 / 3, 0.5)] },
+  // And both flipped top to bottom (user, 2026-10-27: "all four of them … mirrored the opposite way as well"): the
+  // wide panel over the pair.
+  { id: "one-over-two-beside", zones: [G(0, 0, 2 / 3, 0.5), G(0, 0.5, 1 / 3, 0.5), G(1 / 3, 0.5, 1 / 3, 0.5), G(2 / 3, 0, 1 / 3, 1)] },
+  { id: "one-beside-one-over-two", zones: [G(0, 0, 1 / 3, 1), G(1 / 3, 0, 2 / 3, 0.5), G(1 / 3, 0.5, 1 / 3, 0.5), G(2 / 3, 0.5, 1 / 3, 0.5)] },
 ];
 
 const zoneKey = (z) => [z.x, z.y, z.w, z.h].map((v) => v.toFixed(4)).join(",");

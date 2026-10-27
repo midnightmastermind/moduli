@@ -181,4 +181,36 @@ describe("the user's own layout is offered (user 2026-10-27)", () => {
     expect(paneFraction(t, "tasks").x).toBeCloseTo(1 / 3);
     expect(layoutsForCount(3).some((x) => x.id === "two-over-one-beside")).toBe(false);
   });
+
+  it("and its mirror: one full-height on the left, two over one on the right 2/3 — offered second, and it builds", () => {
+    const l = layoutsForCount(4)[1];
+    expect(l.id).toBe("one-beside-two-over-one");
+    const ids = ["schedule", "routines", "tasks", "trackers"];
+    const t = treeFromZones(l.zones, ids);
+    expect(paneFraction(t, "schedule")).toMatchObject({ x: 0, y: 0 });
+    expect(paneFraction(t, "schedule").w).toBeCloseTo(1 / 3);
+    expect(paneFraction(t, "schedule").h).toBeCloseTo(1);
+    expect(paneFraction(t, "trackers").x).toBeCloseTo(1 / 3);
+    expect(paneFraction(t, "trackers").w).toBeCloseTo(2 / 3);
+    expect(paneFraction(t, "trackers").y).toBeCloseTo(0.5);
+    expect(paneFraction(t, "tasks").x).toBeCloseTo(2 / 3);
+  });
+
+  it("all four: the full-height column left or right, the pair on top or underneath — offered first, all distinct", () => {
+    const four = layoutsForCount(4).slice(0, 4).map((l) => l.id);
+    expect(four).toEqual(["two-over-one-beside", "one-beside-two-over-one", "one-over-two-beside", "one-beside-one-over-two"]);
+    // Flipped: the wide panel is on top, the pair underneath.
+    const up = treeFromZones(layoutsForCount(4)[2].zones, ["wide", "a", "b", "tall"]);
+    expect(paneFraction(up, "wide")).toMatchObject({ x: 0, y: 0 });
+    expect(paneFraction(up, "wide").w).toBeCloseTo(2 / 3);
+    expect(paneFraction(up, "a").y).toBeCloseTo(0.5);
+    expect(paneFraction(up, "tall").x).toBeCloseTo(2 / 3);
+    expect(paneFraction(up, "tall").h).toBeCloseTo(1);
+    const upLeft = treeFromZones(layoutsForCount(4)[3].zones, ["tall", "wide", "a", "b"]);
+    expect(paneFraction(upLeft, "tall")).toMatchObject({ x: 0, y: 0 });
+    expect(paneFraction(upLeft, "wide").x).toBeCloseTo(1 / 3);
+    expect(paneFraction(upLeft, "wide").y).toBeCloseTo(0);
+    expect(paneFraction(upLeft, "b").x).toBeCloseTo(2 / 3);
+    expect(paneFraction(upLeft, "b").y).toBeCloseTo(0.5);
+  });
 });
