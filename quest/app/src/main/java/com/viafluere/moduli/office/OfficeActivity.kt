@@ -98,6 +98,8 @@ class OfficeActivity : AppSystemActivity() {
     private const val SPOTIFY_H = 0.56f
     /** Holding a carried book over a folder book (or ⬆) this long opens it. */
     private const val DRAG_OPEN_MS = 900L
+    /** Held on the ⬆ this long, the shelf goes up a level (user: 0.9s "is to quick … i end up passing my mark"). */
+    private const val DRAG_UP_MS = 2000L
     /** Fewer page pixels a metre than a browser screen, so Spotify's controls draw big enough to hit (user). */
     private const val SPOTIFY_DP_PER_M = 720f
     /**
@@ -942,7 +944,9 @@ class OfficeActivity : AppSystemActivity() {
   /** Is a point (shelf frame) over the header's ⬆ (the shelf is inside a folder)? */
   private fun overUp(t: Thing, l: FloatArray): Boolean {
     val size = t.shelfSize ?: return false
-    return t.canUp && l[1] >= size.h && l[0] <= -(size.w - 0.06f) / 2f + 0.14f
+    // The panel's LEFT is the shelf frame's +x (ShelfLayout: column 0 sits at panelW/2), and the ⬆ is the header's first
+    // button — so it is at the +x end. Tested at the -x end it lit over the Select button (user, 2026-10-27).
+    return t.canUp && l[1] >= size.h && l[0] >= (size.w - 0.06f) / 2f - 0.14f
   }
 
   /** Is a point (shelf frame) at the front of the shelf, over its books or its header? */
@@ -1021,7 +1025,7 @@ class OfficeActivity : AppSystemActivity() {
     if (now - b.aimLogAt > 500) {
       b.aimLogAt = now
       val a = aimLocal(t)
-      Log.i(TAG, "aim ${b.title}: ${a?.joinToString { "%.3f".format(it) } ?: "off the shelf"} size w=${"%.3f".format(size.w)} h=${"%.3f".format(size.h)} canUp=${t.canUp} up<=x ${"%.3f".format(-(size.w - 0.06f) / 2f + 0.14f)} -> ${b.aimWhat}")
+      Log.i(TAG, "aim ${b.title}: ${a?.joinToString { "%.3f".format(it) } ?: "off the shelf"} size w=${"%.3f".format(size.w)} h=${"%.3f".format(size.h)} canUp=${t.canUp} up>=x ${"%.3f".format((size.w - 0.06f) / 2f - 0.14f)} -> ${b.aimWhat}")
     }
     val l = shelfLocal(t, p)?.takeIf { overShelf(t, it) }
     val what = b.aimWhat ?: when {
@@ -1030,7 +1034,7 @@ class OfficeActivity : AppSystemActivity() {
       else -> bookAt(t, l, except = b)?.first?.takeIf { it.folder }?.let { "folder:" + it.itemId }
     }
     if (what != b.overWhat) { b.overWhat = what; b.overSince = now; return }
-    if (what == null || what == "here" || now - b.overSince < DRAG_OPEN_MS) return
+    if (what == null || what == "here" || now - b.overSince < (if (what == "up") DRAG_UP_MS else DRAG_OPEN_MS)) return
     // A folder opens once per stay; held on the ⬆ the shelf keeps climbing, a level every DRAG_OPEN_MS.
     b.overSince = if (what == "up") now else Long.MAX_VALUE / 2
     if (what == "up") send(JSONObject().put("type", "shelfUp").put("key", t.key))
@@ -1145,8 +1149,8 @@ class OfficeActivity : AppSystemActivity() {
               // move it opened it and left the shelf inside an empty folder — "the shelf crashed", 2026-10-27).
               // Let go while still pointing at itself: open it, however long it was held (user, 2026-10-27: "i
               // also cant drill into folders anymore" — a 0.35s tap was the only way in).
-              b.folder && aimingAt(t, b) -> activateBook(t, b)
-              b.folder -> Log.i(TAG, "${b.title} put back (pointed away from it)")
+              // A folder pulled off the shelf and let go away from it opens (user, 2026-10-27).
+              b.folder -> activateBook(t, b)
               else -> activateBook(t, b, near = p)
             }
           } else if (atRest && now - b.grabbedAt < BOOK_TAP_MS) activateBook(t, b)
