@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -479,8 +480,12 @@ class OfficeActivity : AppSystemActivity() {
                       if (!saved) send(JSONObject().put("type", "saveBookmark").put("url", g.url).put("title", g.title))
                     }) { Text(if (saved) "★" else "☆") }
                   }
-                  // The bookmarks bar, under the address bar like any browser's.
-                  Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 6.dp)) {
+                  // The bookmarks bar, under the address bar like any browser's. FIXED height, empty or not: it used to
+                  // start empty and grow when the bookmarks arrived, which shrank the page under it after it had laid
+                  // out — Remote Desktop then drew your PC's cursor ~100px above where it was (user, 2026-10-27:
+                  // "it works for a bit then drifts").
+                  Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 6.dp),
+                      verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     for ((title, url) in bookmarkBar) {
                       androidx.compose.material3.TextButton(onClick = { web?.load(url) }) {
                         Text(title.ifEmpty { url }.take(24), maxLines = 1)
