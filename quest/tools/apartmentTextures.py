@@ -41,7 +41,7 @@ def window():
     d.line([0, sill_y - 14, W, sill_y - 14], fill=(240, 238, 232, 255), width=3)
     d.rectangle([0, sill_y + 10, W, sill_y + 18], fill=(170, 164, 154, 255))
     # Frames: outer verticals at both edges (half each, so two bays meet as one mullion), a head at the ceiling,
-    # a bottom rail on the sill and a transom a third of the way down.
+    # and a bottom rail on the sill (no transom: user 2026-10-27, one clear pane per bay).
     top = 0
     bottom = sill_y - 14
     def bar(x0, y0, x1, y1):
@@ -51,8 +51,6 @@ def window():
     bar(W - 14, top, W, bottom)
     bar(0, top, W, top + 22)
     bar(0, bottom - 24, W, bottom)
-    transom = top + int((bottom - top) * 0.22)
-    bar(0, transom, W, transom + 14)
     im.save(os.path.join(OUT, "apartment_window.png"))
 
 

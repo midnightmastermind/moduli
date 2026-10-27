@@ -1866,8 +1866,9 @@ class OfficeActivity : AppSystemActivity() {
 
   /**
    * A model in the room that no piece, book or grab bar owns cannot be grabbed or deleted (user, 2026-10-25: "one
-   * of the record players is stuck … wont let me drag or delete it"). The app makes models in exactly three places —
-   * a piece's frame, a shelf's books, a grab bar — so any other office model is a leftover: it is logged and removed.
+   * of the record players is stuck … wont let me drag or delete it"). The app makes models in a few known places —
+   * a piece's frame, a shelf's books, a grab bar, a reader's handle, the VR sky — so any other office model is a
+   * leftover: it is logged and removed.
    */
   private fun sweepStrayModels() {
     val owned = HashSet<Long>()
@@ -1877,6 +1878,8 @@ class OfficeActivity : AppSystemActivity() {
       for (b in t.books + t.carried) { owned += b.entity.id; b.shown?.id?.let { owned += it } }
     }
     for (h in readerHandles.values) owned += h.entity.id
+    // The VR apartment's sky is the room's, not a piece's (RoomAnchor).
+    if (::room.isInitialized) room.skyEntityId?.let { owned += it }
     for (e in Query.where { has(Mesh.id) }.eval()) {
       val uri = e.tryGetComponent<Mesh>()?.mesh?.toString() ?: continue
       if (!uri.startsWith("apk:///office/") || e.id in owned) continue

@@ -35,6 +35,9 @@ class RoomAnchor(context: Context, systemManager: SystemManager) : MRUKSceneEven
   val feature = MRUKFeature(context, systemManager)
   private var walls: AnchorProceduralMesh? = null
   private var sky: Entity? = null
+
+  /** The VR sky's entity, so OfficeActivity's stray-model sweep keeps it. */
+  val skyEntityId: Long? get() = sky?.id
   private var wantWalls = false
   private var listening = false
   private var captureAsked = false
