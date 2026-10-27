@@ -18,6 +18,8 @@ Models converted by `quest/tools/realFurniture.mjs` (re-oriented, scaled, textur
 | lamp | Mid Century Modern Floor Lamp | thebiz | https://sketchfab.com/3d-models/31eea7d54bfe4127adcc422b84d1b190 | CC BY 4.0 |
 | longtable | Mid Century Teak Dining Table | calebkung | https://sketchfab.com/3d-models/f69be2ddeac645faaf49977ef569a606 | CC BY 4.0 |
 | books (shelves) | Book | Eric Fan | https://sketchfab.com/3d-models/fc1b43e332d147edb7dca8f89cffa4d7 | CC BY 4.0 |
+| fireplace | fireplace | 1-3D.com | https://sketchfab.com/3d-models/50edaa5b47ad4261adb912e348b40470 | CC BY 4.0 |
+| shelves (wood) | American Walnut Veneer (texture) | Poly Haven | https://polyhaven.com/a/american_walnut_veneer | CC0 1.0 |
 | VR sky | Joburg Central Sunset | Poly Haven | https://polyhaven.com/a/sunset_jhbcentral | CC0 1.0 |
 
 CC BY 4.0: https://creativecommons.org/licenses/by/4.0/ — CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/

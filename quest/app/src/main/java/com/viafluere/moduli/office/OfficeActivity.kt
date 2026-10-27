@@ -1693,7 +1693,7 @@ class OfficeActivity : AppSystemActivity() {
    *  furniture" being on, like a reader window (user: "i need the screens to not be only when furniture is turned
    *  on"). Furniture still needs the switch, so reaching for a book never moves the shelf. */
   private fun isScreen(t: Thing): Boolean =
-      t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" || it == "window" } == true
+      t.key.startsWith("screen:") || t.decorEntry?.optString("model")?.let { modelFile(it) == "screen" || (it == "window" || it == "openwindow") } == true
 
   /** Per controller, the piece whose menu its ray holds (see showMenus). */
   private val stickyPointed = HashMap<Int, String?>()

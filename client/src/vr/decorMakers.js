@@ -149,6 +149,16 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       g.add(box(1.2, 0.03, 0.16, wood, 0, 0.0, 0.05));
       return g;
     }
+    case "openwindow": {
+      // An open window (user, 2026-10-27): frame, mullions and sill, nothing in the panes — you see through it.
+      // The Quest app's model is quest/tools/realFurniture.mjs; this is the browser office's stand-in.
+      const frame = 0x14120f, sill = 0xc8c2b8;
+      g.add(box(1.2, 0.06, 0.1, frame, 0, 0.03, 0)); g.add(box(1.2, 0.06, 0.1, frame, 0, 1.47, 0));
+      for (const x of [-0.57, 0.57]) g.add(box(0.06, 1.5, 0.1, frame, x, 0.75, 0));
+      g.add(box(0.035, 1.38, 0.05, frame, 0, 0.75, 0)); g.add(box(1.08, 0.035, 0.05, frame, 0, 0.93, 0));
+      g.add(box(1.3, 0.04, 0.2, sill, 0, -0.02, 0.05));
+      return g;
+    }
     case "keyboard": {
       // A full-size keyboard, 44 x 14cm: a dark case with five rows of keys and a space bar. Typing side is +z.
       g.add(box(0.44, 0.02, 0.14, 0x1e1e1e, 0, 0.01, 0));

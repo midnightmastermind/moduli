@@ -1,27 +1,27 @@
 {
   "fireplace": {
-    "top": 1.76,
-    "bottom": 0,
-    "hx": 0.85,
-    "hz": 0.275
-  },
-  "shelf-book": {
-    "top": 1.8,
-    "bottom": 0,
-    "hx": 0.565,
-    "hz": 0.15
-  },
-  "shelf-record": {
     "top": 1.15,
     "bottom": 0,
-    "hx": 0.59,
-    "hz": 0.18
+    "hx": 0.632,
+    "hz": 0.192
+  },
+  "shelf-book": {
+    "top": 1.82,
+    "bottom": 0,
+    "hx": 0.57,
+    "hz": 0.16
+  },
+  "shelf-record": {
+    "top": 1.17,
+    "bottom": 0,
+    "hx": 0.595,
+    "hz": 0.19
   },
   "shelf-vhs": {
-    "top": 1.3,
+    "top": 1.32,
     "bottom": 0,
-    "hx": 0.515,
-    "hz": 0.12
+    "hx": 0.52,
+    "hz": 0.13
   },
   "screen": {
     "top": 1.98,
@@ -298,5 +298,11 @@
     "bottom": 0,
     "hx": 0.03,
     "hz": 0.03
+  },
+  "openwindow": {
+    "top": 1.5,
+    "bottom": -0.04,
+    "hx": 0.65,
+    "hz": 0.1
   }
 }

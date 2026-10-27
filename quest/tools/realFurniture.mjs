@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeIO } from "@gltf-transform/core";
+import { NodeIO, Document } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { flatten, clearNodeTransform, getBounds, prune, dedup, textureCompress, transformMesh, cloneDocument, weld, simplify } from "@gltf-transform/functions";
 import { MeshoptSimplifier } from "meshoptimizer";
@@ -39,6 +39,7 @@ const PIECES = {
   bed:          { file: "bed.glb" },
   lamp:         { file: "lamp.glb", size: { y: 1.55 } },
   longtable:    { file: "longtable.glb", yaw: 90, size: { y: 0.75 } },
+  fireplace:    { file: "fireplace_11.glb", size: { y: 1.15 } },
 };
 const SPINES = ["#7a2e2e", "#2e4a7a", "#3f6b34", "#7a5a2e", "#4a2e7a", "#2e6b6b", "#8a6a3a", "#5a3a2a"];
 const DROP_EXT = ["KHR_lights_punctual", "KHR_materials_sheen", "KHR_materials_specular", "KHR_materials_variants",
@@ -110,6 +111,101 @@ for (const [name, p] of Object.entries(PIECES)) {
   await io.write(resolve(OUT, `${name}.glb`), doc);
   await io.write(resolve(OUT, `${name}-ghost.glb`), await ghostOf(doc));
   console.log(name, sizes[name], Math.round(triangles(doc)), "triangles");
+}
+
+// ── Built here from boxes: the shelves (their boards must stay exactly where the shelf panel's rows are) and the
+// open window (a frame with nothing in the panes, so you look through it — user, 2026-10-27). ──────────────────
+const { SHELF_SIZES } = await import(resolve(here, "../../client/src/vr/decorMakers.js"));
+
+/** A document of boxes: [w, h, d, x, y, z, material]. UVs in metres (TILE per repeat) along each face's long side. */
+async function boxes(list, materials) {
+  const doc = new Document(); const buf = doc.createBuffer();
+  const mats = {};
+  for (const [name, m] of Object.entries(materials)) {
+    const mat = doc.createMaterial(name).setRoughnessFactor(m.rough ?? 0.6).setMetallicFactor(m.metal ?? 0).setBaseColorFactor(m.color || [1, 1, 1, 1]);
+    if (m.diff) mat.setBaseColorTexture(doc.createTexture(name + "-d").setImage(readFileSync(m.diff)).setMimeType("image/jpeg"));
+    if (m.arm) mat.setMetallicRoughnessTexture(doc.createTexture(name + "-arm").setImage(readFileSync(m.arm)).setMimeType("image/jpeg"))
+      .setOcclusionTexture(doc.getRoot().listTextures().at(-1));
+    mats[name] = { mat, pos: [], nor: [], uv: [], idx: [], tile: m.tile || 0.6 };
+  }
+  const FACES = [ // normal, u axis, v axis
+    [[1, 0, 0], [0, 0, -1], [0, 1, 0]], [[-1, 0, 0], [0, 0, 1], [0, 1, 0]],
+    [[0, 1, 0], [1, 0, 0], [0, 0, -1]], [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+    [[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]],
+  ];
+  for (const [w, h, d, x, y, z, name] of list) {
+    const M = mats[name]; const half = [w / 2, h / 2, d / 2], c = [x, y, z];
+    for (const [n, u, v] of FACES) {
+      const hu = Math.abs(u[0]) * half[0] + Math.abs(u[1]) * half[1] + Math.abs(u[2]) * half[2];
+      const hv = Math.abs(v[0]) * half[0] + Math.abs(v[1]) * half[1] + Math.abs(v[2]) * half[2];
+      const hn = Math.abs(n[0]) * half[0] + Math.abs(n[1]) * half[1] + Math.abs(n[2]) * half[2];
+      // Grain runs along the face's longer side.
+      const swap = hv > hu;
+      const base = M.pos.length / 3;
+      for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        for (let k = 0; k < 3; k++) M.pos.push(c[k] + n[k] * hn + u[k] * hu * su + v[k] * hv * sv);
+        M.nor.push(...n);
+        const a = (su * hu + hu) / M.tile, b = (sv * hv + hv) / M.tile;
+        M.uv.push(...(swap ? [b, a] : [a, b]));
+      }
+      M.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  const mesh = doc.createMesh("boxes");
+  for (const M of Object.values(mats)) {
+    if (!M.idx.length) continue;
+    const prim = doc.createPrimitive().setMaterial(M.mat)
+      .setAttribute("POSITION", doc.createAccessor().setType("VEC3").setArray(new Float32Array(M.pos)).setBuffer(buf))
+      .setAttribute("NORMAL", doc.createAccessor().setType("VEC3").setArray(new Float32Array(M.nor)).setBuffer(buf))
+      .setAttribute("TEXCOORD_0", doc.createAccessor().setType("VEC2").setArray(new Float32Array(M.uv)).setBuffer(buf))
+      .setIndices(doc.createAccessor().setType("SCALAR").setArray(new Uint32Array(M.idx)).setBuffer(buf));
+    mesh.addPrimitive(prim);
+  }
+  doc.createScene().addChild(doc.createNode().setMesh(mesh));
+  await shrinkTextures(doc);
+  return doc;
+}
+
+async function writePiece(name, doc) {
+  const b = getBounds(scene(doc));
+  sizes[name] = { top: +b.max[1].toFixed(3), bottom: +b.min[1].toFixed(3), hx: +((b.max[0] - b.min[0]) / 2).toFixed(3), hz: +((b.max[2] - b.min[2]) / 2).toFixed(3) };
+  await io.write(resolve(OUT, `${name}.glb`), doc);
+  await io.write(resolve(OUT, `${name}-ghost.glb`), await ghostOf(doc));
+  console.log(name, sizes[name]);
+}
+
+const WALNUT = resolve(SRC, "walnut");
+if (!only || only.includes("shelves")) {
+  for (const asset of ["book", "record", "vhs"]) {
+    const { W, H, D, SHELVES } = SHELF_SIZES[asset];
+    const list = [];
+    // The same parts, at the same places, as decorMakers.makeShelfFrame: back, two sides, SHELVES + 1 boards.
+    list.push([W, H, 0.02, 0, H / 2, -D / 2 + 0.01, "back"]);
+    list.push([0.03, H, D, -W / 2, H / 2, 0, "walnut"]);
+    list.push([0.03, H, D, W / 2, H / 2, 0, "walnut"]);
+    for (let i = 0; i <= SHELVES; i++) list.push([W, 0.025, D, 0, 0.02 + i * (H - 0.04) / SHELVES, 0, "walnut"]);
+    // A top that overhangs the sides a little, like a real bookcase.
+    list.push([W + 0.04, 0.02, D + 0.02, 0, H + 0.01, 0.01, "walnut"]);
+    const doc = await boxes(list, {
+      walnut: { diff: resolve(WALNUT, "diff.jpg"), arm: resolve(WALNUT, "arm.jpg"), rough: 1, tile: 0.8 },
+      back: { diff: resolve(WALNUT, "diff.jpg"), arm: resolve(WALNUT, "arm.jpg"), rough: 1, tile: 0.8, color: [0.55, 0.5, 0.48, 1] },
+    });
+    await writePiece(`shelf-${asset}`, doc);
+  }
+}
+if (!only || only.includes("openwindow")) {
+  // 1.2 x 1.5m, dark bronze frame (the apartment's windows), a cross of mullions, a stone sill; the panes are open.
+  const W = 1.2, H = 1.5, F = 0.06, D = 0.1;
+  const doc = await boxes([
+    [W, F, D, 0, F / 2, 0, "frame"], [W, F, D, 0, H - F / 2, 0, "frame"],
+    [F, H, D, -W / 2 + F / 2, H / 2, 0, "frame"], [F, H, D, W / 2 - F / 2, H / 2, 0, "frame"],
+    [0.035, H - 2 * F, 0.05, 0, H / 2, 0, "frame"], [W - 2 * F, 0.035, 0.05, 0, H * 0.62, 0, "frame"],
+    [W + 0.1, 0.04, 0.2, 0, -0.02, 0.05, "sill"],
+  ], {
+    frame: { color: [0.06, 0.055, 0.05, 1], rough: 0.45, metal: 0.6 },
+    sill: { color: [0.78, 0.76, 0.72, 1], rough: 0.7 },
+  });
+  await writePiece("openwindow", doc);
 }
 
 // Books: stood up (its length becomes the height), stretched to the 1 x 1 x 1 box centred on the origin.

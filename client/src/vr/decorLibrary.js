@@ -19,6 +19,7 @@ export const BUILTIN_DECOR = [
   { key: "vhsplayer", title: "VHS player" },
   { key: "clock", title: "Wall clock" },
   { key: "window", title: "Window" },
+  { key: "openwindow", title: "Open window" },
   { key: "couch", title: "Couch" },
   { key: "bed", title: "Queen bed" },
   { key: "lamp", title: "Floor lamp" },
