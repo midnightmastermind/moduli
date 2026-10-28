@@ -702,6 +702,11 @@ export function registerOccurrenceHandlers(socket, {
             patch.fields = { ...(linked.fields || {}), ...fanFields };
           }
           if (textmap !== undefined) patch.textmap = textmap;
+          // The NAME is shared too (user, 2026-10-28: renaming a copy left the original on the old name). A row with
+          // no name of its own (null) follows its module, so clearing it clears the group's.
+          if (Object.prototype.hasOwnProperty.call(occurrence, "label") && (linked.label || null) !== (occurrence.label || null)) {
+            patch.label = occurrence.label ?? null;
+          }
           if (Object.keys(patch).length === 0) continue;
           const updatedLinked = { ...linked, ...patch };
           const { textmap: linkedTextmap, ...linkedWithoutTextmap } = updatedLinked;

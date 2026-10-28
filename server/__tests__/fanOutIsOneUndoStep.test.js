@@ -117,4 +117,14 @@ describe("a fan-out is one undo step", () => {
     expect(recorded.filter((r) => r.model === "occurrence")).toHaveLength(1);
     expect(forId("loner")).toHaveLength(1);
   });
+
+  // A copy-link group shares its NAME too (2026-10-28: a copy renamed "Serve …" left the original on "Cook …").
+  it("renaming one member renames the group; a field write leaves names alone", async () => {
+    await fire("update_occurrence")({ occurrence: { id: "copy-a", label: "Serve" }, __actionId: "a2" });
+    expect(db.occurrences.get("src").label).toBe("Serve");
+    expect(db.occurrences.get("copy-b").label).toBe("Serve");
+    expect(db.occurrences.get("loner").label).toBeUndefined();
+    await tick("src", "a3");
+    expect(db.occurrences.get("copy-b").label).toBe("Serve");
+  });
 });
