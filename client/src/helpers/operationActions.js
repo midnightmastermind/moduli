@@ -1920,9 +1920,25 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const fieldsMapIds = cfg.fields && typeof cfg.fields === "object"
         ? Object.keys(cfg.fields).filter(Boolean)
         : [];
+      // `fieldsFrom`: a whole { fieldId: value } map from a variable — a form's `$form.fields`, which holds only the
+      // inputs the user included (2026-10-28). Each non-empty entry is bound and set; cfg.fields wins on a clash.
+      // A value may also be a stored cell ({ value, flow }).
+      const fromMap = {};
+      if (cfg.fieldsFrom) {
+        const raw = resolveExpr(cfg.fieldsFrom, $vars);
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          for (const [fid, cell] of Object.entries(raw)) {
+            if (!fid || fieldsMapIds.includes(fid)) continue;
+            const v = cell && typeof cell === "object" && !Array.isArray(cell) && "value" in cell ? cell.value : cell;
+            if (v == null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0)) continue;
+            fromMap[fid] = { value: v, flow: (cell && typeof cell === "object" && cell.flow) || "in" };
+          }
+        }
+      }
       const attachFieldIds = Array.from(new Set([
         ...(Array.isArray(cfg.attachFields) ? cfg.attachFields.filter(Boolean) : []),
         ...fieldsMapIds,
+        ...Object.keys(fromMap),
       ]));
       const hiddenMap = (cfg.fieldHidden && typeof cfg.fieldHidden === "object")
         ? cfg.fieldHidden
@@ -2000,7 +2016,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         if (!/^\d{4}-\d{2}-\d{2}/.test(v)) return false;
         return !isNaN(new Date(v).getTime());
       };
-      const fields = {};
+      const fields = { ...fromMap };
       if (cfg.fields) {
         for (const [fid, expr] of Object.entries(cfg.fields)) {
           const v = resolveExpr(expr, $vars);

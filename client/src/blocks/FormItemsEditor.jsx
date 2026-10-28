@@ -106,6 +106,11 @@ export default function FormItemsEditor({ value, onChange, fieldsById = {}, rend
                   onChange={(e) => onChange(items.map((x, i) => (i !== idx ? x : e.target.checked ? { ...x, required: true } : drop(x, "required"))))} />
                 required
               </label>
+              <label title="The form shows an Include box beside this input; only included inputs are written" style={{ fontSize: 10, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 2 }}>
+                <input type="checkbox" aria-label="Optional" checked={!!it.optional}
+                  onChange={(e) => onChange(items.map((x, i) => (i !== idx ? x : e.target.checked ? { ...x, optional: true } : drop(x, "optional"))))} />
+                include box
+              </label>
               <button type="button" aria-label="Move up" style={iconBtnSt} disabled={idx === 0} onClick={() => move(idx, -1)}><ChevronUp size={11} /></button>
               <button type="button" aria-label="Move down" style={iconBtnSt} disabled={idx === items.length - 1} onClick={() => move(idx, 1)}><ChevronDown size={11} /></button>
               <button type="button" aria-label="Remove input" style={iconBtnSt} onClick={() => onChange(items.filter((_, i) => i !== idx))}><X size={11} /></button>

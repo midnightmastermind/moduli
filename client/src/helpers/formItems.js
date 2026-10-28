@@ -34,15 +34,23 @@ export function missingRequired(items = [], values = {}) {
     .map((it) => it.key);
 }
 
-/** { values: {key: v}, fields: {fieldId: v} } — every item appears, unanswered ones as null. */
+/** { values: {key: v}, fields: {fieldId: v} } — every item appears in values, unanswered ones as null.
+ *  An `optional` item (the form shows an Include box beside it) that the user left out is MISSING from `answers`;
+ *  it stays out of `fields`, so a Create taking `fieldsFrom: $form.fields` neither binds nor sets it. */
 export function answersToResult(items = [], answers = {}) {
   const values = {};
   const fields = {};
   for (const it of items) {
     if (!it?.key) continue;
+    const included = !it.optional || Object.prototype.hasOwnProperty.call(answers || {}, it.key);
     const v = answers?.[it.key];
-    values[it.key] = v === undefined ? null : v;
-    if (it.fieldId) fields[it.fieldId] = values[it.key];
+    values[it.key] = v === undefined || !included ? null : v;
+    if (it.fieldId && included) fields[it.fieldId] = values[it.key];
   }
   return { values, fields };
+}
+
+/** Whether an answer has something in it — typing into an optional input ticks its Include box. */
+export function hasAnswer(v) {
+  return !isEmptyAnswer(v) && v !== false;
 }

@@ -10,7 +10,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import MenuSurface, { isDrawerLayout } from "./MenuSurface.jsx";
 import Field from "./Field.jsx";
-import { itemType, missingRequired } from "../helpers/formItems.js";
+import { itemType, missingRequired, hasAnswer } from "../helpers/formItems.js";
 
 function initialValue(item) {
   if (item.default !== undefined && item.default !== null) return item.default;
@@ -70,9 +70,11 @@ function innerPopupOpen() {
 export default function FormModal({ request, onSubmit, onCancel }) {
   const items = useMemo(() => request?.items || [], [request]);
   const [values, setValues] = useState(() => initialValues(items));
+  // Optional inputs carry an Include box; only ticked ones are submitted (2026-10-28).
+  const [included, setIncluded] = useState(() => ({}));
   const firstRef = useRef(null);
 
-  useEffect(() => { setValues(initialValues(items)); }, [items]);
+  useEffect(() => { setValues(initialValues(items)); setIncluded({}); }, [items]);
 
   useEffect(() => {
     if (!request) return undefined;
@@ -90,12 +92,18 @@ export default function FormModal({ request, onSubmit, onCancel }) {
 
   const missing = missingRequired(items, values);
   const labelOf = (key) => items.find((i) => i.key === key)?.label || key;
-  const set = (key) => (v) => setValues((prev) => ({ ...prev, [key]: v }));
+  const set = (key) => (v) => {
+    setValues((prev) => ({ ...prev, [key]: v }));
+    // Putting something in an optional input includes it; emptying it does not untick it.
+    if (items.find((i) => i.key === key)?.optional && hasAnswer(v)) setIncluded((prev) => ({ ...prev, [key]: true }));
+  };
 
   const submit = (e) => {
     e?.preventDefault?.();
     if (missing.length) return;
-    onSubmit?.(values);
+    const out = {};
+    for (const it of items) if (!it.optional || included[it.key]) out[it.key] = values[it.key];
+    onSubmit?.(out);
   };
 
   const onKeyDown = (e) => {
@@ -112,7 +120,11 @@ export default function FormModal({ request, onSubmit, onCancel }) {
       {request.title && <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{request.title}</div>}
       {items.map((it, i) => (
         <div key={it.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ fontSize: 12, color: "var(--text-primary)" }}>
+          <div style={{ fontSize: 12, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+            {it.optional && (
+              <input type="checkbox" aria-label={`Include ${it.label || it.key}`} title="Include this on the new item"
+                checked={!!included[it.key]} onChange={(e) => setIncluded((prev) => ({ ...prev, [it.key]: e.target.checked }))} />
+            )}
             <label htmlFor={`form-item-${it.key}`}>{it.label || it.key}</label>
             {it.required && <span aria-hidden="true" style={{ color: "var(--danger-text)" }}> *</span>}
           </div>
