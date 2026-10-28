@@ -1858,7 +1858,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           kind: effect.template?.kind || null,
           // A placement of an EXISTING module carries only its own name, if it
           // has one, so renaming the module later still renames the copy.
-          label: effect.templateExists
+          // A placement of an EXISTING module (templateExists, or a COPY_LINK's template:null) carries only its own
+          // name, if it has one, so renaming the module later still renames the copy.
+          label: (effect.templateExists || !effect.template)
             ? (inst.label || null)
             : (effect.template?.label || effect.template?.name || null),
           // Honor occurrences[] if the caller passed one (APPLY_TEMPLATE

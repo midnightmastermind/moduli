@@ -2512,6 +2512,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             parentId: targetParentId,
             fields,
             linkedGroupId,
+            ...((rootLabelOverride ?? src.label) ? { label: rootLabelOverride ?? src.label } : {}),
             meta: { ...baseMeta },
             occurrences: childIds,
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
@@ -2555,7 +2556,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             // (e.g. Canvas: Build's x/y) so position is set atomically at
             // create time instead of via a racy follow-up UPDATE.
             meta: { ...baseMeta },
-            ...(rootLabelOverride ? { label: rootLabelOverride } : {}),
+            // The copy keeps the source PLACEMENT's own name ("Clean hotel room"), not only the shared module's
+            // ("Clean") — a copy-link of a renamed row must read the same as it (2026-10-28).
+            ...((rootLabelOverride ?? src.label) ? { label: rootLabelOverride ?? src.label } : {}),
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
             ...(isRoot && typeof cfg.insertAtIndex === "number" ? { insertAtIndex: cfg.insertAtIndex } : {}),
           },
