@@ -131,13 +131,36 @@ export async function mintOccurrence({
     // "update" merges the incoming fields over what is there; "replace"
     // takes the incoming set as authoritative. Neither touches parentId — a
     // row moved by hand since stays where it was put.
+    // A field the user changed since the last import is kept too (user, 2026-10-28) — unless the SOURCE changed it
+    // since (a new shift time), which wins. `meta.importedFields` holds what this import last wrote, per field.
+    const prevImportedFields = existing.meta?.importedFields || null;
+    const cellKey = (c) => JSON.stringify(c && typeof c === "object" && "value" in c ? c.value : (c ?? null));
+    const incomingFields = { ...fields };
+    if (onExisting !== "replace" && prevImportedFields) {
+      for (const fid of Object.keys(incomingFields)) {
+        if (!(fid in prevImportedFields)) continue;
+        const sourceChanged = cellKey(incomingFields[fid]) !== prevImportedFields[fid];
+        const userChanged = cellKey(existing.fields?.[fid]) !== prevImportedFields[fid];
+        if (userChanged && !sourceChanged) delete incomingFields[fid];
+      }
+    }
     const nextFields = onExisting === "replace"
       ? { ...fields }
-      : { ...(existing.fields || {}), ...fields };
-    const nextLabel = (label !== undefined && label !== null) ? label : existing.label;
+      : { ...(existing.fields || {}), ...incomingFields };
+    const importedFields = Object.fromEntries(Object.entries(fields).map(([fid, c]) => [fid, cellKey(c)]));
+    // A name the user gave the row is kept (user, 2026-10-28: a shift renamed "Serve" went back to the calendar's
+    // "Cook" on the next feed check). `meta.importedLabel` is the name this import last wrote; a row whose name no
+    // longer matches it was renamed by hand. A row from before this rule has no importedLabel and takes the import.
+    const incoming = (label !== undefined && label !== null) ? label : null;
+    const prevImported = existing.meta?.importedLabel;
+    const renamedByHand = prevImported !== undefined && (existing.label ?? null) !== prevImported;
+    const sourceRenamed = prevImported !== undefined && incoming !== prevImported;
+    const nextLabel = incoming === null || (renamedByHand && !sourceRenamed) ? existing.label : incoming;
     const nextMeta = {
       ...(existing.meta || {}), ...meta,
       source, externalId, ingestedAt: new Date().toISOString(),
+      ...(incoming !== null ? { importedLabel: incoming } : {}),
+      importedFields: { ...(prevImportedFields || {}), ...importedFields },
     };
     const updated = asPlain(await Occurrence.findOneAndUpdate(
       { id: existing.id, userId },
@@ -174,7 +197,8 @@ export async function mintOccurrence({
     ...(parentId ? { parentId } : parentFolderId ? { parentId: parentFolderId } : {}),
     label: label ?? null, fields, occurrences: [],
     ...(textmap ? { textmap: compressTextmap(textmap) } : {}),
-    meta: { ...meta, source, externalId, ingestedAt: new Date().toISOString() },
+    meta: { ...meta, source, externalId, ingestedAt: new Date().toISOString(), ...(label != null ? { importedLabel: label } : {}),
+      importedFields: Object.fromEntries(Object.entries(fields || {}).map(([fid, c]) => [fid, JSON.stringify(c && typeof c === "object" && "value" in c ? c.value : (c ?? null))])) },
   });
   const occ = asPlain(createdOcc);
   if (textmap) occ.textmap = textmap;

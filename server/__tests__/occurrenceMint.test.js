@@ -148,3 +148,30 @@ describe("mintOccurrence — folder parent", () => {
     })).rejects.toThrow(/mutually exclusive/);
   });
 });
+
+// A feed refresh keeps what the user changed (2026-10-28: a shift renamed "Serve" went back to "Cook").
+describe("a refresh keeps the user's edits", () => {
+  const share = (label, fields) => mintOccurrence({ userId: "u1", gridId: "g1", label, parentId: "parent",
+    moduleRole: "instance", externalId: "ics:shift", source: "share", fields });
+  const row = (id) => occurrences.get(id);
+  it("a renamed row keeps its name; a field the user changed is kept; the source's own change wins", async () => {
+    const a = await share("Cook", { fTime: { value: "3:00pm" }, fPeople: { value: ["x"] } });
+    Object.assign(row(a.occurrenceId), { label: "Serve", fields: { ...row(a.occurrenceId).fields, fPeople: { value: ["y"] } } });
+    await share("Cook", { fTime: { value: "4:00pm" }, fPeople: { value: ["x"] } });
+    expect(row(a.occurrenceId).label).toBe("Serve");
+    expect(row(a.occurrenceId).fields.fPeople.value).toEqual(["y"]);
+    expect(row(a.occurrenceId).fields.fTime.value).toBe("4:00pm");
+  });
+  it("an untouched row follows the source, name included", async () => {
+    const a = await share("Cook", { fTime: { value: "3:00pm" } });
+    await share("Prep", { fTime: { value: "3:30pm" } });
+    expect(row(a.occurrenceId).label).toBe("Prep");
+    expect(row(a.occurrenceId).fields.fTime.value).toBe("3:30pm");
+  });
+  it("the source renaming the shift wins over an old hand rename", async () => {
+    const a = await share("Cook", {});
+    row(a.occurrenceId).label = "Serve";
+    await share("Prep", {});
+    expect(row(a.occurrenceId).label).toBe("Prep");
+  });
+});
