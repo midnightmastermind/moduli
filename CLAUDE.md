@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-28 — OCCASIONS ABOVE TODO; undated Todo tasks copy-linked daily; New … forms ask the rows' fields
+
+User: todo tasks not reaching the Schedule, Keith's Monday follow-up missing, a birthdays/holidays container above
+Todo (named **Occasions**, user's pick), *"everyday as copyliknked tasks"*, and New … button forms that ask the
+fields their rows use, each with an include checkbox.
+- **Keith:** its `parentId` pointed at the Oct 26 3:00pm slot while only Tasks › Appointments listed it, so it was
+  in no slot and `Place Dated Work` (`$appt.parentId IS_NOT $slotId`) skipped it. Re-homed through
+  `update_occurrence` (payload key is `occurrence`). What reverted 0448's re-home is not established.
+- **Todo:** only one Tasks › Todo row had a Due date; nothing ever placed undated ones. Replay over a live dump
+  (real executor) showed `Place Dated Work` itself was right. Note: the Schedule page's own `filterOverride` was
+  pinned to Oct 26.
+- **`0453`:** an Occasions container is the template's FIRST child (Build Day copies it above Todo) and every
+  existing day column got its copy before its Todo; `People: Birthdays` finds it by `meta.copyLinkSource`; 46
+  birthday cards moved out of Todo. `Place Dated Work` copy-links Holidays (Schedule Type = Holiday) dated that day
+  into Occasions (`meta.occasion`, swept when moved) and copy-links every Tasks › Todo row with no Due and no Time
+  Slot into each day's Todo from its `createdAt` to its Completed On (`meta.todoCopy`, swept). `IS_DUE_ON` with due
+  `2999-12-31` — `9999-12-31 + 3 days` compares as "10000-…" and is never due. Replayed: idempotent (0 effects on
+  a second pass), Halloween lands in Occasions, birthdays stay out of Todo.
+- **Forms:** an ASK_FORM item may be `optional` (builder: "include box"); `FormModal` draws an Include checkbox
+  (typing ticks it) and submits only included ones; `answersToResult` leaves an un-included item out of
+  `$form.fields`. Client CREATE takes `fieldsFrom` (a `{fieldId: value}` map; empties skipped; `cfg.fields` wins).
+- **`0454`:** each New … form gains an optional input per field visibly bound on ≥2 rows and ≥10% of its
+  destination's rows (not boolean/button, not media/files/display roles, not display fields, not already asked or
+  written by the Create), and existing non-required field inputs get the box; Create takes `$form.fields`. New task:
+  Date, Time Slot, People, Schedule Type, Duration, Weekday, Due, Last Seen, Location.
+- Tests `scheduleOccasions` (5), `newButtonsAskRowFields` (3), `formOptionalFields` (4). Client suite: 4 failing
+  files, all failing without these changes (book header, DATE_DIFF across Nov 1, office bundle stale).
+  **Not watched in a browser:** the copies appear on the next load of a tab.
+
+---
+
 ### 2026-10-27 (2) — THE HEADSET'S GRID SCREEN WAS REWRITING THE DESKTOP'S LAYOUT; the user's layout is a snap pick
 
 User: the desktop's 2 columns (Routines | Tasks over Trackers, Schedule right) *"keeps changing to a 2 by 2 grid"*.
