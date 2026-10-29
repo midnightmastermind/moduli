@@ -201,6 +201,11 @@ export default function LayoutCascadeEditor({
               onChange={(v) => setKey("childFill", v)}
               tooltip="Tiles grow to share the full width, so no gap is left at the right. The square size becomes the smallest a tile can be." />
           ) : null}
+          {cur.mode === "wrap" && cur.childFill ? (
+            <RuleSwitch label="Last line stretches too" value={cur.childFillLast ?? null}
+              onChange={(v) => setKey("childFillLast", v)}
+              tooltip="A line with fewer tiles than fit (usually the last) grows to fill the width too, so no row stops short." />
+          ) : null}
           {cur.mode === "grid" ? (
             <RuleNumber
               label="Grid columns"

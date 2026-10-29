@@ -37,3 +37,17 @@ describe("wrap fill (childFill)", () => {
     expect(css).toMatch(/\.container-items--wrap\.container-items--fill > \.instance-wrap\s*\{[^}]*var\(--wrap-cols/);
   });
 });
+
+// The last line stretches too (user 2026-10-29, Trackers: "have the row take up the entire space").
+describe("childFillLast", () => {
+  it("adds the fill-last class only with fill on a wrap", () => {
+    expect(resolveContainerChildLayout({ mode: "wrap", childFill: true, childFillLast: true }).className).toContain("container-items--fill-last");
+    expect(resolveContainerChildLayout({ mode: "wrap", childFill: true }).className).not.toContain("fill-last");
+    expect(resolveContainerChildLayout({ mode: "wrap", childFillLast: true }).className).not.toContain("fill-last");
+    expect(resolveContainerChildLayout({ mode: "stack", childFill: true, childFillLast: true }).className).not.toContain("fill-last");
+  });
+  it("the stylesheet grows the tiles of a fill-last list", () => {
+    const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.container-items--fill-last > \.instance-wrap \{\s*flex-grow: 1;/);
+  });
+});

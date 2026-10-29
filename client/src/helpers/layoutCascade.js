@@ -63,6 +63,8 @@ export const SURFACE_SHAPE_KEYS = Object.freeze([
   "childContentDirection",
   // A wrap grid whose tiles grow to share the whole row (no gap left at the right edge).
   "childFill",
+  // With fill: a line the tiles do not fill (the last one) stretches too, so no row stops short.
+  "childFillLast",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */

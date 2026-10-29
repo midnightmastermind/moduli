@@ -45,7 +45,7 @@ export const describe =
 export const SHAPE_KEYS = [
   "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField",
   "childMaxHeight", "childMinWidth", "childMaxWidth",
-  "childContentDirection", "childFill",
+  "childContentDirection", "childFill", "childFillLast",
 ];
 
 /** The shape-only part of a rule, or null. */

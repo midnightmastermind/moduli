@@ -69,10 +69,13 @@ export function resolveContainerChildLayout(resolved) {
   // the SMALLEST a tile may be, and the max width is ignored — a capped tile would leave the gap
   // back at the right edge. How many fit per line is measured by ModuleContainer (`--wrap-cols`).
   const fill = mode === "wrap" && resolved?.childFill === true;
+  // The LAST line too (user 2026-10-29, Trackers: "have the row take up the entire space"): its tiles
+  // grow into the room the full lines use for more tiles. Opt-in — a lone last book would stretch wide.
+  const fillLast = fill && resolved?.childFillLast === true;
   return {
     mode,
     fill,
-    className: CLASS_BY_MODE[mode] + (fill ? " container-items--fill" : ""),
+    className: CLASS_BY_MODE[mode] + (fill ? " container-items--fill" : "") + (fillLast ? " container-items--fill-last" : ""),
     vars: {
       "--child-w": `${minW}px`,
       "--child-max-w": fill ? "none" : maxW,

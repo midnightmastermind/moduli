@@ -6275,6 +6275,11 @@ input.artifact-thumb-info-name--editing {
   width: calc((100% - (var(--wrap-cols, 1) - 1) * var(--child-gap, 8px)) / var(--wrap-cols, 1)) !important;
   max-width: none !important;
 }
+/* …and with `childFillLast` a short line (the last) grows into the width the full lines spend on
+   more tiles. A full line has no room left, so growing changes nothing there. */
+.container-items--wrap.container-items--fill-last > .instance-wrap {
+  flex-grow: 1;
+}
 
 .container-items--wrap > .instance-wrap {
   width: var(--child-w, 160px);
