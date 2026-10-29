@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-29 (2) — THE TRACKERS' LAST LINE FILLS THE ROW (`0456`); a restart is 4s, not 180s
+
+User: *"make it so the trackers extend the entire panel responsively, instead of stopping short. have the row take up
+the entire space"*. `0438` already had Fill on, so full lines shared the width; a SHORT last line stopped short
+(measured: Streak alone 240px with 508px empty beside it; Today's Workout 249px). New layout key `childFillLast`
+(Layout menu › "Last line stretches too", shown under Fill) → class `container-items--fill-last` → `flex-grow: 1` on
+the tiles. A full line has no room left, so only short lines change — A/B'd on the live page before writing it.
+Opt-in, because the Books board also fills and a lone last book would stretch wide. Added to BOTH shape-key lists
+(client `SURFACE_SHAPE_KEYS` + `0068.SHAPE_KEYS`). `0456` set it on the page + 13 containers; read back on prod:
+`240/240/240 | 743`, every last gap 5px (the padding). `0423` is still pending on poms — run with `--only`.
+Also: the deploy script said a restart costs "~180s"; a measured restart loaded poms grid (14,106 modules / 36,270
+occurrences) in **4s**. Message corrected.
+
+---
+
 ### 2026-10-29 — LOCK IN PLACE: a locked occurrence copies, never moves; the radial menu says what each button does
 
 User (account2, which hit its weekly limit as it started): *"make sure our lock occurance is a thing. so you cant move
