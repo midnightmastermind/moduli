@@ -2,6 +2,7 @@
 import { pageTwin, twinRenameWrite } from "./pageTwin";
 import { renameTarget } from "./sharedModule.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
+import { planLockToggle } from "./dragModes";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
 import { dropEmbedsOf } from "./embedRegistry";
@@ -1931,4 +1932,22 @@ export function applyInstanceLayout({ dispatch, socket, layout, occurrenceIds = 
     }
   });
   return n;
+}
+
+/**
+ * Lock a placement where it sits, or unlock it (user, 2026-10-29). A locked one can
+ * still be copied / copy-linked; locking a Move row switches it to Copy. One undo
+ * step. The meta is read LIVE so a write that landed since the render is kept.
+ */
+export function toggleLockInPlace({ dispatch, socket, occurrence, dragMode = "move" }) {
+  if (!occurrence?.id) return;
+  const live = operationsBridge.getLocalOcc?.(occurrence.id) || operationsBridge.findOcc?.(occurrence.id) || occurrence;
+  const plan = planLockToggle(live, live?.dragMode ?? dragMode);
+  return withAction(plan.locked ? "Locked in place" : "Unlocked", () => {
+    updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrence.id, meta: plan.meta, ...(plan.dragMode ? { dragMode: plan.dragMode } : {}) },
+      emit: true,
+    });
+  });
 }

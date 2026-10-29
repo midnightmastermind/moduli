@@ -25,7 +25,7 @@ import {
   getProvisionalOccurrence,
 } from "../../helpers/provisionalTextblock.js";
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
-import { nextDragMode } from "../../helpers/dragModes";
+import { nextDragMode, effectiveDragMode, isLockedInPlace } from "../../helpers/dragModes";
 import { NodeSelection, TextSelection } from "prosemirror-state";
 import { canHoldCaret, caretPosBeforeBlock, planBlockBackspace } from "../../helpers/caretLanding";
 import { findBlockPos } from "../../helpers/staleProvisionalBlocks";
@@ -107,7 +107,8 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // Per-occurrence drag mode (move / copy / copylink). Mirrors ModuleInstance —
   // defaults to occurrence.dragMode → instance.defaultDragMode → "move". Stored
   // on the occurrence so the RadialMenu toggle persists.
-  const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
+  const lockedInPlace = isLockedInPlace(occurrence);
+  const entityDragMode = effectiveDragMode(occurrence?.dragMode ?? instance?.defaultDragMode ?? "move", occurrence);
   // `mode` is the one picked in the radial submenu; no argument cycles.
   const toggleEntityDragMode = useCallback((mode) => {
     if (!occurrenceId || !dispatch || !socket) return;
@@ -536,6 +537,10 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
             forceDirection="down"
             dragMode={entityDragMode}
             onToggleDragMode={toggleEntityDragMode}
+            locked={lockedInPlace}
+            onToggleLock={occurrenceId && dispatch && socket
+              ? () => CommitHelpers.toggleLockInPlace({ dispatch, socket, occurrence: occurrence || { id: occurrenceId }, dragMode: entityDragMode })
+              : null}
             onSettings={instance ? () => setSettingsOpen(true) : undefined}
             onDelete={handleDeleteBlock}
             deleteLabel={isProvisionalTextblock(occurrenceId) || embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}

@@ -55,7 +55,7 @@ import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
 import { resolveContainerChildLayout } from "../helpers/containerChildLayout";
 import { useWrapFillColumns } from "../helpers/wrapFill";
-import { nextDragMode } from "../helpers/dragModes";
+import { nextDragMode, effectiveDragMode, isLockedInPlace } from "../helpers/dragModes";
 
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
 // 1 = article title (H1) … 6. Smaller + cascading; containers without a level
@@ -470,7 +470,9 @@ function Container({
     p_embedSourceType: embedSourceType,
   }, module?.label);
 
-  const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
+  // A container locked in place never moves (helpers/dragModes LOCK).
+  const containerLocked = isLockedInPlace(containerOccurrence);
+  const containerDragMode = effectiveDragMode(containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move", containerOccurrence);
 
   // A per-placement `occurrence.label` (written by an operation) wins over the
   // shared template label. That is the ONLY label rule — the renderer knows
@@ -1003,6 +1005,9 @@ function Container({
       CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
     }
   }, [module, containerOccurrence, containerDragMode, dispatch, socket]);
+  const toggleContainerLock = useMemo(() => (containerOccurrence?.id
+    ? () => CommitHelpers.toggleLockInPlace({ dispatch, socket, occurrence: containerOccurrence, dragMode: containerDragMode })
+    : null), [containerOccurrence, containerDragMode, dispatch, socket]);
 
   // Rendering type comes from view.viewType (occurrence.viewId → View), never from module.kind
   const containerViewType = containerOccurrence?.viewId ? (viewsById?.[containerOccurrence.viewId]?.viewType ?? null) : null;
@@ -1388,6 +1393,8 @@ function Container({
             <div ref={containerHandleRef} className="container-cog-handle module-drag-handle module-grab-zone" data-dnd-handle="true">
               <RadialMenu
                 dragMode={containerDragMode}
+                locked={containerLocked}
+                onToggleLock={toggleContainerLock}
                 onToggleDragMode={toggleContainerDragModeQuick}
                 onSettings={() => setSettingsOpen(true)}
                 size="sm"
@@ -1454,6 +1461,8 @@ function Container({
                     <div className="drag-handle-stem" />
                     <RadialMenu
                       dragMode={containerDragMode}
+                      locked={containerLocked}
+                      onToggleLock={toggleContainerLock}
                       onToggleDragMode={toggleContainerDragModeQuick}
                       onSettings={() => setSettingsOpen(true)}
                       size="sm"
@@ -1578,6 +1587,8 @@ function Container({
                   <div className="drag-handle-stem" />
                   <RadialMenu
                     dragMode={containerDragMode}
+                    locked={containerLocked}
+                    onToggleLock={toggleContainerLock}
                     onToggleDragMode={toggleContainerDragModeQuick}
                     onSettings={() => setSettingsOpen(true)}
                     size="sm"

@@ -19,7 +19,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, useContext } from "react";
 import { File, Image as ImageIcon, X, Trash2, Pencil } from "lucide-react";
-import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
+import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem, effectiveDragMode, isLockedInPlace, allowedDragModesFor } from "../helpers/dragModes";
 import RadialMenu from "../ui/RadialMenu";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useGridActions } from "../GridActionsContext.js";
@@ -308,14 +308,15 @@ export default function PreviewNode({
   // as all the other occurances WITH the radial menu"): module-drag-handle +
   // RadialMenu, the mode icon, the drag-mode submenu, and the card's own
   // actions (rename / cover / delete) on the arc.
-  const cardDragMode = occurrence?.dragMode ?? module?.defaultDragMode ?? "move";
+  const cardLocked = isLockedInPlace(occurrence);
+  const cardDragMode = effectiveDragMode(occurrence?.dragMode ?? module?.defaultDragMode ?? "move", occurrence);
   const toggleCardDragMode = useCallback((mode) => {
     if (!occurrence?.id) return;
     const next = typeof mode === "string" ? mode : nextDragMode(cardDragMode, INSTANCE_DRAG_MODES);
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, dragMode: next }, emit: true });
   }, [occurrence?.id, cardDragMode, dispatch, socket]);
   const radialItems = [
-    dragModeItem({ dragMode: cardDragMode, allowed: INSTANCE_DRAG_MODES, onClick: toggleCardDragMode }),
+    dragModeItem({ dragMode: cardDragMode, allowed: allowedDragModesFor(INSTANCE_DRAG_MODES, cardLocked), onClick: toggleCardDragMode }),
     renameItem ? { label: renameItem.label, icon: Pencil, onClick: renameItem.onClick } : null,
     { label: coverSrc ? "Change cover" : "Set cover", icon: ImageIcon, onClick: handleSetCover },
     coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover } : null,
@@ -331,6 +332,8 @@ export default function PreviewNode({
         dragMode={cardDragMode}
         allowedDragModes={INSTANCE_DRAG_MODES}
         onToggleDragMode={toggleCardDragMode}
+        locked={cardLocked}
+        onToggleLock={occurrence?.id ? () => CommitHelpers.toggleLockInPlace({ dispatch, socket, occurrence, dragMode: cardDragMode }) : null}
         size="sm"
         forceDirection="down"
         items={radialItems}

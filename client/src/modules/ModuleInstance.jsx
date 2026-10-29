@@ -30,7 +30,7 @@ import {
   PopoverAnchor,
 } from "@/components/ui/popover";
 import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
-import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
+import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem, effectiveDragMode, isLockedInPlace, allowedDragModesFor } from "../helpers/dragModes";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
@@ -307,7 +307,12 @@ function InstanceInner({
   }, label);
 
   // Per-occurrence dragMode overrides instance's defaultDragMode
-  const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
+  // A row locked in place never moves (helpers/dragModes LOCK) — its handle shows what a drag will do.
+  const lockedInPlace = isLockedInPlace(occurrence);
+  const entityDragMode = effectiveDragMode(occurrence?.dragMode ?? instance?.defaultDragMode ?? "move", occurrence);
+  const toggleLock = useCallback(() => {
+    CommitHelpers.toggleLockInPlace({ dispatch, socket, occurrence, dragMode: entityDragMode });
+  }, [occurrence, entityDragMode, dispatch, socket]);
 
   const [draft, setDraft] = useState(() => ({ label: label ?? "" }));
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -733,7 +738,7 @@ function InstanceInner({
         onClick: () => setSettingsOpen(true),
         color: "bg-slate-600 hover:bg-slate-500",
       },
-      dragModeItem({ dragMode: entityDragMode, allowed: INSTANCE_DRAG_MODES, onClick: toggleEntityDragMode }),
+      dragModeItem({ dragMode: entityDragMode, allowed: allowedDragModesFor(INSTANCE_DRAG_MODES, lockedInPlace), onClick: toggleEntityDragMode }),
       {
         icon: Unlink,
         label: "Break Link",
@@ -742,7 +747,7 @@ function InstanceInner({
       },
       toggleLabelItem,
     ];
-  }, [occurrence?.linkedGroupId, occurrence?.id, entityDragMode, toggleEntityDragMode, socket, showLabel]);
+  }, [occurrence?.linkedGroupId, occurrence?.id, entityDragMode, lockedInPlace, toggleEntityDragMode, socket, showLabel]);
 
   const hasLabel = !!label;
   const hasFields = instanceFields.length > 0;
@@ -1177,6 +1182,8 @@ function InstanceInner({
                   dragMode={entityDragMode}
                   allowedDragModes={INSTANCE_DRAG_MODES}
                   onToggleDragMode={toggleEntityDragMode}
+                  locked={lockedInPlace}
+                  onToggleLock={occurrence?.id ? toggleLock : null}
                   onSettings={() => setSettingsOpen(true)}
                   size="sm"
                   forceDirection="down"

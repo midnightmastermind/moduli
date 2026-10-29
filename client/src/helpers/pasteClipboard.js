@@ -29,6 +29,7 @@
 // occurrences via CommitHelpers so optimistic dispatches stay consistent.
 
 import * as LayoutHelpers from "./LayoutHelpers";
+import { isLockedInPlace, LOCK_META_KEY } from "./dragModes";
 import { withAction } from "./actionScope";
 import * as CommitHelpers from "./CommitHelpers";
 
@@ -79,7 +80,8 @@ function buildCloneSubtree(srcOcc, occurrencesById, parentOccId, gridId, userId,
         : { key: "time", value: new Date(), mode: "specific" },
       occurrences: children.map(c => c.occurrence.id),
       timestamp: new Date(),
-      ...(srcOcc.meta ? { meta: { ...srcOcc.meta } } : {}),
+      // A copy is free to move: the source's lock stays with the source.
+      ...(srcOcc.meta ? { meta: withoutLock(srcOcc.meta) } : {}),
     },
     children,
   };
@@ -103,6 +105,11 @@ function emitCloneSubtree(subtree, dispatch, socket) {
 // handling). Sources missing a linkedGroupId get tagged in-place via
 // the existing assignLinkedGroup convention (linkedGroupId = source's
 // own id when there's no existing group).
+function withoutLock(meta) {
+  const { [LOCK_META_KEY]: _l, lockSwitchedFromMove: _s, ...rest } = meta;
+  return rest;
+}
+
 function buildLinkedSubtree(srcOcc, occurrencesById, parentOccId, gridId, userId, dispatch, socket, depth = 0) {
   if (!srcOcc || depth > 24) return null;
   const newId = crypto.randomUUID();
@@ -151,7 +158,8 @@ function buildLinkedSubtree(srcOcc, occurrencesById, parentOccId, gridId, userId
         : { key: "time", value: new Date(), mode: "specific" },
       occurrences: children.map(c => c.occurrence.id),
       timestamp: new Date(),
-      ...(srcOcc.meta ? { meta: { ...srcOcc.meta } } : {}),
+      // A copy is free to move: the source's lock stays with the source.
+      ...(srcOcc.meta ? { meta: withoutLock(srcOcc.meta) } : {}),
     },
     children,
   };
@@ -204,6 +212,8 @@ function _pasteInto({
     const src = occurrencesById[occId];
     if (!src) continue;
     if (occId === destinationOccurrence.id) continue;
+    // A placement locked in place is copied, never moved (helpers/dragModes LOCK).
+    if (mode === "move" && isLockedInPlace(src)) continue;
 
     if (mode === "copy") {
       // Deep-clone path: walks src.occurrences[] recursively so a

@@ -13,6 +13,7 @@
 // - Manage draft state for live previews
 // - Handle external/cross-window drops
 
+import { effectiveDragMode } from "./dragModes";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DragContext,
@@ -672,7 +673,8 @@ export function DragProvider({
 
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
-    const initialMode = options.mode || 'move';
+    // A placement locked in place never starts a move (helpers/dragModes LOCK).
+    const initialMode = effectiveDragMode(options.mode || 'move', payload?.data?.occurrence);
     if (window.__dragDiag === true) {
       console.log("[dragDiag] dragStart", { type: payload?.type, mode: initialMode, label: payload?.data?.label || payload?.id });
     }
@@ -1076,6 +1078,13 @@ export function DragProvider({
 
     // A drag from ANOTHER window has no session here: its handle's mode rides in the drag data (dragSystem).
     const foreign = !s.dragging && !!payload?.fromOtherWindow;
+    // A source locked in place is copied, never moved — whichever path started the drag
+    // (a raw doc-embed draggable starts no session, so its mode is checked here too).
+    if (!foreign) {
+      const srcId = payload?.context?.occurrenceId || payload?.occurrenceId;
+      const srcOcc = (srcId && occurrencesById[srcId]) || payload?.data?.occurrence || payload?.occurrence;
+      s.mode = effectiveDragMode(s.mode || "move", srcOcc);
+    }
     const rawEvent = buildRawDropEvent({
       dropTarget: dt,
       payload,

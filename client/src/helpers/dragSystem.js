@@ -29,6 +29,7 @@
 // │ Instance        │ INSTANCE (for sorting)                 │
 // └─────────────────┴────────────────────────────────────────┘
 
+import { dragModeOfData, effectiveDragMode } from "./dragModes";
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, createContext, useContext } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
@@ -343,7 +344,7 @@ export function currentGridIdForDrag() {
 /** What a drag does, as its handle shows it: the row's own mode, else the piece's default, else move. */
 export function dragModeOf(payload) {
   const d = payload?.data;
-  return payload?.mode || d?.occurrence?.dragMode || d?.defaultDragMode || "move";
+  return effectiveDragMode(payload?.mode || d?.occurrence?.dragMode || d?.defaultDragMode || "move", d?.occurrence);
 }
 
 /** A marker type naming what is dragged — a window can read a drag's TYPES (not its data) while it hovers, so a
@@ -1198,7 +1199,7 @@ export function useDragDrop({
         dragPerf.mark("buildPayload");
         const liveData = dataRef.current;
         // Per-occurrence dragMode overrides entity's defaultDragMode
-        const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+        const mode = dragModeOfData(liveData);
         clone = _createDragPill(liveData?.label || liveData?.name || type, mode);
         clone.style.transform = `translate3d(${cx - offsetX}px, ${cy - offsetY}px, 0)`;
         document.body.appendChild(clone);
@@ -1473,14 +1474,14 @@ export function useDragDrop({
           onGenerateDragPreview: ({ nativeSetDragImage, location }) => {
             const liveData = dataRef.current;
             const label = liveData?.label || liveData?.name || liveData?.occurrence?.label || "item";
-            const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? "move";
+            const mode = dragModeOfData(liveData);
             const action = mode === "copy" ? "Copy" : mode === "copylink" ? "Copy-link" : "Move";
             attachDragPreview(el, location, nativeSetDragImage, { label, action });
           },
           onDragStart: ({ location }) => {
             setIsDragging(true);
             const liveData = dataRef.current;
-            const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+            const mode = dragModeOfData(liveData);
             dragCtx.handleDragStart(buildPayload(), location.current.input.clientX, location.current.input.clientY, { mode });
           },
           onDrag: ({ location }) => {
@@ -1613,7 +1614,7 @@ export function useDragDrop({
         if (nativeEnabled) {
           const liveData = dataRef.current;
           const label = liveData?.label || liveData?.name || liveData?.occurrence?.label || "item";
-          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? "move";
+          const mode = dragModeOfData(liveData);
           const action = mode === "copy" ? "Copy" : mode === "copylink" ? "Copy-link" : "Move";
           attachDragPreview(el, location, nativeSetDragImage, { label, action });
         }
@@ -1623,7 +1624,7 @@ export function useDragDrop({
         const clientX = location.current.input.clientX;
         const clientY = location.current.input.clientY;
         const liveData = dataRef.current;
-        const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+        const mode = dragModeOfData(liveData);
         dragCtx.handleDragStart(buildPayload(), clientX, clientY, { mode });
       },
       onDrag: ({ location }) => {

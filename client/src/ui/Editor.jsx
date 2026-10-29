@@ -17,6 +17,7 @@
 //   onConvertListToInstances – (texts: string[]) => void (context-menu "convert list")
 // ============================================================
 
+import { dragModeOfData } from "../helpers/dragModes";
 import {
   useCallback, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle, useSyncExternalStore,
@@ -2817,7 +2818,7 @@ const Editor = forwardRef(function Editor({
             }).run();
             return;
           }
-          const draggedMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          const draggedMode = dragModeOfData(data);
           const isLead = !isNeighbor && grouped.memberIndex < grouped.groupNode.childCount - 1;
           // The drop target is decided BEFORE the group changes, and re-found
           // afterwards BY OCCURRENCE — never re-measured. The unwrap/extract
@@ -2894,7 +2895,7 @@ const Editor = forwardRef(function Editor({
             if (!wrapped) insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: plan.rootId } });
             return;
           }
-          const dragMode = data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move";
+          const dragMode = dragModeOfData(data);
           DLOG("block-embed path", { occurrenceId, dragMode, dragModeSource: data?.occurrence?.dragMode != null ? "occurrence.dragMode" : data?.defaultDragMode != null ? "defaultDragMode" : "DEFAULT(move)", hasSideHost: !!sideHost });
 
           // COPY — deep-clone (recurses children for a container; a leaf just

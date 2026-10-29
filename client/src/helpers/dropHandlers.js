@@ -68,6 +68,7 @@
 //           the value because the module wasn't bound to the field.
 // ───────────────────────────────────────────────────────────────────────────
 
+import { isLockedInPlace } from "./dragModes";
 import * as CommitHelpers from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
 import { DragType, parseExternalDrop } from "./dragSystem";
@@ -2448,8 +2449,12 @@ function tryGroupDrop(dropContext, ctx) {
   const dest = groupDestination({ dropTarget, containerOccurrenceId, occurrencesById, modulesById });
   if (!dest) return false;
   const mode = ctx.sessionRef?.current?.mode || dropContext.mode || "move";
+  // A selected row locked in place stays where it is when the rest MOVE
+  // (helpers/dragModes LOCK); a copy takes every selected row.
+  const ids = mode === "move" ? group.filter((id) => !isLockedInPlace(occurrencesById[id])) : group;
+  if (!ids.length) return false;
   if (mode === "move") {
-    for (const id of group) {
+    for (const id of ids) {
       const lock = isMoveBlockedByCascadeLock({ sourceOccurrence: occurrencesById[id], destinationOccurrence: dest,
         occurrencesById, modulesById, grid: ctx.state?.grid || null });
       if (lock.blocked) { try { toast?.("This surface is locked — children can't be moved out."); } catch {} return true; }
@@ -2457,7 +2462,7 @@ function tryGroupDrop(dropContext, ctx) {
   }
   const hovered = dropContext.target?.occurrenceId;
   const insertAt = groupInsertAt({ dropTarget, hoveredOccId: hovered !== dest.id ? hovered : null, dest });
-  return runGroupDrop({ ids: orderOnScreen(group), dest, insertAt, mode, ctx });
+  return runGroupDrop({ ids: orderOnScreen(ids), dest, insertAt, mode, ctx });
 }
 
 // A piece dragged out of a Magic view (helpers/plannedDrop): it is always a COPY. The planned node

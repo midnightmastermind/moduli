@@ -34,7 +34,7 @@
 // writes `defaultDragMode: "copy"` that handlePanelDrop ignores. That predates
 // this pass and narrowing it would REMOVE a control rather than add one, so
 // the panel keeps the two-way default and the finding is written down instead.
-import { Move, Copy, Link2 } from "lucide-react";
+import { Move, Copy, Link2, Lock, Unlock } from "lucide-react";
 
 /** Every mode the system knows. Order IS the cycle order. */
 export const DRAG_MODES = ["move", "copy", "copylink"];
@@ -123,5 +123,74 @@ export function dragModeItem({ dragMode = "move", allowed = DEFAULT_DRAG_MODES, 
         onClick: onClick ? () => onClick(mode) : undefined,
       };
     }),
+  };
+}
+
+// ── LOCKED IN PLACE ────────────────────────────────────────────────────────
+//
+// A placement can be locked to where it sits (user, 2026-10-29: *"you cant move
+// it from the position but you can copy/copylink it … the lock should autoswitch
+// from and block moving from grabbing the radial handle"*). Stored as
+// `occurrence.meta.lockedInPlace` — NOT the top-level `occurrence.locked`, which
+// is a doc's read-only switch (DocContent) and means something else.
+//
+// The rule lives HERE because "what does this drag do" is answered here: every
+// drag start, drag pill and preview resolves its mode through `effectiveDragMode`,
+// so a locked row can never start a move, whatever its stored `dragMode` says.
+
+export const LOCK_META_KEY = "lockedInPlace";
+
+/** Is this placement locked to where it sits? */
+export function isLockedInPlace(occurrence) {
+  return occurrence?.meta?.[LOCK_META_KEY] === true;
+}
+
+/** A drag's mode after the lock: a locked placement never moves — a move becomes a copy. */
+export function effectiveDragMode(mode, occurrence) {
+  const m = mode || "move";
+  return m === "move" && isLockedInPlace(occurrence) ? "copy" : m;
+}
+
+/** What a drag does, read from a draggable's live data (occurrence mode, else the module default, else move). */
+export function dragModeOfData(data) {
+  return effectiveDragMode(data?.occurrence?.dragMode ?? data?.defaultDragMode ?? "move", data?.occurrence);
+}
+
+/** The modes a surface may offer while locked: everything but move. */
+export function allowedDragModesFor(allowed = DEFAULT_DRAG_MODES, locked = false) {
+  const list = Array.isArray(allowed) && allowed.length ? allowed : DEFAULT_DRAG_MODES;
+  if (!locked) return list;
+  const rest = list.filter((m) => m !== "move");
+  return rest.length ? rest : ["copy"];
+}
+
+/**
+ * The write that locks or unlocks a placement. Locking a row set to Move switches
+ * it to Copy (and remembers that it did); unlocking puts Move back only when the
+ * lock was what took it away — a mode the user picked while locked is kept.
+ */
+export function planLockToggle(occurrence, currentMode = "move") {
+  const meta = { ...(occurrence?.meta || {}) };
+  if (isLockedInPlace(occurrence)) {
+    const restore = meta.lockSwitchedFromMove === true && (currentMode === "copy" || !currentMode);
+    delete meta[LOCK_META_KEY];
+    delete meta.lockSwitchedFromMove;
+    return { locked: false, meta, ...(restore ? { dragMode: "move" } : {}) };
+  }
+  meta[LOCK_META_KEY] = true;
+  if ((currentMode || "move") === "move") {
+    meta.lockSwitchedFromMove = true;
+    return { locked: true, meta, dragMode: "copy" };
+  }
+  return { locked: true, meta };
+}
+
+/** The radial menu's Lock / Unlock item. */
+export function lockItem({ locked = false, onClick } = {}) {
+  return {
+    icon: locked ? Unlock : Lock,
+    label: locked ? "Unlock position" : "Lock position (copy only)",
+    color: locked ? "bg-amber-600 hover:bg-amber-500" : "bg-slate-700 hover:bg-slate-600",
+    onClick,
   };
 }

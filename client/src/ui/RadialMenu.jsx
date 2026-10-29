@@ -28,7 +28,7 @@ import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMe
 import { createPortal } from "react-dom";
 import { Settings, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
 
-import { DEFAULT_DRAG_MODES, dragModeMeta, dragModeItem } from "../helpers/dragModes";
+import { DEFAULT_DRAG_MODES, dragModeMeta, dragModeItem, allowedDragModesFor, lockItem } from "../helpers/dragModes";
 
 // ── THE ARC HAS A CAPACITY, AND IT USED TO EXCEED IT SILENTLY ──────────────
 //
@@ -127,6 +127,11 @@ export default function RadialMenu({
   allowedDragModes = DEFAULT_DRAG_MODES,
   onToggleDragMode,
   onSettings,
+
+  // Locked in place (helpers/dragModes LOCK): the menu offers Lock/Unlock and,
+  // while locked, a drag-mode list without Move. Absent `onToggleLock` = no item.
+  locked = false,
+  onToggleLock = null,
 
   // Custom items mode - pass array of { icon, label, onClick, color }
   items = null,
@@ -377,7 +382,9 @@ export default function RadialMenu({
   // copylink row — a lie about what the drag is about to do.
   const modeMeta = dragModeMeta(dragMode);
   const ModeIcon = handleIcon || modeMeta.Icon;
-  const titleText = handleTitle || `${modeMeta.name} mode - Click for menu`;
+  const titleText = handleTitle || (locked
+    ? `Locked in place — dragging makes a ${modeMeta.name.toLowerCase()} · Click for menu`
+    : `${modeMeta.name} mode - Click for menu`);
 
   // Get angles based on direction and item count
   const getAnglesForDirection = useCallback(
@@ -390,6 +397,12 @@ export default function RadialMenu({
   // reopens at the top level.
   const [openSubmenu, setOpenSubmenu] = useState(null);
   useEffect(() => { if (!isOpen) setOpenSubmenu(null); }, [isOpen]);
+  // The item under the pointer (or keyboard focus) — its label is drawn as a
+  // tooltip beside it. The arc is icon-only, and a native `title` waits ~1s and
+  // never shows on touch (user, 2026-10-29: *"have tooltips up to know what each
+  // button does"*).
+  const [hoverIdx, setHoverIdx] = useState(-1);
+  useEffect(() => { setHoverIdx(-1); }, [isOpen, openSubmenu]);
 
   const menuItems = useMemo(
     () => {
@@ -409,7 +422,8 @@ export default function RadialMenu({
         const deleteItem = onDelete
           ? [{ icon: Trash2, label: deleteLabel, onClick: onDelete, color: "bg-red-700 hover:bg-red-600" }]
           : [];
-        const allItems = groupItems([...items, ...deleteItem, ...(extraItems || [])]);
+        const lockItems = onToggleLock ? [lockItem({ locked, onClick: onToggleLock })] : [];
+        const allItems = groupItems([...items, ...lockItems, ...deleteItem, ...(extraItems || [])]);
         const angles = getAnglesForDirection(openDirection, allItems.length);
         return allItems.map((item, i) => ({
           ...item,
@@ -426,8 +440,9 @@ export default function RadialMenu({
           onClick: onSettings,
           color: "bg-slate-600 hover:bg-slate-500",
         },
-        dragModeItem({ dragMode, allowed: allowedDragModes, onClick: onToggleDragMode }),
+        dragModeItem({ dragMode, allowed: allowedDragModesFor(allowedDragModes, locked), onClick: onToggleDragMode }),
       ];
+      if (onToggleLock) defaultItems.push(lockItem({ locked, onClick: onToggleLock }));
       if (onToggleCollapse) {
         defaultItems.push({
           icon: isCollapsed ? ChevronDown : ChevronUp,
@@ -489,7 +504,7 @@ export default function RadialMenu({
       const angles = getAnglesForDirection(openDirection, grouped.length);
       return grouped.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, extraItems, dragMode, allowedDragModes, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
+    [items, extraItems, dragMode, allowedDragModes, locked, onToggleLock, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
 
   // What the ring DRAWS: the top level, or the open submenu in its place. The
@@ -609,7 +624,7 @@ export default function RadialMenu({
               finalPositions = arcPositions;
             }
 
-            return shownItems.map((item, index) => {
+            const buttons = shownItems.map((item, index) => {
             const Icon = item.icon;
             const { x, y } = finalPositions[index];
 
@@ -617,6 +632,10 @@ export default function RadialMenu({
 
             return (
               <button
+                onPointerEnter={() => setHoverIdx(index)}
+                onPointerLeave={() => setHoverIdx((h) => (h === index ? -1 : h))}
+                onFocus={() => setHoverIdx(index)}
+                onBlur={() => setHoverIdx((h) => (h === index ? -1 : h))}
                 key={`${item.label}-${index}`}
                 type="button"
                 onClick={(e) => {
@@ -657,6 +676,39 @@ export default function RadialMenu({
               </button>
             );
           });
+            const tipItem = entered && hoverIdx >= 0 ? shownItems[hoverIdx] : null;
+            if (!tipItem || !finalPositions[hoverIdx]) return buttons;
+            const tp = finalPositions[hoverIdx];
+            const tipText = tipItem.__back ? "Back"
+              : tipItem.label + (tipItem.active ? " (current)" : "") + (Array.isArray(tipItem.submenu) ? " ›" : "");
+            // Above the button, or below it when that would leave the window.
+            const below = anchor.y + tp.y - btnHalf - 26 < pad;
+            return [...buttons, (
+              <span
+                key="radial-tooltip"
+                className="radial-menu-tooltip"
+                role="tooltip"
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  transform: `translate(calc(-50% + ${tp.x}px), calc(${below ? "0%" : "-100%"} + ${tp.y + (below ? btnHalf + 6 : -btnHalf - 6)}px))`,
+                  pointerEvents: "none",
+                  whiteSpace: "nowrap",
+                  fontSize: 12,
+                  lineHeight: "16px",
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  background: "var(--surface-overlay)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-default)",
+                  boxShadow: "0 2px 8px var(--menu-shadow-color)",
+                  zIndex: 1,
+                }}
+              >
+                {tipText}
+              </span>
+            )];
           })()}
         </div>
       </div>,
