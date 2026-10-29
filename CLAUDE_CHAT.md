@@ -4110,3 +4110,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 - *"make it easy to delete books as well and select multiple to delete"*
 - *"go through the codex and only keep notes, if it looks like nodes like people, books, etc, left over from notion or obsidian, lets delete them. unless they resolve somewhere else, then resolve it and add them into the page and then delete the node"* · *"we just have alot of images and notes that are entries in a list of some sort like people and books when those arent really notes"*
 - *"can you figure out why my echo vr game keeps crashing in quest 3s"*
+
+### 2026-10-29 12:56 CDT (account2, finished by account1)
+- *"can you make sure our lock occurance is a thing. so you cant move it from the position but you can copy/copylink it. the lock would go in the radial menu. and also for the radial menu, have tooltips up to know what each button does. also the lock should autoswitch from and block moving from grabbing the radial handle"*
+- Also open from account2: the Spotify song-matching run at 2:30pm today; new links show after the next server restart (offered to restart tonight).

@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-29 — LOCK IN PLACE: a locked occurrence copies, never moves; the radial menu says what each button does
+
+User (account2, which hit its weekly limit as it started): *"make sure our lock occurance is a thing. so you cant move
+it from the position but you can copy/copylink it. the lock would go in the radial menu. and also for the radial menu,
+have tooltips up … also the lock should autoswitch from and block moving from grabbing the radial handle"*.
+- **No such lock existed.** `occurrence.locked` is a DOC's read-only switch (DocContent) and `layoutCascade.locked`
+  stops children leaving a surface; neither pins a row. New key `meta.lockedInPlace` (`helpers/dragModes` LOCK block).
+- **One rule, `effectiveDragMode`:** a locked placement's move becomes a copy. Every drag reader goes through it —
+  dragSystem's 5 mode sites (`dragModeOfData`), `dragModeOf`, `DragProvider.handleDragStart`, and the drop pipeline
+  re-checks the SOURCE (a raw doc-embed draggable starts no session), plus Editor's two block-embed branches. A group
+  move leaves selected locked rows behind; "Move N selected" skips them; a pasted copy does not inherit the lock.
+- **Lock / Unlock** on the radial (instances incl. copy-linked custom list, textblocks, containers ×3, page cards;
+  not panels — their copy mode is inert). Locking a Move row switches it to Copy and remembers it
+  (`lockSwitchedFromMove`); unlocking restores Move only then. While locked the drag-mode submenu has no Move; the
+  handle's title says "Locked in place — dragging makes a copy". One undo step (`CommitHelpers.toggleLockInPlace`).
+- **Tooltips:** hovering/focusing an arc item draws its name in a themed chip (`.radial-menu-tooltip`, tokens only),
+  below the button when above would leave the window. The native `title` stays.
+- Test `lockInPlace` (14). Client 6,872 pass; the 6 failures are the known ones (book header, DATE_DIFF across
+  Nov 1, stale office bundle). Deployed client-only; served chunks carry both. **Not clicked in a browser.**
+
+---
+
 ### 2026-10-28 — OCCASIONS ABOVE TODO; undated Todo tasks copy-linked daily; New … forms ask the rows' fields
 
 User: todo tasks not reaching the Schedule, Keith's Monday follow-up missing, a birthdays/holidays container above
