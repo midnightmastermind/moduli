@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-29 (3) — TRACKERS / ROUTINES / TASKS CONTAINERS GO BLACK LIKE TODAY'S STATS (`0457`); nested colour path fixed
+
+User: *"why are todays workouts and nutrition brown? … make the background color of tasks and routines inner containers
+… we want black background like todays stats … and have all trackers match that as well"*. Today's Stats is black
+because it has NO stored colour; the rest carried a dimension colour (Physical `#b34f24` …) the Terminal skin re-hues
+green. **Brown:** nested containers paint through `ModuleContainer`'s separate embedded colour path, which read
+`module.ownStyle.bg` RAW — ignoring `styleMode: "inherit"` and the skin palette — so Today's Workout / Nutrition
+(Inherit, with a leftover `#b34f24`) stayed brown. It now takes what `resolveContainerStyle` would (placement colour,
+else the module's only when "own") through `remapToPalette`; `withSurfaceAlpha` replaces `hexToRgba` there (a remapped
+colour is `rgb()`), and `lightenHex` reads `rgb()` too. Census: only those 3 modules on poms had the shape.
+**`0457`** removes `ownStyle.bg` from every container under the three pages (41 modules, 3 placements; none placed
+elsewhere), an emptied module back to Inherit; rows keep their colours. Measured after: 0 containers painting green or
+brown on the three pages. Undecided (asked): Workout Log's "Workout 1-6 — done/not yet" and the Workouts tile's
+per-movement 0/1 show the same thing.
+
+---
+
 ### 2026-10-29 (2) — THE TRACKERS' LAST LINE FILLS THE ROW (`0456`); a restart is 4s, not 180s
 
 User: *"make it so the trackers extend the entire panel responsively, instead of stopping short. have the row take up
