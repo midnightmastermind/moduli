@@ -41,8 +41,9 @@ import {
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
-import { resolveContainerStyle, styleToCSS, SURFACE_ALPHA } from "../helpers/StyleHelpers";
-import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
+import { resolveContainerStyle, styleToCSS, SURFACE_ALPHA, getActiveSkin, withSurfaceAlpha } from "../helpers/StyleHelpers";
+import { remapToPalette } from "../helpers/skinPalettes";
+import { lightenHex } from "../helpers/colorHelpers.js";
 import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
@@ -671,7 +672,14 @@ function Container({
   );
 
   // Embedded doc card styles — used when this container is rendered inside Artifact.jsx (not a panel child)
-  const rawColor = embedded ? (module?.ownStyle?.bg || null) : null;
+  // The SAME colour the main path would paint (resolveContainerStyle): a module's own colour only when
+  // its style mode is "own", else the placement's — and in the skin's palette. Read raw, a module set to
+  // Inherit that still carried an old colour painted it, unskinned (2026-10-29: Today's Workout and
+  // Today's Nutrition stayed brown under the Terminal skin while every other container went green).
+  const storedColor = embedded
+    ? (containerOccurrence?.ownStyle?.bg || (module?.styleMode === "own" ? module?.ownStyle?.bg : null) || null)
+    : null;
+  const rawColor = storedColor ? remapToPalette(storedColor, getActiveSkin()?.palette) : null;
   // Text: lighten the raw color 70% toward white for bright readable labels
   const embeddedAccent = rawColor ? lightenHex(rawColor, 0.7) : "#b0f8da";
   // A SECTION WITH NO COLOUR OF ITS OWN PAINTS NO BACKGROUND.
@@ -699,16 +707,16 @@ function Container({
   // which is why re-introducing a default here does not undo the transparency
   // work: the old default was 0.35 and compounded to 9.5%.
   const embeddedCardStyle = embedded ? {
-    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint)",
-    border: `1px solid ${hexToRgba(rawColor, 0.5) ?? "var(--doc-container-ring)"}`,
+    background: withSurfaceAlpha(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint)",
+    border: `1px solid ${withSurfaceAlpha(rawColor, 0.5) ?? "var(--doc-container-ring)"}`,
     borderRadius: 6,
   } : {};
   const embeddedHeaderStyle = embedded ? {
     // The header used to read stronger than its card (0.42 vs 0.18). It shares the
     // one alpha now — the ask names headers explicitly ("the backgrounds of them
     // and headers"), and two knobs here is how they drift apart.
-    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint-hover)",
-    borderBottom: `1px solid ${hexToRgba(rawColor, 0.55) ?? "var(--doc-container-ring)"}`,
+    background: withSurfaceAlpha(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint-hover)",
+    borderBottom: `1px solid ${withSurfaceAlpha(rawColor, 0.55) ?? "var(--doc-container-ring)"}`,
   } : {};
 
   const commitContainerStyleUpdate = useCallback((updates) => {
