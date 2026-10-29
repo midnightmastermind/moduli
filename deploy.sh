@@ -140,7 +140,7 @@ ssh "$REMOTE_HOST" bash -s -- "$REMOTE_DIR" "${DEPLOY_RESTART:-}" <<'REMOTE'
     pm2 save < /dev/null
   else
     echo '  → Server unchanged — NOT restarting (keeps the warm cache; a'
-    echo '    restart costs the next load a ~180s cold Atlas read).'
+    echo '    restart reloads the grid from Atlas — measured ~4s on 2026-10-29).'
     echo '    Force with: DEPLOY_RESTART=1 ./deploy.sh'
   fi
   echo '  ✅ Deploy complete!'
