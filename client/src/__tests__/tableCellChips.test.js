@@ -49,11 +49,13 @@ describe("wiring", () => {
     const ed = read("ui/Editor.jsx");
     expect(ed).toMatch(/isCell && onEmptyCellInputRef\.current && cellDocIsEmpty\(view\.state\.doc\)/);
   });
-  it("the table makes the doc's own chip and keeps a chip cell's editor mounted", () => {
+  it("the table makes the doc's own chip, and draws it idle without an editor", () => {
     const t = read("modules/containers/ContainerTable.jsx");
     expect(t).toMatch(/onEmptyCellInput=\{handleEmptyCellInput\}/);
     expect(t).toMatch(/mintTypedChip\(\{ view, pos: 1, text, owner: ownerOccurrence/);
-    expect(t).toMatch(/const showEditor = isFocused \|\| hovered \|\| hasChips;/);
+    expect(t).toMatch(/const showEditor = isFocused \|\| hovered;/);
+    // an idle chip cell draws the doc chip's own component — no editor mounted per chip cell
+    expect(t).toMatch(/<InstanceTextblockInlineNode key=\{attrs\.occurrenceId\} node=\{\{ attrs, nodeSize: 1 \}\} editor=\{null\}/);
   });
   it("a chip asked to take the caret takes it", () => {
     expect(read("docs/pills/InstanceTextblockInlineNode.jsx")).toMatch(/claimTextblockFocus\(occurrenceId\)/);

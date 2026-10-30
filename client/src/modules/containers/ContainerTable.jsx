@@ -15,7 +15,8 @@ import {
 import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye, Image as ImageIcon } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, moveColumn, fillRange, firstEmbedOccId, nextProjectionFieldId, cellChipIds } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, moveColumn, fillRange, firstEmbedOccId, nextProjectionFieldId, cellChips } from "../../helpers/tableCells";
+import InstanceTextblockInlineNode from "../../docs/pills/InstanceTextblockInlineNode.jsx";
 import { mintTypedChip } from "../../helpers/typedChip";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
@@ -232,10 +233,11 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   // its content instead of wrapping it, and an idle table mounts no TipTap at
   // all, which is the same reason the embed path was made lazy in the first
   // place (~24 instances on the Schedule Table crawled Firefox to a crash).
-  // A cell holding mini textblock chips keeps its editor: a chip IS the doc's chip node, drawn (and dragged) by the
-  // editor — there is no second, static chip (user, 2026-10-30: "it should be a normal doc chip, not a new one").
-  const [hasChips, setHasChips] = useState(() => cellChipIds(initialDoc).length > 0);
-  const showEditor = isFocused || hovered || hasChips;
+  // A cell's chips (doc chips — `instanceTextblockInline`). Idle, they are drawn by the doc chip's own component with
+  // no editor around it (it still drags from its handle); hovered or focused, the cell's editor draws them, editable.
+  // Keeping an editor mounted for every chip cell would put 40 live editors on one table.
+  const [chips, setChips] = useState(() => cellChips(initialDoc));
+  const showEditor = isFocused || hovered;
 
   // TYPING INTO AN EMPTY CELL MAKES A CHIP (user, 2026-10-30: "make it a typing rule that it auto creates a chip when
   // i type in an empty table cell" — so a cell's entry is draggable). The typed character starts the chip's text; the
@@ -349,7 +351,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
     // Track the latest pending doc so blur/unmount can flush it.
     pendingDocRef.current = newDoc;
     setIdleText(plainTextOfDoc(newDoc));
-    setHasChips(cellChipIds(newDoc).length > 0);
+    setChips(cellChips(newDoc));
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       debounceTimer.current = null;
@@ -408,6 +410,12 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           showMedia={showMedia ?? false}
           hideFieldNames={hideFieldNames ?? false}
         />
+      ) : chips.length ? (
+        <div className="table-cell-static-text table-cell-chips">
+          {chips.map((attrs) => (
+            <InstanceTextblockInlineNode key={attrs.occurrenceId} node={{ attrs, nodeSize: 1 }} editor={null} getPos={null} deleteNode={null} />
+          ))}
+        </div>
       ) : !embedOccId ? (
         <div className="table-cell-static-text">
           <AutoMarquee>{idleText}</AutoMarquee>

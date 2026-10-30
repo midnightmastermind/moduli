@@ -13,6 +13,7 @@ const SHARED = new Set(["Tracker Date", "Aggregation"]); // bound on other tiles
 export async function up({ gridId, models, log, dryRun }) {
   const { Operation, Occurrence, Module, Field } = models;
   const mod = await Module.findOne({ gridId, id: TILE_MODULE }).lean();
+  if (!mod && !(await Operation.exists({ gridId, name: OP_NAME }))) { log("  already done (tile and op gone)"); return; }
   if (!mod || mod.label !== "Workouts") throw new Error("the Workouts tile module is not here");
   const ops = await Operation.find({ gridId }).lean();
   const op = ops.find((o) => o.name === OP_NAME);

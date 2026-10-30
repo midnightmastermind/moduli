@@ -177,16 +177,21 @@ export function cellDocIsEmpty(doc) {
   return empty;
 }
 
-/** The mini textblock chips a cell doc holds, in order (JSON doc). */
-export function cellChipIds(doc) {
+/** The mini textblock chips a cell doc holds, in order, as their node attrs (JSON doc). */
+export function cellChips(doc) {
   const out = [];
   const walk = (n) => {
     if (!n || typeof n !== "object") return;
-    if (n.type === "instanceTextblockInline" && n.attrs?.occurrenceId) out.push(n.attrs.occurrenceId);
+    if (n.type === "instanceTextblockInline" && n.attrs?.occurrenceId) out.push(n.attrs);
     (n.content || []).forEach(walk);
   };
   walk(doc);
   return out;
+}
+
+/** The ids of the chips a cell doc holds, in order (JSON doc). */
+export function cellChipIds(doc) {
+  return cellChips(doc).map((a) => a.occurrenceId);
 }
 
 /** The cell doc with one chip node taken out (JSON doc, PURE). */

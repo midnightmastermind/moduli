@@ -15,6 +15,20 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (5) — EVERY TABLE'S TEXT CELLS ARE DOC CHIPS (`0459`); idle chip cells mount no editor
+
+User: *"are you also going to convert all the tables to using the doc chips? just the ones that arent instances
+already (the schedule tracker)"*. **`0459`**: every plain-text cell of every table CONTAINER becomes one doc chip
+(`instanceTextblockInline`, module role textblock/kind inline) holding the cell's inline content (marks kept, multiple
+paragraphs joined by a hard break, literal `**x**` → bold), parented to the table and NOT listed by it (a table draws
+`occurrences[]` as child rows). Embed / empty / list cells untouched; the Schedule Table (a table PAGE of linked rows)
+untouched. poms: 258 cells in 14 tables; rebuild converted first and looked at. **Idle chip cells** draw the doc chip's
+own component standalone (`InstanceTextblockInlineNode` with `editor={null}` — ReactNodeViewContext has defaults), so a
+40-cell table mounts 1 editor (the hovered cell), not 40. Chips wrap in a narrow cell (they no longer marquee), so
+some rows are taller. `0458` made idempotent: its ledger entry had gone missing although its work was done.
+
+---
+
 ### 2026-10-30 (4) — THE FILTER MENU'S "Nav" IS "Show" (the header pill); every active filter gets its picker
 
 User: *"nav switch inside filters does nothing currently"* → *"change it from nav to show and just have it be the header
