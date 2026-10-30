@@ -118,3 +118,45 @@ export function useLazyEditor({ eager = false, occurrenceId = null, rootMargin =
 
   return { live, ref, goLive };
 }
+
+// ── A DOC SECTION'S STAND-IN ────────────────────────────────────────────────
+// A section (an embedded doc container) is a list of embeds — its textblocks, sub-sections, pictures, tables — so
+// the textblock stand-in cannot draw it, and every section of a long page mounted its editor at open: Eminem's ~45
+// (user, 2026-10-30: "opening a page is taking an extremely long time"). This expands the embeds into what the
+// stand-in can draw (ui/StaticTextmap): a textblock's own content in a card, a sub-section as its label + its own
+// expansion, a picture or a table as a box of about its height. The section goes live as it nears the viewport.
+const plainLines = (tm) => (Array.isArray(tm?.content) ? tm.content : []).map((n) => {
+  const parts = []; const walk = (x) => { if (!x || typeof x !== "object") return; if (typeof x.text === "string") parts.push(x.text); (x.content || []).forEach(walk); };
+  walk(n); return { type: "paragraph", content: parts.length ? [{ type: "text", text: parts.join("") }] : [] };
+});
+
+export function sectionStandIn(textmap, getOcc, getMod, depth = 0) {
+  const out = [];
+  const embed = (id) => {
+    const o = getOcc?.(id); const m = o ? getMod?.(o.moduleId) : null;
+    if (!o || !m) return { type: "standinBox", height: 32 };
+    if (m.role === "textblock") return { type: "standinCard", content: standInBlocks(o.textmap) || plainLines(o.textmap) };
+    if (m.role === "container" && (m.kind === "doc" || !m.kind) && depth < 8) {
+      return { type: "standinSection", label: o.label || m.label || "", content: sectionStandIn(o.textmap, getOcc, getMod, depth + 1) };
+    }
+    if (m.kind === "table" || o.meta?.table) return { type: "standinBox", height: 30 + 28 * (o.meta?.table?.rowCount || 3) };
+    if (m.role === "artifact") return { type: "standinBox", height: 220 };
+    return { type: "standinBox", height: 40 };
+  };
+  const visit = (n) => {
+    if (!n || typeof n !== "object") return;
+    if (n.type === "moduleEmbed" || n.type === "instanceTextblock") { if (n.attrs?.occurrenceId) out.push(embed(n.attrs.occurrenceId)); return; }
+    if (n.type === "wrapGroup") { (n.content || []).forEach(visit); return; }
+    const drawn = standInBlocks({ type: "doc", content: [n] });
+    out.push(...(drawn || plainLines({ content: [n] })));
+  };
+  (Array.isArray(textmap?.content) ? textmap.content : []).forEach(visit);
+  return out;
+}
+
+/** Force live every lazy editor on `id`'s ancestor chain (a search jump into a section not yet mounted). */
+export function forceLiveAncestors(ancestorIds) {
+  let forced = false;
+  for (const a of ancestorIds || []) if (forceLiveNow(a)) forced = true;
+  return forced;
+}

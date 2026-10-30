@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (13) — DOC SECTIONS DRAW READ-ONLY UNTIL NEAR VIEW: Eminem's open freeze 5s → 0.6s
+
+User: *"yes please"* (lazy section editors) · *"also look at the time it takes to open the manifest sidebar"*.
+- Every section (an embedded doc container) mounted its editor at open — ~45 on Eminem. A section's textmap is
+  embeds, so the textblock stand-in could not draw it. **`lazyEditor.sectionStandIn`** expands them: a textblock →
+  its own content in a `standinCard`; a sub-section → `standinSection` (label + its expansion); a picture → a 220px
+  `standinBox`; a table → 30 + 28/row; wrap groups flattened; never null. `DocContent` takes `sectionLazy`
+  (ModuleContainer passes it for embedded doc containers), so the section goes live via the IntersectionObserver
+  (700px) or a press. `StaticTextmap` draws the new node types; CSS keeps rough shapes so the page keeps its length
+  (Eminem: 34.2k px at open → 34.7k after three 2,500px scrolls). **Measured (local build, prod data):** longest
+  freeze **5,046 → 589ms**, blocked 6.3 → 2.3s, 3 editors at open (was 46). A search jump into an unmounted section
+  (`jumpToOccurrence`) first forces live the sections on its ancestor chain (`forceLiveAncestors`) and looks again.
+- Found, not fixed (predates today, both builds): clicking a TEXT BLOCK result inside the Eminem article in the
+  toolbar search opens nothing.
+- The file tree: opening it measured ~80ms of work on a fresh browser (collapsed or Root expanded) — not reproduced;
+  asked the user for their case.
+
+---
+
 ### 2026-10-30 (12) — OPENING EMINEM: 8.2s → 4.5s; the textblock stand-in draws lists, marks and chips (`ui/StaticTextmap`)
 
 User: *"opening a page is taking an extremely long time (took 5 seconds to open up the eminem article)"*. Measured

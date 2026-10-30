@@ -12,7 +12,8 @@ import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
 import { mintStep, mintMark } from "../helpers/mintDiag";
-import { useLazyEditor, LAZY_PLACEHOLDER_CLASS, standInBlocks } from "../helpers/lazyEditor.js";
+import { useLazyEditor, LAZY_PLACEHOLDER_CLASS, standInBlocks, sectionStandIn } from "../helpers/lazyEditor.js";
+import { useGridActions } from "../GridActionsContext";
 import { createMintLedger } from "../helpers/provisionalMints.js";
 import { planStaleCollapses, trailingParagraphPos } from "../helpers/staleProvisionalBlocks.js";
 import { afterPaint } from "../helpers/afterPaint";
@@ -20,7 +21,7 @@ import { afterPaint } from "../helpers/afterPaint";
 // `lazy` defaults FALSE so every existing call site is byte-identical — only the
 // doc BLOCK node view opts in, where 246 eager ProseMirror instances on poms grid
 // are the measured cost.
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null, lazy = false }) {
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null, lazy = false, sectionLazy = false }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
@@ -58,12 +59,17 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // every hook, so order stays stable). An EMPTY doc mounts eagerly — there is no
   // placeholder text to stand in for it and it is immediately editable.
   // A textmap the stand-in cannot draw (a table, a picture, an embed) mounts eagerly too (helpers/lazyEditor standInBlocks).
+  // A doc SECTION (`sectionLazy`, an embedded doc container) draws its embeds read-only until it nears the viewport
+  // (helpers/lazyEditor sectionStandIn) — a long page mounted every section's editor at open.
+  const { getOccMap, getModMap } = useGridActions() || {};
   const standIn = React.useMemo(
-    () => (lazy && hasValidTextmap ? standInBlocks(occurrence.textmap) : []),
-    [lazy, hasValidTextmap, occurrence?.textmap]
+    () => (!hasValidTextmap ? []
+      : sectionLazy ? sectionStandIn(occurrence.textmap, (id) => getOccMap?.()?.[id], (id) => getModMap?.()?.[id])
+      : lazy ? standInBlocks(occurrence.textmap) : []),
+    [lazy, sectionLazy, hasValidTextmap, occurrence?.textmap, getOccMap, getModMap]
   );
   const { live, ref: lazyRef, goLive } = useLazyEditor({
-    eager: !lazy || !hasValidTextmap || standIn === null,
+    eager: !(lazy || sectionLazy) || !hasValidTextmap || standIn === null,
     occurrenceId: occurrence?.id,
   });
   const lazyBlocks = live || !standIn ? [] : standIn;

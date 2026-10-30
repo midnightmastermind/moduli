@@ -2027,6 +2027,12 @@ body[data-drag-kind="panel"] .container-shell {
 /* Lists in the stand-in (ui/StaticTextmap) sit as the editor's do: indented, no paragraph margins, no first-line indent. */
 .textblock-card-placeholder .standin-list { margin: 0; padding-left: 2.5em; }
 .textblock-card-placeholder .standin-list p { margin: 0; text-indent: 0; }
+/* A section's stand-in (lazyEditor.sectionStandIn): roughly the live section's shapes, so the page keeps its length. */
+.textblock-card-placeholder .standin-card { margin: 3px 0; padding: 4px 8px; border: 1px solid hsl(var(--border)); border-radius: 6px; text-indent: 0; }
+.textblock-card-placeholder .standin-card > div { text-indent: 1.5em; }
+.textblock-card-placeholder .standin-section { margin: 6px 0; padding: 4px 6px; border: 1px solid hsl(var(--border)); border-radius: 8px; text-indent: 0; }
+.textblock-card-placeholder .standin-section-label { font-weight: 600; padding-bottom: 4px; }
+.textblock-card-placeholder .standin-box { margin: 3px 0; border: 1px dashed hsl(var(--border)); border-radius: 6px; }
 
 /* Breathing room between the radial drag handle and the prose (user,
    2026-08-05: "the textblock content is too close to the drag handle, we need

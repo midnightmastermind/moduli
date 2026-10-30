@@ -35,6 +35,15 @@ function Block({ node }) {
       return <L className="standin-list">{(node.content || []).map((li, i) => <Block node={li} key={i} />)}</L>;
     }
     case "listItem": return <li>{(node.content || []).map((c, i) => (c.type === "paragraph" ? <p key={i}>{inlines(c)}</p> : <Block node={c} key={i} />))}</li>;
+    // a section's stand-in (helpers/lazyEditor sectionStandIn)
+    case "standinCard": return <div className="standin-card">{(node.content || []).map((c, i) => <Block node={c} key={i} />)}</div>;
+    case "standinSection": return (
+      <div className="standin-section">
+        {node.label ? <div className="standin-section-label">{node.label}</div> : null}
+        {(node.content || []).map((c, i) => <Block node={c} key={i} />)}
+      </div>
+    );
+    case "standinBox": return <div className="standin-box" style={{ height: node.height || 40 }} />;
     default: return null;
   }
 }

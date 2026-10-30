@@ -1,5 +1,7 @@
 
 import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
+import { forceLiveAncestors } from "./lazyEditor.js";
+import { operationsBridge } from "../state/bindSocketToStore";
 //
 // Shared "jump to + highlight" helper. Used by:
 //   - ManifestTree anchor chip clicks (already had this logic inline).
@@ -84,6 +86,12 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
   const el = findOccurrenceElement(occurrenceId, root);
   if (el) {
     scrollAndFlash(el, { highlightMs, scrollBlock });
+    return true;
+  }
+  // A target inside a doc SECTION not yet mounted (lazyEditor.sectionStandIn): mount the sections on its ancestor
+  // chain, then look again once they have rendered.
+  if (forceLiveAncestors(operationsBridge.getAncestorChain?.(occurrenceId)?.ids)) {
+    setTimeout(() => jumpToOccurrence(occurrenceId, opts), 120);
     return true;
   }
   // A long container renders a bounded WINDOW of its rows, so a row past the

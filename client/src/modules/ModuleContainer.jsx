@@ -1780,6 +1780,7 @@ function Container({
             socket={socket}
             onConvertListToInstances={handleConvertListToInstances}
             hideToolbar={embedded}
+            sectionLazy={embedded}
           />
         </div>
       ) : isCanvasContainer ? (
