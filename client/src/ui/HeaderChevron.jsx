@@ -146,10 +146,13 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null, show
   const pillEntries = useMemo(() => {
     if (!showPill) return [];
     if (state !== "active" || !ownEffectiveFilter) return [];
+    // A filter whose "Show" switch is off (FiltersSection, `meta.filterPills[fieldId] === false`) draws no pill.
+    const hidden = occurrence?.meta?.filterPills || {};
     return Object.entries(ownEffectiveFilter)
+      .filter(([fid]) => hidden[fid] !== false)
       .map(([fid, val]) => ({ fid, label: formatFilterValue(fid, val, fieldsById) }))
       .filter(e => e.label);
-  }, [showPill, state, ownEffectiveFilter, fieldsById]);
+  }, [showPill, state, ownEffectiveFilter, fieldsById, occurrence?.meta?.filterPills]);
 
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>

@@ -256,15 +256,6 @@ export default function FiltersSection({ occurrence }) {
 
   const unmute = (fieldId) => filterConfig.activateFilter({ ...cfgArgs, fieldId, value: undefined });
 
-  const setNavVisible = (filterKey, visible) => {
-    const next = { ...navConfig, [filterKey]: { ...(navConfig[filterKey] || {}), visible } };
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: occurrence.id, filterNavConfig: next },
-      emit: true,
-    });
-  };
-
   const removeLocal = (fieldId) => filterConfig.clearFilterOverride({ ...cfgArgs, fieldId });
 
   // Remove a declared filter entirely from occurrence.filters[] AND clear any
@@ -294,69 +285,50 @@ export default function FiltersSection({ occurrence }) {
   };
 
   // Toggle .showNav on a declared filter entry.
-  const setDeclaredShowNav = (fieldId, showNav) => {
-    const nextFilters = (occurrence?.filters || []).map(f =>
-      f.fieldId === fieldId ? { ...f, showNav } : f
-    );
+  // Top nav widgets: EVERY filter active on this occurrence gets one, automatically (user, 2026-10-30: "make automatic
+  // nav when its active in the filter header (like we have for Date), i dont see a tags one currently"). It used to
+  // need its Nav switch on, which most filters never had. Active = applied here (in the cascade-resolved own filter),
+  // or a local filter declared here and switched on. The widget style comes from the filter, else the field's type.
+  const navItems = useMemo(() => {
+    const items = [];
+    const seen = new Set();
+    for (const row of [...ancestorRows, ...localRows]) {
+      const fid = row.fieldId;
+      if (!fid || seen.has(fid)) continue;
+      // A DECLARED filter (here or on an ancestor — Trackers' Tags) that is switched on gets its widget even before a
+      // value is picked, so one can be picked; one muted here (`null`) does not.
+      const declaredOn = !!row.filter && row.filter.active !== false && overrides[fid] !== null;
+      if (!(fid in (ownEffectiveFilter || {})) && !declaredOn) continue;
+      seen.add(fid);
+      let filter; let cfg;
+      if (row.filter) {
+        filter = { ...row.filter, primaryDateFieldId: fid, timeUnit: row.filter.timeUnit };
+        cfg = { ...(navConfig[row.filter.id] || {}), style: row.filter.style ?? navConfig[row.filter.id]?.style, options: row.filter.options ?? navConfig[row.filter.id]?.options };
+      } else if (row.condition && activeFilter) {
+        filter = { ...activeFilter, fieldId: fid, primaryDateFieldId: fid };
+        cfg = navConfig[activeFilter.id] || {};
+      } else {
+        filter = { id: `auto-${fid}`, fieldId: fid, primaryDateFieldId: fid };
+        cfg = {};
+      }
+      items.push({ filter, fieldId: fid, cfg });
+    }
+    return items;
+  }, [ancestorRows, localRows, navConfig, activeFilter, ownEffectiveFilter, overrides]);
+
+  // SHOW: whether this filter's value pill is drawn on the header (HeaderChevron reads the same flag). Per field, on by
+  // default; a hidden one is stored as `meta.filterPills[fieldId] = false` (user, 2026-10-30: "change it from nav to
+  // show and just have it be the header pill").
+  const pillShown = (fieldId) => occurrence?.meta?.filterPills?.[fieldId] !== false;
+  const setPillShown = (fieldId, shown) => {
+    const pills = { ...(occurrence?.meta?.filterPills || {}) };
+    if (shown) delete pills[fieldId]; else pills[fieldId] = false;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: occurrence.id, filters: nextFilters },
+      occurrence: { id: occurrence.id, meta: { ...(occurrence?.meta || {}), filterPills: pills } },
       emit: true,
     });
   };
-
-  // Top nav widgets: any visible-nav filter gets a widget.
-  // Default visibility: ancestor isNav conditions are visible by default;
-  // filterNavConfig.visible: true forces on; visible: false forces off.
-  // Two sources contribute:
-  //   1. grid.namedFilters — inherited / grid-wide filters
-  //   2. occurrence.filters[] — per-occurrence local filters (active && showNav)
-  const navItems = useMemo(() => {
-    const items = [];
-    // (1) Grid namedFilters
-    for (const f of filters) {
-      const cfg = navConfig[f.id];
-      const explicitOff = cfg && cfg.visible === false;
-      if (explicitOff) continue;
-      const explicitOn = cfg && cfg.visible === true;
-      const isActiveDefault = f.id === grid?.activeFilterId
-        && Array.isArray(f.conditions)
-        && f.conditions.some(c => c?.isNav);
-      if (!explicitOn && !isActiveDefault) continue;
-      const navCondition = (f.conditions || []).find(c => c?.isNav && c.fieldId);
-      const fieldId = navCondition?.fieldId || f.primaryDateFieldId || null;
-      // Auto-hide: same rule as LocalFilterNav — if the filter's field
-      // isn't applied at this level (own override / ancestor cleared), the
-      // filter is deactivated and the widget is suppressed.
-      if (fieldId && !(fieldId in ownEffectiveFilter)) continue;
-      items.push({ filter: f, fieldId, cfg, source: "grid" });
-    }
-    // (2) occurrence.filters[] entries — local filters defined on this
-    // occurrence. style/options on the entry itself drive the widget; we
-    // synthesize a navConfig from those so FilterNavWidget reads them.
-    // Dedupe by fieldId: if a grid widget is already rendering for this field
-    // (e.g. schedule page's local schedFilterId on dateFieldId vs grid
-    // filter_daily on the same dateFieldId), skip the local one to avoid two
-    // Date widgets side-by-side.
-    const seenFieldIds = new Set(items.map(it => it.fieldId).filter(Boolean));
-    for (const f of (occurrence?.filters || [])) {
-      if (!f?.fieldId || !f.active || !f.showNav) continue;
-      if (seenFieldIds.has(f.fieldId)) continue;
-      const cfg = {
-        visible: true,
-        style: f.style,     // optional — falls back to defaultStyleForFilter
-        options: f.options, // optional — falls back to derivedOptionsForFilter
-      };
-      items.push({
-        filter: { ...f, primaryDateFieldId: f.fieldId, timeUnit: f.timeUnit },
-        fieldId: f.fieldId,
-        cfg,
-        source: "local",
-      });
-      seenFieldIds.add(f.fieldId);
-    }
-    return items;
-  }, [filters, navConfig, grid?.activeFilterId, occurrence?.filters, ownEffectiveFilter]);
 
   const rowStyle = { display: "flex", alignItems: "center", gap: 8, padding: "4px 0" };
   const labelStyle = { flex: 1, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
@@ -416,7 +388,7 @@ export default function FiltersSection({ occurrence }) {
                 }
               : undefined;
             return (
-              <div key={filter.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <div key={fieldId || filter.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                 {navLabel && <span style={{ fontSize: 12, opacity: 0.7 }}>{navLabel}:</span>}
                 <FilterNavWidget
                   filter={fieldId && !filter.primaryDateFieldId ? { ...filter, primaryDateFieldId: fieldId } : filter}
@@ -551,9 +523,10 @@ export default function FiltersSection({ occurrence }) {
                   }}
                 />
                 <Switch
-                  label="Nav"
-                  checked={navOn}
-                  onChange={(v) => navFilterId && setNavVisible(navFilterId, v)}
+                  label="Show"
+                  title="Show this filter's value on the header"
+                  checked={pillShown(row.fieldId)}
+                  onChange={(v) => setPillShown(row.fieldId, v)}
                 />
               </div>
             );
@@ -568,19 +541,11 @@ export default function FiltersSection({ occurrence }) {
       )}
       {localRows.map(row => {
         const isDeclared = row.kind === "declared";
-        const navKey = `local-${row.fieldId}`;
-        const cfg = navConfig[navKey] || {};
-        // Declared filters: nav visibility comes from the filter entry's
-        // showNav flag. Ad-hoc overrides: from filterNavConfig[local-fid].
-        const navOn = isDeclared ? !!row.filter?.showNav : !!cfg.visible;
         const active = isDeclared ? row.filter?.active !== false : true;
         const valueLabel = row.value != null ? formatValue(row.value) : (isDeclared ? "—" : formatValue(row.value));
         const onActive = isDeclared
           ? (v) => setDeclaredActive(row.fieldId, v)
           : () => removeLocal(row.fieldId);
-        const onNav = isDeclared
-          ? (v) => setDeclaredShowNav(row.fieldId, v)
-          : (v) => setNavVisible(navKey, v);
         const onRemove = isDeclared
           ? () => removeDeclaredFilter(row.fieldId)
           : () => removeLocal(row.fieldId);
@@ -591,7 +556,7 @@ export default function FiltersSection({ occurrence }) {
               <span style={{ opacity: 0.6 }}> = {valueLabel}</span>
             </span>
             <Switch label="Active" checked={active} onChange={onActive} title={isDeclared ? "Toggle to enable/disable this filter" : "Toggle off to remove this local filter"} />
-            <Switch label="Nav" checked={navOn} onChange={onNav} />
+            <Switch label="Show" title="Show this filter's value on the header" checked={pillShown(row.fieldId)} onChange={(v) => setPillShown(row.fieldId, v)} />
             <button
               type="button"
               title="Edit this filter"

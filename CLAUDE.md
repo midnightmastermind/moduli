@@ -15,6 +15,19 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (4) — THE FILTER MENU'S "Nav" IS "Show" (the header pill); every active filter gets its picker
+
+User: *"nav switch inside filters does nothing currently"* → *"change it from nav to show and just have it be the header
+pill. but make automatic nav when its active in the filter header (like we have for Date), i dont see a tags one"*.
+The Nav switch only toggled a picker at the top of the menu itself (the header nav it once drove, LocalFilterNav, was
+deleted as dead code 07-14). Now: **Show** (ancestor + local rows) stores `meta.filterPills[fieldId] = false` when off
+(on by default, so existing pills stay) and `HeaderChevron` skips that field's pill. The menu's top pickers are
+**automatic**: one per filter applied here, plus any DECLARED filter switched on (here or on an ancestor) even before
+it has a value — muted (`null`) ones excluded. Watched: Basic Nutrition Guide (rebuild) Show off → no pill, on → back;
+poms Trackers page menu: Date ◀▶ + Tags select. `setNavVisible` / `setDeclaredShowNav` removed. Test `filterShowSwitch`.
+
+---
+
 ### 2026-10-30 (3) — TYPING MAKES A DOC CHIP in an empty table cell or bullet; the table's "⚡link" chip is gone; chips 12px
 
 User: *"make it a typing rule that it auto creates a chip when i type in an empty table cell"* · *"i just need them
