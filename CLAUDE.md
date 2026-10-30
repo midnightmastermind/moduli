@@ -15,6 +15,16 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (11) — table pills keep their bottom border; list boxes: "Cardio:" in the header style, pill-round corners
+
+User: *"the bottom border is now cut off on some of them"* · *"it should say Cardio: and be the same font as the headers
+for the list"* · *"the border corners need to be as rounded as the other field pills"*. The idle marquee clips
+vertically too and left the pill 1px each way (lost to rounding in some cells) → `padding-block: 2px` (measured 3px
+room above and below, idle and hovered). A list field's title row takes the column headers' style (600, 0.55,
+muted ink) with a colon. The list box's corners are 11px — a one-line field pill's 999px radius on its ~22px height.
+
+---
+
 ### 2026-10-30 (10) — the pill's left border, for real; a list's name inside its box; no Date column (`0464`)
 
 User: *"its still showing the Date and i want it to say Cardio inside the box, not on top of it. and also the pills

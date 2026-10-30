@@ -6130,6 +6130,9 @@ input.artifact-thumb-info-name--editing {
    paragraph), so that box's own padding holds it: the padding is INSIDE the clip, the pill's border with it. */
 .table-td .table-cell-chips .auto-marquee,
 .table-td .doc-editor-content.ProseMirror p { padding-left: 4px; }
+/* …and the idle marquee clips vertically too: 2px above and below so the pill's top and bottom borders are not cut
+   (it had 1px, lost to rounding in some cells — user, 2026-10-30), and the idle pill sits where the editing one does. */
+.table-td .table-cell-chips .auto-marquee { padding-block: 2px; }
 .table-container:not(.table-cells-wrap) .table-td:not(:focus-within) .doc-editor-content.ProseMirror p { overflow-x: clip; }
 .table-cells-wrap .table-cell-chips .auto-marquee,
 .table-cells-wrap .table-cell-chips .auto-marquee-inner {

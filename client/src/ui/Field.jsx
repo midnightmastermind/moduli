@@ -2784,8 +2784,8 @@ function Field({
       const gridTemplateColumns = compactColumns.map(c => c.width ? `${c.width}px` : "auto").join(" ");
       return (
         <div className="field-display field-display-compact" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          {/* The list's NAME is its box's title row, inside the border (user, 2026-10-30: "i want it to say Cardio
-              inside the box, not on top of it"). When the columns overflow the tile, the WHOLE table box marquees
+          {/* The list's NAME is its box's title row, inside the border, styled as the column headers (user,
+              2026-10-30: "it should say Cardio: and be the same font as the headers for the list"). When the columns overflow the tile, the WHOLE table box marquees
               (AutoMarquee is static when it fits) — width:max-content lets the
               grid take its natural width so the overflow is measurable. */}
           <AutoMarquee>
@@ -2793,10 +2793,11 @@ function Field({
             display: "grid", gridTemplateColumns, columnGap: 6,
             fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
             background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
-            borderRadius: 4, padding: "3px 6px", width: "max-content",
+            // the same corner curve a one-line field pill shows (its 999px radius on a ~22px pill = 11px)
+            borderRadius: 11, padding: "3px 8px", width: "max-content",
           }}>
             {!hideName && name && (
-              <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, color: FIELD_INK("--text-primary"), paddingBottom: 2 }}>{name}</div>
+              <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, opacity: 0.55, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>{name}:</div>
             )}
             {compactColumns.map((c, i) => (
               <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 1 }}>
@@ -2926,12 +2927,12 @@ function Field({
           fontFamily: FIELD_FAMILY,
           background: "var(--input-bg)",
           border: "1px solid var(--border-subtle)",
-          borderRadius: 4,
-          padding: "4px 8px",
+          borderRadius: 11,
+          padding: "4px 10px",
           width: "max-content",
         }}>
           {showLabel && name && (
-            <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, color: FIELD_INK("--text-primary"), paddingBottom: 3 }}>{name}</div>
+            <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, opacity: 0.55, color: FIELD_INK("--text-muted"), paddingBottom: 3 }}>{name}:</div>
           )}
           {cols.map((c, i) => (
             <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>
