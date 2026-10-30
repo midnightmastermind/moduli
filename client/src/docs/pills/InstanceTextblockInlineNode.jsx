@@ -255,6 +255,10 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         + (storedText ? "" : " is-empty")
       }
       onMouseEnter={() => setHovered(true)}
+      // …and on any movement over it: a chip can appear UNDER a resting pointer (a table cell swaps its static view
+      // for its editor on hover), and then no mouseenter ever comes — its handle showed only after leaving and
+      // re-entering from the left (user, 2026-10-30: "it should show up regardless on the hover of the entire thing").
+      onMouseMove={() => { if (!hovered) setHovered(true); }}
       onMouseLeave={() => setHovered(false)}
     >
       {/* LEFT — drag handle (hover-revealed RadialMenu). Always in the DOM so

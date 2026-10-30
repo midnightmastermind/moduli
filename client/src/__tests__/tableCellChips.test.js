@@ -98,17 +98,20 @@ describe("Table cell text: scroll (default) or wrap", () => {
 
 describe("a chip in a table cell (user's video, 2026-10-30)", () => {
   const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
-  it("draws its drag handle over its left end, so hovering never widens the line", () => {
-    expect(css).toMatch(/\.table-td \.itbi-handle\.is-shown \{[^}]*position: absolute;/);
+  it("is the doc pill unchanged — no table-only margin, handle or arrow rules", () => {
+    expect(css).not.toMatch(/\.table-td \.itbi-handle/);
+    expect(css).not.toMatch(/\.table-td \.itbi-arrow/);
+    expect(css).not.toMatch(/\.table-td \.instance-textblock-inline \{ margin/);
   });
-  it("keeps its left border inside the cell", () => {
-    expect(css).toMatch(/\.table-td \.instance-textblock-inline \{ margin: 1px 0; \}/);
+  it("the cell's line starts 3px in, so the pill's -3px margin stays inside", () => {
+    expect(css).toMatch(/\.table-td \.doc-editor-content\.ProseMirror p \{ padding-left: 3px; \}/);
   });
   it("a hovered cell clips; only a cell being typed in scrolls", () => {
     expect(css).toMatch(/\.table-td:not\(:focus-within\) \.doc-editor-content\.ProseMirror p \{ overflow-x: clip; \}/);
   });
-  it("a hovered cell lets go when the pointer is anywhere outside it", () => {
+  it("a hovered cell lets go when the pointer is anywhere outside it; a chip counts as hovered on any movement", () => {
     const t = readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8");
     expect(t).toMatch(/if \(el && e\.target instanceof Node && !el\.contains\(e\.target\)\) setHovered\(false\);/);
+    expect(readFileSync(new URL("../docs/pills/InstanceTextblockInlineNode.jsx", import.meta.url), "utf8")).toMatch(/onMouseMove=\{\(\) => \{ if \(!hovered\) setHovered\(true\); \}\}/);
   });
 });

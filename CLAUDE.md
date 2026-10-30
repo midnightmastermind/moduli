@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (9) — table pills are the doc pills exactly; the handle shows on hover anywhere; a Cardio list (`0463`)
+
+- User: *"it shouldnt overlap the text … its not showing up on some of them (if im not hovering over the left side
+  completely)"* · *"it should be the same pills as the doc pills (exact same)"*. The handle's menu only mounted on
+  `hovered`, set by `mouseenter` — and a cell swaps its static view for its editor UNDER the pointer, so the new chip
+  never got one. The chip also sets hovered on `mousemove`. Every table-only pill rule is gone (absolute handle,
+  hidden arrow, zero margin); the cell's line starts 3px in so the pill's -3px margin no longer clips its left
+  border. A hovered cell still clips (no scroll), so the text never slides left. Measured at 1100px on a 156px chip
+  in a 114px cell: handle shown hovering either end, handle ends at 25px, text starts at 28px, pill left at 6px.
+- **`0463`** (user: *"the workouts list shouldnt have set1 weight1. make another list called cardio"*): new field
+  **Cardio** (Exercise · Status · Duration · Steps · Route · Time · Date), bound after Workouts on the Workout Log
+  tile; Workout History sends movement-less routines (Run, Walk, Stretch…) to `$cardio`; Workouts keeps movement rows.
+
+---
+
 ### 2026-10-30 (8) — WORKOUT LOG COUNTS FITNESS ROUTINES (`0461`); table chips don't shift on hover; New task offers Completed (`0462`)
 
 - **`0461`** (user: *"im not seeing the workouts in the list, the list just says -"*): today's workouts are Run + Stretch;

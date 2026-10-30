@@ -67,3 +67,23 @@ describe("0461 withFitnessRoutines", () => {
     expect(branch.else[0].config.value.label).toBe("$inst.label");
   });
 });
+
+import { withCardioList } from "../migrations/0463-workout-log-cardio-list.mjs";
+describe("0463 withCardioList", () => {
+  const merged = mergedHistoryPipeline(pipeline(), C);
+  merged.steps[1].body[0].condition.rules.push({ id: "mvr", left: "$inst.fields.m.value", comparator: "IS_NOT_EMPTY", right: "" });
+  const out = withCardioList(withFitnessRoutines(merged, { fitnessContainerId: "fit", movementFieldId: "m" }), { cardioFieldId: "card", durationFieldId: "d", stepsFieldId: "st", routeFieldId: "r" });
+  const branch = out.steps.find((s) => s.as === "$inst").body[0].then.find((s) => s.id === "wl0461hasMv");
+  it("a routine without movements goes to $cardio with duration/steps/route, no sets", () => {
+    const own = branch.else[0].config;
+    expect(own.name).toBe("$cardio");
+    expect(Object.keys(own.value)).toEqual(["label", "status", "duration", "steps", "route", "timeslot", "date"]);
+  });
+  it("movement rows still go to $rows (control)", () => {
+    expect(branch.then[0].body[0].config.name).toBe("$rows");
+  });
+  it("Cardio is initialised and written", () => {
+    expect(out.steps.some((s) => s.id === "wl0463init")).toBe(true);
+    expect(out.steps[out.steps.length - 1].config).toMatchObject({ type: "UPDATE", path: "$goalItem.fields.card.value", value: "$cardio" });
+  });
+});
