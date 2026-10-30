@@ -2022,6 +2022,21 @@ body[data-drag-kind="panel"] .container-shell {
   word-break: break-word;
 }
 .textblock-card-placeholder > div { text-indent: 1.5em; }
+/* A TEXTBLOCK's stand-in takes the live editor's text metrics, measured on prod (2026-10-30, user: "i edit a
+   textblock by clicking on it and the font size increases"): it was 14px / 1.35 while the editor it turns into is
+   the instance-label size / 1.6, with 4px 8px of editor padding and each line's 3px margin + (4px + 0.25em) padding
+   (the doc-line sizing above). Box 50 -> 87px on click before; 85 vs 87 after. */
+.textblock-card .textblock-card-placeholder,
+.instance-textblock-block .textblock-card-placeholder {
+  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
+  line-height: 1.6;
+  padding: 4px 8px;
+}
+.textblock-card .textblock-card-placeholder > div,
+.instance-textblock-block .textblock-card-placeholder > div {
+  margin: 3px 0;
+  padding-block: calc(4px + 0.25em);
+}
 
 /* Breathing room between the radial drag handle and the prose (user,
    2026-08-05: "the textblock content is too close to the drag handle, we need

@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 — A TEXTBLOCK NO LONGER GROWS WHEN CLICKED: its stand-in takes the editor's metrics
+
+User: *"make sure the font size for editing and displaying of docs are lined up. currently i edit a textblock by
+clicking on it and the font size increases"*. A textblock renders a read-only stand-in (`.textblock-card-placeholder`,
+lazy editors) until clicked; it was 14px / 1.35 while the editor is the instance-label size / 1.6. Measured on poms'
+Basic Nutrition Guide: static 14px · 18.9 line · 50px box → live 17px · 27.2 · 87px. The stand-in (in a textblock card
+and an in-doc textblock) now takes the editor's font-size expression, 1.6, 4px 8px padding, and each line the live
+paragraph's 3px margin + `calc(4px + 0.25em)` padding → 85px vs 87px, same 17px. Doc-container stand-ins unchanged.
+Test `textblockPlaceholderMetrics` reads the live rule's font-size and requires the stand-in to carry it.
+**Probe slip, repaired:** `?local=1` no longer keeps a DESKTOP tab's page changes local (only headset windows,
+2026-10-27), so my search moved Panel A to Bookmarks for ~3 min; put back on Routines and the appended pages dropped
+(`_tbrun.sh` restores after every run).
+
+---
+
 ### 2026-10-29 (3) — TRACKERS / ROUTINES / TASKS CONTAINERS GO BLACK LIKE TODAY'S STATS (`0457`); nested colour path fixed
 
 User: *"why are todays workouts and nutrition brown? … make the background color of tasks and routines inner containers
