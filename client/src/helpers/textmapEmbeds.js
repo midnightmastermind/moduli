@@ -61,3 +61,26 @@ export function expandByEmbeds(seen, occById) {
   }
   return seen;
 }
+
+/**
+ * Child id -> the occurrence whose TEXTMAP draws it, for the ancestor walks.
+ * An imported article's root section is listed by nobody and has no parentId — its page
+ * reaches it only by embedding it — so a walk over lists + parentId stopped at the root
+ * and the search opened nothing for every block inside (user, 2026-10-30). This is the
+ * LAST fallback: a list or parentId still wins, since a row can be embedded in a doc that
+ * is not its home. Memoised on the map's identity (every write swaps it).
+ */
+const _embedParentCache = new WeakMap();
+export function embedParentIndex(occurrencesById = {}) {
+  const hit = _embedParentCache.get(occurrencesById);
+  if (hit) return hit;
+  const out = new Map();
+  for (const occ of Object.values(occurrencesById)) {
+    if (!occ?.id || !occ.textmap) continue;
+    for (const id of collectEmbeddedIds(occ.textmap)) {
+      if (id !== occ.id && !out.has(id)) out.set(id, occ.id);
+    }
+  }
+  _embedParentCache.set(occurrencesById, out);
+  return out;
+}

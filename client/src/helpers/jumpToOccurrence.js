@@ -117,6 +117,10 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     const attempt = () => {
       const retry = findOccurrenceElement(occurrenceId, root);
       if (retry) { scrollAndFlash(retry, { highlightMs, scrollBlock }); return; }
+      // The page this jump just opened has mounted now, and its doc SECTIONS are stand-ins: mount the
+      // ones on the target's chain and look again. Only the first look did this, before the page
+      // existed, so a search pick from another page opened the article and never found the block.
+      if (forceLiveAncestors(operationsBridge.getAncestorChain?.(occurrenceId)?.ids)) { setTimeout(attempt, retryMs); return; }
       if (!expanded && expandWindows) {
         // The page is up and the row is not: grow the window that holds it
         // and keep looking until it mounts.
@@ -283,7 +287,12 @@ function scrollToTarget(el, block, behavior) {
     sc.scrollTo({ top: sc.scrollTop + r.top - s.top - offset, behavior });
     return;
   }
-  try { el.scrollIntoView({ behavior, block: block === "nearest" ? "center" : block }); }
+  // An element TALLER than the view lands at its START — the rule offTargetBy measures with. Centring it
+  // put a 1,566px Eminem block's first line 409px above a 557px panel, and the settle loop "corrected"
+  // it back there every check, so the search opened the right block and showed its middle (2026-10-30).
+  let b = block === "nearest" ? "center" : block;
+  if (b === "center" && el.getBoundingClientRect().height > viewRectFor(el).height - 32) b = "start";
+  try { el.scrollIntoView({ behavior, block: b }); }
   catch { el.scrollIntoView(); }
 }
 

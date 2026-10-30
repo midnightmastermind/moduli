@@ -9,6 +9,7 @@
 // indexed because it is a date, a field value because it is a field value. If a
 // behavior seems to need "but only for X", the answer is a field or an
 // operation, not a branch in here.
+import { embedParentIndex } from "./textmapEmbeds";
 import { folderPageIndex } from "./folderPages";
 import { buildParentMap } from "./dragHitTesting";
 import { plainText } from "./textmapText";
@@ -231,7 +232,8 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
 /** Index every indexable occurrence on the grid. */
 export function buildSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null, foldersById = null } = {}) {
   const parentBy = buildParentMap(occurrencesById);
-  const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? null;
+  const embedParent = embedParentIndex(occurrencesById);
+  const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? embedParent.get(id) ?? null;
   const ctx = { occurrencesById, modulesById, fieldsById, parentOf, foldersById };
 
   const entries = [];
@@ -369,7 +371,8 @@ export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsB
     && _lastArgs.gridId === gridId) return _lastIndex;
 
   const parentBy = buildParentMap(occurrencesById);
-  const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? null;
+  const embedParent = embedParentIndex(occurrencesById);
+  const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? embedParent.get(id) ?? null;
   const ctx = { occurrencesById, modulesById, fieldsById, parentOf, foldersById };
 
   const entries = [];

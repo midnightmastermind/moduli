@@ -272,6 +272,25 @@ have tooltips up … also the lock should autoswitch from and block moving from 
 
 ---
 
+### 2026-10-30 (14) — A SEARCH PICK INSIDE AN IMPORTED ARTICLE OPENED NOTHING; then landed on the block's middle
+
+Clicking a toolbar-search TEXT BLOCK hit inside the Eminem article left every panel where it was (old builds too).
+- **The article's root section is listed by nobody and has no parentId** — the page reaches it only through its
+  TEXTMAP, so the page walk (`nearestPageOccId`, `folderHomeOf`, the search index's `parentOf`) stopped at the root
+  and the pick ended on "isn't on a page yet". `textmapEmbeds.embedParentIndex` (child -> the occurrence whose
+  textmap draws it, WeakMap on the map's identity) is now the LAST fallback in all three; a list/parentId still wins.
+- **Opened from another page, the block was never found:** the retry loop after a page switch only re-looked for the
+  element; mounting the lazy doc sections on its chain (`forceLiveAncestors`) ran on the FIRST look, before the page
+  existed. The retry does it too now.
+- **Found, it was centred — and the block is 1,566px in a 557px panel**, so its first line sat 409px above the top,
+  and the settle loop re-centred it every check. `scrollToTarget`'s `scrollIntoView` branch takes `start` for an
+  element taller than the view (the rule `offTargetBy` already measured with).
+- Watched on prod data (local build): from Routines, pick -> Eminem, the block's first line at the panel top
+  (`top 95 = scroller top`), one ring at 1.8s, held for 6s. Panel A put back. Test `searchEmbeddedRoot` (5; the
+  index fallback A/B'd 3 fail, the tall-scroll case 1). Client: only the known failures.
+
+---
+
 ### 2026-10-28 — OCCASIONS ABOVE TODO; undated Todo tasks copy-linked daily; New … forms ask the rows' fields
 
 User: todo tasks not reaching the Schedule, Keith's Monday follow-up missing, a birthdays/holidays container above

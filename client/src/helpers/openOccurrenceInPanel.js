@@ -11,10 +11,12 @@ import * as CommitHelpers from "./CommitHelpers";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { buildParentMap } from "./dragHitTesting";
 import { folderPageIndex } from "./folderPages";
+import { embedParentIndex } from "./textmapEmbeds";
 
 /** Nearest role:"page" ancestor, inclusive of the occurrence itself. */
 export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {} }) {
   const parentBy = buildParentMap(occurrencesById);
+  const embedParent = embedParentIndex(occurrencesById);
   let cursor = occId;
   let guard = 0;
   while (cursor && guard++ < 64) {
@@ -22,7 +24,7 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
     if (!occ) return null;
     const mod = modulesById[occ.moduleId];
     if (mod?.role === "page") return cursor;
-    cursor = parentBy[cursor] ?? occ.parentId ?? null;
+    cursor = parentBy[cursor] ?? occ.parentId ?? embedParent.get(cursor) ?? null;
   }
   return null;
 }
@@ -35,12 +37,13 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
  */
 export function folderHomeOf(occId, { occurrencesById = {} } = {}) {
   const parentBy = buildParentMap(occurrencesById);
+  const embedParent = embedParentIndex(occurrencesById);
   let cursor = occId;
   let guard = 0;
   while (cursor && guard++ < 64) {
     const occ = occurrencesById[cursor];
     if (!occ) return null;
-    const next = parentBy[cursor] ?? occ.parentId ?? null;
+    const next = parentBy[cursor] ?? occ.parentId ?? embedParent.get(cursor) ?? null;
     if (!next) return null;
     if (!occurrencesById[next]) {
       const folderPageOccId = folderPageIndex(occurrencesById).get(next) || null;
