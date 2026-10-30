@@ -3,6 +3,7 @@
 // Extracted from containerHelpers.jsx.
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import StaticTextmap from "../ui/StaticTextmap.jsx";
 import { focusDocEnd } from "../helpers/caretLanding";
 import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
@@ -56,7 +57,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // Lazy body. Declared with the other hooks (the `!live` early return sits after
   // every hook, so order stays stable). An EMPTY doc mounts eagerly — there is no
   // placeholder text to stand in for it and it is immediately editable.
-  // A textmap the stand-in cannot draw (lists, embedded chips) mounts eagerly too (helpers/lazyEditor standInBlocks).
+  // A textmap the stand-in cannot draw (a table, a picture, an embed) mounts eagerly too (helpers/lazyEditor standInBlocks).
   const standIn = React.useMemo(
     () => (lazy && hasValidTextmap ? standInBlocks(occurrence.textmap) : []),
     [lazy, hasValidTextmap, occurrence?.textmap]
@@ -369,9 +370,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         style={{ cursor: "text" }}
         title="Click to edit"
       >
-        {lazyBlocks.map((b, i) => (
-          <div key={i} style={{ minHeight: "1.35em" }}>{b || " "}</div>
-        ))}
+        <StaticTextmap nodes={lazyBlocks} />
       </div>
     );
   }

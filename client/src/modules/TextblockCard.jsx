@@ -17,6 +17,7 @@
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
 import React, { useEffect, useMemo } from "react";
+import StaticTextmap from "../ui/StaticTextmap.jsx";
 import Editor from "../ui/Editor.jsx";
 import { useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -57,7 +58,7 @@ export default function TextblockCard({ occurrence, module, onEmptyBlur = null }
   // Hoisting is free: `eager` short-circuits the memo to `[]` for a chip, and
   // `useLazyEditor` with `eager: true` mounts nothing and observes nothing.
   const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
-  // A textmap the stand-in cannot draw (lists, embedded chips) mounts its editor at once — not as an empty box.
+  // A textmap the stand-in cannot draw (a table, a picture, an embed) mounts its editor at once — not as an empty box.
   const standIn = useMemo(() => (hasContent ? standInBlocks(occurrence.textmap) : []), [hasContent, occurrence?.textmap]);
   const eager = isInline || !!link || !hasContent || standIn === null;
   const blocks = eager ? [] : standIn;
@@ -140,9 +141,7 @@ export default function TextblockCard({ occurrence, module, onEmptyBlur = null }
         title="Click to edit"
       >
         <div className={LAZY_PLACEHOLDER_CLASS} style={{ cursor: "text" }}>
-          {blocks.map((b, i) => (
-            <div key={i} style={{ minHeight: "1.35em" }}>{b || " "}</div>
-          ))}
+          <StaticTextmap nodes={blocks} />
         </div>
       </div>
     );

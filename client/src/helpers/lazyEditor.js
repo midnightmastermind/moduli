@@ -25,28 +25,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // means every existing measurer keeps working when a second path goes lazy.
 export const LAZY_PLACEHOLDER_CLASS = "textblock-card-placeholder";
 
-// What the stand-in draws: one plain-text string per top-level block — or NULL when plain text cannot stand in
-// for this textmap, and the editor must mount straight away. A bulleted list of mini textblocks holds no text of
-// its own (each chip's words live in ITS occurrence), so the stand-in drew an EMPTY block until clicked (user,
-// 2026-10-30, Basic Nutrition Guide). Anything embedded by id, any list, table or picture: no stand-in.
-// It is REAL TEXT on screen otherwise, because WrapGroupNode measures rendered characters to decide wrap vs stack.
-const NO_STAND_IN = new Set(["bulletList", "orderedList", "taskList", "table", "image", "codeBlock", "blockquote"]);
+// What the stand-in draws: the textmap's top-level nodes — or NULL when it holds something the read-only stand-in
+// (ui/StaticTextmap) cannot draw (a table, a picture, an embedded occurrence…), and the editor must mount at once.
+// It draws paragraphs, headings, bulleted / numbered lists, bold / italic / strike / code / links, line breaks and
+// doc CHIPS (the doc chip's own component, no editor). Before 2026-10-30 it drew plain text only: a list of chips
+// showed EMPTY until clicked, and making those mount eagerly put 79 live editors on the Eminem article (8s to open).
+// It is REAL TEXT on screen, because WrapGroupNode measures rendered characters to decide wrap vs stack.
+export const STAND_IN_NODES = new Set([
+  "doc", "paragraph", "heading", "text", "hardBreak", "bulletList", "orderedList", "listItem", "instanceTextblockInline",
+]);
 export function standInBlocks(textmap) {
   if (!textmap || typeof textmap !== "object") return [];
-  const content = Array.isArray(textmap.content) ? textmap.content : [];
   let drawable = true;
-  const blocks = content.map((node) => {
-    const parts = [];
-    const walk = (n) => {
-      if (!n || typeof n !== "object") return;
-      if (NO_STAND_IN.has(n.type) || n.attrs?.occurrenceId || n.attrs?.instanceId) drawable = false;
-      if (typeof n.text === "string") parts.push(n.text);
-      if (Array.isArray(n.content)) n.content.forEach(walk);
-    };
-    walk(node);
-    return parts.join("");
-  });
-  return drawable ? blocks : null;
+  const walk = (n) => {
+    if (!drawable || !n || typeof n !== "object") return;
+    if (!STAND_IN_NODES.has(n.type)) { drawable = false; return; }
+    if (n.type === "instanceTextblockInline" && !n.attrs?.occurrenceId) { drawable = false; return; }
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  const content = Array.isArray(textmap.content) ? textmap.content : [];
+  content.forEach(walk);
+  return drawable ? content : null;
 }
 
 // occurrenceId -> goLive(). Registered while a lazy editor is mounted and NOT yet

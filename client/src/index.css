@@ -2024,6 +2024,9 @@ body[data-drag-kind="panel"] .container-shell {
   word-break: break-word;
 }
 .textblock-card-placeholder > div { text-indent: 1.5em; }
+/* Lists in the stand-in (ui/StaticTextmap) sit as the editor's do: indented, no paragraph margins, no first-line indent. */
+.textblock-card-placeholder .standin-list { margin: 0; padding-left: 2.5em; }
+.textblock-card-placeholder .standin-list p { margin: 0; text-indent: 0; }
 
 /* Breathing room between the radial drag handle and the prose (user,
    2026-08-05: "the textblock content is too close to the drag handle, we need

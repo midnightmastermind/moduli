@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (12) — OPENING EMINEM: 8.2s → 4.5s; the textblock stand-in draws lists, marks and chips (`ui/StaticTextmap`)
+
+User: *"opening a page is taking an extremely long time (took 5 seconds to open up the eminem article)"*. Measured
+(rAF gaps from the search click, prod data): **8.2s, 79 live editors, 0 stand-ins** — my own regression from (1) of
+this morning: `standInBlocks` returned null for any textmap holding a list or a chip, so every textblock with a link
+chip (Eminem: 744 chips) mounted its editor at once. Now the stand-in DRAWS paragraphs, headings, bulleted/numbered
+lists, bold/italic/strike/code/underline/links, line breaks and doc chips (the chip's own component, `editor={null}`,
+as an idle table cell) — `ui/StaticTextmap`, used by TextblockCard and DocContent; only tables, pictures, embeds and
+other nodes still mount eagerly. After: **4.45s, 46 editors, 33 stand-ins, 744 chips drawn**; the build from before
+the regression (1646e8bd) measured **4.1s / 42 editors**, so the remainder predates today. Those 46 editors are the
+article's SECTIONS (doc containers), not textblocks — tried `onUse` on DocContent blocks: no change, reverted. The
+stand-in of Eminem's lead paragraph draws its 60 chips and full text. Next lever if wanted: lazy section editors.
+
+---
+
 ### 2026-10-30 (11) — table pills keep their bottom border; list boxes: "Cardio:" in the header style, pill-round corners
 
 User: *"the bottom border is now cut off on some of them"* · *"it should say Cardio: and be the same font as the headers

@@ -7,19 +7,22 @@ const p = (...c) => ({ type: "paragraph", content: c });
 const t = (text) => ({ type: "text", text });
 
 describe("standInBlocks", () => {
-  it("plain paragraphs stand in as their text (control)", () => {
-    expect(standInBlocks({ type: "doc", content: [p(t("Hello")), p(t("world"))] })).toEqual(["Hello", "world"]);
+  it("plain paragraphs stand in as their nodes (control)", () => {
+    const tm = { type: "doc", content: [p(t("Hello")), p(t("world"))] };
+    expect(standInBlocks(tm)).toEqual(tm.content);
   });
-  it("a bullet list of mini textblocks cannot — the editor mounts instead of an empty box", () => {
+  it("a bullet list of mini textblocks is drawn (the chips by the doc chip component) — no eager editor", () => {
     const tm = { type: "doc", content: [{ type: "bulletList", content: [{ type: "listItem", content: [p({ type: "instanceTextblockInline", attrs: { occurrenceId: "x" } })] }] }] };
-    expect(standInBlocks(tm)).toBeNull();
+    expect(standInBlocks(tm)).toEqual(tm.content);
   });
-  it("a chip inside prose cannot either (its words live in its own occurrence)", () => {
-    expect(standInBlocks({ type: "doc", content: [p(t("see "), { type: "instanceTextblockInline", attrs: { occurrenceId: "x" } })] })).toBeNull();
+  it("marks and line breaks are drawable", () => {
+    const tm = { type: "doc", content: [p({ type: "text", text: "a", marks: [{ type: "bold" }] }, { type: "hardBreak" })] };
+    expect(standInBlocks(tm)).not.toBeNull();
   });
-  it("tables and pictures cannot", () => {
+  it("tables, pictures and embeds are not — the editor mounts", () => {
     expect(standInBlocks({ type: "doc", content: [{ type: "table", content: [] }] })).toBeNull();
     expect(standInBlocks({ type: "doc", content: [{ type: "image", attrs: { src: "a" } }] })).toBeNull();
+    expect(standInBlocks({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: "x" } }] })).toBeNull();
   });
   it("no textmap is an empty stand-in", () => {
     expect(standInBlocks(null)).toEqual([]);
