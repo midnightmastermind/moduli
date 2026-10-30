@@ -15,6 +15,19 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (7) — WORKOUT LOG IS ONE LIST (`0460`): every movement with a Status; Workout 1–6 gone
+
+User (asked): *"Merge into one list"*. Workout History listed only FINISHED movements (sets × weight) and Fitness: Today's
+Prescription wrote Workout 1–6 ("— done / not yet") for the same day, so finished ones showed twice. `0460`
+(`mergedHistoryPipeline`, pure + tested): the gate drops its Completed rule; a `$status` ("not yet", "done" when
+Completed is true or the row binds no Completed) is set before the movement loop and pushed as each row's `status`;
+Last Workout only takes a "done" row. Workouts' `displayConfig.columns` gains **Status** after Exercise. The prescription
+op and the six Workout N fields are deleted (unbound from the tile, values unset; refused if used elsewhere).
+**Replayed** the stored op with the real executor over a live dump at Oct 29: 6 rows, all "not yet" with their
+planned sets, Last Workout null; today (Oct 30) has no movements scheduled, so the table reads "—".
+
+---
+
 ### 2026-10-30 (6) — "TABLE CELL TEXT: Scroll / Wrap" in Layout; Scroll is the default
 
 User: *"make it a setting in the styles and default it to scroll"* (the chip cells had made poms' rows 78–95px). New
