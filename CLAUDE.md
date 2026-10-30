@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (2) — TEXTBLOCKS 12px; chips in a textblock take its size; a table cell no longer jumps on hover; Workouts tile gone (`0458`)
+
+- **12px** (user: *"the font size of textblocks should be 2px smaller"*): `--doc-text-px` 14 → 12 (the stand-in, the editor,
+  doc lines and the heading scale follow). A chip INSIDE a textblock (a bulleted list of mini textblocks) takes the same
+  size (*"the bulleted list though should be the same font size as the rest of the textblock"*) — measured on Basic
+  Nutrition Guide's Supplements: chips and the italic line both 12px.
+- **Table cells (user's video):** a hovered/edited cell's editor is a minting doc, so the doc-line rule gave its line
+  `calc(4px + .25em)` padding + 3px margins + the doc text size — the cell grew 28 → 46px and the text dropped 42px.
+  The rule now has `:not(.table-td *)`; and the cell's `.doc-editor-wrapper` takes the static text's box (`3px 0`,
+  replacing the editor's inline 12px/8px doc gutter, which moved the text 12px right). Measured: static and live both
+  12px at (6,6) in a 28px cell. The "⚡link" chip on a hovered cell is the FILL HANDLE's mode (copy / copy-link), not
+  a link (user asked).
+- **`0458`** (user kept Workout Log): deleted the Workouts tile (1 placement + module), its op `Workouts: Today's
+  Session` and the 26 per-movement fields only it used (refuses if any is used elsewhere). Open: Workout Log itself
+  holds two views of today — `Workouts` (history table of completed rows) and `Workout 1–6` ("— done / not yet").
+- Panel A moved by each probe was put back on Routines every run (`_cellrun.sh`, `_tbrun.sh`).
+
+---
+
 ### 2026-10-30 — A TEXTBLOCK READS THE SAME BEFORE AND WHILE EDITING (14px); lists of chips no longer show empty
 
 User: *"make sure the font size for editing and displaying of docs are lined up"* → (after I matched the stand-in UP

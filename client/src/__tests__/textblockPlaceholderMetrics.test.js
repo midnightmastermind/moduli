@@ -12,11 +12,19 @@ describe("textblock text: one size read-only and editing", () => {
     const rule = ruleWith(".instance-textblock-block .doc-editor-content.ProseMirror p,");
     expect(rule).toContain(".instance-textblock-block .textblock-card-placeholder");
     expect(rule).toContain(".textblock-card .textblock-card-placeholder");
-    expect(rule).toMatch(/font-size: var\(--cascade-font-size, var\(--doc-text-px, 14px\)\);/);
+    expect(rule).toMatch(/font-size: var\(--cascade-font-size, var\(--doc-text-px, 12px\)\);/);
     expect(rule).toMatch(/line-height: var\(--doc-text-line, 1\.35\);/);
   });
-  it("the doc text size is 14px (control: the label size is not used for the body)", () => {
-    expect(css).toMatch(/--doc-text-px: 14px;/);
+  it("the doc text size is 12px (control: the label size is not used for the body)", () => {
+    expect(css).toMatch(/--doc-text-px: 12px;/);
     expect(ruleWith(".instance-textblock-block .doc-editor-content.ProseMirror p,")).not.toContain("--instance-label-px");
+  });
+});
+
+describe("a chip inside a textblock", () => {
+  it("takes the textblock's text size (a bulleted list of mini textblocks)", () => {
+    const i = css.indexOf(".instance-textblock-block .instance-textblock-inline {");
+    expect(i).toBeGreaterThan(0);
+    expect(css.slice(i, css.indexOf("}", i))).toContain("var(--doc-text-px, 12px)");
   });
 });

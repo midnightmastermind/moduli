@@ -1971,8 +1971,10 @@ body[data-drag-kind="panel"] .container-shell {
    instance-label size, top and bottom, with 3px outside. A top-level line takes the same text size and
    the same spacing (as padding — the line is the box), so it is exactly as tall as what it becomes. */
 /* The :not() keeps it out of a textblock's own body (a doc that does not mint), which sits inside. */
-.doc-editor--mints .doc-editor-content.ProseMirror > p:not(.doc-container:not(.doc-editor--mints) *) {
-  font-size: var(--cascade-font-size, var(--doc-text-px, 14px));
+/* …and never in a TABLE CELL (2026-10-30): a cell's editor mints too, so a hovered or edited cell's line took this
+   sizing — 28px cell -> 46px, the text pushed 42px down and enlarged (user's video). */
+.doc-editor--mints .doc-editor-content.ProseMirror > p:not(.doc-container:not(.doc-editor--mints) *):not(.table-td *) {
+  font-size: var(--cascade-font-size, var(--doc-text-px, 12px));
   line-height: var(--doc-text-line, 1.35);
   padding-block: calc(4px + 0.25em);
   margin-block: 3px;
@@ -2268,7 +2270,7 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
    size of text in general"). Six levels: `####` and on are real headings now. */
 /* Sized from the BODY text's own size (the same variable paragraphs use), not the editor's base font: with `em` a
    level-3 heading came out 16.8px over 15px text (2026-10-24). */
-.doc-editor-content.ProseMirror { --md-body: var(--cascade-font-size, var(--doc-text-px, 14px)); }
+.doc-editor-content.ProseMirror { --md-body: var(--cascade-font-size, var(--doc-text-px, 12px)); }
 .doc-editor-content.ProseMirror h1 { font-size: calc(var(--md-body) * 2); line-height: 1.2; }
 .doc-editor-content.ProseMirror h2 { font-size: calc(var(--md-body) * 1.65); line-height: 1.25; }
 .doc-editor-content.ProseMirror h3 { font-size: calc(var(--md-body) * 1.4); line-height: 1.3; }
@@ -6099,8 +6101,9 @@ input.artifact-thumb-info-name--editing {
 .table-td .doc-editor-wrapper {
   width: 100%;
   min-height: 0;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  /* Exactly the static cell text's box (.table-cell-static-text: 3px 0), so a hovered / edited cell's text stays
+     where it was. The editor's inline doc gutter (12px left, 8px right) moved it 12px right (2026-10-30). */
+  padding: 3px 0 !important;
 }
 .table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
 .table-td .doc-editor-content.ProseMirror p { margin: 0; }
@@ -6183,8 +6186,8 @@ input.artifact-thumb-info-name--editing {
   --field-font-px: 13px;
   --instance-label-px: 17px;
   /* A doc's text — a textblock's body, read-only or being edited, and a doc line (user, 2026-10-30: "change the
-     font size to what it was before i edited"). One size so clicking to edit never changes it. */
-  --doc-text-px: 14px;
+     font size to what it was before i edited" → "2px smaller"). One size so clicking to edit never changes it. */
+  --doc-text-px: 12px;
   --doc-text-line: 1.35;
   --filter-font-px: 13px;
 }
@@ -9131,7 +9134,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-textblock-block .doc-editor-content.ProseMirror p,
 .textblock-card .textblock-card-placeholder,
 .instance-textblock-block .textblock-card-placeholder {
-  font-size: var(--cascade-font-size, var(--doc-text-px, 14px));
+  font-size: var(--cascade-font-size, var(--doc-text-px, 12px));
   line-height: var(--doc-text-line, 1.35);
 }
 /* …and the stand-in is laid out as the editor is (measured on prod): 4px 8px of editor padding, and each line the
@@ -9149,6 +9152,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-textblock-inline {
   /* A size chosen in the styling cascade (a container's Style tab) reaches the prose inside it. */
   font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
+}
+/* …but a chip INSIDE a textblock (a bulleted list of mini textblocks) is the textblock's own text size (user,
+   2026-10-30: "the bulleted list though should be the same font size as the rest of the textblock"). */
+.textblock-card .instance-textblock-inline,
+.instance-textblock-block .instance-textblock-inline {
+  font-size: var(--cascade-font-size, var(--doc-text-px, 12px));
 }
 
 
