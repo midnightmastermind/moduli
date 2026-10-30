@@ -21,10 +21,10 @@ describe("textblock text: one size read-only and editing", () => {
   });
 });
 
-describe("a chip inside a textblock", () => {
-  it("takes the textblock's text size (a bulleted list of mini textblocks)", () => {
-    const i = css.indexOf(".instance-textblock-block .instance-textblock-inline {");
-    expect(i).toBeGreaterThan(0);
-    expect(css.slice(i, css.indexOf("}", i))).toContain("var(--doc-text-px, 12px)");
+describe("doc chips", () => {
+  it("are the textblock text size everywhere", () => {
+    const rule = ruleWith(".doc-editor-content .instance-textblock-inline,");
+    expect(rule).toContain("var(--doc-text-px, 12px)");
+    expect(rule).not.toContain("--instance-label-px");
   });
 });

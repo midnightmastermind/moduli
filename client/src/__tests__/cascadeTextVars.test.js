@@ -23,7 +23,8 @@ describe("cascade text vars", () => {
     expect(src).toMatch(/color: var\(--cascade-ink, var\(--term-green\)\) !important/);
     expect(src).toMatch(/font-family: var\(--cascade-font, var\(--font-mono\)\) !important/);
     expect(src).toMatch(/font-family: var\(--cascade-font, var\(--font-display\)\) !important/);
-    expect(src).toMatch(/font-size: var\(--cascade-font-size, var\(--instance-label-px, 17px\)\)/);
+    // prose (textblocks, chips) takes the cascade size over the doc text size (2026-10-30; was the label size)
+    expect(src).toMatch(/font-size: var\(--cascade-font-size, var\(--doc-text-px, 12px\)\)/);
     expect(src).toMatch(/font-size-adjust: 0\.48/);
     expect(src).toMatch(/\.container-header \* \{ font-size-adjust: 0\.66; \}/);
   });

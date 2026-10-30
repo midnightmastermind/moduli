@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (3) — TYPING MAKES A DOC CHIP in an empty table cell or bullet; the table's "⚡link" chip is gone; chips 12px
+
+User: *"make it a typing rule that it auto creates a chip when i type in an empty table cell"* · *"i just need them
+draggable"* · *"it should be a normal doc chip, not a new one"* · *"make it a rule for bulleted lists too"* · *"doc chips
+should be the same font size as the textblocks font"* · *"the link chip doesnt need to be there"*.
+- **`helpers/typedChip`** — `mintTypedChip` (CommitHelpers.createInlineTextblock + the doc's own
+  `instanceTextblockInline` node + a focus claim, one undo step) and `isEmptyListItemLine`. The cell editor hands the
+  first character of an EMPTY cell (`tableCells.cellDocIsEmpty`) to `ContainerTable` via a new `onEmptyCellInput` prop;
+  the doc editor's `handleTextInput` mints in an empty bullet itself (owner = the editor's occurrence, read through
+  `chipOwnerRef`). The chip node now takes a pending caret claim (focus + caret at end), and **Enter in a chip that sits
+  in a bullet starts the next bullet** (`splitListItem`) — where the next keystroke makes the next chip.
+- A cell holding chips keeps its editor mounted (`hasChips`) — the chip IS the doc's chip node, no static copy.
+- Chips are `--doc-text-px` everywhere (was the 17px label size).
+- **Fill handle:** the "⚡link / copy" chip on hovered cells is removed; a fill COPIES, Alt+drag makes linked copies
+  (it defaulted to copy-link, which is why filled cells were linked).
+- **Watched on the rebuild grid by typing:** table + → new row → click its first cell → "Salt": a chip in cell 10:0,
+  caret in it, chip text saved, still a chip when idle. Supplements: click the last bullet chip → Enter → "Zinc": a
+  5th bullet chip, caret in it, 12px. All test rows/chips removed. **Probe slips, repaired:** two missed clicks minted
+  stray doc textblocks ("Slt", "Zinc") — deleted; one End keypress left the chip and typed "Zinc" into the Supplements
+  prose — restored from its transaction's `before`.
+
+---
+
 ### 2026-10-30 (2) — TEXTBLOCKS 12px; chips in a textblock take its size; a table cell no longer jumps on hover; Workouts tile gone (`0458`)
 
 - **12px** (user: *"the font size of textblocks should be 2px smaller"*): `--doc-text-px` 14 → 12 (the stand-in, the editor,

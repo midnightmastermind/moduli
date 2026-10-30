@@ -126,6 +126,8 @@ import { stampUserInput, userInputRecently, consumeUserInput, noteButtonDown, no
 import { looseTextBlocks, lineHasInlineNodes, typingWouldReplaceBlock } from "../helpers/strictBlockSweep";
 
 import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
+import { cellDocIsEmpty } from "../helpers/tableCells";
+import { isEmptyListItemLine, mintTypedChip } from "../helpers/typedChip";
 // The caret-entry mint must only fire for a caret the USER placed. Every other
 // path that moves a selection — a server echo's setContent, the content-sync
 // effect, a drop's setTextSelection — would otherwise mint a textblock nobody
@@ -508,6 +510,9 @@ const Editor = forwardRef(function Editor({
   recentAutoCreateRef = null,
   mode = "doc",
   onCellCommitMove = null,
+  // Cell mode: the first character typed into an EMPTY cell is handed here instead of being inserted (the table
+  // turns it into a mini textblock chip — user, 2026-10-30: "auto creates a chip when i type in an empty table cell").
+  onEmptyCellInput = null,
   // Cell-mode column projection: when set, moduleEmbed NodeViews inside this
   // cell render ONLY the named field via FieldRenderer instead of the full
   // instance form. Undefined / null = standard doc-mode render (unchanged).
@@ -530,6 +535,11 @@ const Editor = forwardRef(function Editor({
   // Cell mode: opt-in via mode="cell". Gates doc-only behaviors and enables
   // spreadsheet navigation keymaps. The default mode="doc" path is unchanged.
   const isCell = mode === "cell";
+  const onEmptyCellInputRef = useRef(onEmptyCellInput);
+  onEmptyCellInputRef.current = onEmptyCellInput;
+  // Read at keystroke time by the typed-chip rule (handleTextInput is built once).
+  const chipOwnerRef = useRef(null);
+  chipOwnerRef.current = { occurrence, dispatch, socket };
   // Per-slice selectors — the previous full useGridActions() subscription
   // re-rendered EVERY mounted editor (one per doc container / textblock) on
   // every occurrence write. occurrencesById is read at callback time via the
@@ -1590,6 +1600,15 @@ const Editor = forwardRef(function Editor({
         // A block is selected, not a caret placed: swallow the character rather
         // than let it replace the block (helpers/strictBlockSweep.js).
         if (typingWouldReplaceBlock(view.state.selection)) return true;
+        if (isCell && onEmptyCellInputRef.current && cellDocIsEmpty(view.state.doc)) {
+          onEmptyCellInputRef.current(text, view);
+          return true;
+        }
+        // An empty BULLET takes a chip the same way (user, 2026-10-30: "make it a rule for bulleted lists too").
+        if (!isCell && isEmptyListItemLine(view.state.selection)) {
+          const own = chipOwnerRef.current;
+          if (own?.occurrence?.userId && mintTypedChip({ view, pos: view.state.selection.from, text, owner: own.occurrence, dispatch: own.dispatch, socket: own.socket })) return true;
+        }
         if (skipTriggerCharRef.current && text === skipTriggerCharRef.current) { skipTriggerCharRef.current = null; return false; }
         skipTriggerCharRef.current = null;
         if (showSuggestion) setSuggestionQuery(p => p + text);

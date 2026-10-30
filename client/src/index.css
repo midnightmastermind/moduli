@@ -6732,16 +6732,6 @@ input.artifact-thumb-info-name--editing {
 }
 .table-fill-handle:hover { background: var(--accent-blue); opacity: 0.85; }
 
-/* Copy/CopyLink mode chip — beside the fill nub */
-.table-fill-mode {
-  position: absolute; bottom: -18px; right: 0;
-  background: var(--input-bg); border: 1px solid var(--border-default);
-  border-radius: 999px; font-size: 12px; color: var(--text-muted);
-  padding: 1px 5px; cursor: pointer; z-index: 6; white-space: nowrap;
-  line-height: 1.4;
-}
-.table-fill-mode:hover { color: var(--text-primary); border-color: var(--accent-blue); }
-
 /* Preview highlight during fill gesture */
 .table-fill-preview {
   background: rgba(59, 130, 246, 0.12) !important;
@@ -9150,15 +9140,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 .doc-editor-content .instance-textblock-inline,
 .instance-textblock-inline {
-  /* A size chosen in the styling cascade (a container's Style tab) reaches the prose inside it. */
-  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
-}
-/* …but a chip INSIDE a textblock (a bulleted list of mini textblocks) is the textblock's own text size (user,
-   2026-10-30: "the bulleted list though should be the same font size as the rest of the textblock"). */
-.textblock-card .instance-textblock-inline,
-.instance-textblock-block .instance-textblock-inline {
+  /* A doc chip is the textblock's text size wherever it sits (user, 2026-10-30: "remember doc chips should be the
+     same font size as the textblocks font"). A size chosen in the styling cascade still reaches it. */
   font-size: var(--cascade-font-size, var(--doc-text-px, 12px));
 }
+
 
 
 /* =============================================================================

@@ -15,7 +15,8 @@ import {
 import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye, Image as ImageIcon } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, moveColumn, fillRange, firstEmbedOccId, nextProjectionFieldId } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, moveColumn, fillRange, firstEmbedOccId, nextProjectionFieldId, cellChipIds } from "../../helpers/tableCells";
+import { mintTypedChip } from "../../helpers/typedChip";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { useGridActions } from "../../GridActionsContext";
@@ -178,7 +179,7 @@ function plainTextOfDoc(doc) {
   return out.join("").trim();
 }
 
-function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, hideFieldNames, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
+function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, hideFieldNames, onFocusCell, onBlurCell, isFocused, onFillPointerDown, ownerOccurrence = null, style }) {
   const key = cellKey(r, c);
 
   // Seed TipTap once at mount — never update this ref so the Editor's content
@@ -231,7 +232,17 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   // its content instead of wrapping it, and an idle table mounts no TipTap at
   // all, which is the same reason the embed path was made lazy in the first
   // place (~24 instances on the Schedule Table crawled Firefox to a crash).
-  const showEditor = isFocused || hovered;
+  // A cell holding mini textblock chips keeps its editor: a chip IS the doc's chip node, drawn (and dragged) by the
+  // editor — there is no second, static chip (user, 2026-10-30: "it should be a normal doc chip, not a new one").
+  const [hasChips, setHasChips] = useState(() => cellChipIds(initialDoc).length > 0);
+  const showEditor = isFocused || hovered || hasChips;
+
+  // TYPING INTO AN EMPTY CELL MAKES A CHIP (user, 2026-10-30: "make it a typing rule that it auto creates a chip when
+  // i type in an empty table cell" — so a cell's entry is draggable). The typed character starts the chip's text; the
+  // caret moves into the chip, so the rest of the word lands there too. The chip belongs to the table.
+  const handleEmptyCellInput = useCallback((text, view) => {
+    mintTypedChip({ view, pos: 1, text, owner: ownerOccurrence, dispatch, socket });
+  }, [ownerOccurrence, dispatch, socket]);
 
   // Cell-level drop target — catches drops anywhere in the .table-td,
   // including the padding outside .doc-editor-wrapper, and drops onto cells
@@ -338,6 +349,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
     // Track the latest pending doc so blur/unmount can flush it.
     pendingDocRef.current = newDoc;
     setIdleText(plainTextOfDoc(newDoc));
+    setHasChips(cellChipIds(newDoc).length > 0);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       debounceTimer.current = null;
@@ -386,6 +398,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           onChange={handleChange}
           onBlur={handleBlur}
           onCellCommitMove={onCellCommitMove}
+          onEmptyCellInput={handleEmptyCellInput}
           dispatch={dispatch}
           socket={socket}
           placeholder=""
@@ -419,17 +432,8 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           <div
             className="table-fill-handle"
             onPointerDown={(e) => onFillPointerDown(e, r, c)}
-            title="Fill down/right"
+            title="Drag to fill down/right (copies · Alt+drag: linked copies)"
           />
-          {/* Copy/CopyLink mode chip */}
-          <button
-            className="table-fill-mode"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onToggleFillMode(); }}
-            title={fillMode === "copylink" ? "CopyLink — click to switch to Copy" : "Copy — click to switch to CopyLink"}
-          >
-            {fillMode === "copylink" ? "⚡link" : "copy"}
-          </button>
         </>
       )}
     </div>
@@ -550,18 +554,6 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   // Track which cell is currently focused so we can render the fill nub on it.
   const [focusedCell, setFocusedCell] = useState(null); // { r, c } | null
 
-  // fillMode: "copy" | "copylink", persisted to localStorage.
-  const [fillMode, setFillMode] = useState(() => {
-    try { return localStorage.getItem("moduli-table-fill-mode") || "copylink"; }
-    catch { return "copylink"; }
-  });
-  const toggleFillMode = useCallback(() => {
-    setFillMode(prev => {
-      const next = prev === "copylink" ? "copy" : "copylink";
-      try { localStorage.setItem("moduli-table-fill-mode", next); } catch {}
-      return next;
-    });
-  }, []);
 
   // persistRef: always tracks the latest `persist` function so handleFillPointerDown
   // (defined before persist in component scope) can call it without TDZ issues.
@@ -673,8 +665,9 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
       const targets = fillRange(src, { r: tr, c: tc });
       if (!targets.length) return;
 
-      // Resolve effective mode: Alt key forces "copy" regardless of chip.
-      const mode = upE.altKey ? "copy" : fillMode;
+      // A fill COPIES; Alt makes linked copies. (A "⚡link / copy" chip on every hovered cell chose this, and
+      // defaulted to copy-link — user, 2026-10-30: "the link chip doesnt need to be there".)
+      const mode = upE.altKey ? "copylink" : "copy";
 
       // Read source cell doc.
       const srcDoc = tableRef.current.cells[cellKey(src.r, src.c)];
@@ -790,7 +783,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onCancel);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fillMode, occurrence?.gridId, occurrence?.userId, dispatch, socket, clearFillPreviews]);
+  }, [occurrence?.gridId, occurrence?.userId, dispatch, socket, clearFillPreviews]);
 
   const persist = useCallback((nextTable) => {
     // Sync the ref immediately so any other cell that flushes within the same
@@ -1843,6 +1836,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   initialDoc={cells[cellKey(r, c)] || null}
                   tableRef={tableRef}
                   persist={persist}
+                  ownerOccurrence={occurrence}
                   onCellCommitMove={(dir) => focusCell(nextCoord(r, c, dir))}
                   cellRefs={cellRefs}
                   dispatch={dispatch}
@@ -1855,9 +1849,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   onFocusCell={() => setFocusedCell({ r, c })}
                   onBlurCell={() => setFocusedCell(prev => (prev?.r === r && prev?.c === c ? null : prev))}
                   isFocused={focusedCell?.r === r && focusedCell?.c === c}
-                  fillMode={fillMode}
                   onFillPointerDown={handleFillPointerDown}
-                  onToggleFillMode={toggleFillMode}
                   style={{
                     flex: `0 0 ${effectiveWidths[c]}px`,
                     boxSizing: "border-box",

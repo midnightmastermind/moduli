@@ -168,3 +168,32 @@ export function nextProjectionFieldId({ columns = [], rows = [], modulesById = {
   }
   return null;
 }
+
+/** A table cell with nothing in it — no text and no embedded node (a chip, an occurrence). Takes a ProseMirror doc. */
+export function cellDocIsEmpty(doc) {
+  if (!doc || doc.textContent !== "") return false;
+  let empty = true;
+  doc.descendants((n) => { if (n.isAtom || n.attrs?.occurrenceId) empty = false; return empty; });
+  return empty;
+}
+
+/** The mini textblock chips a cell doc holds, in order (JSON doc). */
+export function cellChipIds(doc) {
+  const out = [];
+  const walk = (n) => {
+    if (!n || typeof n !== "object") return;
+    if (n.type === "instanceTextblockInline" && n.attrs?.occurrenceId) out.push(n.attrs.occurrenceId);
+    (n.content || []).forEach(walk);
+  };
+  walk(doc);
+  return out;
+}
+
+/** The cell doc with one chip node taken out (JSON doc, PURE). */
+export function withoutCellChip(doc, occurrenceId) {
+  const strip = (n) => {
+    if (!n || typeof n !== "object" || !Array.isArray(n.content)) return n;
+    return { ...n, content: n.content.filter((c) => !(c?.type === "instanceTextblockInline" && c.attrs?.occurrenceId === occurrenceId)).map(strip) };
+  };
+  return strip(doc);
+}

@@ -10,6 +10,7 @@
 //   - RIGHT arrow  — link chips only: single-click opens the target (new tab
 //                    for URLs, jump-to-occurrence for in-app targets).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { claimTextblockFocus, releaseTextblockFocus } from "../../helpers/pendingTextblockFocus";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Trash2, Maximize2 } from "lucide-react";
@@ -128,6 +129,26 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     }
   }, [storedText, hasLink, link?.url]);
 
+  // A chip made by typing (a table cell's first character — ContainerTable) asked for the caret: take it, at the
+  // end of the text it already holds, so the next keystrokes continue the word here.
+  useEffect(() => {
+    if (!occurrenceId || !claimTextblockFocus(occurrenceId)) return;
+    releaseTextblockFocus(occurrenceId);
+    const el = contentRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.focus();
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch { /* caret stays where focus put it */ }
+    });
+  }, [occurrenceId]);
+
   const commit = useCallback(() => {
     const nextText = (draft || "").trim();
     if (nextText === storedText) return;
@@ -156,14 +177,23 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   }, [editable]);
 
   const onKeyDown = useCallback((e) => {
-    if (e.key === "Enter") { e.preventDefault(); contentRef.current?.blur(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      contentRef.current?.blur();
+      // In a BULLET, Enter starts the next bullet (where the next character makes the next chip — helpers/typedChip),
+      // as Enter does in any list.
+      const pos = typeof getPos === "function" ? getPos() : null;
+      if (editor && pos != null && editor.state.doc.resolve(pos).node(-1)?.type?.name === "listItem") {
+        editor.chain().focus().setTextSelection(pos + node.nodeSize).splitListItem("listItem").run();
+      }
+    }
     else if (e.key === "Escape") {
       e.preventDefault();
       if (contentRef.current) contentRef.current.textContent = storedText;
       setDraft(storedText);
       contentRef.current?.blur();
     }
-  }, [storedText]);
+  }, [storedText, editor, getPos, node]);
 
   // RIGHT arrow — single-click opens the link. stopPropagation + preventDefault
   // on mousedown so ProseMirror never node-selects the atom first (that
