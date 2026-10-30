@@ -46,3 +46,24 @@ describe("0460 mergedHistoryPipeline", () => {
     expect(() => mergedHistoryPipeline(p, C)).toThrow(/Completed rule/);
   });
 });
+
+import { withFitnessRoutines } from "../migrations/0461-workout-log-counts-fitness-routines.mjs";
+describe("0461 withFitnessRoutines", () => {
+  const merged = mergedHistoryPipeline(pipeline(), C);
+  merged.steps[1].body[0].condition.rules.push({ id: "mvr", left: "$inst.fields.m.value", comparator: "IS_NOT_EMPTY", right: "" });
+  const out = withFitnessRoutines(merged, { fitnessContainerId: "fit", movementFieldId: "m" });
+  it("collects the Fitness routines' modules first", () => {
+    expect(out.steps[1].config).toMatchObject({ type: "INIT_VAR", name: "$fitMods" });
+    expect(JSON.stringify(out.steps[2])).toContain('"right":"fit"');
+  });
+  it("a row counts with a movement OR as a Fitness routine", () => {
+    const gate = out.steps[3].body[0];
+    const or = gate.condition.rules.find((r) => r.id === "wl0461or");
+    expect(or.rules.map((r) => r.left)).toEqual(["$inst.fields.m.value", "$fitMods"]);
+  });
+  it("a row with no movement lists itself", () => {
+    const branch = out.steps[3].body[0].then.find((s) => s.id === "wl0461hasMv");
+    expect(branch.then[0].type).toBe("loop");
+    expect(branch.else[0].config.value.label).toBe("$inst.label");
+  });
+});

@@ -6120,6 +6120,25 @@ input.artifact-thumb-info-name--editing {
 .table-container:not(.table-cells-wrap) .table-td .instance-textblock-inline * {
   white-space: nowrap !important;
 }
+/* A chip in a table cell: the drag handle is drawn OVER the chip's left end (not in the line), so hovering never
+   widens the line, and the chip has no negative side margin (it clipped its left border against the cell). A
+   hovered cell CLIPS its line rather than scrolling it, so nothing slides left under the pointer; only a cell being
+   typed in scrolls (user, 2026-10-30 video: "if im too far to the right when hovering … it wont show the drag handle
+   and will push everything to the left. also the pill gets cut off on the left side"). */
+.table-td .instance-textblock-inline { margin: 1px 0; }
+.table-td .instance-textblock-inline--zoned:hover { padding-left: 6px; }
+.table-td .itbi-handle.is-shown {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  z-index: 2;
+  background: var(--surface-card);
+  border-radius: 3px;
+}
+.table-td .itbi-arrow { display: none !important; }
+.table-container:not(.table-cells-wrap) .table-td:not(:focus-within) .doc-editor-content.ProseMirror p { overflow-x: clip; }
 .table-cells-wrap .table-cell-chips .auto-marquee,
 .table-cells-wrap .table-cell-chips .auto-marquee-inner {
   white-space: normal !important;

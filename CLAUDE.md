@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (8) — WORKOUT LOG COUNTS FITNESS ROUTINES (`0461`); table chips don't shift on hover; New task offers Completed (`0462`)
+
+- **`0461`** (user: *"im not seeing the workouts in the list, the list just says -"*): today's workouts are Run + Stretch;
+  Run binds no Movement and Stretch's is empty, so 0460's list was empty. A workout is now a Schedule row with a
+  Movement OR placed from a routine in Routines › Physical › Fitness (read from that container each run, `$fitMods`);
+  a row without movements lists itself by its own name. Replayed (real executor, live dump): Oct 30 → Run, Stretch,
+  Walk; Oct 29 → the 6 movements + Stretch, Run, Walk.
+- **Table chips (user's video):** hovering a long chip's right end hid its handle and slid the text left, the chip's
+  left border was clipped, and fill handles stuck. In a cell the chip's handle is drawn OVER its left end (absolute),
+  the arrow is hidden, the chip has no negative margin, a hovered cell CLIPS its line (`overflow-x: clip`; only a cell
+  being typed in scrolls), and a hovered cell drops its hover on any pointer event outside it (mouseleave went missing
+  when the cell swapped static ↔ editor). Measured at 1100px: chip width 156 both states, handle shown at either end,
+  scrollLeft 0, left border at 6px; 0 fill handles after a sweep (the stick itself was not reproduced headless).
+- **`0462`** (user: *"the add task menu doesnt have completed as an addable field"*): 0454's pass re-run with yes/no
+  fields allowed (`offerRowFields({ skipTypes })`, 0454 refactored to take it) → New task + 2 New routine forms
+  offer Completed, with an Include box.
+
+---
+
 ### 2026-10-30 (7) — WORKOUT LOG IS ONE LIST (`0460`): every movement with a Status; Workout 1–6 gone
 
 User (asked): *"Merge into one list"*. Workout History listed only FINISHED movements (sets × weight) and Fitness: Today's

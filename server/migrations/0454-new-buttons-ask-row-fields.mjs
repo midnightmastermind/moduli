@@ -20,7 +20,7 @@ const SKIP_TYPES = new Set(["boolean", "button"]);
 const SKIP_ROLES = new Set(["media", "files", "display"]);
 
 /** Pure: the field ids to offer, most-used first. `rows` are the modules of the destination's rows. */
-export function fieldsToOffer(rowModules, fieldsById, askedIds = []) {
+export function fieldsToOffer(rowModules, fieldsById, askedIds = [], skipTypes = SKIP_TYPES) {
   const counts = new Map();
   for (const m of rowModules) {
     const seen = new Set();
@@ -35,7 +35,7 @@ export function fieldsToOffer(rowModules, fieldsById, askedIds = []) {
   return [...counts]
     .filter(([fid, c]) => {
       const f = fieldsById[fid];
-      if (!f || f.trashed || asked.has(fid) || SKIP_TYPES.has(f.type)) return false;
+      if (!f || f.trashed || asked.has(fid) || skipTypes.has(f.type)) return false;
       if (f.inputEnabled === false || f.displayEnabled === true) return false;
       return c >= MIN_ROWS && c >= n * MIN_SHARE;
     })
@@ -69,6 +69,11 @@ export function patchPipeline(pipeline, offerIds, fieldsById) {
 }
 
 export async function up({ gridId, models, log, dryRun }) {
+  return offerRowFields({ gridId, models, log, dryRun });
+}
+
+/** The whole pass; `skipTypes` = field types never offered (0462 lets yes/no fields in). */
+export async function offerRowFields({ gridId, models, log, dryRun, skipTypes = SKIP_TYPES }) {
   const { Occurrence, Module, Field, Operation } = models;
   const fieldsById = Object.fromEntries((await Field.find({ gridId }).lean()).map((f) => [f.id, f]));
   const ops = (await Operation.find({ gridId }).lean()).filter((o) =>
@@ -114,7 +119,7 @@ export async function up({ gridId, models, log, dryRun }) {
     }
     // Already asked by the form, or already written by the Create (a board's own tag): not offered again.
     const asked = [...form.items.map((i) => i.fieldId).filter(Boolean), ...Object.keys(create.fields || {})];
-    const offer = fieldsToOffer(rows, fieldsById, asked);
+    const offer = fieldsToOffer(rows, fieldsById, asked, skipTypes);
     const next = patchPipeline(op.pipeline, offer, fieldsById);
     plan.push({ op, next, rows: rows.length });
     log(`  ${op.name} (${dests.length} destination${dests.length === 1 ? "" : "s"}, ${rows.length} rows): ${next.added.length ? next.added.map((f) => fieldsById[f].name).join(", ") : "nothing to add"}${next.boxed ? ` · ${next.boxed} existing input(s) get an Include box` : ""}`);

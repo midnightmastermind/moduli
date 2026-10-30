@@ -95,3 +95,20 @@ describe("Table cell text: scroll (default) or wrap", () => {
     expect(css).toMatch(/\.table-container:not\(\.table-cells-wrap\) \.table-td \.doc-editor-content\.ProseMirror p \{\s*white-space: nowrap;/);
   });
 });
+
+describe("a chip in a table cell (user's video, 2026-10-30)", () => {
+  const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
+  it("draws its drag handle over its left end, so hovering never widens the line", () => {
+    expect(css).toMatch(/\.table-td \.itbi-handle\.is-shown \{[^}]*position: absolute;/);
+  });
+  it("keeps its left border inside the cell", () => {
+    expect(css).toMatch(/\.table-td \.instance-textblock-inline \{ margin: 1px 0; \}/);
+  });
+  it("a hovered cell clips; only a cell being typed in scrolls", () => {
+    expect(css).toMatch(/\.table-td:not\(:focus-within\) \.doc-editor-content\.ProseMirror p \{ overflow-x: clip; \}/);
+  });
+  it("a hovered cell lets go when the pointer is anywhere outside it", () => {
+    const t = readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8");
+    expect(t).toMatch(/if \(el && e\.target instanceof Node && !el\.contains\(e\.target\)\) setHovered\(false\);/);
+  });
+});

@@ -217,6 +217,22 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   // always use the editor so typed content keeps working.
   const { occurrencesById, modulesById } = useGridActions() || {};
   const [hovered, setHovered] = useState(false);
+  // A hovered cell lets go the moment the pointer is anywhere outside it. `mouseleave` alone went missing when the
+  // cell swapped its contents under the pointer (static text <-> live editor), so several cells kept their fill
+  // handle (user, 2026-10-30: "those little drag boxes in between cells … are sticking").
+  useEffect(() => {
+    if (!hovered) return undefined;
+    const off = (e) => {
+      const el = cellElRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) setHovered(false);
+    };
+    document.addEventListener("pointermove", off, true);
+    document.addEventListener("pointerdown", off, true);
+    return () => {
+      document.removeEventListener("pointermove", off, true);
+      document.removeEventListener("pointerdown", off, true);
+    };
+  }, [hovered]);
   // What the idle cell shows. Seeded from the same doc TipTap is seeded with and
   // kept current by handleChange, so leaving a cell shows what was just typed
   // rather than the value it mounted with.
