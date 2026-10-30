@@ -23,7 +23,7 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 // The lazy-mount decision lives in ONE place now — the doc BLOCK path needs the
 // same behaviour and a second copy would drift. `forceLiveNow` (same module) is
 // what lets a neighbour be made live before the caret is moved into it.
-import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
+import { useLazyEditor, LAZY_PLACEHOLDER_CLASS, standInBlocks } from "../helpers/lazyEditor.js";
 import { forgetGapMint } from "../helpers/gapMints.js";
 import { isEmptyTextblockDoc } from "../helpers/provisionalTextblock.js";
 
@@ -32,22 +32,6 @@ function resolveLink(occurrence, module) {
   return occurrence?.meta?.link || module?.meta?.link || null;
 }
 
-// One plain-text string per top-level block — used as a lightweight, roughly
-// height-matched placeholder before the live editor mounts (see below).
-function textmapBlocks(textmap) {
-  if (!textmap || typeof textmap !== "object") return [];
-  const content = Array.isArray(textmap.content) ? textmap.content : [];
-  return content.map((node) => {
-    const parts = [];
-    const walk = (n) => {
-      if (!n || typeof n !== "object") return;
-      if (typeof n.text === "string") parts.push(n.text);
-      if (Array.isArray(n.content)) n.content.forEach(walk);
-    };
-    walk(node);
-    return parts.join("");
-  });
-}
 
 export default function TextblockCard({ occurrence, module, onEmptyBlur = null }) {
   const { dispatch, socket } = useGridActions();
@@ -73,8 +57,10 @@ export default function TextblockCard({ occurrence, module, onEmptyBlur = null }
   // Hoisting is free: `eager` short-circuits the memo to `[]` for a chip, and
   // `useLazyEditor` with `eager: true` mounts nothing and observes nothing.
   const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
-  const eager = isInline || !!link || !hasContent;
-  const blocks = useMemo(() => (eager ? [] : textmapBlocks(occurrence.textmap)), [eager, occurrence?.textmap]);
+  // A textmap the stand-in cannot draw (lists, embedded chips) mounts its editor at once — not as an empty box.
+  const standIn = useMemo(() => (hasContent ? standInBlocks(occurrence.textmap) : []), [hasContent, occurrence?.textmap]);
+  const eager = isInline || !!link || !hasContent || standIn === null;
+  const blocks = eager ? [] : standIn;
   // A text row on a board becomes an editor when it is pressed, not when it scrolls by (a 250-row board made 250
   // editors on the way down). Docs render text through DocContent, which keeps going live on view.
   const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id, onUse: true });

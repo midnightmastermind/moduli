@@ -15,18 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
-### 2026-10-30 — A TEXTBLOCK NO LONGER GROWS WHEN CLICKED: its stand-in takes the editor's metrics
+### 2026-10-30 — A TEXTBLOCK READS THE SAME BEFORE AND WHILE EDITING (14px); lists of chips no longer show empty
 
-User: *"make sure the font size for editing and displaying of docs are lined up. currently i edit a textblock by
-clicking on it and the font size increases"*. A textblock renders a read-only stand-in (`.textblock-card-placeholder`,
-lazy editors) until clicked; it was 14px / 1.35 while the editor is the instance-label size / 1.6. Measured on poms'
-Basic Nutrition Guide: static 14px · 18.9 line · 50px box → live 17px · 27.2 · 87px. The stand-in (in a textblock card
-and an in-doc textblock) now takes the editor's font-size expression, 1.6, 4px 8px padding, and each line the live
-paragraph's 3px margin + `calc(4px + 0.25em)` padding → 85px vs 87px, same 17px. Doc-container stand-ins unchanged.
-Test `textblockPlaceholderMetrics` reads the live rule's font-size and requires the stand-in to carry it.
-**Probe slip, repaired:** `?local=1` no longer keeps a DESKTOP tab's page changes local (only headset windows,
-2026-10-27), so my search moved Panel A to Bookmarks for ~3 min; put back on Routines and the appended pages dropped
-(`_tbrun.sh` restores after every run).
+User: *"make sure the font size for editing and displaying of docs are lined up"* → (after I matched the stand-in UP
+to the 17px editor) *"it was supposed to be the opposite. change the font size to what it was before i edited"* ·
+*"basic nutrition guide … a bunch of empty textblocks until i click to edit them"*.
+- **Size:** new token `--doc-text-px: 14px` / `--doc-text-line: 1.35` (the old read-only look). ONE rule sets a
+  textblock body's live editor AND its stand-in (`.textblock-card-placeholder`) to it; the mint doc-line rule and the
+  heading scale (`--md-body`) follow the same token (so a minted line still matches a textblock, headings scale from
+  14 not 17). Chips keep the label size. The stand-in also takes the editor's spacing (4px 8px; each line 3px margin +
+  `calc(4px + 0.25em)`). Measured on Basic Nutrition Guide: 14px both, box 86 vs 88px (was 14→17px, 50→87px).
+- **Empty blocks:** the stand-in drew plain text only, and a bullet list of mini textblocks has none of its own (each
+  chip's words live in its occurrence). `helpers/lazyEditor.standInBlocks` (replaces the two copies of
+  `textmapBlocks` in TextblockCard + DocContent) returns null for lists, tables, pictures, code, quotes and anything
+  embedded by id → that textblock mounts its editor at once. Empty stand-ins on the page: 0.
+- Tests `standInBlocks` (5), `textblockPlaceholderMetrics` (one rule, 14px), `docLineMatchesTextblock` updated.
+- **Probe slip, repaired:** `?local=1` no longer keeps a DESKTOP tab's page changes local (headset only, 10-27), so my
+  search moved Panel A to Bookmarks for ~3 min; put back on Routines, appended pages dropped (`_tbrun.sh` restores).
 
 ---
 

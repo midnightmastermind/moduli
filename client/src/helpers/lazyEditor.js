@@ -25,6 +25,30 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // means every existing measurer keeps working when a second path goes lazy.
 export const LAZY_PLACEHOLDER_CLASS = "textblock-card-placeholder";
 
+// What the stand-in draws: one plain-text string per top-level block — or NULL when plain text cannot stand in
+// for this textmap, and the editor must mount straight away. A bulleted list of mini textblocks holds no text of
+// its own (each chip's words live in ITS occurrence), so the stand-in drew an EMPTY block until clicked (user,
+// 2026-10-30, Basic Nutrition Guide). Anything embedded by id, any list, table or picture: no stand-in.
+// It is REAL TEXT on screen otherwise, because WrapGroupNode measures rendered characters to decide wrap vs stack.
+const NO_STAND_IN = new Set(["bulletList", "orderedList", "taskList", "table", "image", "codeBlock", "blockquote"]);
+export function standInBlocks(textmap) {
+  if (!textmap || typeof textmap !== "object") return [];
+  const content = Array.isArray(textmap.content) ? textmap.content : [];
+  let drawable = true;
+  const blocks = content.map((node) => {
+    const parts = [];
+    const walk = (n) => {
+      if (!n || typeof n !== "object") return;
+      if (NO_STAND_IN.has(n.type) || n.attrs?.occurrenceId || n.attrs?.instanceId) drawable = false;
+      if (typeof n.text === "string") parts.push(n.text);
+      if (Array.isArray(n.content)) n.content.forEach(walk);
+    };
+    walk(node);
+    return parts.join("");
+  });
+  return drawable ? blocks : null;
+}
+
 // occurrenceId -> goLive(). Registered while a lazy editor is mounted and NOT yet
 // live; removed the moment it goes live or unmounts, so the map only ever holds
 // editors that can still be forced.

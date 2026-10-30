@@ -1972,8 +1972,8 @@ body[data-drag-kind="panel"] .container-shell {
    the same spacing (as padding — the line is the box), so it is exactly as tall as what it becomes. */
 /* The :not() keeps it out of a textblock's own body (a doc that does not mint), which sits inside. */
 .doc-editor--mints .doc-editor-content.ProseMirror > p:not(.doc-container:not(.doc-editor--mints) *) {
-  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
-  line-height: 1.6;
+  font-size: var(--cascade-font-size, var(--doc-text-px, 14px));
+  line-height: var(--doc-text-line, 1.35);
   padding-block: calc(4px + 0.25em);
   margin-block: 3px;
 }
@@ -2022,21 +2022,6 @@ body[data-drag-kind="panel"] .container-shell {
   word-break: break-word;
 }
 .textblock-card-placeholder > div { text-indent: 1.5em; }
-/* A TEXTBLOCK's stand-in takes the live editor's text metrics, measured on prod (2026-10-30, user: "i edit a
-   textblock by clicking on it and the font size increases"): it was 14px / 1.35 while the editor it turns into is
-   the instance-label size / 1.6, with 4px 8px of editor padding and each line's 3px margin + (4px + 0.25em) padding
-   (the doc-line sizing above). Box 50 -> 87px on click before; 85 vs 87 after. */
-.textblock-card .textblock-card-placeholder,
-.instance-textblock-block .textblock-card-placeholder {
-  font-size: var(--cascade-font-size, var(--instance-label-px, 17px));
-  line-height: 1.6;
-  padding: 4px 8px;
-}
-.textblock-card .textblock-card-placeholder > div,
-.instance-textblock-block .textblock-card-placeholder > div {
-  margin: 3px 0;
-  padding-block: calc(4px + 0.25em);
-}
 
 /* Breathing room between the radial drag handle and the prose (user,
    2026-08-05: "the textblock content is too close to the drag handle, we need
@@ -2283,7 +2268,7 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
    size of text in general"). Six levels: `####` and on are real headings now. */
 /* Sized from the BODY text's own size (the same variable paragraphs use), not the editor's base font: with `em` a
    level-3 heading came out 16.8px over 15px text (2026-10-24). */
-.doc-editor-content.ProseMirror { --md-body: var(--cascade-font-size, var(--instance-label-px, 17px)); }
+.doc-editor-content.ProseMirror { --md-body: var(--cascade-font-size, var(--doc-text-px, 14px)); }
 .doc-editor-content.ProseMirror h1 { font-size: calc(var(--md-body) * 2); line-height: 1.2; }
 .doc-editor-content.ProseMirror h2 { font-size: calc(var(--md-body) * 1.65); line-height: 1.25; }
 .doc-editor-content.ProseMirror h3 { font-size: calc(var(--md-body) * 1.4); line-height: 1.3; }
@@ -6197,6 +6182,10 @@ input.artifact-thumb-info-name--editing {
 :root {
   --field-font-px: 13px;
   --instance-label-px: 17px;
+  /* A doc's text — a textblock's body, read-only or being edited, and a doc line (user, 2026-10-30: "change the
+     font size to what it was before i edited"). One size so clicking to edit never changes it. */
+  --doc-text-px: 14px;
+  --doc-text-line: 1.35;
   --filter-font-px: 13px;
 }
 @media (max-width: 1024px) {
@@ -9134,10 +9123,28 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    textblock's body is that editor, so it is set here to the same var the row
    label uses (ModuleInstance INSTANCE_LABEL_PX, shrunk below tablet width by
    --instance-label-px). A chip takes the same size wherever it sits. */
+/* 2026-10-30: a textblock's BODY is the doc text size now (below) — it read 14px until clicked and 17px while
+   edited. The chips keep the label size. */
 .textblock-card .doc-editor-content.ProseMirror,
 .textblock-card .doc-editor-content.ProseMirror p,
 .instance-textblock-block .doc-editor-content.ProseMirror,
 .instance-textblock-block .doc-editor-content.ProseMirror p,
+.textblock-card .textblock-card-placeholder,
+.instance-textblock-block .textblock-card-placeholder {
+  font-size: var(--cascade-font-size, var(--doc-text-px, 14px));
+  line-height: var(--doc-text-line, 1.35);
+}
+/* …and the stand-in is laid out as the editor is (measured on prod): 4px 8px of editor padding, and each line the
+   paragraph's 3px margin + (4px + 0.25em) padding — so clicking moves nothing. */
+.textblock-card .textblock-card-placeholder,
+.instance-textblock-block .textblock-card-placeholder {
+  padding: 4px 8px;
+}
+.textblock-card .textblock-card-placeholder > div,
+.instance-textblock-block .textblock-card-placeholder > div {
+  margin: 3px 0;
+  padding-block: calc(4px + 0.25em);
+}
 .doc-editor-content .instance-textblock-inline,
 .instance-textblock-inline {
   /* A size chosen in the styling cascade (a container's Style tab) reaches the prose inside it. */

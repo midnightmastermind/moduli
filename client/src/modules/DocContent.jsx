@@ -11,29 +11,10 @@ import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
 import { mintStep, mintMark } from "../helpers/mintDiag";
-import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
+import { useLazyEditor, LAZY_PLACEHOLDER_CLASS, standInBlocks } from "../helpers/lazyEditor.js";
 import { createMintLedger } from "../helpers/provisionalMints.js";
 import { planStaleCollapses, trailingParagraphPos } from "../helpers/staleProvisionalBlocks.js";
 import { afterPaint } from "../helpers/afterPaint";
-
-// One plain-text string per top-level block. Roughly height-matched — and, just as
-// important, REAL TEXT ON SCREEN, because WrapGroupNode measures rendered
-// characters to decide wrap vs stack and would read an empty placeholder as
-// "blank host, nothing to wrap". Mirrors TextblockCard's own extractor.
-function textmapBlocks(textmap) {
-  if (!textmap || typeof textmap !== "object") return [];
-  const content = Array.isArray(textmap.content) ? textmap.content : [];
-  return content.map((node) => {
-    const parts = [];
-    const walk = (n) => {
-      if (!n || typeof n !== "object") return;
-      if (typeof n.text === "string") parts.push(n.text);
-      if (Array.isArray(n.content)) n.content.forEach(walk);
-    };
-    walk(node);
-    return parts.join("");
-  });
-}
 
 // `lazy` defaults FALSE so every existing call site is byte-identical — only the
 // doc BLOCK node view opts in, where 246 eager ProseMirror instances on poms grid
@@ -75,14 +56,16 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // Lazy body. Declared with the other hooks (the `!live` early return sits after
   // every hook, so order stays stable). An EMPTY doc mounts eagerly — there is no
   // placeholder text to stand in for it and it is immediately editable.
+  // A textmap the stand-in cannot draw (lists, embedded chips) mounts eagerly too (helpers/lazyEditor standInBlocks).
+  const standIn = React.useMemo(
+    () => (lazy && hasValidTextmap ? standInBlocks(occurrence.textmap) : []),
+    [lazy, hasValidTextmap, occurrence?.textmap]
+  );
   const { live, ref: lazyRef, goLive } = useLazyEditor({
-    eager: !lazy || !hasValidTextmap,
+    eager: !lazy || !hasValidTextmap || standIn === null,
     occurrenceId: occurrence?.id,
   });
-  const lazyBlocks = React.useMemo(
-    () => (live || !hasValidTextmap ? [] : textmapBlocks(occurrence.textmap)),
-    [live, hasValidTextmap, occurrence?.textmap]
-  );
+  const lazyBlocks = live || !standIn ? [] : standIn;
   // Auto-create textblock: when user types on empty paragraph or a list appears at top level,
   // replace it with an instancePill block. nodeJson is optional — when provided (for lists),
   // it becomes the initial textmap content directly.
