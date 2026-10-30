@@ -1815,7 +1815,7 @@ function Container({
         />
       ) : isTableContainer ? (
         /* Table Container: static grid from occurrence.meta.table */
-        <ContainerTable occurrence={containerOccurrence} dispatch={dispatch} socket={socket} />
+        <ContainerTable occurrence={containerOccurrence} dispatch={dispatch} socket={socket} cellText={layoutCascade?.resolved?.cellText} />
       ) : focusedItem ? (() => {
         const { instance: fi, occurrence: fo } = focusedItem;
 

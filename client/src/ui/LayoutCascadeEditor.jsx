@@ -206,6 +206,18 @@ export default function LayoutCascadeEditor({
               onChange={(v) => setKey("childFillLast", v)}
               tooltip="A line with fewer tiles than fit (usually the last) grows to fill the width too, so no row stops short." />
           ) : null}
+          {/* A table's cell text (doc chips) — one line that scrolls when too long, or wrapped (user, 2026-10-30:
+              "make it a setting in the styles and default it to scroll"). Cascades, so a page or the grid can set it. */}
+          <RuleRadio
+            label="Table cell text"
+            value={cur.cellText ?? null}
+            onChange={(v) => setKey("cellText", v)}
+            options={[
+              { value: null, label: "—" },
+              { value: "scroll", label: "Scroll" },
+              { value: "wrap", label: "Wrap" },
+            ]}
+          />
           {cur.mode === "grid" ? (
             <RuleNumber
               label="Grid columns"

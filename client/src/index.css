@@ -6107,6 +6107,23 @@ input.artifact-thumb-info-name--editing {
 }
 .table-td .doc-editor-content.ProseMirror { min-height: 0; line-height: 1.3; padding: 0; }
 .table-td .doc-editor-content.ProseMirror p { margin: 0; }
+/* TABLE CELL TEXT (layout cascade `cellText`, default "scroll"; user, 2026-10-30). Scroll: a cell's chips stay on one
+   line — idle in the marquee, and while hovered/edited the line scrolls sideways — so a row stays one line tall and
+   hovering never changes its height. Wrap: the chips wrap (the marquee sets nowrap inline, hence !important). */
+.table-container:not(.table-cells-wrap) .table-td .doc-editor-content.ProseMirror p {
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.table-container:not(.table-cells-wrap) .table-td .doc-editor-content.ProseMirror p::-webkit-scrollbar { display: none; }
+.table-container:not(.table-cells-wrap) .table-td .instance-textblock-inline,
+.table-container:not(.table-cells-wrap) .table-td .instance-textblock-inline * {
+  white-space: nowrap !important;
+}
+.table-cells-wrap .table-cell-chips .auto-marquee,
+.table-cells-wrap .table-cell-chips .auto-marquee-inner {
+  white-space: normal !important;
+}
 /* The embedded occurrence looks EXACTLY like an instance anywhere else —
    it keeps its normal card chrome AND its normal responsive layout (fields
    wrap under the label when the cell is narrow, via .instance-content's own

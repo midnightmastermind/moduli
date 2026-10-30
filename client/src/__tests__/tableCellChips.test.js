@@ -80,3 +80,18 @@ describe("an empty bullet takes a chip", () => {
     expect(readFileSync(new URL("../ui/Editor.jsx", import.meta.url), "utf8")).toMatch(/!isCell && isEmptyListItemLine\(view\.state\.selection\)/);
   });
 });
+
+describe("Table cell text: scroll (default) or wrap", () => {
+  const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
+  it("a table defaults to scroll and takes wrap from the layout cascade", () => {
+    const t = readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8");
+    expect(t).toMatch(/cellText = "scroll"/);
+    expect(t).toMatch(/cellText === "wrap" \? " table-cells-wrap" : ""/);
+    expect(readFileSync(new URL("../modules/ModuleContainer.jsx", import.meta.url), "utf8")).toMatch(/cellText=\{layoutCascade\?\.resolved\?\.cellText\}/);
+    expect(readFileSync(new URL("../ui/LayoutCascadeEditor.jsx", import.meta.url), "utf8")).toMatch(/label="Table cell text"/);
+  });
+  it("scroll keeps a chip on one line, idle and while edited", () => {
+    expect(css).toMatch(/\.table-container:not\(\.table-cells-wrap\) \.table-td \.instance-textblock-inline \*[\s\S]*?white-space: nowrap !important/);
+    expect(css).toMatch(/\.table-container:not\(\.table-cells-wrap\) \.table-td \.doc-editor-content\.ProseMirror p \{\s*white-space: nowrap;/);
+  });
+});

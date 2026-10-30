@@ -15,6 +15,17 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (6) — "TABLE CELL TEXT: Scroll / Wrap" in Layout; Scroll is the default
+
+User: *"make it a setting in the styles and default it to scroll"* (the chip cells had made poms' rows 78–95px). New
+cascading layout key `cellText` (Settings › Style › Layout › "Table cell text"), passed to `ContainerTable` from
+ModuleContainer's resolved cascade (a table PAGE takes the default). Scroll: an idle cell's chips sit in the
+AutoMarquee and the chip is forced `nowrap` (it set `white-space: normal` on itself), and a hovered/edited cell's line
+is `nowrap` + scrolls sideways — so hovering never changes the row height. Wrap: the marquee's inline nowrap is
+overridden. Measured on the rebuild vitamins table: every row 29px idle (was 29–45), 30 hovered, 5 chips scrolling.
+
+---
+
 ### 2026-10-30 (5) — EVERY TABLE'S TEXT CELLS ARE DOC CHIPS (`0459`); idle chip cells mount no editor
 
 User: *"are you also going to convert all the tables to using the doc chips? just the ones that arent instances

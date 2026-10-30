@@ -412,9 +412,13 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
         />
       ) : chips.length ? (
         <div className="table-cell-static-text table-cell-chips">
-          {chips.map((attrs) => (
-            <InstanceTextblockInlineNode key={attrs.occurrenceId} node={{ attrs, nodeSize: 1 }} editor={null} getPos={null} deleteNode={null} />
-          ))}
+          {/* One line that scrolls when too long (the table's "Table cell text: Scroll", the default), as a text cell
+              does; in Wrap the CSS lets the line wrap and the marquee has nothing to scroll. */}
+          <AutoMarquee>
+            {chips.map((attrs) => (
+              <InstanceTextblockInlineNode key={attrs.occurrenceId} node={{ attrs, nodeSize: 1 }} editor={null} getPos={null} deleteNode={null} />
+            ))}
+          </AutoMarquee>
         </div>
       ) : !embedOccId ? (
         <div className="table-cell-static-text">
@@ -448,7 +452,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   );
 }
 
-export default function ContainerTable({ occurrence, dispatch, socket }) {
+export default function ContainerTable({ occurrence, dispatch, socket, cellText = "scroll" }) {
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
 
   // Normalize: cells/columns can come back null from the server if a prior
@@ -1361,7 +1365,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   return (
     <div
-      className="table-container table-container-virtual"
+      className={`table-container table-container-virtual${cellText === "wrap" ? " table-cells-wrap" : ""}`}
       data-occ-id={occurrence?.id}
       ref={containerRef}
     >
