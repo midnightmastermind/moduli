@@ -104,7 +104,7 @@ describe("a chip in a table cell (user's video, 2026-10-30)", () => {
     expect(css).not.toMatch(/\.table-td \.instance-textblock-inline \{ margin/);
   });
   it("the cell's line starts 3px in, so the pill's -3px margin stays inside", () => {
-    expect(css).toMatch(/\.table-td \.doc-editor-content\.ProseMirror p \{ padding-left: 3px; \}/);
+    expect(css).toMatch(/\.table-td \.table-cell-chips \.auto-marquee,\n\.table-td \.doc-editor-content\.ProseMirror p \{ padding-left: 4px; \}/);
   });
   it("a hovered cell clips; only a cell being typed in scrolls", () => {
     expect(css).toMatch(/\.table-td:not\(:focus-within\) \.doc-editor-content\.ProseMirror p \{ overflow-x: clip; \}/);

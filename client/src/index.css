@@ -6126,9 +6126,10 @@ input.artifact-thumb-info-name--editing {
    width goes off the right. Only a cell being typed in scrolls (user, 2026-10-30 video: "if im too far to the right when hovering … it wont show the drag handle
    and will push everything to the left. also the pill gets cut off on the left side"). */
 /* The pill is the doc pill, unchanged (user, 2026-10-30: "it should be the same pills as the doc pills (exact
-   same)"). Its -3px side margin is what reached past the cell's left edge, so the cell's line starts 3px in. */
-.table-td .table-cell-chips,
-.table-td .doc-editor-content.ProseMirror p { padding-left: 3px; }
+   same)"). Its -3px side margin reached past the box that clips the line (the idle marquee, the editing
+   paragraph), so that box's own padding holds it: the padding is INSIDE the clip, the pill's border with it. */
+.table-td .table-cell-chips .auto-marquee,
+.table-td .doc-editor-content.ProseMirror p { padding-left: 4px; }
 .table-container:not(.table-cells-wrap) .table-td:not(:focus-within) .doc-editor-content.ProseMirror p { overflow-x: clip; }
 .table-cells-wrap .table-cell-chips .auto-marquee,
 .table-cells-wrap .table-cell-chips .auto-marquee-inner {

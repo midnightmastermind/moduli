@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-30 (10) — the pill's left border, for real; a list's name inside its box; no Date column (`0464`)
+
+User: *"its still showing the Date and i want it to say Cardio inside the box, not on top of it. and also the pills
+left border is still getting cut off in tables"*. **The border:** (9) measured the pill (6px in) and not the box
+CLIPPING it — idle, the marquee (`overflow: hidden`) started at 9px, so the pill's -3px margin lost 3px of border.
+The padding moved INSIDE the clip (`.table-cell-chips .auto-marquee` and the editing `p`, 4px): pill at 7px, clip at
+6px, idle and hovered. **List name:** an array-with-columns field (Workouts, Cardio, Meals…) draws its name as the
+grid's first row (`gridColumn: 1 / -1`) inside the bordered box, compact and full variants. **`0464`:** Cardio and
+Workouts drop the Date column (the tile shows its Tracker Date).
+
+---
+
 ### 2026-10-30 (9) — table pills are the doc pills exactly; the handle shows on hover anywhere; a Cardio list (`0463`)
 
 - User: *"it shouldnt overlap the text … its not showing up on some of them (if im not hovering over the left side
