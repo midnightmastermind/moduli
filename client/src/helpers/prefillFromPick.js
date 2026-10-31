@@ -28,6 +28,7 @@
 //      what is there; it never changes what a thing IS. (A drop does add
 //      bindings — this deliberately does not.)
 //   3. A filled value carries no marker. It is an ordinary value.
+//   4. Emptying a pick CLEARS the fields it fills (and, chained, theirs).
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const nums = (vals) => vals.map(Number).filter((n) => Number.isFinite(n));
@@ -88,7 +89,27 @@ export function planPrefill({ field, value, target, ctx }) {
     const cfg = prefillOf(srcField);
     if (!cfg) return;
     const pickIds = asPicks(pickValue);
-    if (pickIds.length === 0) return;
+    // A CLEARED pick clears what it filled (user, 2026-10-31: "i cleared out meals and ingrediants (wouldnt
+    // clearing out the meal clear out ingrediants?) and the cal and carbs stayed the same"). The filled values
+    // described the old pick; with nothing picked they describe nothing. Chained, so emptying a Meal empties its
+    // Ingredients and they empty the macros. Only on an EMPTY pick — a pick whose rows have not loaded yet
+    // (below) says nothing, and is left alone.
+    if (pickIds.length === 0) {
+      const cleared = [];
+      for (const entry of cfg.map) {
+        const to = entry?.to || entry?.from;
+        if (!to || claimed.has(to) || !bound.has(to)) continue;
+        claimed.add(to);
+        cleared.push({ fieldId: to, value: null, flow: "in", sources: { from: entry.from, occurrenceIds: [] } });
+      }
+      writes.push(...cleared);
+      if (hopsLeft <= 0) return;
+      for (const w of cleared) {
+        const nextField = ctx.fieldsById?.[w.fieldId];
+        if (nextField?.type === "occurrence" && prefillOf(nextField)) walk(nextField, null, hopsLeft - 1);
+      }
+      return;
+    }
     const picked = pickIds.map((id) => ctx.occurrencesById?.[id]).filter(Boolean);
     if (picked.length === 0) return;
 

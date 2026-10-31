@@ -101,9 +101,24 @@ describe("planPrefill — one hop", () => {
     expect(plan(F.ingredients, ["water"]).writes).toEqual([]);
   });
 
-  it("an empty pick clears nothing", () => {
-    expect(plan(F.ingredients, []).writes).toEqual([]);
-    expect(plan(F.ingredients, null).writes).toEqual([]);
+  // INVERTED 2026-10-31. It used to clear nothing, so removing the last ingredient left the totals of the one
+  // before it on the row (user: "the cal and carbs stayed the same but the protien and fats zeroed out" — they
+  // were the last ingredient's 70 / 0 / 20 / 0).
+  it("an emptied pick CLEARS the fields it fills", () => {
+    expect(byId(plan(F.ingredients, []).writes)).toEqual({ [F.protein]: null, [F.calories]: null });
+    expect(byId(plan(F.ingredients, null).writes)).toEqual({ [F.protein]: null, [F.calories]: null });
+  });
+
+  it("an emptied pick clears only what the target binds", () => {
+    expect(byId(plan(F.ingredients, [], "snack").writes)).toEqual({ [F.protein]: null });
+  });
+
+  it("emptying a Meal clears its Ingredients AND, chained, their macros", () => {
+    expect(byId(plan(F.meal, null).writes)).toEqual({ [F.ingredients]: null, [F.protein]: null, [F.calories]: null });
+  });
+
+  it("a pick whose rows have not loaded clears nothing (unknown is not empty)", () => {
+    expect(plan(F.ingredients, ["not-loaded-yet"]).writes).toEqual([]);
   });
 
   it("a single (non-array) pick works — single-select dropdowns", () => {
