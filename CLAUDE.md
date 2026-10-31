@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 (6) — SEARCH KEYS PER USER; TMDB TV; USDA INGREDIENTS (`0469`, `0470` dry run); grocery toggle
+
+- **Keys are not hardcoded** (user: *"a section in command center imports that allow for search boxes and api
+  keys"*). A provider declares `apiKey: { id, env, label, getUrl, demo }` (`id` shared: TMDB films + TV are one
+  key). Resolution: the user's key (Command Center › Imports › **Search sources**, `ui/commandCenter/
+  SearchSourcesSection.jsx`; stored encrypted on `user.meta.searchKeys` by `services/searchKeys.js`, never sent back)
+  → server env → demo key. Routes `GET/PUT/DELETE /api/v1/search/keys[/:keyId]` (session only). `/api/search/*`
+  reads the session (`searchUser` in server.js) and the client search fetches now send `sessionHeaders()`.
+- **`tmdb-tv`** provider (`/search/tv`, `showFields`, `seasonEpisodes`) on the TMDB key; prod already has one.
+- **`usda`** provider (FoodData Central, Foundation + SR Legacy, DEMO_KEY fallback): 24 nutrients per 100g in the
+  grid's units, Omega-3 summed (ALA 851|619 + EPA/DPA/DHA), `rankFoods` (USDA ranked "Croissants, apple" first).
+  Open Food Facts stays for packaged things — for "spinach" it returned a creamed-spinach brand with zeros.
+- **`0469`** (applied): 20 "<nutrient> per 100g" fields + **Grams** + a **Grocery List** button bound on the 28
+  ingredient rows; the Ingredient search → usda with all 24 keys mapped to per-100g fields; op
+  **Ingredients: Scale to Grams** (plain = per-100g × Grams ÷ 100, empty Grams = 100; onChange Grams / any
+  per-100g, onAdd under Ingredients + Grocery List); op **Ingredients: Toggle Grocery List** (the Grocery List is a
+  feed on Board Category `grocery`, so the button adds/removes that tag); the one onCreate trigger → onAdd.
+  Executor test `ingredientsGramsGrocery` (6).
+- **`0470` NOT applied:** backfill of EMPTY values only. Dry run hit the demo key's rate limit after 5 lookups;
+  it uses the user's saved USDA key. `USDA_MATCH_PATH` can override or skip a match per label.
+- Queued (user): Episodes board + an op adding new episodes; Episode / Song fields whose options narrow to the
+  picked show / album (a "Limit options" prefill setting writing a `$this` rule — the resolver already supports
+  `$this`); a VR TV shelf that works like records.
+
+---
+
 ### 2026-10-31 (5) — BUTTON-MADE ROWS FIRE onAdd; a changed pick clears what it no longer fills; Ingredient sums the minerals (`0468`)
 
 - User: *"the operations should work for all onAdd buttons as well"*. A row an operation creates INSIDE a user
