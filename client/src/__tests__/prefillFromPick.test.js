@@ -97,8 +97,15 @@ describe("planPrefill — one hop", () => {
     expect(writes.find(w => w.fieldId === F.protein).sources.from).toBe(F.protein);
   });
 
-  it("a pick carrying nothing writes nothing — never overwrite with empty", () => {
-    expect(plan(F.ingredients, ["water"]).writes).toEqual([]);
+  // INVERTED 2026-10-31: the old total described the old picks.
+  it("a field nothing left in the pick carries is CLEARED, not kept", () => {
+    expect(byId(plan(F.ingredients, ["water"]).writes)).toEqual({ [F.protein]: null, [F.calories]: null });
+  });
+
+  it("taking one ingredient off re-sums, and clears what only it carried", () => {
+    // oddball carries a non-numeric protein and no calories: protein sums nothing, calories nothing.
+    expect(byId(plan(F.ingredients, ["oddball"]).writes)).toEqual({ [F.protein]: null, [F.calories]: null });
+    expect(byId(plan(F.ingredients, ["rice"]).writes)).toEqual({ [F.protein]: 4, [F.calories]: 206 });
   });
 
   // INVERTED 2026-10-31. It used to clear nothing, so removing the last ingredient left the totals of the one

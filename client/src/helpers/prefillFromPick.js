@@ -145,11 +145,16 @@ export function planPrefill({ field, value, target, ctx }) {
           return (flow === "out" && Number.isFinite(n)) ? -n : v;
         })
         .filter((v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0));
-      if (raw.length === 0) continue;   // nothing to say — never overwrite with empty
-
+      // NOTHING LEFT TO ADD UP CLEARS THE FIELD (user, 2026-10-31: "its even when one ingrediant is taken off").
+      // The value described the OLD picks; keeping it after the pick changed left a stale total — remove the one
+      // ingredient carrying Protein and Protein kept its number. It was "never overwrite with empty".
       const combine = COMBINERS[entry.combine] ? entry.combine : "replace";
-      const next = COMBINERS[combine](raw);
-      if (next === undefined || next === null || next === "") continue;
+      const next = raw.length ? COMBINERS[combine](raw) : undefined;
+      if (next === undefined || next === null || next === "") {
+        claimed.add(to);
+        produced.push({ fieldId: to, value: null, flow: "in", sources: { from, occurrenceIds: pickIds } });
+        continue;
+      }
 
       // Flow follows the first real contributor so an "out" amount stays an out.
       const flowSlot = picked.map((occ) => occ.fields?.[from]).find((s) => s && typeof s === "object" && s.flow);
