@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 (2) — A TASK ADDED TO TASKS › TODO REACHES THE SCHEDULE AT ONCE (`0465`)
+
+User: *"could you see why all my todo didnt get transfered to schedule"* · *"and why new ones dont get added"* · *"if a
+task ends up in todo it should auto add it to the one in schedule"*. Measured: all 6 Tasks › Todo rows ARE in today's
+(and yesterday's) Schedule Todo — 5 as todo copies, Talk to Angela through its Due. Nov 1's column was built Oct 28
+and lacks the two tasks made Oct 30 (and still holds a copy of Clean hotel room, moved out since). The cause:
+`Schedule: Place Dated Work` (0453's todo-copy pass) ran only on load, a date change and edits to Date / Time Slot /
+Due / Completed On, so a task added or dragged in waited for a reload. **`0465`** adds three triggers at the op's
+priority: onAdd instance under Tasks › Todo, onMove instance under it (a move's ancestors are its landing place), and
+onMove from the Todo container (`fromContainerId`; the sweep removes the copy). The container id is read off the op's
+own pipeline. Applied to poms, read back (8 → 11 triggers), pm2 restarted. Test `todoTasksPlaceOnAdd` (3).
+**Not watched in a browser.** The op runs over the days on screen, so a day not on screen updates when it is shown.
+
+---
+
 ### 2026-10-31 — A TAB LEFT OPEN OVERNIGHT RELOADS ONTO TODAY; an alarm that missed its minute still rings
 
 User: *"make sure that my overall filter changes to todays date on first load? also the alarm for 6am is never going
