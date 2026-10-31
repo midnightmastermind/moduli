@@ -96,24 +96,36 @@ async function call(path, params, key) {
   return withRetry(once, { attempts: 2, delayMs: 400 });
 }
 
-/** USDA's relevance order puts "Croissants, apple" ahead of "Apples, raw". Rank: the description starts with
- *  the query (or its singular/plural), then a raw food, then the shortest description. Pure, stable. */
+/** USDA's relevance order puts "Croissants, apple" ahead of "Apples, raw" and "Frozen yogurts, chocolate" ahead of
+ *  "Vegetables, mixed, frozen". Rank, best first: every typed word appears; the description starts with a typed
+ *  word; few words you did NOT type (each costs a point — "Candies, dark chocolate coated coffee beans" loses to
+ *  "Coffee, brewed"); a Foundation food (USDA's basic commodities); a raw/plain one. Words are compared on their
+ *  stem, so "Eggs" matches "Egg". Pure, stable. */
+const STEM = (w) => {
+  const x = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (x.length > 4 && x.endsWith("ies")) return x.slice(0, -3) + "y";   // berries -> berry
+  if (x.length > 4 && x.endsWith("oes")) return x.slice(0, -2);         // potatoes -> potato
+  if (x.length > 3 && x.endsWith("s") && !x.endsWith("ss")) return x.slice(0, -1);   // apples, beans, eggs
+  return x;
+};
+const NEUTRAL = new Set(["raw", "fresh", "plain", "whole", "unprepared", "uncooked", "dry", "mature", "seeds", "regular",
+  "without", "with", "and", "or", "of", "the", "in", "ns", "nfs", "all", "commercial", "varieties", "fluid", "edible", "portion"]);
 export function rankFoods(foods, q) {
-  const words = String(q || "").toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const head = words[0] || "";
-  const stem = head.replace(/(ies|es|s)$/, "");
+  const qs = String(q || "").split(/[\s,]+/).map(STEM).filter(Boolean);
+  const want = new Set(qs);
   const score = (f) => {
-    const d = String(f.description || "").toLowerCase();
-    const first = d.split(/[ ,]/)[0];
+    const words = String(f.description || "").split(/[\s,()/-]+/).map(STEM).filter(Boolean);
+    const has = new Set(words);
     let s = 0;
-    if (first === head || first.replace(/(ies|es|s)$/, "") === stem) s += 4;
-    else if (d.startsWith(stem)) s += 2;
-    if (words.every((w) => d.includes(w.replace(/(ies|es|s)$/, "")))) s += 2;
-    if (/\braw\b/.test(d)) s += 1;
+    if (qs.every((w) => has.has(w) || words.some((x) => x.startsWith(w)))) s += 6;
+    else s += qs.filter((w) => has.has(w)).length * 2;
+    if (want.has(words[0])) s += 3;
+    s -= words.filter((w) => !want.has(w) && !NEUTRAL.has(w) && !/^\d/.test(w)).length * 0.6;
+    if (f.dataType === "Foundation") s += 1;
+    if (has.has("raw") || has.has("plain")) s += 0.5;
     return s;
   };
-  return foods.map((f, i) => ({ f, i, s: score(f), n: String(f.description || "").length }))
-    .sort((a, b) => b.s - a.s || a.n - b.n || a.i - b.i).map((x) => x.f);
+  return foods.map((f, i) => ({ f, i, s: score(f) })).sort((a, b) => b.s - a.s || a.i - b.i).map((x) => x.f);
 }
 
 const toResult = (food) => normalizeResult({
