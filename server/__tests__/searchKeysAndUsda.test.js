@@ -71,3 +71,15 @@ describe("TMDB showFields", () => {
       Network: "Apple TV+", Status: "Returning Series" });
   });
 });
+
+import { rankFoods } from "../utils/providers/usda.js";
+describe("USDA rankFoods", () => {
+  it("puts the food itself ahead of things made with it", () => {
+    const foods = [{ description: "Croissants, apple" }, { description: "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)" }, { description: "Apples, raw, with skin" }];
+    expect(rankFoods(foods, "Apple")[0].description).toBe("Apples, raw, with skin");
+  });
+  it("prefers a description holding every word", () => {
+    const foods = [{ description: "Rice, white, long-grain" }, { description: "Rice, brown, long-grain, raw" }];
+    expect(rankFoods(foods, "Brown Rice")[0].description).toBe("Rice, brown, long-grain, raw");
+  });
+});

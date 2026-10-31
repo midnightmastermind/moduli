@@ -96,6 +96,26 @@ async function call(path, params, key) {
   return withRetry(once, { attempts: 2, delayMs: 400 });
 }
 
+/** USDA's relevance order puts "Croissants, apple" ahead of "Apples, raw". Rank: the description starts with
+ *  the query (or its singular/plural), then a raw food, then the shortest description. Pure, stable. */
+export function rankFoods(foods, q) {
+  const words = String(q || "").toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const head = words[0] || "";
+  const stem = head.replace(/(ies|es|s)$/, "");
+  const score = (f) => {
+    const d = String(f.description || "").toLowerCase();
+    const first = d.split(/[ ,]/)[0];
+    let s = 0;
+    if (first === head || first.replace(/(ies|es|s)$/, "") === stem) s += 4;
+    else if (d.startsWith(stem)) s += 2;
+    if (words.every((w) => d.includes(w.replace(/(ies|es|s)$/, "")))) s += 2;
+    if (/\braw\b/.test(d)) s += 1;
+    return s;
+  };
+  return foods.map((f, i) => ({ f, i, s: score(f), n: String(f.description || "").length }))
+    .sort((a, b) => b.s - a.s || a.n - b.n || a.i - b.i).map((x) => x.f);
+}
+
 const toResult = (food) => normalizeResult({
   provider: "usda",
   externalId: food.fdcId,
@@ -112,8 +132,8 @@ export const usdaProvider = {
     getUrl: "https://api.data.gov/signup/" },
   async search(q, { limit = 6, key } = {}) {
     const j = await call("/foods/search",
-      `query=${encodeURIComponent(String(q || ""))}&dataType=${encodeURIComponent(DATA_TYPES)}&pageSize=${limit}`, key);
-    return (j.foods || []).map(toResult);
+      `query=${encodeURIComponent(String(q || ""))}&dataType=${encodeURIComponent(DATA_TYPES)}&pageSize=25`, key);
+    return rankFoods(j.foods || [], q).slice(0, limit).map(toResult);
   },
   async detail({ title, externalId } = {}, { key } = {}) {
     if (externalId) {
