@@ -33,8 +33,13 @@
   per-100g, onAdd under Ingredients + Grocery List); op **Ingredients: Toggle Grocery List** (the Grocery List is a
   feed on Board Category `grocery`, so the button adds/removes that tag); the one onCreate trigger → onAdd.
   Executor test `ingredientsGramsGrocery` (6).
-- **`0470` NOT applied:** backfill of EMPTY values only. Dry run hit the demo key's rate limit after 5 lookups;
-  it uses the user's saved USDA key. `USDA_MATCH_PATH` can override or skip a match per label.
+- **`0470` applied ON PROD** (the user's key decrypts only with prod's SECRETS_KEY): 27 ingredients, 700 empty
+  values, with hand-picked FDC ids via `USDA_MATCH_PATH` — USDA's search put chocolate frozen yogurt first for
+  "Frozen Mixed Veggies", rice crackers for "Rice", sheep milk for "Milk". Skipped: CBD Gummies, Zucchini Peppers
+  Onions (a mix), Coffee Beans. Rows that had their own macros (Milk Calories 122) kept them. `rankFoods` reworked
+  (every typed word, few untyped words, Foundation, plural stems).
+- **`0477`**: Fill the row on the 7 media grids that lacked it (Movies, TV Series, Albums, Games, Songs, Comics,
+  Artists), like Books. Read back 8/8.
 - Queued (user): Episodes board + an op adding new episodes; Episode / Song fields whose options narrow to the
   picked show / album (a "Limit options" prefill setting writing a `$this` rule — the resolver already supports
   `$this`); a VR TV shelf that works like records.
