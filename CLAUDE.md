@@ -539,6 +539,19 @@ there (997 skies searched).
 
 ---
 
+### 2026-10-31 (9) — SPOTIFY LEFTOVERS THROUGH DEEZER: 61 more albums linked
+
+User: "do the spotify leftovers through deezer". `server/_deezerfill.mjs` (gitignored, run ON PROD — the Spotify keys
+live there; results `/home/deploy/deezer-fill.json`): Deezer search (title AND artist must match, normalised) ->
+the album's tracks' ISRC (or the song's) -> that recording on Spotify (`isrc:` search) -> its album, kept only if the
+album name still matches. **song.link's free API is shut** (401 `PUBLIC_API_ACCESS_DEPRECATED`), and Spotify's `upc:`
+search returned nothing, hence the ISRC route. Result: **61 of 241 albums** linked (`meta.spotifyAlbumId`, applied,
+pm2 restarted); **0 of 155 songs** — 142 are not on Deezer under their titles, 13 have no Spotify recording by ISRC.
+The daily Spotify job matches songs by their album's track list, so songs on the 61 newly linked albums should link
+on its next run.
+
+---
+
 ### 2026-10-31 (8) — FIRST LOAD 48 MB -> 23.8 MB: episodes are catalogue rows, unopened pages' text follows the paint
 
 User: episodes should "load after the screen" · "lets try to drop down that time" · hold back unopened pages' text: yes.
