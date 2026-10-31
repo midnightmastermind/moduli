@@ -31,6 +31,12 @@ today), so the snap op works; it simply never ran in a tab that never reloaded.
   (was: only if a tick landed inside that exact minute — a throttled background tab ticks about once a minute).
   `notBefore` keeps a time set/retimed while the tab is open from ringing at once. Test
   `dayRolloverAndAlarmCatchUp` (13; the old scheduler fails the 3 catch-up cases).
+- **Idle CPU (user agreed, "if it doesnt hurt performance"):** a poms-grid tab doing nothing used ~11% of a core
+  (headless, no GPU). Profiled: JS ~0; the one running animation, the toolbar notification pill's infinite
+  `tx-marquee`, was ~60 style recalcs/s and ~2.7s per 30s. It already had `will-change` (A/B'd: no change). It now
+  pauses (`animation-play-state`, same layout) while the window is unfocused or hidden (`helpers/windowActive`).
+  Measured on the local build: unfocused 3.0s → 0.36s per 30s, focused unchanged. With a GPU the focused cost is
+  probably lower than measured here.
 - **Not fixable from the page:** a sleeping tab runs nothing, so an alarm cannot ring while the tab sleeps. The user
   must add viafluere.com to Edge's "Never put these sites to sleep" list.
 

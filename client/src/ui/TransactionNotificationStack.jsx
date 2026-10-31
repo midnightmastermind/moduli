@@ -22,6 +22,7 @@ import {
   gesturePillText,
 } from "../state/notificationStore";
 import { touchesScope, openPageScopes } from "../helpers/transactionScope";
+import { useWindowActive } from "../helpers/windowActive";
 
 // Undo lives on exactly ONE pill: the gesture holding the newest undoable
 // transaction (the server refuses any other). It is the same step Ctrl+Z takes.
@@ -115,6 +116,8 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
   const text = gesturePillText(note);
 
   const animate = treatAsOpen && overflows;
+  // Moves only while someone is looking at the window (helpers/windowActive); paused otherwise, same layout.
+  const windowActive = useWindowActive();
   const durationSec = animate
     ? Math.max(4, (labelRef.current?.querySelector("[data-tx-label-copy]")?.scrollWidth || 0) / MARQUEE_PX_PER_SEC)
     : 0;
@@ -207,6 +210,7 @@ function Chip({ note, index, isOpen, openIndex, onOpen, now }) {
                 display: "inline-flex",
                 animation: animate ? `tx-marquee ${durationSec}s linear infinite` : "none",
                 willChange: animate ? "transform" : "auto",
+                animationPlayState: windowActive ? "running" : "paused",
               }}
             >
               <span data-tx-label-copy style={{ paddingRight: LABEL_TRACK_GAP }}>{text}</span>
