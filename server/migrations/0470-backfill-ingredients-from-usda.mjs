@@ -54,10 +54,11 @@ export async function up({ gridId, models, log, dryRun }) {
   const overrides = process.env.USDA_MATCH_PATH ? JSON.parse(fs.readFileSync(process.env.USDA_MATCH_PATH, "utf8")) : {};
 
   const occs = await Occurrence.find({ gridId, [`fields.${BOARD_CATEGORY}`]: { $exists: true }, "meta.feedSourceId": { $exists: false } }).lean();
-  // A row whose name is the board's own ("Ingredients") is not an ingredient.
-  const rows = occs.filter((o) => tagsOf(o).includes("ingredient") && !/^ingredients?$/i.test(o.label || ""));
+  const tagged = occs.filter((o) => tagsOf(o).includes("ingredient"));
   const { default: Module } = await import("../models/Module.js");
-  const mods = new Map((await Module.find({ gridId, id: { $in: rows.map((r) => r.moduleId) } }).select("id label").lean()).map((m) => [m.id, m]));
+  const mods = new Map((await Module.find({ gridId, id: { $in: tagged.map((r) => r.moduleId) } }).select("id label").lean()).map((m) => [m.id, m]));
+  // A row whose name is the board's own ("Ingredients") is not an ingredient. The name may live on the module.
+  const rows = tagged.filter((o) => !/^ingredients?$/i.test(o.label || mods.get(o.moduleId)?.label || ""));
   let writes = 0;
   for (const o of rows) {
     const label = o.label || mods.get(o.moduleId)?.label || "";
