@@ -36,7 +36,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit, peekOfflineQueue } from "../helpers/offlineQueue";
 import { applyQueuedEditsToPayload } from "../helpers/queuedEdits.js";
-import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived, getActionId } from "../helpers/actionScope";
+import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived, getActionId, isDerived } from "../helpers/actionScope";
 import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
@@ -1928,6 +1928,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         ensureModuleBindingsForOccurrenceFields({
           dispatch: socketDispatch, socket, occurrence: newOcc,
         });
+        fireOpCreateTrigger(newOcc);
         break;
       }
 
@@ -2189,6 +2190,49 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       _debounceTimers.delete(opId);
       fireOperations(transactionType, { ...transaction, _onlyOpId: opId });
     }, waitMs));
+  }
+
+  // A row an OPERATION creates fires the onAdd / onCreate triggers too, when the operation ran from the user's own
+  // gesture — a button press, a form, an edit (user, 2026-10-31: "the operations should work for all onAdd buttons
+  // as well … if its like an onAdd or onCreate trigger"). Before, only a row the user made by hand fired them, so a
+  // task made by the "New task" button never reached Schedule › Todo until a reload.
+  //   - Not for the app's own writes (the load sweep, schedules, feed copies run DERIVED, or with no action open):
+  //     a load's ~50 rows per day column firing every onAdd tracker is the storm the cycle breaker exists for.
+  //   - ONE level: rows made by the operations THIS fire runs do not fire again. That is what keeps an onAdd op
+  //     that itself creates from looping (the 2026 create_occurrence flood).
+  // Deferred a task so the creating operation has finished applying its effects (the parent's list, its fields).
+  let _opCreateFireDepth = 0; // > 0 while an op-create fire (and any sweep it started) is still applying
+  function fireOpCreateTrigger(occ) {
+    if (!occ?.id || _opCreateFireDepth > 0) return;
+    if (isDerived() || !getActionId()) return;
+    if (occ.meta?.feedSourceId) return;
+    const captured = captureAction();
+    retainAction(captured);
+    setTimeout(() => {
+      runInAction(captured, () => {
+        _opCreateFireDepth += 1;
+        let res;
+        const done = () => { _opCreateFireDepth -= 1; releaseAction(captured); };
+        try {
+          const ancestors = operationsBridge.getAncestorChain?.(occ.id) || { ids: [], labels: [] };
+          res = fireOperations("OccurrenceCreateOp", {
+            type: "OccurrenceCreateOp",
+            occurrenceId: occ.id,
+            instanceId: occ.moduleId,
+            containerId: occ.parentId,
+            gridId: occ.gridId,
+            fields: occ.fields || {},
+            _ancestorIds: ancestors.ids,
+            _ancestorLabels: ancestors.labels,
+            _fromOperation: true,
+          });
+        } finally {
+          // A large sweep is sliced and applies its effects later; the guard holds until then, or a row made by an
+          // op this fire ran would fire again once the depth had already dropped.
+          if (res?.__sliced?.then) res.__sliced.then(done, done); else done();
+        }
+      });
+    }, 0);
   }
 
   function fireOperations(transactionType, transaction) {
