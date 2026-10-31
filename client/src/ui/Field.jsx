@@ -126,6 +126,12 @@ const FIELD_FAMILY = "var(--cascade-field-font, var(--font-mono))";
 const FIELD_INK = (fallback) => `var(--cascade-field-ink, var(${fallback}))`;
 
 // The pill + menu for a `when` field. Opens the WhenPicker; Save writes the value, Clear writes null.
+// A pill's VALUE, in its own clip box: in a row the label stays still and only this scrolls when the pill is too wide
+// (ui/AutoMarquee `part`, OccurrenceFields). Outside a row it is plain inline content.
+function PillValue({ children }) {
+  return <span className="field-pill-value"><span className="field-pill-value-run">{children}</span></span>;
+}
+
 function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
   const [open, setOpen] = useState(false);
   const text = isWhen(value) ? describeWhen(value) : "—";
@@ -136,8 +142,8 @@ function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[length:var(--cascade-field-font-size,12px)] rounded-full border transition-all cursor-pointer hover:brightness-110 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
           style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text, fontFamily: FIELD_FAMILY }}
           title={`${name}: ${text} — Click to change`}>
-          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
-          <span>{text}</span>
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.6 }}>{name}:</span>}
+          <PillValue>{text}</PillValue>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start" side="bottom">
@@ -1816,7 +1822,7 @@ function Field({
             ? <img src={src} alt="" style={{ width: 14, height: 18, objectFit: "cover", borderRadius: 2 }} />
             : <ImagePlus style={{ width: 10, height: 10, opacity: 0.7 }} />}
           {/* Same caption, same token — see the note above. */}
-          {!hideName && name && <span style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{name}</span>}
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{name}</span>}
         </button>
       );
     }
@@ -1928,8 +1934,8 @@ function Field({
             : { background: pillTint.bg, borderColor: pillTint.border, color: pillTint.text }}
           title={`${name ? name + ": " : ""}Click to edit`}
         >
-          {!hideName && name && <span className="opacity-70">{name}:</span>}
-          <span>{formattedDisplay}</span>
+          {!hideName && name && <span className="opacity-70 field-pill-name">{name}:</span>}
+          <PillValue>{formattedDisplay}</PillValue>
         </button>
       );
       const linkHref = type === "text" ? fieldLinkHref(field, localValue) : null;
@@ -1967,7 +1973,7 @@ function Field({
           <Switch checked={isOn} disabled={disabled}
             onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
           {!hideName && name && (
-            <span style={{ fontSize: FIELD_FONT, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: FIELD_FAMILY }}>
+            <span className="field-pill-name" style={{ fontSize: FIELD_FONT, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: FIELD_FAMILY }}>
               {name}
             </span>
           )}
@@ -2004,8 +2010,8 @@ function Field({
               style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text }}
               title={`${name}: ${currentLabel}`}
             >
-              {!hideName && name && <span className="opacity-70">{name}:</span>}
-              <span>{currentLabel}</span>
+              {!hideName && name && <span className="opacity-70 field-pill-name">{name}:</span>}
+              <PillValue>{currentLabel}</PillValue>
               <ChevronDown className="w-2.5 h-2.5 opacity-50" />
             </button>
           </PopoverTrigger>
@@ -2078,8 +2084,8 @@ function Field({
           title={`${name}: ${formatted} — Click to change`}
           onClick={openPicker}
         >
-          {!hideName && name && <span style={{ fontFamily: FIELD_FAMILY, opacity: 0.6 }}>{name}:</span>}
-          <span style={{ fontFamily: FIELD_FAMILY }}>{formatted}</span>
+          {!hideName && name && <span className="field-pill-name" style={{ fontFamily: FIELD_FAMILY, opacity: 0.6 }}>{name}:</span>}
+          <PillValue><span style={{ fontFamily: FIELD_FAMILY }}>{formatted}</span></PillValue>
           <input ref={inputRef} type="date" value={inputDate} disabled={disabled}
             onChange={e => { handleChange(e.target.value); onCommit?.(e.target.value); }}
             style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
@@ -2093,7 +2099,7 @@ function Field({
       const currentRating = localValue ?? 0;
       return (
         <div className="field-input inline-flex items-center gap-0.5" title={`${name}: ${currentRating}/${maxRating}`}>
-          {!hideName && name && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginRight: 2 }}>{name}:</span>}
+          {!hideName && name && <span className="field-pill-name" style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginRight: 2 }}>{name}:</span>}
           {Array.from({ length: maxRating }, (_, i) => i + 1).map(star => (
             <button key={star} type="button" disabled={disabled}
               style={{ padding: 1, cursor: disabled ? "not-allowed" : "pointer" }}
@@ -2141,7 +2147,7 @@ function Field({
               title={`${name}: ${currentLabel}`}
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
-              {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
+              {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.7 }}>{name}:</span>}
               {/* THE SELECTION IS A CHIP, exactly as the multi-select renders
                   each of its own (user, 2026-08-19: *"make selectors like meal
                   show a pill inside like ingredient does. so one selected
@@ -2151,7 +2157,7 @@ function Field({
                   N=1 case of the other, down to the clear button.
                   EMPTY STAYS PLAIN — a chip around an em-dash reads as a
                   selection you cannot remove. */}
-              {localValue
+              <PillValue>{localValue
                 ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full"
                     style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text,
                              border: `1px solid ${OCC_PILL.border}` }}>
@@ -2159,7 +2165,7 @@ function Field({
                     <X className="h-2.5 w-2.5 cursor-pointer"
                       onClick={e => { e.stopPropagation(); handleChange(null); onCommit?.(null); }} />
                   </span>
-                : <span>{currentLabel}</span>}
+                : <span>{currentLabel}</span>}</PillValue>
               <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
             </button>
           </PopoverTrigger>
@@ -2730,7 +2736,7 @@ function Field({
     if (type === "rating") {
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase }}>
-          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.6 }}>{name}:</span>}
           <Stars rating={rawDisplayValue} max={meta?.max || 5} size="w-3 h-3" />
         </div>
       );
@@ -2744,8 +2750,8 @@ function Field({
           borderColor: isOn ? "rgba(34,197,94,0.35)" : "var(--border-default)",
           color: isOn ? "var(--accent-green-text)" : "var(--text-faint)",
         }}>
-          {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
-          <span>{isOn ? "yes" : "no"}</span>
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.7 }}>{name}:</span>}
+          <PillValue>{isOn ? "yes" : "no"}</PillValue>
         </div>
       );
     }
@@ -2756,8 +2762,8 @@ function Field({
           background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", color: "var(--occ-pill-text)",
         }}>
           <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
-          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
-          <span>{valueDisplay}</span>
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.6 }}>{name}:</span>}
+          <PillValue>{valueDisplay}</PillValue>
         </div>
       );
     }
@@ -2768,8 +2774,8 @@ function Field({
       const stripped = firstLine.replace(/^#+\s*/, "").replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "");
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase, maxWidth: 180 }}>
-          {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripped || "—"}</span>
+          {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.6 }}>{name}:</span>}
+          <PillValue>{stripped || "—"}</PillValue>
         </div>
       );
     }
@@ -2829,9 +2835,9 @@ function Field({
 
     return (
       <div className="field-display field-display-compact" style={{ ...pillBase, position: "relative" }}>
-        {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
+        {!hideName && name && <span className="field-pill-name" style={{ opacity: 0.6 }}>{name}:</span>}
         {RuleIcon && <RuleIcon size={10} style={{ flexShrink: 0, opacity: 0.85 }} />}
-        <span>{ruleDisplay ?? valueDisplay}</span>
+        <PillValue>{ruleDisplay ?? valueDisplay}</PillValue>
         {ruleSuffix && <span style={{ opacity: 0.7, marginLeft: 2 }}>{ruleSuffix}</span>}
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
       </div>

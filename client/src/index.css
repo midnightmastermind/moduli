@@ -6183,6 +6183,15 @@ input.artifact-thumb-info-name--editing {
   display: flex !important;
   align-items: center !important;
 }
+
+/* A field pill's label stays still and only its value scrolls (user, 2026-10-31). The pill shrinks to the marquee
+   box, the value (`.field-pill-value`, Field.jsx PillValue) clips its own overflow, and AutoMarquee's `part` mode
+   moves only the run inside it. */
+.instance-field-mq > .auto-marquee-inner { max-width: 100%; }
+/* every wrapper between the box and the value may shrink (FieldRenderer wraps the pill in two divs) */
+.instance-field-mq > .auto-marquee-inner :is(div, label, button, span:has(> .field-pill-value)) { max-width: 100%; min-width: 0; }
+.field-pill-value { display: inline-flex; overflow: hidden; min-width: 0; }
+.field-pill-value-run { display: inline-flex; align-items: center; gap: inherit; white-space: nowrap; }
 .instance-field-mq > .auto-marquee-inner {
   display: flex !important;
   align-items: center !important;

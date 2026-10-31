@@ -66,7 +66,11 @@ const SPEED_PX_PER_SEC = 35; // scroll speed; lower = slower
 const MIN_DURATION_S = 4;     // ensures the end-of-travel pauses read clearly
 const THRESHOLD_PX = 3; // ignore sub-pixel / rounding overflow
 
-export default function AutoMarquee({ children, className = "" }) {
+// `part` (a CSS selector, optional): scroll ONLY that element's content, inside its own clip, and leave the rest
+// still — a field pill's label stays put while its value moves (user, 2026-10-31: "make the marque for fields only
+// do the value and not the field label as well"). The element must hold one child (the "run") that is moved; it
+// clips itself. No match inside the content = the whole content scrolls, as without `part`.
+export default function AutoMarquee({ children, className = "", part = null }) {
   const boxRef = useRef(null);
   const innerRef = useRef(null);
   const [shift, setShift] = useState(0);
@@ -86,8 +90,11 @@ export default function AutoMarquee({ children, className = "" }) {
     const box = boxRef.current;
     const inner = innerRef.current;
     if (!box || !inner) return;
+    const partEl = () => (part ? inner.querySelector(part) : null);
     const measure = () => {
-      const over = inner.scrollWidth - box.clientWidth;
+      const clip = partEl();
+      const run = clip?.firstElementChild;
+      const over = clip && run ? run.scrollWidth - clip.clientWidth : inner.scrollWidth - box.clientWidth;
       setShift(over > THRESHOLD_PX ? over : 0);
     };
     // ── NO SYNCHRONOUS MEASURE ON MOUNT ──────────────────────────────────
@@ -108,8 +115,10 @@ export default function AutoMarquee({ children, className = "" }) {
     const ro = new ResizeObserver(measure);
     ro.observe(box);
     ro.observe(inner);
+    const clip = partEl();
+    if (clip) { ro.observe(clip); if (clip.firstElementChild) ro.observe(clip.firstElementChild); }
     return () => ro.disconnect();
-  }, [isStatic]);
+  }, [isStatic, part]);
 
   // Visibility is watched only when there is something to animate — an
   // observer per static label is the very per-instance cost this file already
@@ -134,6 +143,23 @@ export default function AutoMarquee({ children, className = "" }) {
     ? Math.max(MIN_DURATION_S, activeShift / SPEED_PX_PER_SEC)
     : 0;
 
+  // In `part` mode the RUN moves, not the whole content: its animation is set on the element itself.
+  const partMode = !!part;
+  useLayoutEffect(() => {
+    if (!partMode) return;
+    const run = innerRef.current?.querySelector(part)?.firstElementChild;
+    if (!run) return;
+    if (activeShift > 0) {
+      run.style.animation = `auto-marquee-scroll ${duration}s linear infinite alternate`;
+      run.style.setProperty("--mq-shift", `-${activeShift}px`);
+      run.classList.add("auto-marquee-inner--moving");
+    } else {
+      run.style.animation = "";
+      run.classList.remove("auto-marquee-inner--moving");
+    }
+  });
+  const partRuns = partMode && !!innerRef.current?.querySelector(part);
+
   return (
     <span
       ref={boxRef}
@@ -146,9 +172,9 @@ export default function AutoMarquee({ children, className = "" }) {
         ref={innerRef}
         // `--moving` names the labels that animate, so the scroll pause (index.css, helpers/scrollFlag)
         // restyles those few rather than every label on the page.
-        className={activeShift > 0 ? "auto-marquee-inner auto-marquee-inner--moving" : "auto-marquee-inner"}
+        className={activeShift > 0 && !partRuns ? "auto-marquee-inner auto-marquee-inner--moving" : "auto-marquee-inner"}
         style={
-          activeShift > 0
+          activeShift > 0 && !partRuns
             ? {
                 display: "inline-block",
                 animation: `auto-marquee-scroll ${duration}s linear infinite alternate`,

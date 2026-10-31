@@ -981,7 +981,7 @@ function InstanceInner({
   // (each box is a flex item), but a single pill that is itself wider than the
   // available width auto-scrolls instead of overflowing the container.
   const renderFieldPill = ({ field, binding }) => (
-    <AutoMarquee key={field.id} className="instance-field-mq">
+    <AutoMarquee key={field.id} className="instance-field-mq" part=".field-pill-value">
       <FieldRenderer
         field={field}
         binding={binding}
