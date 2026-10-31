@@ -37,6 +37,9 @@ async function call(path, params, key = process.env.TMDB_API_KEY) {
   return res.json();
 }
 
+/** The raw call, for callers that need more than search/detail (services/tvEpisodes). */
+export const tmdbRaw = call;
+
 const TMDB_KEY = { id: "tmdb", env: "TMDB_API_KEY", label: "TMDB API key (v3)",
   getUrl: "https://www.themoviedb.org/settings/api" };
 

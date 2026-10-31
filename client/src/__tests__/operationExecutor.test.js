@@ -2886,13 +2886,12 @@ describe("FIND action log entries carry boundVars", () => {
     expect(c.score).toBe(2);
   });
 
-  test("a $var on a FIND rule's LEFT still shows the var while matching on the record path", () => {
-    // This asymmetry is the WHOLE POINT of the row for the `$var`-on-the-left
-    // defect class (migration 0276): FIND evaluates the left as a RECORD PATH,
-    // so `$projKey` looks for a key literally named "$projKey" and matches
-    // nothing, while the display resolves the var so the user can see what they
-    // meant. Walking the record once must not quietly unify the two — that
-    // would hide the mismatch this row exists to expose.
+  test("a $var on a FIND rule's LEFT is the var — matched and shown the same", () => {
+    // INVERTED 2026-10-31. Until then a FIND evaluated the left as a RECORD PATH, so `$projKey` looked for a key
+    // literally named "$projKey" and matched nothing (migration 0276 moved two such guards out of FINDs by hand;
+    // this row showed the var while matching the path, to expose that). A `$var` left now resolves against $vars
+    // (operationActions.isVarLeft) — what every author of such a rule meant, and what a dropdown's options rule
+    // needs to read the row being edited ($this). `$item.` / `$record.` stay record paths.
     const tpl = { id: "mod_x", role: "instance", label: "X" };
     const occ = { id: "occ_x", moduleId: "mod_x", parentId: null, fields: {} };
     const ctx = {
@@ -2915,7 +2914,7 @@ describe("FIND action log entries carry boundVars", () => {
     const c = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND")
       .candidates.candidates[0];
     expect(c.ruleEvals[0].leftValue).toBe("hello");  // display: the var resolved
-    expect(c.ruleEvals[0].matched).toBe(false);      // match: the record has no such key
+    expect(c.ruleEvals[0].matched).toBe(true);       // match: the same value
   });
 
   test("a dangling parentId naming a prototype key invents no breadcrumb", () => {

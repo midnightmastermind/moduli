@@ -1198,6 +1198,39 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // browser's button does. Unlike the client, this WAITS for the preview before
   // minting: there is no row on screen to keep responsive, and minting the
   // finished bookmark in one write beats a second patch a moment later.
+  // ── TV episodes (migration 0472): the daily op "TV: Fetch New Episodes" calls this. Adds what TMDB lists that the
+  // Episodes board lacks, for shows not yet read and shows still airing (services/tvEpisodes). The rows reach the
+  // warm cache and every tab, like any REST write.
+  router.post("/tv/episodes/sync", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean();
+      if (!grid) return err(res, 404, "not_found", "grid not found");
+      const { syncTvEpisodes, tmdbClient, writeEpisodesToMongo } = await import("../services/tvEpisodes.js");
+      const { userSearchKeys } = await import("../services/searchKeys.js");
+      const key = (await userSearchKeys(req.userId)).tmdb || process.env.TMDB_API_KEY;
+      if (!key) return err(res, 409, "no_key", "no TMDB key (Command Center › Imports › Search sources)");
+      // Answers at once: a first read of many shows takes minutes, longer than an operation's API call waits.
+      res.status(202).json({ started: true });
+      syncTvEpisodes({
+        gridId: String(gridId), userId: req.userId, models: { Field, Occurrence }, tmdb: await tmdbClient(key),
+        write: async (rows, patch, ctx) => {
+          const docs = await writeEpisodesToMongo({ models: { Occurrence } }, rows, patch, ctx);
+          for (const d of docs) {
+            mirrorToCache(req.userId, String(gridId), "occurrence", d);
+            io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: d });
+          }
+          for (const id of [ctx.container.id, patch.id]) {
+            const o = await Occurrence.findOne({ gridId: String(gridId), id }).lean();
+            if (o) { mirrorToCache(req.userId, String(gridId), "occurrence", o); io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: o }); }
+          }
+        },
+      }).then((report) => console.log("📺 tv episodes sync", gridId, JSON.stringify(report)))
+        .catch((e) => console.error("📺 tv episodes sync failed", gridId, e.message));
+    } catch (e) { if (!res.headersSent) err(res, e.status || 500, "internal_error", e.message); }
+  });
+
   router.post("/bookmarks", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");

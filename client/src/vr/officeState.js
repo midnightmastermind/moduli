@@ -2,7 +2,7 @@
 // screens, the decor, the bookmarks bar. Pure — no React, no browser — so the server runs the same code
 // (vr/officeCore.js, bundled to server/generated/officeCore.mjs) and the control panel need not load the grid.
 import { readOffice } from "./officeConfig.js";
-import { shelfItems, folderShelfView, albumShelfItems, musicShelfView } from "./shelfItems.js";
+import { shelfItems, folderShelfView, albumShelfItems, musicShelfView, showEpisodeItems } from "./shelfItems.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { decorLibrary } from "./decorLibrary.js";
 import { sortOrderForDrop, sortOrderAtEnd } from "../helpers/treeOrder.js";
@@ -60,6 +60,8 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
         const albumId = at.slice(6).split("|")[0];
         const album = occurrencesById?.[albumId];
         const title = album ? (occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album") : "Album";
+        // A show on a VHS shelf: its episodes in season order.
+        if (s.asset === "vhs") return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
         // Its songs A–Z on the shelf (the record player still plays them in track order).
         const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
         const prev = at.split("|")[1] || "";

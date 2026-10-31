@@ -700,6 +700,13 @@ export function evalRule(rule, $vars) {
     case "NOT_HAS_ANCESTOR":
     case "ARRAY_NOT_INCLUDES":
       return !arrayIncludes(Array.isArray(leftVal) ? leftVal : [], rightVal);
+    // Two lists (or a list and one value) with at least one member in common — "the episode's Series is one
+    // of the shows picked on this row". Either side may be a single value. An empty side shares nothing.
+    case "SHARES_ANY": {
+      const as = (v) => (Array.isArray(v) ? v : (v == null || v === "" ? [] : [v])).map(String);
+      const r = new Set(as(rightVal));
+      return as(leftVal).some((a) => r.has(a));
+    }
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_EQUALS":
     // A WHEN value (a date + time, or a repeat — helpers/when.js) that falls on the day on the right.
@@ -1117,8 +1124,14 @@ export function evalRuleWithLeftValue(rule, leftVal, $vars) {
   }
 }
 
+// A record rule's LEFT is a path on the record — or a variable (`$this.fields.X.value`, the row being edited in a
+// dropdown's options rule), so a rule can say "when this row has no show picked yet". `$item.` / `$record.` stay
+// record paths (resolveRecordPath strips them).
+export const isVarLeft = (left) => typeof left === "string" && left.startsWith("$") && !/^\$(item|record)\./.test(left);
+
 export function evalRuleAgainstRecord(rule, record, $vars) {
-  return evalRuleWithLeftValue(rule, resolveRecordPath(record, rule.left), $vars);
+  const leftVal = isVarLeft(rule.left) ? (resolveExpr(rule.left, $vars) ?? null) : resolveRecordPath(record, rule.left);
+  return evalRuleWithLeftValue(rule, leftVal, $vars);
 }
 
 export function evalGroupAgainstRecord(group, record, $vars) {

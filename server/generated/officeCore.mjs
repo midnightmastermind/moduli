@@ -622,6 +622,13 @@ function evalRule(rule, $vars) {
     case "NOT_HAS_ANCESTOR":
     case "ARRAY_NOT_INCLUDES":
       return !arrayIncludes(Array.isArray(leftVal) ? leftVal : [], rightVal);
+    // Two lists (or a list and one value) with at least one member in common — "the episode's Series is one
+    // of the shows picked on this row". Either side may be a single value. An empty side shares nothing.
+    case "SHARES_ANY": {
+      const as = (v) => (Array.isArray(v) ? v : v == null || v === "" ? [] : [v]).map(String);
+      const r = new Set(as(rightVal));
+      return as(leftVal).some((a) => r.has(a));
+    }
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_EQUALS":
     // A WHEN value (a date + time, or a repeat — helpers/when.js) that falls on the day on the right.
@@ -843,8 +850,10 @@ function evalRuleWithLeftValue(rule, leftVal, $vars) {
     $vars[key] = prev;
   }
 }
+var isVarLeft = (left) => typeof left === "string" && left.startsWith("$") && !/^\$(item|record)\./.test(left);
 function evalRuleAgainstRecord(rule, record, $vars) {
-  return evalRuleWithLeftValue(rule, resolveRecordPath(record, rule.left), $vars);
+  const leftVal = isVarLeft(rule.left) ? resolveExpr(rule.left, $vars) ?? null : resolveRecordPath(record, rule.left);
+  return evalRuleWithLeftValue(rule, leftVal, $vars);
 }
 function evalGroupAgainstRecord(group, record, $vars) {
   const { operator = "AND", rules = [] } = group;
@@ -914,6 +923,7 @@ var COMPARATOR_CATALOG = [
   // ── Lists ───────────────────────────────────────────────────────────────
   { value: "ARRAY_INCLUDES", label: "list includes", group: "Lists" },
   { value: "ARRAY_NOT_INCLUDES", label: "list does not include", group: "Lists" },
+  { value: "SHARES_ANY", label: "shares any with", group: "Lists" },
   // ── Structure ───────────────────────────────────────────────────────────
   { value: "HAS_ANCESTOR", label: "has ancestor", group: "Structure" },
   { value: "NOT_HAS_ANCESTOR", label: "does not have ancestor", group: "Structure" }
@@ -1263,6 +1273,36 @@ function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) {
     };
   });
 }
+function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
+  const show = occurrencesById?.[showId];
+  if (!show) return [];
+  const ctx = { occurrencesById, modulesById };
+  const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
+  const order = (o) => {
+    const [, , s, e] = String(o.meta.episodeKey).split(":");
+    return Number(s) * 1e4 + Number(e);
+  };
+  const eps = [];
+  for (const o of Object.values(occurrencesById || {})) {
+    if (!o?.meta?.episodeKey) continue;
+    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
+  }
+  eps.sort((a, b) => order(a) - order(b));
+  return eps.map((o) => {
+    const mod = modulesById?.[o.moduleId];
+    const f = filesOf(o, ctx).find((e) => e.kind === "video");
+    const ref = f ? modulesById?.[f.occ.moduleId]?.fileRef : null;
+    return {
+      id: f?.occ?.id || o.id,
+      rowId: o.id,
+      title: (occurrenceDisplayLabel(o, mod) || "").trim() || "Episode",
+      cover: coverUrl(o, mod, null) || showCover,
+      fileId: f?.occ?.id || null,
+      fileKind: f ? "video" : null,
+      src: ref ? resolveFileRef(ref) : null
+    };
+  });
+}
 function bookmarkUrl(occ, mod) {
   if (mod?.kind !== "bookmark") return null;
   const u = occ?.meta?.url || mod.fileRef || "";
@@ -1301,7 +1341,7 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
       // (An album row, or a row whose fields name songs. The albums filled in from track lists are named BY their
       // songs, so their own fields name none.)
-      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById))
+      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)) || shelf.asset === "vhs" && mod?.kind === "series"
     });
   }
   return out;
@@ -1376,6 +1416,7 @@ var BUILTIN_DECOR = [
   { key: "vhsplayer", title: "VHS player" },
   { key: "clock", title: "Wall clock" },
   { key: "window", title: "Window" },
+  { key: "openwindow", title: "Open window" },
   { key: "couch", title: "Couch" },
   { key: "bed", title: "Queen bed" },
   { key: "lamp", title: "Floor lamp" },
@@ -1486,6 +1527,7 @@ function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, sh
       const albumId = at2.slice(6).split("|")[0];
       const album = occurrencesById?.[albumId];
       const title = album ? occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album" : "Album";
+      if (s.asset === "vhs") return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
       const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, void 0, { sensitivity: "base" }));
       const prev = at2.split("|")[1] || "";
       const artist = prev.startsWith("artist:") ? [prev.slice(7)] : [];
@@ -1604,5 +1646,6 @@ export {
   planFolderDelete,
   planShelfReorder,
   readOffice,
-  shelfItems
+  shelfItems,
+  showEpisodeItems
 };

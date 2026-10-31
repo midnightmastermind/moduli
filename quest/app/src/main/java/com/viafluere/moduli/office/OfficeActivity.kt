@@ -1187,7 +1187,8 @@ class OfficeActivity : AppSystemActivity() {
               // An album dropped anywhere but a player opens on its shelf: its songs, each a mini record.
               // A song's mini record does something only on a record player; let go anywhere else, it goes back.
               b.mini -> Log.i(TAG, "${b.title} put back (not on a record player)")
-              t.shelfAsset == "record" && b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
+              // (A TV show on a VHS shelf opens into its episodes the same way.)
+              b.album -> send(JSONObject().put("type", "openAlbum").put("key", t.key).put("id", itemField(t, b.itemId, "rowId").ifEmpty { b.itemId }))
               // A folder book pulled off the shelf goes back: a folder opens with a tap, not a pull (a pull meant to
               // move it opened it and left the shelf inside an empty folder — "the shelf crashed", 2026-10-27).
               // Let go while still pointing at itself: open it, however long it was held (user, 2026-10-27: "i

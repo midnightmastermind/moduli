@@ -18,7 +18,7 @@ import { BlockType } from "./blockTypes";
 import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
-import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord } from "./operationActions";
+import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord, isVarLeft } from "./operationActions";
 import { pickActivePeriod } from "./activePeriod";
 import { buildParentMap, allAncestorsOf } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
@@ -388,7 +388,7 @@ function collectFindCandidates(cfg, $vars, matchedId) {
         try { leftValue = resolveExpr(rule.left, $vars); } catch { leftValue = undefined; }
       }
       let matched = false;
-      try { matched = evalRuleWithLeftValue(rule, recordLeft, $vars); } catch { matched = false; }
+      try { matched = evalRuleWithLeftValue(rule, isVarLeft(rule.left) ? leftValue : recordLeft, $vars); } catch { matched = false; }
       if (matched) score++;
       ruleEvals[i] = {
         left: rule.left, comparator: rule.comparator, right: rule.right,

@@ -198,6 +198,11 @@ function evalRule(rule, $vars, record = null) {
     case "LESS_OR_EQUAL":  return Number(left) <= Number(right);
     case "CONTAINS":       return typeof left === "string" && left.includes(String(right));
     case "ARRAY_INCLUDES": return Array.isArray(left) && left.includes(right);
+    case "SHARES_ANY": {   // the client evalRule's twin: one member in common; either side may be one value
+      const as = (v) => (Array.isArray(v) ? v : (v == null || v === "" ? [] : [v])).map(String);
+      const r = new Set(as(right));
+      return as(left).some((a) => r.has(a));
+    }
     // Same words, ignoring case, accents, punctuation and spacing — how a
     // person's name is "the same" ("Inês O'Neil" / "ines oneil").
     case "SAME_TEXT":      return sameText(left, right);

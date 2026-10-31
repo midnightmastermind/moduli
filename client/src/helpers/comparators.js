@@ -79,6 +79,7 @@ export const COMPARATOR_CATALOG = [
   // ── Lists ───────────────────────────────────────────────────────────────
   { value: "ARRAY_INCLUDES",     label: "list includes",         group: "Lists" },
   { value: "ARRAY_NOT_INCLUDES", label: "list does not include", group: "Lists" },
+  { value: "SHARES_ANY",         label: "shares any with",       group: "Lists" },
 
   // ── Structure ───────────────────────────────────────────────────────────
   { value: "HAS_ANCESTOR",     label: "has ancestor",            group: "Structure" },

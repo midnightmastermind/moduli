@@ -223,6 +223,36 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
   });
 }
 
+/**
+ * A TV show opened on a VHS shelf (user, 2026-10-31: "a tv show shelf in vr that works like records and songs"): its
+ * episodes from the Episodes board (migration 0472 — rows carrying `meta.episodeKey` whose TV Show is this show),
+ * in season and episode order. Pure.
+ */
+export function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
+  const show = occurrencesById?.[showId];
+  if (!show) return [];
+  const ctx = { occurrencesById, modulesById };
+  const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
+  const order = (o) => { const [, , s, e] = String(o.meta.episodeKey).split(":"); return Number(s) * 10000 + Number(e); };
+  const eps = [];
+  for (const o of Object.values(occurrencesById || {})) {
+    if (!o?.meta?.episodeKey) continue;
+    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
+  }
+  eps.sort((a, b) => order(a) - order(b));
+  return eps.map((o) => {
+    const mod = modulesById?.[o.moduleId];
+    const f = filesOf(o, ctx).find((e) => e.kind === "video");
+    const ref = f ? modulesById?.[f.occ.moduleId]?.fileRef : null;
+    return {
+      id: f?.occ?.id || o.id, rowId: o.id,
+      title: (occurrenceDisplayLabel(o, mod) || "").trim() || "Episode",
+      cover: coverUrl(o, mod, null) || showCover,
+      fileId: f?.occ?.id || null, fileKind: f ? "video" : null, src: ref ? resolveFileRef(ref) : null,
+    };
+  });
+}
+
 export function bookmarkUrl(occ, mod) {
   if (mod?.kind !== "bookmark") return null;
   const u = occ?.meta?.url || mod.fileRef || "";
@@ -265,7 +295,9 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
       // (An album row, or a row whose fields name songs. The albums filled in from track lists are named BY their
       // songs, so their own fields name none.)
-      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)),
+      album: (shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)))
+        // A show on a VHS shelf opens into its episodes the same way.
+        || (shelf.asset === "vhs" && mod?.kind === "series"),
     });
   }
   return out;
