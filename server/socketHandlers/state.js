@@ -5,7 +5,7 @@ import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import { isCompressed } from "../utils/textmapCompression.js";
 import Grid from "../models/Grid.js";
 import { joinFeedGroup } from "./feedLeader.js";
-import { splitFullState } from "../utils/splitFullState.js";
+import { splitFullState, holdBackText } from "../utils/splitFullState.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 import { projectRowsForWire } from "../utils/wireProjection.js";
 
@@ -19,9 +19,11 @@ const REST_PUSH_FALLBACK_MS = 6000;
  * because a placement whose module has not arrived renders nothing while the
  * reverse never happens.
  */
-function emitDeferred({ socket, gridId, deferred, deferredModules }) {
+function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {} }) {
   const CHUNK = 4000;
-  const chunks = Math.ceil(deferred.length / CHUNK);
+  const heldText = Object.keys(textmaps).length;
+  // At least one chunk when only text is held back.
+  const chunks = Math.max(Math.ceil(deferred.length / CHUNK), heldText ? 1 : 0);
   for (let i = 0; i < chunks; i++) {
     // Absent keys are not sent — 23% of the catalogue is keys that are null on
     // every row (utils/omitNullKeys.js). THEN the dead keys go and the
@@ -40,10 +42,12 @@ function emitDeferred({ socket, gridId, deferred, deferredModules }) {
       // sees the shape it always saw.
       occurrencesHoisted: occ.hoisted,
       modulesHoisted: mod.hoisted,
+      // The text of pages nobody has open (utils/splitFullState.holdBackText), with the first chunk.
+      ...(i === 0 && heldText ? { textmaps } : {}),
       chunk: i + 1, chunks, done: i === chunks - 1,
     });
   }
-  console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules in ${chunks} chunk(s)`);
+  console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)`);
 }
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
@@ -191,8 +195,13 @@ export function registerStateHandlers(socket, {
       // every load. NOTHING IS WITHHELD: the second message follows immediately,
       // so the 19 ops that walk `$allItems` see exactly what they saw before.
       // See utils/splitFullState.js for the measurement and the role rule.
-      const { core, deferred, coreModules, deferredModules } =
-        splitFullState(allGridOccs, gridModules);
+      const split = splitFullState(allGridOccs, gridModules);
+      const { deferred, coreModules, deferredModules } = split;
+      // The panels on this grid and the page each one shows keep their text in this message; every other page's
+      // text follows with the catalogue (utils/splitFullState.holdBackText).
+      const keepRootIds = [...(gridDoc?.occurrences || []),
+        ...Object.values(uc.viewsById || {}).map((v) => v?.activeOccurrenceId).filter(Boolean)];
+      const { core, textmaps } = holdBackText(split.core, { keepRootIds, modules: gridModules });
 
       const coreWire = {
         modules: projectRowsForWire(omitNullKeysAll(coreModules)),
@@ -214,10 +223,10 @@ export function registerStateHandlers(socket, {
         grids,
         // The client holds its load sweep until the rest lands, so it must know
         // whether to expect a second message at all. 0 = this IS everything.
-        deferredCount: deferred.length,
+        deferredCount: deferred.length + Object.keys(textmaps).length,
       });
 
-      if (deferred.length) {
+      if (deferred.length || Object.keys(textmaps).length) {
         // THE CLIENT ASKS FOR THESE ONCE IT HAS PAINTED, and that is the point.
         // Pushing them in the same tick measured 16.73 MB already received by
         // first paint: the frames arrive back to back and their PARSE competes
@@ -228,7 +237,7 @@ export function registerStateHandlers(socket, {
         // FAIL OPEN: if no request arrives (an older tab, a client that never
         // paints) they are pushed anyway. A grid missing its catalogue forever
         // is far worse than one that loads it a beat early.
-        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules });
+        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules, textmaps });
         let sent = false;
         const once = () => { if (sent) return; sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); send(); };
         const onAsk = (p = {}) => { if (!p.gridId || p.gridId === gridId) once(); };

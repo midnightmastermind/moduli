@@ -436,7 +436,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (!restChunks) return;
     const payload = restChunks;
     restChunks = null;
-    if (payload.occurrences.length || payload.modules.length) {
+    if (payload.occurrences.length || payload.modules.length || Object.keys(payload.textmaps || {}).length) {
       socketDispatch({ type: ActionTypes.FULL_STATE_REST, payload });
     }
   }
@@ -481,13 +481,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     // Hold this chunk rather than dispatching it — one store write for the
     // whole catalogue (see above).
-    if (!restChunks) restChunks = { gridId: rest.gridId, occurrences: [], modules: [] };
+    if (!restChunks) restChunks = { gridId: rest.gridId, occurrences: [], modules: [], textmaps: {} };
     if (rest.occurrences?.length) restChunks.occurrences = restChunks.occurrences.concat(rest.occurrences);
     if (rest.modules?.length) restChunks.modules = restChunks.modules.concat(rest.modules);
+    // The text of pages nobody had open (server holdBackText) — merged by the reducer into rows that have none yet.
+    if (rest.textmaps) Object.assign(restChunks.textmaps, rest.textmaps);
 
     // Accumulate onto the pending payload so the sweep below sees the WHOLE
     // grid — the executor builds its maps from this object, not from the store.
     if (pendingFullState) {
+      // The load sweep reads this object, so it gets the held text too (fresh row objects — the store's are not
+      // mutated in place).
+      if (rest.textmaps && Object.keys(rest.textmaps).length) {
+        pendingFullState.occurrences = pendingFullState.occurrences.map((o) =>
+          (o && rest.textmaps[o.id] !== undefined && (o.textmap == null || o.textHeld) ? { ...o, textmap: rest.textmaps[o.id], textHeld: undefined } : o));
+      }
       if (rest.occurrences?.length) pendingFullState.occurrences = pendingFullState.occurrences.concat(rest.occurrences);
       if (rest.modules?.length) pendingFullState.modules = pendingFullState.modules.concat(rest.modules);
     }

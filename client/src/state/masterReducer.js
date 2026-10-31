@@ -78,14 +78,27 @@ function reduce(state, action) {
         // Returns the SAME state object when there is nothing new, so a
         // duplicate or empty chunk costs no re-render.
         case ActionTypes.FULL_STATE_REST: {
-            const { occurrences: incomingOccs = [], modules: incomingMods = [] } = action.payload || {};
+            const { occurrences: incomingOccs = [], modules: incomingMods = [], textmaps = null } = action.payload || {};
             const haveOcc = new Set((state.occurrences || []).map(o => o?.id));
             const addOccs = incomingOccs.filter(o => o?.id && !haveOcc.has(o.id));
             const haveMod = new Set((state.modules || []).map(m => m?.id));
             const addMods = incomingMods.filter(m => m?.id && !haveMod.has(m.id));
+            // HELD-BACK TEXT (server holdBackText): the first message carried these rows without their textmap and
+            // marked `textHeld`. Each goes onto its row while the row has no text OR is still marked (a reconnecting
+            // tab kept its in-memory text through FULL_STATE; this copy is the server's current one).
+            let textFilled = 0;
+            let baseOccs = state.occurrences || [];
+            if (textmaps && Object.keys(textmaps).length) {
+                baseOccs = baseOccs.map(o => {
+                    if (!o || textmaps[o.id] === undefined || (o.textmap != null && !o.textHeld)) return o;
+                    textFilled++;
+                    const { textHeld, ...row } = o;
+                    return { ...row, textmap: textmaps[o.id] };
+                });
+            }
             // The wait is over whether or not this chunk carried anything new
             // — a duplicate or empty final chunk still means the rest arrived.
-            if (!addOccs.length && !addMods.length)
+            if (!addOccs.length && !addMods.length && !textFilled)
                 return state.awaitingDeferred ? { ...state, awaitingDeferred: false } : state;
 
             const modules = addMods.length ? [...(state.modules || []), ...addMods] : state.modules;
@@ -102,7 +115,7 @@ function reduce(state, action) {
                     artifacts: derived.artifacts,
                     textblocks: derived.textblocks,
                 } : {}),
-                occurrences: addOccs.length ? [...(state.occurrences || []), ...addOccs] : state.occurrences,
+                occurrences: addOccs.length ? [...baseOccs, ...addOccs] : (textFilled ? baseOccs : state.occurrences),
                 awaitingDeferred: false,
             };
         }

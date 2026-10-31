@@ -102,3 +102,52 @@ function collectEmbedIds(node, out) {
   if (typeof id === "string" && id) out.add(id);
   if (Array.isArray(node.content)) for (const c of node.content) collectEmbedIds(c, out);
 }
+
+/**
+ * HOLD BACK THE TEXT OF PAGES NOBODY HAS OPEN (user, 2026-10-31: "lets try to drop down that time"; answer: hold
+ * it back). Measured that day: document text was 9.8 MB of a 32.7 MB first message — ~1,300 notes pages, none of
+ * them on screen. (In April it was 1.2 MB and deferring it was rightly reverted.)
+ *
+ * The rows themselves stay in the first message (ops and the tree need them); only `textmap` moves to the second,
+ * keyed by id. KEPT: everything reachable DOWN from `keepRootIds` (the panels and the pages they show) through
+ * `occurrences[]` and textmap embeds — except that a FOLDER page's children are not followed (the Root folder page
+ * would pull in every note; a preview card's text arrives a moment later). HELD: text on rows reachable from some
+ * OTHER page and not kept. A row under no page (a loose chip) keeps its text. Pure.
+ *
+ * @returns {{ core, textmaps }} core with held rows' textmap removed and `textHeld: true` (new objects), textmaps { id: textmap }
+ */
+export function holdBackText(core = [], { keepRootIds = [], modules = [] } = {}) {
+  const modById = new Map(modules.map((m) => [m?.id, m]));
+  const byId = new Map(core.map((o) => [o?.id, o]));
+  const isFolderPage = (o) => { const m = modById.get(o?.moduleId); return m?.role === "page" && m?.kind === "folder"; };
+  const isPage = (o) => modById.get(o?.moduleId)?.role === "page";
+  const children = (o) => {
+    const out = [...(o?.occurrences || [])];
+    if (o?.textmap && typeof o.textmap === "object") { const s = new Set(); collectEmbedIds(o.textmap, s); out.push(...s); }
+    return out;
+  };
+  const walk = (roots, seen, stopAtFolders) => {
+    const stack = [...roots];
+    while (stack.length) {
+      const id = stack.pop();
+      if (!id || seen.has(id)) continue;
+      const o = byId.get(id);
+      if (!o) continue;
+      seen.add(id);
+      if (stopAtFolders && isFolderPage(o)) continue;
+      for (const c of children(o)) if (!seen.has(c)) stack.push(c);
+    }
+    return seen;
+  };
+  const kept = walk(keepRootIds, new Set(), true);
+  const underPages = walk(core.filter((o) => isPage(o) && !kept.has(o.id)).map((o) => o.id), new Set(), false);
+  const textmaps = {};
+  const out = core.map((o) => {
+    if (!o?.textmap || kept.has(o.id) || !underPages.has(o.id)) return o;
+    textmaps[o.id] = o.textmap;
+    const { textmap, ...rest } = o;
+    // Marked, so a reconnecting tab knows the text it holds in memory is to be replaced by the copy that follows.
+    return { ...rest, textHeld: true };
+  });
+  return { core: out, textmaps };
+}
