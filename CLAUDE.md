@@ -534,6 +534,48 @@ there (997 skies searched).
 
 ---
 
+### 2026-10-31 (7) — EPISODES + SEASONS FROM TMDB; DRILL BUTTONS BETWEEN BOARDS; A "COUNT BY FIELD" STEP; FIELD LABELS STAY STILL
+
+User: an Episodes board for every show (answers: all 187, everything listed until a show is picked, a daily check) ·
+"a seasons field … (extra board)" · "so this is like albums" · buttons to drill down/up between boards, "skippable",
+"it should be an operation" · counts on the drill-down rows · "fix the episodes board for the remaining shows" · "the
+marque for fields only do the value and not the field label". Picked up the main account (limit at 10:50; it had
+just deployed 0471).
+- **`0472`** — Boards/Media › Episodes (`tv:episodes`), shared Episode module; fields TV Show, Season, Episode #, Air
+  Date, Episode. `services/tvEpisodes.js`: a show is matched on TMDB by its OWN poster first, then year, then a top
+  hit carrying its exact name (TMDB's first hit for "Dark" is Dark Shadows); the id is kept in `meta.tmdbId`.
+  `POST /api/v1/tv/episodes/sync` (202, runs in the background, warm cache + broadcast) is called by the daily op
+  "TV: Fetch New Episodes"; a read show re-reads from its latest season, an Ended show is skipped.
+- **`0473`** — Seasons board between them (show:season:episode = artist:album:song): a row per show per season with an
+  **Episode List**, every episode linked by **TV Season**. Harmontown (still a TV show) reads its podcast feed
+  (`meta.podcastFeed`, one season, keyed by guid). Fixed: NGE / George Carlin names + TMDB ids, Dark, Mythos;
+  deleted "Season 4", "Season 9" (folder names) and the Gervais radio show (no list anywhere). Totals: 14,787
+  episodes, 909 seasons, 186 shows.
+- **Options rules can read the row being edited:** a record rule's LEFT may be a `$var` (`$this.fields.X.value`) —
+  until now a `$var` left looked up a record key literally named "$x" and matched nothing (the 0276 trap, fixed in
+  the data back then; the one live leftover, a `$lgId` guard on test grid 1, now works as written). New comparator
+  **SHARES_ANY**. Episode narrows to the picked show and season, TV Season to the show, Song to the album
+  (Sing binds Album). Watch binds TV Show / TV Season / Episode.
+- **`0474`** — drill buttons, all data: one button field per destination board, one operation per button that reads
+  the pressed row's Board Category, sets the destination board's local filter and switches the panel. Artist: Albums ·
+  Songs (skips albums); album: Songs · ◀ Artists; song: ◀ Albums (that artist's albums) · ◀ Artists; author ↔ book;
+  show: Seasons · Episodes; season: Episodes · ◀ TV Series; episode: ◀ Seasons · ◀ TV Series; meal ↔ ingredient. The
+  4 music ops were rewritten in this shape. Ingredients gained a hidden **In Meals** list kept by "Meals: Link
+  Ingredients" (meals name their ingredients, and a board filter can only match a field its own rows carry).
+- **COUNT_BY ("# count by field")** — one pass over the rows counting each value of a link field, written on rows of
+  the named modules carrying the count field, only when changed (`ofModules` / `toModules`). **`0475`**: Album Count,
+  Song Count, Book Count, Season Count, Episode Count, Ingredient Count, each an operation (onLoad, onAdd/onDelete in
+  the child board, onChange of the link). Filled by the migration.
+- **VR:** a show on a VHS shelf opens into its episodes (web half deployed; the Quest app's openAlbum gate was
+  record-only — changed in `OfficeActivity.kt`, NOT built or sideloaded).
+- **Field marquee:** `AutoMarquee` `part` mode — only `.field-pill-value`'s run moves (Field.jsx `PillValue` on 9
+  pill variants); measured on a local build against prod: label x unchanged over 3.5s, value moved its 8px.
+- **Load cost, measured after (prod, fresh browser, CPU 1x):** first message **48 MB**, rows at **11.6s**. Episodes
+  are 18.4 MB of stored rows (instances, so they ride in the core half). Not changed — the user's call.
+- Not watched in a browser: the drill buttons and the counts (executor-tested, 7 + 6 tests).
+
+---
+
 ### 2026-10-26 — THE HEADSET WAS KILLED FOR MEMORY: the control panel no longer loads the grid
 
 User (on the Quest 3S): the app slow, shelves "lose connection", drops do nothing. Measured over adb: the
