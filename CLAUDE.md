@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 (5) — BUTTON-MADE ROWS FIRE onAdd; a changed pick clears what it no longer fills; Ingredient sums the minerals (`0468`)
+
+- User: *"the operations should work for all onAdd buttons as well"*. A row an operation creates INSIDE a user
+  action (a button, a form) now fires OccurrenceCreateOp (`bindSocketToStore.fireOpCreateTrigger`, deferred a task,
+  run in the gesture's action). Derived / action-less creates (load sweep, schedules) and feed copies fire nothing;
+  rows made by the ops that fire runs do not fire again (one level, held until a sliced sweep finishes). Test
+  `opCreateFiresOnAdd` (5; A/B: no call fails 2, no depth guard fails 1). `0467`'s explicit RUN_OPERATION is now
+  redundant (Place Dated Work is idempotent), left in place.
+- User: cleared Meal and Ingredients, *"the cal and carbs stayed the same but the protien and fats zeroed out"*.
+  The transaction log: each removal re-summed, the last ingredient left was 70 / 0 / 20 / 0, and removing it wrote
+  nothing (prefill skipped an empty pick and "never overwrote with empty"). `planPrefill` now CLEARS a filled field
+  when the pick is emptied or when nothing left in it carries a value, chained (Meal → Ingredients → nutrients).
+  A pick whose rows have not loaded still writes nothing. Tests `prefillFromPick` (A/B: 3 fail on the old helper).
+- *"I also need all the other supplements to update"*: Eat binds (hidden) Magnesium, Iron, Zinc, Calcium, Omega-3,
+  Sodium, Potassium; the Ingredient prefill never named them. `0468` adds a sum row for every number field the
+  Ingredient-binding rows carry and the map lacks (dry run named exactly those 7; 17 → 24 rows). Only 16 of 363
+  ingredient rows carry a non-zero mineral, so most totals stay 0 until values are entered.
+- Prefill is configured per field in Command Center › Fields › (an occurrence field) › Prefill (`PrefillEditor`).
+
+---
+
 ### 2026-10-31 (4) — "NEW TASK" PLACES ITS OWN TASK (`0467`)
 
 User: *"i just created a task todo and it didnt add it to the schedule todo until i reloaded"*. Read back: the task
