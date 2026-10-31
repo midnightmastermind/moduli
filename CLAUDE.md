@@ -534,6 +534,26 @@ there (997 skies searched).
 
 ---
 
+### 2026-10-31 (8) — FIRST LOAD 48 MB -> 23.8 MB: episodes are catalogue rows, unopened pages' text follows the paint
+
+User: episodes should "load after the screen" · "lets try to drop down that time" · hold back unopened pages' text: yes.
+- **`0476`** — the Episode and Season modules are `role: "artifact"` (kind episode / season), so their 15,696 rows go
+  in the second message like shows and albums (`splitFullState`'s one rule). TV Season / Episode / Episode List
+  options read `$allItems`. 48 -> 32.7 MB.
+- **`splitFullState.holdBackText`** — document text had grown to 9.8 MB (the Codex notes; it was 1.2 MB when the
+  April deferral was rightly reverted). Text stays in the first message for what is reachable down from the grid's
+  panels and every view's active page (through lists and textmap embeds; NOT through a folder page's children, or
+  the Root folder page pulls in every note). The text of other pages' rows moves to the first `full_state_rest`
+  chunk as `textmaps {id: textmap}`; those rows arrive marked `textHeld`. Client: the reducer fills a row with no
+  text or still marked held (a reconnect keeps old text in memory through FULL_STATE), never one with local text;
+  the load sweep's copy gets it too. 3,315 texts / 9.05 MB held, 83ms on the server.
+- **Measured on prod (fresh browser, CPU 1x, 3 runs):** first message 48 -> **23.8 MB**, rows on screen 11.6 ->
+  **6.5-6.9s**. All 5,977 rows with text in Mongo have it in the browser after load, 0 left marked, 0 page errors.
+- A note opened in the first second or two after a load shows empty until its text lands (the server refuses a
+  save built on the missing text).
+
+---
+
 ### 2026-10-31 (7) — EPISODES + SEASONS FROM TMDB; DRILL BUTTONS BETWEEN BOARDS; A "COUNT BY FIELD" STEP; FIELD LABELS STAY STILL
 
 User: an Episodes board for every show (answers: all 187, everything listed until a show is picked, a daily check) ·
