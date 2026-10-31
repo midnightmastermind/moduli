@@ -62,7 +62,23 @@ export function cadenceMs(schedule) {
 
 const WHEN_GRACE_MS = 15 * 60_000;
 
-export function isDueAt(schedule, now, lastFiredAt) {
+/** The latest "HH:MM" in `times` at or before `now` — today's, else yesterday's (an alarm just before midnight). */
+export function lastAtTimeAtOrBefore(times, now) {
+  if (!Array.isArray(times) || !times.length) return null;
+  let best = null;
+  for (const dayBack of [0, 1]) {
+    for (const hm of times) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || ""));
+      if (!m) continue;
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayBack, Number(m[1]), Number(m[2]), 0, 0);
+      if (d.getTime() <= now.getTime() && (!best || d > best)) best = d;
+    }
+    if (best) return best;
+  }
+  return best;
+}
+
+export function isDueAt(schedule, now, lastFiredAt, notBefore = null) {
   if (!schedule) return false;
   const lastMs = lastFiredAt ? new Date(lastFiredAt).getTime() : 0;
   if (schedule.kind === "interval") {
@@ -77,13 +93,15 @@ export function isDueAt(schedule, now, lastFiredAt) {
     return t.getTime() > lastMs && now.getTime() - t.getTime() <= WHEN_GRACE_MS;
   }
   if (schedule.kind === "atTimes") {
-    const times = Array.isArray(schedule.times) ? schedule.times : [];
-    if (!times.length) return false;
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    if (!times.includes(`${hh}:${mm}`)) return false;
-    // Dedup: don't fire twice within the same minute on any device.
-    return now.getTime() - lastMs > 60_000;
+    // Due when an alarm time has passed since the last fire and is at most WHEN_GRACE_MS ago. It used to
+    // ring only if a tick landed INSIDE that exact minute — a background tab's timers are throttled to
+    // about one a minute and a sleeping tab runs none, so a 6:30 alarm missed its minute and never rang
+    // (user, 2026-10-31; poms' last 6:30 fire was Oct 21). `notBefore` (an alarm set or retimed while
+    // this tab was open) stops a time that had already passed from ringing the moment it is saved.
+    const t = lastAtTimeAtOrBefore(schedule.times, now);
+    if (!t) return false;
+    const floor = Math.max(lastMs, notBefore ? new Date(notBefore).getTime() : 0);
+    return t.getTime() > floor && now.getTime() - t.getTime() <= WHEN_GRACE_MS;
   }
   return false;
 }
@@ -101,6 +119,10 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
   // otherwise the harmless-but-leaky setTimeout would still fire after the
   // hook has torn down.
   const inFlightTimersRef = useRef(new Set());
+  // The atTimes list each op had when this tab first saw it, and when it last CHANGED here. An alarm made
+  // or retimed while the tab is open must not ring for a time already passed; one seen at load may
+  // (that is the catch-up for a tab that slept through it).
+  const seenTimesRef = useRef(new Map());
 
   useEffect(() => {
     if (!operationsById || !socket) return;
@@ -119,7 +141,15 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
         if (!opRunsOnGrid(op, state)) continue;   // another grid's alarm must not ring here
         if (inFlight.has(opId)) continue;
         const sched = op.schedule;
-        if (!isDueAt(sched, now, sched.lastFiredAt)) continue;
+        let notBefore = null;
+        if (sched.kind === "atTimes") {
+          const key = JSON.stringify(sched.times || []);
+          const seen = seenTimesRef.current.get(opId);
+          if (!seen) seenTimesRef.current.set(opId, { key, changedAt: null });
+          else if (seen.key !== key) seenTimesRef.current.set(opId, { key, changedAt: now.getTime() });
+          notBefore = seenTimesRef.current.get(opId).changedAt;
+        }
+        if (!isDueAt(sched, now, sched.lastFiredAt, notBefore)) continue;
 
         try {
           inFlight.add(opId);

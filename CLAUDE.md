@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 — A TAB LEFT OPEN OVERNIGHT RELOADS ONTO TODAY; an alarm that missed its minute still rings
+
+User: *"make sure that my overall filter changes to todays date on first load? also the alarm for 6am is never going
+off anymore … i came back to the page this morning with the last update being like at 8pm the night before and it
+didnt do anything till i reloaded"*. Measured: prod's log shows the tab reconnecting with its last send **11h**
+earlier and the grid's transactions stop at 9:15pm and resume at 8:14am — the browser had put the tab to sleep
+(Edge, sleeping tabs). The 6:30 alarm last rang **Oct 21**. A reload DID snap the date (`activeFilterValues` reads
+today), so the snap op works; it simply never ran in a tab that never reloaded.
+- **`helpers/dayRollover.js`** (installed in `main.jsx` for the grid app only): when the local calendar day differs
+  from the day the page loaded, reload — checked on visibilitychange, `resume`, pageshow, focus and once a minute;
+  never while typing; at most once per day. The reload is the "first load of the day" Snap Filter To Today and the
+  day builders are written for.
+- **`useScheduler.isDueAt` atTimes**: due when an alarm time passed since the last fire and is at most 15 min ago
+  (was: only if a tick landed inside that exact minute — a throttled background tab ticks about once a minute).
+  `notBefore` keeps a time set/retimed while the tab is open from ringing at once. Test
+  `dayRolloverAndAlarmCatchUp` (13; the old scheduler fails the 3 catch-up cases).
+- **Not fixable from the page:** a sleeping tab runs nothing, so an alarm cannot ring while the tab sleeps. The user
+  must add viafluere.com to Edge's "Never put these sites to sleep" list.
+
+---
+
 ### 2026-10-30 (13) — DOC SECTIONS DRAW READ-ONLY UNTIL NEAR VIEW: Eminem's open freeze 5s → 0.6s
 
 User: *"yes please"* (lazy section editors) · *"also look at the time it takes to open the manifest sidebar"*.

@@ -25,6 +25,7 @@ import { hasSession } from "./helpers/authStorage.js";
 import { PROMO_PATHS } from "./promo/promoPaths.js";
 import { operationsBridge } from "./state/bindSocketToStore";
 import { installStaleChunkReload } from "./helpers/staleChunkReload.js";
+import { installDayRolloverReload } from "./helpers/dayRollover.js";
 import { installHeadsetScroll } from "./helpers/headsetScroll.js";
 
 // READ_FILE (operations) reads a pdf / e-book's text in the page. Wired here, not in the executor,
@@ -114,7 +115,8 @@ if (isSharePath) {
     </React.Suspense>
   );
 } else {
-  // Full app
+  // Full app. A tab left open past midnight reloads itself onto the new day (helpers/dayRollover).
+  installDayRolloverReload();
   const App = React.lazy(() => import("./App"));
   root.render(
     <React.Suspense fallback={null}>
