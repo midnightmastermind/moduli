@@ -25,6 +25,7 @@ import { pickPanelOccurrence } from "../../helpers/lastPanel";
 import { openOccurrenceInPanel } from "../../helpers/openOccurrenceInPanel";
 import { toast } from "../../state/notificationStore";
 import DestinationPicker from "../DestinationPicker";
+import SearchSourcesSection from "./SearchSourcesSection";
 import { buildContainerCrumbOptions } from "../../helpers/containerCrumbs";
 import {
   shareRulesFrom, freeShareTypes, newShareRule, shareTriggerOf, isCatchAll,
@@ -67,7 +68,7 @@ function shortTime(at) {
 const typeLabel = (t) => (t === "*" ? "Anything else" : SHARE_TYPES.find(x => x.id === t)?.label || t || "—");
 
 function SubTabs({ value, onChange, logCount }) {
-  const tabs = [["rules", "Rules"], ["log", `Recent shares${logCount ? ` (${logCount})` : ""}`], ["feeds", "Feeds"]];
+  const tabs = [["rules", "Rules"], ["log", `Recent shares${logCount ? ` (${logCount})` : ""}`], ["feeds", "Feeds"], ["sources", "Search sources"]];
   return (
     <div style={{ display: "flex", gap: 4 }}>
       {tabs.map(([id, label]) => (
@@ -453,7 +454,8 @@ export function ImportsTab() {
         <ShareGridPicker grids={state?.availableGrids} />
       </div>
 
-      {sub === "feeds" ? <FeedSubscriptions gridId={gridId} gridFeeds={state?.grid?.feeds} containerOptions={feedContainerOptions} />
+      {sub === "sources" ? <SearchSourcesSection />
+        : sub === "feeds" ? <FeedSubscriptions gridId={gridId} gridFeeds={state?.grid?.feeds} containerOptions={feedContainerOptions} />
         : sub === "log" ? <ShareLog entries={log} /> : (
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 190px", display: "flex", flexDirection: "column", gap: 3 }}>

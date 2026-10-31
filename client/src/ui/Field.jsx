@@ -12,6 +12,7 @@
 // ============================================================
 
 import { manualValues } from "../helpers/optionsResolver.js";
+import { sessionHeaders } from "../helpers/authStorage.js";
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
 import { useButtonRunner, buttonListeners } from "../helpers/buttonRun";
 import { pressPanel } from "../helpers/pressPanel";
@@ -1527,7 +1528,7 @@ function Field({
               `/api/search/${encodeURIComponent(occSearchProvider)}/detail`
               + `?title=${encodeURIComponent(r?.title || "")}`
               + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
-              { headers: { Accept: "application/json" } },
+              { headers: { Accept: "application/json", ...sessionHeaders() } },
             ).then((x) => x.json());
             mapped = mapProviderFields(j?.result?.fields, occSearchCfg.fieldMap, fieldsById, occSearchCfg.valueAliases).values;
           } catch {

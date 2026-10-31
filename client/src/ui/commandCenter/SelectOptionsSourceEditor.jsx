@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { manualValues } from "../../helpers/optionsResolver.js";
 import { providerKeysFromSamples } from "../../helpers/providerFieldMap.js";
+import { sessionHeaders } from "../../helpers/authStorage.js";
 import DrilldownPicker from "../DrilldownPicker";
 import FieldSelect from "../FieldSelect.jsx";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
@@ -588,7 +589,7 @@ function SearchProviderBody({ source, onChange }) {
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    fetch("/api/search/providers", { headers: { Accept: "application/json" } })
+    fetch("/api/search/providers", { headers: { Accept: "application/json", ...sessionHeaders() } })
       .then(r => r.json())
       .then(j => { if (alive && j?.ok) setProviders(j.providers || []); })
       .catch(() => { /* offline: the picker just stays empty and says so */ });
@@ -618,13 +619,13 @@ function SearchProviderBody({ source, onChange }) {
     if (!q || !cfg?.provider) return;
     setSample(s => ({ ...s, state: "loading", error: null }));
     try {
-      const sr = await fetch(`/api/search/${encodeURIComponent(cfg.provider)}?q=${encodeURIComponent(q)}&limit=1`)
+      const sr = await fetch(`/api/search/${encodeURIComponent(cfg.provider)}?q=${encodeURIComponent(q)}&limit=1`, { headers: sessionHeaders() })
         .then(r => r.json());
       const first = sr?.results?.[0];
       if (!first) { setSample(s => ({ ...s, state: "done", keys: [], error: "no results for that query" })); return; }
       const dr = await fetch(
         `/api/search/${encodeURIComponent(cfg.provider)}/detail?title=${encodeURIComponent(first.title)}`
-        + `&externalId=${encodeURIComponent(first.externalId || "")}`
+        + `&externalId=${encodeURIComponent(first.externalId || "")}`, { headers: sessionHeaders() }
       ).then(r => r.json());
       const keys = providerKeysFromSamples([dr?.result].filter(Boolean));
       setSample(s => ({ ...s, state: "done", keys, error: keys.length ? null : "that result carried no fields" }));

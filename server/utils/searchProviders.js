@@ -99,29 +99,80 @@ export function getProvider(id) {
   return PROVIDERS[id] || null;
 }
 
+// ── API KEYS ───────────────────────────────────────────────────────────────
+//
+// A keyed provider declares `apiKey: { id, env, label, getUrl, demo }`.
+//   id      the KEY's id, shared by providers that use one account (TMDB films + TV)
+//   env     a server env var that supplies it when the user has set none
+//   demo    a public demo key the service hands out (USDA's DEMO_KEY), used last
+// The user's own key comes first (Command Center › Imports › Search sources, stored encrypted on their
+// account — services/searchKeys), then the server env, then the demo key. `requiresEnv` is the older
+// spelling and still means `{ id: provider.id, env }`.
+
+/** The provider's key declaration, or null for a keyless provider. */
+export function keySpecOf(provider) {
+  if (!provider) return null;
+  if (provider.apiKey) return { id: provider.apiKey.id || provider.id, ...provider.apiKey };
+  if (provider.requiresEnv) return { id: provider.id, env: provider.requiresEnv };
+  return null;
+}
+
+/** The key to use for this provider: the user's, else the server's env, else the demo key, else null. */
+export function resolveProviderKey(provider, env = process.env, userKeys = {}) {
+  const spec = keySpecOf(provider);
+  if (!spec) return null;
+  return userKeys?.[spec.id] || (spec.env ? env[spec.env] : null) || spec.demo || null;
+}
+
+/** Where this provider's key would come from right now: "user" | "server" | "demo" | "none" | null (keyless). */
+export function keySourceOf(provider, env = process.env, userKeys = {}) {
+  const spec = keySpecOf(provider);
+  if (!spec) return null;
+  if (userKeys?.[spec.id]) return "user";
+  if (spec.env && env[spec.env]) return "server";
+  if (spec.demo) return "demo";
+  return "none";
+}
+
 /**
  * Why this provider cannot be used right now, or null if it can.
  *
  * `availableProviders` hides a keyed provider from the PICKER, but a field
  * stamped with one before the key existed still names it — and `getProvider`
  * still returns it, so the route would call it and surface the thrown
- * "TMDB_API_KEY is not set" as a generic 502 upstream error on every keystroke.
- * That reads as "the movie database is down" when the truth is "this deployment
- * was never given a key", and those want different responses from the reader.
+ * error as a generic 502 upstream error on every keystroke.
+ * That reads as "the movie database is down" when the truth is "no key was
+ * ever given", and those want different responses from the reader.
  */
-export function providerUnavailableReason(provider, env = process.env) {
+export function providerUnavailableReason(provider, env = process.env, userKeys = {}) {
   if (!provider) return null;
-  if (provider.requiresEnv && !env[provider.requiresEnv]) {
-    return `"${provider.label}" needs ${provider.requiresEnv} to be set on the server.`;
+  if (keySourceOf(provider, env, userKeys) === "none") {
+    const spec = keySpecOf(provider);
+    return `"${provider.label}" needs an API key — add it in Command Center › Imports › Search sources`
+      + (spec.env ? ` (or set ${spec.env} on the server).` : ".");
   }
   return null;
 }
 
 /** Which providers are usable right now — a keyed one with no key is NOT offered. */
-export function availableProviders(env = process.env) {
+export function availableProviders(env = process.env, userKeys = {}) {
   return Object.values(PROVIDERS)
-    .filter((p) => !p.requiresEnv || env[p.requiresEnv])
-    .map((p) => ({ id: p.id, label: p.label, needsKey: !!p.requiresEnv }));
+    .filter((p) => keySourceOf(p, env, userKeys) !== "none")
+    .map((p) => ({ id: p.id, label: p.label, needsKey: !!keySpecOf(p) }));
+}
+
+/** Every keyed provider's key, one row per KEY (providers sharing a key are listed together). */
+export function keyRows(env = process.env, userKeys = {}) {
+  const rows = new Map();
+  for (const p of Object.values(PROVIDERS)) {
+    const spec = keySpecOf(p);
+    if (!spec) continue;
+    const row = rows.get(spec.id) || { id: spec.id, label: spec.label || `${p.label} API key`, getUrl: spec.getUrl || null,
+      env: spec.env || null, hasDemo: !!spec.demo, providers: [], source: keySourceOf(p, env, userKeys) };
+    row.providers.push({ id: p.id, label: p.label });
+    rows.set(spec.id, row);
+  }
+  return [...rows.values()];
 }
 
 // ── TRANSIENT FAILURES ─────────────────────────────────────────────────────

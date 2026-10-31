@@ -788,9 +788,18 @@ async function searchImagesWikipedia(q, max = 8) {
 // — and the field editor + the occurrence dropdown call these from the page.
 // Same auth class as `/api/images/search` directly below: a keyless proxy to a
 // public API, on behalf of this app's own UI.
-app.get("/api/search/providers", handleProvidersList);
-app.get("/api/search/:provider", handleProviderSearch);
-app.get("/api/search/:provider/detail", handleProviderDetail);
+// The signed-in user (when there is one) picks the API keys a search uses — their own from Command Center ›
+// Imports › Search sources. Signed out still works for keyless providers and server/demo keys.
+const searchUser = (req, _res, next) => {
+  const h = req.headers.authorization || "";
+  const t = h.startsWith("Bearer ") ? h.slice(7).trim() : null;
+  const s = t ? verifyToken(t) : null;
+  if (s?.userId) req.searchUserId = String(s.userId);
+  next();
+};
+app.get("/api/search/providers", searchUser, handleProvidersList);
+app.get("/api/search/:provider", searchUser, handleProviderSearch);
+app.get("/api/search/:provider/detail", searchUser, handleProviderDetail);
 
 app.get("/api/images/search", async (req, res) => {
   const q = String(req.query.q || "").trim();

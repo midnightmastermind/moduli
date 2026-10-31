@@ -22,6 +22,7 @@
 // builders. A shared core is the fix it settled on both times.
 
 /** Load the registry with every built-in provider registered. */
+export async function loadSearchProviders() { return registry(); }
 async function registry() {
   const mod = await import("./searchProviders.js");
   // Every built-in provider, each registering itself on import.
@@ -34,8 +35,18 @@ async function registry() {
   await import("./providers/places.js");
   await import("./providers/openfda.js");
   await import("./providers/tmdb.js");
+  await import("./providers/usda.js");
   await import("./providers/dsld.js");
   return mod;
+}
+
+// The caller's own API keys. `req.searchUserId` is set by whichever mount ran (the app's session for
+// /api/search, the API token's user for /api/v1/search); no user means only server/demo keys apply.
+async function keysOf(req) {
+  const userId = req.searchUserId || req.userId || null;
+  if (!userId) return {};
+  const { userSearchKeys } = await import("../services/searchKeys.js");
+  return userSearchKeys(userId);
 }
 
 const fail = (res, code, error, message) => res.status(code).json({ ok: false, error, message });
@@ -44,23 +55,25 @@ const fail = (res, code, error, message) => res.status(code).json({ ok: false, e
 export async function handleProvidersList(req, res) {
   try {
     const { availableProviders } = await registry();
+    const keys = await keysOf(req);
     // A KEYED provider with no key is not listed at all — the failure belongs at
     // configuration, not at the user's keystroke.
-    res.json({ ok: true, providers: availableProviders() });
+    res.json({ ok: true, providers: availableProviders(process.env, keys) });
   } catch (e) { fail(res, 500, "internal_error", e.message); }
 }
 
 /** GET …/search/:provider?q=&limit=&have= */
 export async function handleProviderSearch(req, res) {
   try {
-    const { getProvider, dropAlreadyOnGrid, providerUnavailableReason } = await registry();
+    const { getProvider, dropAlreadyOnGrid, providerUnavailableReason, resolveProviderKey } = await registry();
     const p = getProvider(req.params.provider);
+    const keys = await keysOf(req);
     if (!p) return fail(res, 404, "not_found", `No search provider "${req.params.provider}"`);
     // CONFIGURATION, not upstream. A field can name a keyed provider before the
     // key exists — say the day TMDB is chosen and the key is still being made —
     // and the honest answer is that this server was never given one, not a 502
     // that reads as "the movie database is down".
-    const why = providerUnavailableReason(p);
+    const why = providerUnavailableReason(p, process.env, keys);
     if (why) return fail(res, 503, "provider_unconfigured", why);
 
     const q = String(req.query.q || "").trim();
@@ -77,6 +90,7 @@ export async function handleProviderSearch(req, res) {
     const results = await p.search(q, {
       limit: Math.min(20, Number(req.query.limit) || 6),
       lat: num(req.query.lat), lon: num(req.query.lon),
+      key: resolveProviderKey(p, process.env, keys),
     });
     // THE MERGE RULE. The caller passes the keys its grid already holds, so a
     // result already on the board is not offered a second time — matched on the
@@ -89,13 +103,15 @@ export async function handleProviderSearch(req, res) {
 /** GET …/search/:provider/detail?title=&externalId= */
 export async function handleProviderDetail(req, res) {
   try {
-    const { getProvider, providerUnavailableReason } = await registry();
+    const { getProvider, providerUnavailableReason, resolveProviderKey } = await registry();
     const p = getProvider(req.params.provider);
+    const keys = await keysOf(req);
     if (!p) return fail(res, 404, "not_found", `No search provider "${req.params.provider}"`);
     if (typeof p.detail !== "function") return fail(res, 400, "unsupported", "That provider has no detail step");
-    const why = providerUnavailableReason(p);
+    const why = providerUnavailableReason(p, process.env, keys);
     if (why) return fail(res, 503, "provider_unconfigured", why);
-    const out = await p.detail({ title: req.query.title, externalId: req.query.externalId });
+    const out = await p.detail({ title: req.query.title, externalId: req.query.externalId },
+      { key: resolveProviderKey(p, process.env, keys) });
     if (!out) return fail(res, 404, "not_found", "Nothing to import for that result");
     res.json({ ok: true, result: out });
   } catch (e) { fail(res, 502, "provider_error", e.message); }

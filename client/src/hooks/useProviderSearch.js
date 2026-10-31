@@ -16,6 +16,7 @@
 //    explicit (`idle | searching | done | error`) so an empty list during a
 //    search is never rendered as "nothing found".
 import { useEffect, useRef, useState } from "react";
+import { sessionHeaders } from "../helpers/authStorage.js";
 
 export const SEARCH_DEBOUNCE_MS = 260;
 
@@ -50,7 +51,7 @@ export function useProviderSearch({ provider, query, haveKeys = [], enabled = tr
         const doFetch = fetchImpl || ((url, opts) => fetch(url, opts));
         const url = `/api/search/${encodeURIComponent(provider)}`
           + `?q=${encodeURIComponent(q)}&have=${encodeURIComponent(haveKey)}`;
-        const res = await doFetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+        const res = await doFetch(url, { signal: ctrl.signal, headers: { Accept: "application/json", ...sessionHeaders() } });
         if (seqRef.current !== seq) return;              // a newer query is in flight
         if (!res?.ok) { setState("error"); setResults([]); return; }
         const j = await res.json();

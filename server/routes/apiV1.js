@@ -2258,6 +2258,32 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // learn that twice. The handlers are SHARED with the app-internal
   // `/api/search/*` mount (see utils/searchRouteHandlers.js); only the auth
   // differs, and a second copy of them would drift.
+  // ── SEARCH KEYS (Command Center › Imports › Search sources). Session only: a key is the user's own
+  // account at another service, and nothing here ever sends a key back — only where it comes from.
+  router.get("/search/keys", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { keyRows } = await import("../utils/searchProviders.js");
+      await import("../utils/searchRouteHandlers.js").then((m) => m.loadSearchProviders?.());
+      const { userSearchKeys } = await import("../services/searchKeys.js");
+      res.json({ ok: true, keys: keyRows(process.env, await userSearchKeys(req.userId)) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.put("/search/keys/:keyId", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (!req.apiToken?.session) return err(res, 403, "forbidden", "Set search keys from the app");
+      const { setUserSearchKey } = await import("../services/searchKeys.js");
+      await setUserSearchKey(req.userId, req.params.keyId, req.body?.key);
+      res.json({ ok: true });
+    } catch (e) { err(res, e.status || 500, e.status ? "bad_request" : "internal_error", e.message); }
+  });
+  router.delete("/search/keys/:keyId", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (!req.apiToken?.session) return err(res, 403, "forbidden", "Remove search keys from the app");
+      const { setUserSearchKey } = await import("../services/searchKeys.js");
+      await setUserSearchKey(req.userId, req.params.keyId, "");
+      res.json({ ok: true });
+    } catch (e) { err(res, e.status || 500, "internal_error", e.message); }
+  });
   router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
   router.get("/search/:provider", authAndLimit({ requireScope: "read" }), handleProviderSearch);
   router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), handleProviderDetail);
