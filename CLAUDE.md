@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 (3) — THE SNAP TO TODAY IS THE OPERATION'S JOB (`0466`); a window that reopened on yesterday kept it
+
+User: *"loading up today still didnt change the top toolbar filter to today"* → *"this all should be done via
+operations, not hardcoded"*. Measured: the grid's stored date and the Last Opened marker were both today (stamped by
+the 8:15am load). Each window keeps its own layout, the date included (`helpers/windowLayout`, 10-24), so a window
+reloading on its saved yesterday found the marker already today and `Grid: Snap Filter To Today` skipped. A first fix
+in app code (a saved window date expires at midnight) was REVERTED at the user's word. **`0466`** rewrites the op:
+`$snapStale` is set when the marker is not today OR `$activeDate DATE_BEFORE $today`, and the old else body (SET_FILTER
+today, move dated pages, stamp the marker) runs under it. A future date is left alone. Pure `snapWhenStale`
+(idempotent, refuses an unknown shape); `client/src/__tests__/snapTodayWhenPast.test.js` drives the real executor,
+with the old op shown not snapping in the same case. Applied to poms, read back, pm2 restarted.
+**Kept, app-side:** `helpers/dayRollover` (reload on a new day) only makes the load happen; the op decides the date.
+
+---
+
 ### 2026-10-31 (2) — A TASK ADDED TO TASKS › TODO REACHES THE SCHEDULE AT ONCE (`0465`)
 
 User: *"could you see why all my todo didnt get transfered to schedule"* · *"and why new ones dont get added"* · *"if a
