@@ -1278,16 +1278,12 @@ function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
   if (!show) return [];
   const ctx = { occurrencesById, modulesById };
   const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
-  const order = (o) => {
-    const [, , s, e] = String(o.meta.episodeKey).split(":");
-    return Number(s) * 1e4 + Number(e);
-  };
   const eps = [];
   for (const o of Object.values(occurrencesById || {})) {
     if (!o?.meta?.episodeKey) continue;
     if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
   }
-  eps.sort((a, b) => order(a) - order(b));
+  eps.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), void 0, { numeric: true }));
   return eps.map((o) => {
     const mod = modulesById?.[o.moduleId];
     const f = filesOf(o, ctx).find((e) => e.kind === "video");

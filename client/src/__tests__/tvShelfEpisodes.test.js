@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { showEpisodeItems, shelfItems } from "../vr/shelfItems";
 import { nativeOfficeState } from "../vr/officeState";
 
-const ep = (id, s, e, show) => ({ id, moduleId: "mEp", label: `S0${s}E0${e}`, fields: { fShow: { value: show } }, meta: { episodeKey: `tmdb:9:${s}:${e}` } });
+const ep = (id, s, e, show) => ({ id, moduleId: "mEp", label: `S0${s}E0${e} · t`, fields: { fShow: { value: show } }, meta: { episodeKey: `tmdb:9:${s}:${e}` } });
 const occurrencesById = {
   show: { id: "show", moduleId: "mSeries", label: "Curb", fields: { cat: { value: ["series"] } }, meta: { cover: "http://x/curb.jpg" } },
   other: { id: "other", moduleId: "mSeries", label: "Other", fields: { cat: { value: ["series"] } } },

@@ -10,10 +10,12 @@
 // So the search result whose poster IS the row's poster wins; then one whose first-air year is the row's Year; then
 // the first result. How each was matched is reported, and the id is kept on the row (`meta.tmdbId`) so it is
 // searched once. An Ended/Canceled show is not re-fetched after its first full read (`meta.tmdbStatus`).
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 
 export const EPISODES_SIGNATURE = "tv:episodes";
-export const FIELD_NAMES = { show: "TV Show", season: "Season", number: "Episode #", airDate: "Air Date", category: "Board Category" };
+export const SEASONS_SIGNATURE = "tv:seasons";   // migration 0473 — optional: without it no seasons are kept
+export const FIELD_NAMES = { show: "TV Show", season: "Season", number: "Episode #", airDate: "Air Date", category: "Board Category",
+  seasonLink: "TV Season", episodeList: "Episode List" };
 const FINISHED = new Set(["Ended", "Canceled"]);
 
 const posterPath = (url) => (String(url || "").match(/\/t\/p\/[^/]+(\/[^/?#]+)$/) || [])[1] || null;
@@ -43,14 +45,16 @@ export function matchShow(results, show) {
 
 export const episodeKey = (tmdbId, season, number) => `tmdb:${tmdbId}:${season}:${number}`;
 const pad = (n) => String(n).padStart(2, "0");
+export const seasonKey = (sourceId, season) => `${sourceId}:${season}`;
+export const seasonLabel = (showLabel, n) => `${showLabel || "Show"} — Season ${n}`;
 export const episodeLabel = (e) => `S${pad(e.season)}E${pad(e.episode)}${e.title ? ` · ${e.title}` : ""}`;
 
 /** The episode rows to add for one show. Pure: `existingKeys` is a Set of episodeKeys already on the board. */
-export function planEpisodeRows({ show, tmdbId, episodes, existingKeys, fieldIds, moduleId, containerId, userId, gridId, newId = randomUUID }) {
+export function planEpisodeRows({ show, tmdbId, episodes, existingKeys, fieldIds, moduleId, containerId, userId, gridId, newId = randomUUID, seasonIdOf = () => null }) {
   const rows = [];
   for (const e of episodes || []) {
     if (!(e.season > 0) || !(e.episode > 0)) continue; // season 0 = specials
-    const key = episodeKey(tmdbId, e.season, e.episode);
+    const key = e.key || episodeKey(tmdbId, e.season, e.episode);
     if (existingKeys.has(key)) continue;
     existingKeys.add(key);
     const fields = {
@@ -60,12 +64,33 @@ export function planEpisodeRows({ show, tmdbId, episodes, existingKeys, fieldIds
       [fieldIds.category]: { value: ["episode"], flow: "in" },
     };
     if (e.airDate && fieldIds.airDate) fields[fieldIds.airDate] = { value: e.airDate, flow: "in" };
+    const seasonId = seasonIdOf(e.season);
+    if (seasonId && fieldIds.seasonLink) fields[fieldIds.seasonLink] = { value: seasonId, flow: "in" };
     rows.push({
       id: newId(), userId, gridId, moduleId, parentId: containerId, label: episodeLabel(e), fields, occurrences: [],
       meta: { episodeKey: key, ...(e.still ? { cover: e.still } : {}) },
     });
   }
   return rows;
+}
+
+/**
+ * The season rows a show's new episodes need, and which existing seasons gain episodes. Pure.
+ * -> { newRows, idOf(season), appends: [{ id, add: [episodeIds] }] } — call after planEpisodeRows with its rows.
+ */
+export function planSeasons({ show, sourceId, seasonsNeeded, seasonRows, fieldIds, moduleId, containerId, userId, gridId, newId = randomUUID }) {
+  const newRows = [], ids = {};
+  for (const n of [...new Set(seasonsNeeded)].sort((a, b) => a - b)) {
+    const key = seasonKey(sourceId, n);
+    const have = seasonRows.get(key);
+    if (have) { ids[n] = have.id; continue; }
+    const row = { id: newId(), userId, gridId, moduleId, parentId: containerId, label: seasonLabel(show.label, n), occurrences: [],
+      fields: { [fieldIds.show]: { value: show.id, flow: "in" }, [fieldIds.season]: { value: n, flow: "in" },
+        [fieldIds.category]: { value: ["season"], flow: "in" }, [fieldIds.episodeList]: { value: [], flow: "in" } },
+      meta: { seasonKey: key, ...(show.meta?.cover ? { cover: show.meta.cover } : {}) } };
+    newRows.push(row); seasonRows.set(key, row); ids[n] = row.id;
+  }
+  return { newRows, idOf: (n) => ids[n] || null };
 }
 
 /** Everything the sync needs off the grid: the board, the fields, the episode module, the shows, the keys present. */
@@ -79,14 +104,20 @@ export async function loadEpisodeContext({ gridId, models }) {
     show: pick(FIELD_NAMES.show, "occurrence"), season: pick(FIELD_NAMES.season, "number"),
     number: pick(FIELD_NAMES.number, "number"), airDate: pick(FIELD_NAMES.airDate, "date"),
     category: pick(FIELD_NAMES.category, "select"), year: pick("Year", "number"),
+    seasonLink: pick(FIELD_NAMES.seasonLink, "occurrence"), episodeList: pick(FIELD_NAMES.episodeList, "occurrence"),
   };
   for (const k of ["show", "season", "number", "category"]) if (!fieldIds[k]) throw new Error(`no "${FIELD_NAMES[k]}" field`);
   const rows = await Occurrence.find({ gridId, "meta.episodeKey": { $exists: true } }, { "meta.episodeKey": 1, moduleId: 1 }).lean();
-  const shows = await Occurrence.find({ gridId, [`fields.${fieldIds.category}.value`]: "series", "meta.feedSourceId": { $exists: false } }).lean();
+  // Show rows: tagged "series", not feed copies, and not a board (the TV Series board carries the tag for its "+ Add").
+  const shows = await Occurrence.find({ gridId, [`fields.${fieldIds.category}.value`]: "series", "meta.feedSourceId": { $exists: false }, "feed.enabled": { $ne: true } }).lean();
+  const seasonsBoard = fieldIds.seasonLink && fieldIds.episodeList ? await Occurrence.findOne({ gridId, identitySignature: SEASONS_SIGNATURE }).lean() : null;
+  const seasonRows = new Map();
+  if (seasonsBoard) for (const r of await Occurrence.find({ gridId, "meta.seasonKey": { $exists: true } }, { id: 1, "meta.seasonKey": 1, moduleId: 1 }).lean()) seasonRows.set(r.meta.seasonKey, r);
   const lastSeason = {};   // tmdb show id -> highest season already on the board
   for (const r of rows) { const [, show, season] = String(r.meta.episodeKey).split(":"); lastSeason[show] = Math.max(lastSeason[show] || 0, Number(season) || 0); }
   return {
-    container, fieldIds, shows, lastSeason,
+    container, fieldIds, shows, lastSeason, seasonsBoard, seasonRows,
+    seasonModuleId: [...seasonRows.values()][0]?.moduleId || seasonsBoard?.meta?.seasonModuleId || null,
     existingKeys: new Set(rows.map((r) => r.meta.episodeKey)),
     moduleId: rows[0]?.moduleId || container.meta?.episodeModuleId || null,
   };
@@ -94,6 +125,17 @@ export async function loadEpisodeContext({ gridId, models }) {
 
 /** One show: its TMDB id (search once), status, and every season's episodes. `tmdb` = { search, show, season }. */
 export async function fetchShow(show, ctx, tmdb) {
+  // A show whose episodes only a podcast feed lists (Harmontown — a video podcast, still a TV show): its feed is the episode list — one season, numbered oldest first, keyed by the
+  // item's guid so a re-read adds only what is new.
+  if (show.meta?.podcastFeed) {
+    const { parseNewsFeed } = await import("./feeds.js");
+    const { items } = parseNewsFeed(await tmdb.feed(show.meta.podcastFeed));
+    const sourceId = `rss:${show.id}`;
+    const episodes = [...items].reverse().map((it, i) => ({ season: 1, episode: i + 1, title: it.title || "",
+      airDate: it.publishedAt ? new Date(it.publishedAt).toISOString().slice(0, 10) : null,
+      key: `${sourceId}:1:${createHash("sha1").update(it.id).digest("hex").slice(0, 12)}` }));
+    return { show, tmdbId: sourceId, sourceId, by: "feed", status: null, name: show.label, episodes };
+  }
   let tmdbId = show.meta?.tmdbId || null, by = "stored";
   if (!tmdbId) {
     const found = matchShow(await tmdb.search(show.label || ""), { label: show.label, meta: show.meta, year: valueOf(show.fields?.[ctx.fieldIds.year]) });
@@ -106,7 +148,7 @@ export async function fetchShow(show, ctx, tmdb) {
   const seasons = (detail?.seasons || []).map((s) => s.season_number).filter((n) => n >= from);
   const episodes = [];
   for (const n of seasons) episodes.push(...await tmdb.season(tmdbId, n));
-  return { show, tmdbId, by, status: detail?.status || null, name: detail?.name || null, episodes };
+  return { show, tmdbId, sourceId: `tmdb:${tmdbId}`, by, status: detail?.status || null, name: detail?.name || null, episodes };
 }
 
 /** Shows to read this run: every show not yet synced, and synced ones still airing. */
@@ -119,6 +161,7 @@ export async function tmdbClient(key) {
   return {
     search: async (q) => (await tmdbRaw("/search/tv", `query=${encodeURIComponent(q)}&include_adult=false`, key)).results || [],
     show: (id) => tmdbRaw(`/tv/${encodeURIComponent(id)}`, "", key),
+    feed: async (url) => { const r = await fetch(url, { signal: AbortSignal.timeout(30000) }); if (!r.ok) throw new Error(`feed ${r.status}`); return r.text(); },
     season: async (id, n) => (await import("../utils/providers/tmdb.js")).seasonEpisodes(id, n, { key }),
   };
 }
@@ -136,6 +179,7 @@ export async function syncTvEpisodes({ gridId, userId, models, tmdb, write, all 
   try {
     const ctx = await loadEpisodeContext({ gridId, models });
     if (!ctx.moduleId) throw new Error("no Episode module");
+    if (ctx.seasonsBoard && !ctx.seasonModuleId) throw new Error("no Season module");
     const todo = showsToSync(ctx.shows, { all });
     const report = { shows: todo.length, added: 0, matched: { stored: 0, poster: 0, year: 0, first: 0, none: 0 }, failed: [], firstMatches: [] };
     for (const show of todo) {
@@ -144,11 +188,20 @@ export async function syncTvEpisodes({ gridId, userId, models, tmdb, write, all 
       report.matched[got.by] = (report.matched[got.by] || 0) + 1;
       if (got.by === "first" || got.by === "none") report.firstMatches.push(`${show.label} -> ${got.name || "(no match)"}`);
       if (!got.tmdbId) continue;
+      // Seasons first, so each new episode can name its season.
+      const fresh = got.episodes.filter((e) => e.season > 0 && e.episode > 0 && !ctx.existingKeys.has(e.key || episodeKey(got.tmdbId, e.season, e.episode)));
+      const seasons = ctx.seasonsBoard
+        ? planSeasons({ show, sourceId: got.sourceId, seasonsNeeded: fresh.map((e) => e.season), seasonRows: ctx.seasonRows, fieldIds: ctx.fieldIds,
+          moduleId: ctx.seasonModuleId, containerId: ctx.seasonsBoard.id, userId, gridId })
+        : { newRows: [], idOf: () => null };
       const rows = planEpisodeRows({ show, tmdbId: got.tmdbId, episodes: got.episodes, existingKeys: ctx.existingKeys,
-        fieldIds: ctx.fieldIds, moduleId: ctx.moduleId, containerId: ctx.container.id, userId, gridId });
+        fieldIds: ctx.fieldIds, moduleId: ctx.moduleId, containerId: ctx.container.id, userId, gridId, seasonIdOf: seasons.idOf });
+      rows.seasons = seasons.newRows;
       report.added += rows.length;
+      report.seasonsAdded = (report.seasonsAdded || 0) + seasons.newRows.length;
       log(`  ${show.label}: ${got.episodes.length} episodes, ${rows.length} new (${got.by})`);
-      if (!dryRun) await write(rows, { id: show.id, meta: { tmdbId: got.tmdbId, tmdbStatus: got.status, episodesSyncedAt: new Date().toISOString() } }, ctx);
+      const meta = got.by === "feed" ? { episodesSyncedAt: new Date().toISOString() } : { tmdbId: got.tmdbId, tmdbStatus: got.status, episodesSyncedAt: new Date().toISOString() };
+      if (!dryRun) await write(rows, { id: show.id, meta }, ctx);
     }
     return report;
   } finally { running.delete(gridId); }
@@ -159,10 +212,21 @@ export async function writeEpisodesToMongo({ models }, rows, showPatch, ctx) {
   const { Occurrence } = models;
   const now = new Date();
   const docs = rows.map((r) => ({ ...r, timestamp: now, createdAt: now, updatedAt: now }));
+  const seasonDocs = (rows.seasons || []).map((r) => ({ ...r, timestamp: now, createdAt: now, updatedAt: now }));
+  if (seasonDocs.length) {
+    await Occurrence.insertMany(seasonDocs);
+    await Occurrence.updateOne({ gridId: ctx.container.gridId, id: ctx.seasonsBoard.id }, { $push: { occurrences: { $each: seasonDocs.map((d) => d.id) } }, $set: { updatedAt: now } });
+  }
   if (docs.length) {
     await Occurrence.insertMany(docs);
     await Occurrence.updateOne({ gridId: ctx.container.gridId, id: ctx.container.id }, { $push: { occurrences: { $each: docs.map((d) => d.id) } }, $set: { updatedAt: now } });
+    // Each season's Episode List gains its new episodes, in order.
+    const bySeason = new Map();
+    for (const d of docs) { const sid = d.fields?.[ctx.fieldIds.seasonLink]?.value; if (sid) { if (!bySeason.has(sid)) bySeason.set(sid, []); bySeason.get(sid).push(d.id); } }
+    for (const [sid, ids] of bySeason) await Occurrence.updateOne({ gridId: ctx.container.gridId, id: sid }, { $push: { [`fields.${ctx.fieldIds.episodeList}.value`]: { $each: ids } }, $set: { updatedAt: now } });
+    docs.touchedSeasons = [...bySeason.keys()];
   }
+  docs.seasonDocs = seasonDocs;
   const set = Object.fromEntries(Object.entries(showPatch.meta).map(([k, v]) => [`meta.${k}`, v]));
   await Occurrence.updateOne({ gridId: ctx.container.gridId, id: showPatch.id }, { $set: { ...set, updatedAt: now } });
   return docs;

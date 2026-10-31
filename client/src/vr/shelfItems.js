@@ -233,13 +233,14 @@ export function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) 
   if (!show) return [];
   const ctx = { occurrencesById, modulesById };
   const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
-  const order = (o) => { const [, , s, e] = String(o.meta.episodeKey).split(":"); return Number(s) * 10000 + Number(e); };
+
   const eps = [];
   for (const o of Object.values(occurrencesById || {})) {
     if (!o?.meta?.episodeKey) continue;
     if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
   }
-  eps.sort((a, b) => order(a) - order(b));
+  // Labels are "S01E03 · Title": a numeric compare puts S01E100 after S01E99 (a feed-read show's key holds no number).
+  eps.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true }));
   return eps.map((o) => {
     const mod = modulesById?.[o.moduleId];
     const f = filesOf(o, ctx).find((e) => e.kind === "video");

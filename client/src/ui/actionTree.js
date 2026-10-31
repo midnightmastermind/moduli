@@ -76,6 +76,7 @@ export const ACTION_TREE = [
           { value: "STREAK_VAR", title: "🔥 streak",   sub: "consecutive days backward", description: "Count consecutive days backward from today where at least one row's date matches. `by` defaults to 'date'." },
           { value: "AGGREGATE",           title: "Σ aggregate",      sub: "sum/count/avg over a scope", description: "Aggregate a field across a scope (any of the 15 aggregations), honouring flow direction." },
           { value: "COUNT_DATE_OVERDUE",  title: "⏰ count overdue",  sub: "rows past their date",       description: "Count rows whose date field is before today." },
+          { value: "COUNT_BY",            title: "# count by field", sub: "rows pointing at each row", description: "Counts the rows pointing at each row through a link field (songs per album, episodes per season) and writes it on every row carrying the count field." },
           { value: "COUNT_DATE_UPCOMING", title: "⏳ count upcoming", sub: "rows due within N days",     description: "Count rows whose date field falls inside the next N days." },
         ],
       },

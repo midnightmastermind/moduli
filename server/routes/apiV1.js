@@ -1217,11 +1217,11 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         gridId: String(gridId), userId: req.userId, models: { Field, Occurrence }, tmdb: await tmdbClient(key),
         write: async (rows, patch, ctx) => {
           const docs = await writeEpisodesToMongo({ models: { Occurrence } }, rows, patch, ctx);
-          for (const d of docs) {
+          for (const d of [...(docs.seasonDocs || []), ...docs]) {
             mirrorToCache(req.userId, String(gridId), "occurrence", d);
             io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: d });
           }
-          for (const id of [ctx.container.id, patch.id]) {
+          for (const id of [ctx.container.id, ctx.seasonsBoard?.id, patch.id, ...(docs.touchedSeasons || [])].filter(Boolean)) {
             const o = await Occurrence.findOne({ gridId: String(gridId), id }).lean();
             if (o) { mirrorToCache(req.userId, String(gridId), "occurrence", o); io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: o }); }
           }

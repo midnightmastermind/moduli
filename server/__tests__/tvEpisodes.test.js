@@ -99,3 +99,37 @@ describe("0472 predicates", () => {
     expect(withAlbumNarrowing(once)).toBe(once);
   });
 });
+
+import { planSeasons, seasonKey } from "../services/tvEpisodes.js";
+import { groupBySeason } from "../migrations/0473-tv-seasons.mjs";
+
+describe("seasons", () => {
+  const f = { show: "fShow", season: "fSeason", category: "fCat", episodeList: "fList", seasonLink: "fLink", number: "fNum" };
+  it("a season row per new season; an existing one is reused", () => {
+    const rows = new Map([[seasonKey("tmdb:9", 1), { id: "s1" }]]);
+    let n = 0;
+    const p = planSeasons({ show: { id: "show", label: "Curb" }, sourceId: "tmdb:9", seasonsNeeded: [1, 2, 2], seasonRows: rows, fieldIds: f, moduleId: "mS", containerId: "b", userId: "u", gridId: "g", newId: () => `new${n++}` });
+    expect(p.newRows.map((r) => r.label)).toEqual(["Curb — Season 2"]);
+    expect(p.idOf(1)).toBe("s1");
+    expect(p.idOf(2)).toBe("new0");
+  });
+  it("a new episode names its season", () => {
+    const rows = planEpisodeRows({ show: { id: "show" }, tmdbId: 9, episodes: [{ season: 2, episode: 1, title: "a" }], existingKeys: new Set(),
+      fieldIds: f, moduleId: "m", containerId: "b", userId: "u", gridId: "g", seasonIdOf: (s) => (s === 2 ? "S2" : null) });
+    expect(rows[0].fields.fLink.value).toBe("S2");
+  });
+  it("0473 groups existing episodes by show and season, in episode order", () => {
+    const e = (id, key) => ({ id, meta: { episodeKey: key }, fields: { fShow: { value: "show" } } });
+    const g = groupBySeason([e("b", "tmdb:9:1:2"), e("a", "tmdb:9:1:1"), e("c", "tmdb:9:2:1"), e("x", "tmdb:9:0:1")], "fShow");
+    expect([...g.keys()]).toEqual(["tmdb:9:1", "tmdb:9:2"]);
+    expect(g.get("tmdb:9:1").eps.map((x) => x.id)).toEqual(["a", "b"]);
+  });
+  it("a feed-read show: one season, numbered oldest first, keyed by item", async () => {
+    const xml = `<rss><channel><title>H</title><item><guid>g2</guid><link>http://x/2</link><title>Two</title><pubDate>Tue, 02 Jan 2018 00:00:00 GMT</pubDate></item><item><guid>g1</guid><link>http://x/1</link><title>One</title><pubDate>Mon, 01 Jan 2018 00:00:00 GMT</pubDate></item></channel></rss>`;
+    const { fetchShow } = await import("../services/tvEpisodes.js");
+    const got = await fetchShow({ id: "h", label: "Harmontown", meta: { podcastFeed: "http://feed" } }, { fieldIds: {} }, { feed: async () => xml });
+    expect(got.sourceId).toBe("rss:h");
+    expect(got.episodes.map((e) => [e.episode, e.title, e.airDate])).toEqual([[1, "One", "2018-01-01"], [2, "Two", "2018-01-02"]]);
+    expect(got.episodes[0].key).toMatch(/^rss:h:1:[0-9a-f]{12}$/);
+  });
+});

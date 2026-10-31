@@ -1794,6 +1794,44 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    case "COUNT_BY": {
+      // "How many rows point at each row" (user, 2026-10-31: counts on the boards you drill through — songs per album,
+      // albums per artist, episodes per season …). ONE pass over the rows, counting each value of the link field
+      // (`byField`; a list counts once per member), then every row that CARRIES the count field (`to`, bound on its
+      // module) gets its count — 0 included — written only when it changed. A loop per parent would be
+      // parents × children (1,679 artists × 9,261 songs).
+      // cfg: byField (field id), to (field id), over (collection, default $allItems), ofModules (count only rows of
+      // these modules), toModules (write only on rows of these modules), countVar (optional: the counts as { id: n }).
+      const rows = resolveExpr(cfg.over || "$allItems", $vars);
+      const list = Array.isArray(rows) ? rows : [];
+      if (!cfg.byField || !cfg.to) break;
+      // "Only occurrences of" these modules count (albums per artist must not count songs, which carry Artist too).
+      const ofMods = resolveModuleIds(cfg.ofModules, $vars);
+      const counted = ofMods.length ? recordsOfModules(list, ofMods) : list;
+      const counts = new Map();
+      for (const r of counted) {
+        if (!r || r.deleted || r.meta?.isTemplate || r.meta?.feedSourceId) continue;
+        const c = r.fields?.[cfg.byField];
+        const v = c && typeof c === "object" && "value" in c ? c.value : c;
+        for (const id of Array.isArray(v) ? v : [v]) if (typeof id === "string" && id) counts.set(id, (counts.get(id) || 0) + 1);
+      }
+      const bindsTo = (r) => (Array.isArray(r._boundFieldIds) ? r._boundFieldIds.includes(cfg.to)
+        : (modulesById[r.moduleId]?.fieldBindings || []).some((b) => b.fieldId === cfg.to));
+      // …and written only on rows of these modules (an artist and an album can both carry Song Count).
+      const toMods = resolveModuleIds(cfg.toModules, $vars);
+      const targets = toMods.length ? recordsOfModules(list, toMods) : list;
+      for (const r of targets) {
+        if (!r || r.deleted || r.meta?.isTemplate || r.meta?.feedSourceId || !bindsTo(r)) continue;
+        const n = counts.get(r.id) || 0;
+        const cur = r.fields?.[cfg.to];
+        const curV = cur && typeof cur === "object" && "value" in cur ? cur.value : cur;
+        if (Number(curV) === n && curV !== "" && curV != null) continue;
+        updates.push({ _effect: "UPDATE_ITEM_FIELD", itemId: r.id, fieldId: cfg.to, value: n, subKind: "value" });
+      }
+      if (cfg.countVar) $vars[cfg.countVar] = Object.fromEntries(counts);
+      break;
+    }
+
     case "FIND": {
       const overExpr = cfg.over || "$allOccurrences";
       const itemList = Array.isArray(resolveExpr(overExpr, $vars))

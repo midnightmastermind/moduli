@@ -163,6 +163,7 @@ const ACTION_HANDLERS = {
     }
   },
   INCREMENT_FIELD(cfg, sets) { ACTION_HANDLERS.SET_FIELD_VALUE(cfg, sets); },
+  COUNT_BY(cfg, sets) { if (cfg.to) add(sets.fields_written, cfg.to); if (cfg.byField) add(sets.fields_read, cfg.byField); },
   MARK_COMPLETE(cfg, sets)   { ACTION_HANDLERS.SET_FIELD_VALUE(cfg, sets); },
 
   DELETE(cfg, sets) {

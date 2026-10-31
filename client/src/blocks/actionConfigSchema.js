@@ -426,6 +426,17 @@ export const ACTION_CONFIG_SCHEMA = {
     ],
     hint: "Counts rows whose date field is before today.",
   },
+  COUNT_BY: {
+    fields: [
+      { key: "byField", kind: "field", label: "link field", placeholder: "the field the child rows carry (Album, Artist …)" },
+      { key: "to", kind: "field", label: "count into", placeholder: "the parent's count field" },
+      { key: "ofModules", kind: "modules", label: "count only", optional: true },
+      { key: "toModules", kind: "modules", label: "write only on", optional: true },
+      { key: "over", kind: "expr", label: "over", optional: true, defaultsTo: "$allItems" },
+      { key: "countVar", kind: "var", label: "→ $", optional: true },
+    ],
+    hint: "Counts the rows pointing at each row through the link field, and writes the count on every row that carries the count field.",
+  },
   COUNT_DATE_UPCOMING: {
     fields: [
       { key: "dateFieldId", kind: "field", label: "date field", placeholder: "the field holding the date" },
