@@ -15,6 +15,19 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-10-31 (4) — "NEW TASK" PLACES ITS OWN TASK (`0467`)
+
+User: *"i just created a task todo and it didnt add it to the schedule todo until i reloaded"*. Read back: the task
+("prepare for cps training", 14:41:36) carries `meta.createdByOperation` — the New task BUTTON is an operation, and a
+row an operation creates fires no add trigger, so 0465's onAdd never heard it; its copy appeared at 14:41:55 with the
+reload. **`0467`** inserts `RUN_OPERATION Schedule: Place Dated Work` right after New task's Create (ASK_FORM → CREATE →
+RUN_OPERATION → SCROLL_TO), the way Build Schedule calls Completed Tasks. Pure `runPlacingAfterCreate` (one top-level
+CREATE or it refuses; idempotent). `client/src/__tests__/newTaskPlacesItself.test.js` drives the real executor: the
+callee lists the just-created task; without the call it does not (control). Applied to poms, read back, pm2 restarted.
+**Not watched in a browser** (it would mean creating a task on the live grid).
+
+---
+
 ### 2026-10-31 (3) — THE SNAP TO TODAY IS THE OPERATION'S JOB (`0466`); a window that reopened on yesterday kept it
 
 User: *"loading up today still didnt change the top toolbar filter to today"* → *"this all should be done via
