@@ -15,6 +15,17 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-01 — A TEXTBLOCK'S HEADINGS LOOK LIKE HEADINGS BEFORE THE FIRST CLICK
+
+User: *"my headers inside textblocks dont resolve either when i first load them, it waits for me to click to edit the
+document"*. The lazy stand-in (`ui/StaticTextmap`) drew a heading as a bold body-size `<div>`; the heading sizes and
+colours are `.doc-editor-content.ProseMirror hN` rules, which only reach the live editor. The stand-in now renders a
+real `<h1>`–`<h6>` (level clamped) and every heading rule also names `.textblock-card-placeholder hN` (plus
+`--md-body` on the placeholder). Test `staticTextmapHeadings` (3; the old component fails 2). Client-only deploy;
+served CSS carries the rule. **Not looked at in a browser.**
+
+---
+
 ### 2026-10-31 (6) — SEARCH KEYS PER USER; TMDB TV; USDA INGREDIENTS (`0469`, `0470` dry run); grocery toggle
 
 - **Keys are not hardcoded** (user: *"a section in command center imports that allow for search boxes and api
