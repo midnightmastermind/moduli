@@ -2361,6 +2361,22 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       } catch { res.json({ ok: true, configured: true, online: false, serverName: null }); }
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
+  // Streaming proxy: <video>/hls.js cannot send Authorization, so a session JWT may ride as ?t= (lifted into the
+  // header so apiAuth's own verification runs). Session only; the key never leaves the server.
+  const liftQueryToken = (req, _res, next) => {
+    if (!req.headers.authorization && typeof req.query.t === "string" && req.query.t) req.headers.authorization = `Bearer ${req.query.t}`;
+    next();
+  };
+  router.all("/jellyfin/media/*rest", liftQueryToken, authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { getJellyfinConfig } = await import("../services/jellyfinConfig.js");
+      const { proxyJellyfin } = await import("../services/jellyfinProxy.js");
+      const cfg = await getJellyfinConfig(req.userId);
+      if (!cfg) return err(res, 404, "not_configured", "Jellyfin is not configured");
+      await proxyJellyfin(req, res, cfg);
+    } catch (e) { if (!res.headersSent) err(res, 500, "internal_error", e.message); }
+  });
   router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
   router.get("/search/:provider", authAndLimit({ requireScope: "read" }), handleProviderSearch);
   router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), handleProviderDetail);

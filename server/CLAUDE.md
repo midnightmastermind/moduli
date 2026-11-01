@@ -3752,3 +3752,6 @@ wsl -d Ubuntu-24.04 -e bash -c "cd ~/dndtest2/server && ~/.nvm/versions/node/v22
 
 ## Jellyfin connection (2026-11-01)
 `services/jellyfinConfig.js` stores the user's Jellyfin connection at `user.meta.jellyfin` (API key encrypted via `encryptValue`, never returned). `jellyfinFetch(cfg, path, init)` authenticates with `Authorization: MediaBrowser Token=` + `X-Emby-Token`, 5s timeout, throws `{code:"media_offline"}`. Session-only routes in `routes/apiV1.js`: `GET/PUT/DELETE /jellyfin/config`, `GET /jellyfin/status` (`{configured, online, serverName}`). Test: `__tests__/jellyfinConfig.test.js`.
+
+### Jellyfin streaming proxy (2026-11-01)
+`ALL /api/v1/jellyfin/media/*rest` (apiV1.js) → `services/jellyfinProxy.js`. Session-only; `?t=<session jwt>` is lifted into the Authorization header before `apiAuth` (for `<video>`/hls.js). Paths limited to /Videos/ /Items/ /Audio/; GET/HEAD (+DELETE under /Videos/ActiveEncodings). Client `t`/`api_key`/`X-Emby-Token` stripped; key added by `jellyfinFetch`, which now takes `headerTimeoutMs` (5s only until headers, body never cut) and `signal` (aborted when the browser closes). HLS playlists get `t=` appended to relative URIs (`rewritePlaylist`). nginx location in `infra/nginx/moduli-media.conf` (installed on the droplet 2026-11-01).
