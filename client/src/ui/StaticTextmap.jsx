@@ -28,7 +28,12 @@ const inlines = (n) => (n.content || []).map((c, i) => <Inline node={c} k={i} ke
 function Block({ node }) {
   switch (node.type) {
     case "paragraph": return <div style={{ minHeight: "1.35em" }}>{node.content?.length ? inlines(node) : " "}</div>;
-    case "heading": return <div style={{ minHeight: "1.35em", fontWeight: 600 }}>{inlines(node)}</div>;
+    // A real h1-h6, so the editor's own heading rules (size, colour, spacing — index.css) draw it the same before
+    // and after a click. A bold body-size line read as "the header has not resolved" (user, 2026-11-01).
+    case "heading": {
+      const H = `h${Math.min(6, Math.max(1, Number(node.attrs?.level) || 1))}`;
+      return <H className="standin-heading">{inlines(node)}</H>;
+    }
     case "bulletList":
     case "orderedList": {
       const L = node.type === "bulletList" ? "ul" : "ol";
