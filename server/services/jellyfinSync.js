@@ -308,10 +308,15 @@ export async function fetchJellyfinItems(cfg, fetcher) {
     if (SKIP_COLLECTIONS.has(ct)) continue;
     const library = /documentar/i.test(v.Name || "") ? "documentaries" : ct === "tvshows" ? "shows" : "movies";
     for (let start = 0; ; start += PAGE) {
-      const q = `userId=${uid}&ParentId=${encodeURIComponent(v.Id)}&Recursive=true&IncludeItemTypes=Movie,Series,Season,Episode`
+      const q = `userId=${uid}&ParentId=${encodeURIComponent(v.Id)}&Recursive=true&IncludeItemTypes=Movie,Series,Season,Episode,Video`
         + `&Fields=Path,ProviderIds,PremiereDate,ProductionYear&EnableUserData=true&SortBy=SortName&StartIndex=${start}&Limit=${PAGE}`;
       const page = await getJson(`/Items?${q}`);
-      for (const it of page.Items || []) out.push({ ...it, library });
+      for (const it of page.Items || []) {
+        // A "home videos" library (Documentaries) holds Video items: those are its films. A Video anywhere else
+        // (a trailer, an extra) is not a row.
+        if (it.Type === "Video") { if (library === "documentaries") out.push({ ...it, Type: "Movie", jellyfinType: "Video", library }); continue; }
+        out.push({ ...it, library });
+      }
       if ((page.Items || []).length < PAGE) break;
     }
   }

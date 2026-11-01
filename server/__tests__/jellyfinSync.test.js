@@ -133,3 +133,25 @@ describe("syncJellyfin", () => {
     expect(isNewerWatch({ watchedAt: "2026-02-01T00:00:00.000Z" }, "2026-02-01T00:00:00.000Z")).toBe(false);
   });
 });
+
+import { fetchJellyfinItems } from "../services/jellyfinSync.js";
+describe("fetchJellyfinItems", () => {
+  const json = (body) => ({ ok: true, status: 200, json: async () => body });
+  const fetcher = (calls) => async (_cfg, p) => {
+    calls.push(p);
+    if (p.startsWith("/UserViews")) return json({ Items: [
+      { Id: "vM", Name: "Movies", CollectionType: "movies" }, { Id: "vS", Name: "Shows", CollectionType: "tvshows" },
+      { Id: "vD", Name: "Documentaries", CollectionType: "homevideos" }, { Id: "vMu", Name: "Music", CollectionType: "music" }] });
+    const parent = new URLSearchParams(p.split("?")[1]).get("ParentId");
+    const items = { vM: [{ Id: "m", Type: "Movie" }], vS: [{ Id: "s", Type: "Series" }, { Id: "x", Type: "Video" }], vD: [{ Id: "d", Type: "Video" }] }[parent] || [];
+    return json({ Items: items });
+  };
+  it("reads only the owner's views; a documentaries Video is a Movie there and nowhere else; music is skipped", async () => {
+    const calls = [];
+    const items = await fetchJellyfinItems({ userId: "own" }, fetcher(calls));
+    expect(items.map((i) => [i.Id, i.Type, i.library])).toEqual([["m", "Movie", "movies"], ["s", "Series", "shows"], ["d", "Movie", "documentaries"]]);
+    expect(items.find((i) => i.Id === "d").jellyfinType).toBe("Video");
+    expect(calls.every((p) => p.includes("userId=own"))).toBe(true);
+    expect(calls.some((p) => p.includes("vMu"))).toBe(false);
+  });
+});
