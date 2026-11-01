@@ -2413,6 +2413,48 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       await proxyJellyfin(req, res, cfg);
     } catch (e) { if (!res.headersSent) err(res, 500, "internal_error", e.message); }
   });
+  // Play info / progress / played for a row linked by the sync (meta.jellyfinId). Session only; the owner's Jellyfin user only.
+  const jfRow = async (req, res, occId) => {
+    const { getJellyfinConfig } = await import("../services/jellyfinConfig.js");
+    const { linkedItemId } = await import("../services/jellyfinPlayback.js");
+    const cfg = await getJellyfinConfig(req.userId);
+    if (!cfg) { res.json({ playable: false, configured: false }); return null; }
+    const itemId = await linkedItemId(Occurrence, req.userId, occId);
+    if (!itemId) { return { cfg, itemId: null }; }
+    return { cfg, itemId };
+  };
+  router.get("/jellyfin/play/:occId", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const r = await jfRow(req, res, req.params.occId);
+      if (!r) return;
+      if (!r.itemId) return res.json({ playable: false });
+      const { playInfo } = await import("../services/jellyfinPlayback.js");
+      res.json(await playInfo({ cfg: r.cfg, itemId: r.itemId }));
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.post("/jellyfin/progress", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { occId, seconds, paused, playSessionId } = req.body || {};
+      const r = await jfRow(req, res, occId);
+      if (!r) return;
+      if (!r.itemId) return err(res, 404, "not_found", "not a Jellyfin-linked row");
+      const { reportProgress } = await import("../services/jellyfinPlayback.js");
+      res.json(await reportProgress({ cfg: r.cfg, itemId: r.itemId, seconds, paused, playSessionId }));
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.post("/jellyfin/played", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { occId, playSessionId } = req.body || {};
+      const r = await jfRow(req, res, occId);
+      if (!r) return;
+      if (!r.itemId) return err(res, 404, "not_found", "not a Jellyfin-linked row");
+      const { markPlayed } = await import("../services/jellyfinPlayback.js");
+      res.json(await markPlayed({ cfg: r.cfg, itemId: r.itemId, playSessionId }));
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
   router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
   router.get("/search/:provider", authAndLimit({ requireScope: "read" }), handleProviderSearch);
   router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), handleProviderDetail);

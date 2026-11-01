@@ -98,6 +98,11 @@ describe("jellyfin media proxy", () => {
     expect((await get("/Users/abc")).status).toBe(404);
     expect((await get("/Items/1/Images/Primary")).status).toBe(200);
     expect((await get("/Audio/1/stream")).status).toBe(200);
+    // listings and metadata (the admin key would show other users' items) are not reachable
+    expect((await get("/Items?userId=x")).status).toBe(404);
+    expect((await get("/Items/1")).status).toBe(404);
+    expect((await get("/Videos/1")).status).toBe(404);
+    expect((await get("/Items/1/PlaybackInfo")).status).toBe(404);
     expect(seen.url).toBe("/Audio/1/stream");
   });
   it("POST is 404; DELETE only under /Videos/ActiveEncodings", async () => {

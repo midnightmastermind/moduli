@@ -4,7 +4,9 @@ import { Readable } from "node:stream";
 import { jellyfinFetch } from "./jellyfinConfig.js";
 
 const HEADER_TIMEOUT_MS = 5000;
-const ALLOWED_PREFIXES = ["/Videos/", "/Items/", "/Audio/"];
+// Only an item's own media: /Videos/<id>/..., /Audio/<id>/... (HLS playlists + segments live under /Videos/<id>/),
+// /Items/<id>/Images/..., and the transcode cleanup DELETE. Not listings or metadata: the admin key would expose them.
+const ALLOWED_PATHS = [/^\/Videos\/[^/]+\/.+/, /^\/Audio\/[^/]+\/.+/, /^\/Items\/[^/]+\/Images\/.+/, /^\/Videos\/ActiveEncodings$/];
 const STRIP_QUERY = new Set(["t", "api_key", "apikey"]);
 const COPY_RES_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control", "etag", "last-modified"];
 const FWD_REQ_HEADERS = ["range", "if-range", "if-none-match", "if-modified-since", "accept"];
@@ -19,7 +21,7 @@ export function safePath(sub) {
   let pathname;
   try { pathname = new URL(sub, "http://x").pathname; } catch { return null; }
   if (/[\\%]/.test(pathname)) return null;
-  return ALLOWED_PREFIXES.some((x) => pathname.startsWith(x)) ? pathname : null;
+  return ALLOWED_PATHS.some((re) => re.test(pathname)) ? pathname : null;
 }
 export const isAllowedPath = (p) => safePath(p) !== null;
 const isPlaylist = (path, ct) => /\.m3u8$/i.test(path) || /mpegurl/i.test(ct || "");
