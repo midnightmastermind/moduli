@@ -13,6 +13,7 @@ import { useGridActions } from "../../GridActionsContext";
 import { sessionHeaders } from "../../helpers/authStorage";
 import { StorageConnections } from "./StorageConnections";
 import { TokensSection } from "./TokensSection";
+import { JellyfinSection } from "./JellyfinSection";
 
 /** "Files › Images" — the folder chain a filed upload sits in (root excluded). */
 function folderPath(folderId, foldersById) {
@@ -102,6 +103,7 @@ export function ConnectionsTab() {
         </div>
       )}
 
+      <JellyfinSection />
       <TokensSection />
     </div>
   );

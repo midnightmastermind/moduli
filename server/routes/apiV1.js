@@ -2317,6 +2317,50 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({ ok: true });
     } catch (e) { err(res, e.status || 500, "internal_error", e.message); }
   });
+  // ── JELLYFIN CONNECTION (Command Center › Connections). Session only, key never returned.
+  const sessionOnly = (req, res) => {
+    if (req.apiToken?.session) return false;
+    err(res, 403, "forbidden", "Jellyfin settings are only available from the app");
+    return true;
+  };
+  router.get("/jellyfin/config", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { getJellyfinPublic, DEFAULT_BASE_URL, DEFAULT_PUBLIC_URL } = await import("../services/jellyfinConfig.js");
+      const c = await getJellyfinPublic(req.userId);
+      res.json({ ok: true, configured: !!c?.hasKey, baseUrl: c?.baseUrl || DEFAULT_BASE_URL,
+        publicUrl: c?.publicUrl || DEFAULT_PUBLIC_URL, jfUserId: c?.jfUserId || "" });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.put("/jellyfin/config", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { setJellyfinConfig } = await import("../services/jellyfinConfig.js");
+      await setJellyfinConfig(req.userId, req.body || {});
+      res.json({ ok: true });
+    } catch (e) { err(res, e.status || 500, e.status ? "bad_request" : "internal_error", e.message); }
+  });
+  router.delete("/jellyfin/config", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { clearJellyfinConfig } = await import("../services/jellyfinConfig.js");
+      await clearJellyfinConfig(req.userId);
+      res.json({ ok: true });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+  router.get("/jellyfin/status", authAndLimit({ requireScope: "read", allowSessionJwt: true }), async (req, res) => {
+    try {
+      if (sessionOnly(req, res)) return;
+      const { getJellyfinConfig, jellyfinFetch } = await import("../services/jellyfinConfig.js");
+      const cfg = await getJellyfinConfig(req.userId);
+      if (!cfg) return res.json({ ok: true, configured: false, online: false, serverName: null });
+      try {
+        const r = await jellyfinFetch(cfg, "/System/Info/Public");
+        const j = r.ok ? await r.json().catch(() => ({})) : {};
+        res.json({ ok: true, configured: true, online: r.ok, serverName: j.ServerName || null });
+      } catch { res.json({ ok: true, configured: true, online: false, serverName: null }); }
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
   router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
   router.get("/search/:provider", authAndLimit({ requireScope: "read" }), handleProviderSearch);
   router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), handleProviderDetail);

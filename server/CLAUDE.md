@@ -3749,3 +3749,6 @@ wsl -d Ubuntu-24.04 -e bash -c "cd ~/dndtest2/server && ~/.nvm/versions/node/v22
   Meal = Chicken and Rice                → fills Ingredients, then the same macros
   Meal = Salmon and Vegetables (4 items) → 462cal 24.9p 29.6c 27f
   ```
+
+## Jellyfin connection (2026-11-01)
+`services/jellyfinConfig.js` stores the user's Jellyfin connection at `user.meta.jellyfin` (API key encrypted via `encryptValue`, never returned). `jellyfinFetch(cfg, path, init)` authenticates with `Authorization: MediaBrowser Token=` + `X-Emby-Token`, 5s timeout, throws `{code:"media_offline"}`. Session-only routes in `routes/apiV1.js`: `GET/PUT/DELETE /jellyfin/config`, `GET /jellyfin/status` (`{configured, online, serverName}`). Test: `__tests__/jellyfinConfig.test.js`.

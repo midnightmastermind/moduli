@@ -2434,3 +2434,6 @@ registered them). See client/src/CLAUDE.md.
 - **`PlaceMedia.jsx`** (2026-10-18): `<PlaceMedia as="video|audio" moduleId …/>`, a media element that keeps its
   place (`hooks/useMediaPlace`). Every video/audio in ArtifactCard / ArtifactContent / ModuleInstance uses it;
   AudioWaveform attaches the same hook to wavesurfer's media element.
+
+## Jellyfin section (2026-11-01)
+`commandCenter/JellyfinSection.jsx` (mounted in `ConnectionsTab` above `TokensSection`): address, public address, Jellyfin user id, write-only API key ("Key saved"), and a "Connected — <ServerName>" line from `/api/v1/jellyfin/status`.
