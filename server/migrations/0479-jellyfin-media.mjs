@@ -84,7 +84,7 @@ export function planJellyfinMigration(state, { newId = randomUUID, now = new Dat
     const siblings = occurrences.filter((o) => o.parentId === moviesPage.parentId && roleKind(mById, o) === "page/board");
     plan.board = {
       modules: [docMod, boxMod, pageMod],
-      container: { id: containerId, userId: moviesBox.userId || userId, gridId, moduleId: boxMod.id, parentId: null, occurrences: [],
+      container: { id: containerId, userId: moviesBox.userId || userId, gridId, moduleId: boxMod.id, parentId: pageId, occurrences: [],
         identitySignature: DANNY_SIGNATURE, filterOverride: moviesBox.filterOverride ?? {}, filters: [],
         feed: { ...moviesBox.feed, conditions: [{ fieldId: cat.id, comparator: "CONTAINS", value: TAG }] },
         fields: { [cat.id]: { value: [TAG], flow: "in" } },

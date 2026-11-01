@@ -33,6 +33,7 @@ describe("0479 planJellyfinMigration", () => {
     expect(p.fields.map((f) => f.name)).toEqual(["Watched At"]);
     expect(p.board.page.parentId).toBe("media");
     expect(p.board.container.identitySignature).toBe("jellyfin:danny");
+    expect(p.board.container.parentId).toBe(p.board.page.id);   // a page delete takes its board with it
     expect(p.board.container.feed.conditions).toEqual([{ fieldId: "fCat", comparator: "CONTAINS", value: "documentary" }]);
     expect(p.board.modules.find((m) => m.role === "page").label).toBe(BOARD_LABEL);
     const docMod = p.board.modules.find((m) => m.label === "Documentary");
@@ -63,4 +64,19 @@ describe("0479 planJellyfinMigration", () => {
     s.occurrences = s.occurrences.filter((o) => o.id !== "page");
     expect(() => planJellyfinMigration(s, { newId, now })).toThrow(/Movies/);
   });
+});
+
+import { planParentFix } from "../migrations/0480-danny-board-parent.mjs";
+describe("0480 planParentFix", () => {
+  it("parents the Danny board to the page that lists it, and only that", () => {
+    const occs = [{ id: "box", identitySignature: "jellyfin:danny", parentId: null }, { id: "page", occurrences: ["box"] },
+      { id: "other", parentId: null }];
+    expect(planParentFix(occs)).toEqual({ id: "box", parentId: "page" });
+    expect(planParentFix([{ ...occs[0], parentId: "page" }, occs[1]])).toBeNull();
+  });
+  it("refuses when no page, or several, list it", () => {
+    expect(() => planParentFix([{ id: "box", identitySignature: "jellyfin:danny", parentId: null }])).toThrow();
+    expect(() => planParentFix([{ id: "box", identitySignature: "jellyfin:danny", parentId: null }, { id: "a", occurrences: ["box"] }, { id: "b", occurrences: ["box"] }])).toThrow();
+  });
+  it("nothing to do on a grid without the board", () => expect(planParentFix([{ id: "x" }])).toBeNull());
 });

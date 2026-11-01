@@ -11,7 +11,8 @@
 //
 // WATCH STATE. Only the owner's own Jellyfin user (`cfg.userId`) is ever read. When an item is Played and its
 // LastPlayedDate is newer than the row's Watched At (else its Last Watched day), both are set: Last Watched = the day
-// (UTC), Watched At = the ISO date-time. Never moved backward.
+// you finished in YOUR zone (`user.meta.share.timeZone`, the zone the share/feeds code already uses, else
+// America/Chicago), Watched At = the exact ISO instant. Never moved backward.
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -36,13 +37,34 @@ const numId = (v) => { const s = String(v ?? "").trim(); return !s ? null : /^\d
 const toDay = (v) => (v == null || v === "" ? "" : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
 const msOf = (v) => { const t = new Date(v).getTime(); return Number.isFinite(t) ? t : null; };
 
+export const DEFAULT_TIME_ZONE = "America/Chicago";
+
+/** The calendar day (YYYY-MM-DD) an instant falls on in `timeZone`. */
+export function localDay(iso, timeZone = DEFAULT_TIME_ZONE) {
+  const d = new Date(iso);
+  let tz = timeZone || DEFAULT_TIME_ZONE;
+  try { new Intl.DateTimeFormat("en-CA", { timeZone: tz }); } catch { tz = DEFAULT_TIME_ZONE; }
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
 /** Is a Jellyfin play at `iso` newer than what the row already says? Watched At first, else Last Watched's day. */
-export function isNewerWatch(row, iso) {
+export function isNewerWatch(row, iso, timeZone = DEFAULT_TIME_ZONE) {
   const t = msOf(iso);
   if (t == null) return false;
   if (row.watchedAt) { const w = msOf(row.watchedAt); if (w != null) return t > w; }
-  if (row.lastWatched) return iso.slice(0, 10) > toDay(row.lastWatched);
+  if (row.lastWatched) return localDay(iso, timeZone) > toDay(row.lastWatched);
   return true;
+}
+
+/** One item per Jellyfin Id: the first view's copy wins; `dropped` names each later copy's library. */
+export function dedupeItems(items) {
+  const seen = new Map(), out = [], dropped = [];
+  for (const it of items || []) {
+    const kept = seen.get(it.Id);
+    if (kept) { dropped.push({ Id: it.Id, kept: kept.library, dropped: it.library }); continue; }
+    seen.set(it.Id, it); out.push(it);
+  }
+  return { items: out, dropped };
 }
 
 // ── context ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -91,7 +113,9 @@ function boardOf(ctx, o) {
 
 function planRows(ctx) {
   const f = ctx.fieldIds, out = [];
+  const boardIds = new Set(Object.values(ctx.boards).filter(Boolean).map((b) => b.id));
   for (const o of ctx.raw.values()) {
+    if (boardIds.has(o.id)) continue;
     const board = boardOf(ctx, o);
     if (!board) continue;
     out.push({
@@ -197,7 +221,7 @@ export function planPass(ctx, items, { userId, gridId, newId = randomUUID } = {}
 }
 
 /** Watch-state updates over rows that carry a jellyfinId. Pure. */
-export function planWatch(ctx, items) {
+export function planWatch(ctx, items, timeZone = DEFAULT_TIME_ZONE) {
   const f = ctx.fieldIds, changes = emptyChanges();
   const byJf = new Map();
   for (const r of planRows(ctx)) if (r.jellyfinId) byJf.set(r.jellyfinId, r);
@@ -209,9 +233,25 @@ export function planWatch(ctx, items) {
     const t = msOf(ud.LastPlayedDate);
     if (t == null) continue;
     const iso = new Date(t).toISOString();
-    if (!isNewerWatch(row, iso)) continue;
-    changes.updates.push({ id: row.id, set: { [`fields.${f.lastWatched}`]: cellOf(iso.slice(0, 10)), [`fields.${f.watchedAt}`]: cellOf(iso) } });
+    if (!isNewerWatch(row, iso, timeZone)) continue;
+    changes.updates.push({ id: row.id, set: { [`fields.${f.lastWatched}`]: cellOf(localDay(iso, timeZone)), [`fields.${f.watchedAt}`]: cellOf(iso) } });
   }
+  return changes;
+}
+
+/** A linked row parented to a board the board does not list (a write that stopped after its insert): list it. Pure. */
+export function planRelist(ctx) {
+  const changes = emptyChanges();
+  const boards = Object.values(ctx.boards).filter(Boolean);
+  const byId = new Map(boards.map((b) => [b.id, b]));
+  const add = new Map();
+  for (const o of ctx.raw.values()) {
+    if (!o.meta?.jellyfinId || !byId.has(o.parentId)) continue;
+    if ((byId.get(o.parentId).occurrences || []).includes(o.id)) continue;
+    if (!add.has(o.parentId)) add.set(o.parentId, []);
+    add.get(o.parentId).push(o.id);
+  }
+  changes.pushes = [...add].map(([id, ids]) => ({ id, path: "occurrences", ids }));
   return changes;
 }
 
@@ -252,13 +292,20 @@ const running = new Set();
  * `jf` = { items: () => Jellyfin items (each with `library`), cover: (itemId) => stored cover URL | null }.
  * `write(changes, ctx)` persists one pass. One run per grid at a time.
  */
-export async function syncJellyfin({ gridId, userId, models, jf, write, dryRun = false, log = () => {}, newId = randomUUID }) {
+export async function syncJellyfin({ gridId, userId, models, jf, write, dryRun = false, log = () => {}, newId = randomUUID, timeZone = DEFAULT_TIME_ZONE }) {
   if (running.has(gridId)) return { skipped: "already running" };
   running.add(gridId);
   try {
-    const items = await jf.items();
+    const deduped = dedupeItems(await jf.items());
+    const items = deduped.items;
     let ctx = await loadContext({ gridId, models });
-    const report = { items: items.length, link: 0, create: {}, unchanged: 0, ambiguous: [], skipped: [], watch: 0, dryRun };
+    // Pass 2 / the watch step read the boards' lists from memory in a dry run; keep them in step with the pushes.
+    const applyAll = (changes) => {
+      applyChanges(ctx.raw, changes);
+      const boards = new Map(Object.values(ctx.boards).filter(Boolean).map((b) => [b.id, b]));
+      applyChanges(boards, { creates: [], updates: [], pushes: changes.pushes.filter((p) => boards.has(p.id)) });
+    };
+    const report = { items: items.length, duplicateIds: deduped.dropped.length, link: 0, create: {}, unchanged: 0, ambiguous: [], skipped: [], watch: 0, relisted: 0, dryRun };
     for (const pass of [1, 2]) {
       const { changes, summary } = planPass(ctx, items, { userId, gridId, newId });
       report.link += summary.link;
@@ -277,9 +324,12 @@ export async function syncJellyfin({ gridId, userId, models, jf, write, dryRun =
         await write(changes, ctx);
       }
       if (pass === 1 && !dryRun) ctx = await loadContext({ gridId, models });
-      else applyChanges(ctx.raw, changes);
+      else applyAll(changes);
     }
-    const watch = planWatch(ctx, items);
+    const relist = planRelist(ctx);
+    report.relisted = relist.pushes.reduce((n, p) => n + p.ids.length, 0);
+    if (report.relisted) { if (!dryRun) await write(relist, ctx); applyAll(relist); }
+    const watch = planWatch(ctx, items, timeZone);
     report.watch = watch.updates.length;
     if (watch.updates.length && !dryRun) await write(watch, ctx);
     return report;
@@ -320,7 +370,9 @@ export async function fetchJellyfinItems(cfg, fetcher) {
       if ((page.Items || []).length < PAGE) break;
     }
   }
-  return out;
+  const { items, dropped } = dedupeItems(out);
+  items.dropped = dropped;
+  return items;
 }
 
 const UPLOADS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");

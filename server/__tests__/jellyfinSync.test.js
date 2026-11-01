@@ -128,7 +128,7 @@ describe("syncJellyfin", () => {
   it("isNewerWatch: Watched At first, else the Last Watched day", () => {
     expect(isNewerWatch({}, "2026-01-01T00:00:00.000Z")).toBe(true);
     expect(isNewerWatch({ lastWatched: "2026-01-01" }, "2026-01-01T23:00:00.000Z")).toBe(false);
-    expect(isNewerWatch({ lastWatched: "2026-01-01" }, "2026-01-02T00:00:00.000Z")).toBe(true);
+    expect(isNewerWatch({ lastWatched: "2026-01-01" }, "2026-01-02T12:00:00.000Z")).toBe(true);
     expect(isNewerWatch({ lastWatched: "2026-03-01", watchedAt: "2026-01-01T00:00:00.000Z" }, "2026-02-01T00:00:00.000Z")).toBe(true);
     expect(isNewerWatch({ watchedAt: "2026-02-01T00:00:00.000Z" }, "2026-02-01T00:00:00.000Z")).toBe(false);
   });
@@ -153,5 +153,49 @@ describe("fetchJellyfinItems", () => {
     expect(items.find((i) => i.Id === "d").jellyfinType).toBe("Video");
     expect(calls.every((p) => p.includes("userId=own"))).toBe(true);
     expect(calls.some((p) => p.includes("vMu"))).toBe(false);
+  });
+});
+
+import { dedupeItems, localDay } from "../services/jellyfinSync.js";
+describe("fix round 1", () => {
+  it("dedupeItems: one item per Id, the first view wins, and the disagreements are named", () => {
+    const { items, dropped } = dedupeItems([{ Id: "a", library: "documentaries" }, { Id: "b", library: "movies" }, { Id: "a", library: "movies" }]);
+    expect(items.map((i) => [i.Id, i.library])).toEqual([["a", "documentaries"], ["b", "movies"]]);
+    expect(dropped).toEqual([{ Id: "a", kept: "documentaries", dropped: "movies" }]);
+  });
+  it("fetchJellyfinItems returns each Id once even when two views list it", async () => {
+    const json = (body) => ({ ok: true, status: 200, json: async () => body });
+    const f = async (_c, p) => p.startsWith("/UserViews")
+      ? json({ Items: [{ Id: "v1", Name: "Movies", CollectionType: "movies" }, { Id: "v2", Name: "Mixed", CollectionType: "movies" }] })
+      : json({ Items: [{ Id: "same", Type: "Movie" }] });
+    const items = await fetchJellyfinItems({ userId: "own" }, f);
+    expect(items.map((i) => i.Id)).toEqual(["same"]);
+    expect(items.dropped).toEqual([{ Id: "same", kept: "movies", dropped: "movies" }]);
+  });
+  it("a 23:30 CDT play is that Chicago day, and Watched At stays the instant", async () => {
+    expect(localDay("2026-10-21T04:30:00.000Z", "America/Chicago")).toBe("2026-10-20");
+    const g = fakeGrid([movieRow({ id: "late", label: "Late", meta: { jellyfinId: "jLate" }, fields: { [F.cat]: cell(["movie"]) } })]);
+    await run(g, [mv({ Id: "jLate", Name: "Late", UserData: { Played: true, LastPlayedDate: "2026-10-21T04:30:00Z" } })], { timeZone: "America/Chicago" });
+    expect(g.store.get("late").fields[F.lw].value).toBe("2026-10-20");
+    expect(g.store.get("late").fields[F.wa].value).toBe("2026-10-21T04:30:00.000Z");
+  });
+  it("compares Last Watched in the same zone: a same-Chicago-day play does not move it", () => {
+    expect(isNewerWatch({ lastWatched: "2026-10-20" }, "2026-10-21T04:30:00.000Z", "America/Chicago")).toBe(false);
+    expect(isNewerWatch({ lastWatched: "2026-10-20" }, "2026-10-21T04:30:00.000Z", "UTC")).toBe(true);
+  });
+  it("a linked row its board does not list (a partial write) is re-listed, once", async () => {
+    const g = fakeGrid([movieRow({ id: "stray", label: "Stray", meta: { jellyfinId: "jStray" } })]);
+    const r = await run(g, [mv({ Id: "jStray", Name: "Stray" })]);
+    expect(r.relisted).toBe(1);
+    expect(g.store.get("bMovies").occurrences).toEqual(["stray"]);
+    const before = g.writes.length;
+    const r2 = await run(g, [mv({ Id: "jStray", Name: "Stray" })]);
+    expect(r2.relisted).toBe(0);
+    expect(g.writes.length).toBe(before);
+  });
+  it("a row linked under ANOTHER parent is not pulled onto the board", async () => {
+    const g = fakeGrid([movieRow({ id: "elsewhere", parentId: "someDoc", label: "Elsewhere", meta: { jellyfinId: "jE" } })]);
+    const r = await run(g, [mv({ Id: "jE", Name: "Elsewhere" })]);
+    expect(r.relisted).toBe(0);
   });
 });

@@ -43,10 +43,12 @@ describe("planJellyfinLinks", () => {
     expect(r.create).toEqual([]);
     expect(r.link).toEqual([]);
   });
-  it("two items to one row are both ambiguous", () => {
+  // Fix round 1: on prod every such pair was two files of one film/episode, so the best links and the rest are
+  // reported as "duplicate file" (was: both ambiguous, leaving the row unlinked forever).
+  it("two items to one row: one links, the other is a duplicate file", () => {
     const r = plan([mv({ Id: "a" }), mv({ Id: "b" })], [row()]);
-    expect(r.ambiguous.map((a) => a.jfId).sort()).toEqual(["a", "b"]);
-    expect(r.link).toEqual([]);
+    expect(r.link).toEqual([{ occId: "r1", jfId: "a" }]);
+    expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
   });
   it("a row with no year matches title-only only when unique", () => {
     expect(plan([mv()], [row({ year: null })]).link).toHaveLength(1);
@@ -100,5 +102,53 @@ describe("planJellyfinLinks", () => {
     const rows = [row({ id: "sr", board: "tv", jellyfinId: "s1" }),
       row({ id: "e", board: "episodes", showRowId: "sr", season: 1, number: 1, year: null })];
     expect(plan([ep], rows).link).toEqual([{ occId: "e", jfId: "e1" }]);
+  });
+});
+
+describe("planJellyfinLinks — fix round 1", () => {
+  const show = { Id: "s1", Type: "Series", Name: "Dark", ProductionYear: 2017, ProviderIds: {}, library: "shows" };
+  const showRow = row({ id: "sr", label: "Dark", year: 2017, board: "tv", jellyfinId: "s1" });
+  it("a null season or index number never matches a season-0 / episode-0 row", () => {
+    const ep = { Id: "e", Type: "Episode", Name: "x", SeriesId: "s1", ParentIndexNumber: null, IndexNumber: null, library: "shows" };
+    const se = { Id: "se", Type: "Season", Name: "Specials?", SeriesId: "s1", IndexNumber: null, library: "shows" };
+    const rows = [showRow, row({ id: "s0", board: "seasons", showRowId: "sr", season: 0, year: null }),
+      row({ id: "e00", board: "episodes", showRowId: "sr", season: 0, number: 0, year: null })];
+    const r = plan([show, ep, se], rows);
+    expect(r.link.map((l) => l.jfId)).not.toContain("e");
+    expect(r.link.map((l) => l.jfId)).not.toContain("se");
+    // and a row with no season/number never matches a numbered item
+    const ep1 = { Id: "e1", Type: "Episode", Name: "x", SeriesId: "s1", ParentIndexNumber: 0, IndexNumber: 0, library: "shows" };
+    expect(plan([ep1], [showRow, row({ id: "bare", board: "episodes", showRowId: "sr", season: null, number: null, year: null })]).link).toEqual([]);
+  });
+  it("two files of one film: the larger (Width) links, the other is a duplicate file", () => {
+    const r = plan([mv({ Id: "lo", Path: "/b/heat-1080.mkv", Width: 1920, ProviderIds: {} }), mv({ Id: "hi", Path: "/a/heat-2160.mkv", Width: 3840, ProviderIds: {} })], [row()]);
+    expect(r.link).toEqual([{ occId: "r1", jfId: "hi" }]);
+    expect(r.ambiguous).toEqual([{ jfId: "lo", reason: "duplicate file" }]);
+  });
+  it("without a Width, the first by Path wins", () => {
+    const r = plan([mv({ Id: "b", Path: "/z/heat.mkv", ProviderIds: {} }), mv({ Id: "a", Path: "/a/heat.mkv", ProviderIds: {} })], [row()]);
+    expect(r.link).toEqual([{ occId: "r1", jfId: "a" }]);
+    expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
+  });
+  it("two episode files of one episode link the winner", () => {
+    const a = { Id: "a", Type: "Episode", Name: "x", SeriesId: "s1", ParentIndexNumber: 1, IndexNumber: 1, Path: "/a.mkv", library: "shows" };
+    const b = { ...a, Id: "b", Path: "/b.mkv" };
+    const r = plan([a, b], [showRow, row({ id: "e11", board: "episodes", showRowId: "sr", season: 1, number: 1, year: null })]);
+    expect(r.link).toEqual([{ occId: "e11", jfId: "a" }]);
+    expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
+  });
+  it("creates are unique: one row per normalised title + year (or Path); the rest are duplicate files", () => {
+    const d1 = mv({ Id: "d1", Name: "100 Jahre - Krieg", ProductionYear: null, Path: "/x/1.mp4", library: "documentaries", ProviderIds: {} });
+    const d2 = mv({ Id: "d2", Name: "100 Jahre Krieg", ProductionYear: null, Path: "/y/1.mp4", library: "documentaries", ProviderIds: {} });
+    const d3 = mv({ Id: "d3", Name: "Other", ProductionYear: null, Path: "/x/1.mp4", library: "documentaries", ProviderIds: {} });
+    const r = plan([d1, d2, d3], []);
+    expect(r.create.map((c) => c.item.Id)).toEqual(["d1"]);
+    expect(r.ambiguous.map((a) => [a.jfId, a.reason]).sort()).toEqual([["d2", "duplicate file"], ["d3", "duplicate file"]]);
+  });
+  it("episode creates are unique per (series, season, episode)", () => {
+    const a = { Id: "a", Type: "Episode", Name: "x", SeriesId: "s1", ParentIndexNumber: 2, IndexNumber: 3, Path: "/a.mkv", library: "shows" };
+    const r = plan([a, { ...a, Id: "b", Path: "/b.mkv" }], [showRow]);
+    expect(r.create.map((c) => c.item.Id)).toEqual(["a"]);
+    expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
   });
 });

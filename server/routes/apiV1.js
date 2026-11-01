@@ -1246,8 +1246,11 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const { syncJellyfin, jellyfinClient, writeJellyfinToMongo } = await import("../services/jellyfinSync.js");
       res.status(202).json({ started: true });
       const gid = String(gridId);
+      // Last Watched is the day you finished, in your zone (the one shares and feeds already use).
+      const { default: User } = await import("../models/User.js");
+      const timeZone = (await User.findById(req.userId).select("meta.share.timeZone").lean().catch(() => null))?.meta?.share?.timeZone || undefined;
       syncJellyfin({
-        gridId: gid, userId: req.userId, models: { Field, Occurrence }, jf: await jellyfinClient(cfg), dryRun: !!dryRun,
+        gridId: gid, userId: req.userId, models: { Field, Occurrence }, jf: await jellyfinClient(cfg), dryRun: !!dryRun, timeZone,
         write: async (changes, ctx) => {
           const { created, touched } = await writeJellyfinToMongo({ models: { Occurrence } }, changes, ctx);
           for (const d of created) {
