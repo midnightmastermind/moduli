@@ -25,10 +25,26 @@ const { makeApiV1Router } = await import("../routes/apiV1.js");
 const { setJellyfinConfig } = await import("../services/jellyfinConfig.js");
 const { rewritePlaylist } = await import("../services/jellyfinProxy.js");
 
-let server, base, fake, fakeUrl, seen, hang;
+let server, base, fake, fakeUrl, seen, hang, seenAll, other, otherUrl, otherHits;
 beforeAll(async () => {
+  other = http.createServer((req, res) => { otherHits++; res.end("other"); }).listen(0);
+  otherUrl = `http://127.0.0.1:${other.address().port}`;
   fake = http.createServer((req, res) => {
     seen = { url: req.url, headers: req.headers, method: req.method };
+    seenAll.push(req.url);
+    if (req.url.startsWith("/Videos/redir")) { res.writeHead(302, { location: `${otherUrl}/steal` }); return res.end(); }
+    if (req.url.includes("leak.m3u8")) {
+      res.setHeader("content-type", "application/vnd.apple.mpegurl");
+      return res.end("#EXTM3U\nmain.m3u8?api_key=SERVERKEY\n");
+    }
+    if (req.url.includes("bad.m3u8")) {
+      res.setHeader("content-type", "application/vnd.apple.mpegurl");
+      return res.end("#EXTM3U\n#EXT-X-FOO:x=SERVERKEY\nseg.ts\n");
+    }
+    if (req.url.includes("abs.m3u8")) {
+      res.setHeader("content-type", "application/vnd.apple.mpegurl");
+      return res.end(`#EXTM3U\n${fakeUrl}/Videos/9/seg.ts?ApiKey=SERVERKEY&x=1\n/Videos/9/seg2.ts\n#EXT-X-MAP:URI="/Videos/9/init.mp4"\n`);
+    }
     if (req.url.startsWith("/Videos/hang")) { hang = res; res.writeHead(200, { "content-type": "video/mp4" }); res.write("x"); return; }
     if (req.url.startsWith("/Videos/slowheaders")) return; // never answers
     if (req.url.includes("master.m3u8")) {
@@ -49,8 +65,8 @@ beforeAll(async () => {
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}/api/v1/jellyfin/media`;
 });
-afterAll(() => { server?.close(); fake?.close(); });
-beforeEach(async () => { store.meta = {}; seen = null; await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "SERVERKEY", jfUserId: "j" }); });
+afterAll(() => { server?.close(); fake?.close(); other?.close(); });
+beforeEach(async () => { store.meta = {}; seen = null; seenAll = []; otherHits = 0; await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "SERVERKEY", jfUserId: "j" }); });
 
 const get = (path, headers = { authorization: "Bearer session-jwt" }, init = {}) => fetch(`${base}${path}`, { headers, ...init });
 
@@ -121,6 +137,39 @@ describe("jellyfin media proxy", () => {
     expect(txt).toContain("seg0.ts?x=1&t=session-jwt");
     expect(txt).toContain("seg1.ts?t=session-jwt");
     expect(txt).toContain('URI="init.mp4?t=session-jwt"');
+  });
+});
+
+describe("review round 1", () => {
+  it("path traversal via encoded / backslash / dot variants is 404 and never reaches upstream", async () => {
+    for (const p of ["/Videos/%252e%252e/System/Info", "/Videos/..%5CSystem%5CInfo", "/Videos/.%2E/System/Info", "/Videos/%2e%2e/System/Info", "/Videos/a%5Cb"]) {
+      const r = await get(p);
+      expect(r.status, p).toBe(404);
+    }
+    expect(seenAll).toEqual([]);
+  });
+  it("playlist: api_key params are stripped from URIs", async () => {
+    const txt = await (await get("/Videos/1/leak.m3u8?t=session-jwt", {})).text();
+    expect(txt).not.toContain("SERVERKEY");
+    expect(txt).toContain("main.m3u8?t=session-jwt");
+  });
+  it("playlist: absolute baseUrl and root-relative URIs become proxy-relative", async () => {
+    const txt = await (await get("/Videos/1/abs.m3u8?t=session-jwt", {})).text();
+    expect(txt).not.toContain("SERVERKEY");
+    expect(txt).not.toContain(fakeUrl);
+    expect(txt).toContain("/api/v1/jellyfin/media/Videos/9/seg.ts?x=1&t=session-jwt");
+    expect(txt).toContain("/api/v1/jellyfin/media/Videos/9/seg2.ts?t=session-jwt");
+    expect(txt).toContain('URI="/api/v1/jellyfin/media/Videos/9/init.mp4?t=session-jwt"');
+  });
+  it("playlist still containing the key -> 502", async () => {
+    const r = await get("/Videos/1/bad.m3u8?t=session-jwt", {});
+    expect(r.status).toBe(502);
+    expect(await r.text()).not.toContain("SERVERKEY");
+  });
+  it("upstream redirect is passed back, never followed", async () => {
+    const r = await get("/Videos/redir/stream", { authorization: "Bearer session-jwt" }, { redirect: "manual" });
+    expect(r.status).toBe(302);
+    expect(otherHits).toBe(0);
   });
 });
 

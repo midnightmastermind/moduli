@@ -9,33 +9,54 @@ const STRIP_QUERY = new Set(["t", "api_key", "apikey"]);
 const COPY_RES_HEADERS = ["content-type", "content-length", "content-range", "accept-ranges", "cache-control", "etag", "last-modified"];
 const FWD_REQ_HEADERS = ["range", "if-range", "if-none-match", "if-modified-since", "accept"];
 
-export const isAllowedPath = (p) => ALLOWED_PREFIXES.some((x) => p.startsWith(x)) && !p.split("/").includes("..");
+const PROXY_PREFIX = "/api/v1/jellyfin/media";
+const KEY_PARAMS = new Set(["api_key", "apikey"]);
+
+/** Plain ids/names only: no backslash, percent or control characters (they hide dot-segments from a naive check).
+ *  Returns the normalised pathname (what is actually sent upstream) or null. */
+export function safePath(sub) {
+  if (typeof sub !== "string" || /[\\%\u0000-\u001f\u007f]/.test(sub)) return null;
+  let pathname;
+  try { pathname = new URL(sub, "http://x").pathname; } catch { return null; }
+  if (/[\\%]/.test(pathname)) return null;
+  return ALLOWED_PREFIXES.some((x) => pathname.startsWith(x)) ? pathname : null;
+}
+export const isAllowedPath = (p) => safePath(p) !== null;
 const isPlaylist = (path, ct) => /\.m3u8$/i.test(path) || /mpegurl/i.test(ct || "");
 
-/** Append `t=<token>` to every URI line of an HLS playlist (relative URLs do not carry the proxy's ?t=).
- *  Also rewrites URI="..." attributes in tag lines (EXT-X-MAP / KEY / MEDIA). */
-export function rewritePlaylist(text, token) {
-  if (!token) return text;
-  const add = (u) => {
-    if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(u)) return u;
-    const hash = u.indexOf("#");
-    const base = hash >= 0 ? u.slice(0, hash) : u;
-    const frag = hash >= 0 ? u.slice(hash) : "";
-    return `${base}${base.includes("?") ? "&" : "?"}t=${encodeURIComponent(token)}${frag}`;
+/** Make an HLS playlist safe to hand to the browser: drop api_key params, point absolute Jellyfin URLs and
+ *  root-relative paths back at this proxy, and append `t=<token>` (relative URLs do not carry the proxy's ?t=).
+ *  Also covers URI="..." attributes in tag lines (EXT-X-MAP / KEY / MEDIA). `baseUrl` is cfg.baseUrl. */
+export function rewritePlaylist(text, token, baseUrl = "") {
+  const base = String(baseUrl || "").replace(/\/+$/, "");
+  const fix = (u) => {
+    let out = u;
+    if (base && out.toLowerCase().startsWith(base.toLowerCase() + "/")) out = out.slice(base.length);
+    if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(out)) return out.replace(/([?&])(api_key|apikey)=[^&#]*&?/gi, "$1").replace(/[?&](?=#|$)/, "");
+    const hash = out.indexOf("#");
+    const frag = hash >= 0 ? out.slice(hash) : "";
+    let rest = hash >= 0 ? out.slice(0, hash) : out;
+    const q = rest.indexOf("?");
+    let path = q >= 0 ? rest.slice(0, q) : rest;
+    const params = (q >= 0 ? rest.slice(q + 1) : "").split("&").filter((kv) => kv && !KEY_PARAMS.has(kv.split("=")[0].toLowerCase()) && kv.split("=")[0] !== "t");
+    if (path.startsWith("/")) path = PROXY_PREFIX + path;
+    if (token) params.push(`t=${encodeURIComponent(token)}`);
+    return `${path}${params.length ? "?" + params.join("&") : ""}${frag}`;
   };
   return text.split(/\r?\n/).map((line) => {
     if (!line.trim()) return line;
-    if (line.startsWith("#")) return line.replace(/URI="([^"]*)"/g, (_m, u) => `URI="${add(u)}"`);
-    return add(line.trim());
+    if (line.startsWith("#")) return line.replace(/URI="([^"]*)"/g, (_m, u) => `URI="${fix(u)}"`);
+    return fix(line.trim());
   }).join("\n");
 }
 
 export async function proxyJellyfin(req, res, cfg) {
   const rest = req.params.rest ?? req.params[0] ?? "";
-  const sub = "/" + (Array.isArray(rest) ? rest.join("/") : String(rest)).replace(/^\/+/, "");
+  const raw = "/" + (Array.isArray(rest) ? rest.join("/") : String(rest)).replace(/^\/+/, "");
+  const sub = safePath(raw);
   const method = req.method.toUpperCase();
-  const okMethod = method === "GET" || method === "HEAD" || (method === "DELETE" && sub.startsWith("/Videos/ActiveEncodings"));
-  if (!okMethod || !isAllowedPath(sub)) return res.status(404).json({ error: "not_found", code: "not_found", message: "Not found" });
+  const okMethod = method === "GET" || method === "HEAD" || (method === "DELETE" && !!sub && sub.startsWith("/Videos/ActiveEncodings"));
+  if (!okMethod || !sub) return res.status(404).json({ error: "not_found", code: "not_found", message: "Not found" });
 
   const token = typeof req.query.t === "string" ? req.query.t : "";
   const qs = new URLSearchParams();
@@ -68,11 +89,16 @@ export async function proxyJellyfin(req, res, cfg) {
 
   if (isPlaylist(sub, ct)) {
     try {
-      const body = rewritePlaylist(await up.text(), token);
+      const body = rewritePlaylist(await up.text(), token, cfg.baseUrl);
+      if (cfg.apiKey && body.includes(cfg.apiKey)) {
+        res.removeHeader("content-length"); res.removeHeader("content-type"); res.removeHeader("etag");
+        console.warn("[jellyfin-proxy] playlist still contained the server key; refused");
+        return res.status(502).json({ error: "bad_playlist", code: "bad_playlist", message: "Playlist refused" });
+      }
       res.removeHeader("content-length");
       res.setHeader("content-length", Buffer.byteLength(body));
       return res.end(body);
-    } catch { return res.destroy(); }
+    } catch (e) { console.warn("[jellyfin-proxy] playlist read failed:", e?.message); return res.destroy(); }
   }
   const stream = Readable.fromWeb(up.body);
   stream.on("error", () => res.destroy());

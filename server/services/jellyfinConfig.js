@@ -75,7 +75,8 @@ export async function jellyfinFetch(cfg, path, init = {}) {
     signal = callerSignal ? AbortSignal.any([AbortSignal.timeout(TIMEOUT_MS), callerSignal]) : AbortSignal.timeout(TIMEOUT_MS);
   }
   try {
-    return await fetch(url, { ...rest, headers, signal });
+    // redirect "manual": undici drops Authorization cross-origin but NOT X-Emby-Token, so never follow upstream 3xx.
+    return await fetch(url, { redirect: "manual", ...rest, headers, signal });
   } catch (e) {
     throw Object.assign(new Error("Jellyfin is unreachable"), { code: "media_offline", cause: e });
   } finally {
