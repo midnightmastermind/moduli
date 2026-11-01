@@ -1231,6 +1231,39 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { if (!res.headersSent) err(res, e.status || 500, "internal_error", e.message); }
   });
 
+  // Jellyfin -> the media boards (services/jellyfinSync.js): links, missing rows, watch state. Answers at once (a first
+  // run over every library takes longer than an operation's API call waits); the owner's Jellyfin user only.
+  router.post("/jellyfin/sync", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
+    try {
+      const { gridId, dryRun = false } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean();
+      if (!grid) return err(res, 404, "not_found", "grid not found");
+      const { getJellyfinConfig } = await import("../services/jellyfinConfig.js");
+      const cfg = await getJellyfinConfig(req.userId);
+      if (!cfg) return err(res, 409, "not_configured", "Jellyfin is not configured (Command Center › Connections)");
+      if (!cfg.userId) return err(res, 409, "not_configured", "no Jellyfin user configured");
+      const { syncJellyfin, jellyfinClient, writeJellyfinToMongo } = await import("../services/jellyfinSync.js");
+      res.status(202).json({ started: true });
+      const gid = String(gridId);
+      syncJellyfin({
+        gridId: gid, userId: req.userId, models: { Field, Occurrence }, jf: await jellyfinClient(cfg), dryRun: !!dryRun,
+        write: async (changes, ctx) => {
+          const { created, touched } = await writeJellyfinToMongo({ models: { Occurrence } }, changes, ctx);
+          for (const d of created) {
+            mirrorToCache(req.userId, gid, "occurrence", d);
+            io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: d });
+          }
+          for (const id of touched) {
+            const o = await Occurrence.findOne({ gridId: gid, id }).lean();
+            if (o) { mirrorToCache(req.userId, gid, "occurrence", o); io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: o }); }
+          }
+        },
+      }).then((r) => console.log("🎞️ jellyfin sync", gid, JSON.stringify({ ...r, ambiguous: r.ambiguous?.length, skipped: r.skipped?.length })))
+        .catch((e) => console.error("🎞️ jellyfin sync failed", gid, e.code || "", e.message));
+    } catch (e) { if (!res.headersSent) err(res, e.status || 500, "internal_error", e.message); }
+  });
+
   router.post("/bookmarks", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
