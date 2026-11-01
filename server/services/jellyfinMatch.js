@@ -43,7 +43,7 @@ function createBoard(item) {
 }
 
 /** Top-level (movie/series) match -> { row } | { none } | { amb: reason }. */
-function matchTop(item, rows, items) {
+function matchTop(item, rows, items, itemIds = new Set(items.map((i) => i.Id))) {
   const boards = boardsFor(item);
   const cands = rows.filter((r) => boards.includes(r.board));
   const byJf = cands.filter((r) => r.jellyfinId && r.jellyfinId === item.Id);
@@ -59,6 +59,8 @@ function matchTop(item, rows, items) {
   const t = normTitle(item.Name);
   if (!t) return { none: true };
   const sameTitle = cands.filter((c) => normTitle(c.label) === t);
+  // Every row with this title already belongs to ANOTHER item Jellyfin still lists: this is a second file of it.
+  if (sameTitle.length && sameTitle.every((c) => c.jellyfinId && c.jellyfinId !== item.Id && itemIds.has(c.jellyfinId))) return { amb: "duplicate file" };
   const iy = yearOf(item.ProductionYear);
   const withYear = sameTitle.filter((c) => { const cy = yearOf(c.year); return cy != null && iy != null && Math.abs(cy - iy) <= 1; });
   if (withYear.length) return pick(withYear, "title and year");
@@ -85,6 +87,7 @@ function createKeys(item, board) {
 export function planJellyfinLinks({ items = [], rows = [] } = {}) {
   const out = { link: [], create: [], ambiguous: [], unchanged: 0 };
   const created = new Set();
+  const itemIds = new Set(items.map((i) => i.Id));
   const showRowByJf = new Map(); // series jellyfin id -> row id (linked in this plan or already carrying it)
 
   // Resolve one batch of items: conflicts are detected within the batch, then emitted.
@@ -120,7 +123,8 @@ export function planJellyfinLinks({ items = [], rows = [] } = {}) {
       }
       const r = m.row;
       if (r.jellyfinId === item.Id) { out.unchanged++; afterLink?.(item, r); continue; }
-      if (r.jellyfinId) { out.ambiguous.push({ jfId: item.Id, reason: "row linked to another item" }); continue; }
+      // The row belongs to another item Jellyfin still lists: a second file of the same thing.
+      if (r.jellyfinId) { out.ambiguous.push({ jfId: item.Id, reason: itemIds.has(r.jellyfinId) ? "duplicate file" : "row linked to another item" }); continue; }
       if (winner.get(r.id) !== item.Id) { out.ambiguous.push({ jfId: item.Id, reason: "duplicate file" }); continue; }
       out.link.push({ occId: r.id, jfId: item.Id });
       afterLink?.(item, r);
@@ -128,7 +132,7 @@ export function planJellyfinLinks({ items = [], rows = [] } = {}) {
   };
 
   const top = items.filter((i) => i.Type === "Movie" || i.Type === "Series");
-  resolve(top, (i) => matchTop(i, rows, items), (i, r) => { if (i.Type === "Series") showRowByJf.set(i.Id, r.id); });
+  resolve(top, (i) => matchTop(i, rows, items, itemIds), (i, r) => { if (i.Type === "Series") showRowByJf.set(i.Id, r.id); });
   for (const r of rows) if (r.board === SERIES_BOARD && r.jellyfinId && !showRowByJf.has(r.jellyfinId)) showRowByJf.set(r.jellyfinId, r.id);
 
   const child = (kind) => (item) => {

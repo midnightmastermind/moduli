@@ -152,3 +152,22 @@ describe("planJellyfinLinks — fix round 1", () => {
     expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
   });
 });
+
+describe("planJellyfinLinks — a later run over duplicate files", () => {
+  it("the loser of an already-linked pair is still a duplicate file, not 'row linked to another item'", () => {
+    const r = plan([mv({ Id: "a", Path: "/a" }), mv({ Id: "b", Path: "/b" })], [row({ jellyfinId: "a" })]);
+    expect(r.unchanged).toBe(1);
+    expect(r.ambiguous).toEqual([{ jfId: "b", reason: "duplicate file" }]);
+  });
+  it("a no-year row created for one of two same-title files: the other is a duplicate file", () => {
+    const d = (Id) => mv({ Id, Name: "Atlantis", ProductionYear: null, Path: `/${Id}`, library: "documentaries", ProviderIds: {} });
+    const r = plan([d("x"), d("y")], [row({ id: "dr", label: "Atlantis", year: null, board: "danny", jellyfinId: "x" })]);
+    expect(r.unchanged).toBe(1);
+    expect(r.ambiguous).toEqual([{ jfId: "y", reason: "duplicate file" }]);
+    expect(r.create).toEqual([]);
+  });
+  it("a row linked to an item Jellyfin no longer lists is still 'row linked to another item'", () => {
+    const r = plan([mv({ Id: "new" })], [row({ jellyfinId: "gone" })]);
+    expect(r.ambiguous).toEqual([{ jfId: "new", reason: "row linked to another item" }]);
+  });
+});
