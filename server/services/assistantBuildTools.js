@@ -19,7 +19,7 @@
 // ============================================================
 
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-const splitPath = (s) => String(s ?? "").split(/\s*(?:›|>|\/)\s*/).map((p) => p.trim()).filter(Boolean);
+const splitPath = (s) => String(s ?? "").split(/\s*(?:›|»|>|\/|…|\.{3}|\|)\s*/).map((p) => p.trim()).filter(Boolean);
 
 // ── pure helpers ─────────────────────────────────────────────────────────
 

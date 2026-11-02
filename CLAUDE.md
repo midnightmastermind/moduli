@@ -26,7 +26,10 @@ two copies of one source, one `copyLinkSource`) deleted. Read back: 17/17 listed
 **Fix:** `create_items` items take `repeat: {from, to, weekdays?, except?, dateField?}` —
 `assistantBuildTools.expandRepeats` (pure; refuses a backwards range, an unknown weekday, >366 days) makes one
 row per matching day, and the result carries `dates` so a gap is visible. Both system prompts tell the model to
-send one repeating item instead of listing dates. 5 tests (fail before); server 3,454 pass; deployed.
+send one repeating item instead of listing dates. **Checked against the real llama3.2 3B** (prod's prompt + schema,
+2 runs, ~9s each): both sent ONE item with `repeat {from 2026-11-01, to 2026-11-30, weekdays [Mon..Thu]}` — and wrote
+the path as `Tasks … Appointments` / `Tasks› Appointments`, so `splitPath` now also splits on `…` `...` `»` `|`. It
+also puts a stray `Date` in `fields`; the expansion overwrites it. 9 tests; server 3,456 pass; deployed.
 
 ---
 

@@ -26,6 +26,9 @@ describe("name resolution", () => {
     expect(pickDestination(hits, "Tasks › Appointments").destination.id).toBe("a");
     expect(pickDestination(hits, "Appointments").error).toMatch(/matches 2/);
     expect(pickDestination(hits, "Tasks").destination.id).toBe("c");
+    // what llama3.2 3B actually wrote for "Tasks › Appointments" (2026-11-02)
+    expect(pickDestination(hits, "Tasks … Appointments").destination?.id).toBe("a");
+    expect(pickDestination(hits, "Tasks» Appointments").destination?.id).toBe("a");
   });
   it("a field name must be exact", () => {
     const fs = [{ id: "1", name: "Date" }, { id: "2", name: "Date Added" }];
@@ -182,6 +185,14 @@ describe("repeating items (the model does not list dates itself)", () => {
     expect(days).toContain("2026-11-23");
     expect(days).toContain("2026-11-26");
     expect(out.items.every((i) => i.fields["Time Slot"] === "4:00pm" && !i.repeat)).toBe(true);
+  });
+  it("a Date the model also put in fields does not survive the expansion (3B does this)", () => {
+    const out = expandRepeats([{ label: "X", fields: { Date: "2026-11-01" }, repeat: { from: "2026-11-01", to: "2026-11-30", weekdays: ["Mon"] } }]);
+    expect(out.items.map((i) => i.fields.Date)).toEqual(["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23", "2026-11-30"]);
+  });
+  it("a repeat sent as JSON text inside a JSON-text item list still expands", () => {
+    const out = expandRepeats(asList('[{"label":"X","repeat":"{\\"from\\":\\"2026-11-02\\",\\"to\\":\\"2026-11-03\\"}"}]'));
+    expect(out.items).toHaveLength(2);
   });
   it("accepts full weekday names, a custom date field, and skips 'except' days", () => {
     const out = expandRepeats([{ label: "X", repeat: { from: "2026-11-02", to: "2026-11-09", weekdays: ["monday"], dateField: "Due", except: ["2026-11-09"] } }]);
