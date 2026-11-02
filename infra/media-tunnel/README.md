@@ -13,6 +13,12 @@ PC runs Jellyfin on :8096. A reverse SSH tunnel publishes it on the droplet at 1
 4. DNS (Cloudflare, DNS-only): A `media` -> 142.93.5.142. Copy the nginx file to `/etc/nginx/sites-available/`, symlink into `sites-enabled`, `nginx -t && systemctl reload nginx`, `certbot --nginx -d media.viafluere.com`.
 5. Jellyfin (done via API): KnownProxies `127.0.0.1`; RemoteClientBitrateLimit 4 Mbps; hardware acceleration AMF, HW decoding h264/hevc, HW encoding on; user `friend` (non-admin, Movies/Shows/Documentaries); API key "Moduli". Secrets are kept outside git.
 
+## The *arr apps (2026-11-02)
+The same tunnel also carries 8098 -> Radarr 7878 (`movie.viafluere.com`), 8099 -> Sonarr 8989 (`tv.`), 8100 -> Lidarr 8686
+(`music.`); `authorized_keys` permits all four listen ports. nginx sites `infra/nginx/<name>.viafluere.com`, staged in
+`sites-available` and NOT enabled until DNS exists AND the app's login is Forms (Radarr and Lidarr were `None` — open to
+anyone). Then: symlink, `nginx -t && systemctl reload nginx`, `certbot --nginx -d <name>.viafluere.com`.
+
 ## Measurements
 - ffmpeg h264_amf (d3d11va decode, 1080p, 2 Mbps) on a film clip: ~4.3x realtime, so GPU encoding works.
 - Jellyfin's own transcode over media.viafluere.com (HEVC 1080p film, MaxStreamingBitrate 2 Mbps): log `FFmpeg.Transcode-*.log` shows `-hwaccel d3d11va` and `-codec:v:0 h264_amf` (`hevc (native) -> h264 (h264_amf)`); 4 segments downloaded, 0.6-2.2 MB each.
