@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (2) — THE FINAL REVIEW'S SIX FIXES SHIPPED; the tunnel comes back on its own after a silent PC
+
+Picked up from two accounts (account3 ran the final review and its fix wave until its limit; the main account finished
+most of it and hit its weekly limit before deploying). Shipped as `9c785c8d`, deployed with a restart:
+- **Offline within ~8s:** a segment still waits up to 30s for a slow ffmpeg, but after 5s with no headers the proxy
+  pings `/System/Info/Public` (3s) and answers 503 when nothing comes back. The player maps a 503 (and an hls network
+  error with no answer) to the offline message on both the hls.js and the native path.
+- **Played vs. progress race:** a progress report's UserData write is skipped when `/played` ended the session while
+  it was in flight, and `markPlayed` waits for an in-flight report first. Empty `cfg.userId` is refused.
+- **Sync skips a run within 15 min** of the last successful one (memory + `grid.meta.jellyfinLastSyncAt`), checked in
+  the route before the 202; `force` and dry runs bypass it. The Jellyfin client is built before the 202.
+- **Signed creates are atomic across sockets:** `create_batch`'s duplicate-signature check + insert are serialized per
+  user+grid (`signatureCreateAcrossSockets.test.js`, two sockets → one row).
+- **A rewatch started in Jellyfin's own app is not a finish** (a play with a resume position left is skipped).
+- Minor: Play only for playable item types, fMP4 `.mp4` segments under `/hls`, a 401 key reads "rejected the API key",
+  UserData failures are logged. S00/E0 matching and the hidden sign-in user list (0 public users) were already done.
+- **sshd `Match User tunnel` / ClientAliveInterval 15 / CountMax 3** on prod (reloaded) and in the README. The
+  running tunnel predated it, so it was ended once (PC reconnected in 12s). **Watched:** the tunnel's packets dropped
+  on the droplet (iptables, that connection only, with a 3-min safety removal) → the old session released 8097 at
+  +61s and the PC reclaimed it at +69s. Before: up to ~2h.
+Server 3,429 pass; client only the known `bookReaderHeadOneRow` failure. **Not watched:** the proxy's 503 timing and
+the player's offline message on the live site (unit-tested), Firefox, a phone, episodes, Play next.
+
+---
+
 ### 2026-11-02 — JELLYFIN PLAYS INSIDE MODULI; three defects only prod could show
 
 The media-streaming plan (`docs/superpowers/plans/2026-11-01-media-streaming.md`, ledger
