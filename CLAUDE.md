@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (3) — JONAH GETS ONE-STEP BUILD TOOLS; the 7B model cannot answer in time on CPU
+
+User picked "A": tools for a board with rows, select options, a filter with nav, bulk items; switch to qwen2.5-coder 7B;
+rerun the Quick Links board + CPS classes tests (classes use Schedule Type **Class**, which did not exist).
+- `services/assistantBuildTools.js` (NEW, `0effe73d`): **create_board** (board page in a folder + container + bookmark
+  or item rows, `selectFields`, `filterField`), **create_items** (many rows into a container named by path, e.g.
+  "Tasks › Appointments", field values BY NAME; an occurrence-field value that names no option is ADDED into the
+  field's `addNew` container, tagged with its query's literal values, bindings copied from a sibling option),
+  **add_filter** (Filter-menu shape: active, showNav, nothing set). `create_field` takes `options` and drops a string
+  `meta` (the 3B model's field stored meta as a spread string). Offline allowlist + system prompt updated.
+  Tests `assistantBuildTools.test.js` (11; removing the add-option branch fails the CPS case). Server 3,443 pass.
+- The broken "Quick Link Type" field from the first run deleted (0 bindings / values / filters). Prod
+  `OLLAMA_MODEL=qwen2.5-coder:7b`.
+- **Rerun: both requests failed before any tool ran** — "Ollama timed out (>50s)". Measured from prod: the 7B runs
+  on **CPU only** (`/api/ps` size_vram 0), prompt reading **~28 tokens/s** (3,032 tokens → 108s). Jonah's prompt is
+  ~6k tokens, so one generation needs ~200s of reading; Cloudflare cuts at 100s, retries ate the 300s budget.
+  Nothing was created. This PC (integrated Radeon) is not the Ollama machine. **Open, the user's call.**
+
+---
+
 ### 2026-11-02 (2) — THE FINAL REVIEW'S SIX FIXES SHIPPED; the tunnel comes back on its own after a silent PC
 
 Picked up from two accounts (account3 ran the final review and its fix wave until its limit; the main account finished
