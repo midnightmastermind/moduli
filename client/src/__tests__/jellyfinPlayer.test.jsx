@@ -231,7 +231,7 @@ describe("Play button", () => {
     expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
     rerender(<ArtifactCard module={mod} occurrence={{ id: "a", moduleId: "m", label: "John Wick", meta: { cover: "https://x/p.jpg", jellyfinId: "j" } }} />);
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
-  });
+  }, 30000); // cold-importing ArtifactCard's module tree alone runs past vitest's 5s default
 
   it("ArtifactCard renders the Play button (wiring)", async () => {
     const fs = await import("node:fs");

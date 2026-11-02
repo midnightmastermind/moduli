@@ -21,7 +21,7 @@ export function JellyfinPlayButton({ occurrence, onPlay, onPlayNext, fieldsById 
       onPointerDown={stop}
       onMouseDown={stop}
       onDoubleClick={stop}
-      onClick={(e) => { e.stopPropagation(); (next ? onPlayNext : onPlay)?.(); }}
+      onClick={(e) => { e.stopPropagation(); (next ? onPlayNext : onPlay)?.(e.currentTarget); }}
     >
       {next ? <SkipForward size={14} /> : <Play size={14} />}
       <span>{next ? "Play next" : "Play"}</span>

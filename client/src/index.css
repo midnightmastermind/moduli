@@ -9543,3 +9543,38 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   opacity: 0.92;
 }
 .jellyfin-play-btn:hover { opacity: 1; border-color: var(--accent); }
+
+/* ── THE JELLYFIN PLAYER TILE IN THE VIEWER (ArtifactSpreadHost, 2026-11-02) ──────────────────────────────
+   Play opens the instance's viewer with the player FIRST and its files beside it. The tile is the host's, not an
+   occurrence on the spread page, so the body lays the two out side by side; the files keep their own grid. */
+.artifact-spread-body--playing {
+  display: flex;
+  gap: var(--child-gap, 10px);
+  align-items: stretch;
+  min-height: 0;
+}
+.artifact-spread-body--playing > .spread-player-tile {
+  flex: 2 1 0;
+  min-width: 0;
+  min-height: min(66vh, 820px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--viewer-tile-bg, var(--surface-card));
+  overflow: hidden;
+}
+.artifact-spread-body--playing > :not(.spread-player-tile) { flex: 1 1 0; min-width: 0; }
+.artifact-spread-body--playing { --spread-cols: 1; }
+.spread-player-tile-head {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 6px 0;
+}
+.spread-player-tile-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.spread-player-tile-body > * { flex: 1 1 auto; min-width: 0; }
+/* Maximized, the player is the only tile shown (the files stay mounted, hidden). */
+.artifact-spread-body--playing:has(> .spread-player-tile--max) > :not(.spread-player-tile) { display: none; }
+.artifact-spread-body--playing > .spread-player-tile--max { flex: 1 1 auto; min-height: 0; height: 100%; }
+.artifact-spread--mobile .artifact-spread-body--playing { flex-direction: column; }
+.artifact-spread--mobile .artifact-spread-body--playing > .spread-player-tile { min-height: 40vh; }

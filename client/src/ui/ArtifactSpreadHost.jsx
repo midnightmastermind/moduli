@@ -272,7 +272,7 @@ export function ArtifactSpreadHost() {
   useEffect(() => {
     if (!gridId || restoredForRef.current !== gridId) return;
     if (req?.occurrenceId) {
-      if (maxIdRef.current === undefined) maxIdRef.current = req.maxId ?? null;
+      maxIdRef.current = req.maxId ?? null;
       saveOpenSpread(gridId, { occurrenceId: req.occurrenceId, panelId: req.panelId || null, maxId: maxIdRef.current });
     } else clearOpenSpread(gridId);
   }, [gridId, req]);

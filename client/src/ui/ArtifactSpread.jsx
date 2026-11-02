@@ -72,6 +72,8 @@ export default function ArtifactSpread({
   onClose,
   onAdd,
   onModeChange,
+  // A Jellyfin player tile sits first in the body (ArtifactSpreadHost) — the body lays it beside the files.
+  playing = false,
   children,                 // the board / canvas renderer, mounted by the host
 }) {
   const mobile = isDrawerLayout();
@@ -287,7 +289,7 @@ export default function ArtifactSpread({
         <DockRectContext.Provider value={isDocked ? dockRect : null}>
         <SpreadMaximizeContext.Provider value={maxCtl}>
         <SpreadHostContext.Provider value={hostCtl}>
-          <div className="artifact-spread-body" data-count={count}>{children}</div>
+          <div className={`artifact-spread-body${playing ? " artifact-spread-body--playing" : ""}`} data-count={count}>{children}</div>
         </SpreadHostContext.Provider>
         </SpreadMaximizeContext.Provider>
         </DockRectContext.Provider>

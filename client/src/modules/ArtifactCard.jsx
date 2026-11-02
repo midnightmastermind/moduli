@@ -162,13 +162,13 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getViewMap = useGridActionsSelector(s => s.getViewMap);
   const getFieldMap = useGridActionsSelector(s => s.getFieldMap);
   // A row the Jellyfin sync linked plays in Moduli (helpers/jellyfinPlay); the map getters are read at play time.
-  const playJellyfin = useCallback(() => openJellyfinPlayer({
+  const playJellyfin = useCallback((originEl) => openJellyfinPlayer({
     occurrence, label: occurrenceDisplayLabel(occurrence, module) || label,
-    dispatch, socket, getOcc, getFieldMap,
+    dispatch, socket, getOcc, getFieldMap, originEl,
   }), [occurrence, module, label, dispatch, socket, getOcc, getFieldMap]);
   // A TV Series / Season row plays its next unwatched episode (helpers/nextUnwatched), read at click time.
-  const playNextJellyfin = useCallback(() => playNextUnwatched({
-    occurrence, dispatch, socket, getOcc, getOccMap, getFieldMap,
+  const playNextJellyfin = useCallback((originEl) => playNextUnwatched({
+    occurrence, dispatch, socket, getOcc, getOccMap, getFieldMap, originEl,
   }), [occurrence, dispatch, socket, getOcc, getOccMap, getFieldMap]);
   // A COPY of an uploaded file carries "Go to file" — its home is the placement filed in a Files folder.
   // Only uploads are looked up (a shared type module like "Movie" has ~1000 placements; it is skipped).

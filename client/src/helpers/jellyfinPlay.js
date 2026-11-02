@@ -1,5 +1,5 @@
 // helpers/jellyfinPlay.js — the pure half of playing a Jellyfin-linked instance in Moduli, plus the one
-// open-the-player entry point (a host mounted once in App, ui/JellyfinPlayerHost).
+// open-the-player entry point (the file viewer's host, ui/ArtifactSpreadHost, plays it as the first tile).
 //
 // An instance is playable when the sync linked it (`meta.jellyfinId`, server/services/jellyfinSync). The
 // server answers GET /api/v1/jellyfin/play/:occId with proxy-relative stream urls; <video> and hls.js
@@ -82,10 +82,14 @@ export function registerJellyfinPlayerHost(fn) {
   return () => { if (hostListener === fn) hostListener = null; };
 }
 
-/** Open the player for an instance. `ctx` = { dispatch, socket, getOcc, getFieldMap } of the caller's grid. */
+/**
+ * Play an instance: opens the file viewer for it with the player as the first tile (ui/ArtifactSpreadHost).
+ * `ctx` = { dispatch, socket, getOcc, getFieldMap } of the caller's grid, plus `originEl` (the pressed element —
+ * the viewer opens out of it and docks in its panel).
+ */
 export function openJellyfinPlayer({ occurrence, label, ...ctx }) {
   if (!isPlayableRow(occurrence)) return false;
-  if (!hostListener) { console.warn("[JellyfinPlayer] no host mounted — is <JellyfinPlayerHost/> in App?"); return false; }
+  if (!hostListener) { console.warn("[JellyfinPlayer] no viewer host mounted — is <ArtifactSpreadHost/> in App?"); return false; }
   hostListener({ occurrenceId: occurrence.id, label: label || occurrence.label || "", ...ctx });
   return true;
 }
