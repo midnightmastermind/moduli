@@ -4970,8 +4970,10 @@ input.artifact-thumb-info-name--editing {
 }
 /* Kill the "little space on top of the image": the label+handle FLEX GROUP (first child
    of .instance-content) was reserving a row ABOVE the artifact-card. Lift the whole group
-   out of flow (absolute, top-left) so the image starts flush at the very top of the box. */
-.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content:has(.artifact-card) > div:first-child:not(.instance-body) {
+   out of flow (absolute, top-left) so the image starts flush at the very top of the box.
+   Named by its CLASS, never `div:first-child`: a tag-name subject under `:has()` re-checked every div on the page each
+   time a row with a picture mounted (People board on a phone, 2026-11-02 — the scroll "blacked out"). */
+.wrap-group--on > .wrap-group-content > * > [data-wrap-role="float"] .instance-content:has(.artifact-card) > .instance-handle-group {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -9574,7 +9576,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .spread-player-tile-body { flex: 1 1 auto; min-height: 0; display: flex; }
 .spread-player-tile-body > * { flex: 1 1 auto; min-width: 0; }
 /* Maximized, the player is the only tile shown (the files stay mounted, hidden). */
-.artifact-spread-body--playing:has(> .spread-player-tile--max) > :not(.spread-player-tile) { display: none; }
+/* The maximized player hides the tiles AFTER it (it is always the body's first child). A sibling selector, not
+   `:has()`: `.artifact-spread-body--playing:has(> .spread-player-tile--max) > :not(...)` made every row a virtual
+   list inserted restyle the whole body (~10,400 elements, ~370ms a scroll step on a phone — People, 2026-11-02). */
+.artifact-spread-body--playing > .spread-player-tile--max ~ :not(.spread-player-tile) { display: none; }
 .artifact-spread-body--playing > .spread-player-tile--max { flex: 1 1 auto; min-height: 0; height: 100%; }
 .artifact-spread--mobile .artifact-spread-body--playing { flex-direction: column; }
 .artifact-spread--mobile .artifact-spread-body--playing > .spread-player-tile { min-height: 40vh; }

@@ -1201,7 +1201,7 @@ function Panel({
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
                 {/* Search every occurrence on the grid; picking one opens its
                     page in THIS panel and scrolls to it. */}
-                <OccurrenceSearch onPick={handleSearchPick} title="Search all occurrences" />
+                <OccurrenceSearch onPick={handleSearchPick} preferRootId={currentView?.activeOccurrenceId || null} title="Search all occurrences" />
                 {/* THE sidebar toggle. Was one of TWO buttons that switched
                     between a local tree and the root tree; with one merged tree
                     there is nothing to switch, so it is a plain show/hide (the

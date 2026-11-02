@@ -189,6 +189,13 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
 
   // Fields: names + values, and the pairs a result row shows as "why it matched".
   const fieldPairs = [];
+  // Occurrences this row's field values point at (a person's photos): a search that finds the row does not list
+  // them again. Any field, any id-shaped value that names an occurrence.
+  const refIds = [];
+  for (const stored of Object.values(occ.fields || {})) {
+    const raw = rawOf(stored);
+    for (const v of Array.isArray(raw) ? raw : [raw]) if (typeof v === "string" && v !== occ.id && occurrencesById[v]) refIds.push(v);
+  }
   for (const [fid, stored] of Object.entries(occ.fields || {})) {
     const field = fieldsById[fid];
     if (!field) continue;
@@ -219,6 +226,10 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
     kindLabel: kindLabel(module.role, module.kind),
     sameAsPage,
     fieldPairs,
+    refIds,
+    // One thing shown in several places: a feed copy names its source, copy-linked rows share a group.
+    sameAs: occ.linkedGroupId || occ.meta?.feedSourceId || occ.id,
+    isCopy: !!(occ.meta?.feedSourceId || occ.meta?.copyLinkSource),
     haystacks: {
       label: label.toLowerCase(),
       path: pathLabels.join(" ").toLowerCase(),
@@ -294,7 +305,7 @@ function whyFor(entry, tier, term) {
  * with AND-of-terms, fuzz produces more noise than help.
  */
 // `keep(occId)` (Search › Keep filters, helpers/filterKeep) drops hits the filters in force hide.
-export function searchOccurrences(index, query, { scopeRootId = null, limit = 50, keep = null } = {}) {
+export function searchOccurrences(index, query, { scopeRootId = null, preferRootId = null, limit = 50, keep = null } = {}) {
   const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length || !index?.entries?.length) return { results: [], total: 0 };
 
@@ -332,17 +343,38 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
   // the ranking cannot disagree with what a click does. Unopenable rows are
   // still LISTED: the row says so, and hiding them would be the original
   // complaint in a new form — the row exists, and search is how you find it.
+  // THE PANEL'S OWN PAGE FIRST (user 2026-11-02): searching from a panel, the hits on the page it shows lead, then
+  // everything else in the usual order.
+  const here = (e) => !!preferRootId && (e.occId === preferRootId || e.ancestorIds.includes(preferRootId));
   scored.sort((a, b) =>
+    (here(a.entry) ? 0 : 1) - (here(b.entry) ? 0 : 1) ||
     a.score - b.score ||
     (a.entry.pageOccId ? 0 : 1) - (b.entry.pageOccId ? 0 : 1) ||
     a.entry.ancestorIds.length - b.entry.ancestorIds.length ||
     a.entry.label.localeCompare(b.entry.label) ||
     a.entry.occId.localeCompare(b.entry.occId));
 
+  // ONE ROW PER THING. A feed copy and its source, or copy-linked rows, are one thing in several places: keep the
+  // one on the panel's page, else the original, else the best ranked; it takes the group's best position.
+  const groups = new Map();
+  for (const h of scored) { const k = h.entry.sameAs; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(h); }
+  const pick = (list) => list.find((h) => here(h.entry)) || list.find((h) => !h.entry.isCopy) || list[0];
+  let unique = [];
+  for (const h of scored) {
+    const list = groups.get(h.entry.sameAs);
+    if (!list) continue; // already placed
+    groups.delete(h.entry.sameAs);
+    unique.push(list.length === 1 ? h : pick(list));
+  }
+  // A row that matched stands for the occurrences its fields point at (a person's photos, named after them).
+  const covered = new Set();
+  for (const h of unique) for (const id of h.entry.refIds || []) covered.add(id);
+  unique = unique.filter((h) => !covered.has(h.entry.occId) || h.entry.role !== "artifact");
+
   // Rows that match ONLY through their path (they sit on a page of that name) are capped per page, or a 250-row
   // Lookup board buried every real match for "lookup".
   const perParent = new Map();
-  const kept = scored.filter((h) => {
+  const kept = unique.filter((h) => {
     if (h.tier !== TIER_PATH) return true;
     const k = h.entry.pageOccId || h.entry.ancestorIds[0] || "";
     const n = (perParent.get(k) || 0) + 1; perParent.set(k, n);
@@ -370,6 +402,9 @@ export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsB
     && _lastArgs.foldersById === foldersById
     && _lastArgs.gridId === gridId) return _lastIndex;
 
+  // NOT `cachedParentMap`, measured 2026-11-02: sharing the identity-keyed cache from here made the SECOND search on a
+  // phone take 18-23s of typing (operation sweeps ran under it), against 0.2s with a private build. The index is held
+  // for the whole open search (ui/OccurrenceSearch), so this runs once per search, not per keystroke.
   const parentBy = buildParentMap(occurrencesById);
   const embedParent = embedParentIndex(occurrencesById);
   const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? embedParent.get(id) ?? null;

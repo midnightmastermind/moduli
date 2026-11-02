@@ -20,3 +20,40 @@ describe("doc container styling without :has()", () => {
     expect(jsx).toMatch(/isDocContainer \? " container-shell--doc"/);
   });
 });
+
+// The same class, 2026-11-02: the Jellyfin player's "maximized hides the rest" rule was a `:has()` whose subject was
+// any tile, so every row a virtual list inserted invalidated the whole body (People board on a phone: ~370ms of
+// style recalc per scroll step over ~10,400 elements). The player is the body's first child; a sibling rule does it.
+describe("the maximized player hides the other tiles without :has()", () => {
+  it("no :has() rule asks the viewer body about the player", () => {
+    expect(css).not.toMatch(/artifact-spread-body--playing:has\(/);
+  });
+  it("the sibling rule hides what follows a maximized player", () => {
+    expect(css).toMatch(/\.artifact-spread-body--playing > \.spread-player-tile--max ~ :not\(\.spread-player-tile\) \{ display: none; \}/);
+  });
+});
+
+// And a `:has()` rule whose SUBJECT is a bare tag (`> div:first-child`) re-checks every element of that tag under any
+// change: the wrap-float handle rule restyled every div on the People board per scroll step.
+// Known and bounded: a ProseMirror <br> cannot carry a class, and this re-check is confined to one paragraph's child.
+const ALLOWED = new Set([".doc-editor-content.ProseMirror p:has(.doc-instance-block) > br"]);
+
+describe("no :has() rule ends on a bare tag name", () => {
+  it("no selector puts a :has() on an ancestor and ends on a bare tag", () => {
+    const offenders = [];
+    for (const rule of css.split("}")) {
+      const sel = rule.split("{")[0];
+      for (const part of sel.split(",")) {
+        const p = part.trim();
+        if (!p.includes(":has(")) continue;
+        // Only `ANCESTOR:has(...) <combinator> tag`: a :has() on the subject itself (`p:has(...)`) is a different shape.
+        const marked = p.replace(/:has\((?:[^()]|\([^()]*\))*\)/g, "§").trim();
+        const last = marked.split(/\s*[>+~ ]\s*/).pop();
+        if (last.includes("§") || !marked.includes("§")) continue;
+        if (/^[a-z]+(?::[a-z-]+(?:\([^)]*\))?)*$/i.test(last) && !ALLOWED.has(p)) offenders.push(p);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+

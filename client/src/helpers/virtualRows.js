@@ -140,6 +140,21 @@ export function measuredAverage(v, mountAvg, cache) {
   return mountAvg && mountAvg.n > 0 ? mountAvg.total / mountAvg.n : VIRTUAL_ESTIMATE;
 }
 
+/**
+ * A row's size, never read off the element. TanStack's default measureElement reads `offsetHeight` when it is called
+ * synchronously (a row mounting), which forces a layout — once per mounting row, many times a frame on a fast scroll.
+ * Profiled 2026-11-02 on a phone (People board, 4x CPU): 40% of the scroll. The virtualizer's own ResizeObserver
+ * reports every row's size after layout at no cost; the synchronous call returns what is known (cached size, else the
+ * estimate) and the observer corrects it in the same frame.
+ */
+export function observerOnlyMeasure(element, entry, instance) {
+  const box = entry?.borderBoxSize?.[0];
+  if (box) return Math.round(instance.options.horizontal ? box.inlineSize : box.blockSize);
+  const index = instance.indexFromElement(element);
+  const cached = instance.itemSizeCache.get(instance.options.getItemKey(index));
+  return cached !== undefined ? cached : instance.options.estimateSize(index);
+}
+
 /** PURE: the rendered range plus any pinned index, sorted and de-duplicated. */
 export function rangeWithPin(range, pinIndex) {
   const base = defaultRangeExtractor(range);
@@ -272,6 +287,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       return estimateFor(i, avg, frozenEstRef.current, vRef.current?.range?.startIndex);
     },
     overscan: isGrid ? VIRTUAL_GRID_OVERSCAN : VIRTUAL_OVERSCAN,
+    measureElement: observerOnlyMeasure,
     getItemKey: (i) => (isGrid ? `line-${i}` : (keyOfRef.current?.(i) ?? i)),
     rangeExtractor: (range) => rangeWithPin(range, pinIndex),
     // The list's own position inside the scroller, read LIVE.
@@ -538,11 +554,11 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
   }, [plan, active, isGrid, cols, listRef]);
 
   // Measure a rendered row, and fold its height into the running estimate.
+  // Registering the row is all: its height comes from the virtualizer's ResizeObserver (observerOnlyMeasure), and
+  // the running average is read from the size cache that observer fills (measuredAverage).
   const measureRef = useCallback((node) => {
     if (!node) return;
     v.measureElement(node);
-    const h = node.getBoundingClientRect().height;
-    if (h > 0) { avgRef.current.total += h; avgRef.current.n += 1; }
   }, [v]);
 
   return { active, plan, measureRef, isGrid };

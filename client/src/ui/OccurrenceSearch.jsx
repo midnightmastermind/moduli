@@ -59,8 +59,19 @@ function Row({ hit, term, active, onPick, onHover }) {
   );
 }
 
+// The first search builds the index over the whole grid (2.3s on a phone at 4x CPU, measured 2026-11-02). Build it
+// once the app is idle after load instead, so the first keystroke finds it ready. Once per page load.
+let _warmScheduled = false;
+function warmSearchIndexWhenIdle(args) {
+  if (_warmScheduled || typeof window === "undefined") return;
+  _warmScheduled = true;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+  setTimeout(() => idle(() => { try { getSearchIndex(args()); } catch { /* a warm-up is best effort */ } }, { timeout: 10000 }), 8000);
+}
+
 export default function OccurrenceSearch({
   scopeRootId = null,
+  preferRootId = null,
   onPick,
   title = "Search occurrences",
   placeholder = "Search occurrences…",
@@ -73,6 +84,7 @@ export default function OccurrenceSearch({
   const wrapRef = useRef(null);
   // Search only what the filters in force leave on screen (remembered per browser).
   const [keepFilters, setKeepFilters] = useState(readKeep);
+  const sessionIndexRef = useRef(null);
   const toggleKeep = () => setKeepFilters((v) => { try { localStorage.setItem(KEEP_KEY, v ? "0" : "1"); } catch { /* per-viewer convenience */ } return !v; });
 
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
@@ -94,24 +106,35 @@ export default function OccurrenceSearch({
   const runSearch = useCallback((q) => {
     const term = String(q || "").trim();
     if (!term) return { results: [], total: 0 };
-    const index = getSearchIndex({
+    // ONE INDEX PER OPEN SEARCH. While the load sweep writes, every write gives the map a new identity, and
+    // rebuilding per keystroke froze a phone for seconds a key (2026-11-02). Closing the search drops it.
+    const index = sessionIndexRef.current || (sessionIndexRef.current = getSearchIndex({
       occurrencesById: getOccMap(),
       modulesById: getModMap(),
       fieldsById,
       gridId,
       foldersById,
-    });
+    }));
     const keep = keepFilters ? makeFilterKeeper({ grid, occurrencesById: getOccMap(), modulesById: getModMap() }) : null;
-    return searchOccurrences(index, term, { scopeRootId, keep });
+    return searchOccurrences(index, term, { scopeRootId, preferRootId, keep });
     // getOccMap/getModMap are stable getters — read at compute time, not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsById, gridId, scopeRootId, keepFilters, grid, foldersById]);
+  }, [fieldsById, gridId, scopeRootId, preferRootId, keepFilters, grid, foldersById]);
+
+  // Read at warm-up time, not at mount: a map captured early has another identity by then and the index cache
+  // would miss on the first real search.
+  const latestRef = useRef(null);
+  latestRef.current = { fieldsById, gridId, foldersById };
+  useEffect(() => {
+    warmSearchIndexWhenIdle(() => ({ occurrencesById: getOccMap(), modulesById: getModMap(), ...latestRef.current }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hits = useMemo(() => runSearch(debounced), [runSearch, debounced]);
 
   useEffect(() => { setActiveIdx(0); }, [debounced]);
 
-  const close = useCallback(() => { setOpen(false); setQuery(""); setDebounced(""); }, []);
+  const close = useCallback(() => { sessionIndexRef.current = null; setOpen(false); setQuery(""); setDebounced(""); }, []);
 
   const reposition = useCallback(() => {
     const el = wrapRef.current;
