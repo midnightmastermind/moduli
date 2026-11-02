@@ -72,6 +72,9 @@ export async function reportProgress({ cfg, itemId, userId, seconds, paused, pla
       try { await post(cfg, "/Sessions/Playing", body); } catch (e) { s.started = false; throw e; }
     }
     await post(cfg, "/Sessions/Playing/Progress", body);
+    // The session reports run under the admin key, whose session has no user, so Jellyfin keeps no resume point
+    // from them (12.4.0, measured 2026-11-02). The owner's UserData is written directly.
+    await post(cfg, `/UserItems/${encodeURIComponent(itemId)}/UserData?userId=${encodeURIComponent(cfg.userId)}`, { PlaybackPositionTicks: body.PositionTicks });
     return { ok: true };
   } catch (e) {
     if (isOffline(e)) return { ok: false, offline: true };

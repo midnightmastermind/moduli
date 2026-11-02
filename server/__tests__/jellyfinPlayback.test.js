@@ -109,9 +109,15 @@ describe("POST /jellyfin/progress", () => {
     calls = [];
     await post("/progress", { occId: "o1", seconds: 10.5, paused: false, playSessionId });
     await post("/progress", { occId: "o1", seconds: 15, paused: true, playSessionId });
-    expect(calls.map((c) => c.url)).toEqual(["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Progress"]);
-    expect(calls[0].body).toMatchObject({ ItemId: "JF9", PlaySessionId: playSessionId, PositionTicks: 105000000 });
-    expect(calls[2].body).toMatchObject({ PositionTicks: 150000000, IsPaused: true });
+    const sess = calls.filter((c) => c.url.startsWith("/Sessions/"));
+    expect(sess.map((c) => c.url)).toEqual(["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Progress"]);
+    expect(sess[0].body).toMatchObject({ ItemId: "JF9", PlaySessionId: playSessionId, PositionTicks: 105000000 });
+    expect(sess[2].body).toMatchObject({ PositionTicks: 150000000, IsPaused: true });
+    // An API-key session has no user, so Jellyfin saves no resume point from the session reports (measured on
+    // 12.4.0, 2026-11-02): the position is written to the owner's UserData directly.
+    const ud = calls.filter((c) => c.url.startsWith("/UserItems/"));
+    expect(ud.map((c) => `${c.method} ${c.url}`)).toEqual(["POST /UserItems/JF9/UserData?userId=jf1", "POST /UserItems/JF9/UserData?userId=jf1"]);
+    expect(ud[1].body).toEqual({ PlaybackPositionTicks: 150000000 });
     expect(calls.every((c) => c.token === "KEY")).toBe(true);
   });
   it("refuses others' rows", async () => {
