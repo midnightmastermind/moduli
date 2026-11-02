@@ -2002,7 +2002,7 @@ function Field({
         ? localValue.map(v => displayOpts.find(o => o.value === v)?.label ?? v).join(", ") || "—"
         : displayOpts.find(o => o.value === localValue)?.label ?? localValue ?? "—";
       return (
-        <Popover>
+        <Popover open={selectOpen} onOpenChange={setSelectOpen}>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
               className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[length:var(--cascade-field-font-size,12px)] rounded-full border transition-all
@@ -2018,7 +2018,7 @@ function Field({
           <PopoverContent className="w-40 p-1" align="start" side="bottom">
             {displayOpts.map(o => (
               <button key={o.value} type="button"
-                onClick={() => { handleChange(o.value); onCommit?.(o.value); }}
+                onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectOpen(false); }}
                 className={`w-full flex items-center px-2 py-1 rounded text-xs transition-colors
                   ${localValue === o.value ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
               >
@@ -2138,7 +2138,7 @@ function Field({
         // Border on the wrapper so the randomize dice sits INSIDE the pill.
         <div className="field-input inline-flex items-stretch rounded-full border overflow-hidden"
           style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))" }}>
-        <Popover>
+        <Popover open={selectOpen} onOpenChange={setSelectOpen}>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[length:var(--cascade-field-font-size,12px)] transition-all
@@ -2177,7 +2177,7 @@ function Field({
             <OptionSearchList
               options={options}
               selected={localValue ? [localValue] : []}
-              onPick={(v) => { handleChange(v); onCommit?.(v); }}
+              onPick={(v) => { handleChange(v); onCommit?.(v); setSelectOpen(false); }}
               onAddOption={occAddNewFn}
               addNewTargets={addNewTargetOptions}
               searchProvider={occSearchProvider}

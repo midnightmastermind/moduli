@@ -172,19 +172,11 @@ export function addNewParentOf(field) {
 
 /** A filter entry with nothing set and the nav showing — the shape the Filter menu writes. */
 export function filterEntryFor(field, id) {
-  const entry = {
-    id, fieldId: field.id, active: true, showNav: true, hides: false,
-    condition: {
-      operator: "OR",
-      rules: [
-        { left: "$field.value", comparator: field.type === "date" ? "DATE_EQUALS" : "CONTAINS", right: "$nav" },
-        { left: "$field.value", comparator: "IS_EMPTY" },
-      ],
-    },
-  };
-  if (field.type === "date") entry.timeUnit = "day";
-  const opts = manualOptions(field);
-  if (opts) { entry.style = "select"; entry.options = opts.map((o) => o.value); }
+  // The Filter menu's own shape (ui/FilterEditor): no condition, so the client makes it "field IS the picked
+  // value(s)" and it HIDES rows. A select field's nav is a multi-pick on the client. The earlier shape — a $nav
+  // condition with hides:false — was a nav widget only: picking a value filtered nothing (Quick Links, 2026-11-02).
+  const entry = { id, fieldId: field.id, active: true, showNav: true, condition: null };
+  if (field.type === "date") { entry.timeUnit = "day"; entry.defaultNavValue = "today"; }
   return entry;
 }
 

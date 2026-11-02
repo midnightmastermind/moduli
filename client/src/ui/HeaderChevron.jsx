@@ -48,6 +48,11 @@ export function formatFilterValue(fieldId, value, fieldsById) {
     const on = value === true || value === "true";
     return on ? (field?.name || "On") : null;
   }
+  // A multi-pick (select / occurrence filter): the picks, or a count past two.
+  if (Array.isArray(value)) {
+    if (!value.length) return null;
+    return value.length > 2 ? `${value.length} selected` : value.map(String).join(", ");
+  }
   const isDate = field?.type === "date";
   // Multi-shape detection: { kind: "multi", dates: ["YYYY-MM-DD", ...] }
   // List the actual days and contiguous ranges ("May 6, May 9–12, May 20").

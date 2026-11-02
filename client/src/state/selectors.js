@@ -834,8 +834,19 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // variant (day/week/month/year/span/multi) and treats `{value, unit:"day"}`
       // as exactly the single day SAME_DAY intended. Enumerating shapes is what
       // made this recur twice; `kind:"range"` was the first.
+      // A PICK LIST on either side (user 2026-11-02: a select filter's nav is a multi-select, and a multi-select
+      // field stores a list): the row shows when it shares ANY value with the picks. An empty pick list is no
+      // filter. IS / CONTAINS only — any other comparator keeps its own meaning.
+      const cmpName = String(cond.comparator || "IS").toUpperCase();
+      if ((Array.isArray(rightVal) || Array.isArray(leftVal)) && (cmpName === "IS" || cmpName === "CONTAINS")) {
+        const picks = (Array.isArray(rightVal) ? rightVal : [rightVal]).map(String);
+        if (!picks.length) continue;
+        const have = (Array.isArray(leftVal) ? leftVal : [leftVal]).map(String);
+        if (!have.some((v) => picks.includes(v))) return false;
+        continue;
+      }
       const hasPeriod = !!rightVal && typeof rightVal === "object" && !Array.isArray(rightVal);
-      const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
+      const comparator = hasPeriod ? "DATE_IN_PERIOD" : cmpName;
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;
     }

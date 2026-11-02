@@ -1,6 +1,8 @@
 // client/src/ui/FilterNavWidgets.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { OptionSearchList } from "./Field.jsx";
 import { setFilterNavAction } from "../state/actions";
 import { resolveOptions } from "../helpers/optionsResolver";
 import NavPickerPopover from "./NavPickerPopover.jsx";
@@ -287,6 +289,56 @@ function SelectWidget({ filter, value, options, dispatch, onNav }) {
   );
 }
 
+// ── A SELECT FIELD'S FILTER IS A MULTI-PICK (user 2026-11-02: "the nav should be a multiselect for it and not a bunch
+// of buttons"). One dropdown button that says what is picked; the list is the same searchable list the field pills
+// open. The value is a LIST of picks (null when none) — state/selectors matches a row sharing ANY of them.
+export function togglePick(value, pick) {
+  const cur = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
+  const next = cur.includes(pick) ? cur.filter((v) => v !== pick) : [...cur, pick];
+  return next.length ? next : null;
+}
+
+export function pickSummary(value, labels = {}) {
+  const cur = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
+  if (!cur.length) return "Any";
+  if (cur.length > 2) return `${cur.length} selected`;
+  return cur.map((v) => labels[v] ?? String(v)).join(", ");
+}
+
+function MultiPickWidget({ filter, value, options, dispatch, onNav }) {
+  const write = makeWriter(filter, onNav, dispatch);
+  const [open, setOpen] = useState(false);
+  const labels = Object.fromEntries((options || []).map((o) => [o.value, o.label]));
+  const selected = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="filter-multipick-btn"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999,
+            fontSize: FILTER_FONT, border: "1px solid var(--panel-border, #374151)",
+            background: selected.length ? "rgba(var(--occ-pill) / 0.15)" : "transparent", color: "inherit", cursor: "pointer",
+            maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{pickSummary(selected, labels)}</span>
+          <ChevronDown size={12} style={{ opacity: 0.6, flexShrink: 0 }} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="start" side="bottom">
+        <OptionSearchList options={options || []} selected={selected} multi
+          onPick={(v) => write(togglePick(selected, v))}
+          searchPlaceholder={(options || []).length > 8 ? "Search…" : null} />
+        {selected.length > 0 && (
+          <button type="button" onClick={() => { write(null); setOpen(false); }}
+            style={{ width: "100%", padding: "6px 8px", fontSize: 12, borderTop: "1px solid var(--panel-border, #374151)", background: "transparent", color: "inherit", cursor: "pointer", textAlign: "left" }}>
+            Clear ({selected.length})
+          </button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // A true/false filter is a switch. Unset reads OFF (a boolean filter with no value is not on), and
 // pills for "true"/"false" started with neither picked (user, 2026-10-13).
 function SwitchWidget({ filter, value, dispatch, onNav }) {
@@ -336,6 +388,10 @@ function InputWidget({ filter, value, dispatch, onNav }) {
 export default function FilterNavWidget({ filter, navConfig, value, fieldsById, occurrencesById, modulesById, foldersById, dispatch, onNav, nowrap = false }) {
   const style = navConfig?.style || defaultStyleForFilter(filter, fieldsById);
   const ctx = { occurrencesById, modulesById, foldersById };
+  if (style === "multipick") {
+    return <MultiPickWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav}
+      options={labelledOptionsForFilter(filter, fieldsById, ctx, navConfig?.options)} />;
+  }
   const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById, ctx);
   if (style === "arrows") return <ArrowsWidget filter={filter} navConfig={navConfig} value={value} dispatch={dispatch} onNav={onNav} nowrap={nowrap} />;
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
@@ -358,17 +414,31 @@ function primaryFieldOf(filter) {
 }
 
 export function defaultStyleForFilter(filter, fieldsById) {
-  // Author-set style wins (e.g. Schedule's timeslot filter pins "select").
-  if (filter?.style) return filter.style;
   const fld = (() => {
     const fid = primaryFieldOf(filter);
     return fid ? fieldsById?.[fid] : null;
   })();
+  // A select / occurrence field is always the multi-pick: "pills" and "select" were the older single-pick
+  // controls for exactly these fields, and an author-set one of those is upgraded rather than kept.
+  if ((fld?.type === "select" || fld?.type === "occurrence") && (!filter?.style || filter.style === "pills" || filter.style === "select")) return "multipick";
+  // Author-set style wins otherwise.
+  if (filter?.style) return filter.style;
   if (fld?.type === "date") return "arrows";
   if (fld?.type === "boolean") return "switch";
   if (fld?.type === "select") return "pills";
   if (fld?.type === "number") return "arrows";
   return "input";
+}
+
+// {value, label} options for the multi-pick: the filter's own list when it carries one, else the field's options
+// (an occurrence field's values are ids — the label is what a person reads).
+export function labelledOptionsForFilter(filter, fieldsById, ctx = {}, override = null) {
+  const own = override || (Array.isArray(filter?.options) && filter.options.length ? filter.options : null);
+  if (own) return own.map((o) => (o && typeof o === "object" ? o : { value: o, label: String(o) }));
+  const fid = primaryFieldOf(filter);
+  const fld = fid ? fieldsById?.[fid] : null;
+  if (!fld) return [];
+  return resolveOptions(fld, { fieldsById, ...ctx }).options.map((o) => ({ value: o.value, label: o.label ?? String(o.value) }));
 }
 
 export function derivedOptionsForFilter(filter, fieldsById, ctx = {}) {

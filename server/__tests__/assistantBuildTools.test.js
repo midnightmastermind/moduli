@@ -61,9 +61,14 @@ describe("values", () => {
     expect(predicateTags(f)).toEqual([{ fieldId: "BC", value: "appointment" }]);
   });
   it("a filter entry: nothing set, nav showing, options from the field", () => {
+    // The Filter menu's own shape: NO condition, so the client turns it into "field IS the picks" and it hides rows.
+    // The old shape (a $nav condition with hides:false) was skipped by getLocalFilterConditions, so clicking a value
+    // filtered nothing (user 2026-11-02, Quick Links).
     const e = filterEntryFor({ id: "F", type: "select", meta: selectMetaFor(["social", "media"]) }, "x");
-    expect(e).toMatchObject({ fieldId: "F", active: true, showNav: true, style: "select", options: ["social", "media"] });
-    expect(e.condition.rules[0]).toMatchObject({ comparator: "CONTAINS", right: "$nav" });
+    expect(e).toEqual({ id: "x", fieldId: "F", active: true, showNav: true, condition: null });
+    const d = filterEntryFor({ id: "D", type: "date" }, "y");
+    expect(d).toMatchObject({ condition: null, timeUnit: "day", defaultNavValue: "today" });
+    expect(d.hides).toBeUndefined();
   });
   it("bindings keep the siblings', un-hide what is set, add what is missing", () => {
     const b = bindingsFor([{ _id: "x", fieldId: "A", order: 0, hidden: true }, { fieldId: "M", order: 98, hidden: true, role: "media" }], ["A", "N"]);
