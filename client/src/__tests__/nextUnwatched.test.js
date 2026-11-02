@@ -40,6 +40,8 @@ describe("episodesForRow", () => {
     { id: "c", label: "C", meta: { jellyfinId: "jC" }, fields: { fShow: cell("show1"), fSeasonLink: cell("seas2"), fSeason: cell(2), fNum: cell(1), fWA: cell("2026-10-02T01:00:00Z") } },
     { id: "copy", label: "A", meta: { feedSourceId: "a", jellyfinId: "jA" }, fields: { fShow: cell("show1"), fSeason: cell(1), fNum: cell(1) } },
     { id: "other", label: "X", meta: {}, fields: { fShow: cell("show2"), fSeason: cell(1), fNum: cell(1) } },
+    // a SEASON row: the sync gives it TV Show + Season + a jellyfinId, and no Episode #
+    { id: "seasonRow", label: "Season 1", meta: { jellyfinId: "jS1" }, fields: { fShow: cell("show1"), fSeason: cell(1) } },
   ];
   it("a show's episodes: every row naming it, feed copies left out, watched from Last Watched or Watched At", () => {
     const eps = episodesForRow({ id: "show1" }, occs, F);
@@ -53,10 +55,21 @@ describe("episodesForRow", () => {
 });
 
 describe("isShowOrSeasonRow", () => {
-  it("a row the sync linked that is not itself playable (a Series / Season)", () => {
-    expect(isShowOrSeasonRow({ meta: { jellyfinId: "x" } })).toBe(true);
-    expect(isShowOrSeasonRow({ meta: { jellyfinId: "x", jellyfinPlayable: true } })).toBe(false);
-    expect(isShowOrSeasonRow({ meta: {} })).toBe(false);
+  const fieldsById = { cat: { id: "cat", name: "Board Category", type: "select" } };
+  const row = (tags, meta = { jellyfinId: "x" }) => ({ meta, fields: { cat: { value: tags, flow: "in" } } });
+  it("is a POSITIVE signal: a linked row whose Board Category is series or season", () => {
+    expect(isShowOrSeasonRow(row(["series"]), fieldsById)).toBe(true);
+    expect(isShowOrSeasonRow(row(["season"]), fieldsById)).toBe(true);
+  });
+  it("a movie / episode keeps Play whether or not it carries jellyfinPlayable", () => {
+    expect(isShowOrSeasonRow(row(["movie"]), fieldsById)).toBe(false);
+    expect(isShowOrSeasonRow(row(["episode"]), fieldsById)).toBe(false);
+    expect(isShowOrSeasonRow(row(["movie"], { jellyfinId: "x", jellyfinPlayable: true }), fieldsById)).toBe(false);
+  });
+  it("not linked, or no field map / no Board Category: not a show", () => {
+    expect(isShowOrSeasonRow(row(["series"], {}), fieldsById)).toBe(false);
+    expect(isShowOrSeasonRow(row(["series"]), {})).toBe(false);
+    expect(isShowOrSeasonRow(row(["series"]))).toBe(false);
   });
 });
 
@@ -69,14 +82,17 @@ describe("Play next unwatched (wiring)", async () => {
     fShow: { id: "fShow", name: "TV Show", type: "occurrence" }, fSL: { id: "fSL", name: "TV Season", type: "occurrence" },
     fS: { id: "fS", name: "Season", type: "number" }, fN: { id: "fN", name: "Episode #", type: "number" },
     fLW: { id: "fLW", name: "Last Watched", type: "date" }, fWA: { id: "fWA", name: "Watched At", type: "text" },
+    fCat: { id: "fCat", name: "Board Category", type: "select" },
   };
   const c = (v) => ({ value: v, flow: "in" });
-  const show = { id: "show", label: "Dark", meta: { jellyfinId: "jShow" } };
+  const show = { id: "show", label: "Dark", meta: { jellyfinId: "jShow" }, fields: { fCat: c(["series"]) } };
   const occ = (id, s, n, extra = {}) => ({ id, label: `S${s}E${n}`, meta: extra.jf === false ? {} : { jellyfinId: `j${id}`, jellyfinPlayable: true },
     fields: { fShow: c("show"), fS: c(s), fN: c(n), ...(extra.watched ? { fLW: c("2026-10-01") } : {}) } });
 
   it("opens the player on the chosen episode and says which were skipped", () => {
-    const occs = { show, a: occ("a", 1, 1, { watched: true }), b: occ("b", 1, 2, { jf: false }), c: occ("c", 1, 3) };
+    // the show's season row (linked, no Episode #) must never be picked
+    const season = { id: "s1", label: "Season 1", meta: { jellyfinId: "jS1" }, fields: { fShow: c("show"), fS: c(1), fCat: c(["season"]) } };
+    const occs = { show, s1: season, a: occ("a", 1, 1, { watched: true }), b: occ("b", 1, 2, { jf: false }), c: occ("c", 1, 3) };
     const host = vi.fn();
     const off = registerJellyfinPlayerHost(host);
     expect(playNextUnwatched({ occurrence: show, getOccMap: () => occs, getFieldMap: () => fieldsById })).toBe(true);
@@ -97,9 +113,13 @@ describe("Play next unwatched (wiring)", async () => {
 
   it("the radial offers Play next unwatched on a show / season row, Play on an episode", () => {
     const next = vi.fn();
-    expect(jellyfinRadialItems({ occurrence: show, onPlay: vi.fn(), onPlayNext: next }).map((i) => i.label))
+    expect(jellyfinRadialItems({ occurrence: show, onPlay: vi.fn(), onPlayNext: next, fieldsById }).map((i) => i.label))
       .toEqual(["Play next unwatched", "Open in Jellyfin"]);
-    expect(jellyfinRadialItems({ occurrence: occ("c", 1, 3), onPlay: vi.fn(), onPlayNext: next }).map((i) => i.label))
+    expect(jellyfinRadialItems({ occurrence: occ("c", 1, 3), onPlay: vi.fn(), onPlayNext: next, fieldsById }).map((i) => i.label))
+      .toEqual(["Play", "Open in Jellyfin"]);
+    // a movie the sync linked without jellyfinPlayable still plays
+    const movie = { id: "m", meta: { jellyfinId: "jm" }, fields: { fCat: c(["movie"]) } };
+    expect(jellyfinRadialItems({ occurrence: movie, onPlay: vi.fn(), onPlayNext: next, fieldsById }).map((i) => i.label))
       .toEqual(["Play", "Open in Jellyfin"]);
   });
 });
@@ -111,10 +131,12 @@ describe("the Play button on a show row", async () => {
   it("reads Play next on a Series / Season row and runs onPlayNext; Play on a playable row", async () => {
     const { vi } = await import("vitest");
     const onPlay = vi.fn(), onPlayNext = vi.fn();
-    const { rerender } = render(React.createElement(JellyfinPlayButton, { occurrence: { id: "s", meta: { jellyfinId: "j" } }, onPlay, onPlayNext }));
+    const fieldsById = { cat: { id: "cat", name: "Board Category", type: "select" } };
+    const tagged = (id, tag) => ({ id, meta: { jellyfinId: "j" }, fields: { cat: { value: [tag], flow: "in" } } });
+    const { rerender } = render(React.createElement(JellyfinPlayButton, { occurrence: tagged("s", "series"), onPlay, onPlayNext, fieldsById }));
     fireEvent.click(screen.getByRole("button", { name: "Play next unwatched" }));
     expect(onPlayNext).toHaveBeenCalled();
-    rerender(React.createElement(JellyfinPlayButton, { occurrence: { id: "e", meta: { jellyfinId: "j", jellyfinPlayable: true } }, onPlay, onPlayNext }));
+    rerender(React.createElement(JellyfinPlayButton, { occurrence: tagged("e", "movie"), onPlay, onPlayNext, fieldsById }));
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(onPlay).toHaveBeenCalled();
   });

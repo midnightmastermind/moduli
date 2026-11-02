@@ -122,13 +122,13 @@ export function playNextUnwatched({ occurrence, getOccMap, getFieldMap, ...ctx }
 
 /**
  * The radial items: Play + Open in Jellyfin, folded into one "Jellyfin" submenu. Nothing without a jellyfinId.
- * A Series / Season row (linked, not itself playable) offers "Play next unwatched" instead of Play when the caller
- * passes `onPlayNext`.
+ * A Series / Season row (Board Category series / season) offers "Play next unwatched" instead of Play when the caller
+ * passes `onPlayNext` and the grid's `fieldsById`.
  */
-export function jellyfinRadialItems({ occurrence, onPlay, onPlayNext }) {
+export function jellyfinRadialItems({ occurrence, onPlay, onPlayNext, fieldsById }) {
   if (!isPlayableRow(occurrence)) return [];
   const group = { group: "Jellyfin", groupIcon: Play, groupColor: "bg-slate-700 hover:bg-slate-600" };
-  const first = onPlayNext && isShowOrSeasonRow(occurrence)
+  const first = onPlayNext && isShowOrSeasonRow(occurrence, fieldsById)
     ? { icon: SkipForward, label: "Play next unwatched", color: "bg-slate-700 hover:bg-slate-600", onClick: () => onPlayNext(), ...group }
     : { icon: Play, label: "Play", color: "bg-slate-700 hover:bg-slate-600", onClick: () => onPlay?.(), ...group };
   return [

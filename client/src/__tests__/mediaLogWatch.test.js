@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { executePipeline } from "../helpers/operationExecutor";
 import { logWatchPipeline, OP_NAME } from "../../../server/migrations/0481-media-log-watch.mjs";
+import { rewriteLogWatchOp } from "../../../server/migrations/0482-media-log-watch-indexed.mjs";
+import { sameDayRuleOf } from "../helpers/operationActions";
 
 vi.setConfig({ testTimeout: 60000 });
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -140,5 +142,54 @@ describe("Media: Log Watch", () => {
     occ[movie.id].fields = { ...occ[movie.id].fields, [LW]: cell(day), [WA]: cell(at(20, 10)) };
     occ["copy-1"] = { ...structuredClone(occ[movie.id]), id: "copy-1", meta: { feedSourceId: movie.id } };
     expect(run(occ)).toHaveLength(1);
+  });
+
+  it("a Watch entry already under the Schedule page in ANOTHER day column still counts as logged", () => {
+    const occ = world();
+    occ[movie.id].fields = { ...occ[movie.id].fields, [LW]: cell(day), [WA]: cell(at(20, 10)) };
+    // another day's column (the fixture holds one; a second is added the way Build Schedule makes them)
+    occ["other-col"] = { id: "other-col", moduleId: dayCol.moduleId, parentId: S.pageOccurrenceId, occurrences: ["old-watch"], meta: {},
+      fields: { [S.scheduleFormatFieldId]: cell("day-col"), [S.dateFieldId]: cell("1999-01-01") } };
+    const page = occ[S.pageOccurrenceId];
+    occ[S.pageOccurrenceId] = { ...page, occurrences: [...(page.occurrences || []), "other-col"] };
+    occ["old-watch"] = { id: "old-watch", moduleId: watchSource.moduleId, parentId: "other-col", occurrences: [],
+      meta: { watchFor: `${movie.id}@${at(20, 10)}` }, fields: {} };
+    expect(run(occ)).toHaveLength(0);
+  });
+});
+
+// Review round 1: the op must not walk the whole grid per run, nor search it per candidate.
+describe("Media: Log Watch — cost shape", () => {
+  const steps = [];
+  const walk = (list) => { for (const st of list || []) { steps.push(st); walk(st.then); walk(st.else); walk(st.body); } };
+  walk(op.pipeline.steps);
+  it("never LOOPs over $allOccurrences", () => {
+    expect(steps.filter((st) => st.type === "loop" && st.overExpr === "$allOccurrences")).toEqual([]);
+  });
+  it("finds a day's watched rows with a FIND the day index can serve (a plain Last Watched SAME_DAY $day rule)", () => {
+    const finds = steps.filter((st) => st.config?.type === "FIND" && (st.config.over || "$allOccurrences") === "$allOccurrences");
+    const dayFind = finds.find((st) => JSON.stringify(st.config.predicate).includes(`fields.${LW}.value`));
+    expect(dayFind).toBeTruthy();
+    expect(sameDayRuleOf(dayFind.config.predicate, { $day: day })).toEqual({ fieldId: LW, day });
+  });
+  it("tests 'already logged' against a list of keys, never with a FIND per candidate", () => {
+    const perCandidate = steps.filter((st) => st.config?.type === "FIND" && JSON.stringify(st.config.predicate || {}).includes('"$watchKey"'));
+    expect(perCandidate).toEqual([]);
+    expect(JSON.stringify(op.pipeline)).toContain("ARRAY_NOT_INCLUDES");
+  });
+});
+
+describe("0482: rewrite the stored op from the builder", () => {
+  const ids = { ...S, categoryFieldId: CAT, lastWatchedFieldId: LW, watchedAtFieldId: WA, completedFieldId: COMPLETED,
+    mediaFieldId: MEDIA, showFieldId: SHOW, seasonLinkFieldId: SEASON_LINK, episodeFieldId: EPISODE, watchSourceId: watchSource?.id };
+  it("replaces an old pipeline and reports the change; a second pass changes nothing", () => {
+    const stored = { id: "op1", name: OP_NAME, pipeline: { sources: [], steps: [{ id: "x", type: "loop", overExpr: "$allOccurrences", as: "$watch", body: [] }] } };
+    const first = rewriteLogWatchOp(stored, ids);
+    expect(first.changed).toBe(true);
+    expect(JSON.stringify(first.pipeline)).not.toContain('"overExpr":"$allOccurrences"');
+    expect(rewriteLogWatchOp({ ...stored, pipeline: first.pipeline }, ids).changed).toBe(false);
+  });
+  it("refuses a missing op", () => {
+    expect(() => rewriteLogWatchOp(null, ids)).toThrow(/REFUSING/);
   });
 });

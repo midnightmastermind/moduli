@@ -6,11 +6,11 @@ import { Play, SkipForward } from "lucide-react";
 import { isPlayableRow } from "../helpers/jellyfinPlay";
 import { isShowOrSeasonRow } from "../helpers/nextUnwatched";
 
-// On a TV Series / Season row (linked, not itself playable) the button is "Play next" — the first unwatched
-// episode (helpers/nextUnwatched) — when the caller passes `onPlayNext`.
-export function JellyfinPlayButton({ occurrence, onPlay, onPlayNext }) {
+// On a TV Series / Season row (Board Category series / season) the button is "Play next" — the first unwatched
+// episode (helpers/nextUnwatched) — when the caller passes `onPlayNext` and the grid's `fieldsById`.
+export function JellyfinPlayButton({ occurrence, onPlay, onPlayNext, fieldsById }) {
   if (!isPlayableRow(occurrence)) return null;
-  const next = !!onPlayNext && isShowOrSeasonRow(occurrence);
+  const next = !!onPlayNext && isShowOrSeasonRow(occurrence, fieldsById);
   const stop = (e) => e.stopPropagation();
   return (
     <button

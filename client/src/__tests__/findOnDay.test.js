@@ -21,7 +21,15 @@ describe("FIND reads a day's records from an index", () => {
   });
 
   it("keeps list order and keeps records whose value is not a plain date", () => {
-    expect(recordsOnDay(list, "d", "2026-10-21").map((r) => r.id)).toEqual(["a", "c", "d", "e", "f"]);
+    expect(recordsOnDay(list, "d", "2026-10-21").map((r) => r.id)).toEqual(["a", "c", "e", "f"]);
+  });
+
+  // SAME_DAY against a concrete day is false for an EMPTY left (evalRule: `leftVal == null || "" -> false`), so a
+  // record with no value can never match and the index leaves it out. Most rows of a grid carry no value for any one
+  // date field (Last Watched: ~0 of 37k), and keeping them made the "index" a full scan.
+  it("leaves out records with NO value for the field (they can never be the same day)", () => {
+    const sparse = [rec("x", undefined), rec("y", null), rec("z", ""), rec("w", "2026-10-21")];
+    expect(recordsOnDay(sparse, "d", "2026-10-21").map((r) => r.id)).toEqual(["w"]);
   });
 
   it("finds exactly what the full scan finds", () => {

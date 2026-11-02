@@ -3,6 +3,15 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-02 — review round 1: day index skips empty values; show detection is positive)
+- `recordsOnDay` leaves out records with NO value for the field (SAME_DAY against a concrete day is false for an empty
+  left), so a FIND with a `fields.<id>.value SAME_DAY $day` rule over a sparse field reads a handful of records, not
+  the grid. `findOnDay.test.js` updated (the empty record `d` is no longer returned; still matches the full scan).
+- `nextUnwatched.isShowOrSeasonRow(occ, fieldsById)`: Board Category series/season (positive), not the absence of
+  `jellyfinPlayable`; `episodesForRow` requires an Episode # (a Season row also names its show). Callers pass
+  `fieldsById` (`jellyfinRadialItems`, `JellyfinPlayButton`).
+- 0482 rewrote `Media: Log Watch`: per-day indexed FIND + keys collected once (no whole-grid loop).
+
 ## Recent Changes (2026-11-01 — TIME_SLOT; COPY_LINK identitySignature; nextUnwatched.js NEW)
 - `when.slotOfMoment(v)`: the half-hour slot of an ISO date-time read in THIS browser's zone (or a clock string);
   a bare date → null. Action `TIME_SLOT { time, to = $timeSlot }` uses it ("" for none). Test `slotOfMoment`.

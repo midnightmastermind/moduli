@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-11-02 — `0482` Media: Log Watch reads the day index)
+- 0481's builder now FINDs each shown day's watched rows with a plain Last Watched SAME_DAY rule (served by the
+  executor's day index) and tests "already logged" against watchFor keys collected once per run. `0482` rewrites the
+  stored op from it (pure `rewriteLogWatchOp`, id-insensitive compare; refuses a missing op). Applied to poms.
+
 ## Recent Changes (2026-11-01 — `0481` Media: Log Watch)
 - Op (Library Ops, p3; onLoad, onFilterChange grid, onChange Last Watched + Watched At): each movie / episode /
   documentary row watched on a shown day gets one completed, unlinked copy of the Routines Watch item in that day's

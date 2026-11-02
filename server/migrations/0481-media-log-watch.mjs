@@ -10,7 +10,7 @@
 //     day's Todo;
 //   - a movie / documentary sets Media = [the row]; an episode sets TV Show, TV Season and Episode = the row.
 // Each copy carries `meta.watchFor = "<row id>@<moment>"`; a row already logged for that moment anywhere under the
-// Schedule page is skipped (reloads), and the copy's identitySignature `watch:<that key>` lets the server refuse a
+// Schedule page is skipped (reloads; the keys are collected once per run), and the copy's identitySignature `watch:<that key>` lets the server refuse a
 // second one under the same slot (two tabs). Watching again writes a new moment, so it gets a second entry. Nothing
 // is ever deleted. A day not on screen is placed when it is shown.
 //
@@ -33,7 +33,15 @@ const act = (config) => ({ id: uid(), type: "action", config });
 const iff = (condition, then, els = []) => ({ id: uid(), type: "if", condition, then, else: els });
 const loop = (overExpr, as, body) => ({ id: uid(), type: "loop", overExpr, as, body });
 
-/** PURE. The op's pipeline from the grid's own ids. */
+/**
+ * PURE. The op's pipeline from the grid's own ids.
+ *
+ * COST (review round 1, 0482): nothing walks the grid. Per shown day ONE FIND over $allOccurrences carries a plain
+ * `fields.<Last Watched>.value SAME_DAY $day` rule, which the executor serves from its per-collection day index
+ * (operationActions.sameDayRuleOf / recordsOnDay — a row with no Last Watched is not even in the index). "Already
+ * logged" is a membership test against the watchFor keys collected ONCE per run from the instances under the
+ * Schedule page (only when some day has a candidate), never a FIND per candidate.
+ */
 export function logWatchPipeline({
   pageOccurrenceId, dateFieldId, timeslotFieldId, scheduleFormatFieldId,
   categoryFieldId, lastWatchedFieldId, watchedAtFieldId, completedFieldId,
@@ -50,44 +58,45 @@ export function logWatchPipeline({
     act({ type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }),
     iff(and(r("$schedPageId", "IS_NOT_EMPTY"),
       or(r("$trigger.sourceOccurrenceId", "IS_EMPTY"), r("$trigger.sourceOccurrenceId", "IS", "$schedPage.id"))), [
-      // one pass over the grid: the watched rows (feed copies would log a row twice)
-      act({ type: "INIT_VAR", name: "$watched", expr: "json:[]" }),
-      loop("$allOccurrences", "$watch", [
-        iff(and(
-          or(r(w(watchedAtFieldId), "IS_NOT_EMPTY"), r(w(lastWatchedFieldId), "IS_NOT_EMPTY")),
-          or(...WATCH_TAGS.map((t) => r(w(categoryFieldId), "CONTAINS", t))),
-          r("$watch.meta.feedSourceId", "IS_EMPTY")), [
-          act({ type: "PUSH_TO_VAR", name: "$watched", expr: "$watch" }),
-        ]),
-      ]),
-      iff(and(r("$watched", "IS_NOT_EMPTY")), [
-        loop("$activePeriodDates", "$day", [
+      act({ type: "INIT_VAR", name: "$loggedKeys", expr: "json:[]" }),
+      act({ type: "INIT_VAR", name: "$loggedReady", expr: "" }),
+      loop("$activePeriodDates", "$day", [
+        // the day's watched rows, read from the Last Watched day index (feed copies would log a row twice)
+        act({ type: "FIND", over: "$allOccurrences", itemVar: "$dayWatched", multiple: true, predicate: and(
+          r(`fields.${lastWatchedFieldId}.value`, "SAME_DAY", "$day"),
+          r("meta.feedSourceId", "IS_EMPTY"),
+          or(...WATCH_TAGS.map((t) => r(`fields.${categoryFieldId}.value`, "CONTAINS", t)))) }),
+        iff(and(r("$dayWatched", "IS_NOT_EMPTY")), [
+          // what is already logged anywhere under the Schedule page — collected once per run
+          iff(and(r("$loggedReady", "IS_EMPTY")), [
+            act({ type: "FIND", over: "$allInstances", itemVar: "$logged", multiple: true, predicate: and(
+              r("meta.watchFor", "IS_NOT_EMPTY"), r("_ancestors", "HAS_ANCESTOR", "$schedPageId")) }),
+            loop("$logged", "$l", [act({ type: "PUSH_TO_VAR", name: "$loggedKeys", expr: "$l.meta.watchFor" })]),
+            act({ type: "SET_VAR", name: "$loggedReady", value: "literal:true" }),
+          ]),
           act({ type: "FIND", over: "$allContainers", itemIdVar: "$dayColId", predicate: and(
             r("_ancestors", "HAS_ANCESTOR", "$schedPageId"), r(`fields.${scheduleFormatFieldId}.value`, "IS", "day-col"),
             r(`fields.${dateFieldId}.value`, "SAME_DAY", "$day")) }),
           iff(and(r("$dayColId", "IS_NOT_EMPTY")), [
             act({ type: "FIND", over: "$allContainers", itemIdVar: "$todoId", predicate: and(
               r("parentId", "IS", "$dayColId"), r(`fields.${timeslotFieldId}.value`, "IS", "Todo")) }),
-            loop("$watched", "$watch", [
+            loop("$dayWatched", "$watch", [
               act({ type: "SET_VAR", name: "$watchAt", value: w(watchedAtFieldId) }),
               iff(and(r("$watchAt", "IS_EMPTY")), [act({ type: "SET_VAR", name: "$watchAt", value: w(lastWatchedFieldId) })]),
-              iff(and(r("$watchAt", "SAME_DAY", "$day")), [
-                act({ type: "SET_VAR", name: "$watchKey", value: "${$watch.id}@${$watchAt}" }),
-                act({ type: "FIND", over: "$allOccurrences", itemIdVar: "$loggedId", predicate: and(
-                  r("meta.watchFor", "IS", "$watchKey"), r("_ancestors", "HAS_ANCESTOR", "$schedPageId")) }),
-                iff(and(r("$loggedId", "IS_EMPTY")), [
-                  act({ type: "TIME_SLOT", time: "$watchAt", to: "$slotTime" }),
-                  act({ type: "SET_VAR", name: "$targetId", value: "$todoId" }),
-                  iff(and(r("$slotTime", "IS_NOT_EMPTY")), [
-                    act({ type: "FIND", over: "$allContainers", itemIdVar: "$slotId", predicate: and(
-                      r("parentId", "IS", "$dayColId"), r(`fields.${timeslotFieldId}.value`, "IS", "$slotTime")) }),
-                    iff(and(r("$slotId", "IS_NOT_EMPTY")), [act({ type: "SET_VAR", name: "$targetId", value: "$slotId" })]),
-                  ]),
-                  iff(and(r("$targetId", "IS_NOT_EMPTY")), [
-                    iff(and(r(w(categoryFieldId), "CONTAINS", "episode")),
-                      [copy({ [showFieldId]: w(showFieldId), [seasonLinkFieldId]: w(seasonLinkFieldId), [episodeFieldId]: "$watch.id" })],
-                      [copy({ [mediaFieldId]: 'json:["$watch.id"]' })]),
-                  ]),
+              act({ type: "SET_VAR", name: "$watchKey", value: "${$watch.id}@${$watchAt}" }),
+              iff(and(r("$watchAt", "SAME_DAY", "$day"), r("$loggedKeys", "ARRAY_NOT_INCLUDES", "$watchKey")), [
+                act({ type: "TIME_SLOT", time: "$watchAt", to: "$slotTime" }),
+                act({ type: "SET_VAR", name: "$targetId", value: "$todoId" }),
+                iff(and(r("$slotTime", "IS_NOT_EMPTY")), [
+                  act({ type: "FIND", over: "$allContainers", itemIdVar: "$slotId", predicate: and(
+                    r("parentId", "IS", "$dayColId"), r(`fields.${timeslotFieldId}.value`, "IS", "$slotTime")) }),
+                  iff(and(r("$slotId", "IS_NOT_EMPTY")), [act({ type: "SET_VAR", name: "$targetId", value: "$slotId" })]),
+                ]),
+                iff(and(r("$targetId", "IS_NOT_EMPTY")), [
+                  iff(and(r(w(categoryFieldId), "CONTAINS", "episode")),
+                    [copy({ [showFieldId]: w(showFieldId), [seasonLinkFieldId]: w(seasonLinkFieldId), [episodeFieldId]: "$watch.id" })],
+                    [copy({ [mediaFieldId]: 'json:["$watch.id"]' })]),
+                  act({ type: "PUSH_TO_VAR", name: "$loggedKeys", expr: "$watchKey" }),
                 ]),
               ]),
             ]),

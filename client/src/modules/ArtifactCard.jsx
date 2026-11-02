@@ -629,7 +629,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           <div className="artifact-ocr-tile-picture" onClick={openViewer} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}>
             <LoadingImage className="artifact-thumb" src={kind === "image" ? thumb1024Src : tilePicture} alt={label || "image"} />
-            <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} onPlayNext={playNextJellyfin} />
+            <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} onPlayNext={playNextJellyfin} fieldsById={getFieldMap?.()} />
             {tileName && (
               <div className="artifact-thumb-info">
                 <FileName name={tileName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />
@@ -832,7 +832,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id, { playable: true })}
-      <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} onPlayNext={playNextJellyfin} />
+      <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} onPlayNext={playNextJellyfin} fieldsById={getFieldMap?.()} />
       {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
           `openViewer`), so a corner control would be a second way to do the one
           thing the picture already does — and the two spent a day disagreeing.

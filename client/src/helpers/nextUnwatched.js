@@ -9,9 +9,19 @@ const valueOf = (cell) => (cell && typeof cell === "object" && !Array.isArray(ce
 const names = (v, id) => (Array.isArray(v) ? v.map(String).includes(id) : v != null && String(v) === id);
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : Infinity; };
 
-/** A row the Jellyfin sync linked that is not itself playable — a Series or a Season (the sync flags Movie/Episode). */
-export function isShowOrSeasonRow(occ) {
-  return !!occ?.meta?.jellyfinId && occ.meta.jellyfinPlayable !== true;
+const SHOW_TAGS = ["series", "season"];
+
+/**
+ * A row the Jellyfin sync linked whose Board Category is series or season — a POSITIVE signal the sync stamps,
+ * never the absence of a flag (a movie linked without `jellyfinPlayable` must keep Play). `fieldsById` is the grid's
+ * field map; without one, or without a Board Category field, nothing is a show.
+ */
+export function isShowOrSeasonRow(occ, fieldsById) {
+  if (!occ?.meta?.jellyfinId) return false;
+  const cat = Object.values(fieldsById || {}).find((f) => f?.name === "Board Category" && f.type === "select");
+  if (!cat) return false;
+  const v = valueOf(occ.fields?.[cat.id]);
+  return (Array.isArray(v) ? v : v ? [v] : []).some((t) => SHOW_TAGS.includes(t));
 }
 
 /**
@@ -28,6 +38,9 @@ export function episodesForRow(row, occurrences, fieldIds) {
     const fields = o.fields || {};
     const linked = (f.seasonLink && names(valueOf(fields[f.seasonLink]), id)) || (f.show && names(valueOf(fields[f.show]), id));
     if (!linked) continue;
+    // Only real episodes: a SEASON row also names its show (TV Show + Season + a jellyfinId) but has no Episode #.
+    const epNum = valueOf(fields[f.number]);
+    if (epNum == null || epNum === "") continue;
     out.push({
       id: o.id, label: o.label || "", occurrence: o,
       season: valueOf(fields[f.season]), number: valueOf(fields[f.number]),

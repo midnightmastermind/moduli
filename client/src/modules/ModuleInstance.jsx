@@ -734,6 +734,7 @@ function InstanceInner({
       dispatch, socket, getOcc, getFieldMap: getLiveFieldMap,
     }),
     onPlayNext: () => playNextUnwatched({ occurrence, dispatch, socket, getOcc, getOccMap, getFieldMap: getLiveFieldMap }),
+    fieldsById: getLiveFieldMap?.(),
   }), [occurrence, instance, dispatch, socket, getOcc, getOccMap, getLiveFieldMap]);
 
   const radialItems = useMemo(() => {

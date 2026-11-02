@@ -1062,7 +1062,8 @@ const _dayIndexes = new WeakMap(); // list -> Map(fieldId -> { byDay: Map(day ->
 /**
  * The records of `list` (in list order) whose `fieldId` falls on `day`, plus
  * every record whose value is not a plain date — those are still tested by the
- * condition, so nothing that could match is left out. Built once per list.
+ * condition, so nothing that could match is left out. A record with NO value is left out (it cannot match).
+ * Built once per list.
  */
 export function recordsOnDay(list, fieldId, day) {
   let byField = _dayIndexes.get(list);
@@ -1071,7 +1072,11 @@ export function recordsOnDay(list, fieldId, day) {
   if (!ix) {
     ix = { byDay: new Map(), other: [] };
     list.forEach((rec, i) => {
-      const k = sameDayKey(resolveRecordPath(rec, `fields.${fieldId}.value`));
+      const v = resolveRecordPath(rec, `fields.${fieldId}.value`);
+      // No value can never be SAME_DAY a concrete day (evalRule: an empty left is false), so it is not indexed at
+      // all — most rows carry no value for any one date field, and keeping them made the index a full scan.
+      if (v == null || v === "") return;
+      const k = sameDayKey(v);
       if (k == null) { ix.other.push(i); return; }
       if (!ix.byDay.has(k)) ix.byDay.set(k, []);
       ix.byDay.get(k).push(i);
