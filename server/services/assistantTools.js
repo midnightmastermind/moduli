@@ -29,6 +29,7 @@ import {
   sandboxRunCommand,
   sandboxInfo,
 } from "./execSandbox.js";
+import { buildToolPack, selectMetaFor } from "./assistantBuildTools.js";
 
 // Compress a full grid-state dump into a compact, token-bounded summary. The
 // raw /grids/:id/state response carries every occurrence (~hundreds), which
@@ -83,6 +84,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
   };
 
   return [
+    ...buildToolPack({ call, gridId }),
     {
       name: "jonah_notes",
       description: "Read your notes. which: \"moduli\" = how Moduli works (pages, containers, instances, fields, filters, operations, templates, feeds, copy/move, the Schedule…); \"about\" = who the user is and how they like things; \"memory\" = things you were asked to remember. Pass `topic` to read one part (e.g. topic:\"feeds\"). Read this when unsure how something in Moduli works or what the user prefers.",
@@ -541,13 +543,21 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     },
     {
       name: "create_field",
-      description: "Create a field definition. Provide name + type (number/text/boolean/select/date/duration/rating/occurrence). Bind it to instances via update_module/update_occurrence.",
-      input_schema: { type: "object", properties: { name: { type: "string" }, type: { type: "string" }, unit: { type: "string" }, meta: { type: "object", additionalProperties: true } }, required: ["name", "type"] },
+      description: "Create a field definition. Provide name + type (number/text/boolean/select/date/duration/rating/occurrence). For a select, list its choices in `options` (e.g. [\"social\", \"media\"]). Bind it to instances via update_module/update_occurrence.",
+      input_schema: { type: "object", properties: { name: { type: "string" }, type: { type: "string" }, unit: { type: "string" }, options: { type: "array", items: { type: "string" }, description: "A select's choices" }, multiSelect: { type: "boolean" } }, required: ["name", "type"] },
       destructive: false,
       // The drawer shows an editable confirm card (name / type / unit) so the
       // user can fix the model's guess before the field is created.
       requires_confirm: true,
-      run: async (body) => (await call("POST", `/fields`, { gridId, ...body })).body,
+      run: async ({ name, type, unit, options, multiSelect, meta }) => {
+        // A model sometimes hands `meta` as a string; a spread string becomes
+        // { "0": "{", "1": "\"" … } (it did, 2026-11-02). Only a plain object is kept.
+        const body = { gridId, name, type };
+        if (unit) body.unit = unit;
+        const cleanMeta = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};
+        body.meta = type === "select" && Array.isArray(options) ? { ...cleanMeta, ...selectMetaFor(options, { multiSelect }) } : cleanMeta;
+        return (await call("POST", `/fields`, body)).body;
+      },
     },
     {
       name: "update_field",

@@ -4117,3 +4117,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-02 07:22 CST (account2)
 - *"could you switch over to testing out jonah with these things: creating a board with all my quick links for gmail, proton mail, facebook, instagram (all with a quick link type, social), jellyfin (and all their arr sites) (all with quick link type media), and github, digital ocean, mongodb, cloudfare, and dynadot (all with type website), and create a filter for the type on it (with nothing set but have the nav). Also have it create appointments for my cps classes"* — 13 classes from a pasted table: Nov 2,3,4,5,9,10,11,12,16,17,18,19,30, each 4-8PM (4 hours).
+- 08:46 *"A"* — add Jonah's missing tools (board with rows, select options, filter with nav, bulk items), switch him to qwen2.5-coder 7B, rerun both tests.
+- Answers: Quick Links board in the **Interfaces** folder; each link a **bookmark card** tagged Quick Link Type; CPS classes use Schedule Type **Appointment**; `book.viafluere.com` = **LazyLibrarian**.
+- Earlier same morning: SABnzbd + qBittorrent + Prowlarr installed (torrent./nzb. live; movie./music. wait on a Radarr/Lidarr login).

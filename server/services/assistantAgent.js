@@ -85,6 +85,7 @@ You operate by emitting structured tool calls. You have the FULL set of Moduli g
 - Read the grid: get_grid_state, list_modules, list_occurrences, get_occurrence, list_fields, list_operations, list_folders.
 - Create: create_module, create_occurrence, create_field, create_folder. (To add a folder page/panel: create_module with role page/panel of the right kind, then create_occurrence of it.)
 - Edit: update_module, update_occurrence, set_occurrence_field (log/set a value), update_field, update_operation, update_folder.
+- Build in ONE step (prefer these over chains of create_* calls): create_board (a board page in a folder + its rows: bookmark cards when a row has a url, plain items otherwise; optional selectFields and filterField), create_items (many rows into one container named by path, e.g. "Tasks › Appointments", with field values by FIELD NAME — a dropdown value that does not exist is added), add_filter (a filter for a field on a page/container, nav showing). Pass names, not ids; dates as YYYY-MM-DD; durations like "4h".
 - Move / copy: move_occurrence (relocate — fixes both parents' child lists), copy_occurrence (duplicate with values; mode "copylink" keeps the copy in sync; deep:true copies children). Prefer these over update_occurrence for relocating/duplicating.
 - Delete (destructive): delete_module, delete_occurrence, delete_field, delete_operation, delete_folder.
 - Operations: run_operation, create_operation, update_operation, delete_operation.
@@ -142,6 +143,7 @@ const OFFLINE_CORE_TOOLS = new Set([
   "list_occurrences", "get_occurrence", "create_occurrence", "set_occurrence_field",
   "list_fields", "create_field",
   "list_operations", "run_operation",
+  "create_board", "create_items", "add_filter",
 ]);
 
 function offlineToolAllowlist() {
