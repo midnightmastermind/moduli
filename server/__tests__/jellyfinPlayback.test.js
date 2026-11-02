@@ -32,7 +32,9 @@ beforeAll(async () => {
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       calls.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : null, token: req.headers["x-emby-token"] });
-      if (req.url.startsWith("/Users/jf1/Items/")) { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify(item)); }
+      if (req.url.startsWith("/Users/jf1/Items/")) {
+        if (req.url.includes("MISSING")) { res.statusCode = 404; return res.end(); }
+        if (req.url.includes("DENIED")) { res.statusCode = 401; return res.end(); } res.setHeader("content-type", "application/json"); return res.end(JSON.stringify(item)); }
       res.statusCode = 204; res.end();
     });
   }).listen(0);
@@ -48,6 +50,8 @@ beforeEach(async () => {
   store.meta = {}; calls = [];
   item = { RunTimeTicks: 72000000000, UserData: { PlaybackPositionTicks: 1234500000 } };
   rows.o1 = { id: "o1", userId: "u1", meta: { jellyfinId: "JF9", jellyfinPlayable: true } };
+  rows.gone = { id: "gone", userId: "u1", meta: { jellyfinId: "MISSING" } };
+  rows.denied = { id: "denied", userId: "u1", meta: { jellyfinId: "DENIED" } };
   rows.bare = { id: "bare", userId: "u1", meta: {} };
   rows.theirs = { id: "theirs", userId: "u2", meta: { jellyfinId: "X" } };
   await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "KEY", jfUserId: "jf1", publicUrl: "https://media.example" });
@@ -76,12 +80,19 @@ describe("GET /jellyfin/play/:occId", () => {
     expect(j.playable).toBe(true);
     expect(j.resumeSeconds).toBeCloseTo(123.45);
     expect(j.runtimeSeconds).toBe(7200);
-    expect(j.hlsUrl).toBe("/api/v1/jellyfin/media/Videos/JF9/master.m3u8?MediaSourceId=JF9&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000");
+    expect(j.hlsUrl).toBe(`/api/v1/jellyfin/media/Videos/JF9/master.m3u8?MediaSourceId=JF9&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000&PlaySessionId=${j.playSessionId}`);
     expect(j.directUrl).toBe("/api/v1/jellyfin/media/Videos/JF9/stream?static=true&MediaSourceId=JF9");
     expect(j.openUrl).toBe("https://media.example/web/#/details?id=JF9");
     expect(typeof j.playSessionId).toBe("string");
     expect(JSON.stringify(j)).not.toContain("KEY");
     expect(calls[0].url).toContain("/Users/jf1/Items/JF9");
+  });
+  it("item 404 -> playable false; other non-OK -> offline style, no zeros, no session", async () => {
+    expect(await (await play("gone")).json()).toEqual({ playable: false });
+    const d = await (await play("denied")).json();
+    expect(d).toMatchObject({ offline: true, playable: true });
+    expect(d.resumeSeconds).toBeUndefined();
+    expect(d.playSessionId).toBeUndefined();
   });
   it("upstream down -> 200 offline with openUrl", async () => {
     await setJellyfinConfig("u1", { baseUrl: "http://127.0.0.1:1", apiKey: "KEY", jfUserId: "jf1", publicUrl: "https://media.example" });
@@ -102,13 +113,29 @@ describe("POST /jellyfin/progress", () => {
     expect(calls[2].body).toMatchObject({ PositionTicks: 150000000, IsPaused: true });
     expect(calls.every((c) => c.token === "KEY")).toBe(true);
   });
-  it("ignores a client-supplied Jellyfin user id and refuses others' rows", async () => {
+  it("refuses others' rows", async () => {
     expect((await post("/progress", { occId: "theirs", seconds: 1, playSessionId: "s" })).status).toBe(404);
     expect(calls.length).toBe(0);
   });
+  it("rejects bad seconds with 400 and unknown / foreign sessions with 400", async () => {
+    const { playSessionId } = await (await play("o1")).json();
+    calls = [];
+    for (const seconds of [-1, "abc", null, Infinity, undefined]) {
+      expect((await post("/progress", { occId: "o1", seconds, playSessionId })).status).toBe(400);
+    }
+    expect((await post("/progress", { occId: "o1", seconds: 1, playSessionId: "never-issued" })).status).toBe(400);
+    expect(calls.length).toBe(0);
+  });
+  it("concurrent first reports send start once", async () => {
+    const { playSessionId } = await (await play("o1")).json();
+    calls = [];
+    await Promise.all([1, 2, 3].map((n) => post("/progress", { occId: "o1", seconds: n, playSessionId })));
+    expect(calls.filter((c) => c.url === "/Sessions/Playing").length).toBe(1);
+  });
   it("upstream down -> 200 offline", async () => {
+    const { playSessionId } = await (await play("o1")).json();
     await setJellyfinConfig("u1", { baseUrl: "http://127.0.0.1:1", apiKey: "KEY", jfUserId: "jf1" });
-    const r = await post("/progress", { occId: "o1", seconds: 1, playSessionId: "s" });
+    const r = await post("/progress", { occId: "o1", seconds: 1, playSessionId });
     expect(r.status).toBe(200);
     expect((await r.json()).offline).toBe(true);
   });
@@ -125,6 +152,11 @@ describe("POST /jellyfin/played", () => {
     expect(urls).toContain("POST /Users/jf1/PlayedItems/JF9");
     expect(urls).toContain("POST /Sessions/Playing/Stopped");
     expect(JSON.stringify(calls)).not.toContain("evil");
+  });
+  it("progress after played with the same session is refused", async () => {
+    const { playSessionId } = await (await play("o1")).json();
+    await post("/played", { occId: "o1", playSessionId });
+    expect((await post("/progress", { occId: "o1", seconds: 1, playSessionId })).status).toBe(400);
   });
   it("refuses an unlinked or foreign row", async () => {
     expect((await post("/played", { occId: "bare" })).status).toBe(404);

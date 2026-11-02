@@ -27,24 +27,26 @@ export async function linkedItemId(Occurrence, userId, occId) {
   return typeof id === "string" && id ? id : null;
 }
 
-export async function playInfo({ cfg, itemId }) {
+export async function playInfo({ cfg, itemId, userId }) {
   const playSessionId = crypto.randomUUID();
   const openUrl = openUrlOf(cfg, itemId);
   let item;
   try {
     const r = await jellyfinFetch(cfg, `/Users/${encodeURIComponent(cfg.userId)}/Items/${encodeURIComponent(itemId)}`);
-    item = r.ok ? await r.json().catch(() => ({})) : {};
+    if (r.status === 404) return { playable: false };
+    if (!r.ok) return { offline: true, playable: true, openUrl, error: `jellyfin_${r.status}` };
+    item = await r.json().catch(() => ({}));
   } catch (e) {
     if (isOffline(e)) return { offline: true, playable: true, openUrl };
     throw e;
   }
   const id = encodeURIComponent(itemId);
-  sessions.set(playSessionId, { started: false, itemId, at: Date.now() });
+  sessions.set(playSessionId, { started: false, itemId, userId, at: Date.now() });
   prune();
   return {
     playable: true,
     playSessionId,
-    hlsUrl: `${PROXY}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000`,
+    hlsUrl: `${PROXY}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000&PlaySessionId=${encodeURIComponent(playSessionId)}`,
     directUrl: `${PROXY}/Videos/${id}/stream?static=true&MediaSourceId=${id}`,
     resumeSeconds: (Number(item?.UserData?.PlaybackPositionTicks) || 0) / TICKS,
     runtimeSeconds: (Number(item?.RunTimeTicks) || 0) / TICKS,
@@ -56,14 +58,17 @@ const post = (cfg, path, body) => jellyfinFetch(cfg, path, {
   method: "POST", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined,
 });
 
-export async function reportProgress({ cfg, itemId, seconds, paused, playSessionId }) {
+export async function reportProgress({ cfg, itemId, userId, seconds, paused, playSessionId }) {
   const sid = String(playSessionId || "");
   const body = { ItemId: itemId, MediaSourceId: itemId, PlaySessionId: sid, PositionTicks: Math.round((Number(seconds) || 0) * TICKS), IsPaused: !!paused, CanSeek: true };
+  const s = sessions.get(sid);
+  if (!s || s.userId !== userId || s.itemId !== itemId) return { ok: false, unknownSession: true };
   try {
-    let s = sessions.get(sid);
-    if (!s) { s = { started: false, itemId, at: Date.now() }; sessions.set(sid, s); prune(); }
     s.at = Date.now();
-    if (!s.started) { await post(cfg, "/Sessions/Playing", body); s.started = true; }
+    if (!s.started) {
+      s.started = true; // before the await: a second report arriving meanwhile must not send "start" again
+      try { await post(cfg, "/Sessions/Playing", body); } catch (e) { s.started = false; throw e; }
+    }
     await post(cfg, "/Sessions/Playing/Progress", body);
     return { ok: true };
   } catch (e) {
@@ -72,11 +77,11 @@ export async function reportProgress({ cfg, itemId, seconds, paused, playSession
   }
 }
 
-export async function markPlayed({ cfg, itemId, playSessionId }) {
+export async function markPlayed({ cfg, itemId, userId, playSessionId }) {
   try {
     const sid = String(playSessionId || "");
     const s = sessions.get(sid);
-    if (s) {
+    if (s && s.userId === userId && s.itemId === itemId) {
       sessions.delete(sid);
       await post(cfg, "/Sessions/Playing/Stopped", { ItemId: itemId, MediaSourceId: itemId, PlaySessionId: sid }).catch((e) => { if (isOffline(e)) throw e; });
     }

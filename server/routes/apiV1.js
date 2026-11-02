@@ -2430,7 +2430,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!r) return;
       if (!r.itemId) return res.json({ playable: false });
       const { playInfo } = await import("../services/jellyfinPlayback.js");
-      res.json(await playInfo({ cfg: r.cfg, itemId: r.itemId }));
+      res.json(await playInfo({ cfg: r.cfg, itemId: r.itemId, userId: req.userId }));
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
   router.post("/jellyfin/progress", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
@@ -2440,8 +2440,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       const r = await jfRow(req, res, occId);
       if (!r) return;
       if (!r.itemId) return err(res, 404, "not_found", "not a Jellyfin-linked row");
+      const secs = typeof seconds === "number" ? seconds : NaN;
+      if (!Number.isFinite(secs) || secs < 0) return err(res, 400, "validation_error", "seconds must be a non-negative number");
       const { reportProgress } = await import("../services/jellyfinPlayback.js");
-      res.json(await reportProgress({ cfg: r.cfg, itemId: r.itemId, seconds, paused, playSessionId }));
+      const out = await reportProgress({ cfg: r.cfg, itemId: r.itemId, userId: req.userId, seconds: secs, paused, playSessionId });
+      if (out.unknownSession) return err(res, 400, "validation_error", "unknown playSessionId (call GET /jellyfin/play first)");
+      res.json(out);
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
   router.post("/jellyfin/played", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
@@ -2452,7 +2456,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!r) return;
       if (!r.itemId) return err(res, 404, "not_found", "not a Jellyfin-linked row");
       const { markPlayed } = await import("../services/jellyfinPlayback.js");
-      res.json(await markPlayed({ cfg: r.cfg, itemId: r.itemId, playSessionId }));
+      res.json(await markPlayed({ cfg: r.cfg, itemId: r.itemId, userId: req.userId, playSessionId }));
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
   router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
