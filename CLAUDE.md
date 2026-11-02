@@ -15,6 +15,60 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 — JELLYFIN PLAYS INSIDE MODULI; three defects only prod could show
+
+The media-streaming plan (`docs/superpowers/plans/2026-11-01-media-streaming.md`, ledger
+`.superpowers/sdd/2026-11-01-media-streaming/`), Task 10 = end to end on prod. What exists now:
+- **Tunnel:** Jellyfin on the PC (:8096) reaches the droplet as `127.0.0.1:8097` through a reverse SSH tunnel (user
+  `tunnel`, port-forward only; Windows task "Moduli media tunnel", `infra/media-tunnel/`). `media.viafluere.com` (nginx +
+  certbot, DNS-only) serves Jellyfin's own web app; Jellyfin transcodes on the GPU (h264_amf), remote cap 4 Mbps.
+- **Proxy** `/api/v1/jellyfin/media/*` — session or `?t=` only, an allow-list of an item's own media paths, the key
+  added server-side (`services/jellyfinProxy.js`); access log off for that location (the `t=` would be logged).
+- **Sync** `POST /api/v1/jellyfin/sync` + op **Jellyfin: Sync** (onLoad + 05:00; enabled 2026-11-02 at the user's go-ahead):
+  links rows by file path / provider id / title+year (`meta.jellyfinId`), creates what Moduli lacks, copies Played.
+  **Real run:** 7,071 items · **link 4,468** · create **Danny Documentaries 1,822 / movies 20 / TV 7 / seasons 24 /
+  episodes 182** (2,029 with a cover copied into uploads/) · **ambiguous 539** (289 duplicate files, 246 episodes of 5 shows
+  with duplicate Moduli show rows, 3 provider-id clashes, 1 year-less title) · skipped 18. Mongo: 6,523 linked rows, the
+  Danny board lists 1,822. A dry run straight after: link 0, create {}, unchanged 6,523 — idempotent.
+- **Player** (`ui/JellyfinPlayer.jsx`, overlay; Play on a linked card, "Play next unwatched" on a series/season row):
+  resume, progress, at 90% Last Watched + Watched At + Jellyfin Played. **Media: Log Watch** puts one completed Watch in
+  that day's slot (`meta.watchFor = <row>@<Watched At>`).
+
+**Watched on prod** (headless Chromium, native HLS — it decodes H.264 here; Brightburn on the Movies board):
+```
+Play          GET /play 200 -> master/main.m3u8 200 -> segments 206, 1280x720, currentTime advancing
+every request /api/v1/jellyfin/media/... with ?t=; 0 of 8 bodies hold the Jellyfin key (key grep, not printed)
+seek to 50%   segments 905+ fetched; pause -> close -> reload: GET /play resumeSeconds 2,718.8; Jellyfin UserData 2,719
+seek to 92%   Last Watched 2026-11-02 + Watched At written, Jellyfin Played/PlayCount 1, ONE Watch in
+              Schedule - Monday, November 2nd › 5:00am; three more loads (each ran the sync): still one
+```
+**Three defects, each found only by doing it on prod, each test-first and deployed:**
+1. `hlsUrl` had no `VideoBitrate`, so Jellyfin STREAM-COPIED the 1080p h264 source (~19 MB per 6s segment, slower than
+   real time over the 9.6 Mbps hotel upload), and the first segments of a session 503'd on the proxy's 5s header
+   timeout while ffmpeg started. Now `VideoBitrate=3500000&AudioBitrate=128000` (720p, ~1.4 MB/segment, 1-3s) and HLS
+   segments wait 30s for headers. Before: "Could not play this file." (`48c8b929`)
+2. **Resume never saved:** under the admin key `/Sessions/Playing{,/Progress,/Stopped}` and `/PlayingItems` all answer 204
+   and store no position (that session has no user; Jellyfin 12.4.0, tried by hand). Progress now also writes
+   `POST /UserItems/<id>/UserData?userId=<owner>`. (`261e8702`)
+3. **Three Watch entries for one viewing:** the player writes Watched At, then `/played` makes Jellyfin stamp
+   LastPlayedDate ~3s later; the next load's sync read that as a newer watch, rewrote Watched At, and Log Watch keyed a
+   second entry — from two open tabs at the same millisecond, so two. A Jellyfin play within 2h of Watched At is now the
+   same viewing (`SAME_VIEWING_MS`). (`c4595a4c`)
+
+**Put back:** Brightburn unplayed in Jellyfin (Played false, position 0), its Last Watched / Watched At cleared through
+`update_occurrence`, the test Watch entries deleted through `delete_occurrence` (0 left, 0 dangling refs), Panel A back on
+Routines after every probe. **The op stays enabled**, as approved.
+
+**NOT verified:** the real tunnel-down case — the PC's task was not stopped; the offline copy ("Media server is offline —
+the PC may be asleep." + Open in Jellyfin) was rendered from a STUBBED `/play` and the server's offline branch is covered
+by unit tests only. Not on a phone, not in Firefox (its Playwright build has no H.264), not hls.js (Chromium played HLS
+natively), not "Play next" or an episode. Jellyfin's web app was not looked at — its UserData was read over its API.
+**Open, the user's call:** the sync runs on EVERY page load (14 runs on 2026-11-02, ~7,071 items each) — the 05:00
+trigger alone may be enough; two tabs creating the same `identitySignature` within milliseconds both got through
+(`create_batch`'s duplicate check is not atomic across sockets); the 539 ambiguous items (list in the Task 10 report).
+
+---
+
 ### 2026-11-01 — A TEXTBLOCK'S HEADINGS LOOK LIKE HEADINGS BEFORE THE FIRST CLICK
 
 User: *"my headers inside textblocks dont resolve either when i first load them, it waits for me to click to edit the

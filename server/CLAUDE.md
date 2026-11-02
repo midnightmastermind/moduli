@@ -2,6 +2,30 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-11-02 (2) — Jellyfin end to end on prod: three fixes; the file map)
+Files (all new in the media-streaming work, 2026-11-01..02):
+- `services/jellyfinConfig.js` — `user.meta.jellyfin` (key encrypted), `jellyfinFetch` (key as header; 5s whole-request
+  timeout, or `headerTimeoutMs` + caller `signal`), `getJellyfinConfig` / `setJellyfinConfig` / `getJellyfinPublic`.
+- `services/jellyfinProxy.js` — `ALL /api/v1/jellyfin/media/*` (session or `?t=`); allow-list `/Videos/<id>/…`,
+  `/Audio/<id>/…`, `/Items/<id>/Images/…`, DELETE `/Videos/ActiveEncodings`; `safePath`; `rewritePlaylist` (no key,
+  `t=` on relative URIs). **HLS segments (.ts/.m4s) wait 30s for headers** (cold first segment >5s — every other path 5s).
+- `services/jellyfinMatch.js` — pure `planJellyfinLinks({items, rows})` (path tail, provider ids, title ±1 year; ambiguous
+  is reported, never guessed).
+- `services/jellyfinSync.js` — `syncJellyfin` (two passes, relist, watch), `writeJellyfinToMongo`, `fetchJellyfinItems`,
+  `storeJellyfinCover`, `isNewerWatch`. **`SAME_VIEWING_MS` (2h):** a Jellyfin play that soon after the row's Watched At
+  is the same viewing — our own `/played` stamps LastPlayedDate seconds after the player writes Watched At, and reading
+  it as newer gave Media: Log Watch a second Watch entry (measured on prod).
+- `services/jellyfinPlayback.js` — `playInfo` (hlsUrl/directUrl through the proxy, resume, runtime, playSessionId;
+  offline → `{offline:true}`), `reportProgress`, `markPlayed`. **hlsUrl carries `VideoBitrate=3500000&AudioBitrate=128000`**
+  (without it Jellyfin stream-copied a 1080p h264 film at ~25 Mbps). **Progress also writes
+  `POST /UserItems/<id>/UserData?userId=<owner>`**: under the admin key `/Sessions/Playing*` and `/PlayingItems` answer
+  204 and save no position (Jellyfin 12.4.0).
+- Routes (apiV1.js): `GET/PUT/DELETE /jellyfin/config`, `GET /jellyfin/status`, `POST /jellyfin/sync` (202, background),
+  `GET /jellyfin/play/:occId`, `POST /jellyfin/progress`, `POST /jellyfin/played`, `ALL /jellyfin/media/*rest`.
+- Migrations: `0479` (Watched At, Danny Documentaries board, Last Watched/Watched At bindings, op `Jellyfin: Sync`),
+  `0480` (Danny container parent), `0481`/`0482` (`Media: Log Watch`). `Jellyfin: Sync` enabled on poms 2026-11-02.
+- `infra/media-tunnel/` (PC side of the reverse SSH tunnel), `infra/nginx/media.viafluere.com` + `moduli-media.conf`.
+
 ## Recent Changes (2026-11-02 — `0482` Media: Log Watch reads the day index)
 - 0481's builder now FINDs each shown day's watched rows with a plain Last Watched SAME_DAY rule (served by the
   executor's day index) and tests "already logged" against watchFor keys collected once per run. `0482` rewrites the

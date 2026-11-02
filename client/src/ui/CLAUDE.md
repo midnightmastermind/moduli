@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-11-02 — the Jellyfin player, watched on prod)
+- `JellyfinPlayer.jsx` (NEW, lazy): GET /play → native HLS or hls.js (imported only when needed) → resume seek;
+  progress every 10s + on pause, a keepalive one on close; at 90% one "Watched" action (Last Watched + Watched At) and
+  POST /played; offline / sign-in / unplayable / failed copies. `JellyfinPlayerHost.jsx` (NEW, mounted once in App) is
+  the overlay (`helpers/jellyfinPlay.openJellyfinPlayer`). `JellyfinPlayButton.jsx` (NEW): Play on a linked
+  movie/episode/documentary card, "Play next" on a series/season row (`helpers/nextUnwatched`).
+- `commandCenter/JellyfinSection.jsx` (NEW): the connection form in Connections.
+- Watched on prod 2026-11-02 (headless Chromium, native HLS): 720p transcode plays, seek, resume after reload, 90% → Played.
+
 ## Recent Changes (2026-10-23 — exportMarkdownItem.js NEW)
 - Radial "Export to Markdown" item (rows: ModuleInstance extraItems; containers: ModuleContainer x3; pages: ModulePage). Maps read on click.
 
