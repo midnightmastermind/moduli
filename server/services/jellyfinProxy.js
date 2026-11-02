@@ -54,10 +54,11 @@ export function rewritePlaylist(text, token, baseUrl = "") {
 
 export async function proxyJellyfin(req, res, cfg) {
   const rest = req.params.rest ?? req.params[0] ?? "";
-  const raw = "/" + (Array.isArray(rest) ? rest.join("/") : String(rest)).replace(/^\/+/, "");
-  const sub = safePath(raw);
+  const segs = (Array.isArray(rest) ? rest : String(rest).split("/")).filter((x) => x !== "");
+  // A decoded segment is data, never syntax: %3F / %23 would inject a query or fragment into the upstream URL.
+  const sub = segs.some((x) => /[?#]/.test(x)) ? null : safePath("/" + segs.join("/"));
   const method = req.method.toUpperCase();
-  const okMethod = method === "GET" || method === "HEAD" || (method === "DELETE" && !!sub && sub.startsWith("/Videos/ActiveEncodings"));
+  const okMethod = method === "GET" || method === "HEAD" || (method === "DELETE" && sub === "/Videos/ActiveEncodings");
   if (!okMethod || !sub) return res.status(404).json({ error: "not_found", code: "not_found", message: "Not found" });
 
   const token = typeof req.query.t === "string" ? req.query.t : "";

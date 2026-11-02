@@ -105,6 +105,17 @@ describe("jellyfin media proxy", () => {
     expect((await get("/Items/1/PlaybackInfo")).status).toBe(404);
     expect(seen.url).toBe("/Audio/1/stream");
   });
+  it("an encoded ? or # in a segment never becomes an upstream query, and mixed dot forms are 404", async () => {
+    for (const p of ["/Videos/x%3Fapi_key=EVIL/stream", "/Videos/x/stream%3Fapi_key=EVIL", "/Videos/x/s%23frag", "/Videos/.%252E/System/Configuration", "/Videos/%252e%252e/System/Configuration"]) {
+      expect((await get(p)).status, p).toBe(404);
+    }
+    expect(seenAll).toEqual([]);
+    expect((await get("/Videos/abc/stream.mp4?Static=true")).status).toBe(200);
+    expect(seen.url).toBe("/Videos/abc/stream.mp4?Static=true");
+  });
+  it("DELETE is allowed for /Videos/ActiveEncodings exactly, not for longer paths", async () => {
+    expect((await fetch(`${base}/Videos/ActiveEncodings/x`, { method: "DELETE", headers: { authorization: "Bearer session-jwt" } })).status).toBe(404);
+  });
   it("POST is 404; DELETE only under /Videos/ActiveEncodings", async () => {
     expect((await get("/Videos/1/stream", undefined, { method: "POST", headers: { authorization: "Bearer session-jwt" } })).status).toBe(404);
     expect((await fetch(`${base}/Videos/1/stream`, { method: "DELETE", headers: { authorization: "Bearer session-jwt" } })).status).toBe(404);
