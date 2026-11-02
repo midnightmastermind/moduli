@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   findFolder, pickDestination, findFieldByName, coerceValue, parseDuration, parseDay,
-  predicateTags, filterEntryFor, bindingsFor, selectMetaFor, buildToolPack,
+  predicateTags, filterEntryFor, bindingsFor, selectMetaFor, buildToolPack, asList,
 } from "../services/assistantBuildTools.js";
 
 describe("name resolution", () => {
@@ -153,5 +153,21 @@ describe("create_items", () => {
     expect(r.ok).toBe(false);
     expect(r.problems[0]).toMatch(/not one of/);
     expect(api.posts).toHaveLength(0);
+  });
+});
+
+describe("lists sent as JSON text", () => {
+  it("asList parses a JSON array string and refuses anything else", () => {
+    expect(asList('[{"label":"a"}]')).toEqual([{ label: "a" }]);
+    expect(asList([1])).toEqual([1]);
+    expect(asList("not json")).toEqual([]);
+    expect(asList('{"a":1}')).toEqual([]);
+    expect(asList(undefined)).toEqual([]);
+  });
+  it("create_items accepts items as a JSON string", async () => {
+    const api = fakeApi();
+    const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
+    const r = await tool.run({ container: "Appointments", items: JSON.stringify([{ label: "A" }, { label: "B" }]) });
+    expect(r).toMatchObject({ ok: true, created: 2 });
   });
 });

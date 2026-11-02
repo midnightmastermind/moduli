@@ -200,6 +200,13 @@ export function bindingsFor(siblingBindings, setFieldIds) {
 
 const rid = () => Math.random().toString(36).slice(2, 12);
 
+/** A list the model may send as JSON TEXT (llama3.2 3B does: rows: "[{...}]"). Anything else that is not a list -> []. */
+export function asList(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") { try { const j = JSON.parse(v); return Array.isArray(j) ? j : []; } catch { return []; } }
+  return [];
+}
+
 // ── the pack ────────────────────────────────────────────────────────────
 
 export function buildToolPack({ call, gridId }) {
@@ -327,7 +334,7 @@ export function buildToolPack({ call, gridId }) {
   return [
     {
       name: "create_board",
-      description: "Make a whole BOARD in one step: a board page in a folder, its container, and its rows. Rows are bookmark cards (give `url`) or plain items (give only `label`). `fields` on a row sets field values BY NAME, e.g. {\"Quick Link Type\": \"social\"}. `selectFields` creates select fields first (with their options). `filterField` adds a filter for that field on the page, nothing set, nav showing. Use for 'make a board of …'.",
+      description: "Make a whole BOARD in one step: a board page in a folder, its container, and its rows. Rows are bookmark cards (give `url`) or plain items (give only `label`). `fields` on a row sets field values BY NAME, e.g. {\"Quick Link Type\": \"social\"}. `selectFields` creates select fields first (with their options). `filterField` adds a filter for that field on the page, nothing set, nav showing. Put EVERY link/item the user listed in `rows`, each with its name as `label` — do not shorten the list. Use for 'make a board of …'.",
       input_schema: {
         type: "object",
         properties: {
@@ -341,8 +348,9 @@ export function buildToolPack({ call, gridId }) {
       },
       destructive: false,
       requires_confirm: true,
-      run: async ({ name, folder, selectFields = [], rows = [], filterField }) => {
+      run: async ({ name, folder, selectFields: sfIn, rows: rowsIn, filterField }) => {
         const created = [];
+        const selectFields = asList(sfIn); const rows = asList(rowsIn);
         const fr = await call("GET", `/folders?gridId=${encodeURIComponent(gridId)}`);
         const fo = findFolder(fr.body?.folders || [], folder);
         if (fo.error) return fo;
@@ -393,7 +401,7 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "create_items",
-      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. A dropdown value that does not exist yet is added to the dropdown. Rows with the same label share one template.",
+      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
       input_schema: {
         type: "object",
         properties: {
@@ -404,8 +412,9 @@ export function buildToolPack({ call, gridId }) {
       },
       destructive: false,
       requires_confirm: true,
-      run: async ({ container, items = [] }) => {
+      run: async ({ container, items: itemsIn }) => {
         const created = [];
+        const items = asList(itemsIn);
         const d = await resolveContainer(container);
         if (d.error) return d;
         const parentId = d.destination.id;
