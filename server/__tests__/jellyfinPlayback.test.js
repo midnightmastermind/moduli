@@ -80,7 +80,8 @@ describe("GET /jellyfin/play/:occId", () => {
     expect(j.playable).toBe(true);
     expect(j.resumeSeconds).toBeCloseTo(123.45);
     expect(j.runtimeSeconds).toBe(7200);
-    expect(j.hlsUrl).toBe(`/api/v1/jellyfin/media/Videos/JF9/master.m3u8?MediaSourceId=JF9&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000&PlaySessionId=${j.playSessionId}`);
+    expect(j.hlsUrl).toBe(`/api/v1/jellyfin/media/Videos/JF9/master.m3u8?MediaSourceId=JF9&VideoCodec=h264&AudioCodec=aac&VideoBitrate=3500000&AudioBitrate=128000&MaxStreamingBitrate=4000000&PlaySessionId=${j.playSessionId}`);
+    // Without VideoBitrate Jellyfin stream-copies an h264 source (a 1080p film at ~25 Mbps over a 9.6 Mbps link).
     expect(j.directUrl).toBe("/api/v1/jellyfin/media/Videos/JF9/stream?static=true&MediaSourceId=JF9");
     expect(j.openUrl).toBe("https://media.example/web/#/details?id=JF9");
     expect(typeof j.playSessionId).toBe("string");

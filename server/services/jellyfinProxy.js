@@ -4,6 +4,10 @@ import { Readable } from "node:stream";
 import { jellyfinFetch } from "./jellyfinConfig.js";
 
 const HEADER_TIMEOUT_MS = 5000;
+// An HLS segment's headers wait for ffmpeg to produce it: the first one of a session took >5s (measured 2026-11-02),
+// so 5s turned every cold start into a 503. Playlists, images and direct streams keep the 5s bound.
+const SEGMENT_HEADER_TIMEOUT_MS = 30000;
+const isSegment = (p) => /\.(ts|m4s)$/i.test(p);
 // Only an item's own media: /Videos/<id>/..., /Audio/<id>/... (HLS playlists + segments live under /Videos/<id>/),
 // /Items/<id>/Images/..., and the transcode cleanup DELETE. Not listings or metadata: the admin key would expose them.
 const ALLOWED_PATHS = [/^\/Videos\/[^/]+\/.+/, /^\/Audio\/[^/]+\/.+/, /^\/Items\/[^/]+\/Images\/.+/, /^\/Videos\/ActiveEncodings$/];
@@ -76,7 +80,7 @@ export async function proxyJellyfin(req, res, cfg) {
 
   let up;
   try {
-    up = await jellyfinFetch(cfg, sub + (qs.toString() ? `?${qs}` : ""), { method, headers, headerTimeoutMs: HEADER_TIMEOUT_MS, signal: ctl.signal });
+    up = await jellyfinFetch(cfg, sub + (qs.toString() ? `?${qs}` : ""), { method, headers, headerTimeoutMs: isSegment(sub) ? SEGMENT_HEADER_TIMEOUT_MS : HEADER_TIMEOUT_MS, signal: ctl.signal });
   } catch (e) {
     if (res.headersSent || ctl.signal.aborted) return; // browser already left
     return res.status(503).json({ error: "media_offline", code: "media_offline", message: "Jellyfin is unreachable" });

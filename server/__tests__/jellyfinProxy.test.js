@@ -47,6 +47,7 @@ beforeAll(async () => {
     }
     if (req.url.startsWith("/Videos/hang")) { hang = res; res.writeHead(200, { "content-type": "video/mp4" }); res.write("x"); return; }
     if (req.url.startsWith("/Videos/slowheaders")) return; // never answers
+    if (req.url.startsWith("/Videos/coldseg/")) { setTimeout(() => { res.setHeader("content-type", "video/mp2t"); res.end("seg"); }, 6500); return; }
     if (req.url.includes("master.m3u8")) {
       res.setHeader("content-type", "application/vnd.apple.mpegurl");
       return res.end("#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:3,\nseg0.ts?x=1\nseg1.ts\n");
@@ -128,6 +129,11 @@ describe("jellyfin media proxy", () => {
     expect(r.status).toBe(503);
     expect((await r.json()).code).toBe("media_offline");
   });
+  it("an HLS segment may take longer than 5s to start (Jellyfin spins up ffmpeg for the first one)", async () => {
+    const r = await get("/Videos/coldseg/hls1/main/0.ts?PlaySessionId=s");
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe("seg");
+  }, 15000);
   it("times out waiting for headers (5s) but not while a body streams", async () => {
     const t = Date.now();
     const r = await get("/Videos/slowheaders/stream");

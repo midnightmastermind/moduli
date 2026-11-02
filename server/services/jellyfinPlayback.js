@@ -46,7 +46,9 @@ export async function playInfo({ cfg, itemId, userId }) {
   return {
     playable: true,
     playSessionId,
-    hlsUrl: `${PROXY}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=4000000&PlaySessionId=${encodeURIComponent(playSessionId)}`,
+    // VideoBitrate is what makes Jellyfin transcode: with MaxStreamingBitrate alone it stream-copied an h264 source
+    // (Brightburn: 1080p, ~19 MB per 6s segment, 2026-11-02) — slower than real time over the PC's 9.6 Mbps upload.
+    hlsUrl: `${PROXY}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264&AudioCodec=aac&VideoBitrate=3500000&AudioBitrate=128000&MaxStreamingBitrate=4000000&PlaySessionId=${encodeURIComponent(playSessionId)}`,
     directUrl: `${PROXY}/Videos/${id}/stream?static=true&MediaSourceId=${id}`,
     resumeSeconds: (Number(item?.UserData?.PlaybackPositionTicks) || 0) / TICKS,
     runtimeSeconds: (Number(item?.RunTimeTicks) || 0) / TICKS,
