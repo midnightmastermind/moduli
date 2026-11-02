@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (4) — JONAH ON THE 3B MODEL: CPS classes done, Quick Links not; the arrs read the drives
+
+- **Jonah back on llama3.2:3b** with a short prompt and 17 tools (`14e93307`). **CPS classes worked end to end**:
+  13 "CPS Class" rows in Tasks › Appointments (4:00pm, 4h), and a new **Class** option in Schedule Types tagged
+  `appointment`. **Quick Links did not**: the 3B sent its lists as JSON text (now accepted, `asList`), and on
+  the rerun it wrote the tool call as plain text with 2 rows. The board was built through the same
+  `create_board` tool by hand: 13 bookmarks, Quick Link Type on each, filter with the nav showing.
+  *A 3B model can fill a short flat call; a 13-row nested one is past it.*
+- **The Jellyfin player is a tile in the file viewer** (`326f800a`, account3's open item).
+- **Arrs:** the Norse drives are mounted read-write (`mount-norse-drives.ps1`). Radarr 981 movies / 740 with a
+  file, Sonarr 177 series / 3,080 episode files, Lidarr 151 artists / 3,589 tracks (refreshes still running).
+  **241 Radarr movies have EMPTY folders** (231 on baldr, dated 2021) — they are monitored, so they will be
+  searched once an indexer exists. Three hash-named files imported through Radarr's ManualImport.
+  qBittorrent + SABnzbd are on all three arrs; Prowlarr syncs to all three but holds **0 indexers**, and
+  SABnzbd has no Usenet server.
+
+---
+
 ### 2026-11-02 (3) — JONAH GETS ONE-STEP BUILD TOOLS; the 7B model cannot answer in time on CPU
 
 User picked "A": tools for a board with rows, select options, a filter with nav, bulk items; switch to qwen2.5-coder 7B;
