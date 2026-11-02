@@ -9521,3 +9521,23 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* A drop aimed above everything in a doc: the first block steps down one line, so the gap is something to aim at
    (Editor `dropGapTop`; user, 2026-10-25). */
 .ProseMirror.pm-drop-gap-top > :first-child { margin-top: 1.7em !important; transition: margin-top 120ms ease-out; }
+
+/* Play on a Jellyfin-linked card (ui/JellyfinPlayButton). Over the poster, bottom-left. */
+.jellyfin-play-btn {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 0.92;
+}
+.jellyfin-play-btn:hover { opacity: 1; border-color: var(--accent); }

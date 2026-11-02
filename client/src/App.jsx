@@ -42,6 +42,7 @@ import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import FormModal from "./ui/FormModal";
 import { ChoiceDialogHost } from "./ui/ChoiceDialog";
+import { JellyfinPlayerHost } from "./ui/JellyfinPlayerHost";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { DefinitionHost } from "./ui/DefinitionCard.jsx";
 import { AddressPickerHost } from "./ui/AddressPickerMenu";
@@ -1281,6 +1282,7 @@ export default function App() {
             via operationsBridge.requestUserInput. Chained questions render
             sequentially from the queue. */}
         <ChoiceDialogHost />
+        <JellyfinPlayerHost />
         {/* "Ask with a form" rides the same queue — a request with `form: true` is the form window. */}
         {currentInput?.request?.form ? (
           <FormModal

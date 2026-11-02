@@ -28,6 +28,8 @@ import AudioWaveform from "./AudioWaveform.jsx";
 import PlaceMedia from "../ui/PlaceMedia.jsx";
 import FileTextReader, { fileReaderKind, MountWhenVisible } from "./FileTextReaders.jsx";
 import { fileHomeOccId, isUploadedFile } from "../helpers/fileHome.js";
+import { JellyfinPlayButton } from "../ui/JellyfinPlayButton.jsx";
+import { openJellyfinPlayer } from "../helpers/jellyfinPlay";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -159,6 +161,11 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getState = useGridActionsSelector(s => s.getState);
   const getViewMap = useGridActionsSelector(s => s.getViewMap);
   const getFieldMap = useGridActionsSelector(s => s.getFieldMap);
+  // A row the Jellyfin sync linked plays in Moduli (helpers/jellyfinPlay); the map getters are read at play time.
+  const playJellyfin = useCallback(() => openJellyfinPlayer({
+    occurrence, label: occurrenceDisplayLabel(occurrence, module) || label,
+    dispatch, socket, getOcc, getFieldMap,
+  }), [occurrence, module, label, dispatch, socket, getOcc, getFieldMap]);
   // A COPY of an uploaded file carries "Go to file" — its home is the placement filed in a Files folder.
   // Only uploads are looked up (a shared type module like "Movie" has ~1000 placements; it is skipped).
   const fileHomeId = useGridActionsSelector(s => (isUploadedFile(module)
@@ -618,6 +625,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           <div className="artifact-ocr-tile-picture" onClick={openViewer} role="button" tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}>
             <LoadingImage className="artifact-thumb" src={kind === "image" ? thumb1024Src : tilePicture} alt={label || "image"} />
+            <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} />
             {tileName && (
               <div className="artifact-thumb-info">
                 <FileName name={tileName} module={module} occurrence={occurrence} dispatch={dispatch} socket={socket} />
@@ -820,6 +828,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id, { playable: true })}
+      <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} />
       {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
           `openViewer`), so a corner control would be a second way to do the one
           thing the picture already does — and the two spent a day disagreeing.

@@ -4,6 +4,7 @@
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
+import { jellyfinRadialItems, openJellyfinPlayer } from "../helpers/jellyfinPlay";
 import { buttonItem } from "../ui/buttonItem";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
@@ -723,6 +724,15 @@ function InstanceInner({
     }));
   }, [instance, occurrence, dispatch, socket]);
 
+  // Play + Open in Jellyfin on an instance the Jellyfin sync linked (one "Jellyfin" submenu on the arc).
+  const jellyfinItems = useMemo(() => jellyfinRadialItems({
+    occurrence,
+    onPlay: () => openJellyfinPlayer({
+      occurrence, label: occurrence?.label || instance?.label || "",
+      dispatch, socket, getOcc, getFieldMap: () => fieldsById,
+    }),
+  }), [occurrence, instance, dispatch, socket, getOcc, fieldsById]);
+
   const radialItems = useMemo(() => {
     const toggleLabelItem = {
       icon: showLabel ? EyeOff : Eye,
@@ -1198,7 +1208,7 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
-                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }), buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean)}
+                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...jellyfinItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }), buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean)}
                 />
               </div>
             </PopoverAnchor>
