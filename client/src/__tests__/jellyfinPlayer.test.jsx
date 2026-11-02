@@ -109,12 +109,13 @@ describe("JellyfinPlayer", () => {
     let n = 0;
     mockFetch([
       ["/jellyfin/play/", () => ({ ...PLAY, playSessionId: `s${++n}` })],
-      ["/jellyfin/progress", (_u, o) => (JSON.parse(o.body).playSessionId === "s1" ? { status: 400, json: {} } : { ok: true })],
+      ["/jellyfin/progress", (_u, o) => (JSON.parse(o.body).playSessionId === "s1" ? { status: 400, json: { error: "validation_error", message: "unknown playSessionId (call GET /jellyfin/play first)" } } : { ok: true })],
     ]);
     const { container } = render(<JellyfinPlayer {...props()} />);
     await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
     const video = container.querySelector("video");
     Object.defineProperty(video, "currentTime", { configurable: true, get: () => 100, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
     await act(async () => { fireEvent.pause(video); });
     await waitFor(() => {
       const progress = calls.filter((c) => c.url.includes("/jellyfin/progress")).map((c) => JSON.parse(c.opts.body).playSessionId);
@@ -128,10 +129,89 @@ describe("JellyfinPlayer", () => {
     await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
     const video = container.querySelector("video");
     Object.defineProperty(video, "currentTime", { configurable: true, get: () => 1234, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
     unmount();
     const last = calls.filter((c) => c.url.includes("/jellyfin/progress")).pop();
     expect(last.opts.keepalive).toBe(true);
     expect(JSON.parse(last.opts.body)).toMatchObject({ occId: "o1", seconds: 1234, paused: true, playSessionId: "s1" });
+  });
+
+  it("closing before playback started posts NO progress (the resume point is kept)", async () => {
+    mockFetch([["/jellyfin/play/", { ...PLAY, resumeSeconds: 3000 }]]);
+    const { container, unmount } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    unmount();
+    expect(calls.filter((c) => c.url.includes("/jellyfin/progress"))).toEqual([]);
+  });
+
+  it("closing after a media error posts NO progress", async () => {
+    mockFetch([["/jellyfin/play/", PLAY], ["/jellyfin/media/", { status: 500, json: {} }]]);
+    const { container, unmount } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    const video = container.querySelector("video");
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => 50, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
+    await act(async () => { fireEvent.error(video); });
+    await screen.findByText("Could not play this file.");
+    unmount();
+    expect(calls.filter((c) => c.url.includes("/jellyfin/progress"))).toEqual([]);
+  });
+
+  it("seeks to the resume point, and only then counts as started", async () => {
+    mockFetch([["/jellyfin/play/", { ...PLAY, resumeSeconds: 3000 }]]);
+    const { container, unmount } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    const video = container.querySelector("video");
+    let t = 0;
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => t, set: (v) => { t = v; } });
+    await act(async () => { fireEvent.loadedMetadata(video); });
+    expect(t).toBe(3000);
+    unmount();
+    const last = calls.filter((c) => c.url.includes("/jellyfin/progress")).pop();
+    expect(JSON.parse(last.opts.body).seconds).toBe(3000);
+  });
+
+  it("a 400 that is NOT an unknown session does not re-fetch /play", async () => {
+    mockFetch([
+      ["/jellyfin/play/", PLAY],
+      ["/jellyfin/progress", { status: 400, json: { error: "validation_error", message: "seconds must be a non-negative number" } }],
+    ]);
+    const { container } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    const video = container.querySelector("video");
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => 100, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
+    await act(async () => { fireEvent.pause(video); });
+    await waitFor(() => expect(calls.filter((c) => c.url.includes("/jellyfin/progress")).length).toBe(1));
+    expect(calls.filter((c) => c.url.includes("/jellyfin/play/")).length).toBe(1);
+  });
+
+  it("concurrent unknown-session reports share ONE /play re-fetch", async () => {
+    let n = 0;
+    mockFetch([
+      ["/jellyfin/play/", () => ({ ...PLAY, playSessionId: `s${++n}` })],
+      ["/jellyfin/progress", (_u, o) => (JSON.parse(o.body).playSessionId === "s1" ? { status: 400, json: { error: "validation_error", message: "unknown playSessionId (call GET /jellyfin/play first)" } } : { ok: true })],
+    ]);
+    const { container } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    const video = container.querySelector("video");
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => 100, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
+    await act(async () => { fireEvent.pause(video); fireEvent.pause(video); });
+    await waitFor(() => expect(calls.filter((c) => c.url.includes("/jellyfin/progress") && JSON.parse(c.opts.body).playSessionId === "s2").length).toBe(2));
+    expect(calls.filter((c) => c.url.includes("/jellyfin/play/")).length).toBe(2);
+  });
+
+  it("after the finish, pause and close report nothing (the server dropped the session)", async () => {
+    mockFetch([["/jellyfin/play/", PLAY], ["/jellyfin/played", { ok: true }]]);
+    const { container, unmount } = render(<JellyfinPlayer {...props()} />);
+    await waitFor(() => expect(container.querySelector("video")?.getAttribute("src")).toBeTruthy());
+    const video = container.querySelector("video");
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => 5500, set: () => {} });
+    await act(async () => { fireEvent.timeUpdate(video); });
+    await act(async () => { fireEvent.pause(video); });
+    unmount();
+    expect(calls.filter((c) => c.url.includes("/jellyfin/progress"))).toEqual([]);
   });
 });
 
@@ -161,6 +241,8 @@ describe("Play button", () => {
     expect(src).toMatch(/<JellyfinPlayButton\b/);
     const mi = read("modules/ModuleInstance.jsx");
     expect(mi).toMatch(/jellyfinRadialItems\(/);
+    // the live field map, not a snapshot frozen when the menu was built
+    expect(mi).not.toMatch(/getFieldMap:\s*\(\)\s*=>\s*fieldsById/);
     expect(read("App.jsx")).toMatch(/<JellyfinPlayerHost\b/);
   });
 });

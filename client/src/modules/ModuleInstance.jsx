@@ -724,14 +724,16 @@ function InstanceInner({
     }));
   }, [instance, occurrence, dispatch, socket]);
 
+  // The LIVE field map (read at finish time, not frozen when the menu was built).
+  const getLiveFieldMap = useGridActionsSelector(s => s.getFieldMap || (() => s.fieldsById || {}));
   // Play + Open in Jellyfin on an instance the Jellyfin sync linked (one "Jellyfin" submenu on the arc).
   const jellyfinItems = useMemo(() => jellyfinRadialItems({
     occurrence,
     onPlay: () => openJellyfinPlayer({
       occurrence, label: occurrence?.label || instance?.label || "",
-      dispatch, socket, getOcc, getFieldMap: () => fieldsById,
+      dispatch, socket, getOcc, getFieldMap: getLiveFieldMap,
     }),
-  }), [occurrence, instance, dispatch, socket, getOcc, fieldsById]);
+  }), [occurrence, instance, dispatch, socket, getOcc, getLiveFieldMap]);
 
   const radialItems = useMemo(() => {
     const toggleLabelItem = {

@@ -24,6 +24,11 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
   const videoRef = useRef(null);
   const sessionRef = useRef(null);
   const finishedRef = useRef(false);
+  // Started = the resume seek applied, or the position moved past 0. Until then (and after an error) no
+  // progress is sent: a report of 0 would wipe Jellyfin's resume point.
+  const startedRef = useRef(false);
+  const erroredRef = useRef(false);
+  const refreshRef = useRef(null); // one in-flight /play re-fetch, shared by concurrent reports
 
   useEffect(() => {
     let alive = true;
@@ -38,22 +43,33 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
     return () => { alive = false; };
   }, [occurrenceId]);
 
+  const freshSession = useCallback((staleId) => {
+    if (!refreshRef.current) {
+      refreshRef.current = fetchPlayInfo(occurrenceId)
+        .then((fresh) => { if (fresh?.playSessionId && sessionRef.current === staleId) sessionRef.current = fresh.playSessionId; })
+        .catch(() => {})
+        .finally(() => { refreshRef.current = null; });
+    }
+    return refreshRef.current;
+  }, [occurrenceId]);
+
   const sendProgress = useCallback(async (video, paused, { keepalive = false, retried = false } = {}) => {
+    if (!startedRef.current || erroredRef.current || finishedRef.current) return;
     const seconds = Number(video?.currentTime);
     if (!sessionRef.current || !Number.isFinite(seconds) || seconds < 0) return;
-    const body = { occId: occurrenceId, seconds, paused: !!paused, playSessionId: sessionRef.current };
+    const sid = sessionRef.current;
+    const body = { occId: occurrenceId, seconds, paused: !!paused, playSessionId: sid };
     try {
       const r = await postJson("/api/v1/jellyfin/progress", body, { keepalive });
       if (r.status === 400 && !keepalive && !retried) {
-        // The server lost the session (a restart): get a fresh one and report again.
-        const fresh = await fetchPlayInfo(occurrenceId);
-        if (fresh?.playSessionId) {
-          sessionRef.current = fresh.playSessionId;
-          await sendProgress(video, paused, { retried: true });
-        }
+        const out = await r.json().catch(() => ({}));
+        // Only an unknown session (the server restarted) is worth a fresh one; any other 400 is final.
+        if (!/playSessionId/i.test(String(out?.message || ""))) return;
+        await freshSession(sid);
+        if (sessionRef.current !== sid) await sendProgress(video, paused, { retried: true });
       }
     } catch { /* a lost report costs at most the last 10s of position */ }
-  }, [occurrenceId]);
+  }, [occurrenceId, freshSession]);
 
   const markWatched = useCallback(async () => {
     const watch = findWatchFields(getFieldMap?.() || {});
@@ -98,8 +114,12 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       if (Hls?.isSupported?.()) {
         hls = new Hls();
         hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data?.response?.code === 401) setProblem("signin");
-          else if (data?.fatal) setProblem("failed");
+          const unauthorized = data?.response?.code === 401;
+          if (!unauthorized && !data?.fatal) return;
+          erroredRef.current = true;
+          setProblem(unauthorized ? "signin" : "failed");
+          hls?.destroy?.(); // a detached instance would keep buffering
+          hls = null;
         });
         hls.loadSource(withMediaToken(info.hlsUrl, token));
         hls.attachMedia(video);
@@ -108,15 +128,26 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       }
     })();
 
-    const onMeta = () => { if (info.resumeSeconds > 0) video.currentTime = info.resumeSeconds; };
-    const onPlay = () => { clearInterval(timer); timer = setInterval(() => sendProgress(video, false), PROGRESS_EVERY_MS); };
+    const onMeta = () => {
+      if (info.resumeSeconds > 0) video.currentTime = info.resumeSeconds;
+      startedRef.current = true;
+    };
+    const onPlay = () => {
+      clearInterval(timer);
+      if (!finishedRef.current) timer = setInterval(() => sendProgress(video, false), PROGRESS_EVERY_MS);
+    };
     const onPause = () => { clearInterval(timer); sendProgress(video, true); };
     const onTime = () => {
       if (finishedRef.current) return;
+      if (Number(video.currentTime) > 0) startedRef.current = true;
       const runtime = info.runtimeSeconds || video.duration;
-      if (shouldMarkFinished(video.currentTime, runtime)) { finishedRef.current = true; markWatched(); }
+      if (shouldMarkFinished(video.currentTime, runtime)) {
+        finishedRef.current = true;
+        clearInterval(timer); // /played ends the session; further reports would only 400
+        markWatched();
+      }
     };
-    const onError = () => { if (!hls) probe401(); };
+    const onError = () => { erroredRef.current = true; clearInterval(timer); if (!hls) probe401(); };
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -132,8 +163,8 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       video.removeEventListener("ended", onPause);
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("error", onError);
-      // Closed mid-film: save the position. After /played the session is gone, so nothing to save.
-      if (!finishedRef.current) sendProgress(video, true, { keepalive: true });
+      // Closed mid-film: save the position (sendProgress skips it before a start, after an error or a finish).
+      sendProgress(video, true, { keepalive: true });
       hls?.destroy?.();
     };
   }, [info, sendProgress, markWatched]);

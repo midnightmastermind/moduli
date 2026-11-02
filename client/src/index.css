@@ -9522,7 +9522,9 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    (Editor `dropGapTop`; user, 2026-10-25). */
 .ProseMirror.pm-drop-gap-top > :first-child { margin-top: 1.7em !important; transition: margin-top 120ms ease-out; }
 
-/* Play on a Jellyfin-linked card (ui/JellyfinPlayButton). Over the poster, bottom-left. */
+/* Play on a Jellyfin-linked card (ui/JellyfinPlayButton). Over the poster, bottom-left: on a board card the
+   card itself (.artifact-card, position: relative) is the picture's frame; in the viewer the picture box is. */
+.artifact-ocr-tile-picture { position: relative; }
 .jellyfin-play-btn {
   position: absolute;
   left: 6px;
