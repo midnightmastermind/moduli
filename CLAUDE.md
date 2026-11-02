@@ -15,6 +15,38 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (6) — PHONE: one pill size; select filters filter; search and People scroll measured and fixed
+
+User, in a row: mobile fields all different sizes · select inputs don't close · select-field filters don't filter and
+should be a multi-select · search laggy on mobile, the panel's page first, duplicates (Collin Krainer: several
+Files › Images) · People scroll blacks out. All measured at 390x844 with 4x CPU (`_mtap.mjs`, `_msearch.mjs`,
+`_mpeople.mjs`, repo root), writes blocked in the probe.
+- **Pill sizes (`8e40731d`):** an UNLAYERED `button { font-size: 12px }` in the phone media query beat the pills'
+  Tailwind class, so every `<button>` pill read 12px and only the `<label>` date pill 14px. All field pills take
+  `--cascade-field-font-size` on the phone layout; the multi-select's visible inner pill gets the 32px height. A table
+  column never shrinks under 120px on a phone (People Table was nine ~80px columns of 14px slivers); it scrolls sideways.
+- **Selects close on pick, filters (`6fe8de72`):** the compact single-select pills used an UNCONTROLLED Popover. A
+  select / occurrence field's filter nav is one multi-pick dropdown (the pills' own list) writing a LIST; a row shows
+  when it shares any value (this also fixes a multi-select row like Tags never matching `IS`). Jonah's `add_filter`
+  wrote `{condition:$nav…, hides:false}`, which `getLocalFilterConditions` skips — a nav widget only. It writes the
+  Filter menu's plain shape now; `0483` rewrote Quick Links + Trackers Tags (date navs kept, applied, pm2 restarted).
+- **Search (`HEAD`):** hits under the panel's page first (`preferRootId`); one row per thing (feed copy / linked group
+  → the one on your page, else the original; files a matching row's fields point at are not listed). An open search
+  keeps its index; the index is warmed at idle. Prod: first search worst frame 2.4–2.7s → **0.97s**, second 0.1s.
+  **Trap, measured:** using the shared `cachedParentMap` from the search made the SECOND search 18–23s of typing
+  (operation sweeps ran under it); found by bisecting builds, reverted, commented in place.
+- **People scroll:** 40 steps **19.5s → 7.9s on prod.** Not mounting — style recalc, ~370ms over ~10,400 elements per
+  step: two `:has()` rules re-checked most of the page whenever the virtual list inserted a row — this morning's
+  player rule `.artifact-spread-body--playing:has(> .spread-player-tile--max) > :not(…)` (now `… ~ :not(…)`, the player
+  is the first tile) and the wrap-float rule ending `> div:first-child` (now `> .instance-handle-group`). Now ~115ms /
+  950 elements. `noBroadHasRule.test.js` fails on any `ANCESTOR:has(…) > bareTag`. Found with
+  `invalidationTracking` trace events. Rows are also measured by the virtualizer's ResizeObserver
+  (`observerOnlyMeasure`) instead of a synchronous `offsetHeight` — that alone changed nothing measurable.
+- **Not done:** rows still cost ~200ms a step at 4x (heavy person rows, 27 pills); a lighter placeholder while
+  scrolling fast is the next lever. Not checked on a real phone.
+
+---
+
 ### 2026-11-02 (5) — 4 CPS CLASSES WERE MISSING: the model skipped a week; dates are the server's job now
 
 User: *"why all my cps classes didnt get added? mon-thurs for november"*. Read out of Mongo: 13 of 17 rows, all
