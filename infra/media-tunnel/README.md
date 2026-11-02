@@ -19,6 +19,13 @@ The same tunnel also carries 8098 -> Radarr 7878 (`movie.viafluere.com`), 8099 -
 `sites-available` and NOT enabled until DNS exists AND the app's login is Forms (Radarr and Lidarr were `None` — open to
 anyone). Then: symlink, `nginx -t && systemctl reload nginx`, `certbot --nginx -d <name>.viafluere.com`.
 
+Downloaders (installed 2026-11-02 with winget, started from the user's Startup folder): qBittorrent web UI 127.0.0.1:8090
+(tunnel 8101, `torrent.`; `bypass_local_auth` OFF — proxied requests arrive from 127.0.0.1; host list set through
+`/api/v2/app/setPreferences` because a `;` list written into qBittorrent.ini is cut at the first `;`), SABnzbd
+127.0.0.1:8085 (tunnel 8102, `nzb.`; `host_whitelist` names nzb.viafluere.com). Downloads under `D:\Downloads\{torrents,usenet}`.
+Prowlarr (service, :9696, local only) syncs indexers to Radarr/Sonarr/Lidarr; each of those has both download clients.
+Logins in `.superpowers/sdd/2026-11-01-media-streaming/media-apps-secrets.txt` (git-ignored).
+
 ## Measurements
 - ffmpeg h264_amf (d3d11va decode, 1080p, 2 Mbps) on a film clip: ~4.3x realtime, so GPU encoding works.
 - Jellyfin's own transcode over media.viafluere.com (HEVC 1080p film, MaxStreamingBitrate 2 Mbps): log `FFmpeg.Transcode-*.log` shows `-hwaccel d3d11va` and `-codec:v:0 h264_amf` (`hevc (native) -> h264 (h264_amf)`); 4 segments downloaded, 0.6-2.2 MB each.
