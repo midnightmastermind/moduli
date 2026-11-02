@@ -9633,6 +9633,45 @@ body[data-layout="mobile"] :is(.instance-body-btn, .instance-field-add-btn, .ins
   width: 30px;
   height: 30px;
 }
+/* ONE text size for every field pill (user 2026-11-02: "they are all different sizes"). Measured on the
+   People board: the date pills read 14px and every other pill 12px, although all of them carry the same
+   14px --cascade-field-font-size. Two rules won over the pills' Tailwind size class:
+   - `button { font-size: 12px }` in the phone media query above — UNLAYERED CSS beats Tailwind's layered
+     utilities whatever the specificity, so every pill that is a <button> (text, number, select) fell back
+     to 12px and only the <label> date pill kept 14px;
+   - `.field-input-select-multi .rounded-full button * { 12px }` pins the multi-select pill.
+   Inputs are left out: they keep the 16px iOS rule below. */
+body[data-layout="mobile"] :is(.field-input, .field-display),
+body[data-layout="mobile"] :is(.field-input, .field-display) :is(button, span, div, label, a, p) {
+  font-size: var(--cascade-field-font-size, 14px);
+  line-height: 1.3;
+}
+/* The multi-select's VISIBLE box is the inner rounded pill (22px); the 32px went on the transparent outer
+   wrapper. The inner one takes the height so Found Via / Tags match the pills beside them. */
+body[data-layout="mobile"] .field-input.field-input-select-multi {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+body[data-layout="mobile"] .field-input-select-multi > .rounded-full {
+  min-height: 32px;
+}
+body[data-layout="mobile"] .field-input-select-multi > .rounded-full > button {
+  min-height: 30px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+body[data-layout="mobile"] .field-input-select-multi .rounded-full button svg { width: 14px; height: 14px; }
+/* Controls drawn smaller than a thumb (measured 2026-11-02): table sort/column-menu buttons 12-18x16,
+   the page close x 15x15, the folder cards' view-mode buttons 14px tall. They keep their drawn size
+   (a table header row and a card footer are height-sensitive) and gain an invisible 9px tap area. */
+body[data-layout="mobile"] :is(.table-sort-btn, .table-kebab-btn, .table-sort-overlay-btn, .page-header-close-btn, .view-mode-switcher button) {
+  position: relative;
+}
+body[data-layout="mobile"] :is(.table-sort-btn, .table-kebab-btn, .table-sort-overlay-btn, .page-header-close-btn, .view-mode-switcher button)::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+}
 /* iOS zooms the page when a focused input's text is under 16px. */
 body[data-layout="mobile"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
   font-size: 16px;

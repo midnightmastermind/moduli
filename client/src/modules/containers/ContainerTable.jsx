@@ -468,6 +468,9 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   );
 }
 
+// A table column on a phone never shrinks under this (see effectiveWidths).
+export const PHONE_MIN_COL_W = 120;
+
 export default function ContainerTable({ occurrence, dispatch, socket, cellText = "scroll" }) {
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
 
@@ -1221,6 +1224,13 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
     // and header scrolls its own overflow, so a narrow column stays legible
     // instead of the whole table growing a horizontal scrollbar.
     const scale = target / sum;
+    // ON A PHONE a column never shrinks under PHONE_MIN_COL_W: fitting nine columns into a 390px screen
+    // made each ~80px and every field pill a 14px sliver with no text (user 2026-11-02). The table then
+    // scrolls sideways (.table-container is overflow:auto). Desktop keeps fit-to-panel.
+    const phone = typeof document !== "undefined" && document.body?.dataset?.layout === "mobile";
+    if (phone && raw.some((w) => w * scale < PHONE_MIN_COL_W)) {
+      return raw.map((w) => Math.max(PHONE_MIN_COL_W, Math.round(w * scale)));
+    }
     const scaled = raw.map(w => Math.max(40, Math.round(w * scale)));
     // Push the rounding remainder into the last column so the columns sum to
     // EXACTLY `target` — fills the panel to the right edge with no dead zone
