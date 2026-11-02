@@ -47,11 +47,16 @@ export function localDay(iso, timeZone = DEFAULT_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
-/** Is a Jellyfin play at `iso` newer than what the row already says? Watched At first, else Last Watched's day. */
+// A Jellyfin play this soon after the row's Watched At is the same viewing: Moduli's player writes Watched At at 90%
+// and then POSTs /played, so Jellyfin's LastPlayedDate lands seconds later. Treating it as newer rewrote Watched At
+// and gave Media: Log Watch a second key, so a second Watch entry (prod, 2026-11-02).
+export const SAME_VIEWING_MS = 2 * 3600 * 1000;
+
+/** Is a Jellyfin play at `iso` a newer viewing than the row records? Watched At first, else Last Watched's day. */
 export function isNewerWatch(row, iso, timeZone = DEFAULT_TIME_ZONE) {
   const t = msOf(iso);
   if (t == null) return false;
-  if (row.watchedAt) { const w = msOf(row.watchedAt); if (w != null) return t > w; }
+  if (row.watchedAt) { const w = msOf(row.watchedAt); if (w != null) return t > w + SAME_VIEWING_MS; }
   if (row.lastWatched) return localDay(iso, timeZone) > toDay(row.lastWatched);
   return true;
 }

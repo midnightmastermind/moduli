@@ -131,6 +131,11 @@ describe("syncJellyfin", () => {
     expect(isNewerWatch({ lastWatched: "2026-01-01" }, "2026-01-02T12:00:00.000Z")).toBe(true);
     expect(isNewerWatch({ lastWatched: "2026-03-01", watchedAt: "2026-01-01T00:00:00.000Z" }, "2026-02-01T00:00:00.000Z")).toBe(true);
     expect(isNewerWatch({ watchedAt: "2026-02-01T00:00:00.000Z" }, "2026-02-01T00:00:00.000Z")).toBe(false);
+    // The player writes Watched At, then POSTs /played — Jellyfin's LastPlayedDate lands seconds later. That is the
+    // SAME viewing; reading it as newer rewrote Watched At and Media: Log Watch placed a second Watch (prod, 2026-11-02).
+    expect(isNewerWatch({ watchedAt: "2026-11-02T11:18:09.078Z" }, "2026-11-02T11:18:11.774Z")).toBe(false);
+    expect(isNewerWatch({ watchedAt: "2026-11-02T11:18:09.078Z" }, "2026-11-02T13:00:00.000Z")).toBe(false);
+    expect(isNewerWatch({ watchedAt: "2026-11-02T11:18:09.078Z" }, "2026-11-02T13:30:00.000Z")).toBe(true);
   });
 });
 
