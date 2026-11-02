@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   findFolder, pickDestination, findFieldByName, coerceValue, parseDuration, parseDay,
-  predicateTags, filterEntryFor, bindingsFor, selectMetaFor, buildToolPack, asList,
+  predicateTags, filterEntryFor, bindingsFor, selectMetaFor, buildToolPack, asList, expandRepeats,
 } from "../services/assistantBuildTools.js";
 
 describe("name resolution", () => {
@@ -169,5 +169,40 @@ describe("lists sent as JSON text", () => {
     const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
     const r = await tool.run({ container: "Appointments", items: JSON.stringify([{ label: "A" }, { label: "B" }]) });
     expect(r).toMatchObject({ ok: true, created: 2 });
+  });
+});
+
+describe("repeating items (the model does not list dates itself)", () => {
+  it("expandRepeats: Mon-Thu for November is all 17 days, none skipped", () => {
+    const out = expandRepeats([{ label: "CPS Class", fields: { "Time Slot": "4:00pm" },
+      repeat: { from: "2026-11-01", to: "2026-11-30", weekdays: ["Mon", "Tue", "Wed", "Thu"] } }]);
+    expect(out.error).toBeUndefined();
+    const days = out.items.map((i) => i.fields.Date);
+    expect(days).toHaveLength(17);
+    expect(days).toContain("2026-11-23");
+    expect(days).toContain("2026-11-26");
+    expect(out.items.every((i) => i.fields["Time Slot"] === "4:00pm" && !i.repeat)).toBe(true);
+  });
+  it("accepts full weekday names, a custom date field, and skips 'except' days", () => {
+    const out = expandRepeats([{ label: "X", repeat: { from: "2026-11-02", to: "2026-11-09", weekdays: ["monday"], dateField: "Due", except: ["2026-11-09"] } }]);
+    expect(out.items.map((i) => i.fields.Due)).toEqual(["2026-11-02"]);
+  });
+  it("no weekdays = every day; items without repeat pass through untouched", () => {
+    const out = expandRepeats([{ label: "A" }, { label: "B", repeat: { from: "2026-11-01", to: "2026-11-03" } }]);
+    expect(out.items.map((i) => i.label)).toEqual(["A", "B", "B", "B"]);
+  });
+  it("refuses a bad range or an unknown weekday instead of guessing", () => {
+    expect(expandRepeats([{ label: "X", repeat: { from: "2026-11-30", to: "2026-11-01" } }]).error).toMatch(/before/);
+    expect(expandRepeats([{ label: "X", repeat: { from: "2026-11-01", to: "2026-11-30", weekdays: ["Funday"] } }]).error).toMatch(/weekday/);
+    expect(expandRepeats([{ label: "X", repeat: { from: "2026-01-01", to: "2028-01-01" } }]).error).toMatch(/too many/);
+  });
+  it("create_items with repeat creates every date and reports them", async () => {
+    const api = fakeApi();
+    const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
+    const r = await tool.run({ container: "Appointments", items: [{ label: "CPS Class", fields: { "Time Slot": "4:00pm" },
+      repeat: { from: "2026-11-01", to: "2026-11-30", weekdays: ["Mon", "Tue", "Wed", "Thu"] } }] });
+    expect(r).toMatchObject({ ok: true, created: 17 });
+    expect(r.dates).toHaveLength(17);
+    expect(api.occs.filter((o) => o.parentId === "appts" && o.id !== "row1").map((o) => o.fields.D.value)).toContain("2026-11-24");
   });
 });

@@ -207,6 +207,59 @@ export function asList(v) {
   return [];
 }
 
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const MAX_REPEAT = 366;
+
+/** An object the model may send as JSON TEXT, like asList. */
+const asObject = (v) => {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v;
+  if (typeof v === "string") { try { const j = JSON.parse(v); return j && typeof j === "object" && !Array.isArray(j) ? j : null; } catch { return null; } }
+  return null;
+};
+
+/**
+ * Items carrying `repeat: { from, to, weekdays?, except?, dateField? }` -> one item per matching
+ * day, its date written into `dateField` (default "Date"). The SERVER lists the dates: asked for
+ * "Mon-Thu in November", llama3.2 3B wrote 13 of the 17 and skipped a whole week, silently.
+ * Calendar-day arithmetic in UTC on YYYY-MM-DD, so no timezone shift.
+ */
+export function expandRepeats(itemsIn) {
+  const items = [];
+  for (const it of itemsIn || []) {
+    if (it?.repeat == null) { items.push(it); continue; }
+    const rep = asObject(it.repeat);
+    if (!rep) return { error: `${it.label}: repeat must be {from, to, weekdays}` };
+    const from = parseDay(rep.from); const to = parseDay(rep.to);
+    if (!from || !to) return { error: `${it.label}: repeat needs from and to dates (YYYY-MM-DD)` };
+    if (to < from) return { error: `${it.label}: repeat "from" ${from} must be before "to" ${to}` };
+    const wd = typeof rep.weekdays === "string" && !rep.weekdays.trim().startsWith("[")
+      ? rep.weekdays.split(/[,\s]+/).filter(Boolean)
+      : asList(rep.weekdays);
+    let days = null;
+    if (wd.length) {
+      days = new Set();
+      for (const w of wd) {
+        const i = WEEKDAYS.indexOf(String(w).trim().toLowerCase().slice(0, 3));
+        if (i < 0) return { error: `${it.label}: "${w}" is not a weekday` };
+        days.add(i);
+      }
+    }
+    const except = new Set(asList(rep.except).map(parseDay).filter(Boolean));
+    const dateField = rep.dateField || "Date";
+    const { repeat: _r, ...base } = it;
+    const start = Date.parse(`${from}T00:00:00Z`); const end = Date.parse(`${to}T00:00:00Z`);
+    if ((end - start) / 86400000 + 1 > MAX_REPEAT) return { error: `${it.label}: repeat covers too many days (max ${MAX_REPEAT})` };
+    for (let t = start; t <= end; t += 86400000) {
+      const d = new Date(t);
+      const day = d.toISOString().slice(0, 10);
+      if (days && !days.has(d.getUTCDay())) continue;
+      if (except.has(day)) continue;
+      items.push({ ...base, fields: { ...(base.fields || {}), [dateField]: day } });
+    }
+  }
+  return { items };
+}
+
 // ── the pack ────────────────────────────────────────────────────────────
 
 export function buildToolPack({ call, gridId }) {
@@ -401,12 +454,21 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "create_items",
-      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
+      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. Something that REPEATS on many dates: do NOT list the dates — send ONE item with `repeat`: {\"from\": \"2026-11-01\", \"to\": \"2026-11-30\", \"weekdays\": [\"Mon\",\"Tue\",\"Wed\",\"Thu\"]} and one row is made per matching day (date in the Date field; `except` lists days to skip). A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
       input_schema: {
         type: "object",
         properties: {
           container: { type: "string" },
-          items: { type: "array", items: { type: "object", properties: { label: { type: "string" }, fields: { type: "object", additionalProperties: true } }, required: ["label"] } },
+          items: { type: "array", items: { type: "object", properties: {
+            label: { type: "string" },
+            fields: { type: "object", additionalProperties: true },
+            repeat: { type: "object", properties: {
+              from: { type: "string" }, to: { type: "string" },
+              weekdays: { type: "array", items: { type: "string" } },
+              except: { type: "array", items: { type: "string" } },
+              dateField: { type: "string" },
+            } },
+          }, required: ["label"] } },
         },
         required: ["container", "items"],
       },
@@ -414,7 +476,9 @@ export function buildToolPack({ call, gridId }) {
       requires_confirm: true,
       run: async ({ container, items: itemsIn }) => {
         const created = [];
-        const items = asList(itemsIn);
+        const expanded = expandRepeats(asList(itemsIn));
+        if (expanded.error) return { error: expanded.error };
+        const items = expanded.items;
         const d = await resolveContainer(container);
         if (d.error) return d;
         const parentId = d.destination.id;
@@ -423,7 +487,7 @@ export function buildToolPack({ call, gridId }) {
         let sibBindings = [];
         if (sib) { const m = await call("GET", `/modules/${encodeURIComponent(sib.moduleId)}`); sibBindings = (m.body?.module || m.body)?.fieldBindings || []; }
         const moduleByLabel = new Map();
-        const made = []; const problems = [];
+        const made = []; const problems = []; const dates = [];
         for (const it of items) {
           const fv = await fieldValues(it.fields, created);
           if (fv.error) { problems.push(`${it.label}: ${fv.error}`); continue; }
@@ -436,8 +500,11 @@ export function buildToolPack({ call, gridId }) {
           const or = await call("POST", `/occurrences`, { gridId, moduleId, parentId, fields: fv.fields });
           if (!ok(or)) { problems.push(`${it.label}: ${or.body?.message || or.status}`); continue; }
           made.push(or.body.occurrence.id);
+          const day = Object.values(it.fields || {}).find((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v));
+          if (day) dates.push(day);
         }
-        return { ok: problems.length === 0, container: d.destination.label || container, created: made.length, alsoAdded: created, problems };
+        // `dates` = what was actually made, so the reply can name them and a gap is visible.
+        return { ok: problems.length === 0, container: d.destination.label || container, created: made.length, dates, alsoAdded: created, problems };
       },
     },
     {
