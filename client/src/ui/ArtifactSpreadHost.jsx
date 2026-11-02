@@ -29,7 +29,7 @@
 // They stay owned wherever they live; the spread page merely lists them, which
 // is what lets one artifact hang off several occurrences.
 // ============================================================
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Container from "../modules/ModuleContainer";
 import ArtifactSpread from "./ArtifactSpread";
 import { openImagePicker } from "./ImagePickerMenu";
@@ -42,6 +42,41 @@ import {
   panelIdForElement, observePanelRect, readDockPreference, writeDockPreference,
 } from "../helpers/spreadDock";
 import { readOpenSpread, saveOpenSpread, clearOpenSpread } from "../helpers/spreadRestore";
+import { registerJellyfinPlayerHost } from "../helpers/jellyfinPlay";
+import SpreadTileMaximize, { useIsSpreadMaximized } from "./SpreadTileMaximize";
+
+// THE PLAYER TILE (2026-11-02, user: "it should be in the file viewer"). Play on a Jellyfin-linked instance opens
+// THIS viewer for the instance with the player as the first tile; the poster / other files stay beside it, like a
+// book file beside its cover. It is not an occurrence on the spread page (nothing is minted or listed for it) — the
+// host renders it beside the page's container, so it is never persisted and never restored after a reload (a
+// reload must not start a film). Lazy: hls.js is fetched only when something is played.
+const JellyfinPlayer = lazy(() => import("./JellyfinPlayer.jsx"));
+export const PLAYER_TILE_ID = "jellyfin-player-tile";
+
+function SpreadPlayerTile({ player, onStop }) {
+  const maximized = useIsSpreadMaximized(PLAYER_TILE_ID);
+  return (
+    <div className={`spread-player-tile${maximized ? " spread-player-tile--max" : ""}`} data-player-for={player.occurrenceId}>
+      <div className="spread-player-tile-head">
+        <SpreadTileMaximize occurrenceId={PLAYER_TILE_ID} />
+      </div>
+      <div className="spread-player-tile-body">
+        <Suspense fallback={null}>
+          {/* Unmounting it (Close player, the viewer's close, another instance) saves the position. */}
+          <JellyfinPlayer key={player.occurrenceId} {...player} onClose={onStop} />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+/** The element a Play came from, else the instance on screen — for the open animation and the panel to dock in. */
+function playOrigin(player) {
+  if (player.originEl) return player.originEl;
+  if (typeof document === "undefined" || !player.occurrenceId) return null;
+  const esc = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(player.occurrenceId) : player.occurrenceId;
+  return document.querySelector(`[data-occurrence-id="${esc}"]`);
+}
 
 function makeUUID() {
   return (typeof crypto !== "undefined" && crypto.randomUUID)
@@ -162,7 +197,21 @@ export function openArtifactSpread(occurrenceId, originEl = null) {
 
 export function ArtifactSpreadHost() {
   const [req, setReq] = useState(null);
-  useEffect(() => registerArtifactSpreadHost((r) => setReq(r || null)), []);
+  // Re-opening the viewer an instance already has open keeps its player playing.
+  useEffect(() => registerArtifactSpreadHost((r) => setReq((cur) => (
+    r && cur?.player && cur.occurrenceId === r.occurrenceId ? { ...r, player: cur.player } : (r || null)
+  ))), []);
+  // Play: this instance's viewer with the player tile — the one already open for it, else a new one.
+  useEffect(() => registerJellyfinPlayerHost((p) => {
+    const { originEl: _o, ...player } = p;
+    setReq((cur) => {
+      if (cur?.occurrenceId === player.occurrenceId) return { ...cur, player };
+      const el = playOrigin(p);
+      const originRect = el?.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      return { occurrenceId: player.occurrenceId, originRect, panelId: panelIdForElement(el), player };
+    });
+  }), []);
+  const stopPlayer = useCallback(() => setReq((cur) => (cur?.player ? { ...cur, player: null } : cur)), []);
 
   // ── DOCKING ────────────────────────────────────────────────────────────────
   // The preference is read ONCE per session and remembered per device, so
@@ -223,11 +272,13 @@ export function ArtifactSpreadHost() {
   useEffect(() => {
     if (!gridId || restoredForRef.current !== gridId) return;
     if (req?.occurrenceId) {
-      maxIdRef.current = req.maxId ?? null;
+      if (maxIdRef.current === undefined) maxIdRef.current = req.maxId ?? null;
       saveOpenSpread(gridId, { occurrenceId: req.occurrenceId, panelId: req.panelId || null, maxId: maxIdRef.current });
     } else clearOpenSpread(gridId);
   }, [gridId, req]);
-  const handleMaxChange = useCallback((maxId) => {
+  const handleMaxChange = useCallback((rawMaxId) => {
+    // The player tile is never restored, so a maximized player is not remembered either.
+    const maxId = rawMaxId === PLAYER_TILE_ID ? null : rawMaxId;
     maxIdRef.current = maxId;
     if (gridId && req?.occurrenceId) saveOpenSpread(gridId, { occurrenceId: req.occurrenceId, panelId: req.panelId || null, maxId });
   }, [gridId, req]);
@@ -460,7 +511,9 @@ export function ArtifactSpreadHost() {
       onMaxChange={handleMaxChange}
       onAdd={handleAdd}
       onModeChange={handleModeChange}
+      playing={!!req.player}
     >
+      {req.player && <SpreadPlayerTile player={req.player} onStop={stopPlayer} />}
       {/* The app's own container renderer, whole and unmodified — `kind`
           decides board vs canvas, so there is no second arrangement here. */}
       {spreadOcc && spreadModule ? (
@@ -484,7 +537,7 @@ export function ArtifactSpreadHost() {
           <Spinner size="sm" />
           <span>{files.length === 1 ? "Opening 1 file…" : `Opening ${files.length} files…`}</span>
         </div>
-      ) : (
+      ) : req.player ? null : (
         <div className="artifact-spread-empty">No files yet — add one.</div>
       )}
     </ArtifactSpread>

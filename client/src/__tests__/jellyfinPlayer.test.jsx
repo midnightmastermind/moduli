@@ -243,6 +243,6 @@ describe("Play button", () => {
     expect(mi).toMatch(/jellyfinRadialItems\(/);
     // the live field map, not a snapshot frozen when the menu was built
     expect(mi).not.toMatch(/getFieldMap:\s*\(\)\s*=>\s*fieldsById/);
-    expect(read("App.jsx")).toMatch(/<JellyfinPlayerHost\b/);
+    expect(read("App.jsx")).not.toMatch(/JellyfinPlayerHost/);
   });
 });
