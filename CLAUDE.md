@@ -33,6 +33,38 @@ also puts a stray `Date` in `fields`; the expansion overwrites it. 9 tests; serv
 
 ---
 
+### 2026-11-02 (5) — PHONE: bigger tap targets; long boards stop sliding and keep their place when rotated
+
+User: *"mobile buttons and inputs … too small … fields too … mobile scroll and search … boards and docs … would go to
+the very end of a list if i changed from portrait to landscape"* · *"look at mobile performance in general"*.
+- **Tap targets (`index.css`, `body[data-layout="mobile"]` only):** measured at 390x844, 54 of 59 visible buttons were
+  under 32px. Field pills 32px tall / 14px text (vertical padding only — horizontal padding put the macro pills one per
+  line), the switch 38x22, header buttons 34px, invisible 9px tap areas on the drag handle and row-corner buttons (the
+  handle keeps 22px: 2026-07-04, a bigger one pushed row content down), inputs 16px (iOS zoom). Edge rails left at 22px
+  — they sit over content.
+- **Rotation (`helpers/virtualRows.js`):** Movies (grid) jumped to the END of the list: more tiles per line, a shorter
+  list, the offset clamped. People (stacked) landed on another person — card heights change with width. Now the top row
+  is tracked while scrolling (`topTileFromDom`, read from the rendered elements and only when the element covers the top;
+  readings taken after a width change but before the watcher has seen it are skipped), and after a width change it is
+  HELD at the top for `ANCHOR_HOLD_MS` by lining up its real element each frame, released by any touch/wheel/key.
+- **The list slid by itself:** with scrollTop unchanged, People's top row went 561 → 514 in 2s as photos loaded. The
+  comment said browser scroll anchoring holds the view; measured, it did not. The virtualizer's own size correction is
+  back ON, and `estimateFor` keeps an unmeasured row's first estimate once it is above the rendered range (rows below
+  still follow the average, which is what stops the end moving away). Drift probe (`_drift.mjs`): deployed 586 → 522,
+  new 590 → 590. Rotation (`_rotate.mjs`): the same row before, during and after, 3 of 3. Flick coast 900 → 1,366px.
+  Test `virtualAnchor.test.js` (A/B'd). Routines and a long doc (Eminem) already held; unchanged.
+- **Search on the phone works:** the Inception movie hit opened the board, row on screen and ringed in 1.7s.
+- **Load, measured (prod, 4x CPU):** panels 12-20s, rows 14-24s, blocked 55-69s over the first minute, 22k DOM nodes
+  for a one-panel phone screen. One run froze 236s once and did not repeat. Not changed — the big lever is still the
+  ~32MB first download (see the 09-28 dockets).
+- **Jellyfin (same day):** loose `baldr/series/Season N` folders were all Curb — Jellyfin had matched them to other
+  shows (Comedy Khiladigalu, Boys Over Flowers…). Merged into one show folder; Curb, DAVE, The Moaning of Life and The
+  Office merged onto one drive each, best copy kept (55 same-drive duplicates deleted on heimdall, the rest parked in
+  each drive's `_duplicates`); obfuscated / `1x01` names renamed. 177 shows, 0 duplicates, 0 repeated episodes. Sonarr's
+  two wrong entries removed and paths repointed; RoboCop (2014) re-matched.
+
+---
+
 ### 2026-11-02 (4) — JONAH ON THE 3B MODEL: CPS classes done, Quick Links not; the arrs read the drives
 
 - **Jonah back on llama3.2:3b** with a short prompt and 17 tools (`14e93307`). **CPS classes worked end to end**:
