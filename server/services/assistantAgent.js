@@ -62,7 +62,8 @@ const OLLAMA_NUM_CTX = Number(process.env.OLLAMA_NUM_CTX) || 8192;
 // Cap output tokens per generation. Tool calls + one-sentence summaries are
 // short; without a cap the model can ramble for hundreds of tokens, and on a
 // CPU box every token is expensive. Bounds worst-case latency per turn.
-const OLLAMA_NUM_PREDICT = Number(process.env.OLLAMA_NUM_PREDICT) || 768;
+// 1200, not 768: one create_items call listing 13 dated instances is ~600 tokens.
+const OLLAMA_NUM_PREDICT = Number(process.env.OLLAMA_NUM_PREDICT) || 1200;
 // Keep the model resident between turns so we don't pay the multi-second reload
 // each message. Ollama accepts a duration string ("30m") or seconds.
 const OLLAMA_KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE || "30m";
@@ -76,6 +77,18 @@ const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 180000;
 // exceeds this — keeps the server bound coherent with the client's ceiling.
 const OLLAMA_TOTAL_BUDGET_MS = Number(process.env.OLLAMA_TOTAL_BUDGET_MS) || 300000;
 const MAX_TOOL_ITERATIONS = 6;
+
+// The local model reads its whole prompt on CPU before answering (~64 tokens/s
+// for llama3.2:3b, ~28 for the 7B, measured 2026-11-02), and Cloudflare drops a
+// request that sends nothing for 100s. So it gets a SHORT prompt naming only the
+// tools it is offered (OFFLINE_CORE_TOOLS); every other backend keeps SYSTEM_PROMPT.
+export const OFFLINE_SYSTEM_PROMPT = `You are Jonah, the assistant for the Moduli workspace: a dry, precise, faintly formal turtle butler. Brief answers.
+
+Act by calling tools. Before a tool call write ONE short sentence saying what you are doing; after it, confirm in one sentence.
+- Build in ONE call — prefer these: create_board (a board page in a folder with its rows: a row with a url becomes a bookmark card; optional selectFields with options and filterField), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added), add_filter (filter on a page/container, nav showing).
+- Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), create_folder, save_bookmark (one link), import_url (a page from a link), wikipedia_search / wikipedia_import.
+- Look up: list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
+Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
 const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace. Persona: a sophisticated, unflappable turtle butler with a long Gandalf-like beard. Style: dry, precise, faintly formal; wise and patient, never folksy. Brief by default; expansive only when answering a genuine research question.
 
@@ -134,16 +147,11 @@ function buildTools({ baseUrl, apiToken, userId, gridId }) {
 // update/delete, operation authoring) to the cloud model. Override the set via
 // OLLAMA_TOOL_ALLOWLIST (comma-separated tool names); empty/unset → the default.
 const OFFLINE_CORE_TOOLS = new Set([
-  "jonah_notes", "jonah_remember",
-  "wikipedia_search", "wikipedia_summary", "wikipedia_import", "wikipedia_links", "wikipedia_import_batch", "import_markdown",
-  "save_bookmark", "import_url",
-  "get_grid_state",
-  "list_folders", "create_folder",
-  "list_modules", "create_module",
-  "list_occurrences", "get_occurrence", "create_occurrence", "set_occurrence_field",
-  "list_fields", "create_field",
-  "list_operations", "run_operation",
   "create_board", "create_items", "add_filter",
+  "create_occurrence", "set_occurrence_field", "create_field", "create_folder",
+  "save_bookmark", "import_url", "wikipedia_search", "wikipedia_import",
+  "list_folders", "list_fields", "list_occurrences", "get_occurrence",
+  "run_operation", "jonah_notes",
 ]);
 
 function offlineToolAllowlist() {
@@ -792,7 +800,8 @@ async function fetchDestinations({ baseUrl, apiToken, gridId }) {
 
 // The tools and system prompt a chat sends. Shared with warmAssistant so the
 // warm-up reads exactly the prompt the next chat will start with.
-async function composeChat({ userId, gridId, context, baseUrl, apiToken }) {
+async function composeChat({ userId, gridId, context, baseUrl, apiToken, backend }) {
+  const local = backend === "ollama";
   const tools = buildTools({ baseUrl, apiToken, userId, gridId });
   // Resolve named places (folders/pages/containers) up front so the model can
   // create/move into any of them without a read round-trip.
@@ -800,7 +809,8 @@ async function composeChat({ userId, gridId, context, baseUrl, apiToken }) {
   const today = new Date();
   const dateHint = `\n\nTODAY is ${today.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${today.toISOString().slice(0, 10)}). Use this for "today"/"tonight" and for any date field.`;
   // Fixed parts first, the per-page location last (see buildLocationHint).
-  const systemPrompt = SYSTEM_PROMPT + buildDestinationsHint(destinations) + dateHint + buildLocationHint(context);
+  const systemPrompt = (local ? OFFLINE_SYSTEM_PROMPT : SYSTEM_PROMPT)
+    + buildDestinationsHint(destinations, { limit: local ? OFFLINE_PLACES_LIMIT : 120 }) + dateHint + buildLocationHint(context);
   return { tools, systemPrompt };
 }
 
@@ -809,6 +819,8 @@ async function composeChat({ userId, gridId, context, baseUrl, apiToken }) {
 // long read that otherwise runs past Cloudflare's 100s. Fire-and-forget; one
 // warm-up per grid per WARM_EVERY_MS.
 const WARM_EVERY_MS = 10 * 60 * 1000;
+// Known places listed to the local model (each line costs read time on CPU).
+const OFFLINE_PLACES_LIMIT = 40;
 const lastWarm = new Map();
 export async function warmAssistant({ userId, gridId, baseUrl, apiToken }) {
   if (!gridId) return { warmed: false, reason: "no_grid" };
@@ -816,7 +828,7 @@ export async function warmAssistant({ userId, gridId, baseUrl, apiToken }) {
   const now = Date.now();
   if (now - (lastWarm.get(gridId) || 0) < WARM_EVERY_MS) return { warmed: false, reason: "recent" };
   lastWarm.set(gridId, now);
-  const { tools, systemPrompt } = await composeChat({ userId, gridId, context: null, baseUrl, apiToken });
+  const { tools, systemPrompt } = await composeChat({ userId, gridId, context: null, baseUrl, apiToken, backend: "ollama" });
   const body = buildOllamaRequestBody({
     model: OLLAMA_MODEL,
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: "hi" }],
@@ -866,14 +878,14 @@ async function notesHintFor(messages, { baseUrl, apiToken, gridId }) {
 
 export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
   if (!gridId) throw new Error("gridId required");
-  const composed = await composeChat({ userId, gridId, context, baseUrl, apiToken });
+  const backend = await pickBackend();
+  const composed = await composeChat({ userId, gridId, context, baseUrl, apiToken, backend });
   const notesHint = await notesHintFor(messages, { baseUrl, apiToken, gridId });
   // An explanation needs no tools; offered them, the small model calls one
   // and answers from that instead of the notes it was just given.
   const tools = notesHint ? [] : composed.tools;
   const systemPrompt = composed.systemPrompt + notesHint;
   const contextId = context?.id || null;
-  const backend = await pickBackend();
   const backendTools = selectToolsForBackend(tools, backend);
 
   if (backend === "ollama") {
