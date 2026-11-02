@@ -25,6 +25,8 @@ import { planOrphanModules, collectReferencedModuleIds } from "./orphanModules.j
 export const ORPHAN_MODULE_ERROR_AT = 100;
 
 export const KIND_BEARING_ROLES = new Set(["container", "page", "artifact", "textblock"]);
+// Every role a module may carry (the renderers branch on these; anything else renders as nothing).
+export const MODULE_ROLES = new Set(["panel", "page", "container", "instance", "textblock", "artifact"]);
 
 export function checkGridIntegrity({ grid = null, occurrences = [], modules = [], fields = [], operations = [], folders = [], textmaps = null } = {}) {
   const findings = [];

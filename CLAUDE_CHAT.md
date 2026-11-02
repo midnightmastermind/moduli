@@ -4114,3 +4114,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 ### 2026-10-29 12:56 CDT (account2, finished by account1)
 - *"can you make sure our lock occurance is a thing. so you cant move it from the position but you can copy/copylink it. the lock would go in the radial menu. and also for the radial menu, have tooltips up to know what each button does. also the lock should autoswitch from and block moving from grabbing the radial handle"*
 - Also open from account2: the Spotify song-matching run at 2:30pm today; new links show after the next server restart (offered to restart tonight).
+
+### 2026-11-02 07:22 CST (account2)
+- *"could you switch over to testing out jonah with these things: creating a board with all my quick links for gmail, proton mail, facebook, instagram (all with a quick link type, social), jellyfin (and all their arr sites) (all with quick link type media), and github, digital ocean, mongodb, cloudfare, and dynadot (all with type website), and create a filter for the type on it (with nothing set but have the nav). Also have it create appointments for my cps classes"* — 13 classes from a pasted table: Nov 2,3,4,5,9,10,11,12,16,17,18,19,30, each 4-8PM (4 hours).

@@ -47,6 +47,9 @@ import { verifyToken } from "../utils/jwts.js";
 import ApiToken from "../models/ApiToken.js";
 import { handleProvidersList, handleProviderSearch, handleProviderDetail } from "../utils/searchRouteHandlers.js";
 import { listConnections, renameConnection, removeConnection, setDefaultConnection } from "../services/connections.js";
+import { MODULE_ROLES } from "../utils/gridIntegrity.js";
+// A role that is present must be a real one; absent / null keeps the schema default.
+const badRole = (body) => body && Object.prototype.hasOwnProperty.call(body, "role") && body.role != null && !MODULE_ROLES.has(body.role);
 
 // Loopback base for the assistant's self-calls (see header comment).
 const SELF_BASE_URL =
@@ -432,6 +435,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     try {
       const body = req.body || {};
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
+      if (badRole(body)) return err(res, 400, "validation_error", `role must be one of ${[...MODULE_ROLES].join(", ")}`);
       const id = body.id || uid();
       const doc = await Module.create({
         ...body,
@@ -449,6 +453,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   router.patch("/modules/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const patch = req.body || {};
+      if (badRole(patch)) return err(res, 400, "validation_error", `role must be one of ${[...MODULE_ROLES].join(", ")}`);
       const next = await Module.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: patch },
