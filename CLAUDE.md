@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (5) — 4 CPS CLASSES WERE MISSING: the model skipped a week; dates are the server's job now
+
+User: *"why all my cps classes didnt get added? mon-thurs for november"*. Read out of Mongo: 13 of 17 rows, all
+made within 33s by one `create_items` call, and **Nov 23-26 (Thanksgiving week) absent** — every date the model
+sent became a row; the 3B model simply left a week out of its list, and nothing said so. Repaired through the
+REST API with a scratch token (deleted after): the 4 rows added from the Nov 19 row (same module, fields, list
+position after it); a DUPLICATE Nov 2 copy in today's 4:00pm slot (two `Place Dated Work` runs 2 min apart,
+two copies of one source, one `copyLinkSource`) deleted. Read back: 17/17 listed, slot holds 1.
+**Fix:** `create_items` items take `repeat: {from, to, weekdays?, except?, dateField?}` —
+`assistantBuildTools.expandRepeats` (pure; refuses a backwards range, an unknown weekday, >366 days) makes one
+row per matching day, and the result carries `dates` so a gap is visible. Both system prompts tell the model to
+send one repeating item instead of listing dates. 5 tests (fail before); server 3,454 pass; deployed.
+
+---
+
 ### 2026-11-02 (4) — JONAH ON THE 3B MODEL: CPS classes done, Quick Links not; the arrs read the drives
 
 - **Jonah back on llama3.2:3b** with a short prompt and 17 tools (`14e93307`). **CPS classes worked end to end**:
