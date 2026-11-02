@@ -2,25 +2,29 @@
 // Renders nothing on an instance the sync never linked (no meta.jellyfinId). Stops the click so the card's
 // own viewer / drag handling never starts from it.
 import React from "react";
-import { Play } from "lucide-react";
+import { Play, SkipForward } from "lucide-react";
 import { isPlayableRow } from "../helpers/jellyfinPlay";
+import { isShowOrSeasonRow } from "../helpers/nextUnwatched";
 
-export function JellyfinPlayButton({ occurrence, onPlay }) {
+// On a TV Series / Season row (linked, not itself playable) the button is "Play next" — the first unwatched
+// episode (helpers/nextUnwatched) — when the caller passes `onPlayNext`.
+export function JellyfinPlayButton({ occurrence, onPlay, onPlayNext }) {
   if (!isPlayableRow(occurrence)) return null;
+  const next = !!onPlayNext && isShowOrSeasonRow(occurrence);
   const stop = (e) => e.stopPropagation();
   return (
     <button
       type="button"
-      aria-label="Play"
-      title="Play"
+      aria-label={next ? "Play next unwatched" : "Play"}
+      title={next ? "Play next unwatched" : "Play"}
       className="jellyfin-play-btn"
       onPointerDown={stop}
       onMouseDown={stop}
       onDoubleClick={stop}
-      onClick={(e) => { e.stopPropagation(); onPlay?.(); }}
+      onClick={(e) => { e.stopPropagation(); (next ? onPlayNext : onPlay)?.(); }}
     >
-      <Play size={14} />
-      <span>Play</span>
+      {next ? <SkipForward size={14} /> : <Play size={14} />}
+      <span>{next ? "Play next" : "Play"}</span>
     </button>
   );
 }

@@ -29,7 +29,7 @@ import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { slotsCovered } from "./slotSpan";
 import { isDueOn } from "./dueSpan";
-import { whenOnDay, whenTimesOnDay, slotLabelFor } from "./when.js";
+import { whenOnDay, whenTimesOnDay, slotLabelFor, slotOfMoment } from "./when.js";
 import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
 import { startAlarmRing } from "../state/alarmRingStore";
@@ -2532,7 +2532,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         const rootMeta = isRoot && cfg.meta && typeof cfg.meta === "object"
           ? deepResolveExpr(cfg.meta, $vars)
           : null;
-        const baseMeta = { ...carriedPlacementMeta(src), createdByOperation: true, copyLinkSource: src.id, ...(rootMeta || {}) };
+        const rootSignature = isRoot && cfg.identitySignature ? resolveExpr(cfg.identitySignature, $vars) || null : null;
+        const baseMeta = { ...carriedPlacementMeta(src), createdByOperation: true, copyLinkSource: src.id, ...(rootMeta || {}),
+          ...(rootSignature ? { signatureUnique: true } : {}) };
 
         const stub = {
           id: newId,
@@ -2612,6 +2614,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             ...((rootLabelOverride ?? src.label) ? { label: rootLabelOverride ?? src.label } : {}),
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
             ...(isRoot && typeof cfg.insertAtIndex === "number" ? { insertAtIndex: cfg.insertAtIndex } : {}),
+            // A root signature is this copy's identity under its parent (CREATE's rule): the server refuses a second
+            // one there, so two tabs running the same sweep cannot both place it.
+            ...(rootSignature ? { identitySignature: rootSignature } : {}),
           },
         });
 
@@ -3265,6 +3270,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const w = resolveExpr(cfg.when, $vars);
       const day = resolveExpr(cfg.day, $vars);
       $vars[cfg.to || "$whenSlots"] = [...new Set(whenTimesOnDay(w, day).map(slotLabelFor).filter(Boolean))];
+      break;
+    }
+
+    // cfg: { time, to? } — the half-hour schedule slot ("8:00pm") a moment falls in: an ISO date-time read in this
+    // browser's zone, or a clock string. A bare date / empty value gives "" (no time of day — file it as all-day).
+    case "TIME_SLOT": {
+      $vars[cfg.to || "$timeSlot"] = slotOfMoment(resolveExpr(cfg.time, $vars)) || "";
       break;
     }
 

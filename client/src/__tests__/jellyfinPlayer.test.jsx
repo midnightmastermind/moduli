@@ -229,7 +229,9 @@ describe("Play button", () => {
     const mod = { id: "m", role: "artifact", kind: "movie", label: "Movie", fileRef: "" };
     const { rerender } = render(<ArtifactCard module={mod} occurrence={{ id: "a", moduleId: "m", label: "John Wick", meta: { cover: "https://x/p.jpg" } }} />);
     expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
-    rerender(<ArtifactCard module={mod} occurrence={{ id: "a", moduleId: "m", label: "John Wick", meta: { cover: "https://x/p.jpg", jellyfinId: "j" } }} />);
+    rerender(<ArtifactCard module={mod} occurrence={{ id: "a", moduleId: "m", label: "John Wick", meta: { cover: "https://x/p.jpg", jellyfinId: "j", jellyfinPlayable: true } }} />);
+    // jellyfinPlayable is what the sync writes on a Movie / Episode; a linked row without it is a Series / Season,
+    // which offers "Play next unwatched" instead (Task 9).
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
   });
 

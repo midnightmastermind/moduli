@@ -150,3 +150,19 @@ export function slotLabelFor(t) {
   if (!p) return null;
   return formatClock(`${pad(p.h)}:${pad(p.m < 30 ? 0 : 30)}`);
 }
+
+/**
+ * PURE. The half-hour slot a MOMENT falls in: an ISO date-time ("2026-11-01T01:10:00.000Z") is read in THIS
+ * browser's zone (where the schedule is drawn), a clock string ("20:10") as written. A bare date, an empty or an
+ * unreadable value has no time of day and gives null (the caller files it as all-day).
+ */
+export function slotOfMoment(v) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date || (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v))) {
+    const d = v instanceof Date ? v : new Date(v);
+    if (Number.isNaN(d.getTime())) return null;
+    return slotLabelFor(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  }
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  return slotLabelFor(v);
+}

@@ -4,7 +4,7 @@
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
-import { jellyfinRadialItems, openJellyfinPlayer } from "../helpers/jellyfinPlay";
+import { jellyfinRadialItems, openJellyfinPlayer, playNextUnwatched } from "../helpers/jellyfinPlay";
 import { buttonItem } from "../ui/buttonItem";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
@@ -733,7 +733,8 @@ function InstanceInner({
       occurrence, label: occurrence?.label || instance?.label || "",
       dispatch, socket, getOcc, getFieldMap: getLiveFieldMap,
     }),
-  }), [occurrence, instance, dispatch, socket, getOcc, getLiveFieldMap]);
+    onPlayNext: () => playNextUnwatched({ occurrence, dispatch, socket, getOcc, getOccMap, getFieldMap: getLiveFieldMap }),
+  }), [occurrence, instance, dispatch, socket, getOcc, getOccMap, getLiveFieldMap]);
 
   const radialItems = useMemo(() => {
     const toggleLabelItem = {

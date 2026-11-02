@@ -296,6 +296,8 @@ export const ACTION_CONFIG_SCHEMA = {
       // `fieldHidden` — none of which the editor could write (2026-10-03).
       { key: "linked", kind: "bool", label: "linked (ticks stay in sync)", defaultValue: true },
       { key: "fields", kind: "fieldMap", label: "set on the copy:" },
+      // One copy per signature under its parent — the server refuses a second (a sweep in two tabs).
+      { key: "identitySignature", kind: "expr", label: "unique as", optional: true, placeholder: "watch:${$key}" },
       { key: "itemIdVar", kind: "var", label: "new id → $", optional: true },
       // The executor has read `itemVar` since COPY_LINK existed; Combine Days (0397) needs the
       // whole new slot to set its feed, and there was no box for it (2026-10-13).
@@ -471,6 +473,13 @@ export const ACTION_CONFIG_SCHEMA = {
       { key: "idsVar", kind: "var", label: "ids → $", optional: true },
     ],
     hint: "Every occurrence of the chosen module(s) — e.g. all of Exercise, wherever it was placed or copied. Read from an index, so it does not test every record. Always a list.",
+  },
+  TIME_SLOT: {
+    fields: [
+      { key: "time", kind: "expr", label: "time", placeholder: "$item.fields.<Watched At>.value" },
+      { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$timeSlot" },
+    ],
+    hint: "The half-hour time slot (\"8:00pm\") a date-time falls in, read in this browser's zone, or a clock time (\"20:10\"). A plain date gives none.",
   },
   SLOTS_COVERED: {
     fields: [

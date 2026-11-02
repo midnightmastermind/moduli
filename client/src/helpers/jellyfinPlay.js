@@ -4,8 +4,10 @@
 // An instance is playable when the sync linked it (`meta.jellyfinId`, server/services/jellyfinSync). The
 // server answers GET /api/v1/jellyfin/play/:occId with proxy-relative stream urls; <video> and hls.js
 // cannot send an Authorization header, so the session token rides as `t=` (the proxy lifts it).
-import { Play, ExternalLink } from "lucide-react";
+import { Play, ExternalLink, SkipForward } from "lucide-react";
 import { sessionHeaders } from "./authStorage";
+import { toast } from "../state/notificationStore";
+import { episodesForRow, nextUnwatched, isShowOrSeasonRow } from "./nextUnwatched";
 
 /** "Finished" = the position reached 90% of the runtime (global constraint). */
 export const FINISHED_FRACTION = 0.9;
@@ -88,12 +90,49 @@ export function openJellyfinPlayer({ occurrence, label, ...ctx }) {
   return true;
 }
 
-/** The radial items: Play + Open in Jellyfin, folded into one "Jellyfin" submenu. Nothing without a jellyfinId. */
-export function jellyfinRadialItems({ occurrence, onPlay }) {
+/** The episode fields, by name (never by id): what links an episode to its show / season and orders it. */
+export function episodeFieldIds(fieldsById) {
+  const all = Object.values(fieldsById || {});
+  const id = (name, type) => all.find((f) => f?.name === name && (!type || f.type === type) && !f.displayEnabled)?.id || null;
+  return {
+    show: id("TV Show", "occurrence"), seasonLink: id("TV Season", "occurrence"), season: id("Season", "number"),
+    number: id("Episode #", "number"), lastWatched: id("Last Watched", "date"), watchedAt: id("Watched At", "text"),
+  };
+}
+
+/**
+ * "Play next unwatched" on a TV Series / Season row: the first unwatched episode with a file, in the same player.
+ * Skipped episodes (no file in Jellyfin) are named in a toast; with nothing left it says so and opens nothing.
+ * `ctx` = what openJellyfinPlayer takes, plus `getOccMap` / `getFieldMap` (read at click time).
+ */
+export function playNextUnwatched({ occurrence, getOccMap, getFieldMap, ...ctx }) {
+  const fieldsById = getFieldMap?.() || {};
+  const episodes = episodesForRow(occurrence, Object.values(getOccMap?.() || {}), episodeFieldIds(fieldsById));
+  const pick = nextUnwatched({ showOrSeasonRow: occurrence, episodes });
+  if (!pick) {
+    toast(episodes.length ? "Nothing left to play here — every episode with a file is watched." : "No episodes found for this row.");
+    return false;
+  }
+  if (pick.skipped.length) {
+    const n = pick.skipped.length;
+    toast(`Skipped ${n} episode${n === 1 ? "" : "s"} with no file: ${pick.skipped.slice(0, 5).join(", ")}${n > 5 ? "…" : ""}`);
+  }
+  return openJellyfinPlayer({ occurrence: pick.episode.occurrence, label: pick.episode.label, getFieldMap, ...ctx });
+}
+
+/**
+ * The radial items: Play + Open in Jellyfin, folded into one "Jellyfin" submenu. Nothing without a jellyfinId.
+ * A Series / Season row (linked, not itself playable) offers "Play next unwatched" instead of Play when the caller
+ * passes `onPlayNext`.
+ */
+export function jellyfinRadialItems({ occurrence, onPlay, onPlayNext }) {
   if (!isPlayableRow(occurrence)) return [];
   const group = { group: "Jellyfin", groupIcon: Play, groupColor: "bg-slate-700 hover:bg-slate-600" };
+  const first = onPlayNext && isShowOrSeasonRow(occurrence)
+    ? { icon: SkipForward, label: "Play next unwatched", color: "bg-slate-700 hover:bg-slate-600", onClick: () => onPlayNext(), ...group }
+    : { icon: Play, label: "Play", color: "bg-slate-700 hover:bg-slate-600", onClick: () => onPlay?.(), ...group };
   return [
-    { icon: Play, label: "Play", color: "bg-slate-700 hover:bg-slate-600", onClick: () => onPlay?.(), ...group },
+    first,
     { icon: ExternalLink, label: "Open in Jellyfin", color: "bg-slate-700 hover:bg-slate-600",
       onClick: () => openInJellyfin(occurrence.id), ...group },
   ];

@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-11-01 — `0481` Media: Log Watch)
+- Op (Library Ops, p3; onLoad, onFilterChange grid, onChange Last Watched + Watched At): each movie / episode /
+  documentary row watched on a shown day gets one completed, unlinked copy of the Routines Watch item in that day's
+  slot (Watched At's local time via TIME_SLOT) or Todo (date only); Media = [row], or TV Show / TV Season / Episode.
+  `meta.watchFor = "<row>@<moment>"` dedupes across reloads; COPY_LINK `identitySignature: watch:<key>` across tabs.
+  Never deletes. Pure `logWatchPipeline` / `resolveIds` (ids by name + type, Watch item by its module).
+
 ## Recent Changes (2026-10-21 (2) — template copies share the module; `0425`; Operation.skipIfUnchanged)
 - `utils/cloneSubtree.js`: nodes keep `src.moduleId` (no module minted) unless the ROOT is cloned with `freshRoot`
   (save as / save over template). `socketHandlers/templates.js` save over deletes a module only when nothing outside

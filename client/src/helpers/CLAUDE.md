@@ -3,6 +3,17 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-01 — TIME_SLOT; COPY_LINK identitySignature; nextUnwatched.js NEW)
+- `when.slotOfMoment(v)`: the half-hour slot of an ISO date-time read in THIS browser's zone (or a clock string);
+  a bare date → null. Action `TIME_SLOT { time, to = $timeSlot }` uses it ("" for none). Test `slotOfMoment`.
+- `COPY_LINK identitySignature` (expr, root only): stamps `identitySignature` + `meta.signatureUnique` so the server
+  refuses a second copy under the same parent (a sweep in two tabs). Used by 0481 `Media: Log Watch`.
+- `nextUnwatched.js`: `isShowOrSeasonRow` (jellyfinId, not jellyfinPlayable), `episodesForRow(row, occs, fieldIds)`
+  (rows naming it by TV Show / TV Season; feed copies out), `nextUnwatched` (first by season/number with a file and
+  not watched; skipped = unwatched with no file before it). `jellyfinPlay.playNextUnwatched` / `episodeFieldIds`;
+  `jellyfinRadialItems({ onPlayNext })` and `JellyfinPlayButton onPlayNext` offer "Play next unwatched" on show /
+  season rows. Tests `nextUnwatched`, `mediaLogWatch` (real executor over the poms fixture).
+
 ## Recent Changes (2026-10-25 — a button runs its listeners; a pause keeps its action)
 - `buttonRun.buttonListeners(fieldId, operationsById)` / `runButtonPress({field, hostOccurrence, ctx})`; the hook runs
   a field press through it. `buttonOperation.js` keeps only request/take/OPEN_OPERATION_EVENT.
