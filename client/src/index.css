@@ -9578,3 +9578,62 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread-body--playing > .spread-player-tile--max { flex: 1 1 auto; min-height: 0; height: 100%; }
 .artifact-spread--mobile .artifact-spread-body--playing { flex-direction: column; }
 .artifact-spread--mobile .artifact-spread-body--playing > .spread-player-tile { min-height: 40vh; }
+
+/* ── PHONE TAP TARGETS (user 2026-11-02: "buttons and inputs … too small on mobile … fields too") ──
+   Measured at 390x844: 54 of 59 visible buttons were under 32px, 35 under 24px — field pills 24px tall
+   with 12px text, the Completed switch 20x12, filter/search/up buttons ~21x17. Scoped to the MOBILE
+   LAYOUT (body[data-layout], stamped by App.jsx) so tablets in desktop layout are untouched.
+   Two treatments, on purpose:
+   - things a finger aims AT (field pills, the switch, header buttons) get visibly bigger;
+   - the drag handle keeps its 22px box (2026-07-04: a bigger handle pushed row content onto extra
+     lines) and instead gets an INVISIBLE tap area around it, as do the small row-corner buttons. */
+body[data-layout="mobile"] {
+  --cascade-field-font-size: 14px;
+}
+body[data-layout="mobile"] .field-input {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+/* A number pill nests its value pill inside the field pill; only the outer one grows. */
+body[data-layout="mobile"] .field-input .field-input {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+/* The switch: Radix root + thumb, Tailwind sizes it h-3 w-5 with an h-2 thumb. */
+body[data-layout="mobile"] button[role="switch"] {
+  width: 38px;
+  height: 22px;
+}
+body[data-layout="mobile"] button[role="switch"] > span {
+  width: 16px;
+  height: 16px;
+  translate: 2px 0;
+}
+body[data-layout="mobile"] button[role="switch"][data-state="checked"] > span {
+  translate: 18px 0;
+}
+/* Header buttons: the filter chevron, search, quick-add "+", the panel stack's Up / tree / full-screen. */
+body[data-layout="mobile"] :is(.header-chevron, .occ-search-trigger, .quick-add-btn, .panel-stack-btn-inline, .toolbar button[title="Open menu"]) {
+  min-width: 34px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Invisible tap areas. position:relative only where the element is not already positioned. */
+body[data-layout="mobile"] .module-drag-handle .radial-handle { position: relative; }
+body[data-layout="mobile"] :is(.module-drag-handle .radial-handle, .instance-body-btn, .instance-field-add-btn, .instance-url-btn)::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+}
+body[data-layout="mobile"] :is(.instance-body-btn, .instance-field-add-btn, .instance-url-btn) {
+  width: 30px;
+  height: 30px;
+}
+/* iOS zooms the page when a focused input's text is under 16px. */
+body[data-layout="mobile"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  font-size: 16px;
+}

@@ -43,6 +43,51 @@ export function lineNeedsResize(known, measured) {
   return measured > 0 && (known == null || Math.abs(known - measured) >= 1);
 }
 
+/** The first tile on screen (in tile units), read from the rendered ELEMENTS — a stacked row's
+ *  data-index, a grid tile's occurrence id through indexOf — so it is what the user sees, not the
+ *  virtualizer's estimate. Falls back to the estimate when nothing rendered sits at the top. */
+export function topTileFromDom(list, scrollEl, cols, indexOf, v) {
+  if (list && scrollEl) {
+    const top = scrollEl.getBoundingClientRect().top;
+    for (const el of list.children) {
+      const r = el.getBoundingClientRect();
+      if (r.height < 1 || r.bottom <= top + 1) continue;
+      // The first element reaching below the top must also START at or above it — otherwise the top
+      // of the screen is spacer (rows not drawn yet) and this element is not what the user sees.
+      if (r.top > top + 1) break;
+      if (el.classList?.contains("virtual-row")) return Number(el.dataset.index) * Math.max(1, cols);
+      const id = el.getAttribute?.("data-occurrence-id");
+      if (id != null && typeof indexOf === "function") { const i = indexOf(id); if (i >= 0) return i; }
+    }
+  }
+  return v === undefined ? null : topTileIndex(v, cols);
+}
+
+/** The first tile (in tile units, not lines) whose line is still on screen, or null. */
+export function topTileIndex(v, cols) {
+  if (!v || typeof v.getVirtualItems !== "function") return null;
+  const offset = v.scrollOffset ?? 0;
+  const line = v.getVirtualItems().find((i) => i.end > offset);
+  return line ? line.index * cols : null;
+}
+
+/** An unmeasured row's estimate: a row ABOVE the rendered range keeps the first estimate it was given
+ *  (`frozen`, mutated), so a moving average cannot slide the list under a still finger; a row at or
+ *  below the range follows the average. */
+export function estimateFor(i, avg, frozen, startIndex) {
+  if (frozen.has(i)) return frozen.get(i);
+  if (startIndex != null && i < startIndex) frozen.set(i, avg);
+  return avg;
+}
+
+/** The rendered element for a virtual line: a stacked list's row wrapper (data-index), or a grid
+ *  line's first tile — a direct child of the list carrying that tile's occurrence id. */
+export function anchorElement(list, line, cols, keyOf) {
+  if (cols <= 1) return list.querySelector(`:scope > .virtual-row[data-index="${line}"]`);
+  const id = keyOf?.(line * cols);
+  return id == null ? null : childrenById(list).get(String(id)) || null;
+}
+
 /** Counts a grid measure pass; false once more than GRID_MEASURES_PER_BURST ran within 50ms. */
 export function takeMeasurePass(burst, now) {
   if (now - burst.at > 50) { burst.at = now; burst.n = 0; }
@@ -60,6 +105,8 @@ export const VIRTUAL_GRID_OVERSCAN = 3;
 // How long a jump target stays pinned. It needs to outlast the jump's own
 // look-until-mounted loop and the scroll that follows, and no more.
 export const PIN_MS = 6000;
+// How long the row at the top is held there after the list changes width (a phone turned sideways).
+export const ANCHOR_HOLD_MS = 2500;
 
 /** PURE: the nearest ancestor that scrolls vertically, or null. Read from the
  *  computed style, NOT from `scrollHeight > clientHeight`: at mount the page
@@ -175,6 +222,8 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
   }, [enabled, listRef]);
 
   const active = enabled && !!scrollEl;
+  const scrollElRef = useRef(scrollEl);
+  scrollElRef.current = scrollEl;
 
   // Columns from the list's width; corrected below from the real layout.
   const tileW = grid?.tileW || 0;
@@ -184,7 +233,12 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     const update = () => {
       const cs = window.getComputedStyle(el);
       const w = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-      setColumns(gridColumns(w, tileW, lineGap));
+      const next = gridColumns(w, tileW, lineGap);
+      // A width change that changes how many tiles fit a line (a phone turned sideways) rebuilds every
+      // line, and the list's height changes with it — the scroll position then points at a different
+      // tile, or past the new end. Remember the tile at the top, in TILES, before the change.
+      if (next !== colsRef.current && anchorRef.current == null) anchorRef.current = lastTopRef.current ?? topTileFromDom(el, scrollElRef.current, colsRef.current, indexOfRef.current, vRef.current);
+      setColumns(next);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -194,6 +248,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
 
   const vRef = useRef(null);
   const estCacheRef = useRef({ version: -1, avg: 0 });
+  const frozenEstRef = useRef(new Map());
   const v = useVirtualizer({
     // NOT flushSync. The adapter's default re-renders the whole board SYNCHRONOUSLY inside each scroll
     // event while scrolling, which made every touch event of a swipe slow to handle (measured in Movies,
@@ -208,7 +263,14 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     // A row's height at mount (avgRef) is taken before its image arrives: on poms' People Table
     // (a photo per row) that guessed ~40px against ~90 real, so the list grew from 45k to 107k px
     // as it was scrolled and "the end" kept moving away.
-    estimateSize: () => measuredAverage(vRef.current, avgRef.current, estCacheRef.current),
+    estimateSize: (i) => {
+      const avg = measuredAverage(vRef.current, avgRef.current, estCacheRef.current);
+      // A row's estimate, once given, is KEPT until the row is measured: a moving average re-sizes
+      // every undrawn row above the screen at once, which slides the list under a still finger.
+      // Only rows ABOVE the screen: rows below may follow the average (it is what keeps the list's end
+      // from moving away as it is scrolled), and nothing on screen moves when they change.
+      return estimateFor(i, avg, frozenEstRef.current, vRef.current?.range?.startIndex);
+    },
     overscan: isGrid ? VIRTUAL_GRID_OVERSCAN : VIRTUAL_OVERSCAN,
     getItemKey: (i) => (isGrid ? `line-${i}` : (keyOfRef.current?.(i) ?? i)),
     rangeExtractor: (range) => rangeWithPin(range, pinIndex),
@@ -258,12 +320,76 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     },
   });
   vRef.current = v;
-  // Normal flow: the browser's scroll anchoring already holds the view when a
-  // row's real height differs from its estimate.
-  v.shouldAdjustScrollPositionOnItemSizeChange = () => false;
+  // The virtualizer's own correction stays ON: when a row above the screen is measured at a height
+  // different from its estimate, it moves the scroll by the difference. This was switched off on the
+  // reasoning that browser scroll anchoring holds the view; measured on a phone board (People, 2026-11-02)
+  // it did not — with the scroll position unchanged, the row at the top slid 561 -> 514 in two seconds.
 
   const colsRef = useRef(cols);
   colsRef.current = cols;
+  // ...and put that tile back at the top once the lines are rebuilt for the new column count.
+  const anchorRef = useRef(null);
+  // A plain (stacked) list's rows change HEIGHT when the width changes — fields wrap differently — so
+  // the same scroll offset lands on a different row. Any width change of the list anchors too.
+  const [widthTick, setWidthTick] = useState(0);
+  useEffect(() => {
+    if (!active || !listRef.current || typeof ResizeObserver === "undefined") return undefined;
+    const el = listRef.current;
+    let lastW = el.clientWidth;
+    ackWidthRef.current = lastW;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (Math.abs(w - lastW) < 2) return;
+      lastW = w;
+      if (anchorRef.current == null && !holdRef.current) anchorRef.current = lastTopRef.current ?? topTileFromDom(el, scrollElRef.current, colsRef.current, indexOfRef.current, vRef.current);
+      ackWidthRef.current = w;
+      setWidthTick((t) => t + 1);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [active, listRef]);
+  // The rows above the anchor are re-measured at the new width over the next frames, which moves the
+  // content under a fixed scroll offset. So the anchor is HELD — re-applied each time the list's size
+  // changes — for ANCHOR_HOLD_MS, and released the moment the user touches or scrolls the list.
+  const holdRef = useRef(null);
+  useLayoutEffect(() => {
+    const tile = anchorRef.current;
+    anchorRef.current = null;
+    if (tile == null || !active) return;
+    holdRef.current = { line: Math.floor(tile / cols), until: Date.now() + ANCHOR_HOLD_MS };
+    v.scrollToIndex(holdRef.current.line, { align: "start" });
+  }, [cols, widthTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The row at the top, kept current as the user scrolls. A width change is only noticed AFTER the
+  // browser has reflowed the rows at the new width (measured: portrait row 543 read back as 514), so
+  // the anchor has to come from the last position seen BEFORE it.
+  const lastTopRef = useRef(null);
+  const readTopRef = useRef(null);
+  const ackWidthRef = useRef(null); // the list width the anchor watcher last saw
+  useEffect(() => {
+    if (!scrollEl) return undefined;
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      if (holdRef.current) return;
+      const list = listRef.current;
+      // A reading taken after the width changed but before the width watcher has used the old one
+      // would describe the REFLOWED list — skip it.
+      if (!list || (ackWidthRef.current != null && Math.abs(list.clientWidth - ackWidthRef.current) >= 2)) return;
+      const t = topTileFromDom(list, scrollEl, colsRef.current, indexOfRef.current);
+      if (t != null) lastTopRef.current = t; // a top that is still spacer keeps the last real reading
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(read); };
+    readTopRef.current = onScroll;
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    read();
+    return () => { readTopRef.current = null; scrollEl.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, [scrollEl, listRef]);
+  useEffect(() => {
+    if (!scrollEl) return undefined;
+    const release = () => { holdRef.current = null; };
+    for (const ev of ["pointerdown", "touchstart", "wheel", "keydown"]) scrollEl.addEventListener(ev, release, { passive: true });
+    return () => { for (const ev of ["pointerdown", "touchstart", "wheel", "keydown"]) scrollEl.removeEventListener(ev, release); };
+  }, [scrollEl]);
   // A search for a row in this list: claim it now and pin it into the DOM.
   useEffect(() => {
     if (!active) return undefined;
@@ -285,6 +411,30 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
 
   const virtualItems = active ? v.getVirtualItems() : [];
   const totalSize = active ? v.getTotalSize() : 0;
+  // Rows drawn after a scroll land in a later render than the scroll event; read the top again then.
+  useEffect(() => { readTopRef.current?.(); });
+  // Re-apply a held anchor as rows re-measure (see holdRef): every frame of the hold, line the
+  // anchor's REAL element up with the top of the scroller. The virtualizer's own offset for it is an
+  // estimate until the rows above it are measured at the new width; the element's rect is not.
+  useLayoutEffect(() => {
+    if (!holdRef.current || !active || !scrollEl) return undefined;
+    let raf = 0;
+    const tick = () => {
+      const h = holdRef.current;
+      if (!h || Date.now() > h.until) { holdRef.current = null; return; }
+      const list = listRef.current;
+      const el = list && anchorElement(list, h.line, isGrid ? colsRef.current : 1, keyOfRef.current);
+      if (el) {
+        const delta = el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top;
+        if (Math.abs(delta) > 1) scrollEl.scrollTop += delta;
+      } else {
+        v.scrollToIndex(h.line, { align: "start" });
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [cols, widthTick, scrollEl]); // eslint-disable-line react-hooks/exhaustive-deps
   const plan = useMemo(() => {
     const lines = planRows(virtualItems, totalSize, lineGap);
     if (!isGrid) return lines;
