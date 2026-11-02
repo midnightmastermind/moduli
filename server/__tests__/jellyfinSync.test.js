@@ -204,3 +204,36 @@ describe("fix round 1", () => {
     expect(r.relisted).toBe(0);
   });
 });
+
+describe("the 15-minute skip (final review I3)", () => {
+  it("recentSync: skips within 15 minutes of a completed run, runs after, and reads the persisted stamp", async () => {
+    const { recentSync, markSyncCompleted, SYNC_MIN_INTERVAL_MS, _resetSyncStamps } = await import("../services/jellyfinSync.js");
+    _resetSyncStamps();
+    const t0 = Date.parse("2026-11-02T10:00:00Z");
+    expect(recentSync("g1", null, t0)).toBeNull();
+    markSyncCompleted("g1", t0);
+    expect(recentSync("g1", null, t0 + 60e3)).toEqual({ skipped: "recent", lastAt: new Date(t0).toISOString() });
+    expect(recentSync("g1", null, t0 + SYNC_MIN_INTERVAL_MS + 1)).toBeNull();
+    expect(recentSync("g2", null, t0 + 60e3)).toBeNull(); // per grid
+    // After a restart the in-memory stamp is gone; grid.meta.jellyfinLastSyncAt still counts.
+    _resetSyncStamps();
+    expect(recentSync("g1", new Date(t0).toISOString(), t0 + 60e3)).toMatchObject({ skipped: "recent" });
+    expect(recentSync("g1", "not a date", t0 + 60e3)).toBeNull();
+  });
+});
+
+describe("a rewatch started in Jellyfin (final review I5)", () => {
+  it("a newer LastPlayedDate with a resume position is a rewatch in progress, not a finish", async () => {
+    const g = fakeGrid([
+      movieRow({ id: "rw", label: "Rewatch", meta: { jellyfinId: "jRw" }, fields: { [F.cat]: cell(["movie"]), [F.lw]: cell("2026-10-01"), [F.wa]: cell("2026-10-01T20:00:00.000Z") } }),
+      movieRow({ id: "fin", label: "Finished", meta: { jellyfinId: "jFin" }, fields: { [F.cat]: cell(["movie"]), [F.lw]: cell("2026-10-01"), [F.wa]: cell("2026-10-01T20:00:00.000Z") } }),
+    ]);
+    const r = await run(g, [
+      mv({ Id: "jRw", Name: "Rewatch", UserData: { Played: true, LastPlayedDate: "2026-11-01T20:00:00Z", PlaybackPositionTicks: 600000000 } }),
+      mv({ Id: "jFin", Name: "Finished", UserData: { Played: true, LastPlayedDate: "2026-11-01T22:00:00Z", PlaybackPositionTicks: 0 } }),
+    ]);
+    expect(r.watch).toBe(1);
+    expect(g.store.get("rw").fields[F.wa].value).toBe("2026-10-01T20:00:00.000Z");
+    expect(g.store.get("fin").fields[F.wa].value).toBe("2026-11-01T22:00:00.000Z");
+  });
+});

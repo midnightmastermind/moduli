@@ -25,13 +25,14 @@ vi.mock("../utils/jwts.js", async (orig) => ({ ...(await orig()), verifyToken: (
 const { makeApiV1Router } = await import("../routes/apiV1.js");
 const { setJellyfinConfig } = await import("../services/jellyfinConfig.js");
 
-let server, base, fake, fakeUrl, calls, item;
+let server, base, fake, fakeUrl, calls, item, progressDelay = 0;
 beforeAll(async () => {
   fake = http.createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       calls.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : null, token: req.headers["x-emby-token"] });
+      if (progressDelay && req.url === "/Sessions/Playing/Progress") { setTimeout(() => { res.statusCode = 204; res.end(); }, progressDelay); return; }
       if (req.url.startsWith("/Users/jf1/Items/")) {
         if (req.url.includes("MISSING")) { res.statusCode = 404; return res.end(); }
         if (req.url.includes("DENIED")) { res.statusCode = 401; return res.end(); } res.setHeader("content-type", "application/json"); return res.end(JSON.stringify(item)); }
@@ -47,7 +48,7 @@ beforeAll(async () => {
 });
 afterAll(() => { server?.close(); fake?.close(); });
 beforeEach(async () => {
-  store.meta = {}; calls = [];
+  store.meta = {}; calls = []; progressDelay = 0;
   item = { RunTimeTicks: 72000000000, UserData: { PlaybackPositionTicks: 1234500000 } };
   rows.o1 = { id: "o1", userId: "u1", meta: { jellyfinId: "JF9", jellyfinPlayable: true } };
   rows.gone = { id: "gone", userId: "u1", meta: { jellyfinId: "MISSING" } };
@@ -169,5 +170,45 @@ describe("POST /jellyfin/played", () => {
     expect((await post("/played", { occId: "bare" })).status).toBe(404);
     expect((await post("/played", { occId: "theirs" })).status).toBe(404);
     expect(calls.length).toBe(0);
+  });
+});
+
+describe("final review fixes", () => {
+  it("an in-flight progress cannot land its UserData after PlayedItems (finished film stays finished)", async () => {
+    const { playSessionId } = await (await play("o1")).json();
+    await post("/progress", { occId: "o1", seconds: 5, playSessionId }); // session started
+    calls = [];
+    progressDelay = 400;
+    const prog = post("/progress", { occId: "o1", seconds: 7000, playSessionId });
+    await new Promise((r) => setTimeout(r, 100)); // the Progress POST is in flight upstream
+    const played = await post("/played", { occId: "o1", playSessionId });
+    expect(played.status).toBe(200);
+    await prog;
+    await new Promise((r) => setTimeout(r, 50));
+    const urls = calls.map((c) => c.url);
+    const playedAt = urls.findIndex((u) => u.startsWith("/Users/jf1/PlayedItems/"));
+    expect(playedAt).toBeGreaterThanOrEqual(0);
+    const udAfter = urls.slice(playedAt + 1).filter((u) => u.startsWith("/UserItems/"));
+    expect(udAfter).toEqual([]);
+  });
+  it("an empty Jellyfin user id is refused: no upstream call for play, progress or played", async () => {
+    await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "KEY", jfUserId: "", publicUrl: "https://media.example" });
+    const j = await (await play("o1")).json();
+    expect(j).toMatchObject({ playable: false, error: "no_jellyfin_user" });
+    const pr = await (await post("/progress", { occId: "o1", seconds: 1, playSessionId: "x" })).json();
+    expect(pr).toMatchObject({ ok: false, error: "no_jellyfin_user" });
+    const pd = await (await post("/played", { occId: "o1" })).json();
+    expect(pd).toMatchObject({ ok: false, error: "no_jellyfin_user" });
+    expect(calls.length).toBe(0);
+  });
+  it("a Series / Season / folder item is not playable (no session minted)", async () => {
+    for (const Type of ["Series", "Season", "BoxSet", "Folder"]) {
+      item = { Type, RunTimeTicks: 0, UserData: {} };
+      expect(await (await play("o1")).json()).toEqual({ playable: false });
+    }
+    for (const Type of ["Movie", "Episode", "Video"]) {
+      item = { Type, RunTimeTicks: 10, UserData: {} };
+      expect((await (await play("o1")).json()).playable).toBe(true);
+    }
   });
 });

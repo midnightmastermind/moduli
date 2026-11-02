@@ -7,7 +7,12 @@ const HEADER_TIMEOUT_MS = 5000;
 // An HLS segment's headers wait for ffmpeg to produce it: the first one of a session took >5s (measured 2026-11-02),
 // so 5s turned every cold start into a 503. Playlists, images and direct streams keep the 5s bound.
 const SEGMENT_HEADER_TIMEOUT_MS = 30000;
-const isSegment = (p) => /\.(ts|m4s)$/i.test(p);
+// A sleeping PC leaves the tunnel's port accepting and silent, so a segment would wait the full 30s before 503.
+// After LIVENESS_AFTER_MS with no headers, ask Jellyfin a cheap question: no answer in LIVENESS_PING_MS means
+// it is not there (abort, 503 in ~8s); an answer means ffmpeg is just slow (keep waiting up to 30s).
+export const LIVENESS = { afterMs: 5000, pingMs: 3000 };
+// A segment is .ts / .m4s, or an fMP4 part under an HLS directory (Jellyfin serves fMP4 HLS as .mp4 under /hls).
+const isSegment = (p) => /\.(ts|m4s)$/i.test(p) || /\/hls\d*\/.*\.mp4$/i.test(p);
 // Only an item's own media: /Videos/<id>/..., /Audio/<id>/... (HLS playlists + segments live under /Videos/<id>/),
 // /Items/<id>/Images/..., and the transcode cleanup DELETE. Not listings or metadata: the admin key would expose them.
 const ALLOWED_PATHS = [/^\/Videos\/[^/]+\/.+/, /^\/Audio\/[^/]+\/.+/, /^\/Items\/[^/]+\/Images\/.+/, /^\/Videos\/ActiveEncodings$/];
@@ -75,16 +80,31 @@ export async function proxyJellyfin(req, res, cfg) {
   for (const h of FWD_REQ_HEADERS) if (req.headers[h]) headers[h] = req.headers[h];
 
   const ctl = new AbortController();
-  const onClose = () => { if (!res.writableEnded) ctl.abort(); };
+  let browserLeft = false;
+  const onClose = () => { if (!res.writableEnded) { browserLeft = true; ctl.abort(); } };
   res.on("close", onClose);
+
+  const segment = isSegment(sub);
+  let liveTimer = null;
+  let pingCtl = null;
+  if (segment) {
+    liveTimer = setTimeout(() => {
+      pingCtl = new AbortController();
+      jellyfinFetch(cfg, "/System/Info/Public", { signal: AbortSignal.any([AbortSignal.timeout(LIVENESS.pingMs), pingCtl.signal]) })
+        .then((r) => { r.body?.cancel?.().catch?.(() => {}); })
+        .catch(() => { if (!pingCtl.signal.aborted) ctl.abort(); });
+    }, LIVENESS.afterMs);
+  }
 
   let up;
   try {
-    up = await jellyfinFetch(cfg, sub + (qs.toString() ? `?${qs}` : ""), { method, headers, headerTimeoutMs: isSegment(sub) ? SEGMENT_HEADER_TIMEOUT_MS : HEADER_TIMEOUT_MS, signal: ctl.signal });
+    up = await jellyfinFetch(cfg, sub + (qs.toString() ? `?${qs}` : ""), { method, headers, headerTimeoutMs: segment ? SEGMENT_HEADER_TIMEOUT_MS : HEADER_TIMEOUT_MS, signal: ctl.signal });
   } catch (e) {
-    if (res.headersSent || ctl.signal.aborted) return; // browser already left
+    clearTimeout(liveTimer); pingCtl?.abort();
+    if (res.headersSent || browserLeft) return; // browser already left
     return res.status(503).json({ error: "media_offline", code: "media_offline", message: "Jellyfin is unreachable" });
   }
+  clearTimeout(liveTimer); pingCtl?.abort();
 
   const ct = up.headers.get("content-type") || "";
   res.status(up.status);

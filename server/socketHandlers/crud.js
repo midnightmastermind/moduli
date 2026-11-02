@@ -21,6 +21,16 @@ import { planOrphanModules, collectReferencedModuleIds } from "../utils/orphanMo
 import { occurrencesEmbedding } from "../utils/scrubEmbeds.js";
 import { dropFieldEverywhere } from "../utils/dropFieldEverywhere.js";
 import { compressTextmap } from "../utils/textmapCompression.js";
+import { createSerialByKey } from "../utils/serialByKey.js";
+
+// SIGNED CREATES ARE ONE AT A TIME PER USER + GRID, ACROSS SOCKETS. The duplicate-
+// signature refusal is check-then-insert and each socket drains on its own queue, so
+// two tabs creating the same signed row ~7ms apart both passed the check and both
+// persisted (2026-11-02: two Watch entries for one viewing). Keyed per grid rather
+// than per signature because a batch can carry several; only batches holding a
+// `meta.signatureUnique` create take the lock, so ordinary creates are unaffected.
+const signedCreateSerial = createSerialByKey();
+const batchHasSignedCreate = (batch) => batch.some((b) => b?.occurrence?.identitySignature && b.occurrence.parentId && b.occurrence.meta?.signatureUnique);
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -1325,7 +1335,11 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
           drainScheduled = false;
           const batch = pendingCreates;
           pendingCreates = [];
-          return handleCreateBatch(batch).finally(() => {
+          const gridKey = socket.data.activeGridId ?? batch.find((b) => b?.occurrence?.gridId)?.occurrence?.gridId ?? "";
+          const run = batchHasSignedCreate(batch)
+            ? signedCreateSerial(`${userId || ""}|${gridKey}`, () => handleCreateBatch(batch))
+            : handleCreateBatch(batch);
+          return run.finally(() => {
             for (const b of batch) socket.data.pendingCreateIds?.delete(b?.occurrence?.id);
           });
         })

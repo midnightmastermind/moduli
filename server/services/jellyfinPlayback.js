@@ -18,6 +18,10 @@ export const _sessionCount = () => sessions.size;
 
 const openUrlOf = (cfg, id) => `${String(cfg.publicUrl || "").replace(/\/+$/, "")}/web/#/details?id=${encodeURIComponent(id)}`;
 const isOffline = (e) => e?.code === "media_offline";
+// Without the owner's Jellyfin user every call below would hit /Users//... or write UserData for nobody.
+const noUser = (cfg) => !String(cfg?.userId || "").trim();
+// Only things that play: a Series / Season / BoxSet / folder linked by the sync has no stream of its own.
+const PLAYABLE_TYPES = new Set(["Movie", "Episode", "Video", "MusicVideo", "Trailer", "Audio"]);
 
 /** The row's Jellyfin id when it is the requesting user's own linked row, else null. */
 export async function linkedItemId(Occurrence, userId, occId) {
@@ -28,6 +32,7 @@ export async function linkedItemId(Occurrence, userId, occId) {
 }
 
 export async function playInfo({ cfg, itemId, userId }) {
+  if (noUser(cfg)) return { playable: false, error: "no_jellyfin_user" };
   const playSessionId = crypto.randomUUID();
   const openUrl = openUrlOf(cfg, itemId);
   let item;
@@ -36,6 +41,7 @@ export async function playInfo({ cfg, itemId, userId }) {
     if (r.status === 404) return { playable: false };
     if (!r.ok) return { offline: true, playable: true, openUrl, error: `jellyfin_${r.status}` };
     item = await r.json().catch(() => ({}));
+    if (item?.Type && !PLAYABLE_TYPES.has(item.Type)) return { playable: false };
   } catch (e) {
     if (isOffline(e)) return { offline: true, playable: true, openUrl };
     throw e;
@@ -61,21 +67,30 @@ const post = (cfg, path, body) => jellyfinFetch(cfg, path, {
 });
 
 export async function reportProgress({ cfg, itemId, userId, seconds, paused, playSessionId }) {
+  if (noUser(cfg)) return { ok: false, error: "no_jellyfin_user" };
   const sid = String(playSessionId || "");
   const body = { ItemId: itemId, MediaSourceId: itemId, PlaySessionId: sid, PositionTicks: Math.round((Number(seconds) || 0) * TICKS), IsPaused: !!paused, CanSeek: true };
   const s = sessions.get(sid);
   if (!s || s.userId !== userId || s.itemId !== itemId) return { ok: false, unknownSession: true };
-  try {
+  const run = (async () => {
     s.at = Date.now();
     if (!s.started) {
       s.started = true; // before the await: a second report arriving meanwhile must not send "start" again
       try { await post(cfg, "/Sessions/Playing", body); } catch (e) { s.started = false; throw e; }
     }
     await post(cfg, "/Sessions/Playing/Progress", body);
+    // /played may have ended this session while the report above was in flight: a resume point written now would
+    // land AFTER PlayedItems and leave a finished film "in progress" near its end.
+    if (sessions.get(sid) !== s) return { ok: true, ended: true };
     // The session reports run under the admin key, whose session has no user, so Jellyfin keeps no resume point
     // from them (12.4.0, measured 2026-11-02). The owner's UserData is written directly.
-    await post(cfg, `/UserItems/${encodeURIComponent(itemId)}/UserData?userId=${encodeURIComponent(cfg.userId)}`, { PlaybackPositionTicks: body.PositionTicks });
+    const ud = await post(cfg, `/UserItems/${encodeURIComponent(itemId)}/UserData?userId=${encodeURIComponent(cfg.userId)}`, { PlaybackPositionTicks: body.PositionTicks });
+    if (!ud.ok) console.warn("[jellyfin] UserData write answered", ud.status);
     return { ok: true };
+  })();
+  s.inflight = run.catch(() => {});
+  try {
+    return await run;
   } catch (e) {
     if (isOffline(e)) return { ok: false, offline: true };
     throw e;
@@ -83,11 +98,13 @@ export async function reportProgress({ cfg, itemId, userId, seconds, paused, pla
 }
 
 export async function markPlayed({ cfg, itemId, userId, playSessionId }) {
+  if (noUser(cfg)) return { ok: false, error: "no_jellyfin_user" };
   try {
     const sid = String(playSessionId || "");
     const s = sessions.get(sid);
     if (s && s.userId === userId && s.itemId === itemId) {
-      sessions.delete(sid);
+      sessions.delete(sid); // first: an in-flight report sees it gone and skips its UserData write
+      if (s.inflight) await s.inflight; // ...and finishes before PlayedItems is posted
       await post(cfg, "/Sessions/Playing/Stopped", { ItemId: itemId, MediaSourceId: itemId, PlaySessionId: sid }).catch((e) => { if (isOffline(e)) throw e; });
     }
     const r = await post(cfg, `/Users/${encodeURIComponent(cfg.userId)}/PlayedItems/${encodeURIComponent(itemId)}`);

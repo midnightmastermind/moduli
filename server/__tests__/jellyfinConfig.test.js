@@ -36,6 +36,7 @@ const { getJellyfinConfig, jellyfinFetch } = await import("../services/jellyfinC
 let server, base, fake, fakeUrl;
 beforeAll(async () => {
   fake = http.createServer((req, res) => {
+    if (req.url === "/System/Info" && req.headers["x-emby-token"] === "BADKEY") { res.statusCode = 401; return res.end(); }
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ ServerName: "Home", auth: req.headers.authorization, tok: req.headers["x-emby-token"] }));
   }).listen(0);
@@ -85,6 +86,20 @@ describe("jellyfin config routes", () => {
     await call("DELETE", "/jellyfin/config");
     expect((await (await call("GET", "/jellyfin/config")).json()).configured).toBe(false);
     expect(await getJellyfinConfig("u1")).toBeNull();
+  });
+});
+
+describe("jellyfin status: a rejected key", () => {
+  it("a 401 from Jellyfin reads error:bad_key while the server is online", async () => {
+    await call("PUT", "/jellyfin/config", { baseUrl: fakeUrl, apiKey: "BADKEY", jfUserId: "abc" });
+    const st = await (await call("GET", "/jellyfin/status")).json();
+    expect(st).toMatchObject({ configured: true, online: true, error: "bad_key" });
+  });
+  it("a good key has no error", async () => {
+    await call("PUT", "/jellyfin/config", { baseUrl: fakeUrl, apiKey: "GOOD", jfUserId: "abc" });
+    const st = await (await call("GET", "/jellyfin/status")).json();
+    expect(st.error).toBeUndefined();
+    expect(st.online).toBe(true);
   });
 });
 

@@ -19,6 +19,13 @@ describe("JellyfinSection", () => {
     expect(key.type).toBe("password");
     expect(key.value).toBe("");
   });
+  it("a key Jellyfin rejects says so instead of 'Connected'", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url) => url.endsWith("status")
+      ? ok({ configured: true, online: true, serverName: "Home", error: "bad_key" })
+      : ok({ configured: true, baseUrl: "http://127.0.0.1:8097", publicUrl: "https://m", jfUserId: "u" })));
+    render(<JellyfinSection />);
+    expect(await screen.findByText("Jellyfin rejected the API key")).toBeTruthy();
+  });
   it("Save PUTs the form once", async () => {
     const calls = [];
     vi.stubGlobal("fetch", vi.fn(async (url, opts = {}) => {

@@ -102,7 +102,8 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       try {
         const r = await fetch(video.currentSrc || video.src, { headers: { Range: "bytes=0-0" } });
         r.body?.cancel?.();
-        setProblem(r.status === 401 ? "signin" : "failed");
+        // 503 = the proxy could not reach Jellyfin (the PC is asleep / the tunnel dropped).
+        setProblem(r.status === 401 ? "signin" : r.status === 503 ? "offline" : "failed");
       } catch { setProblem("offline"); }
     };
 
@@ -114,10 +115,14 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       if (Hls?.isSupported?.()) {
         hls = new Hls();
         hls.on(Hls.Events.ERROR, (_e, data) => {
-          const unauthorized = data?.response?.code === 401;
+          const code = Number(data?.response?.code) || 0;
+          const unauthorized = code === 401;
           if (!unauthorized && !data?.fatal) return;
           erroredRef.current = true;
-          setProblem(unauthorized ? "signin" : "failed");
+          // A 503 is the proxy saying Jellyfin is unreachable; a network error with no HTTP answer is the same thing.
+          const isNetwork = data?.type === (Hls.ErrorTypes?.NETWORK_ERROR || "networkError");
+          const offline = code === 503 || (isNetwork && !code);
+          setProblem(unauthorized ? "signin" : offline ? "offline" : "failed");
           hls?.destroy?.(); // a detached instance would keep buffering
           hls = null;
         });

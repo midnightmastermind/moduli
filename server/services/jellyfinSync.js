@@ -233,6 +233,9 @@ export function planWatch(ctx, items, timeZone = DEFAULT_TIME_ZONE) {
   for (const item of items) {
     const ud = item.UserData;
     if (!ud?.Played || !ud.LastPlayedDate) continue;
+    // Jellyfin keeps Played=true and moves LastPlayedDate the moment a REWATCH starts in its own UI; a finish resets
+    // the resume position to 0. A play with a position left is a viewing in progress, not a finished one.
+    if (Number(ud.PlaybackPositionTicks) > 0) continue;
     const row = byJf.get(item.Id);
     if (!row) continue;
     const t = msOf(ud.LastPlayedDate);
@@ -292,6 +295,21 @@ export async function writeJellyfinToMongo({ models }, changes, ctx) {
 // ── the run ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const running = new Set();
+
+// The op runs on every load (and at 05:00); a full pass over every library is not worth repeating that often.
+// lastCompleted is stamped only by a SUCCESSFUL, non-dry run (and persisted on grid.meta.jellyfinLastSyncAt so a
+// restart does not forget it). `force` and dry runs bypass the skip — that decision is the caller's.
+export const SYNC_MIN_INTERVAL_MS = 15 * 60e3;
+const lastCompleted = new Map();
+export const _resetSyncStamps = () => lastCompleted.clear();
+export function markSyncCompleted(gridId, at = Date.now()) { lastCompleted.set(String(gridId), at); }
+/** { skipped: "recent", lastAt } when a run completed under 15 minutes ago (memory or `persistedAt`), else null. */
+export function recentSync(gridId, persistedAt, now = Date.now()) {
+  const p = persistedAt ? Date.parse(persistedAt) : NaN;
+  const last = Math.max(lastCompleted.get(String(gridId)) ?? -Infinity, Number.isFinite(p) ? p : -Infinity);
+  if (!Number.isFinite(last) || now - last >= SYNC_MIN_INTERVAL_MS) return null;
+  return { skipped: "recent", lastAt: new Date(last).toISOString() };
+}
 
 /**
  * `jf` = { items: () => Jellyfin items (each with `library`), cover: (itemId) => stored cover URL | null }.

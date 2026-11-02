@@ -57,7 +57,8 @@ export function JellyfinSection() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   let line = "Not configured";
-  if (configured) line = status?.online ? `Connected — ${status.serverName || "Jellyfin"}` : "Saved, but Jellyfin is not reachable";
+  if (configured) line = status?.error === "bad_key" ? "Jellyfin rejected the API key"
+    : status?.online ? `Connected — ${status.serverName || "Jellyfin"}` : "Saved, but Jellyfin is not reachable";
 
   return (
     <div data-testid="jellyfin-section" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px",

@@ -4,6 +4,9 @@ PC runs Jellyfin on :8096. A reverse SSH tunnel publishes it on the droplet at 1
 
 1. Droplet (root): `useradd -m -s /usr/sbin/nologin tunnel`; `/home/tunnel/.ssh/authorized_keys` =
    `restrict,port-forwarding,permitlisten="127.0.0.1:8097" <contents of moduli_tunnel.pub>` (chown tunnel, 700/600).
+   Append to `/etc/ssh/sshd_config`: `Match User tunnel` / `ClientAliveInterval 15` / `ClientAliveCountMax 3`, then
+   `sshd -t && systemctl reload ssh`. Without it a sleeping PC leaves the droplet holding 127.0.0.1:8097 for ~2h, and the
+   PC's `ExitOnForwardFailure` reconnect fails on wake until it lets go (applied on prod 2026-11-02).
 2. PC: `ssh-keygen -t ed25519 -N "" -f C:\Users\jtpom\.ssh\moduli_tunnel`.
 3. Copy `media-tunnel.ps1` + `install-task.ps1` to `C:\Users\jtpom\moduli-media-tunnel\` (local disk, so logon does not depend on WSL) and run `install-task.ps1` (task "Moduli media tunnel", at logon, restart on failure; it also starts it).
    Log: `%TEMP%\media-tunnel.log`. Verify on the droplet: `curl -s 127.0.0.1:8097/System/Info/Public`.

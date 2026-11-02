@@ -1235,22 +1235,27 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // run over every library takes longer than an operation's API call waits); the owner's Jellyfin user only.
   router.post("/jellyfin/sync", authAndLimit({ requireScope: "write", allowSessionJwt: true }), async (req, res) => {
     try {
-      const { gridId, dryRun = false } = req.body || {};
+      const { gridId, dryRun = false, force = false } = req.body || {};
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
       const grid = await Grid.findOne({ _id: gridId, userId: req.userId }).lean();
       if (!grid) return err(res, 404, "not_found", "grid not found");
+      const { syncJellyfin, jellyfinClient, writeJellyfinToMongo, recentSync, markSyncCompleted } = await import("../services/jellyfinSync.js");
+      if (!dryRun && !force) {
+        const recent = recentSync(String(gridId), grid.meta?.jellyfinLastSyncAt);
+        if (recent) return res.json({ started: false, ...recent });
+      }
       const { getJellyfinConfig } = await import("../services/jellyfinConfig.js");
       const cfg = await getJellyfinConfig(req.userId);
       if (!cfg) return err(res, 409, "not_configured", "Jellyfin is not configured (Command Center › Connections)");
       if (!cfg.userId) return err(res, 409, "not_configured", "no Jellyfin user configured");
-      const { syncJellyfin, jellyfinClient, writeJellyfinToMongo } = await import("../services/jellyfinSync.js");
+      const jf = await jellyfinClient(cfg); // before the 202: a failure here is an answer, not a silent log line
       res.status(202).json({ started: true });
       const gid = String(gridId);
       // Last Watched is the day you finished, in your zone (the one shares and feeds already use).
       const { default: User } = await import("../models/User.js");
       const timeZone = (await User.findById(req.userId).select("meta.share.timeZone").lean().catch(() => null))?.meta?.share?.timeZone || undefined;
       syncJellyfin({
-        gridId: gid, userId: req.userId, models: { Field, Occurrence }, jf: await jellyfinClient(cfg), dryRun: !!dryRun, timeZone,
+        gridId: gid, userId: req.userId, models: { Field, Occurrence }, jf, dryRun: !!dryRun, timeZone,
         write: async (changes, ctx) => {
           const { created, touched } = await writeJellyfinToMongo({ models: { Occurrence } }, changes, ctx);
           for (const d of created) {
@@ -1262,8 +1267,16 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
             if (o) { mirrorToCache(req.userId, gid, "occurrence", o); io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: o }); }
           }
         },
-      }).then((r) => console.log("🎞️ jellyfin sync", gid, JSON.stringify({ ...r, ambiguous: r.ambiguous?.length, skipped: r.skipped?.length })))
-        .catch((e) => console.error("🎞️ jellyfin sync failed", gid, e.code || "", e.message));
+      }).then(async (r) => {
+        // A run that did not happen ("already running") is not a completed one.
+        const ran = !Array.isArray(r?.skipped) ? !r?.skipped : true;
+        if (ran && !dryRun) {
+          const at = Date.now();
+          markSyncCompleted(gid, at);
+          await Grid.updateOne({ _id: gid, userId: req.userId }, { $set: { "meta.jellyfinLastSyncAt": new Date(at).toISOString() } }).catch(() => {});
+        }
+        console.log("🎞️ jellyfin sync", gid, JSON.stringify({ ...r, ambiguous: r?.ambiguous?.length, skipped: Array.isArray(r?.skipped) ? r.skipped.length : r?.skipped }));
+      }).catch((e) => console.error("🎞️ jellyfin sync failed", gid, e.code || "", e.message));
     } catch (e) { if (!res.headersSent) err(res, e.status || 500, "internal_error", e.message); }
   });
 
@@ -2393,7 +2406,14 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       try {
         const r = await jellyfinFetch(cfg, "/System/Info/Public");
         const j = r.ok ? await r.json().catch(() => ({})) : {};
-        res.json({ ok: true, configured: true, online: r.ok, serverName: j.ServerName || null });
+        // /System/Info/Public needs no key, so it cannot tell a rejected key from a good one; /System/Info does.
+        let error;
+        if (r.ok) {
+          const a = await jellyfinFetch(cfg, "/System/Info").catch(() => null);
+          a?.body?.cancel?.().catch?.(() => {});
+          if (a && (a.status === 401 || a.status === 403)) error = "bad_key";
+        }
+        res.json({ ok: true, configured: true, online: r.ok, serverName: j.ServerName || null, ...(error ? { error } : {}) });
       } catch { res.json({ ok: true, configured: true, online: false, serverName: null }); }
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });

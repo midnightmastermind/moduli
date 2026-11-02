@@ -25,13 +25,15 @@ const { makeApiV1Router } = await import("../routes/apiV1.js");
 const { setJellyfinConfig } = await import("../services/jellyfinConfig.js");
 const { rewritePlaylist } = await import("../services/jellyfinProxy.js");
 
-let server, base, fake, fakeUrl, seen, hang, seenAll, other, otherUrl, otherHits;
+let server, base, fake, fakeUrl, seen, hang, seenAll, other, otherUrl, otherHits, pingHang = false;
 beforeAll(async () => {
   other = http.createServer((req, res) => { otherHits++; res.end("other"); }).listen(0);
   otherUrl = `http://127.0.0.1:${other.address().port}`;
   fake = http.createServer((req, res) => {
     seen = { url: req.url, headers: req.headers, method: req.method };
     seenAll.push(req.url);
+    if (req.url.startsWith("/System/Info/Public") && pingHang) return; // a sleeping PC: the tunnel accepts, nothing answers
+    if (req.url.startsWith("/Videos/sleepseg/")) return; // never answers
     if (req.url.startsWith("/Videos/redir")) { res.writeHead(302, { location: `${otherUrl}/steal` }); return res.end(); }
     if (req.url.includes("leak.m3u8")) {
       res.setHeader("content-type", "application/vnd.apple.mpegurl");
@@ -67,7 +69,7 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${server.address().port}/api/v1/jellyfin/media`;
 });
 afterAll(() => { server?.close(); fake?.close(); other?.close(); });
-beforeEach(async () => { store.meta = {}; seen = null; seenAll = []; otherHits = 0; await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "SERVERKEY", jfUserId: "j" }); });
+beforeEach(async () => { pingHang = false; store.meta = {}; seen = null; seenAll = []; otherHits = 0; await setJellyfinConfig("u1", { baseUrl: fakeUrl, apiKey: "SERVERKEY", jfUserId: "j" }); });
 
 const get = (path, headers = { authorization: "Bearer session-jwt" }, init = {}) => fetch(`${base}${path}`, { headers, ...init });
 
@@ -134,6 +136,21 @@ describe("jellyfin media proxy", () => {
     expect(r.status).toBe(200);
     expect(await r.text()).toBe("seg");
   }, 15000);
+  it("an fMP4 HLS part (.mp4 under /hls) is a segment too: it may take longer than 5s", async () => {
+    const r = await get("/Videos/coldseg/hls1/main/0.mp4?PlaySessionId=s");
+    expect(r.status).toBe(200);
+  }, 15000);
+  it("a segment whose Jellyfin stopped answering 503s in ~8s, not 30s (liveness ping fails)", async () => {
+    pingHang = true;
+    try {
+      const t = performance.now();
+      const r = await get("/Videos/sleepseg/hls1/main/0.ts?PlaySessionId=s");
+      expect(r.status).toBe(503);
+      expect((await r.json()).code).toBe("media_offline");
+      expect(performance.now() - t).toBeLessThan(9500);
+      expect(seenAll.some((u) => u.startsWith("/System/Info/Public"))).toBe(true);
+    } finally { pingHang = false; }
+  }, 20000);
   it("times out waiting for headers (5s) but not while a body streams", async () => {
     const t = Date.now();
     const r = await get("/Videos/slowheaders/stream");
