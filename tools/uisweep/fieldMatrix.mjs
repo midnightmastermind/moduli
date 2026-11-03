@@ -66,7 +66,21 @@ async function openOptions(page) {
 const timed = async (fn) => { const t = Date.now(); const r = await fn(); return { r, ms: Date.now() - t }; };
 
 /** Drive one rowPill case. f = { id, name, type }. Returns step results. */
-export async function driveRowPill(page, rowSel, variant, f, { touch = false } = {}) {
+export async function driveRowPill(page, rowSel, variant, f, opts = {}) {
+  try { return await driveOne(page, rowSel, variant, f, opts); }
+  finally { await closeLayers(page); }
+}
+/** Close whatever the case left open (popover, dialog, the address scrim) so one case cannot block the next. */
+export async function closeLayers(page) {
+  for (let i = 0; i < 3; i++) {
+    const open = await page.evaluate(() => !!document.querySelector('[data-radix-popper-content-wrapper], [role="dialog"], input[placeholder^="A place"]'));
+    if (!open) return;
+    const close = await page.$('button[title="Close"]');
+    if (close) await close.click().catch(() => {}); else await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
+async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
   const out = [];
   const step = (name, ok, note = "", ms = null) => out.push({ step: name, ok, note, ms });
   await page.$eval(rowSel, (e) => e.scrollIntoView({ block: "center" })).catch(() => {});
@@ -76,6 +90,14 @@ export async function driveRowPill(page, rowSel, variant, f, { touch = false } =
   if (!h) { step("visible", false, "no control in the pill"); return out; }
   const type = variant.split("/")[0];
   try {
+    if (f.inputEnabled === false) {
+      // Display-only: a click must not open an editor, and the pill must still read its value.
+      await act(page, h, touch); await page.waitForTimeout(400);
+      const editing = await page.evaluate(() => /INPUT|TEXTAREA/.test(document.activeElement?.tagName || "") || !!document.activeElement?.isContentEditable);
+      step("read-only", !editing, editing ? "an editor opened on a display-only field" : before);
+      await page.keyboard.press("Escape");
+      return out;
+    }
     if (type === "boolean") {
       const sw = await page.evaluateHandle(({ rowSel, name, id }) => { const row = document.querySelector(rowSel); const box = (row.querySelector(`[data-field-id="${id}"]`) || [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name))); return box?.querySelector('button.peer, [role="switch"], input[type=checkbox]'); }, { rowSel, name: f.name, id: f.id });
       const el = sw.asElement();
@@ -118,15 +140,33 @@ export async function driveRowPill(page, rowSel, variant, f, { touch = false } =
       step("Escape closes", !open, open ? "list still open" : "");
       return out;
     }
+    if (type === "address") {
+      await act(page, h, touch);
+      const input = await page.waitForSelector('input[placeholder^="A place"]', { timeout: 4000 }).catch(() => null);
+      step("opens picker", !!input, input ? "" : "no search box");
+      if (!input) return out;
+      const isDialog = await input.evaluate((e) => !!e.closest('[role="dialog"]'));
+      step("picker is a dialog", isDialog, isDialog ? "" : "no role=dialog — a screen reader is not told a modal opened");
+      await input.fill("Madison, Wisconsin"); await page.keyboard.press("Enter");
+      const res = await page.waitForFunction(() => [...document.querySelectorAll("button")].filter((b) => /°|·/.test(b.innerText) && b.querySelector("span")).length > 0, null, { timeout: 12000 }).catch(() => null);
+      step("search finds results", !!res, res ? "" : "no results in 12s");
+      if (res) {
+        const first = await page.evaluateHandle(() => [...document.querySelectorAll("button")].find((b) => /°|·/.test(b.innerText) && b.querySelector("span")));
+        await first.asElement().click(); await page.waitForTimeout(600);
+        const txt = await pillText(page, rowSel, f.name, f.id);
+        step("set → shown", !!txt && !/Set an address/.test(txt), `→ "${txt}"`);
+      }
+      return out;
+    }
     if (type === "rating") {
       const stars = await h.$$("button, [role=radio], svg");
       step("has stars", stars.length > 0, `${stars.length}`);
       if (!stars.length) return out;
       await act(page, stars[Math.min(2, stars.length - 1)], touch); await page.waitForTimeout(300);
-      const t = await page.evaluate(({ rowSel, name }) => { const row = document.querySelector(rowSel); const b = [...row.querySelectorAll("[title]")].find((e) => e.title.startsWith(name + ":")); return b?.title; }, { rowSel, name: f.name });
+      const t = await page.evaluate(({ rowSel, name }) => { const row = document.querySelector(rowSel); const b = [...row.querySelectorAll("[title]")].find((e) => (e.getAttribute("title") || "").startsWith(name + ":")); return b?.getAttribute("title"); }, { rowSel, name: f.name });
       step("set → shown", /3\//.test(t || ""), t || "");
       await act(page, stars[Math.min(2, stars.length - 1)], touch); await page.waitForTimeout(300);
-      const t2 = await page.evaluate(({ rowSel, name }) => { const row = document.querySelector(rowSel); const b = [...row.querySelectorAll("[title]")].find((e) => e.title.startsWith(name + ":")); return b?.title; }, { rowSel, name: f.name });
+      const t2 = await page.evaluate(({ rowSel, name }) => { const row = document.querySelector(rowSel); const b = [...row.querySelectorAll("[title]")].find((e) => (e.getAttribute("title") || "").startsWith(name + ":")); return b?.getAttribute("title"); }, { rowSel, name: f.name });
       step("same star again clears", /0\//.test(t2 || ""), t2 || "");
       return out;
     }

@@ -8,7 +8,7 @@ export const REUSE = [
   ["select/multi", "Board Category"], ["select/multi-allowNew", "Tags"],
   ["occurrence/find", "Author"], ["occurrence/addNew", "Meal"], ["occurrence/addNew-search", "Location"],
   ["occurrence/multi-addNew", "People"], ["occurrence/multi-search", "Movement"],
-  ["date", "Date"], ["duration/flow", "Duration"], ["duration", "Sleep Time"],
+  ["date", "Date"], ["duration/flow", "Duration"], ["duration/display", "Sleep Time"],
   ["rating/5", "Rating"], ["address", "Address"], ["when", "Schedule"],
 ];
 // Variants the rebuild has no field for: created here.
@@ -17,6 +17,7 @@ export const CREATE = [
   ["select/single-allowNew", { name: "Sweep Choice", type: "select", meta: { allowNewOptions: true, optionsSource: { mode: "manual", values: ["Alpha", "Beta", "Gamma"] } } }],
   ["rating/10", { name: "Sweep Rating 10", type: "rating", meta: { max: 10 } }],
   ["markdown", { name: "Sweep Markdown", type: "markdown", meta: {} }],
+  ["duration", { name: "Sweep Duration", type: "duration", meta: {} }],
   ["button", { name: "Sweep Button", type: "button", meta: { buttonLabel: "Press" } }],
 ];
 

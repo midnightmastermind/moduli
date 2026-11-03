@@ -2118,6 +2118,7 @@ function Field({
           {!hideName && name && <span className="field-pill-name" style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY, marginRight: 2 }}>{name}:</span>}
           {Array.from({ length: maxRating }, (_, i) => i + 1).map(star => (
             <button key={star} type="button" disabled={disabled}
+              aria-label={`${name ? name + ": " : ""}${star} of ${maxRating}`} aria-pressed={star <= currentRating}
               style={{ padding: 1, cursor: disabled ? "not-allowed" : "pointer" }}
               onClick={() => { const v = star === currentRating ? 0 : star; handleChange(v); onCommit?.(v); }}>
               <svg style={{ width: 12, height: 12,
@@ -2387,6 +2388,8 @@ function Field({
             title={addr ? [addr.label, addr.address].filter(Boolean).join(" — ") : "Search for an address"}
           >
             <MapPin style={{ width: 13, height: 13, opacity: 0.7, flexShrink: 0, marginTop: 1 }} />
+            {/* On a row (no label above it) the pill names its field, like every other pill. */}
+            {!showLabel && !hideName && name && <span className="field-pill-name" style={{ opacity: 0.7 }}>{name}:</span>}
             {addr ? (
               <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                 {addr.label && <span style={{ fontWeight: 600 }}>{addr.label}</span>}
@@ -2409,7 +2412,8 @@ function Field({
           <textarea
             value={localValue ?? ""}
             disabled={disabled}
-            placeholder={meta?.placeholder || ""}
+            placeholder={meta?.placeholder || (showLabel ? "" : name) || ""}
+            aria-label={name || undefined}
             onChange={e => handleChange(e.target.value)}
             onBlur={handleCommit}
             rows={meta?.rows || 3}
@@ -2565,6 +2569,7 @@ function Field({
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             {Array.from({ length: maxRating }, (_, i) => i + 1).map(star => (
               <button key={star} type="button" disabled={disabled}
+                aria-label={`${name ? name + ": " : ""}${star} of ${maxRating}`} aria-pressed={star <= currentRating}
                 style={{ padding: 2, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "transform 0.1s" }}
                 onClick={() => { const v = star === currentRating ? 0 : star; handleChange(v); onCommit?.(v); }}>
                 <svg style={{ width: compact ? 14 : 18, height: compact ? 14 : 18,

@@ -4,147 +4,182 @@
     "text": {
       "id": "1790120311077-9k0rykkbr",
       "name": "Notes",
-      "type": "text"
+      "type": "text",
+      "inputEnabled": true
     },
     "text/link": {
       "id": "1790524945487-kcea0coas",
       "name": "Website",
-      "type": "text"
+      "type": "text",
+      "inputEnabled": true
     },
     "text/multiline": {
       "id": "1790524891363-ev1c9onc2",
       "name": "Person Notes",
-      "type": "text"
+      "type": "text",
+      "inputEnabled": true
     },
     "number": {
       "id": "1790525082012-h9utbyhu8",
       "name": "Quantity",
-      "type": "number"
+      "type": "number",
+      "inputEnabled": true
     },
     "number/flow": {
       "id": "1790525059714-6116fr6j6",
       "name": "Calories",
-      "type": "number"
+      "type": "number",
+      "inputEnabled": true
     },
     "number/max": {
       "id": "1790525250682-gnlt0aaq7",
       "name": "Day",
-      "type": "number"
+      "type": "number",
+      "inputEnabled": true
     },
     "boolean/switch": {
       "id": "1790525031347-njvvhnzd7",
       "name": "Completed",
-      "type": "boolean"
+      "type": "boolean",
+      "inputEnabled": true
     },
     "boolean/plain": {
       "id": "1790525269398-fyn3lu7gv",
       "name": "Owned",
-      "type": "boolean"
+      "type": "boolean",
+      "inputEnabled": true
     },
     "select/manual": {
       "id": "1790526786987-ffgtkjx5j",
       "name": "Gender",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "select/49-options": {
       "id": "1790547930248-ollia8o5l",
       "name": "Time Slot",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "select/find-random": {
       "id": "1791254650399-nexprh4sv",
       "name": "Daily Question",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "select/multi": {
       "id": "1790085554929-7be0ul342",
       "name": "Board Category",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "select/multi-allowNew": {
       "id": "1791033958950-hmp1f25wa",
       "name": "Tags",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "occurrence/find": {
       "id": "1791304831690-n7cqdpafy",
       "name": "Author",
-      "type": "occurrence"
+      "type": "occurrence",
+      "inputEnabled": true
     },
     "occurrence/addNew": {
       "id": "1790527329048-22wy3io1p",
       "name": "Meal",
-      "type": "occurrence"
+      "type": "occurrence",
+      "inputEnabled": true
     },
     "occurrence/addNew-search": {
       "id": "1791399764109-sk96mrtc8",
       "name": "Location",
-      "type": "occurrence"
+      "type": "occurrence",
+      "inputEnabled": true
     },
     "occurrence/multi-addNew": {
       "id": "1790527369356-zn6fc1cls",
       "name": "People",
-      "type": "occurrence"
+      "type": "occurrence",
+      "inputEnabled": true
     },
     "occurrence/multi-search": {
       "id": "1791117588462-qfckpyt6v",
       "name": "Movement",
-      "type": "occurrence"
+      "type": "occurrence",
+      "inputEnabled": true
     },
     "date": {
       "id": "1790525022905-6wtnl0ddl",
       "name": "Date",
-      "type": "date"
+      "type": "date",
+      "inputEnabled": true
     },
     "duration/flow": {
       "id": "1790525055030-d1p1d4myb",
       "name": "Duration",
-      "type": "duration"
+      "type": "duration",
+      "inputEnabled": true
     },
     "duration": {
-      "id": "1790525631732-qsjj83ruy",
-      "name": "Sleep Time",
-      "type": "duration"
+      "id": "11bf9d3c-546a-4350-b677-765e6e775d2e",
+      "name": "Sweep Duration",
+      "type": "duration",
+      "inputEnabled": true
     },
     "rating/5": {
       "id": "1791399315889-ehdqu13nq",
       "name": "Rating",
-      "type": "rating"
+      "type": "rating",
+      "inputEnabled": true
     },
     "address": {
       "id": "1790120628855-9t66l662w",
       "name": "Address",
-      "type": "address"
+      "type": "address",
+      "inputEnabled": true
     },
     "when": {
       "id": "1791855665341-o0f9epg43",
       "name": "Schedule",
-      "type": "when"
+      "type": "when",
+      "inputEnabled": true
     },
     "boolean/checkbox": {
       "id": "cb88b3f1-ede0-49d9-a030-4695972980bd",
       "name": "Sweep Check",
-      "type": "boolean"
+      "type": "boolean",
+      "inputEnabled": true
     },
     "select/single-allowNew": {
       "id": "a04a1680-43be-4ac7-aee2-ae73bfc41a9a",
       "name": "Sweep Choice",
-      "type": "select"
+      "type": "select",
+      "inputEnabled": true
     },
     "rating/10": {
       "id": "494d14e8-635e-4abb-b241-15a561f492ec",
       "name": "Sweep Rating 10",
-      "type": "rating"
+      "type": "rating",
+      "inputEnabled": true
     },
     "markdown": {
       "id": "00037d96-7026-4690-9260-f7b2830f5bc4",
       "name": "Sweep Markdown",
-      "type": "markdown"
+      "type": "markdown",
+      "inputEnabled": true
     },
     "button": {
       "id": "5ba1478b-b875-41c2-8e8b-05a7a877475f",
       "name": "Sweep Button",
-      "type": "button"
+      "type": "button",
+      "inputEnabled": true
+    },
+    "duration/display": {
+      "id": "1790525631732-qsjj83ruy",
+      "name": "Sleep Time",
+      "type": "duration",
+      "inputEnabled": false
     }
   },
   "pageId": "d5d25f0c-a3a2-489b-9487-b90a852c7ca6",

@@ -36,12 +36,12 @@ fixtures.grid = GRID; fixtures.fields = fixtures.fields || {};
 for (const [variant, name] of REUSE) {
   const f = await fieldByName(name);
   if (!f) throw new Error(`REFUSED: rebuild has no field "${name}" (${variant})`);
-  fixtures.fields[variant] = { id: f.id, name, type: f.type };
+  fixtures.fields[variant] = { id: f.id, name, type: f.type, inputEnabled: f.inputEnabled !== false };
 }
 for (const [variant, def] of CREATE) {
   let f = await fieldByName(def.name);
   if (!f) { const r = await api("POST", "/fields", { gridId: GRID, inputEnabled: true, displayEnabled: false, ...def }); f = r.field || { id: "(dry)", ...def }; }
-  fixtures.fields[variant] = { id: f.id, name: def.name, type: def.type };
+  fixtures.fields[variant] = { id: f.id, name: def.name, type: def.type, inputEnabled: true };
 }
 
 const findOcc = async (label, roleKind) => {
@@ -77,6 +77,9 @@ if (!row) {
   const add = bindings.filter((b) => !have.has(b.fieldId));
   if (add.length) await api("PATCH", `/modules/${row.mod.id}`, { fieldBindings: [...(row.mod.fieldBindings || []), ...add.map((b, i) => ({ ...b, order: (row.mod.fieldBindings || []).length + i }))] });
 }
+// The grid hides Tags and Date everywhere; the sweep row states its own visibility (Off = show every bound field),
+// the nearest level wins, so the matrix can reach them without touching the grid's setting.
+if (rowId && !DRY) await api("PATCH", `/occurrences/${rowId}`, { fieldVisibility: { mode: "off" } });
 const canvasId = await ensurePage("Sweep Canvas", "canvas");
 Object.assign(fixtures, { pageId, containerId, rowId, canvasId });
 if (!DRY) fs.writeFileSync(OUT, JSON.stringify(fixtures, null, 2));

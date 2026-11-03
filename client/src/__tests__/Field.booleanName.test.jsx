@@ -36,3 +36,22 @@ describe("a field pill is findable by its field id", () => {
     expect(b.container.querySelector("[data-field-id]")).toBeNull();
   });
 });
+
+describe("rating, markdown and address controls are named", () => {
+  const f = (type, name, meta = {}) => ({ id: `f-${type}`, type, name, inputEnabled: true, meta });
+  const commit = { onCommit: () => {}, onChange: () => {}, hostOccurrence: { id: "o" } };
+  for (const compact of [true, false]) {
+    it(`each star says which star it is (compact=${compact})`, () => {
+      const { getByRole } = mount(<Field field={f("rating", "Rating")} value={2} compact={compact} {...commit} />);
+      expect(getByRole("button", { name: "Rating: 3 of 5" })).toBeTruthy();
+    });
+    it(`the markdown box is named (compact=${compact})`, () => {
+      const { getByRole } = mount(<Field field={f("markdown", "Journal")} value="" compact={compact} {...commit} />);
+      expect(getByRole("textbox", { name: "Journal" })).toBeTruthy();
+    });
+  }
+  it("the address pill on a row shows the field's name", () => {
+    const { container } = mount(<Field field={f("address", "Address")} value={null} compact {...commit} />);
+    expect(container.textContent).toMatch(/Address/);
+  });
+});

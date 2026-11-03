@@ -102,22 +102,36 @@ export default function AddressPickerMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialQuery]);
 
+  // Escape closes, like every other picker (it did nothing here).
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); onClose?.(); } };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open, onClose]);
+
+  // THE NEWEST SEARCH WINS. Opening the picker searches the row's name; a search typed while that one is still out
+  // must not be overwritten when the older response lands later (sweep 2026-11-03).
+  const searchSeqRef = useRef(0);
   async function runSearch(q) {
     const term = String(q || "").trim();
     if (!term) return;
+    const seq = ++searchSeqRef.current;
     setBusy(true);
     setError(null);
     try {
       const r = await fetch(`/api/addresses/search?q=${encodeURIComponent(term)}`);
       const j = await r.json();
+      if (seq !== searchSeqRef.current) return;
       if (!r.ok) throw new Error(j?.message || j?.error || `search failed (${r.status})`);
       setResults(j.results || []);
       setSource(j.source || null);
     } catch (e) {
+      if (seq !== searchSeqRef.current) return;
       setError(e.message);
       setResults([]);
     } finally {
-      setBusy(false);
+      if (seq === searchSeqRef.current) setBusy(false);
     }
   }
 
@@ -162,7 +176,7 @@ export default function AddressPickerMenu({
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
-      <div style={{ ...surface, width: 480, maxWidth: "94vw", maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={{ ...surface, width: 480, maxWidth: "94vw", maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
         {/* header */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -209,12 +223,12 @@ export default function AddressPickerMenu({
                   border: "1px solid var(--input-border)", borderRadius: 5,
                 }}
               />
-              <button type="submit" disabled={busy || !query.trim()}
+              <button type="submit" disabled={!query.trim()}
                 style={{
                   padding: "6px 12px", fontSize: 12, borderRadius: 5, cursor: "pointer",
                   border: "1px solid var(--accent-blue-border)",
                   background: "var(--accent-blue-bg)", color: "var(--accent-blue-text)",
-                  opacity: busy || !query.trim() ? 0.5 : 1,
+                  opacity: !query.trim() ? 0.5 : 1,
                 }}>
                 {busy ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : "Search"}
               </button>
