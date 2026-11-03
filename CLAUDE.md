@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-03 — PHONE HEADERS; THE FIRST MESSAGE CARRIES ONLY THE SHOWN PAGES (freeze 79s → 7s)
+
+**Phone headers** (user: buttons big but fitting, labels not squished, filter into the side menu, one panel button,
+the feed icon not stuck in the middle). Measured with `_mhead.mjs` at 390px:
+- The toolbar's mini map is ONE "Switch panel" button (`mobile/PanelPicker`) that opens a dropdown of the phone's
+  cells, each box named by the page its panel shows; a tap moves there. Grid publishes the cells
+  (`activeCellStore.publishPhoneShape` now carries `cells`).
+- Filters + the date nav live in the side drawer, inline (`ToolbarFilterDropdown inline`; a popover would open under
+  the drawer). The phone clock shows the time only and "Operations running" only its spinner — with the full date
+  the row pushed the clock onto the panel button.
+- Every header button 34px with a 16px icon, one borderless look (the Files button was 21x17); instance labels 15px,
+  container labels 0.95rem; the feed icon sits right after a header's label (containers and pages).
+- `bookReaderHeadOneRow` pinned the old one-row header; since 2026-10-20 it wraps on a narrow pane on purpose. The
+  test now pins that. Full client suite: 829/829.
+
+**Load** (user: *"we have panels with multiple pages technically inside of them, so i want to make sure those arent
+being loaded in too right away. Just the shown pages"*). Measured on poms (`server/_loadmeasure.mjs`): the first
+message carried 15,775 rows (~28 MB) and the four shown pages needed 3,706. **`server/utils/splitFullState.
+splitShownFirst`**: each panel and the page it shows (down through lists and embeds), every page row, a folder page's
+card rows, and one hop of field references go first; everything else follows. 7,743 rows / 4,296 modules first.
+The second half is cut by SIZE (`REST_CHUNK_BYTES` 1.5 MB, modules first) — one 4,000-row chunk was 17 MB.
+Client: feed sync does not run on half a grid (it would sweep copies whose sources had not arrived); the 15s load
+fallback restarts on every chunk (on a 4x phone the chunks landed at 17-30s, so it ran the sweep on half a grid);
+a page or embed whose rows are still coming shows loading, not empty. **Prod, 390px, 4x CPU, same probe
+(`_mobload2.mjs`):**
+```
+                    before      after
+first message       24.0 MB     13.5 MB
+panels / rows       18.5 / 20s  9.5 / 11.2s
+longest freeze      79s         7s          <- the 17 MB chunk + its one store write
+blocked, quiet      155s, 163s  56s, 60s
+```
+After: 0 creates and 0 deletes on poms in 25 min, one Schedule and one Day Page column for today.
+**Not watched:** opening a not-shown page in the first seconds (it should spin, then fill). The remaining 7s is the
+single store write + load sweep after the last chunk.
+
+---
+
 ### 2026-11-02 (7) — A PHONE PAGES ROWS × COLS, NEVER THE DESKTOP MOSAIC; scroll numbers for every long board
 
 User: *"the mosaic isnt working on mobile with the track and the new layouts. we should only keep the non mosaic mode
