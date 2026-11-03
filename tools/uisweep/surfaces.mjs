@@ -33,8 +33,8 @@ async function openPhoneMenu(page) {
 /** Make the main panel show `name` (search only when it does not already). */
 export async function ensurePage(page, ctx, name) {
   const id = await mainPanel(page, ctx);
-  const head = await page.$eval(`${P(id)} .page-header`, (e) => (e.innerText || "").trim()).catch(() => "");
-  if (!head.split("\n").some((l) => l.trim() === name)) await goTo(page, ctx, name);
+  const head = await page.$eval(`${P(id)} .page-header-row-label`, (e) => (e.innerText || "").trim()).catch(() => "");
+  if (head !== name) await goTo(page, ctx, name);
 }
 /** Open the first match of `sel` inside the main panel. */
 async function inPanel(page, ctx, sel, { touch, nth = 0 } = {}) {
@@ -48,7 +48,7 @@ async function inPanel(page, ctx, sel, { touch, nth = 0 } = {}) {
   return h;
 }
 const POPUP_ONLY = '.occ-search-menu, .command-palette, [data-radix-popper-content-wrapper], .context-menu, .header-dropdown, [data-sheet], [role="menu"], [role="dialog"], [role="listbox"]';
-const POPUP = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu, .header-dropdown, [data-sheet]';
+const POPUP = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet]';
 const CC = '[data-testid="command-center"], .command-center, [role="dialog"][aria-label*="Command" i]';
 
 async function openCC(page, tab, { touch }) {
@@ -111,17 +111,19 @@ export const SURFACES = [
   // ── panel + page header ───────────────────────────────────────────────────
   { id: "panel.header", area: "header", name: "Panel + page header", from: [17, 18, 47], root: "PANEL .page-header",
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); ctx.root = `${P(id)} .page-header`; } },
+  { id: "page.header", area: "header", name: "Page header row (radial, search, magic, filters, +, close)", from: [18], root: "PANEL",
+    open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); ctx.root = `${P(id)} .page-header-row`; } },
   { id: "header.dropdown", area: "header", name: "Header dropdown (Filter · Sort · Data · Fields · Layout)", from: [26, 27, 28, 29, 30], root: ".header-dropdown, [data-radix-popper-content-wrapper]",
-    open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".page-header button.header-chevron", { touch: isPhone(page) }); } },
+    open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".page-header-row button.header-chevron", { touch: isPhone(page) }); } },
   { id: "panel.tree", area: "drawers", name: "Manifest tree", from: [47], root: ".manifest-tree, [data-manifest-tree]",
     open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn", { touch: isPhone(page) }); } },
 
   // ── radial menus ──────────────────────────────────────────────────────────
-  { id: "radial.panel", area: "radial", name: "Panel radial", from: [17, 18], root: ".radial-menu",
+  { id: "radial.panel", area: "radial", name: "Panel radial", from: [17, 18], root: ".radial-menu-items",
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".page-header button.radial-handle", { touch: isPhone(page) }); } },
-  { id: "radial.container", area: "radial", name: "Container radial", from: [19], root: ".radial-menu",
+  { id: "radial.container", area: "radial", name: "Container radial", from: [19], root: ".radial-menu-items",
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".container-shell .container-header button.radial-handle", { touch: isPhone(page) }); } },
-  { id: "radial.row", area: "radial", name: "Row radial", from: [20], root: ".radial-menu",
+  { id: "radial.row", area: "radial", name: "Row radial", from: [20], root: ".radial-menu-items",
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".instance-wrap button.radial-handle", { touch: isPhone(page) }); } },
 
   // ── settings forms (opened from each radial's Settings) ───────────────────
@@ -130,7 +132,7 @@ export const SURFACES = [
     open: async (page, ctx) => {
       await ensurePage(page, ctx, "Tasks");
       await inPanel(page, ctx, handle, { touch: isPhone(page) });
-      const item = await page.waitForSelector('.radial-menu [title="Settings"], .radial-menu [aria-label="Settings"]', { timeout: 6000 });
+      const item = await page.waitForSelector('.radial-menu-items [title="Settings"], .radial-menu-items [aria-label="Settings"]', { timeout: 6000 });
       if (isPhone(page)) await item.tap(); else await item.click();
       await page.waitForTimeout(800);
     },
@@ -140,7 +142,7 @@ export const SURFACES = [
   { id: "add.container", area: "add", name: "Container + (quick add)", from: [32], root: POPUP,
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); await inPanel(page, ctx, ".container-shell button.quick-add-btn", { touch: isPhone(page) }); } },
   { id: "add.page", area: "add", name: "Page + (add container)", from: [32], root: POPUP,
-    open: async (page, ctx) => { await ensurePage(page, ctx, "Trackers"); await inPanel(page, ctx, '.page-header button.quick-add-btn, .page-header button[title="Add container"]', { touch: isPhone(page) }); } },
+    open: async (page, ctx) => { await ensurePage(page, ctx, "Trackers"); await inPanel(page, ctx, '.page-header-row button.quick-add-btn, .page-header-row button[title="Add container"]', { touch: isPhone(page) }); } },
   { id: "row.fields", area: "add", name: "A row's own controls (fields, notes, + field)", from: [33, 34, 48], root: "ROW",
     open: async (page, ctx) => { await ensurePage(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const rid = await page.$eval(`${P(id)} .instance-wrap [data-occurrence-id], ${P(id)} [data-occurrence-id]`, (e) => e.getAttribute("data-occurrence-id")); ctx.root = `${P(id)} [data-occurrence-id="${rid}"]`; } },
   { id: "row.fieldAdd", area: "add", name: "Row › Add a field menu", from: [], root: POPUP,
@@ -183,7 +185,7 @@ export const SURFACES = [
     open: async (page, ctx) => {
       await goTo(page, ctx, "Tasks");
       await inPanel(page, ctx, ".container-shell .container-header button.radial-handle", { touch: isPhone(page) });
-      const t = await page.waitForSelector('.radial-menu [title="Apply Template"], .radial-menu [aria-label="Apply Template"]', { timeout: 6000 });
+      const t = await page.waitForSelector('.radial-menu-items [title="Apply Template"], .radial-menu-items [aria-label="Apply Template"]', { timeout: 6000 });
       if (isPhone(page)) await t.tap(); else await t.click();
       await page.waitForTimeout(700);
     } },

@@ -28,7 +28,15 @@ for (const surface of list) {
   let rows = [];
   try {
     const live = { ...surface, open: async (p) => { await surface.open(p, ctx); live.root = rootFor(surface, ctx); }, skipRe: surface.skip };
-    rows = await crawlSurface(s.page, live, { vp, depth: Number(args.depth || 2), errors: s.errors, ctx });
+    const crawl = () => crawlSurface(s.page, live, { vp, depth: Number(args.depth || 2), errors: s.errors, ctx });
+    try { rows = await crawl(); }
+    catch (e) {
+      // A layer left by the previous surface can block this one's open: start clean once, then report.
+      await s.page.reload({ waitUntil: "domcontentloaded" });
+      await s.page.waitForFunction(() => !!document.querySelector("[data-panel-id]") && !document.querySelector('[data-testid="snapshot-pill"]'), null, { timeout: 180000 });
+      await s.page.waitForTimeout(6000);
+      rows = await crawl();
+    }
     if (surface.skip) rows = rows.map((r) => (surface.skip.test(r.control) ? { ...r, works: "— skipped (by surface)" } : r));
     const side = await noSideScroll(s.page);
     if (!side.ok) rows.unshift({ id: surface.id, surface: surface.name, control: "(page)", vp: tag, works: "", reach: `✗ sideways scroll ${side.scrollWidth}px in ${side.width}`, a11y: "", clear: "", fast: "", notes: "" });

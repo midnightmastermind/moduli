@@ -47,7 +47,7 @@ export async function noSideScroll(page) {
 
 /** How many popups are open (menus, dialogs, listboxes, Radix layers, the app's sheets). */
 export async function popupCount(page) {
-  return page.evaluate(() => document.querySelectorAll('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu, [data-sheet], .header-dropdown').length);
+  return page.evaluate(() => document.querySelectorAll('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, [data-sheet], .header-dropdown').length);
 }
 
 export async function escapeCloses(page) {

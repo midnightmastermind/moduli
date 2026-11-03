@@ -4,7 +4,7 @@
 // focus change, nothing opened, nothing sent. Each one is a row marked "✗ nothing".
 import { rectOnScreen, tapSizeVerdict, jargonHits, hitTarget, popupCount, escapeCloses, runAxe } from "./checks.mjs";
 
-export const POPUP_SEL = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
+export const POPUP_SEL = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
 const DESTRUCTIVE = /\b(delete|remove|log ?out|disconnect|reset|clear all|revoke|unsubscribe|break link|trash)\b/i;
 const CONTROL_SEL = 'button, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="combobox"], a[href], input:not([type="hidden"]), select, textarea';
 
@@ -70,9 +70,34 @@ async function watchMutations(page, ms) {
   await page.evaluate(() => { window.__uisweepNoise = window.__uisweepMut || 0; window.__uisweepMut = 0; });
 }
 
-async function restore(page, basePopups, baseUrl, surface, ctx) {
+async function restore(page, basePopups, baseUrl, surface, ctx, lastRow = null) {
   for (let k = 0; k < 4 && (await popupCount(page)) > basePopups; k++) { await page.keyboard.press("Escape"); await page.waitForTimeout(120); }
   if (page.url() !== baseUrl) { await page.goBack().catch(() => {}); await page.waitForTimeout(400); }
+  // Something still on top of the surface (a dialog Escape did not close, a backdrop)? Name it on the row that
+  // opened it, then start clean: a layer left over makes every later control read "covered".
+  const cover = await page.evaluate((rootSel) => {
+    const root = document.querySelector(rootSel);
+    if (!root) return null;
+    const r = root.getBoundingClientRect();
+    const pts = [[r.x + r.width / 2, r.y + Math.min(r.height / 2, 20)], [r.x + 10, r.y + 10]];
+    for (const [x, y] of pts) {
+      if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+      const top = document.elementFromPoint(x, y);
+      if (top && !root.contains(top) && !top.contains(root)) return `${top.tagName.toLowerCase()}.${(typeof top.className === "string" ? top.className : "").split(/\s+/).slice(0, 3).join(".")}`;
+    }
+    return null;
+  }, surface.root).catch(() => null);
+  if (cover) {
+    await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+    const still = await page.evaluate((rootSel) => { const root = document.querySelector(rootSel); if (!root) return false; const r = root.getBoundingClientRect(); const t = document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height / 2, 20)); return !!(t && !root.contains(t) && !t.contains(root)); }, surface.root).catch(() => false);
+    if (still) {
+      if (lastRow) lastRow.a11y = `${lastRow.a11y && lastRow.a11y !== "✅" ? lastRow.a11y + "; " : ""}✗ left open after Escape: ${cover}`;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => !!document.querySelector("[data-panel-id]"), null, { timeout: 120000 }).catch(() => {});
+      await page.waitForFunction(() => !document.querySelector('[data-testid="snapshot-pill"]'), null, { timeout: 120000 }).catch(() => {});
+      await page.waitForTimeout(5000);
+    }
+  }
   if (!(await page.$(surface.root))) await surface.open(page, ctx);
 }
 
@@ -138,7 +163,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     if (outcome === "opened" && axe) {
       const a = await runAxe(page, `[data-uisweep-new="${newTag}"]`).catch(() => null);
       if (a && (a.critical || a.serious)) row.a11y = `${row.a11y ? row.a11y + "; " : ""}✗ axe ${a.rules.map((r) => `${r.id}×${r.n}`).join(", ")}`;
-      const popRects = await page.evaluate((tag) => [...document.querySelectorAll(`[data-uisweep-new="${tag}"]`)].map((e) => { const el = e.matches("[data-radix-popper-content-wrapper]") ? (e.firstElementChild || e) : e; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }), newTag);
+      const popRects = await page.evaluate((tag) => [...document.querySelectorAll(`[data-uisweep-new="${tag}"]`)].map((e) => { if (e.matches(".radial-menu-items")) { const bs = [...e.querySelectorAll("button")].map((b) => b.getBoundingClientRect()); if (!bs.length) return { x: 0, y: 0, width: 0, height: 0 }; const x = Math.min(...bs.map((b) => b.x)), y = Math.min(...bs.map((b) => b.y)); return { x, y, width: Math.max(...bs.map((b) => b.right)) - x, height: Math.max(...bs.map((b) => b.bottom)) - y }; } const el = e.matches("[data-radix-popper-content-wrapper]") ? (e.firstElementChild || e) : e; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }), newTag);
       for (const r of popRects) { const o = rectOnScreen(r, vpBox); if (!o.ok && r.width) { reach.push(`popup off screen ${o.offBy}px`); break; } }
       if (depth > 1) {
         const sub = { id: `${surface.id}${prefix}#${i}`, name: `${surface.name} › ${c.label}`, root: `[data-uisweep-new="${newTag}"]`,
@@ -148,7 +173,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
         const esc = await escapeCloses(page);
         if (!esc.ok) row.a11y = `${row.a11y ? row.a11y + "; " : ""}✗ Escape does not close`;
         row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅";
-        await restore(page, basePopups, baseUrl, surface, ctx);
+        await restore(page, basePopups, baseUrl, surface, ctx, row);
         continue;
       }
       const esc = await escapeCloses(page);
@@ -158,7 +183,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     if (!row.a11y) row.a11y = "✅";
     if (!row.clear) row.clear = "✅";
     rows.push(row);
-    await restore(page, basePopups, baseUrl, surface, ctx);
+    await restore(page, basePopups, baseUrl, surface, ctx, row);
   }
   return rows;
 }
