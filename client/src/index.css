@@ -3670,7 +3670,9 @@ body:has([data-cc-open]) .assistant-fab { display: none !important; }
   .mobile-rail-btn { position: fixed !important; z-index: 60 !important; }
   .mobile-rail-left { left: 4px !important; top: 40px !important; bottom: 0 !important; }
   .mobile-rail-right { right: 4px !important; top: 40px !important; bottom: 0 !important; }
-  .mobile-rail-up { top: 30px !important; left: 0 !important; right: 0 !important; }
+  /* Below the phone toolbar (44px since the 2026-11-02 tap-target pass): at 30px the toolbar covered all but
+     the bottom 8px of the rail, so "up" could barely be tapped and its label was hidden. */
+  .mobile-rail-up { top: 44px !important; left: 0 !important; right: 0 !important; }
   /* Bottom rail: flush at the bottom, fixed 22px, content centered. (Earlier the
      home-indicator safe-area was applied as padding — grew it + pushed content to
      the top border; then as a bottom offset — lifted it off the bottom. User
@@ -3682,8 +3684,8 @@ body:has([data-cc-open]) .assistant-fab { display: none !important; }
   }
   .mobile-rail-down-right { bottom: 0 !important; right: 0 !important; }
   .mobile-rail-down-left  { bottom: 0 !important; left: 0 !important; }
-  .mobile-rail-up-right   { top: 30px !important; right: 0 !important; }
-  .mobile-rail-up-left    { top: 30px !important; left: 0 !important; }
+  .mobile-rail-up-right   { top: 44px !important; right: 0 !important; }
+  .mobile-rail-up-left    { top: 44px !important; left: 0 !important; }
 
   /* Safe-area viewport padding removed — grid cells handle edge spacing */
 

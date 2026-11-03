@@ -9,6 +9,8 @@ const RAIL_ICON = {
 // Tap slop for the pointerup fire below: past this the press was a swipe/scroll
 // that started on the rail, not a tap on it.
 const RAIL_TAP_SLOP = 12;
+// Height of the up rail on a phone (index.css `.mobile-rail-up`); the viewport leaves it this much room.
+const UP_RAIL_PX = 22;
 
 function RailButton({ direction, onClick, disabled, label }) {
   // Fire on pointerup rather than click: click is synthesized after the browser
@@ -621,6 +623,12 @@ export default function MobileGridNav({
           overflowY: !zoomedOut && panelScrollV ? "auto" : "hidden",
           overflowX: !zoomedOut && panelScrollH ? "auto" : "hidden",
           overscrollBehavior: "contain",
+          // The up rail sits along the top edge (index.css, below the toolbar). Leave it that strip, or it lies
+          // over the panel's title row and its buttons (measured 2026-11-02 on a phone: search / up / full screen).
+          // Moved down, not padded: overflow clips at the padding edge, so padding let the panel above show
+          // through the see-through rail.
+          marginTop: !zoomedOut && hasUp ? UP_RAIL_PX : 0,
+          height: !zoomedOut && hasUp ? `calc(100% - ${UP_RAIL_PX}px)` : undefined,
         }}
       >
         <div
