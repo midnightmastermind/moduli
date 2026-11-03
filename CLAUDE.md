@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-03 (2) — A FILTER DECLARED ON A PAGE FILTERS THE BOARDS UNDER IT; Jellyfin plays in a headset window
+
+User: *"i have relationship aquaitence set and it still shows friends on the people board"* · *"make sure all filter
+types work"* · *"selecting none is auto turning off the filter … it makes it inactive"* · *"1 or 2 seconds for the
+checkbox to recognize the click"* · *"i cant play any video in the vr app"* · *"dont have a way to hide the top toolbar"*.
+- **Cause, read out of Mongo:** the People PAGE declares the Relationship filter; its container held the pick
+  (`["acquaintance"]`) — and a container evaluated only its OWN `filters[]`, so nothing read the pick.
+  `state/selectors.getInheritedLocalFilterConditions` walks up (nearest declaration per field wins, `active:false`
+  switches an inherited one off); ModuleContainer, ModulePage and search's `filterKeep` use it. Census first: of the
+  page-level declarations on poms only People's has a value anywhere (Trackers' Tags are muted, Schedule's unset).
+- **All types** (`__tests__/filterTypesMatrix.test.js`): select (list / single), multi-select field, occurrence,
+  boolean, number, text, date (day / week / month / several days), hide-blanks, no value. One gap fixed: a bare-day
+  filter missed a row whose date carries a time (exact IS) — a date against a date now compares by day.
+- **None picked is `[]`, never null** (`FilterNavWidgets.togglePick`, Clear): null is the filter switched off at that
+  level. An empty list shows every row, blanks included. **The box ticks at once:** the multi-pick keeps its own
+  picks and writes after the paint, in a transition. (Active off → Show off: account1, f79bdd43.)
+- **No "hide toolbar"** on desktop or phone (a phone had no way back).
+- **VR:** a Jellyfin row opened in a headset window plays (`ReaderApp ReaderPlayer`, the app's JellyfinPlayer; the
+  window never mounted the file viewer that hosts it). A VHS tape of one is `watch:<row>` (`vr/shelfItems.watchSrc`)
+  and the Quest app loads `?read=<row>&screen=<key>` on the screen; closing the player sends `stopVideo`. APK built
+  and installed by account1 at 09:42 with its DVD shelf. **Not watched in the headset.**
+- Measured, not built (user held it): 45 tracker ops are 0.56-0.63s of a 3.5-5s date step on desktop; the Schedule
+  build + Fill Day are most of the rest (`_optime.mjs`).
+
+---
+
 ### 2026-11-03 — PHONE HEADERS; THE FIRST MESSAGE CARRIES ONLY THE SHOWN PAGES (freeze 79s → 7s)
 
 **Phone headers** (user: buttons big but fitting, labels not squished, filter into the side menu, one panel button,
