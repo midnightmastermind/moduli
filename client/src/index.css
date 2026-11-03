@@ -2289,6 +2289,17 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
 .doc-editor-content.ProseMirror h4, .doc-editor-content.ProseMirror h5, .doc-editor-content.ProseMirror h6,
 .textblock-card-placeholder h4, .textblock-card-placeholder h5, .textblock-card-placeholder h6 { margin: 0.6em 0 0.2em; font-weight: 600; }
 
+/* A link in a doc or textblock reads as a link (user 2026-11-03: the CPS Zoom links "arent showing up" — they were
+   real links, but the reset strips the underline and the Terminal skin paints all text one green). Underline is
+   what survives every skin; the colour is the theme's blue link text where a skin allows it. */
+.doc-editor-content.ProseMirror a[href],
+.textblock-card-placeholder a[href] {
+  color: var(--accent-blue-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* Live markdown (docs/LiveMarkdownExtension): the syntax of the line being edited, drawn beside the text. */
 .doc-editor-content.ProseMirror .md-syntax {
   color: var(--text-muted, #8a8f98);
