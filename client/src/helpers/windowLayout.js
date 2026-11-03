@@ -18,6 +18,28 @@ export const PANEL_LAYOUT_KEYS = ["occurrences", "placement", "display"];
 
 const keyFor = (gridId) => (gridId ? `moduli-layout:${gridId}` : null);
 
+// A PHONE on a MOSAIC grid shares one rows × cols layout with every other phone (user, 2026-11-02: "we should only keep
+// the non mosaic mode for mobile, so it shouldnt share the same layout as desktop" → set to 3 x 2 on the server, and
+// "my phone app doesnt show that": the phone's own saved copy was laid over it). The desktop mosaic never reads these
+// keys, so on such a grid they ARE the phone layout — taken from the server, not from this window's saved copy.
+// Which page each panel shows stays the window's own.
+export const PHONE_SHARED_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences"];
+export const PHONE_SHARED_PANEL_KEYS = ["placement", "display"];
+
+/** True when this window is a phone layout looking at a mosaic grid. `isPhone` is injectable for tests. */
+export function phoneSharesRowsCols(grid, isPhone = isPhoneLayoutNow) {
+  return !!grid?.meta?.layoutTree && !!(typeof isPhone === "function" ? isPhone() : isPhone);
+}
+
+function isPhoneLayoutNow() {
+  const stamped = globalThis.document?.body?.dataset?.layout;
+  if (stamped) return stamped === "mobile";
+  try { return computeMobileLayoutLazy(); } catch { return false; }
+}
+let computeMobileLayoutLazy = () => false;
+/** App wires the device check in (keeps this file free of browser-hook imports). */
+export function setPhoneLayoutCheck(fn) { if (typeof fn === "function") computeMobileLayoutLazy = fn; }
+
 /** This window's layout, from the store's state. */
 export function snapshotLayout({ grid, views, occurrencesById }) {
   if (!grid) return null;
@@ -59,13 +81,14 @@ export function readWindowLayout(gridId, { session = globalThis.sessionStorage, 
  * deleted elsewhere drops out of the panel list, a view the payload lacks is skipped, a page the payload does not
  * hold (yet) is not forced onto a view.
  */
-export function applyWindowLayout(payload, snap) {
+export function applyWindowLayout(payload, snap, { phoneShared = false } = {}) {
   if (!payload?.grid || !snap) return payload;
   const occs = payload.occurrences || [];
   const occIds = new Set(occs.map((o) => o?.id));
   const grid = { ...payload.grid };
   for (const k of GRID_LAYOUT_KEYS) {
     if (snap.grid?.[k] === undefined) continue;
+    if (phoneShared && PHONE_SHARED_GRID_KEYS.includes(k)) continue;
     grid[k] = k === "occurrences" ? snap.grid.occurrences.filter((id) => occIds.has(id)) : snap.grid[k];
   }
   // A grid whose panel list came back empty keeps the server's (never show nothing because of a stale snapshot).
@@ -75,7 +98,13 @@ export function applyWindowLayout(payload, snap) {
     for (const k of GRID_META_LAYOUT_KEYS) if (snap.meta[k] !== undefined) grid.meta[k] = snap.meta[k];
   }
   const panels = snap.panels || {};
-  const occurrences = occs.map((o) => (o && panels[o.id] ? { ...o, ...panels[o.id] } : o));
+  const panelPatch = (saved) => {
+    if (!phoneShared) return saved;
+    const out = { ...saved };
+    for (const k of PHONE_SHARED_PANEL_KEYS) delete out[k];
+    return out;
+  };
+  const occurrences = occs.map((o) => (o && panels[o.id] ? { ...o, ...panelPatch(panels[o.id]) } : o));
   const views = (payload.views || []).map((v) => {
     const want = v && snap.views?.[v.id];
     return want && occIds.has(want) && want !== v.activeOccurrenceId ? { ...v, activeOccurrenceId: want } : v;
@@ -84,9 +113,9 @@ export function applyWindowLayout(payload, snap) {
 }
 
 /** An incoming update to a PANEL occurrence, as this window takes it: its layout keys are this window's own. */
-export function incomingPanelUpdate(occurrence, panelIds) {
+export function incomingPanelUpdate(occurrence, panelIds, { phoneShared = false } = {}) {
   if (!occurrence?.id || !panelIds?.has?.(occurrence.id)) return occurrence;
   const out = { ...occurrence };
-  for (const k of PANEL_LAYOUT_KEYS) delete out[k];
+  for (const k of PANEL_LAYOUT_KEYS) if (!(phoneShared && PHONE_SHARED_PANEL_KEYS.includes(k))) delete out[k];
   return out;
 }

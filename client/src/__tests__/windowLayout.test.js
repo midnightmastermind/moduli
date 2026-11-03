@@ -55,3 +55,40 @@ describe("each window keeps its own layout", () => {
     expect(incomingPanelUpdate(row, new Set(["pA"]))).toBe(row);
   });
 });
+
+// A phone on a mosaic grid shares one rows × cols layout (user, 2026-11-02: "my phone app doesnt show that" — the
+// phone's own saved copy was laid over the 3 x 2 set on the server).
+import { phoneSharesRowsCols, incomingPanelUpdate as incomingPanel } from "../helpers/windowLayout.js";
+import { incomingGridPatch, setLocalLayout } from "../helpers/localLayout.js";
+describe("phone on a mosaic grid", () => {
+  const payload = {
+    grid: { rows: 3, cols: 2, occurrences: ["a", "b"], meta: { layoutTree: { id: "t" } } },
+    occurrences: [{ id: "a", placement: { row: 0, col: 0 } }, { id: "b", placement: { row: 0, col: 1, height: 3 } }, { id: "x" }],
+    views: [{ id: "v", activeOccurrenceId: "p1" }],
+  };
+  const saved = { grid: { rows: 2, cols: 2, occurrences: ["a", "b", "x"] }, meta: {}, panels: { b: { placement: { row: 0, col: 0 } } }, views: { v: "x" } };
+  it("takes the server's rows × cols, panel list and cells; keeps the window's page choice", () => {
+    const out = applyWindowLayout(payload, saved, { phoneShared: true });
+    expect(out.grid.rows).toBe(3);
+    expect(out.grid.occurrences).toEqual(["a", "b"]);
+    expect(out.occurrences.find((o) => o.id === "b").placement).toEqual({ row: 0, col: 1, height: 3 });
+    expect(out.views[0].activeOccurrenceId).toBe("x");
+  });
+  it("a desktop window still lays its own copy over (control)", () => {
+    const out = applyWindowLayout(payload, saved);
+    expect(out.grid.rows).toBe(2);
+    expect(out.occurrences.find((o) => o.id === "b").placement).toEqual({ row: 0, col: 0 });
+  });
+  it("only a phone looking at a mosaic grid shares", () => {
+    expect(phoneSharesRowsCols(payload.grid, () => true)).toBe(true);
+    expect(phoneSharesRowsCols(payload.grid, () => false)).toBe(false);
+    expect(phoneSharesRowsCols({ rows: 2, meta: {} }, () => true)).toBe(false);
+  });
+  it("live updates: a phone keeps another phone's cells and grid size", () => {
+    expect(incomingPanel({ id: "a", placement: { row: 2 }, occurrences: [1] }, new Set(["a"]), { phoneShared: true }).placement).toEqual({ row: 2 });
+    expect(incomingPanel({ id: "a", placement: { row: 2 }, occurrences: [1] }, new Set(["a"])).placement).toBeUndefined();
+    setLocalLayout(true);
+    expect(incomingGridPatch({ rows: 3, activeFilterId: "f" }, {}, { keepGridKeys: ["rows"] })).toEqual({ rows: 3 });
+    expect(incomingGridPatch({ rows: 3 }, {})).toEqual({});
+  });
+});

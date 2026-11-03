@@ -73,10 +73,10 @@ const LAYOUT_META_KEYS = ["layoutTree", "layoutRules"];
  * layout keys dropped, and a whole-meta patch keeping this tab's own layout
  * entries. Returns the patch unchanged when the mode is off.
  */
-export function incomingGridPatch(patch, currentMeta) {
+export function incomingGridPatch(patch, currentMeta, { keepGridKeys = [] } = {}) {
   if (!on || !patch) return patch;
   const out = { ...patch };
-  for (const k of LAYOUT_GRID_KEYS) delete out[k];
+  for (const k of LAYOUT_GRID_KEYS) if (!keepGridKeys.includes(k)) delete out[k];
   if (out.meta && typeof out.meta === "object") {
     const meta = { ...out.meta };
     for (const k of LAYOUT_META_KEYS) {

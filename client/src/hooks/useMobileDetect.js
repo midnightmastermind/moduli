@@ -9,6 +9,8 @@ const COARSE = "(pointer: coarse)";
 const PORTRAIT = "(orientation: portrait)";
 const NARROW = `(max-width: ${MOBILE_BREAKPOINT}px)`;
 
+export function computeMobileLayout() { return compute(); }
+
 function compute() {
   if (typeof window === "undefined") return { isTouch: false, isMobileLayout: false };
   const isTouch = window.matchMedia(COARSE).matches;

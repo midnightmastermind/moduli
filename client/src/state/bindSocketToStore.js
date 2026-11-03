@@ -55,7 +55,7 @@ import { isSnapshotMode, setSnapshotMode } from "./snapshotMode.js";
 import { incomingGridPatch, isLocalLayout, currentPanelIds } from "../helpers/localLayout.js";
 import { isPassiveWindow } from "../helpers/passiveWindow.js";
 import { getWindowId } from "../helpers/windowId.js";
-import { applyWindowLayout, readWindowLayout, incomingPanelUpdate } from "../helpers/windowLayout.js";
+import { applyWindowLayout, readWindowLayout, incomingPanelUpdate, phoneSharesRowsCols, PHONE_SHARED_GRID_KEYS } from "../helpers/windowLayout.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -277,7 +277,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // is still flushed to the server after the sweep.
     if (!fromSnapshot) payload = applyQueuedEditsToPayload(payload, peekOfflineQueue());
     // This window's own layout (which panels, which pages, the split, the date) over the server's last-written one.
-    payload = applyWindowLayout(payload, readWindowLayout(payload.gridId));
+    payload = applyWindowLayout(payload, readWindowLayout(payload.gridId), { phoneShared: phoneSharesRowsCols(payload.grid) });
 
     timeLoad("dispatch", () => socketDispatch({ type: ActionTypes.FULL_STATE, payload }));
 
@@ -1047,7 +1047,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     scheduleFeedSync();
     if (!incoming?.id) return;
     // Another window's PANEL layout (its pages, place, visibility) stays in that window (helpers/windowLayout).
-    const occurrence = incomingPanelUpdate(incoming, currentPanelIds());
+    const occurrence = incomingPanelUpdate(incoming, currentPanelIds(), { phoneShared: phoneSharesRowsCols(stateRef.current?.grid) });
 
     const prevOcc = localOccsById[occurrence.id];
 
@@ -1279,7 +1279,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Every window keeps its own layout and date (helpers/windowLayout): another WINDOW's (it names its socket) is not
     // taken here. A change from no window (the API, Jonah) still is.
     const raw = payload.grid || payload;
-    const patch = payload.originSocketId ? incomingGridPatch(raw, stateRef.current?.grid?.meta) : raw;
+    const patch = payload.originSocketId
+      ? incomingGridPatch(raw, stateRef.current?.grid?.meta, { keepGridKeys: phoneSharesRowsCols(stateRef.current?.grid) ? PHONE_SHARED_GRID_KEYS : [] })
+      : raw;
 
     if (!gridId) return;
 

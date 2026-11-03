@@ -61,7 +61,7 @@ import { usePanelLoadTriggers } from "./hooks/usePanelLoadTriggers";
 import { useTheme } from "./helpers/useTheme";
 import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
 import { useSkin } from "./hooks/useSkin";
-import { useMobileDetect } from "./hooks/useMobileDetect";
+import { useMobileDetect, computeMobileLayout } from "./hooks/useMobileDetect";
 import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
 import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
 import { enableStagedMount } from "./helpers/stagedMount";
@@ -75,7 +75,9 @@ import { bindSnapshotInputGuard, isSnapshotMode } from "./state/snapshotMode.js"
 import { openFromLink, openParamFrom, withoutOpenParam } from "./helpers/deepLinkOpen.js";
 import { setPanelIdsGetter, setLocalLayout } from "./helpers/localLayout.js";
 import { setOccurrencesGetter } from "./helpers/sharedModule.js";
-import { snapshotLayout, saveWindowLayout } from "./helpers/windowLayout.js";
+import { snapshotLayout, saveWindowLayout, setPhoneLayoutCheck } from "./helpers/windowLayout.js";
+// Before the first full_state: a phone on a mosaic grid takes the shared rows × cols layout (helpers/windowLayout).
+setPhoneLayoutCheck(() => computeMobileLayout().isMobileLayout);
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
