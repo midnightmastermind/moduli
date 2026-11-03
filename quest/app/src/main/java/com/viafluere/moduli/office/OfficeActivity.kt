@@ -633,6 +633,15 @@ class OfficeActivity : AppSystemActivity() {
         if (items.isEmpty() && fallback.isNotEmpty()) playRecord(p, m.optString("title"), "", fallback)
         else playQueue(p, m.optString("title"), items)
       }
+      // A text box on a shelf was pressed (user, 2026-11-03: "the search wont let me type anything"): give its window
+      // focus and ask for the headset keyboard outright — a WebView panel does not always raise it by itself.
+      "keyboard" -> things[m.optString("key")]?.web?.let { w ->
+        keyTarget = w
+        w.requestFocus()
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        val shown = imm.showSoftInput(w, android.view.inputmethod.InputMethodManager.SHOW_FORCED)
+        Log.i(TAG, "keyboard for ${m.optString("key")}: focused=${w.hasFocus()} shown=$shown")
+      }
       "shelfPage" -> things[m.optString("key")]?.let { t -> t.page = m.optInt("page"); t.shelfSize?.let { buildBooks(t, it) } }
       // The shelf's search box: the books follow the matches it shows.
       "shelfFilter" -> things[m.optString("key")]?.let { t ->
@@ -1787,7 +1796,8 @@ class OfficeActivity : AppSystemActivity() {
   /**
    * Every frame: pieces follow their handles. The sticks act ONLY on the piece whose bar you are holding (user: "it
    * shouldnt select any furniture without grabbing the handle"): RIGHT thumbstick left / right turns it, up / down
-   * pushes it further away / pulls it closer; LEFT thumbstick up / down grows / shrinks it. Smooth, by how long the
+   * pushes it further away / pulls it closer; LEFT thumbstick up / down grows / shrinks it. Holding B (right) or Y
+   * (left) gives that stick the other hand's job, so one controller does all of it. Smooth, by how long the
    * stick is held.
    * Read straight from the controllers — per-entity button events never carried the thumbstick on the headset. The
    * pose is saved by SaveSystem, which notices the change, rather than on every frame of a turn.
@@ -1860,14 +1870,18 @@ class OfficeActivity : AppSystemActivity() {
             dragRay = PoseMath.tOf(pose) to PoseMath.rotate(PoseMath.qOf(pose), floatArrayOf(0f, 0f, 1f))
           }
         }
-        if (down and ButtonBits.ButtonThumbRL != 0) turnDir += 1f
-        if (down and ButtonBits.ButtonThumbRR != 0) turnDir -= 1f
-        if (down and ButtonBits.ButtonThumbRU != 0) reachDir += 1f
-        if (down and ButtonBits.ButtonThumbRD != 0) reachDir -= 1f
-        if (down and ButtonBits.ButtonThumbLU != 0) growDir += 1f
-        if (down and ButtonBits.ButtonThumbLD != 0) growDir -= 1f
-        if (down and ButtonBits.ButtonThumbLL != 0) tiltDir += 1f
-        if (down and ButtonBits.ButtonThumbLR != 0) tiltDir -= 1f
+        // One controller does everything (user, 2026-11-03: "i lost my left controller … hold down one of the buttons
+        // while using the joystick"). A stick does its own hand's job — right: turn + push/pull, left: resize + tilt —
+        // and while that hand's upper face button is held (B on the right, Y on the left) it does the OTHER hand's.
+        val swapR = down and ButtonBits.ButtonB != 0
+        val swapL = down and ButtonBits.ButtonY != 0
+        fun stick(u: Int, d: Int, l: Int, r: Int, swapped: Boolean) {
+          val up = if (down and u != 0) 1f else 0f; val dn = if (down and d != 0) 1f else 0f
+          val lf = if (down and l != 0) 1f else 0f; val rt = if (down and r != 0) 1f else 0f
+          if (!swapped) { turnDir += lf - rt; reachDir += up - dn } else { tiltDir += lf - rt; growDir += up - dn }
+        }
+        stick(ButtonBits.ButtonThumbRU, ButtonBits.ButtonThumbRD, ButtonBits.ButtonThumbRL, ButtonBits.ButtonThumbRR, swapR)
+        stick(ButtonBits.ButtonThumbLU, ButtonBits.ButtonThumbLD, ButtonBits.ButtonThumbLL, ButtonBits.ButtonThumbLR, !swapL)
       }
       // A drag started in a reader window ends when the trigger is let go; give the page a moment to say whether it
       // took the drop itself, then try the window the controller points at.

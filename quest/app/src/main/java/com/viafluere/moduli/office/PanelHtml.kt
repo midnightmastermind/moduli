@@ -112,9 +112,9 @@ object PanelHtml {
 </style></head><body${if (asset == "book") " class=\"bk\"" else ""}>
 <div id="head">${if (canUp) """<button id="upb" onclick="send({type:'shelfUp',key:key})">⬆</button>""" else ""}<div id="info"><b>${esc(title)}</b>
   ${if (path.isNotEmpty() && canUp) """<span id="path">${esc(path)}</span>""" else ""}<span id="pg"></span></div>
-  <input id="q" placeholder="🔍 Search" oninput="search()">
+  <input id="q" placeholder="🔍 Search" oninput="search()" onfocus="send({type:'keyboard',key:key})" onpointerdown="send({type:'keyboard',key:key})">
   <button onclick="go(-1)">◀</button><button onclick="go(1)">▶</button>
-  ${if (shelf.optBoolean("folderable")) """<button onclick="send({type:'newNote',key:key})">＋📝</button><button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
+  ${if (shelf.optBoolean("folderable")) """<button onclick="send({type:'newNote',key:key})">＋📝</button><button id="nfb" onclick="newFolder()">＋📁</button><span id="nfbox" style="display:none"><input id="nf" placeholder="Folder name" onfocus="send({type:'keyboard',key:key})" onkeydown="if(event.key==='Enter')addFolder()"><button onclick="addFolder()">Add</button></span>""" else ""}
   ${if (moving > 0) """<button class="on" onclick="send({type:'moveHere',key:key})">Move $moving here</button><button onclick="send({type:'moveCancel',key:key})">✕</button>""" else ""}
   <button id="selb" onclick="toggleSel()">Select</button><button id="movb" style="display:none" onclick="mv()"></button><button id="openb" style="display:none" onclick="opn()"></button><button id="delb" class="danger" style="display:none" onclick="del()"></button>
   <button onclick="send({type:'piece',key:${ja("shelf:$id")}})">⚙</button></div>

@@ -77,7 +77,39 @@ function useReaderSync(dispatch, has) {
   }, [dispatch, has]);
 }
 
+/**
+ * `?read=<ep1>,<ep2>,…&screen=<key>`: a DVD disc dropped on the player (user, 2026-11-03: a series starts at season 1
+ * episode 1, a season plays that season). The episodes play in order; one ending starts the next. Pure parse.
+ */
+export function readQueue(param) {
+  return String(param || "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 export default function ReaderApp({ occurrenceId }) {
+  const queue = readQueue(occurrenceId);
+  if (queue.length > 1) return <ReaderQueue ids={queue} />;
+  return <ReaderOne occurrenceId={queue[0] || occurrenceId} />;
+}
+
+/** Several episodes, one at a time: ⏮ ⏭ on top, and the next starts when one ends. */
+export function ReaderQueue({ ids }) {
+  const [i, setI] = useState(0);
+  const go = (d) => setI((n) => Math.max(0, Math.min(ids.length - 1, n + d)));
+  const bar = { position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5, display: "flex", gap: 8,
+    alignItems: "center", background: "rgba(0,0,0,.6)", color: "#fff", padding: "4px 10px", borderRadius: 6, fontSize: 14 };
+  return (
+    <div style={{ ...fill, position: "relative" }}>
+      <div style={bar} data-testid="reader-queue">
+        <button type="button" aria-label="Previous episode" disabled={i === 0} onClick={() => go(-1)}>⏮</button>
+        <span>{i + 1} of {ids.length}</span>
+        <button type="button" aria-label="Next episode" disabled={i === ids.length - 1} onClick={() => go(1)}>⏭</button>
+      </div>
+      <ReaderOne key={ids[i]} occurrenceId={ids[i]} onEnded={i < ids.length - 1 ? () => go(1) : undefined} />
+    </div>
+  );
+}
+
+function ReaderOne({ occurrenceId, onEnded }) {
   useTheme();
   const [loaded, setLoaded] = useState(null);
   const [error, setError] = useState(null);
@@ -99,13 +131,13 @@ export default function ReaderApp({ occurrenceId }) {
 
   // The store starts from the subtree (ReaderBody); its socket joins that grid, again on every reconnect.
   return loaded
-    ? <ReaderBody initial={loaded} occurrenceId={occurrenceId} />
+    ? <ReaderBody initial={loaded} occurrenceId={occurrenceId} onEnded={onEnded} />
     : error
       ? <div style={{ ...fill, display: "grid", placeItems: "center", padding: 24 }}>{error}</div>
       : <div style={{ ...fill, display: "grid", placeItems: "center", opacity: 0.6 }}>Loading…</div>;
 }
 
-function ReaderBody({ initial, occurrenceId }) {
+function ReaderBody({ initial, occurrenceId, onEnded }) {
   const [state, dispatch] = useReducer(masterReducer, initial);
   const [joined, setJoined] = useState(false);
   useEffect(() => {
@@ -263,7 +295,8 @@ function ReaderBody({ initial, occurrenceId }) {
   // which a headset window does not mount.
   if (isPlayableRow(occ)) {
     return <ReaderPlayer occurrence={occ} label={occ.label || mod?.label || ""} gridId={state.gridId}
-      getOcc={(id) => (ref.current.occurrences || []).find((o) => o.id === id) || null} dispatch={dispatch} socket={live} />;
+      getOcc={(id) => (ref.current.occurrences || []).find((o) => o.id === id) || null} dispatch={dispatch} socket={live}
+      onEnded={onEnded} />;
   }
   if (mod?.role === "artifact" && BOOK_KINDS.has(mod.kind) && mod.fileRef) {
     return (
@@ -289,7 +322,7 @@ function ReaderBody({ initial, occurrenceId }) {
 
 /** The Jellyfin player filling a headset window. The grid's fields are read once: marking a film watched writes its
  *  Last Watched / Watched At, which the row itself may not carry yet. */
-export function ReaderPlayer({ occurrence, label, gridId, getOcc, dispatch, socket }) {
+export function ReaderPlayer({ occurrence, label, gridId, getOcc, dispatch, socket, onEnded }) {
   const [fields, setFields] = useState(null);
   useEffect(() => {
     let live = true;
@@ -310,7 +343,7 @@ export function ReaderPlayer({ occurrence, label, gridId, getOcc, dispatch, sock
   return (
     <div data-testid="reader-player" style={{ ...fill, background: "#000", display: "flex", flexDirection: "column" }}>
       <JellyfinPlayer occurrenceId={occurrence.id} label={label} getOcc={getOcc} getFieldMap={() => fields || {}}
-        dispatch={dispatch} socket={socket} onClose={closePlayer} />
+        dispatch={dispatch} socket={socket} onClose={closePlayer} onEnded={onEnded} />
     </div>
   );
 }

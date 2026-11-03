@@ -18,7 +18,9 @@ import {
 const PROGRESS_EVERY_MS = 10000;
 const HLS_MIME = "application/vnd.apple.mpegurl";
 
-export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, getFieldMap, dispatch, socket }) {
+export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, getFieldMap, dispatch, socket, onEnded }) {
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
   const [info, setInfo] = useState(null);
   const [problem, setProblem] = useState(null); // "offline" | "signin" | "unplayable" | "failed"
   const videoRef = useRef(null);
@@ -108,10 +110,13 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
     };
 
     (async () => {
-      if (video.canPlayType?.(HLS_MIME)) { video.src = withMediaToken(info.hlsUrl, token); return; }
+      // hls.js first, the browser's own HLS only when hls.js cannot run: the headset's WebView claims native HLS and
+      // then fails to play it (user, 2026-11-03: Nathan For You S4E3 "said it couldnt play the file" while the
+      // server stream itself played — playlist + 720p segments fetched fine).
       let Hls = null;
       try { Hls = (await import("hls.js")).default; } catch { Hls = null; }
       if (cancelled) return;
+      if (!Hls?.isSupported?.() && video.canPlayType?.(HLS_MIME)) { video.src = withMediaToken(info.hlsUrl, token); return; }
       if (Hls?.isSupported?.()) {
         hls = new Hls();
         hls.on(Hls.Events.ERROR, (_e, data) => {
@@ -142,6 +147,7 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       if (!finishedRef.current) timer = setInterval(() => sendProgress(video, false), PROGRESS_EVERY_MS);
     };
     const onPause = () => { clearInterval(timer); sendProgress(video, true); };
+    const onEnd = () => { onPause(); onEndedRef.current?.(); };
     const onTime = () => {
       if (finishedRef.current) return;
       if (Number(video.currentTime) > 0) startedRef.current = true;
@@ -156,7 +162,7 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
-    video.addEventListener("ended", onPause);
+    video.addEventListener("ended", onEnd);
     video.addEventListener("timeupdate", onTime);
     video.addEventListener("error", onError);
     return () => {
@@ -165,7 +171,7 @@ export default function JellyfinPlayer({ occurrenceId, label, onClose, getOcc, g
       video.removeEventListener("loadedmetadata", onMeta);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
-      video.removeEventListener("ended", onPause);
+      video.removeEventListener("ended", onEnd);
       video.removeEventListener("timeupdate", onTime);
       video.removeEventListener("error", onError);
       // Closed mid-film: save the position (sendProgress skips it before a start, after an error or a finish).

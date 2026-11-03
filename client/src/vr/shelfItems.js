@@ -252,15 +252,47 @@ export function showEpisodeItems(showId, ctx = {}, seasonId = null) {
 const cellValue = (c) => (c && typeof c === "object" && !Array.isArray(c) ? c.value : c);
 const byLabelNumeric = (a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true });
 
+// Every show's episodes, built once per occurrence map (a scan of the whole grid per show was 193 scans).
+const episodeIndexCache = new WeakMap();
+function episodeIndex(occurrencesById) {
+  if (!occurrencesById) return new Map();
+  let idx = episodeIndexCache.get(occurrencesById);
+  if (idx) return idx;
+  idx = new Map();
+  for (const o of Object.values(occurrencesById)) {
+    if (!o?.meta?.episodeKey || o.meta?.feedSourceId) continue;
+    const seen = new Set();
+    for (const c of Object.values(o.fields || {})) {
+      const v = cellValue(c);
+      for (const id of Array.isArray(v) ? v : [v]) {
+        if (typeof id !== "string" || seen.has(id)) continue;
+        seen.add(id);
+        if (!idx.has(id)) idx.set(id, []);
+        idx.get(id).push(o);
+      }
+    }
+  }
+  for (const list of idx.values()) list.sort(byLabelNumeric);
+  episodeIndexCache.set(occurrencesById, idx);
+  return idx;
+}
+
 /** A show's episodes (Episodes board rows naming the show), in season / episode order. */
 function episodesOfShow(showId, occurrencesById) {
-  const eps = [];
-  for (const o of Object.values(occurrencesById || {})) {
-    if (!o?.meta?.episodeKey || o.meta?.feedSourceId) continue;
-    if (Object.values(o.fields || {}).some((c) => cellValue(c) === showId)) eps.push(o);
-  }
   // Labels are "S01E03 · Title": a numeric compare puts S01E100 after S01E99.
-  return eps.sort(byLabelNumeric);
+  return [...(episodeIndex(occurrencesById).get(showId) || [])];
+}
+
+const SPECIALS = /^S0+E/i;
+/**
+ * What a disc plays on the DVD player: its episodes in order, as one `watch:` source the screen plays one after
+ * another (ReaderApp's queue). Season 0 (specials) goes last, so a series starts at season 1 episode 1. Only rows
+ * Jellyfin streams can play. Null when none can. Pure.
+ */
+export function episodeQueueSrc(eps) {
+  const playable = (eps || []).filter((o) => o?.meta?.jellyfinId);
+  const ordered = [...playable.filter((o) => !SPECIALS.test(o.label || "")), ...playable.filter((o) => SPECIALS.test(o.label || ""))];
+  return ordered.length ? `watch:${ordered.slice(0, 400).map((o) => o.id).join(",")}` : null;
 }
 
 /** The season row an episode names (its TV Season link, migration 0473): a row other than the show, not an episode. */
@@ -309,6 +341,7 @@ export function dvdShelfView(shelf, at, ctx = {}) {
       .sort((a, b) => byLabelNumeric({ label: label(a.sid, "") }, { label: label(b.sid, "") }))
       .map(({ sid, count, row }) => ({
         id: `season:${sid}`, rowId: sid, folder: true, count, title: label(sid, "Season"),
+        src: episodeQueueSrc(episodesOfShow(showId, occurrencesById).filter((e) => seasonOf(e, showId, occurrencesById, modulesById) === sid)),
         cover: coverUrl(row, modulesById?.[row.moduleId], primaryMediaOf(row, ctx)) || showCover,
       }));
     // Episodes that name no season stay reachable, after the seasons.
@@ -340,7 +373,9 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
   // which on a fresh shelf filled it with 200 random rows (seen in a browser).
   const hasQuery = (Array.isArray(shelf.feed.conditions) && shelf.feed.conditions.length > 0) || !!shelf.feed.scope;
   if (!hasQuery) return [];
-  const owner = { id: shelf.id, gridId: grid?._id || grid?.id || null, feed: { ...shelf.feed, enabled: true } };
+  // Sorted A–Z below, so the limit is applied AFTER sorting — otherwise a capped shelf shows an arbitrary first N.
+  const sortAZ = !shelf.feed.sort;
+  const owner = { id: shelf.id, gridId: grid?._id || grid?.id || null, feed: { ...shelf.feed, enabled: true, ...(sortAZ ? { limit: 100000 } : {}) } };
   const rows = resolveFeedItems(owner, { occurrencesById, modulesById });
   const wanted = FILE_KINDS_FOR_ASSET[shelf.asset] || [];
   const ctx = { occurrencesById, modulesById };
@@ -362,7 +397,11 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : (isVideoShelf(shelf.asset) ? watchSrc(occ) : null),
+      src: file?.ref ? resolveFileRef(file.ref)
+        : !isVideoShelf(shelf.asset) ? null
+          // A series disc plays its episodes from season 1 episode 1 (user, 2026-11-03).
+          : mod?.kind === "series" ? (episodeQueueSrc(episodesOfShow(occ.id, occurrencesById)) || watchSrc(occ))
+            : watchSrc(occ),
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
@@ -373,7 +412,13 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
         || (isVideoShelf(shelf.asset) && mod?.kind === "series"),
     });
   }
-  return out;
+  // A–Z, as a shelf is browsed (user, 2026-11-03: "the shelves for books, music, movies, and tv should be sorted
+  // alphabetically"). A shelf given its own sort in its settings keeps it. Numbers compare as numbers (Season 2
+  // before Season 10); case and accents are ignored.
+  if (!sortAZ) return out;
+  out.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true }));
+  const limit = Number(shelf.feed.limit) > 0 ? Number(shelf.feed.limit) : out.length;
+  return out.slice(0, limit);
 }
 
 /**

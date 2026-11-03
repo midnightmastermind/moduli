@@ -1307,13 +1307,37 @@ function showEpisodeItems(showId, ctx = {}, seasonId = null) {
 }
 var cellValue = (c) => c && typeof c === "object" && !Array.isArray(c) ? c.value : c;
 var byLabelNumeric = (a, b) => String(a.label || "").localeCompare(String(b.label || ""), void 0, { numeric: true });
-function episodesOfShow(showId, occurrencesById) {
-  const eps = [];
-  for (const o of Object.values(occurrencesById || {})) {
+var episodeIndexCache = /* @__PURE__ */ new WeakMap();
+function episodeIndex(occurrencesById) {
+  if (!occurrencesById) return /* @__PURE__ */ new Map();
+  let idx = episodeIndexCache.get(occurrencesById);
+  if (idx) return idx;
+  idx = /* @__PURE__ */ new Map();
+  for (const o of Object.values(occurrencesById)) {
     if (!o?.meta?.episodeKey || o.meta?.feedSourceId) continue;
-    if (Object.values(o.fields || {}).some((c) => cellValue(c) === showId)) eps.push(o);
+    const seen = /* @__PURE__ */ new Set();
+    for (const c of Object.values(o.fields || {})) {
+      const v = cellValue(c);
+      for (const id of Array.isArray(v) ? v : [v]) {
+        if (typeof id !== "string" || seen.has(id)) continue;
+        seen.add(id);
+        if (!idx.has(id)) idx.set(id, []);
+        idx.get(id).push(o);
+      }
+    }
   }
-  return eps.sort(byLabelNumeric);
+  for (const list of idx.values()) list.sort(byLabelNumeric);
+  episodeIndexCache.set(occurrencesById, idx);
+  return idx;
+}
+function episodesOfShow(showId, occurrencesById) {
+  return [...episodeIndex(occurrencesById).get(showId) || []];
+}
+var SPECIALS = /^S0+E/i;
+function episodeQueueSrc(eps) {
+  const playable = (eps || []).filter((o) => o?.meta?.jellyfinId);
+  const ordered = [...playable.filter((o) => !SPECIALS.test(o.label || "")), ...playable.filter((o) => SPECIALS.test(o.label || ""))];
+  return ordered.length ? `watch:${ordered.slice(0, 400).map((o) => o.id).join(",")}` : null;
 }
 function seasonOf(ep, showId, occurrencesById, modulesById) {
   for (const c of Object.values(ep.fields || {})) {
@@ -1357,6 +1381,7 @@ function dvdShelfView(shelf, at2, ctx = {}) {
       folder: true,
       count,
       title: label(sid, "Season"),
+      src: episodeQueueSrc(episodesOfShow(showId, occurrencesById).filter((e) => seasonOf(e, showId, occurrencesById, modulesById) === sid)),
       cover: coverUrl(row, modulesById?.[row.moduleId], primaryMediaOf(row, ctx)) || showCover
     }));
     if (loose) items.push(...showEpisodeItems(showId, ctx).filter((i) => !seasonOf(occurrencesById[i.rowId], showId, occurrencesById, modulesById)));
@@ -1377,7 +1402,8 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
   if (!shelf?.feed || !occurrencesById) return [];
   const hasQuery = Array.isArray(shelf.feed.conditions) && shelf.feed.conditions.length > 0 || !!shelf.feed.scope;
   if (!hasQuery) return [];
-  const owner = { id: shelf.id, gridId: grid?._id || grid?.id || null, feed: { ...shelf.feed, enabled: true } };
+  const sortAZ = !shelf.feed.sort;
+  const owner = { id: shelf.id, gridId: grid?._id || grid?.id || null, feed: { ...shelf.feed, enabled: true, ...sortAZ ? { limit: 1e5 } : {} } };
   const rows = resolveFeedItems(owner, { occurrencesById, modulesById });
   const wanted = FILE_KINDS_FOR_ASSET[shelf.asset] || [];
   const ctx = { occurrencesById, modulesById };
@@ -1399,7 +1425,7 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : isVideoShelf(shelf.asset) ? watchSrc(occ) : null,
+      src: file?.ref ? resolveFileRef(file.ref) : !isVideoShelf(shelf.asset) ? null : mod?.kind === "series" ? episodeQueueSrc(episodesOfShow(occ.id, occurrencesById)) || watchSrc(occ) : watchSrc(occ),
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
@@ -1408,7 +1434,10 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
       album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)) || isVideoShelf(shelf.asset) && mod?.kind === "series"
     });
   }
-  return out;
+  if (!sortAZ) return out;
+  out.sort((a, b) => a.title.localeCompare(b.title, void 0, { sensitivity: "base", numeric: true }));
+  const limit = Number(shelf.feed.limit) > 0 ? Number(shelf.feed.limit) : out.length;
+  return out.slice(0, limit);
 }
 function albumQueue(albumId, ctx = {}) {
   return albumShelfItems(albumId, ctx).filter((i) => typeof i.spotify === "string" && i.spotify.includes("/embed/track/")).map((i) => ({ title: i.title, url: i.spotify }));
