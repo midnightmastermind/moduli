@@ -4,6 +4,7 @@
 // focus change, nothing opened, nothing sent. Each one is a row marked "✗ nothing".
 import { rectOnScreen, tapSizeVerdict, jargonHits, hitTarget, popupCount, escapeCloses, runAxe } from "./checks.mjs";
 
+export const POPUP_SEL = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
 const DESTRUCTIVE = /\b(delete|remove|log ?out|disconnect|reset|clear all|revoke|unsubscribe|break link|trash)\b/i;
 const CONTROL_SEL = 'button, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="combobox"], a[href], input:not([type="hidden"]), select, textarea';
 
@@ -37,7 +38,7 @@ export async function controlsIn(page, rootSel) {
       for (let n = el; n && n !== root.parentElement; n = n.parentElement) { if (Number(getComputedStyle(n).opacity) === 0) { hoverOnly = true; break; } }
       const label = (el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim().split("\n")[0] || el.getAttribute("placeholder") || el.getAttribute("name") || el.tagName.toLowerCase()).trim().slice(0, 60);
       el.setAttribute("data-uisweep-i", String(i));
-      out.push({ i, label, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || "", rect: { x: r.x, y: r.y, width: r.width, height: r.height }, hoverOnly, named: !!(el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim() || el.getAttribute("aria-labelledby")) });
+      out.push({ i, label, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || "", cls: typeof el.className === "string" ? el.className.slice(0, 80) : "", rect: { x: r.x, y: r.y, width: r.width, height: r.height }, hoverOnly, named: !!(el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim() || el.getAttribute("aria-labelledby")) });
       i++;
     }
     return out;
@@ -45,22 +46,22 @@ export async function controlsIn(page, rootSel) {
 }
 
 async function snapshot(page, rootSel, errors) {
-  return page.evaluate(({ rootSel, errors }) => {
+  return page.evaluate(({ rootSel, errors, popSel }) => {
     const root = document.querySelector(rootSel) || document.body;
     const states = [...root.querySelectorAll("[aria-pressed], [aria-checked], [aria-expanded], [aria-selected], input[type=checkbox]")]
       .map((e) => `${e.getAttribute("aria-pressed")}${e.getAttribute("aria-checked")}${e.getAttribute("aria-expanded")}${e.getAttribute("aria-selected")}${e.checked ?? ""}`).join(",");
-    const popups = document.querySelectorAll('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu, [data-sheet], .header-dropdown').length;
+    const popups = document.querySelectorAll(popSel).length;
     return { url: location.href, focused: document.activeElement ? `${document.activeElement.tagName}#${document.activeElement.id}.${document.activeElement.getAttribute("data-uisweep-i") ?? ""}` : "",
       focusIsField: !!(document.activeElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable)),
       popups, writes: (window.__blockedWrites || []).length + (window.__sentWrites || []).length, errors, states, mutations: window.__uisweepMut || 0, noise: window.__uisweepNoise || 0 };
-  }, { rootSel, errors });
+  }, { rootSel, errors, popSel: POPUP_SEL });
 }
 
 async function watchMutations(page, ms) {
   // count mutations for `ms` with no input: that is the page's own background noise
   await page.evaluate(() => {
     if (!window.__uisweepObs) {
-      window.__uisweepObs = new MutationObserver((l) => { window.__uisweepMut = (window.__uisweepMut || 0) + l.length; });
+      window.__uisweepObs = new MutationObserver((l) => { window.__uisweepMut = (window.__uisweepMut || 0) + l.filter((m) => !(m.type === "attributes" && /^data-uisweep/.test(m.attributeName || ""))).length; });
       window.__uisweepObs.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     }
     window.__uisweepMut = 0;
@@ -77,10 +78,10 @@ async function restore(page, basePopups, baseUrl, surface, ctx) {
 
 /**
  * Crawl one surface. surface = { id, name, root, open(page, ctx), writes?, popupRoot? }.
- * opts: { vp, depth = 2, settleMs = 500, errors = [], maxControls = 150, axe = true }.
+ * opts: { vp, depth = 2, settleMs = 400, errors = [], maxControls = 80, axe = true }.
  * Returns report rows (report.mjs COLUMNS).
  */
-export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, settleMs = 500, errors = [], maxControls = 150, axe = true, ctx = {}, prefix = "" } = {}) {
+export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, settleMs = 400, errors = [], maxControls = 80, axe = true, ctx = {}, prefix = "" } = {}) {
   const touch = vp !== "desktop";
   const vpBox = page.viewportSize();
   await surface.open(page, ctx);
@@ -95,6 +96,14 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     const controls = await controlsIn(page, surface.root);
     const c = controls[i];
     if (!c) break;
+    // A long list of like options (search hits, a 49-slot picker): the first few say what the rest would.
+    const listy = (x) => x.role === "option" || /occ-search-row/.test(x.cls || "");
+    const sameKind = controls.filter((x, j) => j < i && listy(x) && x.role === c.role && x.cls === c.cls);
+    if (listy(c) && sameKind.length >= 6) { if (sameKind.length === 6) rows.push({ id: `${surface.id}${prefix}#${i}+`, surface: surface.name, control: `(${controls.filter((x) => listy(x) && x.cls === c.cls).length - 6} more like it, sampled)`, vp, works: "— sampled" }); continue; }
+    await page.$eval(`[data-uisweep-i="${i}"]`, (el) => el.scrollIntoView({ block: "nearest", inline: "nearest" })).catch(() => {});
+    await page.waitForTimeout(60);
+    const fresh = await page.$eval(`[data-uisweep-i="${i}"]`, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }).catch(() => c.rect);
+    c.rect = fresh;
     const row = { id: `${surface.id}${prefix}#${i}`, surface: surface.name, control: c.label, vp, works: "", reach: "", a11y: "", clear: "", fast: "", notes: "" };
     const reach = [];
     const onScreen = rectOnScreen(c.rect, vpBox);
@@ -104,14 +113,15 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     const jargon = jargonHits(c.label);
     if (jargon.length) row.clear = `⚠ jargon: ${jargon.join(", ")}`;
     if (!c.named) row.a11y = "✗ no accessible name";
-    if (DESTRUCTIVE.test(c.label) && !surface.writes) { row.works = "— skipped (destructive)"; row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅"; rows.push(row); continue; }
+    if ((DESTRUCTIVE.test(c.label) && !surface.writes) || surface.skipRe?.test(c.label)) { row.works = "— skipped (destructive)"; row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅"; rows.push(row); continue; }
 
     const handle = await page.$(`[data-uisweep-i="${i}"]`);
     if (!handle) { row.works = "⚠ vanished"; rows.push(row); continue; }
     if (c.hoverOnly) { await handle.evaluate((el) => el.parentElement?.scrollIntoView({ block: "center" })); const pr = await handle.evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.x + 4, y: r.y + r.height / 2 }; }); await page.mouse.move(pr.x, pr.y); await page.waitForTimeout(150); }
     const hit = await hitTarget(page, handle);
     if (!hit.ok) reach.push(hit.why);
-    await watchMutations(page, Math.min(400, settleMs));
+    await watchMutations(page, Math.min(250, settleMs));
+    await page.evaluate((sel) => { for (const e of document.querySelectorAll(sel)) e.setAttribute("data-uisweep-pre", "1"); }, POPUP_SEL);
     const before = await snapshot(page, surface.root, errors.length);
     let t0 = Date.now(), activated = true;
     try {
@@ -120,17 +130,19 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     } catch (e) { activated = false; reach.push(`could not activate: ${String(e.message).split("\n")[0].slice(0, 80)}`); }
     await page.waitForTimeout(settleMs);
     const after = await snapshot(page, surface.root, errors.length);
+    const newTag = `${surface.id}-${i}`.replace(/[^a-z0-9-]/gi, "_");
+    await page.evaluate(({ sel, tag }) => { for (const e of document.querySelectorAll(sel)) if (!e.hasAttribute("data-uisweep-pre") && !e.closest("[data-uisweep-pre]")) e.setAttribute("data-uisweep-new", tag); }, { sel: POPUP_SEL, tag: newTag });
     const outcome = activated ? classifyOutcome(before, after) : "unreachable";
     row.works = outcome === "nothing" ? "✗ nothing" : outcome === "error" ? `✗ error: ${errors[errors.length - 1]?.slice(0, 80)}` : outcome === "unreachable" ? "✗ unreachable" : `✅ ${outcome}`;
     row.fast = `${Date.now() - t0 - settleMs > 0 ? "" : ""}`;
     if (outcome === "opened" && axe) {
-      const a = await runAxe(page, '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu').catch(() => null);
+      const a = await runAxe(page, `[data-uisweep-new="${newTag}"]`).catch(() => null);
       if (a && (a.critical || a.serious)) row.a11y = `${row.a11y ? row.a11y + "; " : ""}✗ axe ${a.rules.map((r) => `${r.id}×${r.n}`).join(", ")}`;
-      const popRects = await page.evaluate(() => [...document.querySelectorAll('[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper] > *, .context-menu')].map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
+      const popRects = await page.evaluate((tag) => [...document.querySelectorAll(`[data-uisweep-new="${tag}"]`)].map((e) => { const el = e.matches("[data-radix-popper-content-wrapper]") ? (e.firstElementChild || e) : e; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }), newTag);
       for (const r of popRects) { const o = rectOnScreen(r, vpBox); if (!o.ok && r.width) { reach.push(`popup off screen ${o.offBy}px`); break; } }
       if (depth > 1) {
-        const sub = { id: `${surface.id}${prefix}#${i}`, name: `${surface.name} › ${c.label}`, root: '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu',
-          writes: surface.writes, open: async (p) => { if (!(await p.$(sub.root))) { await restore(p, basePopups, baseUrl, surface, ctx); const h = await p.$(`[data-uisweep-i="${i}"]`); if (h) await (touch ? h.tap() : h.click()).catch(() => {}); await p.waitForTimeout(settleMs); } } };
+        const sub = { id: `${surface.id}${prefix}#${i}`, name: `${surface.name} › ${c.label}`, root: `[data-uisweep-new="${newTag}"]`,
+          writes: surface.writes, open: async (p) => { if (!(await p.$(sub.root))) { await restore(p, basePopups, baseUrl, surface, ctx); await controlsIn(p, surface.root); await p.evaluate((sel) => { for (const e of document.querySelectorAll(sel)) e.setAttribute("data-uisweep-pre", "1"); }, POPUP_SEL); const h = await p.$(`[data-uisweep-i="${i}"]`); if (h) await (touch ? h.tap() : h.click()).catch(() => {}); await p.waitForTimeout(settleMs); await p.evaluate(({ sel, tag }) => { for (const e of document.querySelectorAll(sel)) if (!e.hasAttribute("data-uisweep-pre") && !e.closest("[data-uisweep-pre]")) e.setAttribute("data-uisweep-new", tag); }, { sel: POPUP_SEL, tag: newTag }); } } };
         rows.push(row);
         rows.push(...await crawlSurface(page, sub, { vp, depth: depth - 1, settleMs, errors, maxControls: 60, axe: false, ctx, prefix: "" }));
         const esc = await escapeCloses(page);
