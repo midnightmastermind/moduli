@@ -14,15 +14,25 @@ const field = (meta = {}) => ({ id: "fdone", type: "boolean", name: "Completed",
 
 describe("boolean field controls are named", () => {
   it("compact switch", () => {
-    const { getByRole } = mount(<Field field={field()} value={false} compact hostOccurrence={{ id: "o" }} />);
+    const { getByRole } = mount(<Field field={field()} value={false} compact hostOccurrence={{ id: "o" }} onCommit={() => {}} onChange={() => {}} />);
     expect(getByRole("switch", { name: "Completed" })).toBeTruthy();
   });
   it("full switch", () => {
-    const { getByRole } = mount(<Field field={field()} value={true} hostOccurrence={{ id: "o" }} />);
+    const { getByRole } = mount(<Field field={field()} value={true} hostOccurrence={{ id: "o" }} onCommit={() => {}} onChange={() => {}} />);
     expect(getByRole("switch", { name: "Completed" })).toBeTruthy();
   });
   it("full checkbox", () => {
-    const { getByRole } = mount(<Field field={field({ variant: "checkbox" })} value={false} hostOccurrence={{ id: "o" }} />);
+    const { getByRole } = mount(<Field field={field({ variant: "checkbox" })} value={false} hostOccurrence={{ id: "o" }} onCommit={() => {}} onChange={() => {}} />);
     expect(getByRole("checkbox", { name: "Completed" })).toBeTruthy();
+  });
+});
+
+import AutoMarquee from "../ui/AutoMarquee";
+describe("a field pill is findable by its field id", () => {
+  it("AutoMarquee stamps data-field-id when given one, and nothing otherwise", () => {
+    const a = render(<AutoMarquee dataFieldId="f9"><span>x</span></AutoMarquee>);
+    expect(a.container.querySelector('[data-field-id="f9"]')).toBeTruthy();
+    const b = render(<AutoMarquee><span>x</span></AutoMarquee>);
+    expect(b.container.querySelector("[data-field-id]")).toBeNull();
   });
 });

@@ -1989,7 +1989,7 @@ function Field({
           ${disabled ? "opacity-50" : ""}`}
           title={`${name}: ${isOn ? "on" : "off"}`}
         >
-          <Switch checked={isOn} disabled={disabled}
+          <Switch checked={isOn} disabled={disabled} aria-label={name || undefined}
             onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
           {!hideName && name && (
             <span className="field-pill-name" style={{ fontSize: FIELD_FONT, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: FIELD_FAMILY }}>
@@ -2431,13 +2431,13 @@ function Field({
         <div className="field-input field-input-boolean" style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {useSwitch ? (
             <>
-              <Switch checked={!!localValue} disabled={disabled}
+              <Switch checked={!!localValue} disabled={disabled} aria-label={name || undefined}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
               {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
             </>
           ) : (
             <>
-              <Checkbox checked={!!localValue} disabled={disabled}
+              <Checkbox checked={!!localValue} disabled={disabled} aria-label={name || undefined}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
               {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
             </>
@@ -2890,7 +2890,7 @@ function Field({
   if (type === "boolean") {
     return (
       <div className="field-display" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Switch checked={!!rawDisplayValue} disabled />
+        <Switch checked={!!rawDisplayValue} disabled aria-label={name || undefined} />
         {showLabel && <span style={{ fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), fontFamily: FIELD_FAMILY }}>{name}</span>}
       </div>
     );
