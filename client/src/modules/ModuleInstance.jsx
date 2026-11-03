@@ -464,8 +464,10 @@ function InstanceInner({
   // "instances shouldnt change at all" true by default while letting a page or
   // the grid opt its rows in — and makes a textblock (which reaches this same
   // path via renderBody) taggable.
+  // A row shown as a tile IN THE FILE VIEWER draws no fields (user 2026-11-03: "it opens up the full occurance (with all
+  // the fields), next to the video. it should just show the picture … no fields in the file viewer").
   const instanceFields = useMemo(() => {
-    if (!fieldsById) return [];
+    if (!fieldsById || inSpread) return [];
     return resolveOccurrenceFields({
       module: instance,
       fieldsById,
@@ -473,7 +475,7 @@ function InstanceInner({
       autoAppliedFieldIds,
       autoAppliedRoles: getAutoAppliedRoles(ctxGrid),
     });
-  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds, ctxGrid]);
+  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds, ctxGrid, inSpread]);
 
   // ── Media section ──────────────────────────────────────────────────────────
   // A field binding with role:"media" surfaces below the label + fields as an

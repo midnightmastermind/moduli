@@ -9592,7 +9592,9 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* The maximized player hides the tiles AFTER it (it is always the body's first child). A sibling selector, not
    `:has()`: `.artifact-spread-body--playing:has(> .spread-player-tile--max) > :not(...)` made every row a virtual
    list inserted restyle the whole body (~10,400 elements, ~370ms a scroll step on a phone — People, 2026-11-02). */
-.artifact-spread-body--playing > .spread-player-tile--max ~ :not(.spread-player-tile) { display: none; }
+/* !important: the container shell sets `display` INLINE, which beat this rule (2026-11-03: the poster stayed beside
+   the maximized player). */
+.artifact-spread-body--playing > .spread-player-tile--max ~ :not(.spread-player-tile) { display: none !important; }
 .artifact-spread-body--playing > .spread-player-tile--max { flex: 1 1 auto; min-height: 0; height: 100%; }
 .artifact-spread--mobile .artifact-spread-body--playing { flex-direction: column; }
 .artifact-spread--mobile .artifact-spread-body--playing > .spread-player-tile { min-height: 40vh; }

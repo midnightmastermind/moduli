@@ -29,7 +29,7 @@ describe("the maximized player hides the other tiles without :has()", () => {
     expect(css).not.toMatch(/artifact-spread-body--playing:has\(/);
   });
   it("the sibling rule hides what follows a maximized player", () => {
-    expect(css).toMatch(/\.artifact-spread-body--playing > \.spread-player-tile--max ~ :not\(\.spread-player-tile\) \{ display: none; \}/);
+    expect(css).toMatch(/\.artifact-spread-body--playing > \.spread-player-tile--max ~ :not\(\.spread-player-tile\) \{ display: none !important; \}/);
   });
 });
 
