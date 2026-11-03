@@ -22,6 +22,7 @@ import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
 import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { logCaretPointerDown } from "../../helpers/caretDiag";
+import { linkEditText, parseLinkEdit } from "../linkChipEdit.js";
 
 // Walk a TipTap doc and join its text nodes with a single space — preserves
 // readability without inserting paragraph breaks (this node is inline).
@@ -149,16 +150,38 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     });
   }, [occurrenceId]);
 
+  // A URL chip edits as one line, `text[link]` (docs/linkChipEdit). editingLinkRef says the content currently
+  // holds that form, so commit reads the address back and blur puts the plain label back on screen.
+  const editingLinkRef = useRef(false);
+  const onFocus = useCallback(() => {
+    if (!isUrl || !editable || !contentRef.current) return;
+    const line = linkEditText(storedText, link?.url);
+    contentRef.current.textContent = line;
+    setDraft(line);
+    editingLinkRef.current = true;
+  }, [isUrl, editable, storedText, link?.url]);
+
   const commit = useCallback(() => {
+    if (!occurrenceId || !dispatch || !socket) return;
+    if (editingLinkRef.current) {
+      editingLinkRef.current = false;
+      const { label, url } = parseLinkEdit(draft, link?.url);
+      if (contentRef.current) contentRef.current.textContent = label || url || "link";
+      const urlChanged = url !== (link?.url || "");
+      if (label === storedText && !urlChanged) return;
+      const occurrence = { id: occurrenceId, textmap: textToTextmap(label) };
+      if (urlChanged) occurrence.meta = { ...(occurrencesById?.[occurrenceId]?.meta || {}), link: { ...link, url } };
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence, emit: true });
+      return;
+    }
     const nextText = (draft || "").trim();
     if (nextText === storedText) return;
-    if (!occurrenceId || !dispatch || !socket) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrenceId, textmap: textToTextmap(nextText) },
       emit: true,
     });
-  }, [draft, storedText, occurrenceId, dispatch, socket]);
+  }, [draft, storedText, occurrenceId, dispatch, socket, link, occurrencesById]);
 
   // FIREFOX refuses native caret placement in an editable that has ANY
   // draggable="true" ANCESTOR (instance-wrap / container-shell / page-shell —
@@ -189,6 +212,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     }
     else if (e.key === "Escape") {
       e.preventDefault();
+      editingLinkRef.current = false;
       if (contentRef.current) contentRef.current.textContent = storedText;
       setDraft(storedText);
       contentRef.current?.blur();
@@ -329,6 +353,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         }}
         onClick={placeCaretFromPoint}
         onInput={(e) => setDraft(e.currentTarget.textContent || "")}
+        onFocus={onFocus}
         onBlur={commit}
         onKeyDown={onKeyDown}
       />
