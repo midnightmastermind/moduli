@@ -146,7 +146,7 @@ function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
           <PillValue>{text}</PillValue>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+      <PopoverContent aria-label={name || undefined} className="w-auto p-0" align="start" side="bottom">
         <WhenPicker value={isWhen(value) ? value : null}
           onSave={(v) => { onCommit(v); setOpen(false); }}
           onClear={() => { onCommit(null); setOpen(false); }}
@@ -593,7 +593,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
               <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-56 p-0" align="start">
+          <PopoverContent aria-label={name || undefined} className="w-56 p-0" align="start">
             <OptionSearchList
               options={options}
               selected={selected}
@@ -2043,7 +2043,7 @@ function Field({
               <ChevronDown className="w-2.5 h-2.5 opacity-50" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-40 p-1" align="start" side="bottom">
+          <PopoverContent aria-label={name || undefined} className="w-40 p-1" align="start" side="bottom">
             {displayOpts.map(o => (
               <SelectOptionRow key={o.value} selected={localValue === o.value}
                 onClick={() => { const v = togglePick(localValue, o.value); handleChange(v); onCommit?.(v); setSelectOpen(false); }}>
@@ -2199,7 +2199,7 @@ function Field({
               option list under a type-a-value row, so the search — local AND
               provider — reached the 15 multi-select occurrence fields and none
               of the 33 single ones. */}
-          <PopoverContent className="w-56 p-0" align="start" side="bottom">
+          <PopoverContent aria-label={name || undefined} className="w-56 p-0" align="start" side="bottom">
             <OptionSearchList
               options={options}
               selected={localValue ? [localValue] : []}
@@ -2498,7 +2498,7 @@ function Field({
                     <ChevronDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="p-2" align="start" style={{ minWidth: 160, maxHeight: 280, overflowY: "auto" }}>
+                <PopoverContent aria-label={name || undefined} className="p-2" align="start" style={{ minWidth: 160, maxHeight: 280, overflowY: "auto" }}>
                   {options.length > 10 && (
                     <input
                       autoFocus
@@ -2658,7 +2658,7 @@ function Field({
                 <ChevronDown style={{ width: 12, height: 12, opacity: 0.5, flexShrink: 0 }} />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start" side="bottom">
+            <PopoverContent aria-label={name || undefined} className="w-72 p-0" align="start" side="bottom">
               <OptionSearchList
                 options={options}
                 selected={localValue ? [localValue] : []}

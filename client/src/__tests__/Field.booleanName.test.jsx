@@ -66,3 +66,19 @@ describe("a picked address shows on the row", () => {
     expect(container.textContent).not.toMatch(/Set an address/);
   });
 });
+
+import { fireEvent, screen } from "@testing-library/react";
+describe("a field's popover names itself after the field", () => {
+  const commit = { onCommit: () => {}, onChange: () => {}, hostOccurrence: { id: "o" } };
+  it("the when picker", () => {
+    const { getByTestId } = mount(<Field field={{ id: "fw", type: "when", name: "Schedule", inputEnabled: true, meta: {} }} value={null} compact {...commit} />);
+    fireEvent.click(getByTestId("when-pill"));
+    expect(screen.getByRole("dialog", { name: "Schedule" })).toBeTruthy();
+  });
+  it("a single select's list", () => {
+    const fld = { id: "fs", type: "select", name: "Gender", inputEnabled: true, meta: { optionsSource: { mode: "manual", values: ["a", "b"] } } };
+    const { container } = mount(<Field field={fld} value={null} compact options={[{ value: "a", label: "a" }, { value: "b", label: "b" }]} {...commit} />);
+    fireEvent.click(container.querySelector("button"));
+    expect(screen.getByRole("dialog", { name: "Gender" })).toBeTruthy();
+  });
+});
