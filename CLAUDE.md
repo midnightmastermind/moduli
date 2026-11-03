@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-02 (7) — A PHONE PAGES ROWS × COLS, NEVER THE DESKTOP MOSAIC; scroll numbers for every long board
+
+User: *"the mosaic isnt working on mobile with the track and the new layouts. we should only keep the non mosaic mode
+for mobile, so it shouldnt share the same layout as desktop."* Measured on prod (poms grid, 390x844): the phone drew the
+desktop split tree (`treeToCells`) — panels at desktop proportions (744px wide on a 390px screen) and moving down from
+Tasks landed on nothing. Now a mosaic grid on a phone takes the plain rows × cols path (`MobileGridNav` + `GridRender`).
+**`helpers/phoneCells.js`**: a mosaic does not keep `placement` up — poms grid's two "Board 5" panels sat on Panel A's
+and Panel C's cells, which rows × cols reads as STACKS — so each panel gets a cell of its own: its placement when in
+bounds and free (grid order), else the next free cell, adding rows. Display only, nothing written; rows × cols grids are
+untouched (a shared cell there is a deliberate stack). The toolbar mini map reads the same shape
+(`activeCellStore.publishPhoneShape`). `MosaicMobileNav` and `bspTree.treeToCells` (+ its test) removed. Watched on
+prod: Routines | Tasks (2 tall) / Trackers / Schedule, every rail move lands on one full-screen panel.
+**Scroll, the other account's open item** (`_mboard2.mjs`: point Panel A at the board, 40 x 400px steps, 4x CPU, prod):
+People 4.8s · Movies 5.5s · Songs 5.6s · Books 5.8s (126-153ms/step) · **People Table 24.4s (590ms/step, worst 1.1s)** —
+the table is the next lever. Panel A put back on Routines after every run.
+
+---
+
 ### 2026-11-02 (6) — PHONE: one pill size; select filters filter; search and People scroll measured and fixed
 
 User, in a row: mobile fields all different sizes · select inputs don't close · select-field filters don't filter and
