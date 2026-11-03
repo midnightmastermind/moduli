@@ -72,7 +72,7 @@ import {
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
-import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getInheritedLocalFilterConditions } from "../state/selectors";
 
 // Kind icon mapping — now delegates to the shared helpers/moduleIcons.js
 // helper. Kept as a thin re-export to avoid churn on the consumer that
@@ -255,10 +255,10 @@ function Page({
   // actually drive child visibility.
   const pageActiveFilterConditions = useMemo(() => {
     const gridConds = pageActiveNamedFilter?.conditions || [];
-    const localConds = getLocalFilterConditions(occurrence);
+    const localConds = getInheritedLocalFilterConditions(occurrence, { occurrencesById: getOccMap() });
     if (!gridConds.length && !localConds.length) return null;
     return [...gridConds, ...localConds];
-  }, [pageActiveNamedFilter, occurrence]);
+  }, [pageActiveNamedFilter, occurrence, getOccMap]);
 
   // Child occurrences for folder pages.
   // Includes: (1) page/doc occurrences with parentId = this folder

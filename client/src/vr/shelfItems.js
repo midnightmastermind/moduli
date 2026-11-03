@@ -249,9 +249,17 @@ export function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) 
       id: f?.occ?.id || o.id, rowId: o.id,
       title: (occurrenceDisplayLabel(o, mod) || "").trim() || "Episode",
       cover: coverUrl(o, mod, null) || showCover,
-      fileId: f?.occ?.id || null, fileKind: f ? "video" : null, src: ref ? resolveFileRef(ref) : null,
+      fileId: f?.occ?.id || null, fileKind: f ? "video" : null, src: ref ? resolveFileRef(ref) : watchSrc(o),
     };
   });
+}
+
+/**
+ * A tape for a row Jellyfin streams (it has no video file in Moduli): `watch:<rowId>`. A VHS player plays it by
+ * loading `?read=<rowId>` on its screen, which plays through the app's Jellyfin player (user, 2026-11-03).
+ */
+export function watchSrc(occ) {
+  return occ?.meta?.jellyfinId ? `watch:${occ.id}` : null;
 }
 
 export function bookmarkUrl(occ, mod) {
@@ -290,7 +298,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : null,
+      src: file?.ref ? resolveFileRef(file.ref) : (shelf.asset === "vhs" ? watchSrc(occ) : null),
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.

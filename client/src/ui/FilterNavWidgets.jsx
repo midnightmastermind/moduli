@@ -1,5 +1,6 @@
 // client/src/ui/FilterNavWidgets.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { startTransition, useEffect, useRef, useState } from "react";
+import { afterPaint } from "../helpers/afterPaint";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { OptionSearchList } from "./Field.jsx";
@@ -291,11 +292,13 @@ function SelectWidget({ filter, value, options, dispatch, onNav }) {
 
 // ── A SELECT FIELD'S FILTER IS A MULTI-PICK (user 2026-11-02: "the nav should be a multiselect for it and not a bunch
 // of buttons"). One dropdown button that says what is picked; the list is the same searchable list the field pills
-// open. The value is a LIST of picks (null when none) — state/selectors matches a row sharing ANY of them.
+// open. The value is a LIST of picks — state/selectors matches a row sharing ANY of them. NONE picked is `[]`, never
+// null: a null override is the filter switched OFF at this level (it cascades down as "inactive"), and un-picking the
+// last value is not that (user, 2026-11-03: "selecting none is auto turning off the filter … it makes it inactive").
+// An empty list shows every row and leaves the filter on.
 export function togglePick(value, pick) {
   const cur = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
-  const next = cur.includes(pick) ? cur.filter((v) => v !== pick) : [...cur, pick];
-  return next.length ? next : null;
+  return cur.includes(pick) ? cur.filter((v) => v !== pick) : [...cur, pick];
 }
 
 export function pickSummary(value, labels = {}) {
@@ -309,7 +312,19 @@ function MultiPickWidget({ filter, value, options, dispatch, onNav }) {
   const write = makeWriter(filter, onNav, dispatch);
   const [open, setOpen] = useState(false);
   const labels = Object.fromEntries((options || []).map((o) => [o.value, o.label]));
-  const selected = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
+  const stored = value == null || value === "" ? [] : Array.isArray(value) ? value : [value];
+  // THE BOX TICKS ON THE CLICK (user, 2026-11-03: "its like 1 or 2 seconds for the checkbox to recognize the click").
+  // The write re-filters every board under this filter, which on a 1,000-row board is the 1-2s. So the picks shown
+  // here are this widget's own, updated at once, and the write follows after the tick has painted (a transition, so
+  // a second click is not held behind the first one's re-filter). They follow the stored value when it changes.
+  const [local, setLocal] = useState(stored);
+  const storedKey = JSON.stringify(stored);
+  useEffect(() => { setLocal(stored); }, [storedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const selected = local;
+  const pick = (next) => {
+    setLocal(next);
+    afterPaint(() => startTransition(() => write(next)));
+  };
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -326,10 +341,10 @@ function MultiPickWidget({ filter, value, options, dispatch, onNav }) {
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start" side="bottom">
         <OptionSearchList options={options || []} selected={selected} multi
-          onPick={(v) => write(togglePick(selected, v))}
+          onPick={(v) => pick(togglePick(selected, v))}
           searchPlaceholder={(options || []).length > 8 ? "Search…" : null} />
         {selected.length > 0 && (
-          <button type="button" onClick={() => { write(null); setOpen(false); }}
+          <button type="button" onClick={() => { pick([]); setOpen(false); }}
             style={{ width: "100%", padding: "6px 8px", fontSize: 12, borderTop: "1px solid var(--panel-border, #374151)", background: "transparent", color: "inherit", cursor: "pointer", textAlign: "left" }}>
             Clear ({selected.length})
           </button>

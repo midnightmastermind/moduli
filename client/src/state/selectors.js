@@ -732,6 +732,37 @@ export function getLocalFilterConditions(occ) {
   return out;
 }
 
+/**
+ * The local filters that apply to `occ`'s children: its own, and those DECLARED on any page or container above it
+ * (user, 2026-11-03: "i have relationship acquaintance set and it still shows friends on the people board"). The
+ * People PAGE declares Relationship and its menu lets the container under it pick a value — which the cascade carries
+ * — but only the container's OWN declarations were ever evaluated, so the pick changed nothing on screen.
+ * Nearest declaration per field wins, so a level can switch an inherited filter off (`active: false`). Values still come
+ * from the filter cascade (`effectiveFilters`); an inherited filter with no value anywhere is skipped as before.
+ */
+export function getInheritedLocalFilterConditions(occ, { occurrencesById, parentByChildId } = {}) {
+  if (!occ) return [];
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
+  const decided = new Set();
+  const out = [];
+  const guard = new Set();
+  let cur = occ;
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    for (const f of (cur.filters || [])) {
+      const key = f?.condition != null ? `cond:${f.id}` : f?.fieldId;
+      if (!key || decided.has(key)) continue;
+      decided.add(key);
+      if (!f.active) continue;
+      if (f.condition != null) { if (f.hides === true && cur === occ) out.push(f.condition); continue; }
+      out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS", ...(f.hideEmpty ? { hideEmpty: true } : null) });
+    }
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
+  }
+  return out;
+}
+
 export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
   if (!occurrence) return false;
   if (occurrence.hidden) return false;
@@ -761,7 +792,8 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
         // album with no artist must not show under every artist (user, 2026-10-26). Without it, persistent.
         if (cond.hideEmpty) {
           const rv = cond.value !== undefined && cond.value !== null && cond.value !== "" ? cond.value : effectiveFilters?.[fieldId];
-          if (rv != null && rv !== "" && !(typeof rv === "object" && !Array.isArray(rv) && rv.value == null && !rv.dates?.length)) return false;
+          // An empty pick list is "nothing picked": no filter, so blanks stay.
+          if (rv != null && rv !== "" && !(Array.isArray(rv) && !rv.length) && !(typeof rv === "object" && !Array.isArray(rv) && rv.value == null && !rv.dates?.length)) return false;
         }
         continue;
       }
@@ -846,7 +878,10 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
         continue;
       }
       const hasPeriod = !!rightVal && typeof rightVal === "object" && !Array.isArray(rightVal);
-      const comparator = hasPeriod ? "DATE_IN_PERIOD" : cmpName;
+      // A date against a date is compared by DAY: "2026-11-03" is the same day as "2026-11-03T15:00:00Z", which an
+      // exact IS never matched (a local date filter is IS; the nav writes a bare day).
+      const isDay = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
+      const comparator = hasPeriod ? "DATE_IN_PERIOD" : (cmpName === "IS" && isDay(leftVal) && isDay(rightVal) ? "SAME_DAY" : cmpName);
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;
     }
@@ -858,6 +893,7 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
 
   for (const [fieldId, required] of Object.entries(effectiveFilters)) {
     if (required === null || required === undefined) continue;
+    if (Array.isArray(required) && !required.length) continue; // nothing picked: no filter
     const fieldVal = occurrence.fields?.[fieldId];
     // No value for this field → treat as persistent (always pass)
     if (fieldVal == null) continue;

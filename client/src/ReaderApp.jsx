@@ -17,6 +17,8 @@ import {
 } from "./state/actions";
 import { PagePreviewBody } from "./PagePreviewApp.jsx";
 import BookReader from "./modules/BookReader.jsx";
+import JellyfinPlayer from "./ui/JellyfinPlayer.jsx";
+import { isPlayableRow } from "./helpers/jellyfinPlay.js";
 import { sessionHeaders } from "./helpers/authStorage";
 import { resolveFileRef } from "./helpers/fileRef";
 import { useTheme } from "./helpers/useTheme";
@@ -256,6 +258,13 @@ function ReaderBody({ initial, occurrenceId }) {
   const bookmarkUrl = mod?.kind === "bookmark" ? (occ?.meta?.url || mod.fileRef || "") : "";
   useEffect(() => { if (/^https?:\/\//i.test(bookmarkUrl)) window.location.replace(bookmarkUrl); }, [bookmarkUrl]);
   if (bookmarkUrl) return <div style={{ ...fill, display: "grid", placeItems: "center", opacity: 0.6 }}>Opening {bookmarkUrl}…</div>;
+  // A movie / episode / documentary Jellyfin streams plays here (user, 2026-11-03: "i cant play any video in the vr app,
+  // it opens the file viewer or just the artifact, with no play button"). The app's player lives in the file viewer,
+  // which a headset window does not mount.
+  if (isPlayableRow(occ)) {
+    return <ReaderPlayer occurrence={occ} label={occ.label || mod?.label || ""} gridId={state.gridId}
+      getOcc={(id) => (ref.current.occurrences || []).find((o) => o.id === id) || null} dispatch={dispatch} socket={live} />;
+  }
   if (mod?.role === "artifact" && BOOK_KINDS.has(mod.kind) && mod.fileRef) {
     return (
       <div style={{ ...fill, display: "flex", flexDirection: "column" }}>
@@ -275,5 +284,33 @@ function ReaderBody({ initial, occurrenceId }) {
         <ChoiceDialogHost />
       </div>
     </DragProvider>
+  );
+}
+
+/** The Jellyfin player filling a headset window. The grid's fields are read once: marking a film watched writes its
+ *  Last Watched / Watched At, which the row itself may not carry yet. */
+export function ReaderPlayer({ occurrence, label, gridId, getOcc, dispatch, socket }) {
+  const [fields, setFields] = useState(null);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/v1/fields?gridId=${encodeURIComponent(gridId || "")}&limit=2000`, { headers: sessionHeaders() })
+      .then((r) => (r.ok ? r.json() : { fields: [] }))
+      .then((j) => { if (live) setFields(Object.fromEntries((j.fields || []).map((f) => [f.id, f]))); })
+      .catch(() => { if (live) setFields({}); });
+    return () => { live = false; };
+  }, [gridId]);
+  // On a VHS player's screen (`&screen=<key>`) closing hands the screen back to the headset; in its own window it closes.
+  const closePlayer = () => {
+    const screen = new URLSearchParams(window.location.search).get("screen");
+    try {
+      if (screen && window.ModuliNative?.postMessage) window.ModuliNative.postMessage(JSON.stringify({ type: "stopVideo", key: screen }));
+      else window.close();
+    } catch { /* the headset closes its own windows */ }
+  };
+  return (
+    <div data-testid="reader-player" style={{ ...fill, background: "#000", display: "flex", flexDirection: "column" }}>
+      <JellyfinPlayer occurrenceId={occurrence.id} label={label} getOcc={getOcc} getFieldMap={() => fields || {}}
+        dispatch={dispatch} socket={socket} onClose={closePlayer} />
+    </div>
   );
 }

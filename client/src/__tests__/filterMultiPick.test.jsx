@@ -1,7 +1,7 @@
 // __tests__/filterMultiPick.test.jsx
 // User 2026-11-02: a select field's filter nav "should be a multiselect for it and not a bunch of buttons".
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import FilterNavWidget, { defaultStyleForFilter, togglePick, pickSummary } from "../ui/FilterNavWidgets.jsx";
 import { formatFilterValue } from "../ui/HeaderChevron.jsx";
 
@@ -22,7 +22,8 @@ describe("select-field filters are a multi-pick", () => {
     expect(togglePick(null, "social")).toEqual(["social"]);
     expect(togglePick(["social"], "media")).toEqual(["social", "media"]);
     expect(togglePick("social", "media")).toEqual(["social", "media"]); // an old single value counts as one pick
-    expect(togglePick(["social"], "social")).toBe(null);
+    // Un-picking the last value leaves an EMPTY list, not null: null switches the filter off (user, 2026-11-03).
+    expect(togglePick(["social"], "social")).toEqual([]);
   });
 
   it("the button says what is picked", () => {
@@ -44,5 +45,15 @@ describe("select-field filters are a multi-pick", () => {
     expect(formatFilterValue("S", ["social", "media"], fieldsById)).toBe("social, media");
     expect(formatFilterValue("S", ["a", "b", "c"], fieldsById)).toBe("3 selected");
     expect(formatFilterValue("S", [], fieldsById)).toBe(null);
+  });
+
+  it("a pick shows on the button at once; the write waits for the paint", async () => {
+    const onNav = vi.fn();
+    render(<FilterNavWidget filter={{ id: "f", fieldId: "S", style: "pills" }} value={[]} fieldsById={fieldsById} dispatch={() => {}} onNav={onNav} />);
+    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(await screen.findByText("social"));
+    expect(document.querySelector(".filter-multipick-btn").textContent).toContain("social");
+    expect(onNav).not.toHaveBeenCalled();
+    await waitFor(() => expect(onNav).toHaveBeenCalled());
   });
 });

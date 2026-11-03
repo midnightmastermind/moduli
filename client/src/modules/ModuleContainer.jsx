@@ -44,7 +44,7 @@ import {
 import { resolveContainerStyle, styleToCSS, SURFACE_ALPHA, getActiveSkin, withSurfaceAlpha } from "../helpers/StyleHelpers";
 import { remapToPalette } from "../helpers/skinPalettes";
 import { lightenHex } from "../helpers/colorHelpers.js";
-import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getInheritedLocalFilterConditions } from "../state/selectors";
 import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
@@ -902,10 +902,11 @@ function Container({
   // Time Slot select on the schedule page is the driving example).
   const activeFilterConditions = useMemo(() => {
     const gridConds = activeNamedFilter?.conditions || [];
-    const localConds = getLocalFilterConditions(containerOccurrence);
+    // Its own local filters AND those declared on a page / container above it (state/selectors).
+    const localConds = getInheritedLocalFilterConditions(containerOccurrence, { occurrencesById: getOccMap() });
     if (!gridConds.length && !localConds.length) return null;
     return [...gridConds, ...localConds];
-  }, [activeNamedFilter, containerOccurrence]);
+  }, [activeNamedFilter, containerOccurrence, getOccMap]);
 
   const itemsWithOccurrences = useMemo(
     () => allItemsWithOccurrences.filter(item => isOccurrenceVisible(item.occurrence, effectiveFilters, activeFilterConditions)),
@@ -921,7 +922,7 @@ function Container({
     const conditions = activeFilterConditions
       ? [
           ...(activeNamedFilter?.conditions || []).map(c => ({ ...c, __filterName: activeNamedFilter?.name || null })),
-          ...getLocalFilterConditions(containerOccurrence).map(c => ({ ...c, __filterName: null })),
+          ...getInheritedLocalFilterConditions(containerOccurrence, { occurrencesById: getOccMap() }).map(c => ({ ...c, __filterName: null })),
         ]
       : null;
     return filterHiddenHint({

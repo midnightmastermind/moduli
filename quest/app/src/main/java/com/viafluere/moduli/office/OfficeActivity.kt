@@ -1543,7 +1543,12 @@ class OfficeActivity : AppSystemActivity() {
       return
     }
     screen.videoPlaying = true
-    showOnPanel(screen, PanelHtml.video(title, src, screen.key))
+    // A film Jellyfin streams has no file: its tape is `watch:<row>` and the screen loads the row's page, which plays
+    // it through the app's player (resume, progress, watched). Stopping reloads the screen's own page.
+    if (src.startsWith("watch:")) {
+      val row = src.removePrefix("watch:")
+      screen.web?.loadUrl("$origin/?read=${Uri.encode(row)}&screen=${Uri.encode(screen.key)}")
+    } else showOnPanel(screen, PanelHtml.video(title, src, screen.key))
     showOnPanel(player, PanelHtml.playerCard(title, "", player.key, "Playing on the screen"))
     Log.i(TAG, "playing $title on ${screen.key}")
   }

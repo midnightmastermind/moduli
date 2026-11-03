@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Menu, X, Undo2, RotateCw } from "lucide-react";
+import { Terminal, Plus, LogOut, UserCog, Menu, X, Undo2, RotateCw } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import OpActivityPill from "./ui/OpActivityPill.jsx";
@@ -30,7 +30,7 @@ import { operationsBridge } from "./state/bindSocketToStore";
 import { planFollowingPages } from "./helpers/filterFollow";
 import { pruneOrphanFilterValues } from "./helpers/activePeriod";
 import * as CommitHelpers from "./helpers/CommitHelpers";
-import { useActiveCell, useZoomedOut, setZoomedOut, usePhoneShape } from "./state/activeCellStore";
+import { useActiveCell, useZoomedOut, usePhoneShape } from "./state/activeCellStore";
 
 export default function Toolbar({
   gridId,
@@ -81,7 +81,7 @@ export default function Toolbar({
     return () => ro.disconnect();
   }, [isMobileLayout]);
   const zoomedOut = useZoomedOut();
-  const [toolbarVisible, setToolbarVisible] = useState(true);
+  // No "hide toolbar" (user, 2026-11-03): a phone had no way to bring it back.
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -161,22 +161,6 @@ const gridOptions = useMemo(
   const avatarChar = accountLabel ? String(accountLabel).charAt(0).toUpperCase() : "?";
 
 
-  if (!toolbarVisible) {
-    return (
-      <div
-        data-testid="toolbar"
-        className="fixed top-1.5 left-1.5 z-[999] flex items-center justify-center"
-      >
-        <button
-          title="Show toolbar"
-          onClick={() => setToolbarVisible(true)}
-          className="h-7 w-7 rounded-md flex items-center justify-center bg-background/80 border border-border-default text-text-muted hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <Eye className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    );
-  }
 
   // The toolbar date nav. On a phone it lives in the side drawer with the filters (user, 2026-11-02:
   // "move things like filter from the toolbar into the side menu"). It must not disappear: before
@@ -397,18 +381,9 @@ const gridOptions = useMemo(
             </>
           )}
 
-          {/* Desktop-only: Hide toolbar + Account */}
+          {/* Desktop-only: clock + Account */}
           {!isMobileLayout && (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setToolbarVisible(false)}
-                title="Hide toolbar"
-                style={{ height: 26, width: 26, padding: 0, opacity: 0.45 }}
-              >
-                <EyeOff className="h-3 w-3" />
-              </Button>
 
               <ToolbarClock />
               <Popover open={accountOpen} onOpenChange={setAccountOpen}>
@@ -602,18 +577,6 @@ const gridOptions = useMemo(
               </button>
             )}
 
-            {/* Hide toolbar */}
-            <button
-              onClick={() => { setToolbarVisible(false); setDrawerOpen(false); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 4px",
-                background: "none", border: "none", color: "var(--text-primary)", cursor: "pointer",
-                fontSize: 12, fontFamily: "var(--font-mono)",
-              }}
-            >
-              <EyeOff size={14} style={{ opacity: 0.7 }} />
-              Hide Toolbar
-            </button>
 
             <div style={{ flex: 1 }} />
 

@@ -6,7 +6,7 @@
 // its parent's the same way, up to the page. A row inside a day column the date hides is hidden,
 // however well the row itself matches — so the walk does not stop at the first level.
 import { cachedParentMap } from "./dragHitTesting.js";
-import { makeEffectiveFilterResolver, getLocalFilterConditions, isOccurrenceVisible } from "../state/selectors.js";
+import { makeEffectiveFilterResolver, getInheritedLocalFilterConditions, isOccurrenceVisible } from "../state/selectors.js";
 
 export function makeFilterKeeper({ grid, occurrencesById = {}, modulesById = {} } = {}) {
   const pbc = cachedParentMap(occurrencesById);
@@ -31,7 +31,7 @@ export function makeFilterKeeper({ grid, occurrencesById = {}, modulesById = {} 
       else {
         const prole = roleOf(parent);
         if (prole === "container" || prole === "page") {
-          const local = getLocalFilterConditions(parent);
+          const local = getInheritedLocalFilterConditions(parent, { occurrencesById, parentByChildId: pbc });
           const conds = gridConds.length || local.length ? [...gridConds, ...local] : null;
           ok = isOccurrenceVisible(occ, eff(parent), conds) && keep(pid, guard);
         } else ok = keep(pid, guard);

@@ -1295,9 +1295,12 @@ function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
       cover: coverUrl(o, mod, null) || showCover,
       fileId: f?.occ?.id || null,
       fileKind: f ? "video" : null,
-      src: ref ? resolveFileRef(ref) : null
+      src: ref ? resolveFileRef(ref) : watchSrc(o)
     };
   });
+}
+function watchSrc(occ) {
+  return occ?.meta?.jellyfinId ? `watch:${occ.id}` : null;
 }
 function bookmarkUrl(occ, mod) {
   if (mod?.kind !== "bookmark") return null;
@@ -1331,7 +1334,7 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : null,
+      src: file?.ref ? resolveFileRef(file.ref) : shelf.asset === "vhs" ? watchSrc(occ) : null,
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
