@@ -483,8 +483,10 @@ export function OptionSearchList({
           ? <div className="py-4 text-center text-xs text-muted-foreground">{newValue.trim() ? "No matches" : emptyText}</div>
           : sections.local.map(o => (
               <button key={o.value} type="button" onClick={() => onPick?.(o.value)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors
-                  ${selected.includes(o.value) ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>
+                role="option" aria-selected={selected.includes(o.value)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors hover:bg-muted
+                  ${selected.includes(o.value) ? "font-semibold" : ""}`}>
+                {!multi && <span className="w-3 flex-shrink-0 inline-flex justify-center" aria-hidden="true">{selected.includes(o.value) && <Check className="h-3 w-3" />}</span>}
                 {multi && (
                   <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
                     ${selected.includes(o.value) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
@@ -1170,6 +1172,23 @@ function ButtonFieldControl({ field, hostOccurrence, compact, disabled, operatio
     >
       {busy ? <Loader2 className="animate-spin" style={{ width: 9, height: 9 }} /> : <Play style={{ width: 9, height: 9 }} />}
       {buttonLabel}
+    </button>
+  );
+}
+
+// ONE row for every single-pick option list (user, 2026-11-03: "i currently cannot turn off selected choices … and all
+// the other select inputs are hover highlighting any of the selections"). The chosen option carries a ✓ and bold
+// text — a background alone read the same as hover in the Terminal skin, where accent and muted are one colour — and
+// picking the chosen option again clears it.
+export const togglePick = (current, picked) => (current === picked ? null : picked);
+
+export function SelectOptionRow({ selected, onClick, children, className = "py-1" }) {
+  return (
+    <button type="button" role="option" aria-selected={!!selected} onClick={onClick}
+      title={selected ? "Selected — click to clear" : undefined}
+      className={`w-full flex items-center gap-1.5 px-2 ${className} rounded text-xs text-left transition-colors hover:bg-muted ${selected ? "font-semibold" : ""}`}>
+      <span className="w-3 flex-shrink-0 inline-flex justify-center" aria-hidden="true">{selected && <Check className="h-3 w-3" />}</span>
+      <span className="truncate">{children}</span>
     </button>
   );
 }
@@ -2017,13 +2036,10 @@ function Field({
           </PopoverTrigger>
           <PopoverContent className="w-40 p-1" align="start" side="bottom">
             {displayOpts.map(o => (
-              <button key={o.value} type="button"
-                onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectOpen(false); }}
-                className={`w-full flex items-center px-2 py-1 rounded text-xs transition-colors
-                  ${localValue === o.value ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
-              >
+              <SelectOptionRow key={o.value} selected={localValue === o.value}
+                onClick={() => { const v = togglePick(localValue, o.value); handleChange(v); onCommit?.(v); setSelectOpen(false); }}>
                 {o.label}
-              </button>
+              </SelectOptionRow>
             ))}
           </PopoverContent>
         </Popover>
@@ -2177,7 +2193,7 @@ function Field({
             <OptionSearchList
               options={options}
               selected={localValue ? [localValue] : []}
-              onPick={(v) => { handleChange(v); onCommit?.(v); setSelectOpen(false); }}
+              onPick={(v) => { const next = togglePick(localValue, v); handleChange(next); onCommit?.(next); setSelectOpen(false); }}
               onAddOption={occAddNewFn}
               addNewTargets={addNewTargetOptions}
               searchProvider={occSearchProvider}
@@ -2490,13 +2506,10 @@ function Field({
                     </div>
                   ) : (
                     filteredOpts.map(o => (
-                      <button key={String(o.value)} type="button"
-                        onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectQuery(""); setSelectOpen(false); }}
-                        className={`w-full flex items-center px-2 py-1 rounded text-xs transition-colors
-                          ${localValue === o.value ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
-                      >
+                      <SelectOptionRow key={String(o.value)} selected={localValue === o.value}
+                        onClick={() => { const v = togglePick(localValue, o.value); handleChange(v); onCommit?.(v); setSelectQuery(""); setSelectOpen(false); }}>
                         {o.label}
-                      </button>
+                      </SelectOptionRow>
                     ))
                   )}
                 </PopoverContent>
@@ -2635,7 +2648,7 @@ function Field({
               <OptionSearchList
                 options={options}
                 selected={localValue ? [localValue] : []}
-                onPick={(v) => { handleChange(v); onCommit?.(v); setSelectOpen(false); }}
+                onPick={(v) => { const next = togglePick(localValue, v); handleChange(next); onCommit?.(next); setSelectOpen(false); }}
                 onAddOption={occAddNewFn}
                 addNewTargets={addNewTargetOptions}
                 searchProvider={occSearchProvider}

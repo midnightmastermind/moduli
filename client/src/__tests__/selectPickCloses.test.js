@@ -18,9 +18,10 @@ describe("a select pill closes when you pick", () => {
 
   it("the compact single picks close the popover", () => {
     // plain select option button
-    expect(src).toMatch(/onClick=\{\(\) => \{ handleChange\(o\.value\); onCommit\?\.\(o\.value\); setSelectOpen\(false\); \}\}/);
+    // (a pick of the chosen option clears it — togglePick, 2026-11-03 — and still closes)
+    expect(src).toMatch(/onClick=\{\(\) => \{ const v = togglePick\(localValue, o\.value\); handleChange\(v\); onCommit\?\.\(v\); setSelectOpen\(false\); \}\}/);
     // single occurrence pick (compact AND full)
-    const closes = src.match(/onPick=\{\(v\) => \{ handleChange\(v\); onCommit\?\.\(v\); setSelectOpen\(false\); \}\}/g) || [];
+    const closes = src.match(/onPick=\{\(v\) => \{ const next = togglePick\(localValue, v\); handleChange\(next\); onCommit\?\.\(next\); setSelectOpen\(false\); \}\}/g) || [];
     expect(closes.length).toBe(2);
   });
 });
