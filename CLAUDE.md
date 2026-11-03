@@ -15,6 +15,24 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-03 (3) — A ROW'S NOTES ARE ITS OWN DOC AGAIN (`0485`); the DVD shelf had no query
+
+User: *"the notes editor should be autocreating textblocks there, just like a doc"* · *"the dvd shelf … only gives me
+the "setup" message on it"*.
+- **Notes:** `0212` pointed every row's notes drawer at the `Notes` text FIELD (`grid.meta.instanceBodyLink`), and
+  a field editor is plain text — it cannot hold a textblock. Measured first: Notes values existed only on the 21 CPS
+  Class rows (mine, this morning), no op reads the field, no module binds it, no instance has body text. `0485` unsets
+  the binding, so the drawer is `DocContent` over the row's textmap (mints textblocks like any doc), and moves each
+  Notes value into ONE textblock in the row's textmap (17 textblocks; copy-linked rows share one). The seed no
+  longer sets the binding. Watched on prod: the Nov 5 row's notes show the Zoom links in a textblock with its handle.
+  **Not clicked:** typing on the empty line under it (the mint is DocContent's existing path).
+- **DVD shelf:** the "Press ⚙ to choose what this shelf holds" message is the EMPTY-shelf text — it was placed with
+  no scope. Set in `grid.meta.vrOffice` (pm2 restarted): scope = the TV Series board, condition Board Category
+  CONTAINS `series` (the board also lists 181 cover images, which carry no category), title "TV Shows". The server's
+  office state answers 193 shows, all drillable. **Not looked at in the headset.**
+
+---
+
 ### 2026-11-03 (2) — A FILTER DECLARED ON A PAGE FILTERS THE BOARDS UNDER IT; Jellyfin plays in a headset window
 
 User: *"i have relationship aquaitence set and it still shows friends on the people board"* · *"make sure all filter
