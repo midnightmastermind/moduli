@@ -1546,7 +1546,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       // Open tabs hold grid.meta; tell them, or their next meta write drops
       // these. ONLY id + meta: a payload carrying activeFilterValues makes the
       // sync-leader tab re-run every date-navigation op (onGridUpdated).
-      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta }, keepLayout: true });
       res.json({ presets: next.meta?.sharePresets || [] });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
@@ -1566,7 +1566,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       }
       const clean = {
         shelves: office.shelves.filter((s) => s && typeof s.id === "string").map((s) => ({
-          id: s.id, title: String(s.title || ""), asset: ["book", "record", "vhs"].includes(s.asset) ? s.asset : "book",
+          id: s.id, title: String(s.title || ""), asset: ["book", "record", "vhs", "dvd"].includes(s.asset) ? s.asset : "book",
           feed: s.feed && typeof s.feed === "object" ? { ...s.feed, enabled: true } : null,
           // A shelf can hold a whole folder instead of its query (client vr/shelfItems folderShelfItems).
           folderId: typeof s.folderId === "string" && s.folderId ? s.folderId : null,
@@ -1583,7 +1583,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       ).lean().catch(() => null);
       if (!next) return err(res, 404, "not_found", "Grid not found");
       // Other tabs hear it. ONLY id + meta (see /share/presets above).
-      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta }, keepLayout: true });
       res.json({ office: clean });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
@@ -1678,7 +1678,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         { returnDocument: "after" },
       ).lean().catch(() => null);
       if (!next) return err(res, 404, "not_found", "Grid not found");
-      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta } });
+      io?.to?.(userRoom(req.userId))?.emit?.("grid_updated", { grid: { id: next._id.toString(), meta: next.meta }, keepLayout: true });
       res.json({ ok: true, savedAt: clean.savedAt });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });

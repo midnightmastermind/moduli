@@ -17,7 +17,7 @@ object ShelfLayout {
       val leftPct: Float, val bottomPct: Float, val wPct: Float, val hPct: Float,
   )
 
-  fun perRow(asset: String) = when (asset) { "record" -> 3; "vhs" -> 9; else -> 8 }
+  fun perRow(asset: String) = when (asset) { "record" -> 3; "vhs" -> 9; "dvd" -> 14; else -> 8 }
 
   /**
    * The shelf's slots, top row first, left to right AS YOU SEE THEM. The panel is the shelf's width less its sides

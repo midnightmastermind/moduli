@@ -209,9 +209,9 @@ export function createOfficeScene(container, host) {
         return m;
       };
     } else {
-      const vhs = asset === "vhs";
-      ({ W, H, D, SHELVES } = SHELF_SIZES[vhs ? "vhs" : "book"]);
-      packed = packSpines(items, { W, SHELVES, height: vhs ? 0.19 : 0.24, thick: vhs ? 0.028 : 0.035, fixed: vhs });
+      const vhs = asset === "vhs" || asset === "dvd";
+      ({ W, H, D, SHELVES } = SHELF_SIZES[vhs ? asset : "book"]);
+      packed = packSpines(items, { W, SHELVES, height: vhs ? 0.19 : 0.24, thick: asset === "dvd" ? 0.016 : vhs ? 0.028 : 0.035, fixed: vhs });
       place = (s) => {
         const color = vhs ? 0x151515 : SPINE_COLORS[hash(s.item.title) % SPINE_COLORS.length];
         const spine = new THREE.MeshStandardMaterial({ map: spineTexture(s.item.title, color, vhs ? "#f2f2f2" : "#f4e9d8"), roughness: 0.7 });
@@ -296,7 +296,7 @@ export function createOfficeScene(container, host) {
   }
 
   // ── Objects you can place ────────────────────────────────────────────────
-  const LABELS = { armchair: "Armchair", swivelchair: "Swivel chair", ottoman: "Ottoman", longtable: "Long table", smalltable: "Small table", desk: "Desk", keyboard: "Keyboard", tvframe: "TV frame", recordplayer: "Record player", vhsplayer: "VHS player", clock: "Wall clock", window: "Window", couch: "Couch", bed: "Queen bed", lamp: "Floor lamp", desklamp: "Desk lamp", plant: "Plant", rug: "Rug", candle: "Candle" };
+  const LABELS = { armchair: "Armchair", swivelchair: "Swivel chair", ottoman: "Ottoman", longtable: "Long table", smalltable: "Small table", desk: "Desk", keyboard: "Keyboard", tvframe: "TV frame", recordplayer: "Record player", vhsplayer: "VHS player", dvdplayer: "DVD player", clock: "Wall clock", window: "Window", couch: "Couch", bed: "Queen bed", lamp: "Floor lamp", desklamp: "Desk lamp", plant: "Plant", rug: "Rug", candle: "Candle" };
 
   // ── Decor from files: any .glb on the grid ───────────────────────────────
   // Loaded once per file. A model is scaled so its largest side is sensible
@@ -495,7 +495,7 @@ export function createOfficeScene(container, host) {
   }
 
   // ── The palette: Place (shelves, screens) and Decor (the library) ───────
-  const MAIN = [["shelf:book", "Bookshelf"], ["shelf:record", "Record crate"], ["shelf:vhs", "VHS shelf"], ["screen", "Screen"], ["decor", "Decor ▸"]];
+  const MAIN = [["shelf:book", "Bookshelf"], ["shelf:record", "Record crate"], ["shelf:vhs", "VHS shelf"], ["shelf:dvd", "DVD shelf"], ["screen", "Screen"], ["decor", "Decor ▸"]];
   const PER_DECOR_PAGE = 8;
   let palMode = "main", decorIdx = 0;
   const palCanvas = document.createElement("canvas"); palCanvas.width = 512; palCanvas.height = 560;

@@ -1285,9 +1285,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // The REST route (routes/apiV1) sends `{ grid }` with the id INSIDE it.
     const gridId = payload.gridId || payload.id || payload.grid?.id;
     // Every window keeps its own layout and date (helpers/windowLayout): another WINDOW's (it names its socket) is not
-    // taken here. A change from no window (the API, Jonah) still is.
+    // taken here. A change from no window (the API, Jonah) still is — unless the server says it changed no layout
+    // (`keepLayout`: the VR routes write one meta key and send the whole meta back; taking it whole put the server's
+    // stale layoutTree over this window's own whenever the headset saved its room — user, 2026-11-03).
     const raw = payload.grid || payload;
-    const patch = payload.originSocketId
+    const patch = (payload.originSocketId || payload.keepLayout)
       ? incomingGridPatch(raw, stateRef.current?.grid?.meta, { keepGridKeys: phoneSharesRowsCols(stateRef.current?.grid) ? PHONE_SHARED_GRID_KEYS : [] })
       : raw;
 

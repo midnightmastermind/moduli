@@ -12,6 +12,7 @@ import { resolveFeedItems } from "../state/selectors";
 import { filesOf, primaryMediaOf } from "../helpers/occurrenceMedia";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { resolveFileRef } from "../helpers/fileRef";
+import { isVideoShelf } from "./officeConfig.js";
 
 // Which file kinds an asset can use (the reader for books, the player for
 // records and tapes — plan §3-§5).
@@ -19,6 +20,7 @@ export const FILE_KINDS_FOR_ASSET = {
   book: ["pdf", "ebook"],
   record: ["audio"],
   vhs: ["video"],
+  dvd: ["video"],
 };
 
 function coverUrl(occ, mod, media) {
@@ -228,19 +230,12 @@ export function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) 
  * episodes from the Episodes board (migration 0472 — rows carrying `meta.episodeKey` whose TV Show is this show),
  * in season and episode order. Pure.
  */
-export function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
+export function showEpisodeItems(showId, ctx = {}, seasonId = null) {
+  const { occurrencesById, modulesById } = ctx;
   const show = occurrencesById?.[showId];
   if (!show) return [];
-  const ctx = { occurrencesById, modulesById };
   const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
-
-  const eps = [];
-  for (const o of Object.values(occurrencesById || {})) {
-    if (!o?.meta?.episodeKey) continue;
-    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
-  }
-  // Labels are "S01E03 · Title": a numeric compare puts S01E100 after S01E99 (a feed-read show's key holds no number).
-  eps.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true }));
+  const eps = episodesOfShow(showId, occurrencesById).filter((o) => !seasonId || seasonOf(o, showId, occurrencesById, modulesById) === seasonId);
   return eps.map((o) => {
     const mod = modulesById?.[o.moduleId];
     const f = filesOf(o, ctx).find((e) => e.kind === "video");
@@ -252,6 +247,75 @@ export function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) 
       fileId: f?.occ?.id || null, fileKind: f ? "video" : null, src: ref ? resolveFileRef(ref) : watchSrc(o),
     };
   });
+}
+
+const cellValue = (c) => (c && typeof c === "object" && !Array.isArray(c) ? c.value : c);
+const byLabelNumeric = (a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true });
+
+/** A show's episodes (Episodes board rows naming the show), in season / episode order. */
+function episodesOfShow(showId, occurrencesById) {
+  const eps = [];
+  for (const o of Object.values(occurrencesById || {})) {
+    if (!o?.meta?.episodeKey || o.meta?.feedSourceId) continue;
+    if (Object.values(o.fields || {}).some((c) => cellValue(c) === showId)) eps.push(o);
+  }
+  // Labels are "S01E03 · Title": a numeric compare puts S01E100 after S01E99.
+  return eps.sort(byLabelNumeric);
+}
+
+/** The season row an episode names (its TV Season link, migration 0473): a row other than the show, not an episode. */
+function seasonOf(ep, showId, occurrencesById, modulesById) {
+  for (const c of Object.values(ep.fields || {})) {
+    const v = cellValue(c);
+    for (const id of Array.isArray(v) ? v : [v]) {
+      if (typeof id !== "string" || id === showId) continue;
+      const row = occurrencesById?.[id];
+      if (row && !row.meta?.episodeKey && modulesById?.[row.moduleId]?.label === "Season") return id;
+    }
+  }
+  return null;
+}
+
+/**
+ * A DVD shelf drills like a record crate (user, 2026-11-03: "start out with show, go to season, and go to episode"):
+ *   top             the shelf's feed (shows and films)            — a show opens into its seasons
+ *   "show:<id>"     its seasons as folder discs, in order          — a season opens into its episodes
+ *   "season:<id>|show:<id>"  that season's episodes
+ * A show whose episodes name no season skips straight to its episodes. Pure.
+ */
+export function dvdShelfView(shelf, at, ctx = {}) {
+  const { occurrencesById, modulesById } = ctx;
+  const parts = typeof at === "string" ? at.split("|") : [];
+  const showPart = parts.find((p) => p.startsWith("show:"));
+  const seasonPart = parts.find((p) => p.startsWith("season:"));
+  const showId = showPart ? showPart.slice(5) : null;
+  const label = (id, fallback) => { const o = occurrencesById?.[id]; return (o && occurrenceDisplayLabel(o, modulesById?.[o.moduleId])) || fallback; };
+  if (showId && seasonPart) {
+    const seasonId = seasonPart.slice(7);
+    return { items: showEpisodeItems(showId, ctx, seasonId), path: [shelf.title, label(showId, "Show"), label(seasonId, "Season")], canUp: true };
+  }
+  if (showId) {
+    const show = occurrencesById?.[showId];
+    const showCover = show ? coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx)) : null;
+    const seasons = new Map();
+    let loose = 0;
+    for (const ep of episodesOfShow(showId, occurrencesById)) {
+      const sid = seasonOf(ep, showId, occurrencesById, modulesById);
+      if (sid) seasons.set(sid, (seasons.get(sid) || 0) + 1); else loose++;
+    }
+    if (!seasons.size) return { items: showEpisodeItems(showId, ctx), path: [shelf.title, label(showId, "Show")], canUp: true };
+    const items = [...seasons.entries()]
+      .map(([sid, count]) => ({ sid, count, row: occurrencesById[sid] }))
+      .sort((a, b) => byLabelNumeric({ label: label(a.sid, "") }, { label: label(b.sid, "") }))
+      .map(({ sid, count, row }) => ({
+        id: `season:${sid}`, rowId: sid, folder: true, count, title: label(sid, "Season"),
+        cover: coverUrl(row, modulesById?.[row.moduleId], primaryMediaOf(row, ctx)) || showCover,
+      }));
+    // Episodes that name no season stay reachable, after the seasons.
+    if (loose) items.push(...showEpisodeItems(showId, ctx).filter((i) => !seasonOf(occurrencesById[i.rowId], showId, occurrencesById, modulesById)));
+    return { items, path: [shelf.title, label(showId, "Show")], canUp: true };
+  }
+  return { items: shelfItems(shelf, ctx), path: [], canUp: false };
 }
 
 /**
@@ -298,7 +362,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : (shelf.asset === "vhs" ? watchSrc(occ) : null),
+      src: file?.ref ? resolveFileRef(file.ref) : (isVideoShelf(shelf.asset) ? watchSrc(occ) : null),
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
@@ -306,7 +370,7 @@ export function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersB
       // songs, so their own fields name none.)
       album: (shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)))
         // A show on a VHS shelf opens into its episodes the same way.
-        || (shelf.asset === "vhs" && mod?.kind === "series"),
+        || (isVideoShelf(shelf.asset) && mod?.kind === "series"),
     });
   }
   return out;

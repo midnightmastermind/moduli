@@ -8,6 +8,8 @@ export const SHELF_SIZES = {
   book: { W: 1.1, H: 1.8, D: 0.3, SHELVES: 5 },
   record: { W: 1.15, H: 1.15, D: 0.36, SHELVES: 3 },
   vhs: { W: 1.0, H: 1.3, D: 0.24, SHELVES: 4 },
+  // DVDs (user, 2026-11-03: "a dvd shelf with a dvd player" for TV shows): thin cases, five rows.
+  dvd: { W: 1.0, H: 1.3, D: 0.22, SHELVES: 4 },
 };
 export const SCREEN_SIZE = { W: 1.6, H: 0.9, Y: 1.5 };
 
@@ -130,6 +132,16 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
       g.add(box(0.43, 0.09, 0.3, 0x1b1b1b, 0, 0.045, 0));
       g.add(box(0.2, 0.025, 0.004, 0x050505, -0.07, 0.055, 0.152));
       g.add(box(0.08, 0.02, 0.004, 0x1f5f3a, 0.13, 0.055, 0.152));
+      return g;
+    }
+    case "dvdplayer": {
+      // A slim DVD player: brushed grey box, a disc tray across the front and a blue display. Drop a DVD on it to
+      // play it on a screen.
+      g.add(box(0.43, 0.055, 0.28, 0x2c2f33, 0, 0.0275, 0));
+      g.add(box(0.24, 0.012, 0.004, 0x0b0b0b, -0.06, 0.036, 0.142));
+      g.add(box(0.07, 0.018, 0.004, 0x1f3f7a, 0.14, 0.03, 0.142));
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.004, 20), mat(0x9aa4b2, { roughness: 0.3 }));
+      disc.rotation.x = Math.PI / 2; disc.position.set(0.185, 0.03, 0.142); g.add(disc);
       return g;
     }
     case "clock": {
@@ -267,4 +279,4 @@ export function makeDecor(THREE, key, { flames = [] } = {}) {
   }
 }
 
-export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "smalltable", "desk", "keyboard", "tvframe", "recordplayer", "vhsplayer", "clock", "window", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];
+export const DECOR_KEYS = ["armchair", "swivelchair", "ottoman", "longtable", "smalltable", "desk", "keyboard", "tvframe", "recordplayer", "vhsplayer", "dvdplayer", "clock", "window", "couch", "bed", "lamp", "desklamp", "plant", "rug", "candle"];

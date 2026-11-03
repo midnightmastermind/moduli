@@ -255,6 +255,23 @@ describe("grid_updated / deleted / created", () => {
     expect(actionOf(dispatched, ActionTypes.UPDATE_GRID)).toBeDefined();
   });
 
+  // The headset saving its room (PUT /vr/layout) sends the grid's whole meta back; taken whole, the server's stale
+  // layoutTree replaced the desktop's own (user, 2026-11-03). `keepLayout` keeps this window's layout keys.
+  test("grid_updated with keepLayout keeps this window's layoutTree", () => {
+    const mine = { id: "mine" };
+    const { socket, dispatched } = setup({ grid: { _id: "g1", meta: { layoutTree: mine, other: 1 } } });
+    socket._trigger("grid_updated", { grid: { id: "g1", meta: { layoutTree: { id: "stale" }, vrLayout: { poses: {} } } }, keepLayout: true });
+    const meta = actionOf(dispatched, ActionTypes.UPDATE_GRID).payload.grid.meta;
+    expect(meta.layoutTree).toBe(mine);
+    expect(meta.vrLayout).toEqual({ poses: {} });
+  });
+
+  test("grid_updated from the API (no origin, no keepLayout) still takes the layout", () => {
+    const { socket, dispatched } = setup({ grid: { _id: "g1", meta: { layoutTree: { id: "mine" } } } });
+    socket._trigger("grid_updated", { grid: { id: "g1", meta: { layoutTree: { id: "api" } } } });
+    expect(actionOf(dispatched, ActionTypes.UPDATE_GRID).payload.grid.meta.layoutTree).toEqual({ id: "api" });
+  });
+
   test("grid_deleted dispatches DELETE_GRID", () => {
     const { socket, dispatched } = setup();
     socket._trigger("grid_deleted", { gridId: "g1" });

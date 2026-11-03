@@ -1,7 +1,7 @@
 // vr/officeConfig.js — what the VR office keeps on the grid.
 //
 // grid.meta.vrOffice = {
-//   shelves: [{ id, title, asset: "book"|"record"|"vhs", feed, folderId? }],
+//   shelves: [{ id, title, asset: "book"|"record"|"vhs"|"dvd", feed, folderId? }],
 //   screens: [{ id, title, source: "page"|"grid", pageOccId }],
 // }
 //
@@ -19,8 +19,10 @@
 //
 // Every function is pure and returns a new grid meta; the caller writes it.
 
-export const SHELF_ASSETS = ["book", "record", "vhs"];
-export const ASSET_LABELS = { book: "Bookshelf", record: "Record crate", vhs: "VHS shelf" };
+export const SHELF_ASSETS = ["book", "record", "vhs", "dvd"];
+export const ASSET_LABELS = { book: "Bookshelf", record: "Record crate", vhs: "VHS shelf", dvd: "DVD shelf" };
+/** A shelf of films / shows (tapes or discs): a player runs one on a screen, a show opens into its episodes. */
+export const isVideoShelf = (asset) => asset === "vhs" || asset === "dvd";
 
 const newId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 

@@ -2,8 +2,9 @@
 // as .glb files into the Quest app's assets, so both offices hold the same pieces.
 //   node quest/tools/exportModels.mjs
 // Since 2026-10-27 most furniture and the shelf books are realistic models from quest/tools/realFurniture.mjs:
-// running this again overwrites them with the blocky ones, so run realFurniture.mjs after it.
-import { writeFileSync, mkdirSync } from "node:fs";
+// running this again overwrites them with the blocky ones, so run realFurniture.mjs after it — or pass
+// ONLY=name,name (e.g. ONLY=shelf-dvd,dvdplayer,dvd-0) to write just those and merge their sizes.
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,7 @@ const pieces = {
   "shelf-book": () => M.makeShelfFrame(THREE, "book"),
   "shelf-record": () => M.makeShelfFrame(THREE, "record"),
   "shelf-vhs": () => M.makeShelfFrame(THREE, "vhs"),
+  "shelf-dvd": () => M.makeShelfFrame(THREE, "dvd"),
   screen: () => M.makeScreenFrame(THREE),
   // The grab handle the app floats above each piece (GrabHandle.kt): a white bar with rounded ends, 40cm wide.
   handle: () => {
@@ -90,13 +92,25 @@ const pieces = {
     }
     return g;
   }])),
+  // A DVD taken from a DVD shelf: a 13.5 x 19 x 1.4cm case in dark plastic, its cover in the item's colour.
+  ...Object.fromEntries(SPINES.map((c, i) => [`dvd-${i}`, () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.19, 0.014), new THREE.MeshStandardMaterial({ color: 0x1b2233, roughness: 0.5 })));
+    const cover = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.18, 0.002), new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+    cover.position.set(0, 0, 0.0075); g.add(cover);
+    return g;
+  }])),
   ...Object.fromEntries(M.DECOR_KEYS.map((k) => [k, () => M.makeDecor(THREE, k)])),
 };
 
+const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",").map((x) => x.trim()).filter(Boolean)) : null;
 const exporter = new GLTFExporter();
 // How tall each piece is, so the app can float its grab handle just above it (OfficeActivity reads office/sizes.json).
 const sizes = {};
+const sizesPath = resolve(out, "sizes.json");
+if (ONLY && existsSync(sizesPath)) Object.assign(sizes, JSON.parse(readFileSync(sizesPath, "utf8")));
 for (const [name, make] of Object.entries(pieces)) {
+  if (ONLY && !ONLY.has(name)) continue;
   const scene = new THREE.Scene();
   const g = make();
   // Lights stay in the browser; the headset lights the room itself.
@@ -114,7 +128,7 @@ for (const [name, make] of Object.entries(pieces)) {
   const glb = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
   writeFileSync(resolve(out, name + ".glb"), Buffer.from(glb));
   // A see-through copy, shown while you sit in the piece so your own legs show through it.
-  if (name !== "handle" && !/^(book|record-|vhs-)/.test(name)) {
+  if (name !== "handle" && !/^(book|record-|vhs-|dvd-)/.test(name)) {
     const ghost = new THREE.Scene();
     const gg = make();
     gg.traverse((o) => {
@@ -132,5 +146,5 @@ for (const [name, make] of Object.entries(pieces)) {
   }
   console.log(name + ".glb", Buffer.from(glb).length, "bytes");
 }
-writeFileSync(resolve(out, "sizes.json"), JSON.stringify(sizes, null, 2));
-console.log("sizes.json", sizes);
+writeFileSync(sizesPath, JSON.stringify(sizes, null, 2));
+console.log("sizes.json", ONLY ? [...ONLY].map((n) => [n, sizes[n]]) : sizes);

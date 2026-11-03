@@ -179,7 +179,7 @@ object PanelHtml {
     items.slice(page*per,page*per+per).forEach(function(it,i){
       var r=rects[i], d=document.createElement('div'); nodes[it.id]=d; look(it.id);
       d.style.left=r[0]+'%'; d.style.bottom=r[1]+'%'; d.style.width=r[2]+'%'; d.style.height=r[3]+'%';
-      d.style.backgroundColor=asset==='vhs' ? '#151515' : colors[hash(it.t)%colors.length];
+      d.style.backgroundColor=asset==='vhs' ? '#151515' : asset==='dvd' ? '#1b2233' : colors[hash(it.t)%colors.length];
       if(it.c) d.style.backgroundImage='url("'+it.c.replace(/"/g,'%22')+'")';
       // A book shelf: books of slightly different heights, standing on the shelf, with gilt bands on the spine.
       if(asset==='book'&&!it.f){ d.style.height=(r[3]*(0.86+0.14*((hash(it.t)>>3)%8)/7))+'%';

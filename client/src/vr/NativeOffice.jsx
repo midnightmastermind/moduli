@@ -92,11 +92,11 @@ export function NativePiece({ pieceKey, grid, occurrencesById, modulesById, fold
   if (screen) return <div style={wrap}><ScreenSettings screen={screen} {...common} onDone={close} onRemoved={removed} /></div>;
   const pickScreen = (sid) => { setVhsScreen(sid); post({ type: "decorSetting", key: pieceKey, screenId: sid || null }); };
   const screenLabel = (s) => (s.source === "grid" ? "The grid" : (occurrencesById?.[s.pageOccId]?.label || modulesById?.[occurrencesById?.[s.pageOccId]?.moduleId]?.label || "A page"));
-  const title = kind === "fireplace" ? "Fireplace" : model === "vhsplayer" ? "VHS player" : kind === "decor" ? "Decor" : "This piece";
+  const title = kind === "fireplace" ? "Fireplace" : model === "vhsplayer" ? "VHS player" : model === "dvdplayer" ? "DVD player" : kind === "decor" ? "Decor" : "This piece";
   return (
     <div style={wrap}>
       <h3 style={{ margin: "0 0 10px", fontSize: 16 }}>{title}</h3>
-      {model === "vhsplayer" && (
+      {(model === "vhsplayer" || model === "dvdplayer") && (
         <label style={{ display: "block", fontSize: 13, marginBottom: 12 }}>A tape dropped on it plays on<br />
           <select value={vhsScreen} onChange={(e) => pickScreen(e.target.value)} style={{ width: "100%", fontSize: 14, padding: 4 }}>
             <option value="">The first screen in the room</option>
@@ -313,6 +313,8 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
         else if (e?.type === "openAlbum") {
           const shelfId = String(e.key || "").replace(/^shelf:/, "");
           const prev = live.current.shelfAt[shelfId];
+          // A show on a DVD shelf opens into its seasons (dvdShelfView).
+          if (readOffice(live.current.grid).shelves.find((x) => x.id === shelfId)?.asset === "dvd") { moveShelf(shelfId, `show:${e.id}`); return; }
           moveShelf(shelfId, `album:${e.id}|${typeof prev === "string" && !prev.startsWith("album:") ? prev : ""}`);
         }
         else if (e?.type === "newFolder") {
@@ -337,6 +339,12 @@ export default function NativeOffice({ grid, occurrencesById, modulesById, folde
           const atNow = L.shelfAt[shelfId];
           // Up from an open album: back to where the shelf was before it.
           if (e.type === "shelfUp" && typeof atNow === "string" && atNow.startsWith("album:")) { moveShelf(shelfId, atNow.split("|")[1] || null); return; }
+          // A DVD shelf: a season disc opens its episodes; up goes season → show → the whole shelf.
+          if (shelf?.asset === "dvd") {
+            const show = typeof atNow === "string" ? atNow.split("|").find((p) => p.startsWith("show:")) : null;
+            if (e.type === "openFolder" && String(e.folderId || "").startsWith("season:") && show) { moveShelf(shelfId, `${e.folderId}|${show}`); return; }
+            if (e.type === "shelfUp") { moveShelf(shelfId, typeof atNow === "string" && atNow.startsWith("season:") ? show : null); return; }
+          }
           // A record crate's artists: open one, or go back up to all of them.
           if (e.type === "openFolder" && String(e.folderId || "").startsWith("artist:")) { moveShelf(shelfId, String(e.folderId)); return; }
           if (e.type === "shelfUp" && typeof atNow === "string" && atNow.startsWith("artist:")) { moveShelf(shelfId, null); return; }

@@ -188,7 +188,7 @@ class OfficeActivity : AppSystemActivity() {
     var filterIds: List<String>? = null
     var page = 0
     var shelfSize: OfficeSizes.Shelf? = null
-    /** "book" | "record" | "vhs": what you hold when you take something off this shelf. */
+    /** "book" | "record" | "vhs" | "dvd": what you hold when you take something off this shelf. */
     var shelfAsset = "book"
     /** Select mode on a shelf (its Select button): a tap picks a book for Delete instead of opening it. */
     var selecting = false
@@ -1104,7 +1104,7 @@ class OfficeActivity : AppSystemActivity() {
         if (grabbed && !b.held) {
           b.held = true; b.grabbedAt = now; b.overWhat = null
           // A book fills its slot (spine width = its thickness); a record sleeve and a tape are drawn at real size.
-          val held = when (t.shelfAsset) { "record" -> "record"; "vhs" -> "vhs"; else -> "book" }
+          val held = when (t.shelfAsset) { "record" -> "record"; "vhs" -> "vhs"; "dvd" -> "dvd"; else -> "book" }
           b.reach = 0f
           b.shown = Entity.create(listOf(
               Mesh(Uri.parse("apk:///office/$held-${b.color}.glb")),
@@ -1172,6 +1172,7 @@ class OfficeActivity : AppSystemActivity() {
             val player = p?.let { when (t.shelfAsset) {
               "record" -> playerNear("recordplayer", it)
               "vhs" -> playerNear("vhsplayer", it)
+              "dvd" -> playerNear("dvdplayer", it)
               else -> null
             } }
             when {
@@ -1332,7 +1333,7 @@ class OfficeActivity : AppSystemActivity() {
       }
       // Players get their (web) panel only while something plays — a room of idle players each holding a page
       // ran the headset out of memory and crashed the app.
-      "recordplayer", "vhsplayer" -> {
+      "recordplayer", "vhsplayer", "dvdplayer" -> {
         // A record left playing is still on the player when the app opens again.
         entry.optJSONObject("playing")?.let { p ->
           val q = p.optJSONArray("queue")
@@ -1404,7 +1405,7 @@ class OfficeActivity : AppSystemActivity() {
     t.html = html
     if (t.panel == null) when (t.decorEntry?.optString("model")) {
       "recordplayer" -> { attachPanel(t, 0.34f, 0.12f, 0.24f, 0f); return }
-      "vhsplayer" -> { attachPanel(t, 0.34f, 0.12f, 0.2f, 0f); return }
+      "vhsplayer", "dvdplayer" -> { attachPanel(t, 0.34f, 0.12f, 0.2f, 0f); return }
     }
     t.web?.loadDataWithBaseURL(t.panelBase ?: origin, t.html, "text/html", "utf-8", null)
   }
@@ -2428,6 +2429,7 @@ object OfficeSizes {
       "book" to Shelf(1.1f, 1.8f, 0.3f, 5),
       "record" to Shelf(1.15f, 1.15f, 0.36f, 3),
       "vhs" to Shelf(1.0f, 1.3f, 0.24f, 4),
+      "dvd" to Shelf(1.0f, 1.3f, 0.22f, 4),
   )
   const val SCREEN_W = 1.6f
   const val SCREEN_H = 0.9f

@@ -1,8 +1,8 @@
 // vr/officeState.js — what the headset draws, as plain data: the shelves (with each one's place in its folders), the
 // screens, the decor, the bookmarks bar. Pure — no React, no browser — so the server runs the same code
 // (vr/officeCore.js, bundled to server/generated/officeCore.mjs) and the control panel need not load the grid.
-import { readOffice } from "./officeConfig.js";
-import { shelfItems, folderShelfView, albumShelfItems, musicShelfView, showEpisodeItems } from "./shelfItems.js";
+import { readOffice, isVideoShelf } from "./officeConfig.js";
+import { shelfItems, folderShelfView, albumShelfItems, musicShelfView, showEpisodeItems, dvdShelfView } from "./shelfItems.js";
 import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel";
 import { decorLibrary } from "./decorLibrary.js";
 import { sortOrderForDrop, sortOrderAtEnd } from "../helpers/treeOrder.js";
@@ -56,12 +56,12 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
   const shelves = (wanted ? office.shelves.filter((s) => wanted.has(s.id)) : office.shelves).map((s) => {
       // An album opened on this shelf ("album:<row>|<where the shelf was>"): its songs as mini records, ⬆ goes back.
       const at = shelfAt[s.id];
-      if (typeof at === "string" && at.startsWith("album:")) {
+      if (typeof at === "string" && at.startsWith("album:") && s.asset !== "dvd") {
         const albumId = at.slice(6).split("|")[0];
         const album = occurrencesById?.[albumId];
         const title = album ? (occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album") : "Album";
         // A show on a VHS shelf: its episodes in season order.
-        if (s.asset === "vhs") return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
+        if (isVideoShelf(s.asset)) return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
         // Its songs A–Z on the shelf (the record player still plays them in track order).
         const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
         const prev = at.split("|")[1] || "";
@@ -73,6 +73,11 @@ export function nativeOfficeState({ grid, occurrencesById, modulesById, foldersB
         const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
         // `folderable`: a new folder can be made where the shelf stands (its ＋📁 button).
         return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
+      }
+      if (s.asset === "dvd") {
+        // A DVD shelf is shows → seasons → episodes.
+        const v = dvdShelfView(s, at, ctx);
+        return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path, canUp: v.canUp };
       }
       if (s.asset === "record") {
         // A record crate is artists → albums → songs, A–Z.

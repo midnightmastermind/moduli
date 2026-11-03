@@ -1095,11 +1095,22 @@ function occurrenceDisplayLabel(occurrence, module, fallback = "") {
   return fallback;
 }
 
+// src/vr/officeConfig.js
+var isVideoShelf = (asset) => asset === "vhs" || asset === "dvd";
+function readOffice(grid) {
+  const v = grid?.meta?.vrOffice || {};
+  return {
+    shelves: Array.isArray(v.shelves) ? v.shelves : [],
+    screens: Array.isArray(v.screens) ? v.screens : []
+  };
+}
+
 // src/vr/shelfItems.js
 var FILE_KINDS_FOR_ASSET = {
   book: ["pdf", "ebook"],
   record: ["audio"],
-  vhs: ["video"]
+  vhs: ["video"],
+  dvd: ["video"]
 };
 function coverUrl(occ, mod, media) {
   if (media?.src && (media.kind === "image" || !media.kind)) return media.src;
@@ -1273,17 +1284,12 @@ function albumShelfItems(albumId, { occurrencesById, modulesById } = {}) {
     };
   });
 }
-function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
+function showEpisodeItems(showId, ctx = {}, seasonId = null) {
+  const { occurrencesById, modulesById } = ctx;
   const show = occurrencesById?.[showId];
   if (!show) return [];
-  const ctx = { occurrencesById, modulesById };
   const showCover = coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx));
-  const eps = [];
-  for (const o of Object.values(occurrencesById || {})) {
-    if (!o?.meta?.episodeKey) continue;
-    if (Object.values(o.fields || {}).some((c) => (c && typeof c === "object" ? c.value : c) === showId)) eps.push(o);
-  }
-  eps.sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), void 0, { numeric: true }));
+  const eps = episodesOfShow(showId, occurrencesById).filter((o) => !seasonId || seasonOf(o, showId, occurrencesById, modulesById) === seasonId);
   return eps.map((o) => {
     const mod = modulesById?.[o.moduleId];
     const f = filesOf(o, ctx).find((e) => e.kind === "video");
@@ -1298,6 +1304,65 @@ function showEpisodeItems(showId, { occurrencesById, modulesById } = {}) {
       src: ref ? resolveFileRef(ref) : watchSrc(o)
     };
   });
+}
+var cellValue = (c) => c && typeof c === "object" && !Array.isArray(c) ? c.value : c;
+var byLabelNumeric = (a, b) => String(a.label || "").localeCompare(String(b.label || ""), void 0, { numeric: true });
+function episodesOfShow(showId, occurrencesById) {
+  const eps = [];
+  for (const o of Object.values(occurrencesById || {})) {
+    if (!o?.meta?.episodeKey || o.meta?.feedSourceId) continue;
+    if (Object.values(o.fields || {}).some((c) => cellValue(c) === showId)) eps.push(o);
+  }
+  return eps.sort(byLabelNumeric);
+}
+function seasonOf(ep, showId, occurrencesById, modulesById) {
+  for (const c of Object.values(ep.fields || {})) {
+    const v = cellValue(c);
+    for (const id of Array.isArray(v) ? v : [v]) {
+      if (typeof id !== "string" || id === showId) continue;
+      const row = occurrencesById?.[id];
+      if (row && !row.meta?.episodeKey && modulesById?.[row.moduleId]?.label === "Season") return id;
+    }
+  }
+  return null;
+}
+function dvdShelfView(shelf, at2, ctx = {}) {
+  const { occurrencesById, modulesById } = ctx;
+  const parts = typeof at2 === "string" ? at2.split("|") : [];
+  const showPart = parts.find((p) => p.startsWith("show:"));
+  const seasonPart = parts.find((p) => p.startsWith("season:"));
+  const showId = showPart ? showPart.slice(5) : null;
+  const label = (id, fallback) => {
+    const o = occurrencesById?.[id];
+    return o && occurrenceDisplayLabel(o, modulesById?.[o.moduleId]) || fallback;
+  };
+  if (showId && seasonPart) {
+    const seasonId = seasonPart.slice(7);
+    return { items: showEpisodeItems(showId, ctx, seasonId), path: [shelf.title, label(showId, "Show"), label(seasonId, "Season")], canUp: true };
+  }
+  if (showId) {
+    const show = occurrencesById?.[showId];
+    const showCover = show ? coverUrl(show, modulesById?.[show.moduleId], primaryMediaOf(show, ctx)) : null;
+    const seasons = /* @__PURE__ */ new Map();
+    let loose = 0;
+    for (const ep of episodesOfShow(showId, occurrencesById)) {
+      const sid = seasonOf(ep, showId, occurrencesById, modulesById);
+      if (sid) seasons.set(sid, (seasons.get(sid) || 0) + 1);
+      else loose++;
+    }
+    if (!seasons.size) return { items: showEpisodeItems(showId, ctx), path: [shelf.title, label(showId, "Show")], canUp: true };
+    const items = [...seasons.entries()].map(([sid, count]) => ({ sid, count, row: occurrencesById[sid] })).sort((a, b) => byLabelNumeric({ label: label(a.sid, "") }, { label: label(b.sid, "") })).map(({ sid, count, row }) => ({
+      id: `season:${sid}`,
+      rowId: sid,
+      folder: true,
+      count,
+      title: label(sid, "Season"),
+      cover: coverUrl(row, modulesById?.[row.moduleId], primaryMediaOf(row, ctx)) || showCover
+    }));
+    if (loose) items.push(...showEpisodeItems(showId, ctx).filter((i) => !seasonOf(occurrencesById[i.rowId], showId, occurrencesById, modulesById)));
+    return { items, path: [shelf.title, label(showId, "Show")], canUp: true };
+  }
+  return { items: shelfItems(shelf, ctx), path: [], canUp: false };
 }
 function watchSrc(occ) {
   return occ?.meta?.jellyfinId ? `watch:${occ.id}` : null;
@@ -1334,13 +1399,13 @@ function shelfItems(shelf, { grid, occurrencesById, modulesById, foldersById } =
       cover: coverUrl(occ, mod, primaryMediaOf(occ, ctx)),
       fileId: file?.id || null,
       fileKind: file?.kind || null,
-      src: file?.ref ? resolveFileRef(file.ref) : shelf.asset === "vhs" ? watchSrc(occ) : null,
+      src: file?.ref ? resolveFileRef(file.ref) : isVideoShelf(shelf.asset) ? watchSrc(occ) : null,
       url: bookmarkUrl(occ, mod),
       spotify: spotifyEmbedUrl(occ),
       // An album on a record shelf opens into its songs when dropped anywhere but a record player.
       // (An album row, or a row whose fields name songs. The albums filled in from track lists are named BY their
       // songs, so their own fields name none.)
-      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)) || shelf.asset === "vhs" && mod?.kind === "series"
+      album: shelf.asset === "record" && (mod?.kind === "album" || namesSongs(occ, modulesById, occurrencesById)) || isVideoShelf(shelf.asset) && mod?.kind === "series"
     });
   }
   return out;
@@ -1392,15 +1457,6 @@ function musicShelfView(shelf, at2, ctx = {}) {
   return { items, path: [], canUp: false };
 }
 
-// src/vr/officeConfig.js
-function readOffice(grid) {
-  const v = grid?.meta?.vrOffice || {};
-  return {
-    shelves: Array.isArray(v.shelves) ? v.shelves : [],
-    screens: Array.isArray(v.screens) ? v.screens : []
-  };
-}
-
 // src/vr/decorLibrary.js
 var BUILTIN_DECOR = [
   { key: "armchair", title: "Armchair" },
@@ -1413,6 +1469,7 @@ var BUILTIN_DECOR = [
   { key: "tvframe", title: "TV frame" },
   { key: "recordplayer", title: "Record player" },
   { key: "vhsplayer", title: "VHS player" },
+  { key: "dvdplayer", title: "DVD player" },
   { key: "clock", title: "Wall clock" },
   { key: "window", title: "Window" },
   { key: "openwindow", title: "Open window" },
@@ -1522,11 +1579,11 @@ function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, sh
   const wanted = Array.isArray(only) && only.length ? new Set(only) : null;
   const shelves = (wanted ? office.shelves.filter((s) => wanted.has(s.id)) : office.shelves).map((s) => {
     const at2 = shelfAt[s.id];
-    if (typeof at2 === "string" && at2.startsWith("album:")) {
+    if (typeof at2 === "string" && at2.startsWith("album:") && s.asset !== "dvd") {
       const albumId = at2.slice(6).split("|")[0];
       const album = occurrencesById?.[albumId];
       const title = album ? occurrenceDisplayLabel(album, modulesById?.[album.moduleId]) || "Album" : "Album";
-      if (s.asset === "vhs") return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
+      if (isVideoShelf(s.asset)) return { id: s.id, title: s.title, asset: s.asset, items: showEpisodeItems(albumId, ctx).map(wire), path: [s.title, title], canUp: true };
       const songs = albumShelfItems(albumId, ctx).sort((a, b) => a.title.localeCompare(b.title, void 0, { sensitivity: "base" }));
       const prev = at2.split("|")[1] || "";
       const artist = prev.startsWith("artist:") ? [prev.slice(7)] : [];
@@ -1535,6 +1592,10 @@ function nativeOfficeState({ grid, occurrencesById, modulesById, foldersById, sh
     if (s.folderId) {
       const v = folderShelfView(s.folderId, shelfAt[s.id], { ...ctx, asset: s.asset });
       return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path.map((p) => p.title), canUp: v.canUp, folderable: true };
+    }
+    if (s.asset === "dvd") {
+      const v = dvdShelfView(s, at2, ctx);
+      return { id: s.id, title: s.title, asset: s.asset, items: v.items.map(wire), path: v.path, canUp: v.canUp };
     }
     if (s.asset === "record") {
       const v = musicShelfView(s, at2, ctx);
