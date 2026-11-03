@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import PomodoroTimer from "./ui/PomodoroTimer";
 import AlarmDropdown from "./ui/AlarmDropdown";
 import ToolbarClock from "./ui/ToolbarClock";
-import MiniGridMap from "./mobile/MiniGridMap";
+import PanelPicker from "./mobile/PanelPicker";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -178,6 +178,24 @@ const gridOptions = useMemo(
     );
   }
 
+  // The toolbar date nav. On a phone it lives in the side drawer with the filters (user, 2026-11-02:
+  // "move things like filter from the toolbar into the side menu"). It must not disappear: before
+  // 2026-08-05 a phone had no way to change the date.
+  const dateNav = activeFilter && primaryNavFieldId ? (
+    <FilterNavWidget
+      filter={activeFilter}
+      navConfig={null}
+      value={primaryNavValue}
+      fieldsById={fieldsById}
+      occurrencesById={occurrencesById}
+      modulesById={modulesById}
+      foldersById={foldersById}
+      dispatch={dispatch}
+      onNav={handleToolbarNav}
+      nowrap
+    />
+  ) : null;
+
   // One logo element, placed differently per layout: desktop keeps it at the head
   // of the left cluster; mobile puts it at the very left edge, ahead of the
   // status/notification pills (they used to sit left of it).
@@ -272,17 +290,9 @@ const gridOptions = useMemo(
             </Select>
           )}
 
-          {/* Mini grid map — mobile only, shows when there are multiple cells. A mosaic grid's phone
-              shape can differ from its stored rows × cols (helpers/phoneCells), so it is read from there. */}
-          {isMobileLayout && ((phoneShape?.rows ?? grid?.rows) > 1 || (phoneShape?.cols ?? grid?.cols) > 1) && (
-            <MiniGridMap
-              rows={phoneShape?.rows ?? (grid?.rows || 1)}
-              cols={phoneShape?.cols ?? (grid?.cols || 1)}
-              activeRow={activeCell?.row ?? 0}
-              activeCol={activeCell?.col ?? 0}
-              onMapClick={() => setZoomedOut?.(prev => !prev)}
-            />
-          )}
+          {/* One panel button on a phone (user, 2026-11-02): it opens a dropdown of the cells the phone pages
+              through, each named by its page. It replaces the small mini map. */}
+          {isMobileLayout && <PanelPicker gridRows={grid?.rows || 1} gridCols={grid?.cols || 1} />}
         </div>
 
         {/* ── Middle: status + toasts, IN THE FLOW ──
@@ -308,33 +318,12 @@ const gridOptions = useMemo(
             FiltersSection mounts: arrows + NavPickerPopover with the on/link/off
             tri-state day cycle. onNav writes to grid.activeFilterValues so the
             widget stays the toolbar's source of truth. */}
-        {(() => {
-          const dateNav = activeFilter && primaryNavFieldId ? (
-            <FilterNavWidget
-              filter={activeFilter}
-              navConfig={null}
-              value={primaryNavValue}
-              fieldsById={fieldsById}
-              occurrencesById={occurrencesById}
-              modulesById={modulesById}
-              foldersById={foldersById}
-              dispatch={dispatch}
-              onNav={handleToolbarNav}
-              nowrap
-            />
-          ) : null;
-          // On a phone the date nav lives INSIDE the Filters button rather than
-          // on the toolbar (user, 2026-09-24). It must not disappear: before
-          // 2026-08-05 a phone had no way to change the date at all.
-          return isMobileLayout ? (
-            <ToolbarFilterDropdown>{dateNav}</ToolbarFilterDropdown>
-          ) : (
-            <>
-              <ToolbarFilterDropdown />
-              {dateNav}
-            </>
-          );
-        })()}
+        {!isMobileLayout && (
+          <>
+            <ToolbarFilterDropdown />
+            {dateNav}
+          </>
+        )}
 
         {/* ── Right: Filter + Pomodoro + Terminal + Account ── */}
         <div className="flex items-center gap-1 shrink-0">
@@ -525,6 +514,11 @@ const gridOptions = useMemo(
               >
                 <X size={16} />
               </button>
+            </div>
+
+            {/* Filters + the date nav — inline here, not a popover (it would open under the drawer). */}
+            <div style={{ paddingBottom: 8, borderBottom: "1px solid var(--border-default)" }}>
+              <ToolbarFilterDropdown inline>{dateNav}</ToolbarFilterDropdown>
             </div>
 
             {/* Grid Select */}

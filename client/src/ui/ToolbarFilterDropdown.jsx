@@ -41,7 +41,10 @@ function Switch({ checked, onChange, title }) {
 // input on the toolbar on mobile, we can just use the filters button") — the
 // nav moves, it is not dropped: a phone once had NO way to change the date
 // (2026-08-05), and this keeps one.
-export default function ToolbarFilterDropdown({ children = null } = {}) {
+// `inline` renders the same body in place, with no button or popover — the phone's side drawer holds it there
+// (user, 2026-11-02: "move things like filter from the toolbar into the side menu"). A popover opened from the
+// drawer would sit UNDER it (popover z 1100, drawer z 1101).
+export default function ToolbarFilterDropdown({ children = null, inline = false } = {}) {
   const ctx = useGridActions();
   const { socket, dispatch, state, fieldsById, onSelectFilter } = ctx;
   const grid = state?.grid;
@@ -105,41 +108,8 @@ export default function ToolbarFilterDropdown({ children = null } = {}) {
     onSelectFilter?.(filterId);
   };
 
-  return (
+  const panelBody = (
     <>
-      {/* Same trigger the container / page / panel headers use — the toolbar
-          funnel now reads identically to the one on every page. It carries no
-          occurrence (the toolbar's scope is the GRID), so it renders the
-          neutral state rather than a per-occurrence active/deactivated tint. */}
-      <span ref={btnRef} style={{ display: "inline-flex", alignItems: "center" }}>
-        <HeaderChevron onClick={openMenu} isOpen={open} />
-      </span>
-
-      {open && anchor && createPortal(
-        <div
-          ref={popRef}
-          role="dialog"
-          style={{
-            position: "fixed", top: anchor.bottom + 4,
-            // Kept on screen: on a phone the funnel sits near the right edge.
-            left: Math.max(8, Math.min(anchor.left, (window.innerWidth || 9999) - 296)),
-            zIndex: 1100, minWidth: 280, maxWidth: 340,
-            background: "var(--panel-bg, #1f2937)",
-            // `--panel-fg` WAS NEVER DEFINED — not in index.css, not in the skin
-            // registry, nowhere. So this always fell through to its hardcoded
-            // fallback, a near-white grey: correct on a dark theme by accident,
-            // and invisible on the three light skins. Measured on prod with the
-            // menu open under Stardew, every inheriting row painted that near-white
-            // on a cream surface. `--text-primary` is defined by every theme and
-            // resolves to 12.31:1 there.
-            color: "var(--text-primary)",
-            border: "1px solid var(--panel-border, #374151)",
-            borderRadius: 8, padding: 12,
-            boxShadow: "var(--menu-shadow-2)",
-            fontFamily: "var(--font-mono)",
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
           {children && (
             <div data-testid="toolbar-filter-date" style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}>
               {children}
@@ -178,6 +148,53 @@ export default function ToolbarFilterDropdown({ children = null } = {}) {
               </div>
             );
           })}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div data-testid="toolbar-filter-inline" style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+        {panelBody}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Same trigger the container / page / panel headers use — the toolbar
+          funnel now reads identically to the one on every page. It carries no
+          occurrence (the toolbar's scope is the GRID), so it renders the
+          neutral state rather than a per-occurrence active/deactivated tint. */}
+      <span ref={btnRef} style={{ display: "inline-flex", alignItems: "center" }}>
+        <HeaderChevron onClick={openMenu} isOpen={open} />
+      </span>
+
+      {open && anchor && createPortal(
+        <div
+          ref={popRef}
+          role="dialog"
+          style={{
+            position: "fixed", top: anchor.bottom + 4,
+            // Kept on screen: on a phone the funnel sits near the right edge.
+            left: Math.max(8, Math.min(anchor.left, (window.innerWidth || 9999) - 296)),
+            zIndex: 1100, minWidth: 280, maxWidth: 340,
+            background: "var(--panel-bg, #1f2937)",
+            // `--panel-fg` WAS NEVER DEFINED — not in index.css, not in the skin
+            // registry, nowhere. So this always fell through to its hardcoded
+            // fallback, a near-white grey: correct on a dark theme by accident,
+            // and invisible on the three light skins. Measured on prod with the
+            // menu open under Stardew, every inheriting row painted that near-white
+            // on a cream surface. `--text-primary` is defined by every theme and
+            // resolves to 12.31:1 there.
+            color: "var(--text-primary)",
+            border: "1px solid var(--panel-border, #374151)",
+            borderRadius: 8, padding: 12,
+            boxShadow: "var(--menu-shadow-2)",
+            fontFamily: "var(--font-mono)",
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {panelBody}
         </div>,
         document.body
       )}

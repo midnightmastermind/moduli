@@ -112,13 +112,19 @@ export function useZoomedOut() {
   return useSyncExternalStore(subscribe, getZoomedOut);
 }
 
-/** The rows × cols a PHONE pages through when it is not the grid's own (a mosaic grid, whose panels get
- *  cells of their own — helpers/phoneCells). Null = the grid's rows × cols. Published by Grid, read by the
- *  toolbar's mini map so it draws the shape the rails move through. */
+/** The rows × cols a PHONE pages through, and which panel sits in which cell. `rows`/`cols` are null when they
+ *  are the grid's own (a mosaic grid gives its panels cells of their own — helpers/phoneCells). `cells` lists the
+ *  panels shown: `{ row, col, width, height, occId, moduleId }`. Published by Grid on a phone; read by the toolbar's
+ *  panel picker, which draws the boxes the rails move through. */
 let _phoneShape = null;
+let _phoneSig = "";
 export function publishPhoneShape(shape) {
-  const next = shape ? { rows: shape.rows, cols: shape.cols } : null;
-  if ((_phoneShape?.rows ?? null) === (next?.rows ?? null) && (_phoneShape?.cols ?? null) === (next?.cols ?? null)) return;
+  const next = shape ? { rows: shape.rows ?? null, cols: shape.cols ?? null, cells: shape.cells || [] } : null;
+  const sig = next
+    ? `${next.rows}x${next.cols}|` + next.cells.map((c) => `${c.occId}@${c.row},${c.col},${c.width},${c.height}`).join(";")
+    : "";
+  if (sig === _phoneSig) return;
+  _phoneSig = sig;
   _phoneShape = next;
   emit();
 }

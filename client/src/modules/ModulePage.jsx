@@ -827,9 +827,10 @@ function Page({
           </PopoverContent>
         </Popover>
         {(
-          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
-            {/* Filter (HeaderChevron) now leads; the add (QuickAddMenu) moved to the end. */}
-            <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", flex: 1, minWidth: 0, marginLeft: 6 }}>
+            {/* The label leads (beside the handle); the buttons sit together on the right (user, 2026-11-03:
+                headers had the label and the feed icon stuck in the middle). */}
+            <div className="page-header-buttons" onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", order: 2, marginLeft: "auto" }}>
               {/* Search scoped to THIS page — the result is already open, so
                   picking one only scrolls + flashes it. */}
               <OccurrenceSearch
@@ -845,9 +846,6 @@ function Page({
                 title="Search this page"
                 placeholder="Search this page…"
               />
-              {occurrence?.feed?.enabled && (
-                <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
-              )}
               {pageModule?.kind === "doc" && (
                 <button
                   type="button"
@@ -872,7 +870,7 @@ function Page({
               )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
             </div>
-            <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0 }} />
+            <KindIcon size={10} style={{ opacity: 0.35, flexShrink: 0, order: 1 }} />
             {isEditing ? (
               <input
                 value={editLabel}
@@ -881,7 +879,7 @@ function Page({
                 onKeyDown={(e) => { if (e.key === "Enter") commitLabel(); if (e.key === "Escape") setIsEditing(false); }}
                 autoFocus
                 style={{
-                  flex: 1, minWidth: 0,
+                  flex: 1, minWidth: 0, order: 1,
                   background: "transparent", border: "none", outline: "none",
                   color: "var(--text-muted)", fontSize: 12, fontFamily: "var(--font-mono)",
                   letterSpacing: "0.03em",
@@ -889,11 +887,15 @@ function Page({
               />
             ) : (
               <span
-                style={{ flex: 1, minWidth: 0, overflow: "hidden", fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
+                className="page-header-row-label"
+                style={{ flex: "0 1 auto", minWidth: 0, overflow: "hidden", fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none", order: 1 }}
                 onClick={titleDoubleTap}
               >
                 <AutoMarquee>{pageModule.label || "Untitled"}</AutoMarquee>
               </span>
+            )}
+            {occurrence?.feed?.enabled && (
+              <Rss size={12} className="header-feed-icon" style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0, order: 1 }} title="Feed on — pulls matching occurrences" />
             )}
 
             {/* Close this page out of the panel (the page itself is untouched —
@@ -901,6 +903,7 @@ function Page({
             {onClosePage && (
               <button
                 type="button"
+                style={{ order: 3 }}
                 className="page-header-close-btn"
                 title="Close this page"
                 aria-label="Close this page"
@@ -912,7 +915,7 @@ function Page({
             )}
 
             {/* Add (QuickAddMenu) moved here, after the label. */}
-            <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4 }}>
+            <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", marginLeft: 4, order: 3 }}>
               {leafHostPage ? (
               <QuickAddMenu
                 targetRole="instance"

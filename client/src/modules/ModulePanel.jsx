@@ -1212,6 +1212,7 @@ function Panel({
                   onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); }}
                   onDragOver={(e) => e.preventDefault()}
                   title="Files"
+                  className="panel-files-btn"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                     padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",

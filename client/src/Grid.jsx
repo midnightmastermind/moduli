@@ -596,7 +596,18 @@ function GridInner() {
     () => (layoutTree && isMobileLayout ? phoneCells(visiblePanels, rows, cols) : null),
     [layoutTree, isMobileLayout, visiblePanels, rows, cols]
   );
-  useEffect(() => { publishPhoneShape(phone ? { rows: phone.rows, cols: phone.cols } : null); }, [phone?.rows, phone?.cols]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isMobileLayout) { publishPhoneShape(null); return; }
+    const list = phone ? phone.panels : visiblePanels.filter((p) => (p?.layout?.style?.display ?? "block") !== "none");
+    publishPhoneShape({
+      rows: phone ? phone.rows : null,
+      cols: phone ? phone.cols : null,
+      cells: list.map((p) => ({
+        row: p.row ?? 0, col: p.col ?? 0, width: p.width || 1, height: p.height || 1,
+        occId: p._occurrenceId, moduleId: p.id,
+      })),
+    });
+  }, [isMobileLayout, phone, visiblePanels]);
   const colTemplate = colSizes.map((s) => `${s}fr`).join(" ");
   const rowTemplate = rowSizes.map((s) => `${s}fr`).join(" ");
 

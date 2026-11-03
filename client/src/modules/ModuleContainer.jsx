@@ -1559,6 +1559,10 @@ function Container({
                   </span>
                 </LabelShell>
               )}
+              {/* The feed icon describes the container, so it sits with its name, not among the buttons. */}
+              {containerOccurrence?.feed?.enabled && (
+                <Rss size={12} className="header-feed-icon" style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
               {/* The container's OWN menu (Filter · Sort · Data · Fields · Layout).
                   This slot sat empty after its inline filter nav was removed, so a
                   container inside a doc — a day-page section, a graph on a day page,
@@ -1572,9 +1576,6 @@ function Container({
                 onPointerDown={(e) => e.stopPropagation()}
                 style={{ flexShrink: 0, marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}
               >
-                {containerOccurrence?.feed?.enabled && (
-                  <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
-                )}
                 <HeaderChevron
                   onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence}
                   showPill={layoutCascade?.resolved?.hideFilterPill !== true}
@@ -1666,7 +1667,9 @@ function Container({
                   onClick={!headerBinding ? labelDoubleTap : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
                   style={{
-                    flex: "1 1 auto", minWidth: 0, overflow: "hidden",
+                    // Sized to its text, not grown: the button group's margin-left:auto already holds the right edge,
+                    // and a growing label pushed the feed icon after it into the middle of the header.
+                    flex: "0 1 auto", minWidth: 0, overflow: "hidden",
                     // 2px of air above the label (user 2026-07-31) — it sat
                     // hard against the container's top edge.
                     paddingTop: 2,
@@ -1705,12 +1708,12 @@ function Container({
                 </span>
               )
             )}
+            {containerOccurrence?.feed?.enabled && (
+                <Rss size={12} className="header-feed-icon" style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+              )}
 
             {/* Filter (HeaderChevron) BEFORE the add (QuickAddMenu), both right-aligned. */}
             <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
-              {containerOccurrence?.feed?.enabled && (
-                <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
-              )}
               {/* FIELDS SIT LEFT OF THE FILTER (user 2026-08-11: "fields should
                   go to the left of filters anyway"). Inside the right-aligned
                   cluster rather than after it, so the whole group stays

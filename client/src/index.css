@@ -9622,7 +9622,7 @@ body[data-layout="mobile"] button[role="switch"][data-state="checked"] > span {
   translate: 18px 0;
 }
 /* Header buttons: the filter chevron, search, quick-add "+", the panel stack's Up / tree / full-screen. */
-body[data-layout="mobile"] :is(.header-chevron, .occ-search-trigger, .quick-add-btn, .panel-stack-btn-inline, .toolbar button[title="Open menu"]) {
+body[data-layout="mobile"] :is(.header-chevron, .occ-search-trigger, .quick-add-btn, .panel-stack-btn-inline, .panel-files-btn, .toolbar-panel-picker-btn, .toolbar button[title="Open menu"]) {
   min-width: 34px;
   min-height: 34px;
   display: inline-flex;
@@ -9682,4 +9682,59 @@ body[data-layout="mobile"] :is(.table-sort-btn, .table-kebab-btn, .table-sort-ov
 /* iOS zooms the page when a focused input's text is under 16px. */
 body[data-layout="mobile"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
   font-size: 16px;
+}
+
+/* ── Phone headers (2026-11-02) ─────────────────────────────────────────────
+   User: "the labels on the headers are squished small too (for occurrences)" and "make sure there are
+   no unnecessary gaps or overlaps". Every header button is 34px (rule above); its icon is 16px so the
+   buttons read as one set (the Files button was a 21x17 box with an 11px icon). Labels one step up. */
+body[data-layout="mobile"] :is(.header-chevron, .occ-search-trigger, .quick-add-btn, .panel-stack-btn-inline, .panel-files-btn) svg {
+  width: 16px;
+  height: 16px;
+}
+body[data-layout="mobile"] { --instance-label-px: 15px; }
+body[data-layout="mobile"] .container-header-label { font-size: 0.95rem !important; }
+body[data-layout="mobile"] .page-header-row-label { font-size: 15px; }
+/* The feed icon sits right after a header's label (ModuleContainer / ModulePage). */
+.header-feed-icon { flex-shrink: 0; margin-left: 4px; opacity: 0.7; }
+
+/* The phone toolbar's panel button and its dropdown of panel boxes (mobile/PanelPicker). */
+.toolbar-panel-picker-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+.toolbar-panel-picker-btn[aria-expanded="true"] { color: var(--accent-blue); border-color: var(--accent-blue-border); }
+.toolbar-panel-picker {
+  background: var(--panel-bg, hsl(var(--background)));
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: var(--menu-shadow-2);
+}
+.toolbar-panel-picker-box {
+  background: var(--input-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.toolbar-panel-picker-box.is-active {
+  background: var(--accent-blue-bg);
+  border-color: var(--accent-blue-border);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+/* One look for the panel header's buttons on a phone: Up and Full screen drew a box, Search and Files did not. */
+body[data-layout="mobile"] .panel-stack-btn-inline {
+  border-color: transparent !important;
+  background: transparent !important;
 }
