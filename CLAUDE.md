@@ -30,6 +30,13 @@ the "setup" message on it"*.
   no scope. Set in `grid.meta.vrOffice` (pm2 restarted): scope = the TV Series board, condition Board Category
   CONTAINS `series` (the board also lists 181 cover images, which carry no category), title "TV Shows". The server's
   office state answers 193 shows, all drillable. **Not looked at in the headset.**
+- **Then, user: the links "arent showing up"** (they were link MARKS, unstyled in Terminal) → *"it should be the same as
+  every other link … a little arrow … contained in a minitextblock … edit the line like this message[link]"*. `0486`
+  turns link marks in row-note textblocks into link chips (the importer's shape, parented + listed by the textblock;
+  51 chips). A link chip now edits as ONE line `text[link]` (`docs/linkChipEdit.js`): focus swaps in the line, commit
+  reads the address back (no brackets → the old address kept), Escape saves nothing. **Found by watching it:** the
+  first build's Escape saved the `text[link]` line as the label (blur ran before setDraft landed) — fixed with a cancel
+  flag, the one chip repaired. Watched on prod: edit → label + arrow target change; restored.
 
 ---
 
