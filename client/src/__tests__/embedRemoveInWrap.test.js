@@ -19,7 +19,8 @@ describe("an embed whose row has not arrived yet", () => {
   const src = readFileSync(join(process.cwd(), "src/docs/ModuleEmbedNode.jsx"), "utf8");
   it("holds a quiet line before the 'embed: <id>' marker, which waits MISSING_MARKER_MS", () => {
     expect(src).toMatch(/export const MISSING_MARKER_MS = 3000;/);
-    const quiet = src.indexOf("if (!mod && !missingLong)");
+    // The quiet line also holds while the second message is in flight (server splitShownFirst, 2026-11-03).
+    const quiet = src.indexOf("if (!mod && (!missingLong || awaitingRest))");
     const marker = src.indexOf('embed: {occurrenceId || "missing"}');
     expect(quiet).toBeGreaterThan(0);
     expect(quiet).toBeLessThan(marker); // control: the marker is still there for a row that never comes

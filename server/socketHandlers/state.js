@@ -5,7 +5,7 @@ import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import { isCompressed } from "../utils/textmapCompression.js";
 import Grid from "../models/Grid.js";
 import { joinFeedGroup } from "./feedLeader.js";
-import { splitFullState, holdBackText } from "../utils/splitFullState.js";
+import { splitShownFirst, holdBackText } from "../utils/splitFullState.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 import { projectRowsForWire } from "../utils/wireProjection.js";
 
@@ -19,35 +19,47 @@ const REST_PUSH_FALLBACK_MS = 6000;
  * because a placement whose module has not arrived renders nothing while the
  * reverse never happens.
  */
+// Chunks are cut by SIZE, not row count: each chunk is parsed in one main-thread task on the client, so its size is
+// the length of the freeze. 4,000 rows was 3-8 MB and froze a throttled phone 1.5-4s per chunk (2026-09-28).
+export const REST_CHUNK_BYTES = 1_500_000;
+export function chunkBySize(rows, maxBytes = REST_CHUNK_BYTES) {
+  const out = [];
+  let cur = [], size = 0;
+  for (const r of rows) {
+    const n = JSON.stringify(r).length;
+    if (cur.length && size + n > maxBytes) { out.push(cur); cur = []; size = 0; }
+    cur.push(r); size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
 function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {} }) {
-  const CHUNK = 4000;
   const heldText = Object.keys(textmaps).length;
-  // At least one chunk when only text is held back.
-  const chunks = Math.max(Math.ceil(deferred.length / CHUNK), heldText ? 1 : 0);
-  for (let i = 0; i < chunks; i++) {
-    // Absent keys are not sent — 23% of the catalogue is keys that are null on
-    // every row (utils/omitNullKeys.js). THEN the dead keys go and the
-    // per-message constants are lifted onto the envelope
-    // (utils/wireProjection.js): `userId` + `gridId` alone are the same two
-    // strings repeated 17,160 times. The catalogue is already ONE store write
-    // (bcd57ee4), so what is left of each chunk's 1-4s freeze is arriving and
-    // parsing — which is bytes and nothing else.
-    const occ = projectRowsForWire(omitNullKeysAll(deferred.slice(i * CHUNK, (i + 1) * CHUNK)));
-    const mod = projectRowsForWire(i === 0 ? omitNullKeysAll(deferredModules) : []);
+  // Absent keys are not sent (utils/omitNullKeys.js), then the dead keys go and the per-message constants are lifted
+  // onto the envelope (utils/wireProjection.js) — sized after that, since that is what crosses the wire.
+  const occChunks = chunkBySize(omitNullKeysAll(deferred));
+  const modChunks = chunkBySize(omitNullKeysAll(deferredModules));
+  // Modules first: a row is drawn from its module, so a module never arrives after the rows that need it.
+  const parts = [...modChunks.map((m) => ({ mod: m, occ: [] })), ...occChunks.map((o) => ({ mod: [], occ: o }))];
+  if (!parts.length && heldText) parts.push({ mod: [], occ: [] });
+  const chunks = parts.length;
+  parts.forEach((part, i) => {
+    const occ = projectRowsForWire(part.occ);
+    const mod = projectRowsForWire(part.mod);
     socket.emit("full_state_rest", {
       gridId,
       occurrences: occ.rows,
       modules: mod.rows,
-      // Put back on arrival by `rehydrateWireRows`, so every reader downstream
-      // sees the shape it always saw.
+      // Put back on arrival by `rehydrateWireRows`, so every reader downstream sees the shape it always saw.
       occurrencesHoisted: occ.hoisted,
       modulesHoisted: mod.hoisted,
-      // The text of pages nobody has open (utils/splitFullState.holdBackText), with the first chunk.
+      // The text of rows not on a shown page (utils/splitFullState.holdBackText), with the first chunk.
       ...(i === 0 && heldText ? { textmaps } : {}),
       chunk: i + 1, chunks, done: i === chunks - 1,
     });
-  }
-  console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)`);
+  });
+  console.log(`[full_state] deferred ${deferred.length} occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)`);
 }
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
@@ -195,12 +207,13 @@ export function registerStateHandlers(socket, {
       // every load. NOTHING IS WITHHELD: the second message follows immediately,
       // so the 19 ops that walk `$allItems` see exactly what they saw before.
       // See utils/splitFullState.js for the measurement and the role rule.
-      const split = splitFullState(allGridOccs, gridModules);
-      const { deferred, coreModules, deferredModules } = split;
-      // The panels on this grid and the page each one shows keep their text in this message; every other page's
-      // text follows with the catalogue (utils/splitFullState.holdBackText).
+      // SHOWN PAGES FIRST (2026-11-03): the panels on this grid and the page each one shows go in this message with
+      // every page row; the rows of pages nobody is looking at follow (utils/splitFullState.splitShownFirst).
       const keepRootIds = [...(gridDoc?.occurrences || []),
         ...Object.values(uc.viewsById || {}).map((v) => v?.activeOccurrenceId).filter(Boolean)];
+      const split = splitShownFirst(allGridOccs, gridModules, { shownRootIds: keepRootIds });
+      const { deferred, coreModules, deferredModules } = split;
+      // Text of a kept row that is not on a shown page (a page card, a picked row) follows too.
       const { core, textmaps } = holdBackText(split.core, { keepRootIds, modules: gridModules });
 
       const coreWire = {

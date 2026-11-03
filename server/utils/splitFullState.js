@@ -151,3 +151,66 @@ export function holdBackText(core = [], { keepRootIds = [], modules = [] } = {})
   });
   return { core: out, textmaps };
 }
+
+/**
+ * SHOWN PAGES FIRST (user, 2026-11-03: "we have panels with multiple pages technically inside of them, so i want to
+ * make sure those arent being loaded in too right away. Just the shown pages").
+ *
+ * Measured on poms grid that day: the first message carried 15,775 rows (~28 MB) and the four pages on screen needed
+ * 3,706 of them (~3.9 MB). 3,226 sat under pages pinned to a panel but not shown, and 8,843 under no panel page.
+ *
+ * The first message keeps:
+ *  - everything reachable DOWN from `shownRootIds` (each panel and the page it shows) through `occurrences[]` and
+ *    textmap embeds. A page reached on the way that is not itself shown keeps its ROW only (its tab, card and tree
+ *    entry need the row; its content follows). A FOLDER page keeps its children's rows (its cards) but not below.
+ *  - every page and panel row on the grid, so the tree, tabs and menus are whole from the start;
+ *  - one hop of references from the kept rows: an occurrence a field value names (a picked Beverage, a Meal), and a
+ *    feed copy's source — so a shown pill reads its picked row's name at once.
+ * Everything else is sent in the second message, which the client waits for before any operation runs.
+ * Modules follow the same rule as `splitFullState`: a module goes later only when nothing kept places it. Pure.
+ *
+ * @returns {{ core, deferred, coreModules, deferredModules }}
+ */
+export function splitShownFirst(occurrences = [], modules = [], { shownRootIds = [] } = {}) {
+  const modById = new Map(modules.map((m) => [m?.id, m]));
+  const byId = new Map(occurrences.map((o) => [o?.id, o]));
+  const role = (o) => modById.get(o?.moduleId)?.role;
+  const isFolderPage = (o) => { const m = modById.get(o?.moduleId); return m?.role === "page" && m?.kind === "folder"; };
+  const children = (o) => {
+    const out = [...(o?.occurrences || [])];
+    if (o?.textmap && typeof o.textmap === "object") { const s = new Set(); collectEmbedIds(o.textmap, s); out.push(...s); }
+    return out;
+  };
+  const roots = new Set(shownRootIds.filter(Boolean));
+  const keep = new Set();
+  const stack = [...roots];
+  while (stack.length) {
+    const id = stack.pop();
+    if (!id || keep.has(id)) continue;
+    const o = byId.get(id);
+    if (!o) continue;
+    keep.add(id);
+    const r = role(o);
+    if (r === "page" && !roots.has(id)) continue;
+    if (isFolderPage(o)) { for (const c of o.occurrences || []) if (byId.has(c)) keep.add(c); continue; }
+    for (const c of children(o)) if (!keep.has(c)) stack.push(c);
+  }
+  for (const o of occurrences) { const r = role(o); if (r === "page" || r === "panel") keep.add(o.id); }
+  const refs = (v, depth = 0) => {
+    if (v == null || depth > 3) return;
+    if (typeof v === "string") { if (byId.has(v)) keep.add(v); return; }
+    if (Array.isArray(v)) { for (const x of v) refs(x, depth + 1); return; }
+    if (typeof v === "object") { if ("value" in v) refs(v.value, depth + 1); }
+  };
+  for (const id of [...keep]) {
+    const o = byId.get(id);
+    for (const cell of Object.values(o?.fields || {})) refs(cell);
+    if (o?.meta?.feedSourceId && byId.has(o.meta.feedSourceId)) keep.add(o.meta.feedSourceId);
+  }
+  const core = [], deferred = [];
+  for (const o of occurrences) (keep.has(o?.id) ? core : deferred).push(o);
+  const placedByCore = new Set(core.map((o) => o?.moduleId));
+  const coreModules = [], deferredModules = [];
+  for (const m of modules) (placedByCore.has(m?.id) ? coreModules : deferredModules).push(m);
+  return { core, deferred, coreModules, deferredModules };
+}

@@ -203,6 +203,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (isSnapshotMode()) return;
       if (isPassiveWindow()) return;
       if (!_isSyncLeader && socket?.connected) return;
+      // NOT ON HALF A GRID. Until the second message lands, the rows of every page nobody is looking at are missing,
+      // and a feed would sweep the copies whose sources it cannot see yet. The load sweep schedules this once the rest
+      // is in (and the fallback does too if it never comes).
+      if (stateRef.current?.awaitingDeferred && pendingFullState) return;
       try {
         const state = stateRef.current || {};
         const gridNow = state.gridId || state.grid?._id || null;
@@ -478,6 +482,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // The same guard for the held chunks, which outlive `pendingFullState` once
     // the fallback has fired: a late chunk for another grid must not be merged.
     if (rest.gridId && restChunks?.gridId && rest.gridId !== restChunks.gridId) return;
+
+    // A chunk is progress, not a stall: the fallback below is for a rest that never comes, and on a throttled phone the
+    // chunks were still landing 17-30s after full_state — past the 15s it used to run the load sweep on half a grid.
+    if (pendingFullState && !rest.done) armRestFallback();
 
     // Hold this chunk rather than dispatching it — one store write for the
     // whole catalogue (see above).

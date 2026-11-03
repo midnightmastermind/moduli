@@ -68,6 +68,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   // window places the node first). The "embed: <id>" marker said "broken" for that second (user, 2026-10-25): it
   // waits MISSING_MARKER_MS, holding a quiet line's height, and shows only if the row still has not arrived.
   const [missingLong, setMissingLong] = useState(false);
+  const awaitingRest = useGridActionsSelector((s) => !!s.state?.awaitingDeferred);
   useEffect(() => {
     if (mod) { setMissingLong(false); return undefined; }
     const t = setTimeout(() => setMissingLong(true), MISSING_MARKER_MS);
@@ -369,7 +370,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     return items;
   }, [align, updateAttributes, editor, getPos, mod, node.nodeSize, occurrenceId, dispatch, socket, wrapKey, moduleOfOcc, canPill]);
 
-  if (!mod && !missingLong) {
+  // A row in the second message (server splitShownFirst) is not missing, it is coming: keep the quiet line until it lands.
+  if (!mod && (!missingLong || awaitingRest)) {
     return <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}><div style={{ minHeight: 24 }} aria-hidden /></NodeViewWrapper>;
   }
   if (!mod) {

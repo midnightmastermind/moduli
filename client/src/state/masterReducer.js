@@ -112,6 +112,7 @@ function reduce(state, action) {
                     panels: derived.panels,
                     containers: derived.containers,
                     instances: derived.instances,
+                    pages: derived.pages,
                     artifacts: derived.artifacts,
                     textblocks: derived.textblocks,
                 } : {}),

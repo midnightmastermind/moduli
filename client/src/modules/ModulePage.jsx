@@ -131,7 +131,11 @@ function Page({
     () => ({ grid: ctxGrid, gridId: ctxGridId, userId: ctxUserId }),
     [ctxGrid, ctxGridId, ctxUserId],
   );
-  const { isMobileLayout, fullStateLoaded } = useContext(GridLiveContext);
+  const { isMobileLayout, fullStateLoaded: firstHalfLoaded } = useContext(GridLiveContext);
+  // A page that is not shown at load gets its rows in the SECOND message (server splitShownFirst), so until that lands
+  // its board says "loading", not "Drop containers here".
+  const awaitingRest = useGridActionsSelector((s) => !!s.state?.awaitingDeferred);
+  const fullStateLoaded = firstHalfLoaded && !awaitingRest;
   const selection = useContext(SelectionContext);
 
   // Direct child occurrence refs — the reactive dep for child-derived memos.
