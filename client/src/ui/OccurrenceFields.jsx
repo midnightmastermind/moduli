@@ -97,7 +97,7 @@ export default function OccurrenceFields({
       onPointerDown={(e) => e.stopPropagation()}
     >
       {items.map(({ field, binding }) => (
-        <AutoMarquee key={field.id} className="instance-field-mq" part=".field-pill-value">
+        <AutoMarquee key={field.id} className="instance-field-mq" part=".field-pill-value" dataFieldId={field.id}>
           <FieldRenderer
             field={field}
             binding={binding}

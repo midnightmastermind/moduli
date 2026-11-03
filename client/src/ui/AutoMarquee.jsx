@@ -70,7 +70,7 @@ const THRESHOLD_PX = 3; // ignore sub-pixel / rounding overflow
 // still — a field pill's label stays put while its value moves (user, 2026-10-31: "make the marque for fields only
 // do the value and not the field label as well"). The element must hold one child (the "run") that is moved; it
 // clips itself. No match inside the content = the whole content scrolls, as without `part`.
-export default function AutoMarquee({ children, className = "", part = null }) {
+export default function AutoMarquee({ children, className = "", part = null, dataFieldId = undefined }) {
   const boxRef = useRef(null);
   const innerRef = useRef(null);
   const [shift, setShift] = useState(0);
@@ -164,6 +164,7 @@ export default function AutoMarquee({ children, className = "", part = null }) {
     <span
       ref={boxRef}
       className={`auto-marquee ${className}`}
+      data-field-id={dataFieldId}
       // borderRadius matches the field-pill / input radius (4-5px) so when a
       // marquee wraps a pill it doesn't break the rounded outline.
       style={{ display: "block", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "100%", minWidth: 0, borderRadius: 4 }}
