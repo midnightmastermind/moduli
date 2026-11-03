@@ -153,6 +153,8 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   // A URL chip edits as one line, `text[link]` (docs/linkChipEdit). editingLinkRef says the content currently
   // holds that form, so commit reads the address back and blur puts the plain label back on screen.
   const editingLinkRef = useRef(false);
+  // Escape cancels: the blur it causes must save nothing (setDraft has not landed yet when blur runs).
+  const cancelRef = useRef(false);
   const onFocus = useCallback(() => {
     if (!isUrl || !editable || !contentRef.current) return;
     const line = linkEditText(storedText, link?.url);
@@ -162,10 +164,14 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   }, [isUrl, editable, storedText, link?.url]);
 
   const commit = useCallback(() => {
+    if (cancelRef.current) { cancelRef.current = false; editingLinkRef.current = false; return; }
     if (!occurrenceId || !dispatch || !socket) return;
     if (editingLinkRef.current) {
       editingLinkRef.current = false;
-      const { label, url } = parseLinkEdit(draft, link?.url);
+      // The `text[link]` line is read off the screen: onFocus swapped it in, and its setDraft may not have reached
+      // this closure yet.
+      const typed = contentRef.current ? (contentRef.current.textContent || "") : (draft || "");
+      const { label, url } = parseLinkEdit(typed, link?.url);
       if (contentRef.current) contentRef.current.textContent = label || url || "link";
       const urlChanged = url !== (link?.url || "");
       if (label === storedText && !urlChanged) return;
@@ -212,12 +218,12 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     }
     else if (e.key === "Escape") {
       e.preventDefault();
-      editingLinkRef.current = false;
-      if (contentRef.current) contentRef.current.textContent = storedText;
+      cancelRef.current = true;
+      if (contentRef.current) contentRef.current.textContent = storedText || (hasLink ? (link?.url || "link") : "");
       setDraft(storedText);
       contentRef.current?.blur();
     }
-  }, [storedText, editor, getPos, node]);
+  }, [storedText, editor, getPos, node, hasLink, link?.url]);
 
   // RIGHT arrow — single-click opens the link. stopPropagation + preventDefault
   // on mousedown so ProseMirror never node-selects the atom first (that
