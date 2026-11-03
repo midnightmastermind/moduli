@@ -18,7 +18,9 @@ import Panel from "./modules/ModulePanel";
 import GridMosaic from "./modules/GridMosaic";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import FullscreenOverlay from "./ui/FullscreenOverlay";
-import { allPanelOccIds, fillMissingLeaves, treeToCells } from "./helpers/bspTree";
+import { fillMissingLeaves } from "./helpers/bspTree";
+import { phoneCells } from "./helpers/phoneCells";
+import { publishPhoneShape } from "./state/activeCellStore";
 import { trackLastPanel, getLastPanelId } from "./helpers/lastPanel";
 
 import { GridDataContext } from "./GridDataContext";
@@ -374,126 +376,6 @@ function GridRender({
   );
 }
 
-// ============================================================
-// MOSAIC MOBILE NAV — one-panel-at-a-time pager for mosaic grids on mobile.
-// Reuses MobileGridNav (rail buttons, overscroll-to-navigate, zoom-out cell
-// picker) by modeling the tree's panel order as a 1×N cell space: each panel
-// is one "cell" (its col index). Replaces the old plain scroll-stack, which
-// had no way to switch cells (user: "the edge buttons to switch cells are no
-// longer there").
-// ============================================================
-function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setActiveCell, zoomedOut, setZoomedOut, isTouch, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId, panelLabelResolver }) {
-  const panelByOccId = useMemo(() => {
-    const m = Object.create(null);
-    for (const p of visiblePanels || []) if (p?._occurrenceId) m[p._occurrenceId] = p;
-    return m;
-  }, [visiblePanels]);
-  // Tree order, filtered to panels that actually render right now.
-  const order = useMemo(
-    () => allPanelOccIds(layoutTree).filter((id) => panelByOccId[id]),
-    [layoutTree, panelByOccId]
-  );
-  // The mosaic tree is the DESKTOP arrangement, and on mobile it is turned
-  // into a rows×cols cell map (treeToCells, below) so the phone's directions
-  // match the desktop's. (It used to read `occurrence.placement`, which the
-  // mosaic never updates — stale after any rearrangement.) This restores the 2D map + 4-direction rail
-  // buttons (2026-07-14: "no longer 3 by 2 with the 4 buttons around each
-  // side… its just a line now" — the old synthetic 1×N strip). Panels
-  // without distinct placements (all stacked at one cell) fall back to the
-  // 1×N strip so a placement-less grid still navigates.
-  const { rows, cols, navPanels } = useMemo(() => {
-    const panels = order.map((occId) => panelByOccId[occId]);
-    // The TREE's own arrangement wins (helpers/bspTree.treeToCells): a stored
-    // placement goes stale once the mosaic is rearranged, and navigating by it
-    // sent the phone DOWN to a panel the desktop shows on the RIGHT (poms grid,
-    // 2026-09-24). Placements remain the fallback for panels outside the tree.
-    const fromTree = treeToCells(layoutTree);
-    if (panels.length && panels.every((p) => fromTree.cells[p._occurrenceId])) {
-      return {
-        rows: fromTree.rows,
-        cols: fromTree.cols,
-        navPanels: panels.map((p) => ({ ...p, ...fromTree.cells[p._occurrenceId] })),
-      };
-    }
-    const distinctCells = new Set(panels.map((p) => `${p.row ?? 0}:${p.col ?? 0}`));
-    if (panels.length > 1 && distinctCells.size <= 1) {
-      return {
-        rows: 1,
-        cols: Math.max(1, panels.length),
-        navPanels: panels.map((p, i) => ({ ...p, row: 0, col: i, width: 1, height: 1 })),
-      };
-    }
-    return {
-      rows: Math.max(1, ...panels.map((p) => (p.row ?? 0) + (p.height || 1)), 1),
-      cols: Math.max(1, ...panels.map((p) => (p.col ?? 0) + (p.width || 1)), 1),
-      navPanels: panels,
-    };
-  }, [order, panelByOccId]);
-  // Clamp the persisted activeCell (which may carry a shape from a previous
-  // layout) into the current cell space at RENDER time — no off-screen
-  // flash — then write the clamp back so localStorage/state converge. Skip
-  // persisting while order is still EMPTY (panels hydrating): clamping
-  // against a 1×1 space then would clobber the user's saved cell on load.
-  const row = Math.min(Math.max(activeCell?.row ?? 0, 0), rows - 1);
-  const col = Math.min(Math.max(activeCell?.col ?? 0, 0), cols - 1);
-  const hydrated = order.length > 0;
-  useEffect(() => {
-    if (!hydrated) return;
-    if ((activeCell?.row ?? 0) !== row || (activeCell?.col ?? 0) !== col) setActiveCell({ row, col });
-  }, [hydrated, row, col, activeCell?.row, activeCell?.col, setActiveCell]);
-  return (
-    <MobileGridNav
-      rows={rows}
-      cols={cols}
-      activeCell={{ row, col }}
-      setActiveCell={setActiveCell}
-      isMobileLayout
-      isTouch={isTouch}
-      zoomedOut={zoomedOut}
-      setZoomedOut={setZoomedOut}
-      visiblePanels={navPanels}
-      panelLabelResolver={panelLabelResolver}
-    >
-      <div
-        ref={gridRef}
-        className="bg-background2"
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${rows}, 1fr)`,
-          width: "100%",
-          height: "100%",
-        }}
-      >
-        {navPanels.map((p) => (
-          <div
-            key={p._occurrenceId}
-            style={{
-              gridColumn: `${(p.col ?? 0) + 1} / span ${p.width || 1}`,
-              gridRow: `${(p.row ?? 0) + 1} / span ${p.height || 1}`,
-              display: "flex", boxSizing: "border-box", padding: 4,
-              minWidth: 0, minHeight: 0,
-            }}
-          >
-            <ErrorBoundary label={p.label || "Panel"}>
-              <Panel
-                module={p}
-                mosaic
-                dispatch={dispatch}
-                socket={socket}
-                addContainerToPanel={addContainerToPanel}
-                addInstanceToContainer={addInstanceToContainer}
-                sizesRef={sizesRef}
-                fullscreenPanelId={fullscreenPanelId}
-                setFullscreenPanelId={setFullscreenPanelId}
-              />
-            </ErrorBoundary>
-          </div>
-        ))}
-      </div>
-    </MobileGridNav>
-  );
-}
 
 // ============================================================
 // GRID INNER (wraps with DragProvider)
@@ -708,6 +590,13 @@ function GridInner() {
     setRowSizes((prev) => (sameArray(prev, next) ? prev : next));
   }, [rows, grid?._id]);
 
+  // A phone never uses the desktop's mosaic tree: it pages the grid's rows × cols, each panel in a cell of its
+  // own (helpers/phoneCells — a mosaic does not keep placements up, so they can collide). Display only.
+  const phone = useMemo(
+    () => (layoutTree && isMobileLayout ? phoneCells(visiblePanels, rows, cols) : null),
+    [layoutTree, isMobileLayout, visiblePanels, rows, cols]
+  );
+  useEffect(() => { publishPhoneShape(phone ? { rows: phone.rows, cols: phone.cols } : null); }, [phone?.rows, phone?.cols]); // eslint-disable-line react-hooks/exhaustive-deps
   const colTemplate = colSizes.map((s) => `${s}fr`).join(" ");
   const rowTemplate = rowSizes.map((s) => `${s}fr`).join(" ");
 
@@ -978,47 +867,28 @@ function GridInner() {
           addInstanceToContainer={addInstanceToContainer}
           sizesRef={sizesRef}
         />
-      ) : layoutTree && isMobileLayout ? (
-        <MosaicMobileNav
-          gridRef={gridRef}
-          layoutTree={layoutTree}
-          visiblePanels={visiblePanels}
-          activeCell={activeCell}
-          setActiveCell={setActiveCell}
-          zoomedOut={zoomedOut}
-          setZoomedOut={setZoomedOut}
-          isTouch={isTouch}
-          dispatch={dispatch}
-          socket={socket}
-          addContainerToPanel={addContainerToPanel}
-          addInstanceToContainer={addInstanceToContainer}
-          sizesRef={sizesRef}
-          fullscreenPanelId={fullscreenPanelId}
-          setFullscreenPanelId={setFullscreenPanelId}
-          panelLabelResolver={resolvePanelLabel}
-        />
       ) : isMobileLayout ? (
         <MobileGridNav
-          rows={rows}
-          cols={cols}
+          rows={phone ? phone.rows : rows}
+          cols={phone ? phone.cols : cols}
           activeCell={activeCell}
           setActiveCell={setActiveCell}
           isMobileLayout={isMobileLayout}
           isTouch={isTouch}
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
-          visiblePanels={visiblePanels}
+          visiblePanels={phone ? phone.panels : visiblePanels}
           panelLabelResolver={resolvePanelLabel}
         >
           <GridRender
             gridRef={gridRef}
-            rows={rows}
-            cols={cols}
-            colTemplate={colTemplate}
-            rowTemplate={rowTemplate}
-            colSizes={colSizes}
-            rowSizes={rowSizes}
-            panelsRender={visiblePanels}
+            rows={phone ? phone.rows : rows}
+            cols={phone ? phone.cols : cols}
+            colTemplate={phone ? `repeat(${phone.cols}, 1fr)` : colTemplate}
+            rowTemplate={phone ? `repeat(${phone.rows}, 1fr)` : rowTemplate}
+            colSizes={phone ? Array(phone.cols).fill(1) : colSizes}
+            rowSizes={phone ? Array(phone.rows).fill(1) : rowSizes}
+            panelsRender={phone ? phone.panels : visiblePanels}
             dispatch={dispatch}
             socket={socket}
             fullscreenPanelId={fullscreenPanelId}

@@ -192,7 +192,7 @@ export default function MobileGridNav({
   // and the cell switch. The tap now paints the target transform IMMEDIATELY
   // (imperatively, in its own frame) and holds the target here until the state
   // catches up, so the render that follows agrees instead of snapping back.
-  // (Compared BY VALUE — MosaicMobileNav passes a fresh {row,col} each render.)
+  // (Compared BY VALUE — a parent may pass a fresh {row,col} each render.)
   const pendingCellRef = useRef(null);
   const lastSeenCellRef = useRef(activeCell);
   const seenCell = lastSeenCellRef.current;

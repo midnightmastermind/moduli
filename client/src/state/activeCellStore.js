@@ -111,3 +111,18 @@ export function useActiveCell() {
 export function useZoomedOut() {
   return useSyncExternalStore(subscribe, getZoomedOut);
 }
+
+/** The rows × cols a PHONE pages through when it is not the grid's own (a mosaic grid, whose panels get
+ *  cells of their own — helpers/phoneCells). Null = the grid's rows × cols. Published by Grid, read by the
+ *  toolbar's mini map so it draws the shape the rails move through. */
+let _phoneShape = null;
+export function publishPhoneShape(shape) {
+  const next = shape ? { rows: shape.rows, cols: shape.cols } : null;
+  if ((_phoneShape?.rows ?? null) === (next?.rows ?? null) && (_phoneShape?.cols ?? null) === (next?.cols ?? null)) return;
+  _phoneShape = next;
+  emit();
+}
+export function getPhoneShape() { return _phoneShape; }
+export function usePhoneShape() {
+  return useSyncExternalStore(subscribe, getPhoneShape);
+}

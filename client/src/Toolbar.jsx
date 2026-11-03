@@ -30,7 +30,7 @@ import { operationsBridge } from "./state/bindSocketToStore";
 import { planFollowingPages } from "./helpers/filterFollow";
 import { pruneOrphanFilterValues } from "./helpers/activePeriod";
 import * as CommitHelpers from "./helpers/CommitHelpers";
-import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
+import { useActiveCell, useZoomedOut, setZoomedOut, usePhoneShape } from "./state/activeCellStore";
 
 export default function Toolbar({
   gridId,
@@ -68,6 +68,7 @@ export default function Toolbar({
   // Subscribed here — App no longer holds navigation state, so a cell change
   // never re-renders the root (see state/activeCellStore).
   const activeCell = useActiveCell();
+  const phoneShape = usePhoneShape();
   // Width of the toast slot (see the Middle block below). Rounded, so a
   // sub-pixel resize does not re-render the toolbar.
   const toastSlotRef = useRef(null);
@@ -150,9 +151,6 @@ const gridOptions = useMemo(
     [availableGrids]
   );
 
-  // Mosaic grids navigate the UNDERLYING rows×cols placements on mobile
-  // (MosaicMobileNav, 2026-07-14 — the old synthetic 1×N strip is gone), so
-  // the mini map mirrors rows×cols for every grid shape.
 
   // The account rows show the EMAIL when the server knows it — the raw userId
   // is a UUID, which identifies the account to the database and to nobody else.
@@ -274,14 +272,12 @@ const gridOptions = useMemo(
             </Select>
           )}
 
-          {/* Mini grid map — mobile only, shows when there are multiple cells.
-              Mosaic grids page one panel per "cell" (1×N — see Grid.jsx
-              MosaicMobileNav), so the map mirrors that shape instead of the
-              rows×cols record. */}
-          {isMobileLayout && (grid?.rows > 1 || grid?.cols > 1) && (
+          {/* Mini grid map — mobile only, shows when there are multiple cells. A mosaic grid's phone
+              shape can differ from its stored rows × cols (helpers/phoneCells), so it is read from there. */}
+          {isMobileLayout && ((phoneShape?.rows ?? grid?.rows) > 1 || (phoneShape?.cols ?? grid?.cols) > 1) && (
             <MiniGridMap
-              rows={grid?.rows || 1}
-              cols={grid?.cols || 1}
+              rows={phoneShape?.rows ?? (grid?.rows || 1)}
+              cols={phoneShape?.cols ?? (grid?.cols || 1)}
               activeRow={activeCell?.row ?? 0}
               activeCol={activeCell?.col ?? 0}
               onMapClick={() => setZoomedOut?.(prev => !prev)}
