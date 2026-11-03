@@ -34,7 +34,9 @@
     "test:server": "TMPDIR=$HOME/tmp npm --prefix ./server run test 2>&1 | tee test-results.txt",
     "test:e2e": "npx playwright test",
     "test:all": "{ echo '=== CLIENT TESTS ===' && TMPDIR=$HOME/tmp npm --prefix ./client run test 2>&1; echo ''; echo '=== SERVER TESTS ===' && TMPDIR=$HOME/tmp npm --prefix ./server run test 2>&1; } | tee test-results.txt",
-    "test:ci": "mkdir -p test-results && npm run test:all 2>&1 | tee test-results/full-run.log"
+    "test:ci": "mkdir -p test-results && npm run test:all 2>&1 | tee test-results/full-run.log",
+    "uisweep": "TMPDIR=$HOME/tmp node --env-file=./server/.env tools/uisweep/run.mjs",
+    "uisweep:test": "node --test tools/uisweep/__tests__/"
   },
   "repository": {
     "type": "git",
@@ -43,6 +45,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.18",
+    "axe-core": "^4.10.2",
     "concurrently": "^8.2.1",
     "socket.io-client": "^4.8.3"
   },
