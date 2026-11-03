@@ -860,6 +860,8 @@ function valueSignPillTint(value, type) {
 // (user: "remove the old little + … keep the higher one").
 
 // ─── Star renderer ─────────────────────────────────────────────
+const CELL_ONLY_KEYS = new Set(["flow", "timestamp", "fieldUpdatedAt"]);
+
 function Stars({ rating, max = 5, size = "w-4 h-4" }) {
   // Parse pixel size from tailwind class (w-3→12, w-4→16, w-5→20)
   const px = size.startsWith("w-3") ? 12 : size.startsWith("w-5") ? 20 : 16;
@@ -1297,7 +1299,14 @@ function Field({
   // multiSelect); treating an array as "object without a value key" returned
   // undefined and every stored multi-value rendered EMPTY on load (found
   // 2026-07-12 via the tags feed E2E).
-  const extractValue = (v) => (v && typeof v === "object" && !Array.isArray(v) && !isWhen(v) ? ("value" in v ? v.value : undefined) : v);
+  // Only a stored CELL is unwrapped — `{value, flow}`, or a value-less `{flow}` (empty). Any other object IS the value:
+  // an address picked from the map (`{label, address, lat, lon}`) has no `value` key and was read as empty, so every
+  // picked address on the grid showed "Set an address…" (sweep 2026-11-03).
+  const extractValue = (v) => {
+    if (!v || typeof v !== "object" || Array.isArray(v) || isWhen(v)) return v;
+    if ("value" in v) return v.value;
+    return Object.keys(v).every((k) => CELL_ONLY_KEYS.has(k)) ? undefined : v;
+  };
   const defaultValue = field?.meta?.defaultValue ?? (field?.type === "boolean" ? false : undefined);
   const resolveInputVal = (v) => { const raw = extractValue(v); return (raw === null || raw === undefined) ? (defaultValue ?? raw) : raw; };
 

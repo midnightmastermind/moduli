@@ -55,3 +55,14 @@ describe("rating, markdown and address controls are named", () => {
     expect(container.textContent).toMatch(/Address/);
   });
 });
+
+describe("a picked address shows on the row", () => {
+  // FieldRenderer hands the bare location object; it has no `value` key, and extractValue read it as empty.
+  it("renders the stored location's name, not 'Set an address…'", () => {
+    const loc = { label: "Madison", address: "Wisconsin, United States", lat: 43.07, lon: -89.38, osmId: "R/1" };
+    const { container } = mount(<Field field={{ id: "fa", type: "address", name: "Address", inputEnabled: true, meta: {} }}
+      value={loc} compact onCommit={() => {}} onChange={() => {}} hostOccurrence={{ id: "o" }} />);
+    expect(container.textContent).toMatch(/Madison/);
+    expect(container.textContent).not.toMatch(/Set an address/);
+  });
+});

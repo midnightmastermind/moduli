@@ -41,6 +41,10 @@ export function cases() {
 // ── drivers: one case through the real UI ─────────────────────────────────────
 // Each returns { step, ok, note, ms } per step. The row is found by its occurrence id; a field by its label.
 
+// Today, local: a dated row on a date-filtered page only shows on its own day, so the date case uses today.
+const _now = new Date();
+const TODAY = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
+const TODAY_LABEL = _now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const OPT = '[role="option"], [data-radix-popper-content-wrapper] button, .occ-search-row';
 
 async function act(page, h, touch) { if (touch) await h.tap(); else await h.click(); }
@@ -113,8 +117,8 @@ async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
       return out;
     }
     if (type === "button") {
-      const t = await timed(async () => { await act(page, h, touch); await page.waitForTimeout(800); return page.evaluate(() => document.body.innerText); });
-      step("press", /listen|nothing|running|ran/i.test(t.r), "expects a message when nothing listens", t.ms);
+      const t = await timed(async () => { await act(page, h, touch); return page.waitForFunction(() => /nothing listens/i.test(document.body.textContent), null, { timeout: 3000 }).then(() => true).catch(() => false); });
+      step("press says nothing listens", t.r, t.r ? "" : "no message after 3s", t.ms);
       return out;
     }
     if (type === "select" || type === "occurrence") {
@@ -148,18 +152,47 @@ async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
       const isDialog = await input.evaluate((e) => !!e.closest('[role="dialog"]'));
       step("picker is a dialog", isDialog, isDialog ? "" : "no role=dialog — a screen reader is not told a modal opened");
       await input.fill("Madison, Wisconsin"); await page.keyboard.press("Enter");
-      const res = await page.waitForFunction(() => [...document.querySelectorAll("button")].filter((b) => /°|·/.test(b.innerText) && b.querySelector("span")).length > 0, null, { timeout: 12000 }).catch(() => null);
+      const res = await page.waitForFunction(() => [...(document.querySelector('[role="dialog"]')?.querySelectorAll("button") || [])].filter((b) => /Madison/.test(b.innerText)).length > 0, null, { timeout: 12000 }).catch(() => null);
       step("search finds results", !!res, res ? "" : "no results in 12s");
       if (res) {
-        const first = await page.evaluateHandle(() => [...document.querySelectorAll("button")].find((b) => /°|·/.test(b.innerText) && b.querySelector("span")));
+        const first = await page.evaluateHandle(() => [...document.querySelector('[role="dialog"]').querySelectorAll("button")].find((b) => /Madison/.test(b.innerText)));
         await first.asElement().click(); await page.waitForTimeout(600);
         const txt = await pillText(page, rowSel, f.name, f.id);
         step("set → shown", !!txt && !/Set an address/.test(txt), `→ "${txt}"`);
       }
       return out;
     }
+    if (type === "date") {
+      // The pill is a <label> around a native date input (its picker cannot be driven headless): set the input.
+      const inputSel = `${rowSel} [data-field-id="${f.id}"] input[type=date]`;
+      const setDate = (v) => page.$eval(inputSel, (el, v) => { const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value"); d.set.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }, v);
+      await setDate(TODAY); await page.waitForTimeout(500);
+      const txt = await pillText(page, rowSel, f.name, f.id);
+      step("set → shown", !!txt && txt.includes(TODAY_LABEL), `→ "${txt}"`);
+      await setDate(""); await page.waitForTimeout(500);
+      const t2 = await pillText(page, rowSel, f.name, f.id);
+      step("clear → shown empty", !!t2 && !t2.includes(TODAY_LABEL), `→ "${t2}"`);
+      return out;
+    }
+    if (type === "when") {
+      await act(page, h, touch); await page.waitForTimeout(500);
+      const dlg = await page.$('[role="dialog"]');
+      step("opens its picker", !!dlg, dlg ? "" : "nothing opened");
+      if (dlg) { const named = await dlg.evaluate((e) => !!(e.getAttribute("aria-label") || e.getAttribute("aria-labelledby"))); step("picker is named", named, named ? "" : "dialog has no name"); }
+      return out;
+    }
+    if (type === "markdown") {
+      const ta = await page.$(`${rowSel} [data-field-id="${f.id}"] textarea`);
+      step("has a box", !!ta, ""); if (!ta) return out;
+      await act(page, ta, touch); await page.keyboard.type("Sweep **md**"); await page.locator("body").click({ position: { x: 5, y: 5 } }); await page.waitForTimeout(600);
+      const v = await ta.evaluate((e) => e.value);
+      step("set → kept", /Sweep/.test(v), `→ "${v}"`);
+      await act(page, ta, touch); await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace"); await page.locator("body").click({ position: { x: 5, y: 5 } }); await page.waitForTimeout(600);
+      step("clear → empty", (await ta.evaluate((e) => e.value)) === "", "");
+      return out;
+    }
     if (type === "rating") {
-      const stars = await h.$$("button, [role=radio], svg");
+      const stars = await page.$$(`${rowSel} [data-field-id="${f.id}"] button`);
       step("has stars", stars.length > 0, `${stars.length}`);
       if (!stars.length) return out;
       await act(page, stars[Math.min(2, stars.length - 1)], touch); await page.waitForTimeout(300);
