@@ -44,20 +44,20 @@ export function cases() {
 const OPT = '[role="option"], [data-radix-popper-content-wrapper] button, .occ-search-row';
 
 async function act(page, h, touch) { if (touch) await h.tap(); else await h.click(); }
-async function pillText(page, rowSel, name) {
-  return page.evaluate(({ rowSel, name }) => {
+async function pillText(page, rowSel, name, id = "") {
+  return page.evaluate(({ rowSel, name, id }) => {
     const row = document.querySelector(rowSel); if (!row) return null;
-    const el = [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name));
+    const el = (row.querySelector(`[data-field-id="${id}"]`) || [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name)));
     return el ? (el.innerText || "").replace(/\s+/g, " ").trim() : null;
-  }, { rowSel, name });
+  }, { rowSel, name, id });
 }
-async function pillHandle(page, rowSel, name) {
-  return page.evaluateHandle(({ rowSel, name }) => {
+async function pillHandle(page, rowSel, name, id = "") {
+  return page.evaluateHandle(({ rowSel, name, id }) => {
     const row = document.querySelector(rowSel);
-    const box = [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name));
+    const box = (row.querySelector(`[data-field-id="${id}"]`) || [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name)));
     if (!box) return null;
     return box.querySelector("button, [role=combobox], [tabindex]") || box;
-  }, { rowSel, name });
+  }, { rowSel, name, id });
 }
 async function openOptions(page) {
   await page.waitForTimeout(500);
@@ -70,14 +70,14 @@ export async function driveRowPill(page, rowSel, variant, f, { touch = false } =
   const out = [];
   const step = (name, ok, note = "", ms = null) => out.push({ step: name, ok, note, ms });
   await page.$eval(rowSel, (e) => e.scrollIntoView({ block: "center" })).catch(() => {});
-  const before = await pillText(page, rowSel, f.name);
+  const before = await pillText(page, rowSel, f.name, f.id);
   if (before === null) { step("visible", false, "no pill on the row"); return out; }
-  const h = (await pillHandle(page, rowSel, f.name)).asElement();
+  const h = (await pillHandle(page, rowSel, f.name, f.id)).asElement();
   if (!h) { step("visible", false, "no control in the pill"); return out; }
   const type = variant.split("/")[0];
   try {
     if (type === "boolean") {
-      const sw = await page.evaluateHandle(({ rowSel, name }) => { const row = document.querySelector(rowSel); const box = [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name)); return box?.querySelector('button.peer, [role="switch"], input[type=checkbox]'); }, { rowSel, name: f.name });
+      const sw = await page.evaluateHandle(({ rowSel, name, id }) => { const row = document.querySelector(rowSel); const box = (row.querySelector(`[data-field-id="${id}"]`) || [...row.querySelectorAll(".instance-field-mq")].find((e) => (e.innerText || "").trim().startsWith(name))); return box?.querySelector('button.peer, [role="switch"], input[type=checkbox]'); }, { rowSel, name: f.name, id: f.id });
       const el = sw.asElement();
       const state = () => el.evaluate((e) => e.getAttribute("aria-checked") ?? e.getAttribute("data-state") ?? String(e.checked));
       const s0 = await state();
@@ -103,16 +103,16 @@ export async function driveRowPill(page, rowSel, variant, f, { touch = false } =
       const pick = t1.r[Math.min(1, t1.r.length - 1)];
       const label = (await pick.innerText()).split("\n")[0].trim();
       await act(page, pick, touch); await page.waitForTimeout(500);
-      let txt = await pillText(page, rowSel, f.name);
+      let txt = await pillText(page, rowSel, f.name, f.id);
       step("set → shown", !!txt && txt.includes(label.slice(0, 12)), `picked "${label}" → "${txt}"`);
       // unpick: open again, press the same option
       if (multi && !(await page.$(OPT))) { /* list closed */ }
-      if (!(await page.$(OPT))) { const h2 = (await pillHandle(page, rowSel, f.name)).asElement(); await act(page, h2, touch); await page.waitForTimeout(500); }
+      if (!(await page.$(OPT))) { const h2 = (await pillHandle(page, rowSel, f.name, f.id)).asElement(); await act(page, h2, touch); await page.waitForTimeout(500); }
       const opts = await page.$$(OPT);
       let same = null; for (const o of opts) { if ((await o.innerText()).split("\n")[0].trim() === label) { same = o; break; } }
       if (same) { await act(page, same, touch); await page.waitForTimeout(500); }
       await page.keyboard.press("Escape"); await page.waitForTimeout(300);
-      txt = await pillText(page, rowSel, f.name);
+      txt = await pillText(page, rowSel, f.name, f.id);
       step("unpick → shown empty", !!txt && !txt.includes(label.slice(0, 12)), `→ "${txt}"`);
       const open = await page.$(OPT);
       step("Escape closes", !open, open ? "list still open" : "");
@@ -136,13 +136,13 @@ export async function driveRowPill(page, rowSel, variant, f, { touch = false } =
     step("opens editor", !!t1.r, t1.r ? "" : "nothing took focus", t1.ms);
     if (!t1.r) { const dlg = await page.$('[role="dialog"]'); step("opens a dialog", !!dlg, ""); await page.keyboard.press("Escape"); return out; }
     await page.keyboard.press("Control+A"); await page.keyboard.type(value); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
-    const txt = await pillText(page, rowSel, f.name);
+    const txt = await pillText(page, rowSel, f.name, f.id);
     const want = type === "duration" ? "1h 30m" : value;
     step("set → shown", !!txt && txt.includes(want), `→ "${txt}"`);
-    const h2 = (await pillHandle(page, rowSel, f.name)).asElement();
+    const h2 = (await pillHandle(page, rowSel, f.name, f.id)).asElement();
     await act(page, h2, touch); await page.waitForTimeout(400);
     await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
-    const t3 = await pillText(page, rowSel, f.name);
+    const t3 = await pillText(page, rowSel, f.name, f.id);
     step("clear → shown empty", !!t3 && !t3.includes(want), `→ "${t3}"`);
     return out;
   } catch (e) {
