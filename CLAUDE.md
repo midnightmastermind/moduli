@@ -30,6 +30,14 @@ prod: Routines | Tasks (2 tall) / Trackers / Schedule, every rail move lands on 
 **Scroll, the other account's open item** (`_mboard2.mjs`: point Panel A at the board, 40 x 400px steps, 4x CPU, prod):
 People 4.8s · Movies 5.5s · Songs 5.6s · Books 5.8s (126-153ms/step) · **People Table 24.4s (590ms/step, worst 1.1s)** —
 the table is the next lever. Panel A put back on Routines after every run.
+**Then (user: "2 by 3 … routines, tasks, and trackers stacked with schedule taking up the other 3"):** set on the
+server — rows 3, cols 2, Routines/Tasks/Trackers in column 0, Schedule col 1 height 3; an empty Root panel the phone made
+at 19:09 removed from the grid (user's pick). *"my phone app doesnt show that"*: each window lays its OWN saved layout
+(`helpers/windowLayout`, since 10-24) over the server's. On a mosaic grid only phones read the rows × cols keys, so a
+phone now takes `rows/cols/sizes/occurrences` + panel `placement/display` from the server, on load and from live updates
+(`phoneSharesRowsCols`, `PHONE_SHARED_*`; `incomingGridPatch keepGridKeys`); its page choices stay its own. Probe with a
+stale saved copy: deployed showed Schedule top-left + the Root panel, new shows the 3×2. Also: the up rail sat at 30px
+under the 44px toolbar (8px tappable) — now at 44px, and the viewport moves down by it when there is a panel above.
 
 ---
 
