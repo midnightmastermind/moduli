@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Every button, menu item and input in Moduli is exercised — every field type in every place it renders, on desktop and on a phone — and anything that is broken, inaccessible, confusing or slow is fixed or reported with a measurement.
+**Goal:** (desktop first, phone included in every area) Every button, menu item and input in Moduli is exercised — every field type in every place it renders, on desktop and on a phone — and anything that is broken, inaccessible, confusing or slow is fixed or reported with a measurement.
 
 **Architecture:** A checked-in Playwright harness (`tools/uisweep/`) replaces the one-off `_*.mjs` probes. It has three parts: a **session** (phone or desktop, touch, CPU throttle, skin, writes blocked unless a run opts in), a **crawler** that opens a surface, finds every interactive element in it, activates each one and records what happened, and **checks** (on screen, hit-testable, tap size, contrast/ARIA via axe, Escape, focus, no sideways scroll, timings). A **field matrix** drives every field type × variant × render context. Results land in one report, `docs/ui-sweep-2026-11-03.md`; each defect becomes a test-first fix.
 
@@ -134,7 +134,7 @@ docs/ui-sweep-2026-11-03.md   the report (Task 2 creates it)
 
 **Files:** `docs/ui-sweep-2026-11-03.md` only (findings); fixes are Task 7.
 
-- [ ] **Step 1:** For each area in this order — `phone`, `toolbar`, `header`, `add`, `settings`, `radial`, `docs`, `drawers`, `viewers`, `table`, `canvas`, `graph`, `layout`, `context`, `commandCenter`, `forms`, `sharing`, `account`, `vr-web` — run `npm run uisweep -- --area <a> --vp phone --skin terminal`, then `--vp desktop --skin default`, then `--vp phone-land`. Phone first: it is where the user said things break.
+- [ ] **Step 1:** For each area in this order — `toolbar`, `header`, `add`, `settings`, `radial`, `docs`, `drawers`, `viewers`, `table`, `canvas`, `graph`, `layout`, `context`, `commandCenter`, `forms`, `sharing`, `account`, `phone`, `vr-web` — run **desktop first** (`--vp desktop --skin terminal`, then `--skin default`), then `--vp phone --skin terminal`, then `--vp phone-land`. **Desktop is the priority** (user, 14:13: *"make sure that desktop is a priority too, not just mobile. i just want mobile in the sweep"*); the phone runs are part of every area, not a separate pass.
 - [ ] **Step 2:** For each area, read the rows and add the **Clarity** column by hand (the rubric in Task 2): does the label say what it does, would a person who has never seen Moduli know what to tap, how many taps the area's common task takes (e.g. "add a task to today", "move an appointment to 10am", "filter People by Relationship"). Write the tap count down for each common task; > 3 taps is a soft fail.
 - [ ] **Step 3:** Commit the report after each area (`docs(uisweep): <area> findings`) so a parallel account can see progress.
 
