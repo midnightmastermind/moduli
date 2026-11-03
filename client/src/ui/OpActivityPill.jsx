@@ -16,7 +16,7 @@ import React, { useSyncExternalStore } from "react";
 import { Loader } from "lucide-react";
 import { subscribeOpActivity, getOpActivity } from "../helpers/opActivity";
 
-export default function OpActivityPill() {
+export default function OpActivityPill({ compact = false } = {}) {
   const act = useSyncExternalStore(subscribeOpActivity, getOpActivity, getOpActivity);
   if (!act.busy) return null;
 
@@ -47,7 +47,8 @@ export default function OpActivityPill() {
         }}
       />
       <Loader size={11} aria-hidden />
-      <span>Operations running</span>
+      {/* A phone shows the spinner alone: the words pushed the toolbar into the panel button. */}
+      {!compact && <span>Operations running</span>}
     </div>
   );
 }

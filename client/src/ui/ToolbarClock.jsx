@@ -10,7 +10,7 @@ export function formatToolbarClock(d) {
   return { date, time };
 }
 
-export default function ToolbarClock({ now: fixedNow = null }) {
+export default function ToolbarClock({ now: fixedNow = null, timeOnly = false }) {
   const [now, setNow] = useState(() => fixedNow || new Date());
   useEffect(() => {
     if (fixedNow) return undefined;
@@ -28,7 +28,7 @@ export default function ToolbarClock({ now: fixedNow = null }) {
     <div data-testid="toolbar-clock" title={now.toLocaleString()}
       className="flex items-baseline gap-1.5 px-1 whitespace-nowrap select-none"
       style={{ fontSize: 11, color: "var(--text-muted)" }}>
-      <span>{date}</span>
+      {!timeOnly && <span>{date}</span>}
       <span className="tabular-nums" style={{ color: "var(--text-primary)" }}>{time}</span>
     </div>
   );

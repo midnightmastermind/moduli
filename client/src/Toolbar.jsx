@@ -462,10 +462,12 @@ const gridOptions = useMemo(
 
           {/* Mobile-only: the clock, status + notification pills, then the drawer toggle. */}
           {isMobileLayout && (
+            // Time only on a phone: the date is on the side menu's date nav, and the full date pushed the clock onto
+            // the panel button whenever a status pill appeared (operations running on load).
             <div className="flex items-center gap-1 shrink-0">
-              <ToolbarClock />
+              <ToolbarClock timeOnly />
               <SocketStatusBanner />
-            <OpActivityPill />
+              <OpActivityPill compact />
               <TransactionNotificationStack compact />
             </div>
           )}
