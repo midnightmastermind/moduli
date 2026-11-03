@@ -6036,7 +6036,7 @@ export async function createLiveData(userId, options = {}) {
     // NO `link` KEY, deliberately. A link is the JOIN identity for cross-
     // occurrence sync; every instance row carries this same field, so a link
     // here would paste one row's note onto every row sharing the link value.
-    "meta.instanceBodyLink": { selfField: fields.notes.id },
+    // (no meta.instanceBodyLink: a row's notes are its own doc, so typing makes textblocks — 0485)
   } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
