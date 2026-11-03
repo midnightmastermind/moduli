@@ -15,6 +15,29 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-03 (4) — VR ON ONE CONTROLLER; DVD discs play in order; shelves A–Z (APK built, NOT installed)
+
+User: lost the left controller · the search takes no typing · shelves A–Z · *"if i drag a series to the dvd player, it
+shoudl start with season 1 episode 1. if i drag a season, it should play that season"* · Nathan for You S4E3 "couldnt
+play the file".
+- **One controller** (`OfficeActivity` InputSystem): each stick does its hand's job; holding **B** (right) or **Y**
+  (left) gives it the other hand's (right stick + B = resize up/down, tilt left/right). Old mapping unchanged otherwise.
+- **Search typing:** a shelf text box sends `keyboard` on press; the app focuses that WebView and calls
+  `showSoftInput(SHOW_FORCED)` (logs `keyboard for …`). A guess at the cause — not reproduced (headset not on adb).
+- **A–Z:** `shelfItems` sorts by title (numeric, case-blind) unless the shelf has its own sort, and applies the
+  limit AFTER sorting. Records were already A–Z.
+- **DVD:** a series disc's src is `watch:<ep1>,<ep2>,…` (S1E1 first, S00 specials last, Jellyfin-linked episodes
+  only, ≤400); a season disc gets its season's; an episode stays itself. `ReaderApp` reads a comma list as a queue
+  (`ReaderQueue`: ⏮ n of N ⏭, next starts on `ended`). No Kotlin change was needed — `playTape` already passes the src.
+  Episodes are indexed once per occurrence map (`episodeIndex`).
+- **"Could not play":** measured from here, the server plays S4E3 fine (play info, master + variant playlists,
+  a 424 KB segment in 3.9s). The player now prefers hls.js over the WebView's native HLS (the headset WebView claims
+  native HLS). Unverified on the headset.
+- Web half deployed (restart; `officeCore.mjs` rebuilt). APK built 16:34 with the minecraft-server JDK 25, copied to
+  Windows Downloads (`moduli-office.apk`); the headset was not on adb, so NOT installed.
+
+---
+
 ### 2026-11-03 (3) — A ROW'S NOTES ARE ITS OWN DOC AGAIN (`0485`); the DVD shelf had no query
 
 User: *"the notes editor should be autocreating textblocks there, just like a doc"* · *"the dvd shelf … only gives me
