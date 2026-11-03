@@ -4120,3 +4120,8 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 08:46 *"A"* — add Jonah's missing tools (board with rows, select options, filter with nav, bulk items), switch him to qwen2.5-coder 7B, rerun both tests.
 - Answers: Quick Links board in the **Interfaces** folder; each link a **bookmark card** tagged Quick Link Type; CPS classes use Schedule Type **Appointment**; `book.viafluere.com` = **LazyLibrarian**.
 - Earlier same morning: SABnzbd + qBittorrent + Prowlarr installed (torrent./nzb. live; movie./music. wait on a Radarr/Lidarr login).
+
+### 2026-11-03 07:49–08:10 CST (account2, finished by account1)
+- *"tilers are still not working with the select … relationship aquaitence set and it still shows friends"* · *"make sure all filter types work"* · *"selecting none is auto turning off the filter"* · *"the filters take too long to check the box on multiselect"* · *"dont have a way to hide the top toolbar, i just hid it and i cant find a way to bring it back"* — shipped in f5e6ce34 (account2).
+- VR: videos would not play in the Quest app; *"we were going to have a vhs player … i would drag the movies and tv shows to"* — web half in f5e6ce34; **APK not built/sideloaded**.
+- 08:08 *"if i make a filter inactive, it should auto turn off show as well"* — done (account1): Active off also sets Show off, one undo step; turning it back on leaves Show as it is.

@@ -72,17 +72,44 @@ export function deactivateFilter({
       filterOverride: nextOverride(overrides, fieldId, null),
       occurrencesById, modulesById,
     });
+    const patch = { id: occurrence.id };
     if (navFilterId && navWasOn) {
       const cfg = navConfig || {};
-      CommitHelpers.updateOccurrence({
-        dispatch, socket,
-        occurrence: {
-          id: occurrence.id,
-          filterNavConfig: { ...cfg, [navFilterId]: { ...(cfg[navFilterId] || {}), visible: false } },
-        },
-        emit: true,
-      });
+      patch.filterNavConfig = { ...cfg, [navFilterId]: { ...(cfg[navFilterId] || {}), visible: false } };
     }
+    const meta = metaWithPillHidden(occurrence, fieldId);
+    if (meta) patch.meta = meta;
+    if (Object.keys(patch).length > 1) {
+      CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: patch, emit: true });
+    }
+  });
+}
+
+/**
+ * An inactive filter has no value pill (user, 2026-11-03: "if i make a filter inactive, it should auto turn off
+ * show as well"). Returns the occurrence's meta with `filterPills[fieldId] = false`, or null when it is already off.
+ * Turning the filter back ON does not turn Show back on — the two stay independent after that, like the nav.
+ */
+export function metaWithPillHidden(occurrence, fieldId) {
+  const pills = occurrence?.meta?.filterPills || {};
+  if (pills[fieldId] === false) return null;
+  return { ...(occurrence?.meta || {}), filterPills: { ...pills, [fieldId]: false } };
+}
+
+/**
+ * Switch a filter DECLARED on this occurrence (`occurrence.filters[]`) on or off. Off also hides its pill, in the
+ * same write, so it is one undo step.
+ */
+export function setDeclaredFilterActive({ dispatch, socket, occurrence, fieldId, active }) {
+  if (!fieldId || !occurrence?.id) return;
+  withAction(active ? "Activated filter" : "Deactivated filter", () => {
+    const patch = {
+      id: occurrence.id,
+      filters: (occurrence.filters || []).map((f) => (f.fieldId === fieldId ? { ...f, active } : f)),
+    };
+    const meta = active ? null : metaWithPillHidden(occurrence, fieldId);
+    if (meta) patch.meta = meta;
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: patch, emit: true });
   });
 }
 

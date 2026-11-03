@@ -58,10 +58,10 @@ describe("a filter CONFIGURATION change is one undo step", () => {
     expect(ids[0], "the write carries no action id at all").toBeTruthy();
   });
 
-  it("deactivateFilter with the nav already hidden writes only the mute — still stamped", () => {
+  it("deactivateFilter with the nav and pill already hidden writes only the mute — still stamped", () => {
     const { writes, ids } = run(({ dispatch, socket }) =>
       filterConfig.deactivateFilter({
-        dispatch, socket, occurrence, fieldId: DATE,
+        dispatch, socket, occurrence: { ...occurrence, meta: { filterPills: { [DATE]: false } } }, fieldId: DATE,
         overrides: {}, navConfig: {}, navFilterId: NAV, navWasOn: false, ...maps,
       }));
     expect(writes).toHaveLength(1);
@@ -138,5 +138,33 @@ describe("a filter CONFIGURATION change is one undo step", () => {
       }));
     expect(writes).toHaveLength(1);
     expect(ids[0], "an op effect must not become an undo step").toBeNull();
+  });
+});
+
+describe("an inactive filter shows no pill (user, 2026-11-03)", () => {
+  it("deactivateFilter hides the field's pill in the same write as the nav", () => {
+    const { writes, ids } = run(({ dispatch, socket }) =>
+      filterConfig.deactivateFilter({
+        dispatch, socket, occurrence: { ...occurrence, meta: { keep: 1 } }, fieldId: DATE,
+        overrides: {}, navConfig: {}, navFilterId: NAV, navWasOn: true, ...maps,
+      }));
+    expect(writes).toHaveLength(2);
+    expect(ids).toHaveLength(1);
+    expect(writes[1].occ.meta).toEqual({ keep: 1, filterPills: { [DATE]: false } });
+    expect(writes[1].occ.filterNavConfig[NAV].visible).toBe(false);
+  });
+
+  it("switching a declared local filter off hides its pill; on leaves Show alone", () => {
+    const occ = { id: "occ-1", filters: [{ fieldId: DATE, active: true }], meta: {} };
+    const off = run(({ dispatch, socket }) =>
+      filterConfig.setDeclaredFilterActive({ dispatch, socket, occurrence: occ, fieldId: DATE, active: false }));
+    expect(off.writes).toHaveLength(1);
+    expect(off.ids[0]).toBeTruthy();
+    expect(off.writes[0].occ.filters[0].active).toBe(false);
+    expect(off.writes[0].occ.meta.filterPills[DATE]).toBe(false);
+    const on = run(({ dispatch, socket }) =>
+      filterConfig.setDeclaredFilterActive({ dispatch, socket, occurrence: occ, fieldId: DATE, active: true }));
+    expect(on.writes[0].occ.filters[0].active).toBe(true);
+    expect(on.writes[0].occ.meta).toBeUndefined();
   });
 });

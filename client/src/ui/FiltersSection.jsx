@@ -273,16 +273,8 @@ export default function FiltersSection({ occurrence }) {
   };
 
   // Toggle .active on a declared filter entry without removing the row.
-  const setDeclaredActive = (fieldId, active) => {
-    const nextFilters = (occurrence?.filters || []).map(f =>
-      f.fieldId === fieldId ? { ...f, active } : f
-    );
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: occurrence.id, filters: nextFilters },
-      emit: true,
-    });
-  };
+  const setDeclaredActive = (fieldId, active) =>
+    filterConfig.setDeclaredFilterActive({ dispatch, socket, occurrence, fieldId, active });
 
   // Toggle .showNav on a declared filter entry.
   // Top nav widgets: EVERY filter active on this occurrence gets one, automatically (user, 2026-10-30: "make automatic
