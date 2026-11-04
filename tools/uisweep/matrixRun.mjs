@@ -12,7 +12,10 @@ const s = await open({ vp, grid: "poms rebuild", allowWrites: !!args.writes, ski
 await s.ready({ settleMs: 8000 });
 const ctx = {};
 await goTo(s.page, ctx, "Sweep Fields", "BOARD PAGE");
-const rowSel = `[data-occurrence-id="${fx.rowId}"]`;
+if (process.env.SHOT) await s.page.screenshot({ path: process.env.SHOT });
+// The row in the panel ON SCREEN: on a phone the other cells are laid out beside it, and two can show the same page.
+const onScreen = await s.page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].find((p) => { const r = p.getBoundingClientRect(); return r.width > 0 && r.left >= -1 && r.right <= innerWidth + 1 && r.top < innerHeight; })?.getAttribute("data-panel-id"));
+const rowSel = `${onScreen ? `[data-panel-id="${onScreen}"] ` : ""}[data-occurrence-id="${fx.rowId}"]`;
 const rows = [];
 const only = args.only ? new Set(String(args.only).split(",")) : null;
 for (const [variant, f] of Object.entries(fx.fields)) {

@@ -9751,3 +9751,25 @@ body[data-layout="mobile"] .panel-stack-btn-inline {
   border-color: transparent !important;
   background: transparent !important;
 }
+
+/* ── A NEW NOTIFICATION, READABLE WHERE THE STACK IS ONLY A COUNT (phone; ui/TransactionNotificationStack) ── */
+.tx-flash {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 50px);
+  left: 12px;
+  right: 12px;
+  margin: 0 auto;
+  max-width: 480px;
+  z-index: 1400;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  animation: tx-flash-in 160ms ease-out both;
+}
+@keyframes tx-flash-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tx-flash { animation: none; } }

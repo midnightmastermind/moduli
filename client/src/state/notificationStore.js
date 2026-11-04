@@ -50,7 +50,9 @@ function _scheduleDismiss(id, duration) {
 // `detail` (optional) is a structured view for the dropdown card — an op run's
 // `{ title, trigger, rows, more }` (helpers/opResultSummary). The inline pill
 // only ever reads `label`.
-export function pushTxNotification({ kind = "info", label, id = null, duration = null, detail = null }) {
+// `flash`: a message for the user (a toast), shown as text on a phone where the stack is only a count. Gesture
+// and operation pills are not: they arrive on every edit. Errors always are.
+export function pushTxNotification({ kind = "info", label, id = null, duration = null, detail = null, flash = false }) {
   if (!label) return null;
 
   if (id != null && _items.some(n => n.id === id)) {
@@ -61,7 +63,7 @@ export function pushTxNotification({ kind = "info", label, id = null, duration =
   }
 
   const newId = id != null ? id : `tx-note-${_nextId++}`;
-  _items = [{ id: newId, kind, label, detail, createdAt: Date.now(), dismissed: false }, ..._items];
+  _items = [{ id: newId, kind, label, detail, createdAt: Date.now(), dismissed: false, flash: flash || kind === "error" }, ..._items];
   if (_items.length > MAX_HISTORY) _items = _items.slice(0, MAX_HISTORY);
   _emit();
   _scheduleDismiss(newId, duration);
@@ -196,7 +198,7 @@ function _toast(kind, defaultDuration) {
   return (label, opts = {}) => {
     const text = opts.description ? `${label} — ${opts.description}` : label;
     const duration = "duration" in opts ? opts.duration : defaultDuration;
-    return pushTxNotification({ kind, label: text, id: opts.id ?? null, duration });
+    return pushTxNotification({ kind, label: text, id: opts.id ?? null, duration, flash: true });
   };
 }
 

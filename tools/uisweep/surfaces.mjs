@@ -17,7 +17,7 @@ const tap = async (page, sel, { touch } = {}) => {
 };
 const isPhone = (page) => (page.viewportSize()?.width || 1440) < 700;
 async function panels(page, ctx) {
-  ctx.panels = await page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].filter((p) => p.getBoundingClientRect().width > 0).map((p) => p.getAttribute("data-panel-id")));
+  ctx.panels = await page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].filter((p) => { const r = p.getBoundingClientRect(); return r.width > 0 && r.right > 1 && r.left < innerWidth - 1 && r.bottom > 1 && r.top < innerHeight - 1; }).map((p) => p.getAttribute("data-panel-id")));
   return ctx.panels;
 }
 const P = (id) => `[data-panel-id="${id}"]`;

@@ -632,12 +632,37 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
   );
 }
 
+const FLASH_MS = 4000;
+
 export default function TransactionNotificationStack({ compact = false, availableWidth }) {
   const [items, setItems] = useState([]);
   const [openIdState, setOpenIdState] = useState(null);
   const [now, setNow] = useState(Date.now());
 
-  useEffect(() => subscribeTxNotifications(setItems), []);
+  // The store hands its current list on subscribe: that first delivery is the backlog, never flashed.
+  const seenIdsRef = useRef(null);
+  useEffect(() => subscribeTxNotifications((list) => {
+    if (!seenIdsRef.current) seenIdsRef.current = new Set((list || []).map((n) => n.id));
+    setItems(list);
+  }), []);
+
+  // ── A NEW MESSAGE IS READABLE ON A PHONE ────────────────────────────────────
+  // Compact, the stack is a bare count, so a message raised there ("nothing listens to this button", "could not play
+  // this file") never reached the screen (sweep 2026-11-04). A notification that ARRIVES while mounted flashes its
+  // text under the toolbar for FLASH_MS; the ones already there at mount are not replayed.
+  const [flash, setFlash] = useState(null);
+  useEffect(() => {
+    if (!seenIdsRef.current) return;
+    const fresh = items.filter((n) => !seenIdsRef.current.has(n.id));
+    fresh.forEach((n) => seenIdsRef.current.add(n.id));
+    const shown = fresh.find((n) => n.flash);
+    if (shown) setFlash({ id: shown.id, text: shown.label });
+  }, [items]);
+  useEffect(() => {
+    if (!flash) return undefined;
+    const t = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(t);
+  }, [flash]);
 
   // Re-render every 30s so the relative-time fragments stay current
   // without burning a tick per second.
@@ -688,13 +713,19 @@ export default function TransactionNotificationStack({ compact = false, availabl
   // (the toolbar measures its slot and passes `availableWidth`).
   if (compact || (availableWidth != null && stackWidth > availableWidth)) {
     return (
-      <OverflowPill
-        count={items.length}
-        leftPx={0}
-        allItems={items}
-        now={now}
-        compact
-      />
+      <>
+        <OverflowPill
+          count={items.length}
+          leftPx={0}
+          allItems={items}
+          now={now}
+          compact
+        />
+        {flash?.text && typeof document !== "undefined" && createPortal(
+          <div role="status" aria-live="polite" className="tx-flash" onClick={() => setFlash(null)}>{flash.text}</div>,
+          document.body
+        )}
+      </>
     );
   }
 

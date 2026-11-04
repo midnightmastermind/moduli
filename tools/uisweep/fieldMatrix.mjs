@@ -219,7 +219,7 @@ async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
     step("clear → shown empty", !!t3 && !t3.includes(want), `→ "${t3}"`);
     return out;
   } catch (e) {
-    step("error", false, String(e.message).split("\n")[0].slice(0, 120));
+    step("error", false, String(e.message).split("\n").filter((l) => /intercepts|Timeout/.test(l)).slice(0, 2).join(" ").slice(0, 300));
     await page.keyboard.press("Escape").catch(() => {});
     return out;
   }
