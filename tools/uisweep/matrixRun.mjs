@@ -11,7 +11,7 @@ const fx = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "fixtures.j
 const s = await open({ vp, grid: "poms rebuild", allowWrites: !!args.writes, skin: args.skin || null });
 await s.ready({ settleMs: 8000 });
 const ctx = {};
-await goTo(s.page, ctx, "Sweep Fields", "BOARD PAGE");
+await (args.ctx === "docPill" ? goTo(s.page, ctx, "Sweep Doc", "DOC PAGE") : goTo(s.page, ctx, "Sweep Fields", "BOARD PAGE"));
 if (process.env.SHOT) await s.page.screenshot({ path: process.env.SHOT });
 // The row in the panel ON SCREEN: on a phone the other cells are laid out beside it, and two can show the same page.
 const onScreen = await s.page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].find((p) => { const r = p.getBoundingClientRect(); return r.width > 0 && r.left >= -1 && r.right <= innerWidth + 1 && r.top < innerHeight; })?.getAttribute("data-panel-id"));
@@ -19,6 +19,7 @@ const scope = onScreen ? `[data-panel-id="${onScreen}"] ` : "";
 const ctxName = args.ctx || "rowPill";
 // rowPill: the board row. tableCell: the row inside the column that projects this field (column 1 is the row's name).
 const rowSelFor = (variant) => {
+  if (ctxName === "docPill") return `${scope}.doc-editor-content [data-occurrence-id="${fx.rowId}"]`;
   if (ctxName !== "tableCell") return `${scope}[data-occurrence-id="${fx.rowId}"]`;
   const t = fx.tables.find((x) => x.variants.includes(variant));
   const col = t.variants.indexOf(variant) + 2;
@@ -33,7 +34,7 @@ for (const [variant, f] of Object.entries(fx.fields)) {
   const res = await driveRowPill(s.page, rowSel, variant, f, { touch: vp !== "desktop" });
   const bad = res.filter((r) => !r.ok);
   const ms = Math.max(0, ...res.map((r) => r.ms || 0));
-  rows.push({ id: `field.${variant}@${ctxName}`, surface: `Field matrix · ${ctxName === "tableCell" ? "table cell" : "row pill"}`, control: `${f.name} (${variant})`, vp: `${vp}${args.skin ? "/" + args.skin : ""}`,
+  rows.push({ id: `field.${variant}@${ctxName}`, surface: `Field matrix · ${{ tableCell: "table cell", docPill: "row embedded in a doc" }[ctxName] || "row pill"}`, control: `${f.name} (${variant})`, vp: `${vp}${args.skin ? "/" + args.skin : ""}`,
     works: bad.length ? `✗ ${bad.map((b) => `${b.step}: ${b.note}`).join("; ")}` : `✅ ${res.map((r) => r.step).join(", ")}`, reach: "", a11y: "", clear: "", fast: ms ? `${ms}ms` : "", notes: res.filter((r) => r.ok && r.note).map((r) => `${r.step}: ${r.note}`).join("; ").slice(0, 200) });
   console.log(rows.at(-1).control, "→", rows.at(-1).works.slice(0, 160));
 }

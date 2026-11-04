@@ -413,7 +413,11 @@ function FieldRenderer({
 
   if (!field) return null;
 
-  const canRandomize = (field?.type === "select" || field?.type === "occurrence") && resolvedOptions.length > 1;
+  // An occurrence list not reached yet keeps the 🎲's place: drawn only after the reach, it widened the pill
+  // under the pointer, and on a phone the reflow took the tap (Meal's first tap opened nothing, 2026-11-04).
+  // Once resolved it stays only when there is something to choose between.
+  const dicePending = lazyOptions && !optionsWanted;
+  const canRandomize = (field?.type === "select" || field?.type === "occurrence") && (resolvedOptions.length > 1 || dicePending);
   // Display-only randomize: any field carrying `meta.randomizable === true` +
   // having an optionsSource.find that resolves to >1 candidates. Powers the
   // Daily Question 🎲 button — the journalQuestion text field is display-only
@@ -559,7 +563,7 @@ function FieldRenderer({
           // Both select AND occurrence fields render the randomize dice INSIDE
           // the pill border (Field owns it). canRandomize is only ever true for
           // those two types, so there's no longer an appended side-segment.
-          randomize={canRandomize && inputEnabled}
+          randomize={canRandomize && inputEnabled ? (dicePending ? "pending" : true) : false}
         />
       </div>
     </div>

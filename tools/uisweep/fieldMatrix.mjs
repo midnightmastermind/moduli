@@ -97,8 +97,15 @@ async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
     if (f.inputEnabled === false) {
       // Display-only: a click must not open an editor, and the pill must still read its value.
       await act(page, h, touch); await page.waitForTimeout(400);
-      const editing = await page.evaluate(() => /INPUT|TEXTAREA/.test(document.activeElement?.tagName || "") || !!document.activeElement?.isContentEditable);
-      step("read-only", !editing, editing ? "an editor opened on a display-only field" : before);
+      // An editor OF THIS FIELD: a focused input/textarea anywhere (a pill editor is one), or a contenteditable inside the
+      // field's own box. A doc's own editor taking focus when you click inside it is not the field opening.
+      const focus = await page.evaluate(({ rowSel, id }) => {
+        const a = document.activeElement; const box = document.querySelector(rowSel)?.querySelector(`[data-field-id="${id}"]`);
+        const field = /INPUT|TEXTAREA/.test(a?.tagName || "") || (!!a?.isContentEditable && !!box?.contains(a));
+        return { field, what: `${a?.tagName}.${String(a?.className || "").split(" ")[0]}` };
+      }, { rowSel, id: f.id });
+      const editing = focus.field;
+      step("read-only", !editing, editing ? `an editor opened on a display-only field (${focus.what})` : before);
       await page.keyboard.press("Escape");
       return out;
     }

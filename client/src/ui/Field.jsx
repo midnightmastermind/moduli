@@ -611,7 +611,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
             />
           </PopoverContent>
         </Popover>
-        {randomize && options.length > 0 && (
+        {randomize && (options.length > 0 || randomize === "pending") && (
           <RandomizeSegment compact={compact} disabled={disabled}
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }} />
         )}
@@ -2213,7 +2213,7 @@ function Field({
             />
           </PopoverContent>
         </Popover>
-        {randomize && options.length > 1 && (
+        {randomize && (options.length > 1 || randomize === "pending") && (
           <RandomizeSegment compact disabled={disabled}
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
         )}
@@ -2672,7 +2672,7 @@ function Field({
               />
             </PopoverContent>
           </Popover>
-          {randomize && options.length > 1 && (
+          {randomize && (options.length > 1 || randomize === "pending") && (
             <RandomizeSegment disabled={disabled}
               onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) { handleChange(p.value); onCommit?.(p.value); } }} />
           )}

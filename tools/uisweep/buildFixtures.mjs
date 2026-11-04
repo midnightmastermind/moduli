@@ -111,9 +111,18 @@ for (let t = 0; t * PER_TABLE < variants.length; t++) {
   }
   tableIds.push({ id, variants: chunk.map(([v]) => v) });
 }
+// The doc context: a doc page whose text embeds the same row, so its pills sit inside a ProseMirror editor.
+const docId = await ensurePage("Sweep Doc", "doc");
+if (docId && rowId && !DRY) {
+  await api("PATCH", `/occurrences/${docId}`, { textmap: { type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "The sweep row, embedded in a doc:" }] },
+    { type: "moduleEmbed", attrs: { occurrenceId: rowId, align: "full" } },
+    { type: "paragraph" },
+  ] } });
+}
 const canvasId = await ensurePage("Sweep Canvas", "canvas");
 delete fixtures.tableId;
-Object.assign(fixtures, { pageId, containerId, rowId, tables: tableIds, canvasId });
+Object.assign(fixtures, { pageId, containerId, rowId, tables: tableIds, docId, canvasId });
 if (!DRY) fs.writeFileSync(OUT, JSON.stringify(fixtures, null, 2));
 console.log(JSON.stringify({ pageId, containerId, rowId, canvasId, fields: Object.keys(fixtures.fields).length }, null, 1));
 await mongoose.disconnect();
