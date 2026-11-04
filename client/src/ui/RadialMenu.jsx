@@ -44,17 +44,26 @@ import { DEFAULT_DRAG_MODES, dragModeMeta, dragModeItem, allowedDragModesFor, lo
 // ARC_ITEM_GAP is 4 — it is derived from the geometry that already worked, so
 // every existing menu measures identically.
 export const ARC_ITEM_PX = 28;     // the button box
+// On a phone layout the arc buttons are 44px (index.css body[data-layout="mobile"] .radial-menu-item) and the
+// ring starts wider, so a thumb hits the button it aims at (user 2026-11-04: "a bit larger on mobile").
+export const MOBILE_ARC_ITEM_PX = 44;
+export const MOBILE_ARC_RADIUS = 64;
+export function arcGeometry(baseRadius, mobile) {
+  return mobile
+    ? { itemPx: MOBILE_ARC_ITEM_PX, radius: Math.max(baseRadius, MOBILE_ARC_RADIUS) }
+    : { itemPx: ARC_ITEM_PX, radius: baseRadius };
+}
 export const ARC_ITEM_GAP = 4;     // minimum air between neighbours
 export const ARC_MAX_STEP = 45;    // preferred degrees between items
 export const ARC_MAX_TOTAL = 330;  // never close the ring — first and last must not meet
 
 const ARC_BASE_ANGLE = { left: 180, right: 0, down: 90, up: 270 };
 
-export function arcAngles(direction, count, baseRadius) {
+export function arcAngles(direction, count, baseRadius, itemPx = ARC_ITEM_PX) {
   const base = ARC_BASE_ANGLE[direction] ?? 0;
   if (count <= 1) return { angles: count === 1 ? [base] : [], radius: baseRadius, step: 0 };
   const step = Math.min(ARC_MAX_STEP, ARC_MAX_TOTAL / (count - 1));
-  const chord = ARC_ITEM_PX + ARC_ITEM_GAP;
+  const chord = itemPx + ARC_ITEM_GAP;
   const needed = chord / (2 * Math.sin((step * Math.PI) / 180 / 2));
   const radius = Math.max(baseRadius, needed);
   const half = ((count - 1) * step) / 2;
@@ -376,6 +385,8 @@ export default function RadialMenu({
   };
 
   const s = sizes[size] || sizes.sm;
+  const onPhone = typeof document !== "undefined" && document.body?.dataset?.layout === "mobile";
+  const geo = arcGeometry(s.radius, onPhone);
 
   // Mode indicator icon inside handle (or custom icon). Read off the mode
   // itself rather than a copy/else ternary, which drew the MOVE icon for a
@@ -388,8 +399,8 @@ export default function RadialMenu({
 
   // Get angles based on direction and item count
   const getAnglesForDirection = useCallback(
-    (direction, count) => arcAngles(direction, count, s.radius).angles,
-    [s.radius],
+    (direction, count) => arcAngles(direction, count, geo.radius, geo.itemPx).angles,
+    [geo.radius, geo.itemPx],
   );
 
   // ✅ Support custom items or default drag handle menu
@@ -512,9 +523,9 @@ export default function RadialMenu({
   // different count than the menu it replaced.
   const shown = useMemo(() => {
     const list = arcItemsFor(menuItems, openSubmenu);
-    const { angles, radius } = arcAngles(openDirection, list.length, s.radius);
+    const { angles, radius } = arcAngles(openDirection, list.length, geo.radius, geo.itemPx);
     return { items: list.map((it, i) => ({ ...it, angle: angles[i] })), radius };
-  }, [menuItems, openSubmenu, openDirection, s.radius]);
+  }, [menuItems, openSubmenu, openDirection, geo.radius, geo.itemPx]);
   const shownItems = shown.items;
   const arcRadius = shown.radius;
 
@@ -565,7 +576,7 @@ export default function RadialMenu({
         >
           {(() => {
             // Pre-compute arc positions for all items
-            const btnHalf = 14;
+            const btnHalf = geo.itemPx / 2;
             const pad = 6;
             const arcPositions = shownItems.map((item) => {
               const rad = (item.angle * Math.PI) / 180;
@@ -590,10 +601,10 @@ export default function RadialMenu({
             // If clipped, switch to a line aligned with the clipping axis
             let finalPositions;
             if (anyClipped) {
-              const spacing = 28;
+              const spacing = geo.itemPx + ARC_ITEM_GAP;
               const count = shownItems.length;
               const halfSpan = ((count - 1) * spacing) / 2;
-              const sideOffset = s.radius * 0.75;
+              const sideOffset = geo.radius * 0.75;
 
               if (clipsLeft || clipsRight) {
                 // Left/right clip → vertical line on the side with more space

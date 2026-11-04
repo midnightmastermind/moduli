@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-27. Check this file before re-reading source._
 
+## Recent Changes (2026-11-04 — phone: the rails have their own strips; bigger handle, arc and + buttons)
+- User: "increase the radial menu button and menu buttons a bit larger on mobile and make sure the tracks arent
+  covering up content". Measured at 390x844: the down rail lay over the last row's field pills.
+- `mobile/MobileGridNav.railInsetStyle({up,down,left,right})`: the viewport is moved/shrunk beside every shown rail
+  (side 26px, up/down 22px), the way the up rail already was. A neighbouring panel now starts at x=364 (clipped), so a
+  probe's "visible panel" test must not read bounding rects alone (`tools/uisweep/surfaces.mjs` fixed).
+- `ui/RadialMenu.arcGeometry(baseRadius, mobile)`: on `body[data-layout="mobile"]` arc buttons are 44px with a ring of
+  at least 64px; `arcAngles` takes the item size, and the edge-clip line spacing follows it. CSS: handle 22 -> 26px,
+  arc items 44px, quick-add 38px (mobile layout only). Context menus are already bottom drawers with 14px rows.
+- Test `mobileRailsAndArc.test.js`. Watched on a local build against prod: rails cover nothing, handle 26, arc 44.
+
 ## Recent Changes (2026-10-21 — `vr/`: the VR office; local layout)
 - **`vr/` (NEW)**: `VrOffice.jsx` (mounted by App on `?office`, lazy), `officeScene.js` (three.js scene: fireplace,
   shelves, screens, palette, decor; `window.__vr` for probes), `officeConfig.js` (pure edits of `grid.meta.vrOffice`),

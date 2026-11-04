@@ -6912,9 +6912,9 @@ input.artifact-thumb-info-name--editing {
    stamped by App.jsx). The radial ARC items stay 40px — they overlay, so they
    never push content. */
 body[data-layout="mobile"] .module-drag-handle .radial-handle {
-  width: 22px !important;
-  height: 22px !important;
-  max-width: 22px !important;
+  width: 26px !important;
+  height: 26px !important;
+  max-width: 26px !important;
   min-width: 0 !important;
   min-height: 0 !important;
   align-items: center !important;
@@ -6922,8 +6922,23 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle {
   padding: 0 !important;
 }
 body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
-  width: 14px !important;
-  height: 14px !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+/* Bigger menus on a phone (user 2026-11-04: "increase the radial menu button and menu buttons a bit larger on
+   mobile"). The arc's own geometry reads the same 44px (RadialMenu MOBILE_ARC_ITEM_PX), so the ring spaces
+   them for this size and they never overlap. */
+body[data-layout="mobile"] .radial-menu-item {
+  width: 44px !important;
+  height: 44px !important;
+}
+body[data-layout="mobile"] .radial-menu-item svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+body[data-layout="mobile"] .quick-add-btn {
+  min-width: 38px;
+  min-height: 38px;
 }
 
 /* Tablet labels intentionally match DESKTOP (user 2026-07-18: "make them the

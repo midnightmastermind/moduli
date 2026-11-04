@@ -11,6 +11,21 @@ const RAIL_ICON = {
 const RAIL_TAP_SLOP = 12;
 // Height of the up rail on a phone (index.css `.mobile-rail-up`); the viewport leaves it this much room.
 const UP_RAIL_PX = 22;
+// Side rails: 22px wide, 4px in from the screen edge (index.css `.mobile-rail-left/right`).
+const SIDE_RAIL_PX = 26;
+// Bottom rail height (index.css `.mobile-rail-down`).
+const DOWN_RAIL_PX = 22;
+
+/** The viewport's margins + size so it sits beside every shown rail, never under one. */
+export function railInsetStyle({ up, down, left, right } = {}) {
+  const t = up ? UP_RAIL_PX : 0, b = down ? DOWN_RAIL_PX : 0;
+  const l = left ? SIDE_RAIL_PX : 0, r = right ? SIDE_RAIL_PX : 0;
+  return {
+    marginTop: t, marginLeft: l,
+    height: t || b ? `calc(100% - ${t + b}px)` : undefined,
+    width: l || r ? `calc(100% - ${l + r}px)` : undefined,
+  };
+}
 
 function RailButton({ direction, onClick, disabled, label }) {
   // Fire on pointerup rather than click: click is synthesized after the browser
@@ -627,8 +642,9 @@ export default function MobileGridNav({
           // over the panel's title row and its buttons (measured 2026-11-02 on a phone: search / up / full screen).
           // Moved down, not padded: overflow clips at the padding edge, so padding let the panel above show
           // through the see-through rail.
-          marginTop: !zoomedOut && hasUp ? UP_RAIL_PX : 0,
-          height: !zoomedOut && hasUp ? `calc(100% - ${UP_RAIL_PX}px)` : undefined,
+          // Every shown rail gets its own strip the same way (user 2026-11-04: "make sure the tracks arent
+          // covering up content" — the down rail lay over the last row's field pills).
+          ...railInsetStyle(zoomedOut ? {} : { up: hasUp, down: hasDown, left: hasLeft, right: hasRight }),
         }}
       >
         <div

@@ -17,7 +17,10 @@ const tap = async (page, sel, { touch } = {}) => {
 };
 const isPhone = (page) => (page.viewportSize()?.width || 1440) < 700;
 async function panels(page, ctx) {
-  ctx.panels = await page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].filter((p) => { const r = p.getBoundingClientRect(); return r.width > 0 && r.right > 1 && r.left < innerWidth - 1 && r.bottom > 1 && r.top < innerHeight - 1; }).map((p) => p.getAttribute("data-panel-id")));
+  ctx.panels = await page.evaluate(() => [...document.querySelectorAll("[data-panel-id]")].filter((p) => { const r = p.getBoundingClientRect(); if (!(r.width > 0 && r.right > 1 && r.left < innerWidth - 1 && r.bottom > 1 && r.top < innerHeight - 1)) return false;
+    // A panel clipped by the phone viewport still reports its full rect (the next one starts at x=364 beside a
+    // 26px rail): on screen means most of the screen's width is it.
+    return Math.min(r.right, innerWidth) - Math.max(r.left, 0) > innerWidth / 2; }).map((p) => p.getAttribute("data-panel-id")));
   return ctx.panels;
 }
 const P = (id) => `[data-panel-id="${id}"]`;
