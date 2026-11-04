@@ -434,8 +434,26 @@ export function updateOccurrence(args) {
   return withAction(label, () => _updateOccurrence(args));
 }
 
+/**
+ * A FIELD EDIT is written over the latest copy of the row. Callers build the write from the row they last
+ * RENDERED, which can be behind: an operation stamped another field a moment ago (Completed On), or a child
+ * was listed. The whole stale row went over the wire and the server merges shallowly, so the edit put the
+ * other field back (2026-11-04). A write that names its fields (`triggerField`) becomes `{ id, fields }`:
+ * the named fields from the caller, every other field from the latest local copy. Pure; exported for tests.
+ */
+export function fieldWriteOverLatest(occurrence, triggerField, latest) {
+  if (!triggerField || !occurrence?.fields || typeof occurrence.fields !== "object") return occurrence;
+  const named = (Array.isArray(triggerField) ? triggerField : [triggerField]).map((t) => t?.fieldId).filter(Boolean);
+  if (!named.length) return occurrence;
+  const base = latest?.fields && typeof latest.fields === "object" ? latest.fields : occurrence.fields;
+  const fields = { ...base };
+  for (const fid of named) if (fid in occurrence.fields) fields[fid] = occurrence.fields[fid];
+  return { id: occurrence.id, fields };
+}
+
 function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null, occurrencesBase = null, textmapBasis = null }) {
   if (!occurrence?.id) return;
+  occurrence = fieldWriteOverLatest(occurrence, triggerField, operationsBridge.getLocalOcc?.(occurrence.id));
   // Conflict resolution (#26 cheapest-level): pass the local cache's
   // `updatedAt` so the server can reject this write when another window
   // landed a newer edit. Skipped silently when the local cache has no

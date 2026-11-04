@@ -120,6 +120,27 @@ if (docId && rowId && !DRY) {
     { type: "paragraph" },
   ] } });
 }
+// The form context: a button "Sweep Form" on the row whose operation asks ONE form holding every input field
+// (every other one optional, so the Include boxes show) plus a required free-text item. No Create step, so
+// submitting writes nothing.
+let formField = await fieldByName("Sweep Form");
+if (!formField && !DRY) formField = (await api("POST", "/fields", { gridId: GRID, name: "Sweep Form", type: "button", inputEnabled: true, displayEnabled: false, meta: { buttonLabel: "Open form" } })).field;
+if (formField && rowId && !DRY) {
+  const items = [{ key: "sweep_note", label: "Sweep note", type: "text", required: true }];
+  Object.entries(fixtures.fields).filter(([v, f]) => f.inputEnabled && f.type !== "button" && !v.endsWith("/display"))
+    .forEach(([v, f], i) => items.push({ key: v.replace(/[^a-z0-9]/gi, "_"), label: f.name, fieldId: f.id, ...(i % 2 ? { optional: true } : {}) }));
+  const pipeline = { sources: [], steps: [{ id: "sweep-form-ask", type: "action", config: { type: "ASK_FORM", title: "Sweep form", submitLabel: "Done", items } }] };
+  const have = await db.collection("operations").findOne({ gridId: GRID, name: "Sweep Form" });
+  const opBody = { gridId: GRID, name: "Sweep Form", pipeline, enabled: true, triggerType: "onButton", triggerTypes: ["onButton"],
+    triggerObjects: [{ eventType: "onButton", subjectType: "field", targetId: formField.id, priority: 5 }] };
+  if (have) await api("PATCH", `/operations/${have.id}`, opBody); else await api("POST", "/operations", opBody);
+  const rowOcc = await db.collection("occurrences").findOne({ id: rowId });
+  const rowMod = await db.collection("modules").findOne({ id: rowOcc.moduleId });
+  if (!(rowMod.fieldBindings || []).some((b) => b.fieldId === formField.id)) {
+    await api("PATCH", `/modules/${rowMod.id}`, { fieldBindings: [...rowMod.fieldBindings, { fieldId: formField.id, role: "input", order: rowMod.fieldBindings.length }] });
+  }
+  fixtures.formFieldId = formField.id;
+}
 const canvasId = await ensurePage("Sweep Canvas", "canvas");
 delete fixtures.tableId;
 Object.assign(fixtures, { pageId, containerId, rowId, tables: tableIds, docId, canvasId });

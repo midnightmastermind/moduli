@@ -84,8 +84,11 @@ export default function FormModal({ request, onSubmit, onCancel }) {
       e.preventDefault();
       onCancel?.();
     };
-    document.addEventListener("keydown", onKey);
-    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey); };
+    // CAPTURE phase, registered when the form opens: Radix closes a dropdown from its own capture listener
+    // (added when the dropdown opens, i.e. after this one), which removes the popover before a bubble-phase
+    // listener runs — so one Escape closed the dropdown AND the form, losing what was typed (2026-11-04).
+    document.addEventListener("keydown", onKey, true);
+    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey, true); };
   }, [request, onCancel]);
 
   if (!request) return null;
