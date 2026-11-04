@@ -5,7 +5,7 @@
 // - Other windows must self-heal if their active grid is deleted.
 // =========================================
 
-import { dropStaleFieldWrites } from "../helpers/staleSweep";
+import { dropStaleFieldWrites, noteFieldWrites } from "../helpers/staleSweep";
 import { buildParentMap, allAncestorsOf } from "../helpers/dragHitTesting";
 import { ActionTypes } from "./actions";
 import { dropEmbedsOf } from "../helpers/embedRegistry";
@@ -119,7 +119,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // `occOverlayChokepoint.test.js` greps this file to keep it that way.
   const _occOverlay = makeOccOverlay();
   const localOccsById = _occOverlay.map;
-  const setLocalOcc = (id, occ) => _occOverlay.set(id, occ);
+  // Every local write records which fields CHANGED, on this tab's clock, against the copy it replaces —
+  // a sliced sweep's stale-write check reads it (helpers/staleSweep).
+  const setLocalOcc = (id, occ) => { noteFieldWrites(id, localOccsById[id] ?? _cachedBaseOccsById?.[id], occ); return _occOverlay.set(id, occ); };
   const dropLocalOcc = (id) => _occOverlay.drop(id);
   const resetLocalOccs = () => _occOverlay.reset();
   const mergedOccsOverlay = (base) => _occOverlay.merged(base);
@@ -626,7 +628,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
               markLoad("ops:worker", { ms: Math.round(res.ms) });
               for (const r of res.ran) sweepCbs.onSuccess?.(r.name, r.results, r.meta || {});
               for (const e of res.errors) sweepCbs.onError?.(e.name, new Error(e.message));
-              return dropStaleFieldWrites(res.updates, mergedOccsOverlay(occurrencesById), sweepStartedAt);
+              return dropStaleFieldWrites(res.updates, sweepStartedAt);
             })
         : onPage();
       void sweep.then((allUpdates) => runInAction(capturedScope, () => {
@@ -2447,7 +2449,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       return { __sliced: runMatchingOperationsSliced(
         operations, transactionType, transaction, sweepCtx, sweepCbs,
         { budgetMs: SLICE_BUDGET_MS, wrap },
-      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth, startedAt }))) };
+      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth, startedAt, trigger: transaction }))) };
     }
     return _applyFireUpdates(
       runMatchingOperations(operations, transactionType, transaction, sweepCtx, sweepCbs),
@@ -2455,7 +2457,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   // Everything that happens to a sweep's updates. Called by BOTH drivers.
-  function _applyFireUpdates(allUpdates, { state, transactionType, occurrencesById, tFire0, diagDepth, startedAt = null }) {
+  function _applyFireUpdates(allUpdates, { state, transactionType, occurrencesById, tFire0, diagDepth, startedAt = null, trigger = null }) {
     const _tFire0 = tFire0;
     const _diagDepth = diagDepth;
     // A SLICED sweep yields between slices and applies its effects at the end —
@@ -2464,7 +2466,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // writing the sweep's over it put a stale number back: a Completion Rate tile
     // went 50 -> 0 right after the user unticked a task (2026-10-03). Such
     // writes are dropped; the newer value already reflects later state.
-    if (startedAt != null) allUpdates = dropStaleFieldWrites(allUpdates, mergedOccsOverlay(state.occurrencesById), startedAt);
+    if (startedAt != null) allUpdates = dropStaleFieldWrites(allUpdates, startedAt, trigger);
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);

@@ -3,6 +3,22 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-04 — staleSweep: one clock, changed values only, and a superseded trigger)
+- Found by the UI sweep: tick Completed on and off quickly and Completed On kept today's date (stored in Mongo with
+  Completed false). Two causes, both in a SLICED sweep's stale-write filter:
+  1. It compared the sweep's start (this tab's clock) with the field's stored `timestamp`/`fieldUpdatedAt`, and the
+     server's save ack replaces `fieldUpdatedAt` with the SERVER clock (measured ~2s ahead of this machine). A field
+     the server stamped a moment ago read as "written after" the off-sweep began, so its clear was dropped.
+  2. The on-sweep could finish AFTER the off press and write the stamp: the written field had not changed, only the
+     trigger had.
+- `noteFieldWrites(id, prev, next)` (called from `setLocalOcc`, against the copy it replaces) records, on this tab's
+  clock, fields whose VALUE changed — a whole-map edit no longer counts every key, and a row with no previous copy is
+  arriving (deferred load chunks), not changing. `dropStaleFieldWrites(updates, startedAt, trigger)`: a write to a
+  field that changed since is dropped, and a MeasureOp sweep whose trigger field changed again is superseded (all its
+  field writes go — the newer sweep for that field computes from the new value).
+- Measured: with tick slicing on, 1-2 of every 3 fast cycles left the stamp; slicing off, 6/6 correct; the fix on a
+  local build against prod, 9/9. `__tests__/staleSweepWrites.test.js` (10).
+
 ## Recent Changes (2026-11-02 — review round 1: day index skips empty values; show detection is positive)
 - `recordsOnDay` leaves out records with NO value for the field (SAME_DAY against a concrete day is false for an empty
   left), so a FIND with a `fields.<id>.value SAME_DAY $day` rule over a sparse field reads a handful of records, not
