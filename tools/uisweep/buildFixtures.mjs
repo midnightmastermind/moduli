@@ -80,8 +80,40 @@ if (!row) {
 // The grid hides Tags and Date everywhere; the sweep row states its own visibility (Off = show every bound field),
 // the nearest level wins, so the matrix can reach them without touching the grid's setting.
 if (rowId && !DRY) await api("PATCH", `/occurrences/${rowId}`, { fieldVisibility: { mode: "off" } });
+// The table context: tables on the same page that LIST the same row (multi-parent, so a cell edit is the row's own
+// edit), each with a Row column + four columns projecting one field each — the shape "Add column" makes. Four, because
+// a table fits its columns to the panel (user spec 2026-08-14), so 31 columns would be ~22px each.
+const PER_TABLE = 4;
+const variants = Object.entries(fixtures.fields);
+const tableIds = [];
+const old = await findOcc("Sweep Table", ["container", "table"]);
+if (old && !DRY) await api("PATCH", `/modules/${old.mod.id}`, { label: "Sweep Table 1" });
+for (let t = 0; t * PER_TABLE < variants.length; t++) {
+  const label = `Sweep Table ${t + 1}`;
+  const chunk = variants.slice(t * PER_TABLE, (t + 1) * PER_TABLE);
+  const columns = [
+    { id: "tcol_name", title: "Row", width: 140, displayFieldId: null, sort: null, filter: null, fieldVisibility: { mode: "show", fieldIds: [] } },
+    ...chunk.map(([variant, f]) => ({ id: `tcol_${variant.replace(/[^a-z0-9]/gi, "_")}`, title: f.name, width: 180, displayFieldId: null, sort: null, filter: null, fieldVisibility: { mode: "show", fieldIds: [f.id] }, hideLabel: true })),
+  ];
+  const tableMeta = { table: { columns, rowCount: 0, cells: {} } };
+  const have = await findOcc(label, ["container", "table"]);
+  let id = have?.occ?.id;
+  if (!id) {
+    const m = await api("POST", "/modules", { gridId: GRID, role: "container", kind: "table", label });
+    const o = await api("POST", "/occurrences", { gridId: GRID, moduleId: m.module?.id, parentId: pageId, meta: tableMeta });
+    id = o.occurrence?.id;
+  } else if (!DRY) {
+    await api("PATCH", `/occurrences/${id}`, { meta: { ...(have.occ.meta || {}), ...tableMeta } });
+  }
+  if (id && rowId && !DRY) {
+    const occ = await db.collection("occurrences").findOne({ id });
+    if (!(occ?.occurrences || []).includes(rowId)) await api("PATCH", `/occurrences/${id}`, { occurrences: [...(occ?.occurrences || []), rowId] });
+  }
+  tableIds.push({ id, variants: chunk.map(([v]) => v) });
+}
 const canvasId = await ensurePage("Sweep Canvas", "canvas");
-Object.assign(fixtures, { pageId, containerId, rowId, canvasId });
+delete fixtures.tableId;
+Object.assign(fixtures, { pageId, containerId, rowId, tables: tableIds, canvasId });
 if (!DRY) fs.writeFileSync(OUT, JSON.stringify(fixtures, null, 2));
 console.log(JSON.stringify({ pageId, containerId, rowId, canvasId, fields: Object.keys(fixtures.fields).length }, null, 1));
 await mongoose.disconnect();

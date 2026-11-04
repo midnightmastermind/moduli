@@ -185,5 +185,77 @@
   "pageId": "d5d25f0c-a3a2-489b-9487-b90a852c7ca6",
   "containerId": "bc9c99a8-2fa8-4578-b06e-02eafac6c2cb",
   "rowId": "f4d7dc55-5207-488a-9bff-b9466f4da7b7",
-  "canvasId": "d2fb9a26-2e21-4f5f-a380-c5718e4ade54"
+  "canvasId": "d2fb9a26-2e21-4f5f-a380-c5718e4ade54",
+  "tables": [
+    {
+      "id": "92bd2fc7-edd3-4859-b88e-f28caffc2ba7",
+      "variants": [
+        "text",
+        "text/link",
+        "text/multiline",
+        "number"
+      ]
+    },
+    {
+      "id": "509ccf7c-8b66-41e5-b351-5b966a4a355a",
+      "variants": [
+        "number/flow",
+        "number/max",
+        "boolean/switch",
+        "boolean/plain"
+      ]
+    },
+    {
+      "id": "d97c41f7-518e-4f6a-9c52-54211ed1cd79",
+      "variants": [
+        "select/manual",
+        "select/49-options",
+        "select/find-random",
+        "select/multi"
+      ]
+    },
+    {
+      "id": "cec4afdd-113e-4741-85a0-b577d8da123f",
+      "variants": [
+        "select/multi-allowNew",
+        "occurrence/find",
+        "occurrence/addNew",
+        "occurrence/addNew-search"
+      ]
+    },
+    {
+      "id": "da4060d3-40f1-4ff4-8c8b-eea9c9df51d3",
+      "variants": [
+        "occurrence/multi-addNew",
+        "occurrence/multi-search",
+        "date",
+        "duration/flow"
+      ]
+    },
+    {
+      "id": "0331d060-8c28-4675-9d7f-0416a6855c0a",
+      "variants": [
+        "duration",
+        "rating/5",
+        "address",
+        "when"
+      ]
+    },
+    {
+      "id": "8a0e630c-4b11-423c-b312-3e68b06f167c",
+      "variants": [
+        "boolean/checkbox",
+        "select/single-allowNew",
+        "rating/10",
+        "markdown"
+      ]
+    },
+    {
+      "id": "bd6ab7d5-7c27-46c0-8f80-66c1ecd2e1ed",
+      "variants": [
+        "button",
+        "duration/display"
+      ]
+    }
+  ]
 }

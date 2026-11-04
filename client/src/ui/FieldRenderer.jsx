@@ -513,7 +513,9 @@ function FieldRenderer({
   }
 
   // Input (or both input+display)
-  const showDisplay = displayEnabled || role === "both";
+  // The display half shows `computed ?? inputValue`, so with nothing computed it only repeats the input
+  // beside it under the same name (Daily Question read "-" over "—"). It appears once something computes.
+  const showDisplay = (displayEnabled || role === "both") && computedResult != null;
 
   return (
     <div {...reachHandlers} style={{ display: "inline-flex", justifyContent: "start", flexDirection: "column"}} className={showDisplay ? "field-renderer-both" : undefined}>
