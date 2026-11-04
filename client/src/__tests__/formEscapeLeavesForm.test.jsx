@@ -33,6 +33,19 @@ describe("Escape inside a button's form", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 
+  it("an open picker DIALOG (the address search) takes Escape before the form", () => {
+    const onCancel = vi.fn();
+    render(<FormModal request={request} onSubmit={vi.fn()} onCancel={onCancel} />);
+    const dlg = document.createElement("div");
+    dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true");
+    document.body.appendChild(dlg);
+    const onEsc = (e) => { if (e.key === "Escape") dlg.remove(); };
+    document.addEventListener("keydown", onEsc, true);
+    cleanupPopover = () => { document.removeEventListener("keydown", onEsc, true); dlg.remove(); };
+    act(() => { fireEvent.keyDown(document.body, { key: "Escape" }); });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   it("with nothing open, Escape cancels the form — the control", () => {
     const onCancel = vi.fn();
     render(<FormModal request={request} onSubmit={vi.fn()} onCancel={onCancel} />);

@@ -62,9 +62,11 @@ function FreeInput({ item, value, onChange, inputRef }) {
   );
 }
 
-/** A dropdown (Radix popover / listbox) is open inside the form — Escape belongs to it, not to the form. */
+/** A dropdown (Radix popover / listbox) or a picker dialog (the address search) is open over the form — Escape
+ *  belongs to it, not to the form. A dialog that CONTAINS the form is the form's own surface. */
 function innerPopupOpen() {
-  return !!document.querySelector("[data-radix-popper-content-wrapper], [role='listbox']");
+  if (document.querySelector("[data-radix-popper-content-wrapper], [role='listbox']")) return true;
+  return [...document.querySelectorAll("[role='dialog']")].some((d) => !d.querySelector("[data-testid='form-modal']"));
 }
 
 export default function FormModal({ request, onSubmit, onCancel }) {

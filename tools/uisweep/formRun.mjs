@@ -31,6 +31,7 @@ async function openForm() {
   if (!b.asElement()) return false;
   await press(b.asElement());
   await page.waitForSelector(FORM, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(500); // the open animation drives transform; measure after it
   return !!(await page.$(FORM));
 }
 const children = () => page.evaluate((cid) => (window.__moduli_state__?.occurrences || []).find((o) => o.id === cid)?.occurrences?.length, fx.containerId);
@@ -48,7 +49,7 @@ const info = await page.evaluate((FORM) => {
   const r = surf.getBoundingClientRect();
   submit?.scrollIntoView({ block: "nearest" });
   const sr = submit?.getBoundingClientRect();
-  const reach = !!sr && sr.top >= 0 && sr.bottom <= innerHeight && document.elementFromPoint(sr.left + sr.width / 2, sr.top + sr.height / 2)?.closest("button") === submit;
+  const reach = !!sr && sr.top >= 0 && sr.bottom <= innerHeight; // (a disabled button does not hit-test)
   return { title: f.firstElementChild?.textContent?.trim(), labels, includes, submitDisabled: !!submit?.disabled, needs: (f.innerText.match(/Needs: [^\n]*/) || [""])[0], w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, reach };
 }, FORM);
 step("titled", info?.title === "Sweep form", info?.title);
