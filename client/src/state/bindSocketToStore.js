@@ -61,6 +61,30 @@ import { applyWindowLayout, readWindowLayout, incomingPanelUpdate, phoneSharesRo
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
+// What an echoed occurrence changed, for the feed scheduler: "none", "all", or the field ids whose value/flow moved.
+// Bookkeeping keys (timestamps, ack stamps) are not changes a feed can read.
+const ECHO_BOOKKEEPING = new Set(["updatedAt", "fieldUpdatedAt", "timestamp", "_id", "__v", "createdAt"]);
+export function echoFeedScope(incoming, prev, gridNow = null) {
+  // Every write is broadcast to all of the user's tabs: a row of ANOTHER grid can be in none of this grid's feeds
+  // (feedSync never pulls across grids). Measured: a poms tab's tracker updates made a rebuild tab re-scan all 59 feeds.
+  if (gridNow && incoming?.gridId && String(incoming.gridId) !== String(gridNow)) return "none";
+  if (!prev) return "all";
+  const fieldIds = [];
+  for (const k of Object.keys(incoming || {})) {
+    if (k === "id" || ECHO_BOOKKEEPING.has(k)) continue;
+    if (k === "fields") {
+      const a = incoming.fields || {}, b = prev.fields || {};
+      for (const fid of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        if (JSON.stringify(a[fid]?.value ?? null) !== JSON.stringify(b[fid]?.value ?? null)
+          || (a[fid]?.flow ?? null) !== (b[fid]?.flow ?? null)) fieldIds.push(fid);
+      }
+      continue;
+    }
+    if (JSON.stringify(incoming[k]) !== JSON.stringify(prev[k])) return "all";
+  }
+  return fieldIds.length ? fieldIds : "none";
+}
+
 export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, findOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
@@ -205,7 +229,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (fieldIds?.length && _feedSyncScope !== "all") {
       if (!(_feedSyncScope instanceof Set)) _feedSyncScope = new Set();
       for (const f of fieldIds) if (f) _feedSyncScope.add(f);
-    } else _feedSyncScope = "all";
+    } else {
+      // `window.__feedDiag` names who asked for a whole pass — the expensive kind.
+      if (typeof window !== "undefined" && window.__feedDiag === true) console.log("[feedDiag] whole pass asked by", new Error().stack.split("\n").slice(2, 5).map((l) => l.trim()).join(" < "));
+      _feedSyncScope = "all";
+    }
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
@@ -246,6 +274,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         console.warn("[feedSync] pass failed:", e);
       }
     }, delay);
+  };
+
+  // An echoed row asks feeds to re-sync only for what it CHANGED: field values alone → the feeds reading those fields
+  // (an edit's echoes asked for a pass over all 59 feeds, ~2s at 4x, 2026-11-04). Unknown row or any other key → all.
+  const scheduleFeedSyncForEcho = (incoming, prev) => {
+    const st = stateRef.current || {};
+    const scope = echoFeedScope(incoming, prev ?? _cachedBaseOccsById?.[incoming.id], st.gridId || st.grid?._id || null);
+    if (scope === "none") return;
+    if (scope === "all" && typeof window !== "undefined" && window.__feedDiag === true) {
+      console.log("[feedDiag] echo changed", prev ? Object.keys(incoming).filter((k) => k !== "fields" && JSON.stringify(incoming[k]) !== JSON.stringify(prev[k])).join(",") : "(row unknown here)", incoming.id);
+    }
+    scheduleFeedSync(300, scope === "all" ? {} : { fieldIds: scope });
   };
 
   const _markOpEmitted = (id) => {
@@ -1010,7 +1050,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function _inCreateBurst() { return _createBurstCount > CREATE_BURST_THRESHOLD; }
 
   function onOccurrenceCreated({ occurrence } = {}) {
-    scheduleFeedSync();
+    if (echoFeedScope(occurrence, null, stateRef.current?.gridId || stateRef.current?.grid?._id || null) !== "none") scheduleFeedSync();
     if (!occurrence?.id) return;
 
     // Keep local cache current before React re-renders stateRef
@@ -1065,8 +1105,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function onOccurrenceUpdated({ occurrence: incoming } = {}) {
-    scheduleFeedSync();
-    if (!incoming?.id) return;
+    if (!incoming?.id) { scheduleFeedSync(); return; }
+    scheduleFeedSyncForEcho(incoming, localOccsById[incoming.id]);
     // Another window's PANEL layout (its pages, place, visibility) stays in that window (helpers/windowLayout).
     const occurrence = incomingPanelUpdate(incoming, currentPanelIds(), { phoneShared: phoneSharesRowsCols(stateRef.current?.grid) });
 

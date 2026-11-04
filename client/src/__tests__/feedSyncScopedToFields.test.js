@@ -65,3 +65,27 @@ describe("updateOccurrence names the fields it changed to the feed scheduler", (
     expect(calls[1]).toEqual({ fieldIds: null });
   });
 });
+
+describe("echoFeedScope — what an echoed row changed", () => {
+  it("field values only → those field ids; bookkeeping ignored", async () => {
+    const { echoFeedScope } = await import("../state/bindSocketToStore");
+    const prev = { id: "r", label: "x", fields: { a: { value: 1 }, b: { value: 2 } }, updatedAt: 1 };
+    expect(echoFeedScope({ id: "r", label: "x", fields: { a: { value: 1 }, b: { value: 3 } }, updatedAt: 2 }, prev)).toEqual(["b"]);
+    expect(echoFeedScope({ id: "r", updatedAt: 5 }, prev)).toBe("none");
+  });
+  it("any other key, or an unknown row, re-syncs every feed", async () => {
+    const { echoFeedScope } = await import("../state/bindSocketToStore");
+    const prev = { id: "r", parentId: "p", fields: {} };
+    expect(echoFeedScope({ id: "r", parentId: "q" }, prev)).toBe("all");
+    expect(echoFeedScope({ id: "r", fields: {} }, null)).toBe("all");
+  });
+});
+
+describe("echoFeedScope — another grid's row", () => {
+  it("a row of another grid moves none of this grid's feeds; this grid's row still does", async () => {
+    const { echoFeedScope } = await import("../state/bindSocketToStore");
+    expect(echoFeedScope({ id: "r", gridId: "poms", fields: {} }, null, "rebuild")).toBe("none");
+    expect(echoFeedScope({ id: "r", gridId: "rebuild", fields: {} }, null, "rebuild")).toBe("all");
+    expect(echoFeedScope({ id: "r", fields: {} }, null, "rebuild")).toBe("all");
+  });
+});

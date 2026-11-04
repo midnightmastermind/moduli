@@ -55,6 +55,14 @@ async function pillText(page, rowSel, name, id = "") {
     return el ? (el.innerText || "").replace(/\s+/g, " ").trim() : null;
   }, { rowSel, name, id });
 }
+// Read the pill until it shows what is expected or 2s pass, and say how long it took: one read at a fixed delay on a
+// 4x-throttled phone measured the render's timing, not whether the value landed (2026-11-04).
+async function pillTextUntil(page, rowSel, name, id, ok, budget = 2000) {
+  const t = Date.now(); let txt = null;
+  for (;;) { txt = await pillText(page, rowSel, name, id); if ((txt && ok(txt)) || Date.now() - t > budget) break; await page.waitForTimeout(100); }
+  return { txt, ms: Date.now() - t };
+}
+const lateNote = (ms) => (ms > 300 ? ` (shown after +${ms}ms)` : "");
 async function pillHandle(page, rowSel, name, id = "") {
   return page.evaluateHandle(({ rowSel, name, id }) => {
     const row = document.querySelector(rowSel);
@@ -215,15 +223,15 @@ async function driveOne(page, rowSel, variant, f, { touch = false } = {}) {
     const t1 = await timed(async () => { await act(page, h, touch); await page.waitForTimeout(500); return page.evaluate(() => document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) || document.activeElement?.isContentEditable); });
     step("opens editor", !!t1.r, t1.r ? "" : "nothing took focus", t1.ms);
     if (!t1.r) { const dlg = await page.$('[role="dialog"]'); step("opens a dialog", !!dlg, ""); await page.keyboard.press("Escape"); return out; }
-    await page.keyboard.press("Control+A"); await page.keyboard.type(value); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
-    const txt = await pillText(page, rowSel, f.name, f.id);
+    await page.keyboard.press("Control+A"); await page.keyboard.type(value); await page.keyboard.press("Enter"); await page.waitForTimeout(200);
     const want = type === "duration" ? "1h 30m" : value;
-    step("set → shown", !!txt && txt.includes(want), `→ "${txt}"`);
+    const { txt, ms: setMs } = await pillTextUntil(page, rowSel, f.name, f.id, (t) => t.includes(want));
+    step("set → shown", !!txt && txt.includes(want), `→ "${txt}"${lateNote(setMs)}`);
     const h2 = (await pillHandle(page, rowSel, f.name, f.id)).asElement();
     await act(page, h2, touch); await page.waitForTimeout(400);
-    await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
-    const t3 = await pillText(page, rowSel, f.name, f.id);
-    step("clear → shown empty", !!t3 && !t3.includes(want), `→ "${t3}"`);
+    await page.keyboard.press("Control+A"); await page.keyboard.press("Backspace"); await page.keyboard.press("Enter"); await page.waitForTimeout(200);
+    const { txt: t3, ms: clearMs } = await pillTextUntil(page, rowSel, f.name, f.id, (t) => !t.includes(want));
+    step("clear → shown empty", !!t3 && !t3.includes(want), `→ "${t3}"${lateNote(clearMs)}`);
     return out;
   } catch (e) {
     step("error", false, String(e.message).split("\n").filter((l) => /intercepts|Timeout/.test(l)).slice(0, 2).join(" ").slice(0, 300));

@@ -57,6 +57,9 @@ function runSync({ stateGridId, stateOccs, overlayOccs }) {
   // The overlay is written through the socket echo chokepoint, which is how a
   // previous grid's rows get in there in the first place.
   for (const o of overlayOccs) socket._trigger("occurrence_updated", { occurrence: o });
+  // Since 2026-11-04 another grid's echo schedules no feed pass of its own (it can be in none of this grid's
+  // feeds), so the pass is asked for by a delete — an event that always re-syncs every feed.
+  socket._trigger("occurrence_deleted", { occurrenceId: "gone" });
   vi.advanceTimersByTime(2000);
   return syncAllFeeds.mock.calls.at(-1)?.[0];
 }
@@ -103,5 +106,14 @@ describe("a feed sync never pairs one grid's id with another grid's occurrences"
       overlayOccs: [{ id: "x", gridId: NEW_GRID, label: "fresh" }],
     });
     expect(arg.occurrencesById["x"].label).toBe("fresh");
+  });
+
+  test("another grid's echoes alone ask for no feed pass", () => {
+    const socket = makeMockSocket();
+    bindSocketToStore(socket, () => {}, { current: { modules: [], occurrences: [{ id: "mine", gridId: NEW_GRID }], operations: [], fields: [], gridId: NEW_GRID } });
+    socket._trigger("occurrence_updated", { occurrence: { id: "poms-3pct", gridId: OLD_GRID, fields: { f: { value: 3 } } } });
+    socket._trigger("occurrence_created", { occurrence: { id: "poms-new", gridId: OLD_GRID } });
+    vi.advanceTimersByTime(2000);
+    expect(syncAllFeeds).not.toHaveBeenCalled();
   });
 });

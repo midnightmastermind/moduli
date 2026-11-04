@@ -3,6 +3,25 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-04 (2) — a field edit re-syncs only the feeds that read the field)
+- UI sweep: on a phone (4x) a field edit's value showed up to 3-4s late. CPU profile: every edit ran a feed pass over
+  ALL 59 feeds (`syncAllFeeds` → `resolveFeedItems`, 1.4-2.3s per edit), three ways:
+  1. the edit itself (`CommitHelpers.updateOccurrence` → `feedsMayHaveChanged`);
+  2. its echo (`onOccurrenceUpdated` scheduled an unscoped pass for every echo);
+  3. **another grid's rows**: writes are broadcast to all of a user's tabs, so a poms tab's tracker ("3%") made a
+     rebuild tab re-scan all its feeds on every update.
+- `feedSync.feedMayReadFields(feedOcc, fieldIds, {state, occurrencesById})`: true when a field id appears in the
+  feed's conditions, sort, the active named filter, its local filters or its effective filter keys (a text search
+  over those — an unknown shape counts as reading; a false "reads" costs a sync). `syncAllFeeds({ onlyFieldIds })`
+  skips the rest.
+- `bindSocketToStore.scheduleFeedSync(delay, { fieldIds })`: field-scoped requests union; any unscoped one widens the
+  pending pass to every feed. `echoFeedScope(incoming, prev, gridNow)` (exported): another grid's row → "none";
+  only field values changed → those ids; bookkeeping keys ignored; anything else or an unknown row → "all".
+  `onOccurrenceCreated` skips another grid's rows. `window.__feedDiag` names who asked for a whole pass.
+- Measured (phone, 4x, local build against prod): feed time per edit 1.4-2.3s → ~0.1s; the row matrix 30/30 twice,
+  no value later than 300ms. Tests `feedSyncScopedToFields` (10), `feedSyncGridSwitch` (+1, trigger moved to a
+  delete). A/B: dropping the grid check fails 2.
+
 ## Recent Changes (2026-11-04 — staleSweep: one clock, changed values only, and a superseded trigger)
 - Found by the UI sweep: tick Completed on and off quickly and Completed On kept today's date (stored in Mongo with
   Completed false). Two causes, both in a SLICED sweep's stale-write filter:
