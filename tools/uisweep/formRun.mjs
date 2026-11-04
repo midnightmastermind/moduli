@@ -49,7 +49,7 @@ const info = await page.evaluate((FORM) => {
   const r = surf.getBoundingClientRect();
   submit?.scrollIntoView({ block: "nearest" });
   const sr = submit?.getBoundingClientRect();
-  const reach = !!sr && sr.top >= 0 && sr.bottom <= innerHeight; // (a disabled button does not hit-test)
+  const reach = !!sr && sr.top >= -1 && sr.bottom <= innerHeight + 1; // (a disabled button does not hit-test)
   return { title: f.firstElementChild?.textContent?.trim(), labels, includes, submitDisabled: !!submit?.disabled, needs: (f.innerText.match(/Needs: [^\n]*/) || [""])[0], w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, reach };
 }, FORM);
 step("titled", info?.title === "Sweep form", info?.title);

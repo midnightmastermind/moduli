@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-27. Check this file before re-reading source._
 
+## Recent Changes (2026-11-04 (2) — a field edit re-syncs only the feeds that read that field)
+- Every field edit used to re-sync EVERY feed on the grid (~700ms per edit on a phone at 4x, measured by the sweep).
+  `CommitHelpers.updateOccurrence` now passes the edited field ids (from `triggerField`) to `scheduleFeedSync`;
+  `bindSocketToStore` unions them across one debounce window (any unscoped request widens the pass to all feeds);
+  `feedSync.feedMayReadFields` skips a feed whose conditions, sort, named filter, local filters and effective filter
+  name none of them. Safe because a sync pass only mints/sweeps copies and never rewrites a kept copy's values.
+  The scope is taken after the snapshot/passive/leader early returns (`snapshotGates.test.js` pins that order).
+  Test `feedSyncScopedToFields.test.js`.
+
 ## Recent Changes (2026-11-04 — phone: the rails have their own strips; bigger handle, arc and + buttons)
 - User: "increase the radial menu button and menu buttons a bit larger on mobile and make sure the tracks arent
   covering up content". Measured at 390x844: the down rail lay over the last row's field pills.

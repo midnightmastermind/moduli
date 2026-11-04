@@ -200,6 +200,23 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
   return { minted, swept, matches: matches.length, visible: visible.length, existing: existingBySource.size };
 }
 
+// ── A FIELD WRITE ONLY MOVES THE FEEDS THAT READ THE FIELD ─────────────────
+// Every field edit used to re-sync every feed on the grid — ~700ms per edit on a phone at 4x (2026-11-04 sweep;
+// the edited value appeared seconds late). A field write can change which rows a feed holds only through what the
+// feed READS: its conditions, its sort, and the filters it obeys (the active named filter, its own local filters,
+// the effective filter cascade). Answered by looking for the field id anywhere in those, so a shape this does not
+// know about (a local filter's raw condition, a nested group) counts as reading it — a false "reads" only costs a
+// sync, a false "does not read" would leave a feed wrong.
+export function feedMayReadFields(feedOcc, fieldIds, { state, occurrencesById } = {}) {
+  if (!fieldIds?.length) return true;
+  const named = (state?.grid?.namedFilters || []).find((f) => f.id === state?.grid?.activeFilterId);
+  let effective = null;
+  try { effective = getEffectiveFilterForOccurrence(feedOcc, { grid: state?.grid, occurrencesById: occurrencesById || {} }); } catch { effective = null; }
+  const text = JSON.stringify([feedOcc?.feed?.conditions, feedOcc?.feed?.sort, named?.conditions, feedOcc?.filters,
+    getLocalFilterConditions(feedOcc), effective ? Object.keys(effective) : null]);
+  return fieldIds.some((id) => id && text.includes(String(id)));
+}
+
 // Sync EVERY enabled feed on the grid. Called after full_state settles and
 // (debounced) after filter changes / occurrence CRUD — the same moments the
 // old Build ops' trigger objects covered, minus the per-op wiring.
@@ -211,7 +228,7 @@ export function syncAllFeeds(args) {
   return runDerived(() => _syncAllFeeds(args));
 }
 
-function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }) {
+function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket, onlyFieldIds = null }) {
   let minted = 0, swept = 0, feeds = 0;
   // `window.__feedDiag = true` prints a per-feed breakdown. A feed that mints
   // nothing is indistinguishable from a feed that never ran, which is exactly
@@ -232,6 +249,7 @@ function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }
     // 50 more on 2026-09-22. An owner naming NO grid is a local optimistic
     // mint belonging to the current one, so only a disagreement is skipped.
     if (gridNow && occ.gridId && occ.gridId !== gridNow) continue;
+    if (onlyFieldIds && !feedMayReadFields(occ, onlyFieldIds, { state, occurrencesById })) continue;
     feeds++;
     const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag, copyIdx });
     minted += r.minted; swept += r.swept;

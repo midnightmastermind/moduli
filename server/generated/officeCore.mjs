@@ -194,7 +194,7 @@ function _scheduleDismiss(id, duration) {
     _timers.set(id, setTimeout(() => dismissTxNotification(id), duration));
   }
 }
-function pushTxNotification({ kind = "info", label, id = null, duration = null, detail = null }) {
+function pushTxNotification({ kind = "info", label, id = null, duration = null, detail = null, flash = false }) {
   if (!label) return null;
   if (id != null && _items.some((n) => n.id === id)) {
     _items = _items.map((n) => n.id === id ? { ...n, kind, label, ...detail ? { detail } : {} } : n);
@@ -203,7 +203,7 @@ function pushTxNotification({ kind = "info", label, id = null, duration = null, 
     return id;
   }
   const newId = id != null ? id : `tx-note-${_nextId++}`;
-  _items = [{ id: newId, kind, label, detail, createdAt: Date.now(), dismissed: false }, ..._items];
+  _items = [{ id: newId, kind, label, detail, createdAt: Date.now(), dismissed: false, flash: flash || kind === "error" }, ..._items];
   if (_items.length > MAX_HISTORY) _items = _items.slice(0, MAX_HISTORY);
   _emit();
   _scheduleDismiss(newId, duration);
@@ -226,7 +226,7 @@ function _toast(kind, defaultDuration) {
   return (label, opts = {}) => {
     const text = opts.description ? `${label} \u2014 ${opts.description}` : label;
     const duration = "duration" in opts ? opts.duration : defaultDuration;
-    return pushTxNotification({ kind, label: text, id: opts.id ?? null, duration });
+    return pushTxNotification({ kind, label: text, id: opts.id ?? null, duration, flash: true });
   };
 }
 var toast = Object.assign(_toast("info", DEFAULT_TOAST_DURATION), {

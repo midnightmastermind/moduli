@@ -344,8 +344,16 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
 // `fireTrigger: false` is the marker feedSync already puts on every mint and
 // sweep it makes ("derived data" — its own comments). Honouring it here is
 // what stops the engine rescheduling itself off its own writes.
-function feedsMayHaveChanged() {
-  operationsBridge.scheduleFeedSync?.();
+function feedsMayHaveChanged(opts) {
+  operationsBridge.scheduleFeedSync?.(opts);
+}
+
+// A field edit names its fields through `triggerField`, and is then written as `{id, fields}` only
+// (fieldWriteOverLatest) — so only those fields changed, and only feeds that read one of them need a pass.
+function triggerFieldIds(triggerField) {
+  const list = Array.isArray(triggerField) ? triggerField : triggerField ? [triggerField] : [];
+  const ids = list.map((t) => t?.fieldId).filter(Boolean);
+  return ids.length ? ids : null;
 }
 
 // A textmap carries no feed predicate — conditions read `fields.<id>.value`,
@@ -429,7 +437,7 @@ function _createOccurrence({ dispatch, socket, occurrence, emit = true, panelId 
 // to act on (user: "control z ... not working on docpages").
 export function updateOccurrence(args) {
   if (!args?.occurrence?.id) return undefined;
-  if (!isTextmapOnlyPatch(args.occurrence)) feedsMayHaveChanged();
+  if (!isTextmapOnlyPatch(args.occurrence)) feedsMayHaveChanged({ fieldIds: args.occurrence.fields && typeof args.occurrence.fields === "object" ? triggerFieldIds(args.triggerField) : null });
   const label = args.occurrence.textmap !== undefined ? "Edited text" : "Updated item";
   return withAction(label, () => _updateOccurrence(args));
 }

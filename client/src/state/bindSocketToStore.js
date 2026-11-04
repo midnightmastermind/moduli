@@ -198,13 +198,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   socket.on("connect", onSocketConnectFeed);
 
   let _feedSyncTimer = null;
-  const scheduleFeedSync = (delay = 300) => {
+  // What the pending pass must cover: "all", or a Set of field ids when every request since the last pass was a
+  // field write (helpers/feedSync.feedMayReadFields). Any unscoped request widens it to "all".
+  let _feedSyncScope = null;
+  const scheduleFeedSync = (delay = 300, { fieldIds = null } = {}) => {
+    if (fieldIds?.length && _feedSyncScope !== "all") {
+      if (!(_feedSyncScope instanceof Set)) _feedSyncScope = new Set();
+      for (const f of fieldIds) if (f) _feedSyncScope.add(f);
+    } else _feedSyncScope = "all";
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
       if (isSnapshotMode()) return;
       if (isPassiveWindow()) return;
       if (!_isSyncLeader && socket?.connected) return;
+      // Taken after the early returns: a skipped pass leaves its fields in the scope, which only widens the next pass.
+      const scope = _feedSyncScope;
+      _feedSyncScope = null;
       // NOT ON HALF A GRID. Until the second message lands, the rows of every page nobody is looking at are missing,
       // and a feed would sweep the copies whose sources it cannot see yet. The load sweep schedules this once the rest
       // is in (and the fallback does too if it never comes).
@@ -230,7 +240,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         }
         const mods = {};
         for (const m of state.modules || []) if (m?.id) mods[m.id] = m;
-        syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket });
+        syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket,
+          onlyFieldIds: scope instanceof Set ? [...scope] : null });
       } catch (e) {
         console.warn("[feedSync] pass failed:", e);
       }
@@ -2814,7 +2825,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // Ticking a task's Completed left it out of the
   // `Completed` feed until a reload. Same shape as the 2026-08-07 (2)
   // NavigationOp fix, which reached CommitHelpers.updateGrid for the same reason.
-  operationsBridge.scheduleFeedSync = () => scheduleFeedSync();
+  operationsBridge.scheduleFeedSync = (opts) => scheduleFeedSync(300, opts || {});
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.fireOperationsBatch = fireOperationsBatch;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) setLocalOcc(occ.id, occ); };
