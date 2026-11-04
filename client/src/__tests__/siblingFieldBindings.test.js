@@ -166,6 +166,18 @@ describe("typeableFields — what the value step may ask for", () => {
     expect(typeableFields(["disp"], F, { disp: "input" })).toEqual([]);
   });
 
+  it("keeps a display field whose input is EXPLICITLY on — Daily Question, a person's Name (2026-11-04)", () => {
+    // Every pure display field stores inputEnabled:false; display + input on is a field the user types AND an
+    // operation may compute. The picker offered no control for these.
+    const G = { both: { id: "both", type: "select", displayEnabled: true, inputEnabled: true } };
+    expect(typeableFields(["both"], G).map(f => f.id)).toEqual(["both"]);
+  });
+
+  it("excludes a BUTTON — it has no value to give a row that does not exist yet", () => {
+    const G = { btn: { id: "btn", type: "button", inputEnabled: true } };
+    expect(typeableFields(["btn"], G)).toEqual([]);
+  });
+
   it("excludes a field whose BINDING role is display, even when the field is not display-enabled", () => {
     // And this isolates the second guard.
     expect(typeableFields(["num"], F, { num: "display" })).toEqual([]);

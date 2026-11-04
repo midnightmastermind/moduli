@@ -147,13 +147,16 @@ export function normalizeFieldBindings({ fieldBindings, fieldIds, hidden = false
  * - `media` / `files` need an upload or a drop target, which a menu has nowhere
  *   to put. Those stay BOUND and are filled in on the row.
  */
-const NO_INPUT_TYPES = new Set(["media", "files"]);
+// A button holds no value: offered in the add-item picker, its Press ran listeners before the row existed.
+const NO_INPUT_TYPES = new Set(["media", "files", "button"]);
 
 export function typeableFields(fieldIds, fieldsById, rolesByFieldId = {}) {
   return (fieldIds || [])
     .map((id) => fieldsById?.[id])
     .filter((f) => f && !f.trashed
-      && f.displayEnabled !== true
+      // A display field is computed by an operation — unless its input is EXPLICITLY on too (Daily Question,
+      // a person's Name), which the user types. Every pure display field stores inputEnabled:false.
+      && (f.displayEnabled !== true || f.inputEnabled === true)
       && f.inputEnabled !== false
       && !NO_INPUT_TYPES.has(f.type)
       && (rolesByFieldId[f.id] || "input") === "input");
