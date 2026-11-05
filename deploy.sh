@@ -123,7 +123,7 @@ ssh "$REMOTE_HOST" bash -s -- "$REMOTE_DIR" "${DEPLOY_RESTART:-}" <<'REMOTE'
   if [ -n "$BEFORE" ] && [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
     # printf, not echo: CHANGED is multi-line and must reach grep as lines.
-    if [ -n "$CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qvE '^(client/|docs/|screenshots/|\.remember/|deploy(data)?\.sh$|.*\.md$)'; then
+    if [ -n "$CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qvE '^(client/|docs/|tools/|screenshots/|\.remember/|deploy(data)?\.sh$|.*\.md$)'; then
       RESTART=0
     fi
   fi
@@ -140,7 +140,7 @@ ssh "$REMOTE_HOST" bash -s -- "$REMOTE_DIR" "${DEPLOY_RESTART:-}" <<'REMOTE'
     pm2 save < /dev/null
   else
     echo '  → Server unchanged — NOT restarting (keeps the warm cache; a'
-    echo '    restart reloads the grid from Atlas — measured ~4s on 2026-10-29).'
+    echo '    restart reloads the grid from Atlas — measured ~11 min on 2026-11-05).'
     echo '    Force with: DEPLOY_RESTART=1 ./deploy.sh'
   fi
   echo '  ✅ Deploy complete!'

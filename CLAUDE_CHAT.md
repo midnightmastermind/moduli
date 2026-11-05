@@ -4138,3 +4138,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 - (2026-11-05 07:37) *"after you do the ui testing for all of these inputs and such. i need you to look into scrolling boards and scrolling large boards, and make it as smooth of loading as possible. i dont want a bunch of repaints that blank out the screen or stuttering when loading them."*
 
 **2026-11-05 09:52 CST** — "also move export to markdown, convert, and add button in the radial menu, into settings instead of the radial menu"
+
+**2026-11-05 10:04 CST** — "after debugging the sweep: the history should be applied to every occurance and moved from the radial menu, the filter override should be removed from radial menu (already in filters), hide header should be changed to hide label on occurances without a header but have label (instances), and also apply template should be moved to settings as well. do this after the sweep stuff though before moving on to scroll. also we need to make an operation to make copies of occurances in the schedule for the duration thats applied (so the other timeslots) for example, cps training is 4 hours, we need a copy of it (not copylink) in the other timeslots. and remove them if the original gets deleted or the duration changes. dont include duration in these copies. and hide the done field on all occurances (via the hide fields), its getting mixed up with completed"
+
+**10:05** — "i meant history should be added to settings"
