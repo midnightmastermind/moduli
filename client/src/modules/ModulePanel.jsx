@@ -1146,13 +1146,14 @@ function Panel({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
-                      extraItems={[buttonItem({ occurrence: panelOccurrence, module, fieldsById: panelFieldsById, gridId: state?.grid?._id, dispatch, socket })].filter(Boolean)}
                     />
                   </div>
                 </PopoverAnchor>
                 <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
                   <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                   <LayoutForm
+                    actions={[buttonItem({ occurrence: panelOccurrence, module, fieldsById: panelFieldsById, gridId: state?.grid?._id, dispatch, socket })].filter(Boolean)}
+                    onCloseSettings={() => setSettingsOpen(false)}
                     value={layout}
                     onChange={setLayout}
                     onCommit={commitPanelLayout}

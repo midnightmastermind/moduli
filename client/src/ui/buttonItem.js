@@ -1,5 +1,5 @@
 // ui/buttonItem.js
-// The radial "Add a button…" item (containers, pages, panels, rows, doc textblocks): asks for the button's text (through the app's own form window, never
+// The "Add a button…" item, drawn in Settings (ui/SettingsActions) (containers, pages, panels, rows, doc textblocks): asks for the button's text (through the app's own form window, never
 // window.prompt — a headset panel never shows one) and binds a new button field on the container. Nothing else: a
 // button does nothing until an operation LISTENS to it with an On Button trigger on that field (user, 2026-10-25:
 // "the button does nothing until we add a listener for it in the operations").

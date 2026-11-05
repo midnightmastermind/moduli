@@ -26,6 +26,12 @@ const tag = `${vp}${args.skin ? "/" + args.skin : ""}${args.browser ? "/" + args
 for (const surface of list) {
   const t0 = Date.now();
   let rows = [];
+  // Every surface starts from a fresh load: nothing one crawl moved or left open reaches the next. Writes are blocked, so a
+  // reload puts the server's state back.
+  s.page.setDefaultTimeout(8000);
+  await s.page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+  await s.page.waitForFunction(() => !!document.querySelector("[data-panel-id]") && !document.querySelector('[data-testid="snapshot-pill"]'), null, { timeout: 120000 }).catch(() => {});
+  await s.page.waitForTimeout(6000);
   try {
     const live = { ...surface, open: async (p) => { await surface.open(p, ctx); live.root = rootFor(surface, ctx); }, skipRe: surface.skip };
     const crawl = () => crawlSurface(s.page, live, { vp, depth: Number(args.depth || 2), errors: s.errors, ctx });
@@ -41,6 +47,7 @@ for (const surface of list) {
     const side = await noSideScroll(s.page);
     if (!side.ok) rows.unshift({ id: surface.id, surface: surface.name, control: "(page)", vp: tag, works: "", reach: `✗ sideways scroll ${side.scrollWidth}px in ${side.width}`, a11y: "", clear: "", fast: "", notes: "" });
   } catch (e) {
+    if (process.env.UISWEEP_DEBUG) { console.log(String(e.stack).slice(0, 400)); await s.page.screenshot({ path: process.env.UISWEEP_DEBUG }).catch(() => {}); }
     rows = [{ id: surface.id, surface: surface.name, control: "(open)", vp: tag, works: `✗ could not open: ${String(e.message).split("\n")[0].slice(0, 120)}` }];
   }
   rows = rows.map((r) => ({ ...r, vp: tag }));

@@ -99,9 +99,9 @@ const pageRoot = async (page, ctx) => { const id = await mainPanel(page, ctx); c
 export const SURFACES = [
   // ── toolbar ────────────────────────────────────────────────────────────────
   { id: "toolbar", area: "toolbar", name: "Toolbar", from: [1, 2, 3, 4, 6], root: '[data-testid="toolbar"]',
-    skip: /^Reload$/, open: async (page) => { await clear(page); } },
+    open: async (page) => { await clear(page); } },
   { id: "phone.menu", area: "toolbar", name: "Phone side menu", from: [1, 2, 3, 4, 58], vps: ["phone", "phone-land"], root: "[data-toolbar-drawer]",
-    skip: /^Reload$/, open: async (page) => { await clear(page); await openPhoneMenu(page); } },
+    open: async (page) => { await clear(page); await openPhoneMenu(page); } },
   { id: "search", area: "toolbar", name: "Occurrence search", from: [5], root: ".occ-search-menu",
     open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.occ-search-trigger", { touch: isPhone(page) }); await page.keyboard.type("dr"); await page.waitForTimeout(800); } },
 

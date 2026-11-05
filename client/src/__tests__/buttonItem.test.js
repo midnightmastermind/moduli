@@ -25,10 +25,11 @@ describe("Add a button", () => {
     expect(src).not.toMatch(/default:|key: "does"|planFormButton/);
   });
 
-  it("all three container header variants offer it", () => {
+  it("every container header variant offers it, through its one Settings form", () => {
     const src = readFileSync(new URL("../modules/ModuleContainer.jsx", import.meta.url), "utf8");
-    expect(src.match(/buttonItem\(\{/g)?.length).toBe(3);
-    expect(src).toMatch(/exportMarkdownItem\(\{/); // control
+    expect(src.match(/\{\.\.\.containerFormProps\}/g).length).toBe(3);
+    expect(src).toMatch(/const settingsActions = [\s\S]*buttonItem\(/);
+    expect(src).toMatch(/actions: settingsActions/);
   });
 
   it("pages, panels, rows and doc textblocks offer it too", () => {

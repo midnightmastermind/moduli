@@ -6,6 +6,9 @@ import { rectOnScreen, tapSizeVerdict, jargonHits, hitTarget, popupCount, escape
 
 export const POPUP_SEL = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
 const DESTRUCTIVE = /\b(delete|remove|log ?out|disconnect|reset|clear all|revoke|unsubscribe|break link|trash)\b/i;
+// Pressing these moves the whole session somewhere else, and every row after them reads wrong. Switching grids has its own
+// probe (_gridswitch.mjs); a notification pill's stack changes while the load runs (its rows start with a quoted name).
+const ALWAYS_SKIP = /^(Reload|test grid 1|test grid 2|poms grid|poms rebuild|contrast scratch|Live Grid)$|^"/;
 const CONTROL_SEL = 'button, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="combobox"], a[href], input:not([type="hidden"]), select, textarea';
 
 /** before/after snapshots → what the activation did. An error outranks everything; background DOM noise is not a change. */
@@ -24,7 +27,10 @@ export function classifyOutcome(b, a) {
 /** Every control under `rootSel`, in document order: label, box, hoverOnly. Marks each with data-uisweep-i. */
 export async function controlsIn(page, rootSel) {
   return page.evaluate(({ rootSel, SEL }) => {
-    const root = document.querySelector(rootSel) || document.body;
+    // A missing root is NOT the whole page: falling back to body clicked the grid picker from every surface whose popup
+    // had closed, and reported the same 46 page-chrome rows for each.
+    const root = document.querySelector(rootSel);
+    if (!root) return [];
     const out = [];
     let i = 0;
     for (const el of root.querySelectorAll(SEL)) {
@@ -98,8 +104,24 @@ async function restore(page, basePopups, baseUrl, surface, ctx, lastRow = null) 
       await page.waitForTimeout(5000);
     }
   }
-  if (!(await page.$(surface.root))) await surface.open(page, ctx);
+  // A modal's backdrop blocks every click whether or not the surface's root is still there (a radial closes when its item
+  // opens a dialog, so the check above sees no root and no cover).
+  const modal = () => page.evaluate(() => [...document.querySelectorAll('[data-state="open"][aria-hidden="true"], .fixed.inset-0')].some((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width >= innerWidth - 2 && r.height >= innerHeight - 2 && cs.pointerEvents !== "none" && cs.display !== "none" && cs.visibility !== "hidden" && !e.closest("[data-panel-id]"); })).catch(() => false);
+  if (await modal()) {
+    await page.keyboard.press("Escape"); await page.waitForTimeout(250);
+    if (await modal()) {
+      if (lastRow) lastRow.a11y = `${lastRow.a11y && lastRow.a11y !== "✅" ? lastRow.a11y + "; " : ""}✗ modal left open after Escape`;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForFunction(() => !!document.querySelector("[data-panel-id]") && !document.querySelector('[data-testid="snapshot-pill"]'), null, { timeout: 120000 }).catch(() => {});
+      await page.waitForTimeout(5000);
+    }
+  }
+  const moved = surface.baseHead !== undefined && (await pageHead(page)) !== surface.baseHead;
+  if (moved || !(await page.$(surface.root))) await surface.open(page, ctx);
 }
+
+/** What the panels show: a control that navigated must not leave the rest of the surface crawled on another page. */
+const pageHead = (page) => page.evaluate(() => [...document.querySelectorAll(".page-header-row-label")].map((e) => (e.innerText || "").trim()).join("|")).catch(() => "");
 
 /**
  * Crawl one surface. surface = { id, name, root, open(page, ctx), writes?, popupRoot? }.
@@ -114,6 +136,8 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
   const rows = [];
   const basePopups = await popupCount(page);
   const baseUrl = page.url();
+  if (!(await page.$(surface.root))) throw new Error(`nothing matched "${surface.root}" after opening`);
+  surface.baseHead = await pageHead(page);
   const first = await controlsIn(page, surface.root);
   const n = Math.min(first.length, maxControls);
   if (first.length > maxControls) rows.push({ id: surface.id, surface: surface.name, control: `(${first.length - maxControls} more not crawled)`, vp, works: "⚠", notes: `maxControls ${maxControls}` });
@@ -138,7 +162,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     const jargon = jargonHits(c.label);
     if (jargon.length) row.clear = `⚠ jargon: ${jargon.join(", ")}`;
     if (!c.named) row.a11y = "✗ no accessible name";
-    if ((DESTRUCTIVE.test(c.label) && !surface.writes) || surface.skipRe?.test(c.label)) { row.works = "— skipped (destructive)"; row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅"; rows.push(row); continue; }
+    if ((DESTRUCTIVE.test(c.label) && !surface.writes) || surface.skipRe?.test(c.label) || ALWAYS_SKIP.test(c.label)) { row.works = "— skipped (destructive)"; row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅"; rows.push(row); continue; }
 
     const handle = await page.$(`[data-uisweep-i="${i}"]`);
     if (!handle) { row.works = "⚠ vanished"; rows.push(row); continue; }

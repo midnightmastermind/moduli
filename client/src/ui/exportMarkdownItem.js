@@ -1,5 +1,5 @@
 // ui/exportMarkdownItem.js
-// The radial "Export to Markdown" item, shared by containers, pages and rows (helpers/exportMarkdown does the work).
+// "Export to Markdown", shared by containers, pages and rows; drawn in Settings (ui/SettingsActions). helpers/exportMarkdown does the work.
 // Maps are read when clicked, so an always-mounted menu costs nothing until used.
 import { FileDown } from "lucide-react";
 import { occurrenceToMarkdown, downloadMarkdown } from "../helpers/exportMarkdown";

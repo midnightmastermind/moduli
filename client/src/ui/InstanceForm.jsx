@@ -1,4 +1,5 @@
 // forms/InstanceForm.jsx
+import SettingsActions from "./SettingsActions";
 import React, { useState, useCallback, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,8 @@ export default function InstanceForm({
   onIterationChange, // (next) => void
   dispatch,
   socket,
+  actions,          // radial-style items: Convert, Export to Markdown, Add a button…
+  onCloseSettings,
 }) {
   const { fieldsById, occurrencesById, modulesById, state, dispatch: ctxDispatch, socket: ctxSocket } = useGridActions();
 
@@ -291,6 +294,7 @@ export default function InstanceForm({
 
           {/* Every place this module is shown, with its ancestry */}
           {instance && <ModulePlacements moduleId={instance.id} currentOccId={occurrence?.id} />}
+          <SettingsActions items={actions} onClose={onCloseSettings} />
         </TabsContent>
 
         {/* STYLE TAB */}

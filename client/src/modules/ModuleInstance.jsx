@@ -6,6 +6,7 @@
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { jellyfinRadialItems, openJellyfinPlayer, playNextUnwatched } from "../helpers/jellyfinPlay";
 import { buttonItem } from "../ui/buttonItem";
+import { splitConvertItems } from "../ui/SettingsActions";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 
@@ -726,6 +727,11 @@ function InstanceInner({
     }));
   }, [instance, occurrence, dispatch, socket]);
 
+  // Convert, Export and Add a button are in Settings; the arc keeps the embed's own items (user, 2026-11-05).
+  const { arc: embedArcItems, convert: embedConvertItems } = splitConvertItems(embedRadialItems);
+  const settingsActions = [...embedConvertItems, ...convertLeafItems,
+    exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }),
+    buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean);
   // The LIVE field map (read at finish time, not frozen when the menu was built).
   const getLiveFieldMap = useGridActionsSelector(s => s.getFieldMap || (() => s.fieldsById || {}));
   // Play + Open in Jellyfin on an instance the Jellyfin sync linked (one "Jellyfin" submenu on the arc).
@@ -1214,13 +1220,15 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
-                  extraItems={[...(embedRadialItems || []), ...coverRadialItems, ...jellyfinItems, ...convertLeafItems, exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }), buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean)}
+                  extraItems={[...embedArcItems, ...coverRadialItems, ...jellyfinItems]}
                 />
               </div>
             </PopoverAnchor>
             <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
               <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
               <InstanceForm
+                actions={settingsActions}
+                onCloseSettings={() => setSettingsOpen(false)}
                 value={draft}
                 onChange={setDraft}
                 onCommitLabel={commitLabel}

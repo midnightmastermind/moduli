@@ -60,7 +60,8 @@ export async function open({ vp = "desktop", throttle, skin = null, grid = "poms
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e.message || e)));
   await page.addInitScript((a) => {
-    localStorage.setItem("moduli-token", a.token); localStorage.setItem("moduli-userId", a.userId); localStorage.setItem("moduli-gridId", a.gridId);
+    // Init scripts run in every frame too, and a sandboxed one (a bookmark's page) has no localStorage.
+    try { localStorage.setItem("moduli-token", a.token); localStorage.setItem("moduli-userId", a.userId); localStorage.setItem("moduli-gridId", a.gridId); } catch {}
   }, A);
   await page.addInitScript(guardScript(allowWrites));
   if (skin) await page.addInitScript(skinScript(skin));

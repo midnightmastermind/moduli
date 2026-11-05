@@ -2,6 +2,10 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-11-05 — Convert, Export to Markdown and Add a button moved from the radial to Settings)
+- `SettingsActions.jsx` (NEW) draws radial-style items in a form: `actions` + `onCloseSettings` on InstanceForm and ContainerForm (Settings tab), LayoutForm (Actions tab), and directly in the page's settings popover. Settings closes before the item runs. A container's Convert submenu and an embed's "To pill" (`splitConvertItems`) land in one "Convert to" row.
+- The right-click menu keeps its own Convert entries. Test `settingsActions.test.jsx`.
+
 ## Recent Changes (2026-11-04 — filter pickers: numbers type, every control is named, removing a filter keeps the rest)
 Found by `tools/uisweep/filterRun.mjs` (each field as a local filter on a header: add, drive the picker, clear, remove).
 - **A number filter drew the DATE stepper**: "next" stored "2026-11-05" as Quantity's value, which no number matches.

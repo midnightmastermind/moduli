@@ -6,6 +6,7 @@
 import { useDoubleTap } from "../hooks/useDoubleTap";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
+import { splitConvertItems } from "../ui/SettingsActions";
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { askChoice } from "../ui/ChoiceDialog";
 import { createPortal } from "react-dom";
@@ -1316,7 +1317,14 @@ function Container({
   // ONE prop set for every settings form below (standard header, header hidden,
   // embedded). Two of the three hand-copies never passed onOccurrenceStyleChange,
   // so Style › "This Placement" could not leave Inherit on those surfaces.
+  // Convert, Export and Add a button are in Settings; the arc keeps the embed's own items (user, 2026-11-05).
+  const { arc: embedArcItems, convert: embedConvertItems } = splitConvertItems(embedRadialItems);
+  const settingsActions = [...embedConvertItems, ...convertRadialItems,
+    exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }),
+    buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean);
   const containerFormProps = {
+    actions: settingsActions,
+    onCloseSettings: () => setSettingsOpen(false),
     value: draft,
     onChange: setDraft,
     onCommitLabel: commitLabel,
@@ -1416,7 +1424,7 @@ function Container({
                 onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                extraItems={embedArcItems}
               />
             </div>
           </PopoverAnchor>
@@ -1484,7 +1492,7 @@ function Container({
                       onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                      extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                      extraItems={embedArcItems}
                     />
                   </div>
                 </PopoverAnchor>
@@ -1612,7 +1620,7 @@ function Container({
                     onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
-                    extraItems={[...(embedRadialItems || []), ...convertRadialItems, exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)}
+                    extraItems={embedArcItems}
                   />
                 </div>
               </PopoverAnchor>

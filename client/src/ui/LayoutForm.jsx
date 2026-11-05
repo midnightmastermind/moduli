@@ -1,4 +1,5 @@
 // LayoutForm.jsx
+import SettingsActions from "./SettingsActions";
 import React, { useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
@@ -284,6 +285,7 @@ export default function LayoutForm({
   iteration, onIterationChange, defaultDragMode, onDragModeChange,
   occurrence, onOccurrenceUpdate, currentViewType, onViewTypeChange,
   onCopyPanel, onCopylinkPanel, onSplitPanel, onUnsplitPanel, isSplit,
+  actions, onCloseSettings,
 }) {
   const v = ensureLockDefaults(value);
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
@@ -900,6 +902,7 @@ export default function LayoutForm({
 
         {/* ACTIONS TAB: Lock/Permissions, Panel Actions */}
         <TabsContent value="actions" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1 space-y-2">
+          <SettingsActions items={actions} onClose={onCloseSettings} />
           {/* Lock / Permissions */}
           <div className="pt-1">
             <div className="flex items-center justify-between">

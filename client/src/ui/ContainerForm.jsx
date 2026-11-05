@@ -1,4 +1,5 @@
 // forms/ContainerForm.jsx
+import SettingsActions from "./SettingsActions";
 import React, { useMemo, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
@@ -35,6 +36,8 @@ export default function ContainerForm({
   occurrence,        // The occurrence for this container (for persistence settings)
   onOccurrenceUpdate, // (updates) => void
   onOccurrenceStyleChange, // (style|null) => void — writes occurrence.ownStyle
+  actions,           // radial-style items: Convert, Export to Markdown, Add a button…
+  onCloseSettings,
 }) {
   const iter = iteration || { mode: "inherit", timeFilter: "daily" };
   const { occurrencesById, modulesById, fieldsById, state, dispatch, socket } = useGridActions();
@@ -352,6 +355,7 @@ export default function ContainerForm({
 
           {/* Every place this module is shown, with its ancestry */}
           <ModulePlacements moduleId={containerId} currentOccId={occurrence?.id} />
+          <SettingsActions items={actions} onClose={onCloseSettings} />
         </TabsContent>
 
         {/* STYLE TAB */}

@@ -4136,3 +4136,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 - (2026-11-04) *"make sure to increase the radial menu button and menu buttons a bit larger on mobile and make sure the tracks arent covering up content"* — done (rails get their own strips).
 - (2026-11-05 07:37) *"after you do the ui testing for all of these inputs and such. i need you to look into scrolling boards and scrolling large boards, and make it as smooth of loading as possible. i dont want a bunch of repaints that blank out the screen or stuttering when loading them."*
+
+**2026-11-05 09:52 CST** — "also move export to markdown, convert, and add button in the radial menu, into settings instead of the radial menu"
