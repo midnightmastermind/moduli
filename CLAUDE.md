@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-05 (2) — THE CRAWL WORKS NOW; a restart is 51s, not 11 min; radial items moved to Settings; duration copies
+
+User: *"fix the depugging of the sweep first"* · *"fix the 11 min load time for poms"* · move Export, Convert, Add a button, History, Apply Template into Settings, Filter Override off the radial, Hide Label on rows · a cover on a row's radial · *"make copies of occurances in the schedule for the duration"* · hide Done · the phone covers every surface, not just where it differs.
+- **Crawler (`tools/uisweep`):** a missing root fell back to `document.body`, so a closed popup clicked the whole page, grid picker included. It reports "could not open" now; every surface starts from a fresh load, a control that cannot be pressed is retried once from a fresh load, each surface has a 5-minute budget. Right-click menus are `.menu-surface` (no `.context-menu` element exists). Desktop article 112 failures -> 4. **Not all green:** phone `row.body`/`account`, desktop `context.tree`, and the a11y rows are not triaged to zero (`docs/ui-sweep-2026-11-03.md`).
+- **Load:** reads are limited to ~103 KB/s at Atlas, compression changes nothing, so a full read of poms is 11 min (it was not the debugger). `services/gridSnapshot.js` keeps modules + occurrences on disk; a restart reconciles by id + updatedAt. Measured on prod: **661s -> 47-51s**, row counts equal to Mongo. A migration moves the ledger, so that one load reads everything.
+- **Grid switch:** one `request_full_state` instead of 7, 57s -> 4.2s (`state.js`, `helpers/gridSwitchRetry`).
+- **Real defects:** a doc's lock under its lead picture; pick lists unnamed (listbox + labels); `[[x]](url)` printed raw and any bare `[`/`*` was deleted by the importer; phone tap targets from 10x15px; the row's + covered Show notes on a phone.
+- **`0487` Schedule: Duration Copies:** a plain copy (`meta.spanOf`) in each further slot, no Duration, no tick; recomputed each pass. Watched on the rebuild: 240 min -> 7 copies, 60 -> 1, deleted -> 0. **Trap:** which events fire an op come from `triggerTypes`, not `triggerObjects`; a builder setting only the second never runs and a test calling the pipeline directly cannot see it. Applied to poms over REST (no restart), so `0487` is not in its ledger; running the runner would move the ledger. **Not watched on poms itself.** Copies do not follow a tick on the original.
+- **Done** hidden on the 2 modules binding it (poms).
+
+---
+
 ### 2026-11-05 — UI SWEEP: THE FIELD MATRIX IS DONE IN EVERY CONTEXT; what clicking found on the way
 
 User: *"keep going please"* through the sweep, and *"increase the radial menu button and menu buttons a bit larger on
