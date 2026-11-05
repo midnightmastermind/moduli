@@ -9802,7 +9802,7 @@ body[data-layout="mobile"] :is(.occ-search-clear, .page-header-close-btn, .sprea
   min-width: 30px; min-height: 30px;
 }
 /* Text buttons in a menu or a settings form. */
-body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]) {
+body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]):not(:empty) {
   min-height: 30px;
 }
 /* A tick box is 13px by default. */

@@ -4150,3 +4150,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 **2026-11-05 11:14** — "dont do it based on differs, i want to make sure things are still visible and accessible on mobile despite being the same way on desktop" (the phone pass covers every surface)
 
 **2026-11-05 13:13** — "we also need change cover photo in the radial menu for rows"
+
+**2026-11-05 15:58** — "i put a video in screenshots showing off the scrolling issues from before. its choppy and paint takes too long" (for the board-scrolling pass)
