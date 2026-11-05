@@ -296,6 +296,8 @@ export const ACTION_CONFIG_SCHEMA = {
       // `fieldHidden` — none of which the editor could write (2026-10-03).
       { key: "linked", kind: "bool", label: "linked (ticks stay in sync)", defaultValue: true },
       { key: "fields", kind: "fieldMap", label: "set on the copy:" },
+      { key: "omitFields", kind: "list", label: "leave off the copy (field ids)", optional: true },
+      { key: "fieldVisibility", kind: "expr", label: "field visibility", optional: true, placeholder: 'json:{"mode":"hide","fieldIds":["…"]}' },
       // One copy per signature under its parent — the server refuses a second (a sweep in two tabs).
       { key: "identitySignature", kind: "expr", label: "unique as", optional: true, placeholder: "watch:${$key}" },
       { key: "itemIdVar", kind: "var", label: "new id → $", optional: true },

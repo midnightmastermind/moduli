@@ -2457,6 +2457,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // ROOT only (recursing it into children would clobber per-child
         // values — typical caller intent is "stamp date on the root copy").
         const fields = cfg.copyFields !== false ? { ...(src.fields || {}) } : {};
+        // Values this copy must not carry (a Duration a time tracker would count twice).
+        if (isRoot && Array.isArray(cfg.omitFields)) for (const fid of cfg.omitFields) delete fields[fid];
+        // A copy's own field visibility, e.g. to hide the pill of a field it left behind.
+        const rootVisibility = isRoot && cfg.fieldVisibility ? resolveExpr(cfg.fieldVisibility, $vars) || null : null;
         if (isRoot && cfg.fields && typeof cfg.fields === "object") {
           for (const [fid, expr] of Object.entries(cfg.fields)) {
             const v = resolveExpr(expr, $vars);
@@ -2553,6 +2557,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           _ancestors: newAncestors,
           occurrences: childIds,
           ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
+          ...(rootVisibility ? { fieldVisibility: rootVisibility } : {}),
         };
 
         // Optimistic publish so subsequent same-pipeline FINDs see the clone.
@@ -2574,6 +2579,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             meta: { ...baseMeta },
             occurrences: childIds,
             ...(rootFilterOverride ? { filterOverride: rootFilterOverride } : {}),
+            ...(rootVisibility ? { fieldVisibility: rootVisibility } : {}),
           };
           if (targetParentId && context.occurrencesById[targetParentId]) {
             const parent = context.occurrencesById[targetParentId];
@@ -2603,6 +2609,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             fields,
             linkedGroupId,
             occurrences: childIds,
+            ...(rootVisibility ? { fieldVisibility: rootVisibility } : {}),
             // Persist a discoverable "this is a copy of <src.id>" marker
             // so idempotency FINDs in op pipelines can match on
             // `meta.copyLinkSource IS $sourceId` directly — without

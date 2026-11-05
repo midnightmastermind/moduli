@@ -1952,6 +1952,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           // pins itself to its own date instead of inheriting the page's
           // multi-day filter.
           filterOverride: inst.filterOverride || null,
+          ...(inst.fieldVisibility ? { fieldVisibility: inst.fieldVisibility } : {}),
         };
         socketDispatch(createOccurrenceAction(newOcc));
         setLocalOcc(newOcc.id, newOcc);

@@ -1556,6 +1556,7 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
           // whole job is to predict what will persist. Any difference between
           // the two is an op reading something that will never be true — which
           // is what this file's header says and what this bug is.
+          ...(eff.instance?.fieldVisibility ? { fieldVisibility: eff.instance.fieldVisibility } : {}),
           meta: { createdByOperation: true, ...(inst.meta || {}) },
         };
         if (inst.parentId && liveOccs[inst.parentId]) {
