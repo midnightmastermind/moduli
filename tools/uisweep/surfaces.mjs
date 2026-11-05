@@ -173,12 +173,14 @@ export const SURFACES = [
     open: async (page, ctx) => {
       await goTo(page, ctx, "Basic Nutrition Guide");
       const id = await mainPanel(page, ctx);
-      const ed = await page.$(`${P(id)} .doc-editor-content`);
-      const b = await ed.boundingBox();
-      await page.mouse.click(b.x + 20, b.y + b.height - 6);
-      await page.waitForTimeout(700);
+      // The page's own trailing empty line: 0px tall until the pointer is near it.
+      const line = (await page.evaluateHandle((sel) => [...document.querySelector(sel).children].reverse().find((c) => c.tagName === "P"), `${P(id)} .doc-editor-content`)).asElement();
+      await line.scrollIntoViewIfNeeded();
+      const b0 = await line.boundingBox(); await page.mouse.move(b0.x + 30, b0.y + 2); await page.waitForTimeout(400);
+      const b = await line.boundingBox(); await page.mouse.click(b.x + 30, b.y + b.height / 2);
+      await page.waitForTimeout(1500);
       await page.keyboard.type("/");
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(1000);
     } },
 
   // ── context menus ─────────────────────────────────────────────────────────
@@ -198,11 +200,13 @@ export const SURFACES = [
   // ── templates / pickers ───────────────────────────────────────────────────
   { id: "templates", area: "add", name: "Templates section (Apply / Merge / Copy / Save)", from: [31], root: POPUP,
     open: async (page, ctx) => {
+      // Apply Template lives in Settings since 2026-11-05.
       await goTo(page, ctx, "Tasks");
       await inPanel(page, ctx, ".container-shell .container-header button.radial-handle", { touch: isPhone(page) });
-      const t = await page.waitForSelector('.radial-menu-items [title="Apply Template"], .radial-menu-items [aria-label="Apply Template"]', { timeout: 6000 });
-      if (isPhone(page)) await t.tap(); else await t.click();
+      const st = await page.waitForSelector('.radial-menu-items [title="Settings"]', { timeout: 6000 });
+      if (isPhone(page)) await st.tap(); else await st.click();
       await page.waitForTimeout(700);
+      await tap(page, '.settings-actions button:has-text("Apply Template")', { touch: isPhone(page) });
     } },
   { id: "pick.cover", area: "add", name: "Image picker (Set cover image)", from: [35], root: '[data-image-picker]',
     open: async (page, ctx) => {
@@ -258,7 +262,7 @@ export const SURFACES = [
   { id: "share.place", area: "sharing", name: "Share placement window", from: [59], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-place?stage=${ctx.stage?.id}&k=${ctx.stage?.key}`); await page.waitForTimeout(3000); } },
   { id: "share.pending", area: "sharing", name: "Share pending page", from: [60], vps: ["phone"], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-pending`); await page.waitForTimeout(2000); } },
   { id: "extension", area: "sharing", name: "Browser extension popup", from: [61], vps: ["desktop"], root: "body", manual: true, open: async () => {} },
-  { id: "account", area: "account", name: "Account menu", from: [62], root: POPUP, open: async (page) => { await clear(page); if (isPhone(page)) await openPhoneMenu(page); else await tap(page, 'button[aria-label="Account"], button[title="Account"]'); } },
+  { id: "account", area: "account", name: "Account menu", from: [62], root: POPUP, vps: ["desktop"], open: async (page) => { await clear(page); if (isPhone(page)) await openPhoneMenu(page); else await tap(page, 'button[aria-label="Account"], button[title="Account"]'); } },
   { id: "forms.button", area: "forms", name: "A button's form (New …)", from: [39, 37, 38], root: '[data-testid="form-modal"]',
     open: async (page, ctx) => { await goTo(page, ctx, "Sweep Fields"); await inPanel(page, ctx, 'button:has-text("Open form")', { touch: isPhone(page) }); } },
 ];
