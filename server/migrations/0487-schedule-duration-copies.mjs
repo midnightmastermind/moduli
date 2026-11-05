@@ -86,8 +86,12 @@ export function durationCopiesOp({ userId, gridId, schedulePageOccId, dateFieldI
   ];
   const on = (o) => ({ priority: 3, targetId: "", ...o });
   return {
-    id: id, name: OP_NAME, userId, gridId, enabled: true,
+    name: OP_NAME, userId, gridId, enabled: true,
+    // $activePeriodDates is the period of this page's own filter.
+    targetOccurrenceId: schedulePageOccId,
     pipeline: { sources: [], steps },
+    // Which events fire an op is read from this list; triggerObjects only narrow them.
+    triggerTypes: ["onLoad", "onFilterChange", "onChange", "onDelete", "onAdd", "onMove"],
     triggerObjects: [
       on({ eventType: "onLoad", subjectType: "grid" }),
       on({ eventType: "onFilterChange", subjectType: "grid" }),

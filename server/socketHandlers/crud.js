@@ -1418,6 +1418,8 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // filterOverride is set explicitly elsewhere but include it here for the
       // create path (a CREATE_ITEM clone may carry an inherited override).
       ...(occurrence.filterOverride !== undefined && { filterOverride: occurrence.filterOverride }),
+      // A copy made without one of its module's fields hides that field's pill (Schedule: Duration Copies).
+      ...(occurrence.fieldVisibility != null && { fieldVisibility: occurrence.fieldVisibility }),
       // filters is the per-occurrence FilterEditor list (conditional filters).
       ...(Array.isArray(occurrence.filters) && { filters: occurrence.filters }),
       // label is the per-PLACEMENT name override, and a row is named

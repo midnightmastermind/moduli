@@ -1,6 +1,6 @@
 // A row with a Duration gets a plain copy in each further slot it covers; the copies go when it does.
 import { describe, it, expect, beforeEach } from "vitest";
-import { executePipeline, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
+import { executePipeline, applyEffectsToLiveOccs, computeTriggerMatch } from "../helpers/operationExecutor";
 import { durationCopiesOp } from "../../../server/migrations/0487-schedule-duration-copies.mjs";
 
 const DATE = "f-date", SLOT = "f-slot", DUR = "f-dur", FMT = "f-fmt", DONE = "f-completed", NOTE = "f-note", DAY = "2026-11-05", PAGE = "page";
@@ -16,7 +16,7 @@ const op = () => durationCopiesOp({ userId: "u", gridId: "g", schedulePageOccId:
 function run() {
   const fieldsById = {};
   const ctx = { state: { grid: { _id: "g", activeFilterValues: { [DATE]: DAY } }, gridId: "g", fields: [], modules: Object.values(modulesById), occurrencesById, modulesById, fieldsById, operationsById: {}, operations: [] }, fieldsById, operationsById: {}, occurrencesById, modulesById };
-  const o = op(); o.targetOccurrenceId = PAGE;
+  const o = op();
   const fx = executePipeline(o, ctx, { type: "NavigationOp", date: DAY }) || [];
   applyEffectsToLiveOccs(occurrencesById, fx);
   return fx;
@@ -34,6 +34,10 @@ beforeEach(() => {
 });
 
 describe("Schedule: Duration Copies", () => {
+  it("really fires: on load, and when a row's Duration changes", () => {
+    expect(computeTriggerMatch(op(), null, {})).toBeTruthy();
+    expect(computeTriggerMatch(op(), "MeasureOp", { field: DUR, fieldId: DUR, fields: { [DUR]: 60 } })).toBeTruthy();
+  });
   it("a 4-hour row at 4:00pm gets a copy in the 7 further slots, and none in its own", () => {
     run();
     expect(copySlots()).toEqual(["4:30pm", "5:00pm", "5:30pm", "6:00pm", "6:30pm", "7:00pm", "7:30pm"].sort());
@@ -79,5 +83,13 @@ describe("Schedule: Duration Copies", () => {
   it("a row with no Duration, or one that is a copy, spawns nothing", () => {
     occurrencesById.cps.fields[DUR].value = 0; run();
     expect(copies()).toEqual([]);
+  });
+});
+
+describe("a copy's field visibility reaches the server", () => {
+  it("the create carries it and the server keeps it", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync(new URL("../state/bindSocketToStore.js", import.meta.url), "utf8")).toMatch(/inst\.fieldVisibility \? \{ fieldVisibility: inst\.fieldVisibility \}/);
+    expect(readFileSync(new URL("../../../server/socketHandlers/crud.js", import.meta.url), "utf8")).toMatch(/occurrence\.fieldVisibility != null && \{ fieldVisibility: occurrence\.fieldVisibility \}/);
   });
 });
