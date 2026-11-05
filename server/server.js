@@ -3,6 +3,7 @@
 
 import express from "express";
 import { withoutMongoId } from "./utils/mongoId.js";
+import { loadSnapshot, saveSnapshot, reconcileRows, migrationLedger } from "./services/gridSnapshot.js";
 import http from "http";
 import cors from "cors";
 import compression from "compression";
@@ -298,6 +299,27 @@ function gridCacheKey(userId, gridId) { return `${userId}:${gridId}`; }
 // is not pinned forever just because it was opened.
 const pinnedCacheKeys = new Set();
 
+// Keep each loaded grid's rows on disk (services/gridSnapshot.js), so a restart does not read them all back from Atlas.
+const SNAPSHOT_EVERY_MS = 15 * 60 * 1000;
+let snapshotting = false;
+async function snapshotLoadedGrids() {
+  if (snapshotting || process.env.CACHE_SNAPSHOT === "0") return;
+  snapshotting = true;
+  try {
+    for (const [key, uc] of Object.entries(cacheByUser)) {
+      if (!uc?._loaded) continue;
+      const [userId, gridId] = key.split(":");
+      const grid = await Grid.findOne({ _id: gridId, userId }, { "meta.migrations": 1 }).lean();
+      if (!grid) continue;
+      const t0 = Date.now();
+      const rows = await saveSnapshot({ gridId, userId, uc, ledger: migrationLedger(grid) });
+      console.log(`📦 snapshot saved: ${gridId} ${rows} rows ${Date.now() - t0}ms`);
+    }
+  } catch (e) { console.error("[snapshot] save failed:", e?.message || e); }
+  finally { snapshotting = false; }
+}
+setInterval(snapshotLoadedGrids, SNAPSHOT_EVERY_MS);
+
 // Periodic cache eviction — runs every 5 minutes
 setInterval(() => {
   const now = Date.now();
@@ -336,9 +358,27 @@ async function loadUserIntoCache(userId, gridId) {
     uc._loaded = false;
     const t0 = Date.now();
     // All queries filtered by gridId — no user-wide scans
-    const [modules, occurrences, fields, manifests, views, folders, operations] = await Promise.all([
-      Module.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Module query: ${Date.now()-t0}ms (${r.length})`); return r; }),
-      Occurrence.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Occurrence query: ${Date.now()-t0}ms (${r.length})`); return r; }),
+    // A saved copy of the rows, if there is one this load can trust (services/gridSnapshot.js): a full read of a big grid
+    // takes minutes at Atlas's rate, so only what changed is read back.
+    const gridForLedger = await Grid.findOne({ _id: gridId, userId }, { "meta.migrations": 1 }).lean().catch(() => null);
+    const snapshot = process.env.CACHE_SNAPSHOT === "0"
+      ? null
+      : await loadSnapshot({ gridId, userId, ledger: migrationLedger(gridForLedger) }).catch((e) => { console.error("[snapshot] load failed:", e?.message || e); return null; });
+    console.log(snapshot ? `📦 snapshot from ${snapshot.savedAt.toISOString()}: ${Object.keys(snapshot.occurrencesById).length} occurrences, ${Date.now()-t0}ms` : "📦 no usable snapshot, reading the whole grid");
+    const shapeModule = (m) => { const id = m.id || m._id.toString(); return { ...withoutMongoId(m), id, label: m.label ?? "" }; };
+    const shapeOccurrence = (o) => {
+      const id = o.id || o._id.toString();
+      const bare = withoutMongoId(o);
+      return o.textmap ? { ...bare, id, textmap: decompressTextmap(o.textmap) } : { ...bare, id };
+    };
+    const rowFilter = { userId, gridId };
+    const [loadedModules, loadedOccurrences, fields, manifests, views, folders, operations] = await Promise.all([
+      snapshot
+        ? reconcileRows({ snapshotById: snapshot.modulesById, Model: Module, filter: rowFilter, shape: shapeModule }).then(r => { console.log(`  ↳ Modules reconciled: ${Date.now()-t0}ms (${Object.keys(r).length})`); return r; })
+        : Module.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Module query: ${Date.now()-t0}ms (${r.length})`); return r; }).then(rows => Object.fromEntries(rows.map(shapeModule).map(r => [r.id, r]))),
+      snapshot
+        ? reconcileRows({ snapshotById: snapshot.occurrencesById, Model: Occurrence, filter: rowFilter, shape: shapeOccurrence }).then(r => { console.log(`  ↳ Occurrences reconciled: ${Date.now()-t0}ms (${Object.keys(r).length})`); return r; })
+        : Occurrence.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Occurrence query: ${Date.now()-t0}ms (${r.length})`); return r; }).then(rows => Object.fromEntries(rows.map(shapeOccurrence).map(r => [r.id, r]))),
       Field.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Field query: ${Date.now()-t0}ms (${r.length})`); return r; }),
       Manifest.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Manifest query: ${Date.now()-t0}ms (${r.length})`); return r; }),
       View.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ View query: ${Date.now()-t0}ms (${r.length})`); return r; }),
@@ -352,15 +392,8 @@ async function loadUserIntoCache(userId, gridId) {
     // `_id` — so every write was `$set`ting it. Inert while it matches the live
     // document, and an ImmutableField rejection that LOSES THE USER'S EDIT the
     // moment they diverge. Nothing reads `_id` off these entries.
-    uc.modulesById = {};
-    modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...withoutMongoId(m), id, label: m.label ?? "" }; });
-    uc.occurrencesById = {};
-    occurrences.forEach((o) => {
-      const id = o.id || o._id.toString();
-      const bare = withoutMongoId(o);
-      const occ = o.textmap ? { ...bare, id, textmap: decompressTextmap(o.textmap) } : { ...bare, id };
-      uc.occurrencesById[id] = occ;
-    });
+    uc.modulesById = loadedModules;
+    uc.occurrencesById = loadedOccurrences;
     uc.fieldsById = {};
     fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...withoutMongoId(f), id }; });
     uc.manifestsById = {};
@@ -372,6 +405,7 @@ async function loadUserIntoCache(userId, gridId) {
     uc.operationsById = {};
     operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...withoutMongoId(o), id }; });
     uc._loaded = true;
+    setTimeout(snapshotLoadedGrids, 60 * 1000); // the first copy soon, so an early restart is already quick
     console.log(`✅ GRID CACHE READY: ${gridId} — Modules: ${Object.keys(uc.modulesById).length}, Occurrences: ${Object.keys(uc.occurrencesById).length}, Folders: ${Object.keys(uc.foldersById).length}`);
     return uc;
   })();

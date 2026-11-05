@@ -172,7 +172,7 @@ function parseInline(text, mintLink) {
     // The url group allows ONE level of balanced parens so Wikipedia titles like
     // `…/Encore_(Eminem_album)` aren't truncated at the first `)` (which left a
     // stray trailing `)` after the chip — "The Monster Tour)").
-    const linkMatch = /^\[([^\]]+)\]\(((?:[^()]|\([^)]*\))*)\)/.exec(rest);
+    const linkMatch = /^\[((?:[^[\]]|\[[^\]]*\])+)\]\(((?:[^()]|\([^)]*\))*)\)/.exec(rest);
     if (linkMatch) {
       // THE LABEL IS STRIPPED, and that is not cosmetic. A minted chip is an
       // OCCURRENCE whose text is a module LABEL — a plain string that cannot
@@ -226,7 +226,8 @@ function parseInline(text, mintLink) {
     const stop = nextSpecial < 0 ? text.length : i + nextSpecial;
     const plain = text.slice(i, stop);
     if (plain) out.push({ type: "text", text: plain });
-    if (stop === i) i++; // safety: never infinite-loop
+    // A special character that opened nothing ("[note]", "5 * 3") is text: skipping it silently deleted it.
+    if (stop === i) { out.push({ type: "text", text: text[i] }); i++; }
     else i = stop;
   }
   return out.length ? out : [{ type: "text", text: "" }];

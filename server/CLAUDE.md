@@ -2,6 +2,11 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-11-05 — the warm cache is kept on disk; a grid switch does not re-send)
+- `services/gridSnapshot.js` + `loadUserIntoCache` + `snapshotLoadedGrids`: modules + occurrences saved to `server/cache/grids/<gridId>.ndjson` a minute after a load and every 15 min. A cold load reads them back, then `reconcileRows` asks Atlas for id + updatedAt and whole rows only where they differ. Why: reads are limited at ~103 KB/s (measured on the droplet, compression changes nothing), so a full read of poms is 11 min. Refused when the grid's migration ledger moved (native-driver migrations do not move updatedAt). `CACHE_SNAPSHOT=0` or deleting the folder forces a full read. A script writing with the native driver and no ledger entry is invisible to it.
+- `socketHandlers/state.js request_full_state`: a repeat of the question in flight is dropped, a `retry` of one already answered on this socket is dropped, a newer answer cancels the deferred send still waiting. A plain request is always answered (undo resync).
+- `services/markdownImporter.parseInline`: a link label may hold one level of brackets (`[[x]](url)`); a special character that opens nothing is text (it was deleted).
+
 ## Recent Changes (2026-11-02 (2) — Jellyfin end to end on prod: three fixes; the file map)
 Files (all new in the media-streaming work, 2026-11-01..02):
 - `services/jellyfinConfig.js` — `user.meta.jellyfin` (key encrypted), `jellyfinFetch` (key as header; 5s whole-request

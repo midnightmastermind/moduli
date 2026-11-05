@@ -31,7 +31,7 @@ async function clear(page) { for (let i = 0; i < 4; i++) await page.keyboard.pre
 /** On a phone the toolbar's buttons live in the side drawer. */
 async function openPhoneMenu(page) {
   if (await page.$("[data-toolbar-drawer]")) return;
-  await tap(page, 'button[aria-label="Menu"], button[title="Menu"], [data-testid="toolbar"] button[aria-label*="menu" i]', { touch: true });
+  await tap(page, 'button[aria-label="Open menu"], button[title="Open menu"]', { touch: true });
 }
 /** Make the main panel show `name` (search only when it does not already). */
 export async function ensurePage(page, ctx, name) {
@@ -77,7 +77,9 @@ export async function goTo(page, ctx, name, kind = null) {
   await clear(page);
   await inPanel(page, ctx, "button.occ-search-trigger", { touch: isPhone(page) });
   await page.keyboard.type(name, { delay: 20 });
-  await page.waitForTimeout(1500);
+  // A phone at 4x CPU builds its first search index slowly: look until the hit is listed.
+  await page.waitForFunction((n) => [...document.querySelectorAll(".occ-search-menu .occ-search-row")].some((r) => (r.innerText || "").toLowerCase().includes(n.toLowerCase())), name, { timeout: isPhone(page) ? 30000 : 8000 }).catch(() => {});
+  await page.waitForTimeout(300);
   const idx = await page.$$eval(".occ-search-menu .occ-search-row", (rows, { name, kind }) => {
     const info = rows.map((r) => { const l = (r.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean); return { n: l[0] || "", k: l[1] || "" }; });
     const re = kind ? new RegExp(kind, "i") : null;
@@ -187,7 +189,7 @@ export const SURFACES = [
   { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".page-header"); } },
   { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
-    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-tree .folder-open-btn`, { button: "right" }); await page.waitForTimeout(500); } },
+    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-row`, { button: "right" }); await page.waitForTimeout(500); } },
   { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
       // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.
@@ -202,7 +204,7 @@ export const SURFACES = [
       if (isPhone(page)) await t.tap(); else await t.click();
       await page.waitForTimeout(700);
     } },
-  { id: "pick.cover", area: "add", name: "Image picker (Set cover image)", from: [35], vps: ["desktop"], root: '[role="dialog"]',
+  { id: "pick.cover", area: "add", name: "Image picker (Set cover image)", from: [35], root: '[data-image-picker]',
     open: async (page, ctx) => {
       // A row's cover is on its radial; an artifact card's right-click has one too.
       await goTo(page, ctx, "Sample Files");

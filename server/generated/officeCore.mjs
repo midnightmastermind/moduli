@@ -64,14 +64,22 @@ function onceDates(v) {
   const all = [...Array.isArray(v?.dates) ? v.dates : [], ...v?.date ? [v.date] : []].map(parseDay).filter(Boolean).map(dayKey2);
   return [...new Set(all)].sort();
 }
-function isWhen(v) {
+function toWhen(v) {
+  if (typeof v !== "string") return v;
+  const m = v.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
+  if (!m) return v;
+  return m[2] ? { mode: "once", dates: [m[1]], time: m[2] } : { mode: "once", dates: [m[1]] };
+}
+function isWhen(raw) {
+  const v = toWhen(raw);
   if (!v || typeof v !== "object") return false;
   if (v.mode === "once") return onceDates(v).length > 0;
   if (v.mode === "every") return WHEN_UNITS.includes(v.unit) && Number(v.every) >= 1 && !!parseDay(v.start?.date);
   if (v.mode === "weekdays") return Array.isArray(v.days) && v.days.length > 0;
   return false;
 }
-function whenTimesOnDay(v, day) {
+function whenTimesOnDay(raw, day) {
+  const v = toWhen(raw);
   if (!isWhen(v)) return [];
   const d = typeof day === "string" ? parseDay(day) : day;
   if (!d) return [];
