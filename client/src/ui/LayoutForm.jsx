@@ -493,6 +493,7 @@ export default function LayoutForm({
               <p className="text-[12px] text-muted-foreground">Children inherit default behavior.</p>
             )}
           </div>
+          <SettingsActions items={actions} onClose={onCloseSettings} />
         </TabsContent>
 
         {/* LAYOUT TAB: Presets, Display/Flow/Wrap, Width, Height, Alignment, Grid/Gap, Scroll */}
@@ -902,7 +903,6 @@ export default function LayoutForm({
 
         {/* ACTIONS TAB: Lock/Permissions, Panel Actions */}
         <TabsContent value="actions" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1 space-y-2">
-          <SettingsActions items={actions} onClose={onCloseSettings} />
           {/* Lock / Permissions */}
           <div className="pt-1">
             <div className="flex items-center justify-between">

@@ -6,7 +6,7 @@
 import { useDoubleTap } from "../hooks/useDoubleTap";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
-import { splitConvertItems } from "../ui/SettingsActions";
+import { splitConvertItems, historyItem, templateItem } from "../ui/SettingsActions";
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { askChoice } from "../ui/ChoiceDialog";
 import { createPortal } from "react-dom";
@@ -128,7 +128,6 @@ import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
 import ContainerGraph from "./containers/ContainerGraph.jsx";
-import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import InsertGap from "../ui/InsertGap.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
@@ -314,11 +313,11 @@ function Container({
       } catch { return false; }
     })(),
     showHeader: true,
-    showEmbeddedIterNav: false, filterPopupPos: null,
+    showEmbeddedIterNav: false,
   });
   const { settingsOpen, historyOpen, ctxMenu, focusedStack, historyExpanded,
     isBodyCollapsed, showHeader,
-    showEmbeddedIterNav, filterPopupPos } = ui;
+    showEmbeddedIterNav } = ui;
   // Setter wrappers — same API as useState setters, delegates to single reducer
   const setSettingsOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ settingsOpen: v(s.settingsOpen) }) : { settingsOpen: v }), []);
   const setHistoryOpen = useCallback(v => uiDispatch(typeof v === "function" ? s => ({ historyOpen: v(s.historyOpen) }) : { historyOpen: v }), []);
@@ -340,7 +339,6 @@ function Container({
   }, [isBodyCollapsed, occurrenceOverride?.id, module?._occurrenceId]);
   const setShowHeader = useCallback(v => uiDispatch({ showHeader: v }), []);
   const setShowEmbeddedIterNav = useCallback(v => uiDispatch({ showEmbeddedIterNav: v }), []);
-  const setFilterPopupPos = useCallback(v => uiDispatch({ filterPopupPos: v }), []);
   const [quickAddTrigger, setQuickAddTrigger] = useState(0);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const openDropdown = useCallback((e) => {
@@ -1321,7 +1319,8 @@ function Container({
   const { arc: embedArcItems, convert: embedConvertItems } = splitConvertItems(embedRadialItems);
   const settingsActions = [...embedConvertItems, ...convertRadialItems,
     exportMarkdownItem({ occurrence: containerOccurrence, module, getOccMap, getModMap: getModMapForExport, fieldsById }),
-    buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean);
+    buttonItem({ occurrence: containerOccurrence, module, fieldsById, gridId: ctxGridId, dispatch, socket }),
+    historyItem(setHistoryOpen), templateItem(openTemplates)].filter(Boolean);
   const containerFormProps = {
     actions: settingsActions,
     onCloseSettings: () => setSettingsOpen(false),
@@ -1420,8 +1419,6 @@ function Container({
                 isCollapsed={isBodyCollapsed}
                 onToggleHeader={() => setShowHeader(true)}
                 showHeader={false}
-                onHistory={() => setHistoryOpen(true)}
-                onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
                 extraItems={embedArcItems}
@@ -1488,8 +1485,6 @@ function Container({
                       isCollapsed={isBodyCollapsed}
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
-                      onHistory={() => setHistoryOpen(true)}
-                      onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
                       extraItems={embedArcItems}
@@ -1615,9 +1610,6 @@ function Container({
                     isCollapsed={isBodyCollapsed}
                     onToggleHeader={() => setShowHeader(false)}
                     showHeader={showHeader}
-                    onFilter={(e) => setFilterPopupPos({ x: e?.clientX ?? 100, y: e?.clientY ?? 100 })}
-                    onHistory={() => setHistoryOpen(true)}
-                    onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
                 deleteLabel={embedDeleteLabel || "Remove"}
                     extraItems={embedArcItems}
@@ -2253,19 +2245,6 @@ function Container({
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: gapPx, marginBottom: -gapPx, pointerEvents: "auto", zIndex: 2 }} />
 
       {/* Filter override quick-popup */}
-      {filterPopupPos && createPortal(
-        <FilterOverridePopup
-          pos={filterPopupPos}
-          occurrence={containerOccurrence}
-          activeFilterValues={ctxGrid?.activeFilterValues || {}}
-          onClose={() => setFilterPopupPos(null)}
-          onSet={(override) => {
-            commitOccurrenceUpdate({ filterOverride: override });
-            setFilterPopupPos(null);
-          }}
-        />,
-        document.body
-      )}
 
       {historyOpen && (
         <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={containerOccurrence} />

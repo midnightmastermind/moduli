@@ -7,6 +7,7 @@ import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffe
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import { buttonItem } from "../ui/buttonItem";
+import { historyItem, templateItem } from "../ui/SettingsActions";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
@@ -1143,8 +1144,6 @@ function Panel({
                       forceDirection="down"
                       onToggleHeader={() => setShowHeader(false)}
                       showHeader={showHeader}
-                      onHistory={() => setHistoryOpen(true)}
-                      onTemplate={openTemplates}
                       onDelete={handleRemovePanel}
                     />
                   </div>
@@ -1152,7 +1151,7 @@ function Panel({
                 <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
                   <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
                   <LayoutForm
-                    actions={[buttonItem({ occurrence: panelOccurrence, module, fieldsById: panelFieldsById, gridId: state?.grid?._id, dispatch, socket })].filter(Boolean)}
+                    actions={[buttonItem({ occurrence: panelOccurrence, module, fieldsById: panelFieldsById, gridId: state?.grid?._id, dispatch, socket }), historyItem(setHistoryOpen), templateItem(openTemplates)].filter(Boolean)}
                     onCloseSettings={() => setSettingsOpen(false)}
                     value={layout}
                     onChange={setLayout}

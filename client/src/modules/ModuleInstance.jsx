@@ -6,7 +6,8 @@
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { jellyfinRadialItems, openJellyfinPlayer, playNextUnwatched } from "../helpers/jellyfinPlay";
 import { buttonItem } from "../ui/buttonItem";
-import { splitConvertItems } from "../ui/SettingsActions";
+import { splitConvertItems, historyItem } from "../ui/SettingsActions";
+import PastValuesDialog from "../ui/PastValuesDialog";
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 
@@ -318,6 +319,7 @@ function InstanceInner({
 
   const [draft, setDraft] = useState(() => ({ label: label ?? "" }));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [linksPopoverOpen, setLinksPopoverOpen] = useState(false);
   const [showLabel, setShowLabel] = useState(true);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
@@ -731,7 +733,8 @@ function InstanceInner({
   const { arc: embedArcItems, convert: embedConvertItems } = splitConvertItems(embedRadialItems);
   const settingsActions = [...embedConvertItems, ...convertLeafItems,
     exportMarkdownItem({ occurrence, module: instance, getOccMap, getModMap: getModMapInner, fieldsById }),
-    buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket })].filter(Boolean);
+    buttonItem({ occurrence, module: instance, fieldsById, gridId: ctxGrid?._id, dispatch, socket }),
+    occurrence?.id ? historyItem(setHistoryOpen) : null].filter(Boolean);
   // The LIVE field map (read at finish time, not frozen when the menu was built).
   const getLiveFieldMap = useGridActionsSelector(s => s.getFieldMap || (() => s.fieldsById || {}));
   // Play + Open in Jellyfin on an instance the Jellyfin sync linked (one "Jellyfin" submenu on the arc).
@@ -1212,6 +1215,7 @@ function InstanceInner({
                   items={radialItems}
                   onToggleHeader={!occurrence?.linkedGroupId ? () => setShowLabel(v => !v) : undefined}
                   showHeader={showLabel}
+                  headerNoun="Label"
                   onToggleDoc={toggleDoc || undefined}
                   // An embed's delete only unhooks the node from the prose; a
                   // row's deletes the occurrence. Same button, two verbs.
@@ -1241,6 +1245,7 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
+          {historyOpen && <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={occurrence} />}
             {/* The image sits in the HANDLE group now — "image top left next to
                 it" — rather than inside the label's conditional, where it was
                 only rendered when the label was. It guards itself through the

@@ -1,8 +1,9 @@
 // ui/SettingsActions.jsx
-// The less-used things you can do to an occurrence (Convert, Export to Markdown, Add a button…), in its Settings instead of
+// The less-used things you can do to an occurrence (Convert, Export to Markdown, Add a button…, History, Apply Template), in its Settings instead of
 // on the radial arc (user, 2026-11-05). Takes the same item objects a radial does. Settings closes first: Convert swaps the
 // component this form sits in, and Add a button opens its own window.
 import React from "react";
+import { Clock, LayoutTemplate } from "lucide-react";
 
 const CONVERT = "Convert";
 
@@ -15,13 +16,18 @@ export function splitConvertItems(items) {
 /** Under "Convert to", "Convert to Textblock" and "To pill" read as the target alone. */
 const targetName = (label) => { const n = label.replace(/^(Convert to|To) /, ""); return n[0].toUpperCase() + n.slice(1); };
 
+/** What this block said on other days (ui/PastValuesDialog). */
+export const historyItem = (open) => ({ icon: Clock, label: "History", onClick: () => open(true) });
+/** onOpen takes the click's event: the templates menu opens where the button was. */
+export const templateItem = (onOpen) => ({ icon: LayoutTemplate, label: "Apply Template", onClick: onOpen });
+
 function ActionButton({ item, onClose }) {
   const Icon = item.icon;
   return (
     <button
       type="button"
       className="inline-flex items-center gap-1.5 rounded border border-border px-2 py-1 text-[12px] text-foreground hover:bg-muted"
-      onClick={() => { onClose?.(); item.onClick?.(); }}
+      onClick={(e) => { onClose?.(); item.onClick?.(e); }}
     >
       {Icon ? <Icon size={13} aria-hidden="true" /> : null}
       {item.label}

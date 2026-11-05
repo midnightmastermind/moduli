@@ -442,6 +442,7 @@ export default function AssistantDrawer() {
       {/* Slide-in chat drawer */}
       {open && (
         <div
+          data-assistant-drawer
           style={{
             position: "fixed", right: 16, bottom: 16, zIndex: 9001,
             width: 380, maxWidth: "calc(100vw - 32px)",

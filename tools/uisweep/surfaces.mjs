@@ -50,8 +50,14 @@ async function inPanel(page, ctx, sel, { touch, nth = 0 } = {}) {
   await page.waitForTimeout(600);
   return h;
 }
-const POPUP_ONLY = '.occ-search-menu, .command-palette, [data-radix-popper-content-wrapper], .context-menu, .header-dropdown, [data-sheet], [role="menu"], [role="dialog"], [role="listbox"]';
-const POPUP = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet]';
+/** The toolbar's timer panel stays in the DOM closed: open it through its compact bar. */
+async function openPomodoro(page) {
+  await clear(page);
+  if (isPhone(page)) await openPhoneMenu(page);
+  await tap(page, '[title*="remaining"]', { touch: isPhone(page) });
+}
+const POPUP_ONLY = '.menu-surface, .occ-search-menu, .command-palette, [data-radix-popper-content-wrapper], .context-menu, .header-dropdown, [data-sheet], [role="menu"], [role="dialog"], [role="listbox"]';
+const POPUP = '.menu-surface, [role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet]';
 const CC = '[data-testid="command-center"], .command-center, [role="dialog"][aria-label*="Command" i]';
 
 async function openCC(page, tab, { touch }) {
@@ -102,6 +108,8 @@ export const SURFACES = [
     open: async (page) => { await clear(page); } },
   { id: "phone.menu", area: "toolbar", name: "Phone side menu", from: [1, 2, 3, 4, 58], vps: ["phone", "phone-land"], root: "[data-toolbar-drawer]",
     open: async (page) => { await clear(page); await openPhoneMenu(page); } },
+  { id: "toolbar.pomodoro", area: "toolbar", name: "Pomodoro panel", from: [3], root: "[data-pomodoro-panel]",
+    open: async (page) => { await openPomodoro(page); } },
   { id: "search", area: "toolbar", name: "Occurrence search", from: [5], root: ".occ-search-menu",
     open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.occ-search-trigger", { touch: isPhone(page) }); await page.keyboard.type("dr"); await page.waitForTimeout(800); } },
 
@@ -157,7 +165,7 @@ export const SURFACES = [
     open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); await pageRoot(page, ctx); } },
   { id: "docs.chips", area: "docs", name: "Article with link chips (Noam Chomsky)", from: [22], root: "PANEL",
     open: async (page, ctx) => { await goTo(page, ctx, "Noam Chomsky"); await pageRoot(page, ctx); } },
-  { id: "docs.context", area: "context", name: "Doc right-click menu", from: [45, 41], vps: ["desktop"], root: ".context-menu",
+  { id: "docs.context", area: "context", name: "Doc right-click menu", from: [45, 41], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Basic Nutrition Guide"); await context(page, ctx, ".ProseMirror p"); } },
   { id: "docs.slash", area: "docs", name: "Slash palette + @ picker", from: [43], root: ".command-palette",
     open: async (page, ctx) => {
@@ -172,16 +180,18 @@ export const SURFACES = [
     } },
 
   // ── context menus ─────────────────────────────────────────────────────────
-  { id: "context.row", area: "context", name: "Row right-click menu", from: [40, 42], vps: ["desktop"], root: ".context-menu",
+  { id: "context.row", area: "context", name: "Row right-click menu", from: [40, 42], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".instance-wrap .instance-label, .instance-wrap"); } },
-  { id: "context.container", area: "context", name: "Container right-click menu", from: [40], vps: ["desktop"], root: ".context-menu",
+  { id: "context.container", area: "context", name: "Container right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".container-shell .container-header"); } },
-  { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".context-menu",
+  { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".page-header"); } },
-  { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".context-menu",
-    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); await page.click(".manifest-tree .folder-pill, .manifest-tree [data-folder-id], .manifest-tree li", { button: "right" }); await page.waitForTimeout(500); } },
-  { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".context-menu",
-    open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.dblclick(); await p.click({ button: "right" }); await page.waitForTimeout(500); } },
+  { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
+    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); await page.click(".folder-open-btn", { button: "right" }); await page.waitForTimeout(500); } },
+  { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
+    open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
+      // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.
+      await page.mouse.dblclick(x, y); await page.waitForTimeout(500); await page.mouse.click(x, y, { button: "right" }); await page.waitForTimeout(500); } },
 
   // ── templates / pickers ───────────────────────────────────────────────────
   { id: "templates", area: "add", name: "Templates section (Apply / Merge / Copy / Save)", from: [31], root: POPUP,
@@ -194,21 +204,21 @@ export const SURFACES = [
     } },
   { id: "pick.cover", area: "add", name: "Image picker (Set cover image)", from: [35], vps: ["desktop"], root: '[role="dialog"]',
     open: async (page, ctx) => {
+      // A row's cover is on its radial; an artifact card's right-click has one too.
       await goTo(page, ctx, "Books");
-      await context(page, ctx, ".instance-wrap");
-      const it = await page.waitForSelector('.context-menu-item:has-text("cover")', { timeout: 6000 });
+      await inPanel(page, ctx, ".instance-wrap button.radial-handle");
+      const it = await page.waitForSelector('.radial-menu-items [title*="over" i]', { timeout: 6000 });
       await it.click(); await page.waitForTimeout(1500);
     } },
   { id: "pick.destination", area: "add", name: "Destination picker (Pomodoro › Send pomodoros to)", from: [36, 3], root: POPUP,
     open: async (page) => {
-      await clear(page);
-      if (isPhone(page)) await openPhoneMenu(page);
+      await openPomodoro(page);
       await tap(page, 'button[aria-label="Choose destination"], button[title="Choose destination"]', { touch: isPhone(page) });
     } },
 
   // ── viewers ───────────────────────────────────────────────────────────────
   { id: "viewer.spread", area: "viewers", name: "Artifact viewer from a cover (Books)", from: [50, 51], root: '.artifact-spread, [role="dialog"]',
-    open: async (page, ctx) => { await goTo(page, ctx, "Books"); await inPanel(page, ctx, ".instance-wrap img, .instance-wrap .artifact-thumb", { touch: isPhone(page) }); await page.waitForTimeout(1500); } },
+    open: async (page, ctx) => { await goTo(page, ctx, "Sample Files"); await inPanel(page, ctx, ".instance-wrap img, .instance-wrap .artifact-thumb", { touch: isPhone(page) }); await page.waitForTimeout(1500); } },
   { id: "viewer.image", area: "viewers", name: "Image file page (zoom, OCR tabs)", from: [52], root: "PANEL",
     open: async (page, ctx) => { await goTo(page, ctx, "National Geographic.jpg"); await pageRoot(page, ctx); } },
   { id: "viewer.pdf", area: "viewers", name: "PDF file page", from: [52], root: "PANEL",
@@ -240,15 +250,15 @@ export const SURFACES = [
   { id: "jonah", area: "drawers", name: "Jonah drawer", from: [49], root: ".assistant-drawer, [data-assistant-drawer]",
     open: async (page) => { await clear(page); await tap(page, 'button[aria-label^="Jonah"], button[title^="Jonah"]', { touch: isPhone(page) }); } },
   { id: "row.body", area: "drawers", name: "Row notes drawer", from: [48], root: "ROW",
-    open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const h = await page.$(`${P(id)} .instance-wrap`); await h.hover(); await inPanel(page, ctx, '.instance-wrap button[aria-label="Show notes"]', { touch: isPhone(page) }); ctx.root = `${P(id)} .instance-wrap:nth-of-type(1)`; } },
+    open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const h = await page.$(`${P(id)} .instance-wrap`); await h.hover(); await inPanel(page, ctx, '.instance-wrap button[aria-label="Show notes"]', { touch: isPhone(page) }); ctx.root = `${P(id)} .instance-body`; } },
 
   // ── sharing / account / forms ─────────────────────────────────────────────
   { id: "share.place", area: "sharing", name: "Share placement window", from: [59], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-place?stage=${ctx.stage?.id}&k=${ctx.stage?.key}`); await page.waitForTimeout(3000); } },
   { id: "share.pending", area: "sharing", name: "Share pending page", from: [60], vps: ["phone"], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-pending`); await page.waitForTimeout(2000); } },
   { id: "extension", area: "sharing", name: "Browser extension popup", from: [61], vps: ["desktop"], root: "body", manual: true, open: async () => {} },
   { id: "account", area: "account", name: "Account menu", from: [62], root: POPUP, open: async (page) => { await clear(page); if (isPhone(page)) await openPhoneMenu(page); else await tap(page, 'button[aria-label="Account"], button[title="Account"]'); } },
-  { id: "forms.button", area: "forms", name: "A button's form (New …)", from: [39, 37, 38], root: '[role="dialog"]',
-    open: async (page, ctx) => { await goTo(page, ctx, "Sweep Fields"); await inPanel(page, ctx, "button.field-button, [data-field-type=button] button", { touch: isPhone(page) }); } },
+  { id: "forms.button", area: "forms", name: "A button's form (New …)", from: [39, 37, 38], root: '[data-testid="form-modal"]',
+    open: async (page, ctx) => { await goTo(page, ctx, "Sweep Fields"); await inPanel(page, ctx, 'button:has-text("Open form")', { touch: isPhone(page) }); } },
 ];
 
 /** Resolve a surface's dynamic root ("PANEL …", "ROW") after its open() set ctx.root. */

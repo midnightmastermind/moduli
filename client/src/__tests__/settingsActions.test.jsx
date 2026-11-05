@@ -35,6 +35,17 @@ describe("SettingsActions", () => {
   });
 });
 
+describe("the arc", () => {
+  const src = fs.readFileSync(`${process.cwd()}/src/ui/RadialMenu.jsx`, "utf8");
+  it("carries no Filter Override, Apply Template or History", () => {
+    for (const label of ["Filter Override", "Apply Template", '"History"']) expect(src.includes(`label: ${label.startsWith('"') ? label : `"${label}"`}`)).toBe(false);
+  });
+  it("a row's eye says Label, a container's Header", () => {
+    expect(fs.readFileSync(`${process.cwd()}/src/modules/ModuleInstance.jsx`, "utf8")).toMatch(/headerNoun="Label"/);
+    expect(src).toMatch(/headerNoun = "Header"/);
+  });
+});
+
 describe("wiring", () => {
   const read = (f) => fs.readFileSync(`${process.cwd()}/src/${f}`, "utf8");
   const arcs = ["modules/ModuleContainer.jsx", "modules/ModuleInstance.jsx", "modules/ModulePage.jsx", "modules/ModulePanel.jsx", "docs/pills/InstanceTextblockNode.jsx"];
@@ -43,6 +54,8 @@ describe("wiring", () => {
     for (const line of src.split("\n").filter((l) => /extraItems=\{/.test(l))) expect(line).not.toMatch(/exportMarkdownItem|buttonItem|convertRadialItems|convertLeafItems/);
     expect(src).toMatch(/settingsActions|SettingsActions|actions=\{\[buttonItem/);
     expect(src).toMatch(/buttonItem\(/); // still built
+    expect(src).toMatch(/historyItem\(/); // every occurrence offers its history
+    expect(src).not.toMatch(/onHistory=|onTemplate=|onFilter=/);
   });
   it.each(["ui/InstanceForm.jsx", "ui/ContainerForm.jsx", "ui/LayoutForm.jsx"])("%s draws them", (f) => {
     expect(read(f)).toMatch(/<SettingsActions/);

@@ -7,7 +7,8 @@ import { useDoubleTap } from "../hooks/useDoubleTap";
 import { pageTwin } from "../helpers/pageTwin";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
-import SettingsActions from "../ui/SettingsActions";
+import SettingsActions, { historyItem, templateItem } from "../ui/SettingsActions";
+import PastValuesDialog from "../ui/PastValuesDialog";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
@@ -174,6 +175,7 @@ function Page({
   // header QuickAddMenu (same pattern as ModuleContainer's "Add item…").
   const [pageQuickAddTrigger, setPageQuickAddTrigger] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState("");
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
@@ -772,6 +774,7 @@ function Page({
             panel (kind-aware StyleEditor + cascade view) anchored at
             the handle. Previously `settingsOpen` toggled but had no
             consumer — clicking the cog did nothing. */}
+        {historyOpen && <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={occurrence} />}
         <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
           <PopoverAnchor asChild>
             <div
@@ -783,7 +786,6 @@ function Page({
             >
               <RadialMenu
                 onSettings={() => setSettingsOpen(true)}
-                onTemplate={openTemplates}
                 onDelete={handleDelete}
                 deleteLabel="Delete page"
                 size="sm"
@@ -827,7 +829,7 @@ function Page({
                 label="Page Style"
                 inheritLabel="Panel / Grid"
               />
-              <SettingsActions items={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence, module: pageModule, fieldsById, gridId: ctxGridId, dispatch, socket })].filter(Boolean)} onClose={() => setSettingsOpen(false)} />
+              <SettingsActions items={[exportMarkdownItem({ occurrence, module: pageModule, getOccMap, getModMap: getModMapForExport, fieldsById }), buttonItem({ occurrence, module: pageModule, fieldsById, gridId: ctxGridId, dispatch, socket }), historyItem(setHistoryOpen), templateItem(openTemplates)].filter(Boolean)} onClose={() => setSettingsOpen(false)} />
             </div>
           </PopoverContent>
         </Popover>

@@ -280,6 +280,10 @@ export default function PomodoroTimer() {
       <div
         ref={triggerRef}
         onClick={() => setExpanded(v => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(v => !v); } }}
         title={`${phase.label} — ${fmt(remaining)} remaining. Click to ${expanded ? "hide" : "show"} controls.`}
         style={{
           display: "flex", alignItems: "center", gap: 5, cursor: "pointer",
@@ -316,6 +320,7 @@ export default function PomodoroTimer() {
       {/* ── SLIDE-DOWN CONTROL PANEL ── */}
       <div
         ref={panelRef}
+        data-pomodoro-panel
         style={{
           position: "fixed",
           top: 36,

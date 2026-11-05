@@ -4142,3 +4142,9 @@ User: *"is it possible to go through each book too and remove the previous and n
 **2026-11-05 10:04 CST** — "after debugging the sweep: the history should be applied to every occurance and moved from the radial menu, the filter override should be removed from radial menu (already in filters), hide header should be changed to hide label on occurances without a header but have label (instances), and also apply template should be moved to settings as well. do this after the sweep stuff though before moving on to scroll. also we need to make an operation to make copies of occurances in the schedule for the duration thats applied (so the other timeslots) for example, cps training is 4 hours, we need a copy of it (not copylink) in the other timeslots. and remove them if the original gets deleted or the duration changes. dont include duration in these copies. and hide the done field on all occurances (via the hide fields), its getting mixed up with completed"
 
 **10:05** — "i meant history should be added to settings"
+
+**2026-11-05 10:10** — "fix the depugging of the sweep first before moving on to the other requests"
+
+**10:27** — "and before the other requests, fix the 11 min load time for poms. it seems to not take that long on my end so its something with the debugger." · **10:28** — "finix the debugging sweep first"
+
+**2026-11-05 11:14** — "dont do it based on differs, i want to make sure things are still visible and accessible on mobile despite being the same way on desktop" (the phone pass covers every surface)

@@ -161,9 +161,8 @@ export default function RadialMenu({
   showHeader = true,
 
   // Quick-action shortcuts (container/panel only)
-  onFilter = null,
-  onTemplate = null,
-  onHistory = null,
+  // What the eye toggles: a row has no header, it has a label.
+  headerNoun = "Header",
   onToggleDoc = null,
 
   // Delete/remove action
@@ -465,33 +464,9 @@ export default function RadialMenu({
       if (onToggleHeader) {
         defaultItems.push({
           icon: showHeader ? EyeOff : Eye,
-          label: showHeader ? "Hide Header" : "Show Header",
+          label: `${showHeader ? "Hide" : "Show"} ${headerNoun}`,
           onClick: onToggleHeader,
           color: "bg-slate-700 hover:bg-slate-600",
-        });
-      }
-      if (onFilter) {
-        defaultItems.push({
-          icon: Filter,
-          label: "Filter Override",
-          onClick: onFilter,
-          color: "bg-cyan-700 hover:bg-cyan-600",
-        });
-      }
-      if (onTemplate) {
-        defaultItems.push({
-          icon: LayoutTemplate,
-          label: "Apply Template",
-          onClick: onTemplate,
-          color: "bg-indigo-600 hover:bg-indigo-500",
-        });
-      }
-      if (onHistory) {
-        defaultItems.push({
-          icon: Clock,
-          label: "History",
-          onClick: onHistory,
-          color: "bg-amber-700 hover:bg-amber-600",
         });
       }
       if (onToggleDoc) {
@@ -515,7 +490,7 @@ export default function RadialMenu({
       const angles = getAnglesForDirection(openDirection, grouped.length);
       return grouped.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, extraItems, dragMode, allowedDragModes, locked, onToggleLock, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
+    [items, extraItems, dragMode, allowedDragModes, locked, onToggleLock, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, headerNoun, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
 
   // What the ring DRAWS: the top level, or the open submenu in its place. The

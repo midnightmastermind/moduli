@@ -4,7 +4,7 @@
 // focus change, nothing opened, nothing sent. Each one is a row marked "✗ nothing".
 import { rectOnScreen, tapSizeVerdict, jargonHits, hitTarget, popupCount, escapeCloses, runAxe } from "./checks.mjs";
 
-export const POPUP_SEL = '[role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
+export const POPUP_SEL = '.menu-surface, [role="menu"], [role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper], .context-menu, .radial-menu-items, .header-dropdown, [data-sheet], .occ-search-menu, .command-palette, .artifact-spread';
 const DESTRUCTIVE = /\b(delete|remove|log ?out|disconnect|reset|clear all|revoke|unsubscribe|break link|trash)\b/i;
 // Pressing these moves the whole session somewhere else, and every row after them reads wrong. Switching grids has its own
 // probe (_gridswitch.mjs); a notification pill's stack changes while the load runs (its rows start with a quoted name).
@@ -39,6 +39,7 @@ export async function controlsIn(page, rootSel) {
       if (!r.width || !r.height) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === "hidden" || cs.display === "none") continue;
+      if (cs.pointerEvents === "none") continue; // a closed panel kept in the DOM to animate: nothing can press it
       // hover-only: invisible itself or through an ancestor, until something is hovered
       let hoverOnly = false;
       for (let n = el; n && n !== root.parentElement; n = n.parentElement) { if (Number(getComputedStyle(n).opacity) === 0) { hoverOnly = true; break; } }
@@ -123,12 +124,19 @@ async function restore(page, basePopups, baseUrl, surface, ctx, lastRow = null) 
 /** What the panels show: a control that navigated must not leave the rest of the surface crawled on another page. */
 const pageHead = (page) => page.evaluate(() => [...document.querySelectorAll(".page-header-row-label")].map((e) => (e.innerText || "").trim()).join("|")).catch(() => "");
 
+const MAX_RETRIES = 12;
+async function freshLoad(page) {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => !!document.querySelector("[data-panel-id]") && !document.querySelector('[data-testid="snapshot-pill"]'), null, { timeout: 120000 }).catch(() => {});
+  await page.waitForTimeout(4000);
+}
+
 /**
  * Crawl one surface. surface = { id, name, root, open(page, ctx), writes?, popupRoot? }.
  * opts: { vp, depth = 2, settleMs = 400, errors = [], maxControls = 80, axe = true }.
  * Returns report rows (report.mjs COLUMNS).
  */
-export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, settleMs = 400, errors = [], maxControls = 80, axe = true, ctx = {}, prefix = "" } = {}) {
+export async function crawlSurface(page, surface, { budgetMs = 300000, vp = "desktop", depth = 2, settleMs = 400, errors = [], maxControls = 80, axe = true, ctx = {}, prefix = "" } = {}) {
   const touch = vp !== "desktop";
   const vpBox = page.viewportSize();
   await surface.open(page, ctx);
@@ -141,7 +149,10 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
   const first = await controlsIn(page, surface.root);
   const n = Math.min(first.length, maxControls);
   if (first.length > maxControls) rows.push({ id: surface.id, surface: surface.name, control: `(${first.length - maxControls} more not crawled)`, vp, works: "⚠", notes: `maxControls ${maxControls}` });
+  const started = Date.now();
+  let retries = 0, retriedAt = -1;
   for (let i = 0; i < n; i++) {
+    if (Date.now() - started > budgetMs) { rows.push({ id: surface.id, surface: surface.name, control: `(stopped at the time limit; ${n - i} not crawled)`, vp, works: "⚠", notes: "" }); break; }
     const controls = await controlsIn(page, surface.root);
     const c = controls[i];
     if (!c) break;
@@ -166,6 +177,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
 
     const handle = await page.$(`[data-uisweep-i="${i}"]`);
     if (!handle) { row.works = "⚠ vanished"; rows.push(row); continue; }
+    if (await handle.evaluate((el) => el.disabled || el.getAttribute("aria-disabled") === "true")) { row.works = "— disabled"; rows.push(row); continue; }
     if (c.hoverOnly) { await handle.evaluate((el) => el.parentElement?.scrollIntoView({ block: "center" })); const pr = await handle.evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.x + 4, y: r.y + r.height / 2 }; }); await page.mouse.move(pr.x, pr.y); await page.waitForTimeout(150); }
     const hit = await hitTarget(page, handle);
     if (!hit.ok) reach.push(hit.why);
@@ -181,6 +193,16 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
     const after = await snapshot(page, surface.root, errors.length);
     const newTag = `${surface.id}-${i}`.replace(/[^a-z0-9-]/gi, "_");
     await page.evaluate(({ sel, tag }) => { for (const e of document.querySelectorAll(sel)) if (!e.hasAttribute("data-uisweep-pre") && !e.closest("[data-uisweep-pre]")) e.setAttribute("data-uisweep-new", tag); }, { sel: POPUP_SEL, tag: newTag });
+    // Could not press it: usually a state an earlier control left (full screen, a viewer, a moved page), not this control.
+    // Say so only if it still fails from a fresh load.
+    if (!activated && retriedAt !== i && retries < MAX_RETRIES) {
+      retries++; retriedAt = i;
+      await freshLoad(page);
+      await surface.open(page, ctx);
+      await page.waitForTimeout(settleMs);
+      i--;
+      continue;
+    }
     const outcome = activated ? classifyOutcome(before, after) : "unreachable";
     row.works = outcome === "nothing" ? "✗ nothing" : outcome === "error" ? `✗ error: ${errors[errors.length - 1]?.slice(0, 80)}` : outcome === "unreachable" ? "✗ unreachable" : `✅ ${outcome}`;
     row.fast = `${Date.now() - t0 - settleMs > 0 ? "" : ""}`;
@@ -193,7 +215,7 @@ export async function crawlSurface(page, surface, { vp = "desktop", depth = 2, s
         const sub = { id: `${surface.id}${prefix}#${i}`, name: `${surface.name} › ${c.label}`, root: `[data-uisweep-new="${newTag}"]`,
           writes: surface.writes, open: async (p) => { if (!(await p.$(sub.root))) { await restore(p, basePopups, baseUrl, surface, ctx); await controlsIn(p, surface.root); await p.evaluate((sel) => { for (const e of document.querySelectorAll(sel)) e.setAttribute("data-uisweep-pre", "1"); }, POPUP_SEL); const h = await p.$(`[data-uisweep-i="${i}"]`); if (h) await (touch ? h.tap() : h.click()).catch(() => {}); await p.waitForTimeout(settleMs); await p.evaluate(({ sel, tag }) => { for (const e of document.querySelectorAll(sel)) if (!e.hasAttribute("data-uisweep-pre") && !e.closest("[data-uisweep-pre]")) e.setAttribute("data-uisweep-new", tag); }, { sel: POPUP_SEL, tag: newTag }); } } };
         rows.push(row);
-        rows.push(...await crawlSurface(page, sub, { vp, depth: depth - 1, settleMs, errors, maxControls: 60, axe: false, ctx, prefix: "" }));
+        rows.push(...await crawlSurface(page, sub, { budgetMs: 60000, vp, depth: depth - 1, settleMs, errors, maxControls: 60, axe: false, ctx, prefix: "" }));
         const esc = await escapeCloses(page);
         if (!esc.ok) row.a11y = `${row.a11y ? row.a11y + "; " : ""}✗ Escape does not close`;
         row.reach = reach.length ? `⚠ ${reach.join("; ")}` : "✅";

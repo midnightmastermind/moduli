@@ -14,6 +14,8 @@ import { useGridActions } from "../../GridActionsContext";
 import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { buttonItem } from "../../ui/buttonItem";
+import { historyItem } from "../../ui/SettingsActions";
+import PastValuesDialog from "../../ui/PastValuesDialog";
 import InstanceForm from "../../ui/InstanceForm";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { X } from "lucide-react";
@@ -66,6 +68,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // its module name could not be set by any click. A row's ModuleInstance owns
   // the same popover; this is that popover, writing the same updateModule call.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [draft, setDraft] = useState(() => ({ label: instance?.label ?? "" }));
   useEffect(() => { if (settingsOpen) setDraft({ label: instance?.label ?? "" }); }, [settingsOpen, instance?.label]);
   const commitLabel = useCallback(() => {
@@ -551,7 +554,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
             <button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
             <InstanceForm
-              actions={[buttonItem({ occurrence, module: instance, fieldsById, gridId: occurrence?.gridId, dispatch, socket })].filter(Boolean)}
+              actions={[buttonItem({ occurrence, module: instance, fieldsById, gridId: occurrence?.gridId, dispatch, socket }), historyItem(setHistoryOpen)].filter(Boolean)}
               onCloseSettings={() => setSettingsOpen(false)}
               value={draft}
               onChange={setDraft}
@@ -565,6 +568,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           </PopoverContent>
         )}
         </Popover>
+        {historyOpen && <PastValuesDialog open onOpenChange={setHistoryOpen} occurrence={occurrence} />}
 
         {occurrence ? (
           // The BODY belongs to ModuleTextblock; this node view keeps only the
