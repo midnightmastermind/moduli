@@ -1136,9 +1136,8 @@ function InstanceInner({
           title="Add a field"
           aria-expanded={!!fieldMenuRect}
           style={{
-            right: 4
-              + (toggleDoc ? 20 : 0)
-              + (urlButtonPlacement(occurrence, instance) === "row" ? 20 : 0),
+            // The buttons beside it are wider on a phone (--row-btn-step, index.css).
+            right: `calc(4px + ${(toggleDoc ? 1 : 0) + (urlButtonPlacement(occurrence, instance) === "row" ? 1 : 0)} * var(--row-btn-step, 20px))`,
           }}
           onClick={(e) => {
             e.stopPropagation();

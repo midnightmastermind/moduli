@@ -9659,7 +9659,7 @@ body[data-layout="mobile"] :is(.header-chevron, .occ-search-trigger, .quick-add-
 }
 /* Invisible tap areas. position:relative only where the element is not already positioned. */
 body[data-layout="mobile"] .module-drag-handle .radial-handle { position: relative; }
-body[data-layout="mobile"] :is(.module-drag-handle .radial-handle, .instance-body-btn, .instance-field-add-btn, .instance-url-btn)::after {
+body[data-layout="mobile"] .module-drag-handle .radial-handle::after {
   content: "";
   position: absolute;
   inset: -9px;
@@ -9668,6 +9668,8 @@ body[data-layout="mobile"] :is(.instance-body-btn, .instance-field-add-btn, .ins
   width: 30px;
   height: 30px;
 }
+/* 30px each, side by side: they take no invisible tap area on top, which covered "Show notes" and the last field pill. */
+body[data-layout="mobile"] { --row-btn-step: 32px; }
 /* ONE text size for every field pill (user 2026-11-02: "they are all different sizes"). Measured on the
    People board: the date pills read 14px and every other pill 12px, although all of them carry the same
    14px --cascade-field-font-size. Two rules won over the pills' Tailwind size class:

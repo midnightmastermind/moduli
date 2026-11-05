@@ -13,3 +13,14 @@ describe("phone controls", () => {
     for (const rule of block.split("}").filter((r) => r.includes("{"))) expect(rule).toMatch(/body\[data-layout="mobile"\]/);
   });
 });
+
+describe("a row's corner buttons on a phone", () => {
+  const src = readFileSync(new URL("../modules/ModuleInstance.jsx", import.meta.url), "utf8");
+  it("step by their own width, so + does not cover Show notes", () => {
+    expect(css).toMatch(/--row-btn-step: 32px/);
+    expect(src).toMatch(/var\(--row-btn-step, 20px\)/);
+  });
+  it("keep no invisible tap area past their box", () => {
+    expect(css).not.toMatch(/\.instance-field-add-btn[^{]*\)::after/);
+  });
+});
