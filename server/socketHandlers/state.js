@@ -66,6 +66,9 @@ import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
 import { ensureProtectedFolders } from "../utils/protectedFoldersEnsure.js";
 
+/** What a full_state request is asking for, for telling a repeat from a new question. No grid named is its own key. */
+export const fullStateKey = (gridId) => gridId || "(default)";
+
 export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
   getAllGridsForUser, userRoom, gridRoom, io,
@@ -90,6 +93,15 @@ export function registerStateHandlers(socket, {
     let { gridId } = payload || {};
     const userId = socket.userId;
     if (!userId) return socket.emit("server_error", "Not authenticated");
+
+    // A big grid takes longer to arrive than the client's retry waits, and each retry re-collected and re-sent all of
+    // it: on poms (~55,000 rows) 7 asks, first answer at 57s, answers logged at 136-673s (measured 2026-11-05). A repeat
+    // of the question being answered is dropped. So is a RETRY of one already answered on this socket, since socket.io
+    // delivers in order and that answer is on its way. A plain request is still answered: an undo resync needs new state.
+    const requestKey = fullStateKey(gridId);
+    if (socket.data.fullStateInFlight === requestKey) return;
+    if (payload?.retry && socket.data.fullStateAnswered === requestKey) return;
+    socket.data.fullStateInFlight = requestKey;
 
     const t0 = Date.now();
     const mark = (label) => console.log(`[full_state] +${Date.now() - t0}ms ${label}`);
@@ -238,6 +250,11 @@ export function registerStateHandlers(socket, {
         // whether to expect a second message at all. 0 = this IS everything.
         deferredCount: deferred.length + Object.keys(textmaps).length,
       });
+      socket.data.fullStateAnswered = requestKey;
+
+      // A newer answer replaces whatever the last one still had waiting to send.
+      socket.data.cancelPendingRest?.();
+      socket.data.cancelPendingRest = null;
 
       if (deferred.length || Object.keys(textmaps).length) {
         // THE CLIENT ASKS FOR THESE ONCE IT HAS PAINTED, and that is the point.
@@ -252,16 +269,20 @@ export function registerStateHandlers(socket, {
         // is far worse than one that loads it a beat early.
         const send = () => emitDeferred({ socket, gridId, deferred, deferredModules, textmaps });
         let sent = false;
-        const once = () => { if (sent) return; sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); send(); };
+        const stop = () => { sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); };
+        const once = () => { if (sent) return; stop(); send(); };
         const onAsk = (p = {}) => { if (!p.gridId || p.gridId === gridId) once(); };
         socket.once("request_full_state_rest", onAsk);
         const safety = setTimeout(once, REST_PUSH_FALLBACK_MS);
+        socket.data.cancelPendingRest = stop;
         socket.once("disconnect", () => clearTimeout(safety));
       }
 
     } catch (err) {
       console.error("request_full_state error:", err);
       socket.emit("server_error", "Failed to load state");
+    } finally {
+      if (socket.data.fullStateInFlight === requestKey) socket.data.fullStateInFlight = null;
     }
   });
 }

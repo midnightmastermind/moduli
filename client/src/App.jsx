@@ -1,4 +1,5 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
+import { gridSwitchRetryDelay } from "./helpers/gridSwitchRetry";
 import { isPassiveWindow } from "./helpers/passiveWindow";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
@@ -729,10 +730,9 @@ export default function App() {
     socket.emit("create_grid", { grid: { id: newGridId, rows: 1, cols: 1, name: "" } });
   };
 
-  // Grid-switch retry: if the requested grid hasn't arrived after 8s
-  // (e.g. server Mongo timeout swallowed the request_full_state), re-emit
-  // and show "Retrying..." under the overlay spinner. Repeats every 8s
-  // until state.grid._id catches up to state.gridId.
+  // Grid-switch retry: if the requested grid hasn't arrived (e.g. a server Mongo timeout swallowed the
+  // request_full_state), ask again, waiting longer each time (helpers/gridSwitchRetry), until state.grid._id catches
+  // up to state.gridId. Marked `retry` so the server drops it when the answer is already on its way.
   const isSwitchingGrid =
     !!state.gridId && !!state.grid?._id && state.gridId !== state.grid._id;
   useEffect(() => {
@@ -741,11 +741,18 @@ export default function App() {
       return;
     }
     const targetGridId = state.gridId;
-    const id = setInterval(() => {
-      setGridSwitchRetrying(true);
-      socket.emit("request_full_state", { gridId: targetGridId });
-    }, 8000);
-    return () => clearInterval(id);
+    let attempt = 0;
+    let id;
+    const schedule = () => {
+      id = setTimeout(() => {
+        setGridSwitchRetrying(true);
+        socket.emit("request_full_state", { gridId: targetGridId, retry: true });
+        attempt += 1;
+        schedule();
+      }, gridSwitchRetryDelay(attempt));
+    };
+    schedule();
+    return () => clearTimeout(id);
   }, [isSwitchingGrid, state.gridId]);
 
   // Restore this grid's saved cell. Imperative — the store persists on write,
@@ -1267,7 +1274,7 @@ export default function App() {
               <Spinner size="xl" />
               {gridSwitchRetrying && (
                 <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, letterSpacing: 0.3 }}>
-                  Retrying...
+                  Still loading this grid…
                 </div>
               )}
             </div>
