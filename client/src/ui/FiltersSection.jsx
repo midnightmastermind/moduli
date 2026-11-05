@@ -261,16 +261,7 @@ export default function FiltersSection({ occurrence }) {
   // Remove a declared filter entirely from occurrence.filters[] AND clear any
   // override that may have been set on it. Used by the X button on declared
   // local-filter rows.
-  const removeDeclaredFilter = (fieldId) => {
-    const nextFilters = (occurrence?.filters || []).filter(f => f.fieldId !== fieldId);
-    const nextOverrides = { ...overrides };
-    delete nextOverrides[fieldId];
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: occurrence.id, filters: nextFilters, filterOverride: nextOverrides },
-      emit: true,
-    });
-  };
+  const removeDeclaredFilter = (fieldId) => filterConfig.removeDeclaredFilter({ dispatch, socket, occurrence, fieldId });
 
   // Toggle .active on a declared filter entry without removing the row.
   const setDeclaredActive = (fieldId, active) =>
@@ -585,6 +576,7 @@ export default function FiltersSection({ occurrence }) {
       {editorOpen && (
         <FilterEditor
           occurrence={occurrence}
+          excludeFieldIds={ancestorFieldIds}
           dispatch={dispatch}
           socket={socket}
           focusFieldId={editingFilterId}

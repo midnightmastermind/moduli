@@ -153,3 +153,20 @@ export function clearFilterOverride({
     });
   });
 }
+
+/**
+ * Remove a filter DECLARED on this occurrence (`occurrence.filters[]`), with its own value. One undo step.
+ * The override is only touched when it holds this field — `nextOverride` then yields `null` for the last entry. The
+ * copy this replaces (FiltersSection) wrote `{...overrides}` minus the field, i.e. `{}` when nothing else was set:
+ * an empty override CLEARS EVERY FILTER at this level, so removing one filter switched off the page's date too
+ * (2026-11-04 sweep). A deliberate `{}` that never held the field is left as it is.
+ */
+export function removeDeclaredFilter({ dispatch, socket, occurrence, fieldId }) {
+  if (!fieldId || !occurrence?.id) return;
+  withAction("Removed filter", () => {
+    const patch = { id: occurrence.id, filters: (occurrence.filters || []).filter((f) => f.fieldId !== fieldId) };
+    const overrides = occurrence.filterOverride;
+    if (overrides && typeof overrides === "object" && fieldId in overrides) patch.filterOverride = nextOverride(overrides, fieldId, undefined);
+    CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: patch, emit: true });
+  });
+}

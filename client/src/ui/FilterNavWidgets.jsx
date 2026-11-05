@@ -356,12 +356,12 @@ function MultiPickWidget({ filter, value, options, dispatch, onNav }) {
 
 // A true/false filter is a switch. Unset reads OFF (a boolean filter with no value is not on), and
 // pills for "true"/"false" started with neither picked (user, 2026-10-13).
-function SwitchWidget({ filter, value, dispatch, onNav }) {
+function SwitchWidget({ filter, value, dispatch, onNav, name }) {
   const write = makeWriter(filter, onNav, dispatch);
   const on = value === true || value === "true";
   return (
     <button
-      type="button" role="switch" aria-checked={on}
+      type="button" role="switch" aria-checked={on} aria-label={name || undefined}
       onClick={() => write(!on)}
       style={{
         width: 26, height: 14, padding: 0, position: "relative", cursor: "pointer", flexShrink: 0,
@@ -377,7 +377,7 @@ function SwitchWidget({ filter, value, dispatch, onNav }) {
   );
 }
 
-function InputWidget({ filter, value, dispatch, onNav }) {
+function InputWidget({ filter, value, dispatch, onNav, name, number = false }) {
   const [local, setLocal] = useState(value || "");
   const timer = useRef(null);
   const write = makeWriter(filter, onNav, dispatch);
@@ -390,7 +390,8 @@ function InputWidget({ filter, value, dispatch, onNav }) {
   };
   return (
     <input
-      value={local} onChange={onChange}
+      value={local} onChange={onChange} aria-label={name || undefined}
+      type={number ? "number" : "text"} inputMode={number ? "decimal" : undefined}
       style={{
         padding: "2px 6px", fontSize: FILTER_FONT,
         background: "transparent", color: "inherit",
@@ -408,11 +409,14 @@ export default function FilterNavWidget({ filter, navConfig, value, fieldsById, 
       options={labelledOptionsForFilter(filter, fieldsById, ctx, navConfig?.options)} />;
   }
   const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById, ctx);
+  // The field's name names the control (the label beside it is plain text, not a <label>).
+  const field = fieldsById?.[primaryFieldOf(filter)];
+  const name = field?.name || filter?.label || null;
   if (style === "arrows") return <ArrowsWidget filter={filter} navConfig={navConfig} value={value} dispatch={dispatch} onNav={onNav} nowrap={nowrap} />;
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
-  if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
-  if (style === "switch") return <SwitchWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;
+  if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} name={name} number={field?.type === "number"} />;
+  if (style === "switch") return <SwitchWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} name={name} />;
   return null;
 }
 
@@ -436,12 +440,14 @@ export function defaultStyleForFilter(filter, fieldsById) {
   // A select / occurrence field is always the multi-pick: "pills" and "select" were the older single-pick
   // controls for exactly these fields, and an author-set one of those is upgraded rather than kept.
   if ((fld?.type === "select" || fld?.type === "occurrence") && (!filter?.style || filter.style === "pills" || filter.style === "select")) return "multipick";
+  // A number is typed. The arrows step DATES: on a number filter "next" stored a date as its value (2026-11-04),
+  // which no number matches — so an "arrows" style on a number field is read as the box too.
+  if (fld?.type === "number" && (!filter?.style || filter.style === "arrows")) return "input";
   // Author-set style wins otherwise.
   if (filter?.style) return filter.style;
   if (fld?.type === "date") return "arrows";
   if (fld?.type === "boolean") return "switch";
   if (fld?.type === "select") return "pills";
-  if (fld?.type === "number") return "arrows";
   return "input";
 }
 

@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-11-04 — filter pickers: numbers type, every control is named, removing a filter keeps the rest)
+Found by `tools/uisweep/filterRun.mjs` (each field as a local filter on a header: add, drive the picker, clear, remove).
+- **A number filter drew the DATE stepper**: "next" stored "2026-11-05" as Quantity's value, which no number matches.
+  `FilterNavWidgets.defaultStyleForFilter`: a number field is the typed box (`type=number`), also when a stored style
+  says "arrows" (0 such filters existed).
+- **The switch and the text box had no accessible name**; both take the field's name now (`aria-label`).
+- **Removing a local filter cleared every filter on that container.** FiltersSection wrote `{...overrides}` minus the
+  field — `{}` when nothing else was set, and an empty override clears all filters at that level (the board stopped
+  filtering by date). It calls `helpers/filterConfig.removeDeclaredFilter` (touches the override only when it holds the
+  field; the last entry → null). Only the sweep's own container was hit (31 transactions, all today's runs).
+- **The Filters editor offered a field an ancestor already filters**: the declaration was then hidden from the menu
+  (that field lists under Ancestor filters) and could not be removed. `FilterEditor.filterEditorFields` leaves out
+  ancestor-filtered fields and fields another row uses; FiltersSection passes `excludeFieldIds`.
+- Tests `filterWidgetsNumberAndNames` (3), `filterDeclaredRemoveAndOffer` (6). filterRun: 29/29 on a local build.
+
 ## Recent Changes (2026-11-02 — the Jellyfin player, watched on prod)
 - `JellyfinPlayer.jsx` (NEW, lazy): GET /play → native HLS or hls.js (imported only when needed) → resume seek;
   progress every 10s + on pause, a keepalive one on close; at 90% one "Watched" action (Last Watched + Watched At) and

@@ -17,7 +17,17 @@ const NAV_DEFAULTS = ["today", "startOfWeek", "startOfMonth"];
 
 function uid() { return crypto.randomUUID(); }
 
-export default function FilterEditor({ occurrence, dispatch, socket, onClose, focusFieldId = null }) {
+/**
+ * The fields a filter row may pick: not one an ancestor already filters (adjust that one from its own row — a local
+ * declaration on it is hidden from the menu and could not be removed, 2026-11-04 sweep), and not one another row here
+ * uses. A row keeps the field it already has.
+ */
+export function filterEditorFields(fields, { ancestorFieldIds = new Set(), usedFieldIds = [], own = null } = {}) {
+  const used = new Set(usedFieldIds);
+  return (fields || []).filter((f) => f && (f.id === own || (!ancestorFieldIds.has(f.id) && !used.has(f.id))));
+}
+
+export default function FilterEditor({ occurrence, dispatch, socket, onClose, focusFieldId = null, excludeFieldIds = null }) {
   const { fieldsById } = useGridActions();
   const [filters, setFilters] = useState(() => occurrence?.filters || []);
   const rowRefs = useRef({});
@@ -103,7 +113,7 @@ export default function FilterEditor({ occurrence, dispatch, socket, onClose, fo
                   native <select> makes you hunt one by eye (user 2026-09-28,
                   adding a filter on the Bookmarks page). */}
               <FieldSelect
-                fields={allFields}
+                fields={filterEditorFields(allFields, { ancestorFieldIds: excludeFieldIds || new Set(), usedFieldIds: filters.filter((x, j) => j !== idx).map((x) => x.fieldId), own: f.fieldId || null })}
                 value={f.fieldId || null}
                 onChange={(id) => update(idx, { fieldId: id || "" })}
                 noneLabel="— field —"
