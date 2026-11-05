@@ -41,3 +41,17 @@ export function occurrenceDisplayLabel(occurrence, module, fallback = "") {
   if (type) return type;
   return fallback;
 }
+
+/**
+ * What a row shows for an occurrence field's value: the option's label, else the live row's name. A reference to a row
+ * that no longer exists printed the raw id ("Meal: 99ff4ade-…"). While the deferred half of the grid is still arriving
+ * the row may simply not be here yet, so it waits.
+ */
+export function occurrenceValueLabel(id, { options = [], occurrencesById = {}, modulesById = {}, awaiting = false } = {}) {
+  if (id == null || id === "") return "—";
+  const opt = options.find((o) => o.value === id);
+  if (opt?.label) return opt.label;
+  const occ = occurrencesById?.[id];
+  if (occ) return occurrenceDisplayLabel(occ, modulesById?.[occ.moduleId]) || "—";
+  return awaiting ? "…" : "(deleted)";
+}

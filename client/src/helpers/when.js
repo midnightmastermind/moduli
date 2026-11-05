@@ -42,7 +42,19 @@ export function onceDates(v) {
 }
 
 /** PURE. Is this a usable when value? */
-export function isWhen(v) {
+/**
+ * A plain date ("2026-11-05", or "2026-11-05T09:30") is a one-time when: an operation can store one in this field, and
+ * it read as nothing (no pill text, no reminder). Anything else comes back as it was.
+ */
+export function toWhen(v) {
+  if (typeof v !== "string") return v;
+  const m = v.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/);
+  if (!m) return v;
+  return m[2] ? { mode: "once", dates: [m[1]], time: m[2] } : { mode: "once", dates: [m[1]] };
+}
+
+export function isWhen(raw) {
+  const v = toWhen(raw);
   if (!v || typeof v !== "object") return false;
   if (v.mode === "once") return onceDates(v).length > 0;
   if (v.mode === "every") return WHEN_UNITS.includes(v.unit) && Number(v.every) >= 1 && !!parseDay(v.start?.date);
@@ -51,7 +63,8 @@ export function isWhen(v) {
 }
 
 /** PURE. The times ("HH:MM", or null for all day) this value falls on, on one local day. */
-export function whenTimesOnDay(v, day) {
+export function whenTimesOnDay(raw, day) {
+  const v = toWhen(raw);
   if (!isWhen(v)) return [];
   const d = typeof day === "string" ? parseDay(day) : day;
   if (!d) return [];
@@ -125,7 +138,8 @@ const fmtDay = (s) => {
 };
 
 /** PURE. A one-line description: "Oct 13 at 2:30pm", "Every 2 days at 9:00am", "Mon, Wed, Fri at 9:00am". */
-export function describeWhen(v) {
+export function describeWhen(raw) {
+  const v = toWhen(raw);
   if (!isWhen(v)) return "";
   const time = (t) => (t ? ` at ${formatClock(t)}` : "");
   if (v.mode === "once") {

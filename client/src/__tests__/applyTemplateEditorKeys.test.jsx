@@ -23,7 +23,8 @@ describe("APPLY_TEMPLATE editor", () => {
   it("shows stored defaultFields (the per-clone stamp)", () => {
     const { container } = mount({ defaultFields: { fDate: "literal:2026-09-28" } });
     expect(container.textContent).toContain("stamp fields on every clone");
-    expect(inputWith(container, "literal:2026-09-28")).toBeTruthy();
+    // Since 2026-11-05 a plain value opens on the field's own control, showing the value rather than its `literal:` form.
+    expect(inputWith(container, "2026-09-28")).toBeTruthy();
   });
   it("shows and edits rootSignature", () => {
     const { container, setCfg } = mount({ rootSignature: "daypage:col:${$day}" });

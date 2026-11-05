@@ -25,6 +25,8 @@ import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_C
 import ConditionGroup from "./ConditionGroup";
 import { ACTION_CONFIG_SCHEMA } from "./actionConfigSchema";
 import FieldSelect from "../ui/FieldSelect.jsx";
+import StepValueField from "./StepValueField.jsx";
+import { isPlainStepValue } from "../helpers/stepValue";
 
 /**
  * OperationsBuilder - Main visual block editor component
@@ -646,7 +648,7 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 // "array" mode stores the literal as a JSON-serialized string prefixed with "json:";
 // resolveExpr already passes any non-$/non-literal: string through as-is, so we keep
 // the value shape backwards-compatible by writing JSON for arrays.
-function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [], foldersById = {}, gridId = null }) {
+function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [], foldersById = {}, gridId = null, valueField = null }) {
   const v = String(value ?? "").trim();
   const isJsonValue = v.startsWith("json:");
   const isArrayValue = v.startsWith("json:[");
@@ -655,8 +657,12 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
   // editor — friendlier than raw JSON. The "array" mode is still
   // available via the dropdown for power users who want to type JSON
   // by hand.
+  // A step writing a known field opens on that field's own control when its value is a plain one (or nothing yet).
+  const offersValue = !!valueField && valueField.type !== "button";
   const initialMode = isNullValue
     ? "null"
+    : offersValue && isPlainStepValue(value)
+    ? "value"
     : isJsonValue
     ? "structured"
     : (!v || (v.startsWith("$") && !v.startsWith("literal:"))) ? "path" : "text";
@@ -669,6 +675,7 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
 
   const switchMode = (next) => {
     setMode(next);
+    if (next === "value") { if (!isPlainStepValue(value) || isNullValue) onChange(""); return; }
     // Only clear the value when the user explicitly changes mode AND the existing value
     // would be invalid for the new mode (path expects $-prefixed, array expects json:[).
     if (next === "path" && v && !v.startsWith("$")) onChange("");
@@ -696,12 +703,14 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
         title="How this value is entered"
         style={{ fontSize: 9, padding: "1px 4px", border: "1px solid var(--input-border)", borderRadius: 3, background: "var(--surface)", color: "var(--text-muted)", cursor: "pointer", height: 22 }}
       >
+        {offersValue && <option value="value">value</option>}
         <option value="path">path</option>
         <option value="text">text</option>
         <option value="structured">structured</option>
         <option value="array">array</option>
         <option value="null">null</option>
       </select>
+      {mode === "value" && offersValue && <StepValueField field={valueField} value={value} onChange={onChange} />}
       {mode === "path" && (
         <DrilldownPicker
           value={typeof value === "string" ? value : ""}
@@ -1235,6 +1244,9 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
       // Object-shaped value carries fromTemplate/tokens — render as JSON for now.
       const valueIsObject = cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value);
       const updatePickerCtx = { sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId };
+      // A path ending `.fields.<id>.value` names the field this step writes, so its value can be that field's control.
+      const updateFieldId = typeof cfg.path === "string" ? (cfg.path.match(/\.fields\.([^.]+)\.value$/) || [])[1] : null;
+      const updateField = updateFieldId ? (fields.find((f) => f.id === updateFieldId) || null) : null;
       // Color-shaped paths: trigger an inline native color picker so the
       // user can pick a hex/rgba without typing it. Detects ownStyle.bg /
       // ownStyle.color / ownStyle.textColor / .border (last segment of path
@@ -1265,7 +1277,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
               />
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <ExprOrPath value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42   or   null' width={isColorPath ? 200 : 240} {...exprProps} />
+                <ExprOrPath key={updateField?.id || "plain"} valueField={updateField} value={cfg.value ?? ""} onChange={v => setCfg({ value: v })} placeholder='"$expr"   or   literal:42   or   null' width={isColorPath ? 200 : 240} {...exprProps} />
                 {isColorPath && (
                   <input
                     type="color"
@@ -1356,7 +1368,7 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
           <ExprOrPath value={cfg.occurrenceIdExpr || "$trigger.occurrenceId"} onChange={v => setCfg({ occurrenceIdExpr: v })} placeholder="$trigger.occurrenceId or $item.id" sources={sources} fields={fields} />
           {fl("field:")} <FieldPicker value={cfg.fieldId} onChange={v => setCfg({ fieldId: v })} fields={fields} />
           {fl("=")}
-          <ExprOrPath value={displayed} onChange={v => setCfg({ valueExpr: v, value: undefined })} placeholder="$item.value or 5 or true" width={120} sources={sources} fields={fields} />
+          <ExprOrPath key={cfg.fieldId || "none"} value={displayed} onChange={v => setCfg({ valueExpr: v, value: undefined })} placeholder="$item.value or 5 or true" width={120} sources={sources} fields={fields} valueField={fields.find((f) => f.id === cfg.fieldId) || null} />
           <select value={cfg.flow || "replace"} onChange={e => setCfg({ flow: e.target.value })} style={selectSt}>
             {["replace", "in", "out"].map(f => <option key={f} value={f}>{f}</option>)}
           </select>
@@ -2265,6 +2277,7 @@ function FieldsMapEditor({ cfg, setCfg, fields, exprProps, mapKey = "fields", la
             placeholder="$preset.water   or   literal:Due"
             width={180}
             {...exprProps}
+            valueField={fields.find((f) => f.id === fid) || null}
           />
           {fid && withVisibility && <FieldVisibilityToggle cfg={cfg} setCfg={setCfg} fieldId={fid} />}
           <button style={{ border: "none", background: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }} onClick={() => setEntry(fid, "", "")} title="remove">✕</button>

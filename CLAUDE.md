@@ -15,6 +15,31 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-05 — UI SWEEP: THE FIELD MATRIX IS DONE IN EVERY CONTEXT; what clicking found on the way
+
+User: *"keep going please"* through the sweep, and *"increase the radial menu button and menu buttons a bit larger on
+mobile and make sure the tracks arent covering up content"*. Each field type (30 fixtures on poms rebuild) was driven in
+every context: row pill, table cell, doc pill, add-item picker, button form, header filter, operation step.
+- **Phone:** the viewport sits beside every shown rail (`MobileGridNav.railInsetStyle`); handle 26px, arc buttons 44px
+  (`RadialMenu.arcGeometry`), + 38px. A clipped neighbour panel now starts at x=364, so "visible panel" probes must not
+  read rects alone.
+- **Field edits were seconds late on a phone:** every edit re-synced all 59 feeds (1.4-2.3s at 4x), from the edit, its
+  echo, and ANOTHER GRID's rows (writes go to all of a user's tabs). `feedMayReadFields` + `echoFeedScope`: ~0.1s.
+- **Filters (`tools/uisweep/filterRun.mjs`):** removing a local filter wrote `filterOverride: {}`, which clears every
+  filter at that level (only the sweep's own board was hit) — `filterConfig.removeDeclaredFilter`; a number filter drew
+  the date stepper and stored a date — a number box now; the editor offered fields an ancestor filters, which then hid
+  from the menu — not offered; the switch and box are named.
+- **Operation steps (`tools/uisweep/opValueRun.mjs`):** a value was one text box for every type, so setting an occurrence
+  field meant pasting an id no screen shows. ExprOrPath has a **value** mode (`blocks/StepValueField`: the field's own
+  control, `helpers/stepValue`: literal or json, real number/boolean types) on Set field, attach-a-field rows and Update
+  on `.fields.<id>.value`. A plain date in a `when` field reads as one-time (`when.toWhen`). A reference to a deleted row
+  says "(deleted)" instead of the raw id (`occurrenceValueLabel`); 1 such dangling Meal value exists on the rebuild.
+  28/28 in both text and value modes on a local build.
+- **Left:** area crawl, consolidating pickers, accessibility findings, performance pass, destructive paths. The
+  "uisweep fixtures (delete after)" API tokens are still to revoke when the sweep ends.
+
+---
+
 ### 2026-11-03 (4) — VR ON ONE CONTROLLER; DVD discs play in order; shelves A–Z (APK built, NOT installed)
 
 User: lost the left controller · the search takes no typing · shelves A–Z · *"if i drag a series to the dvd player, it

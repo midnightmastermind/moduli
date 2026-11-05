@@ -62,7 +62,7 @@ import { toast } from "../state/notificationStore";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 import { formatDuration, splitDuration } from "../helpers/duration.js";
-import { describeWhen, isWhen } from "../helpers/when.js";
+import { describeWhen, isWhen, toWhen } from "../helpers/when.js";
 import WhenPicker from "./WhenPicker.jsx";
 
 // "Sep 23" for this year, "Aug 21, 1982" for any other. A date field used to
@@ -84,7 +84,7 @@ export function shortDate(date, now = new Date()) {
   return date.toLocaleDateString(undefined, opts);
 }
 import { fieldLinkHref } from "../helpers/fieldLink.js";
-import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
+import { occurrenceDisplayLabel, occurrenceValueLabel } from "../helpers/occurrenceLabel.js";
 
 // The type size of a field on a row — its pill and its caption. ONE constant,
 // because these were scattered inline literals and an inline style is exactly
@@ -134,7 +134,7 @@ function PillValue({ children }) {
 
 function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
   const [open, setOpen] = useState(false);
-  const text = isWhen(value) ? describeWhen(value) : "—";
+  const text = describeWhen(value) || "—";
   return (
     <Popover open={open} onOpenChange={(o) => !disabled && setOpen(o)}>
       <PopoverTrigger asChild>
@@ -147,7 +147,7 @@ function WhenFieldPill({ name, hideName, value, disabled, onCommit }) {
         </button>
       </PopoverTrigger>
       <PopoverContent aria-label={name || undefined} className="w-auto p-0" align="start" side="bottom">
-        <WhenPicker value={isWhen(value) ? value : null}
+        <WhenPicker value={isWhen(value) ? toWhen(value) : null}
           onSave={(v) => { onCommit(v); setOpen(false); }}
           onClear={() => { onCommit(null); setOpen(false); }}
           onCancel={() => setOpen(false)} />
@@ -964,7 +964,7 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
 // exactly why crumbing the label string alone was invisible here (2026-09-23).
 function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSetImage = null, crumb = null }) {
   const card = resolveOccCard(occId, maps, chipDisplay);
-  const label = card?.label || (card && chipDisplay && chipDisplay.showLabel === false ? null : (fallbackLabel || occId));
+  const label = card?.label || (card && chipDisplay && chipDisplay.showLabel === false ? null : (fallbackLabel || "(deleted)"));
   const mediaVal = card?.mediaVal;
   const ext = typeof mediaVal === "string" ? (mediaVal.split(".").pop() || "").toLowerCase() : "";
   const isImg = ["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)
@@ -1323,6 +1323,7 @@ function Field({
   // state) are read at callback time via the non-subscribing getters.
   const dispatch = useGridActionsSelector(s => s.dispatch);
   const socket = useGridActionsSelector(s => s.socket);
+  const awaitingRest = useGridActionsSelector(s => !!s.state?.awaitingDeferred);
   // The provider value carries these inside `state`, not top-level (the bare
   // s.gridId read was silently undefined → createLeafInstanceInParent bailed
   // and "+ Add new" never minted anything; caught by the 2026-07-25 probe).
@@ -1730,9 +1731,9 @@ function Field({
       case "occurrence": {
         const options = meta?._resolvedOptions || [];
         if (Array.isArray(rawDisplayValue)) {
-          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
+          return rawDisplayValue.map(v => occurrenceValueLabel(v, { options, ...occMaps, awaiting: awaitingRest })).join(", ") || "—";
         }
-        return options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue || "—";
+        return occurrenceValueLabel(rawDisplayValue, { options, ...occMaps, awaiting: awaitingRest });
       }
       default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
     }
@@ -2159,7 +2160,7 @@ function Field({
             searchProvider={occSearchProvider} onImportResult={importProviderResult} />
         );
       }
-      const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
+      const currentLabel = occurrenceValueLabel(localValue, { options, ...occMaps, awaiting: awaitingRest });
       return (
         // Border on the wrapper so the randomize dice sits INSIDE the pill.
         <div className="field-input inline-flex items-stretch rounded-full border overflow-hidden"

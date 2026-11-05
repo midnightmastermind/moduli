@@ -11,6 +11,17 @@ _Updated: 2026-09-27. Check this file before re-reading source._
   The scope is taken after the snapshot/passive/leader early returns (`snapshotGates.test.js` pins that order).
   Test `feedSyncScopedToFields.test.js`.
 
+## Recent Changes (2026-11-05 — an operation step's value can be the field's own control)
+- `blocks/StepValueField.jsx` (NEW): the app's `Field` with options resolved, inside a step. `ExprOrPath` takes
+  `valueField` and adds a **value** mode (first in its dropdown), the opening mode when the value is plain or empty.
+  Passed by Set field, `FieldsMapEditor` rows and Update (path `.fields.<id>.value`). `key` by field so a new pick reopens.
+- `helpers/stepValue.js` (NEW): `encodeStepValue` (literal:/json:, a text field's "007" stays text via json:, a number
+  field's "7" is a number), `decodeStepValue`, `isPlainStepValue` (a path or a `$` leaf stays an expression).
+- `helpers/when.toWhen`: "2026-11-05" / "2026-11-05T09:30" read as a one-time when. `helpers/occurrenceLabel.
+  occurrenceValueLabel`: option label, else the live row's name, else "(deleted)" ("…" while the deferred half arrives).
+- Probes: the mode dropdown's options are no longer exactly `path,text,structured,array,null` on such a step; match with
+  `includes`. Tests `stepValueMode` (6), `whenFromDate` (3), `occurrenceValueLabel` (5).
+
 ## Recent Changes (2026-11-04 — phone: the rails have their own strips; bigger handle, arc and + buttons)
 - User: "increase the radial menu button and menu buttons a bit larger on mobile and make sure the tracks arent
   covering up content". Measured at 390x844: the down rail lay over the last row's field pills.
