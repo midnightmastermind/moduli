@@ -423,7 +423,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
           onMouseDown={handleToggleLock}
           title={isLocked ? "Unlock document" : "Lock document"}
           style={{
-            position: "absolute", top: 4, right: 4, zIndex: 10,
+            position: "absolute", top: 4, right: 4, zIndex: 30,
             background: "none", border: "none", cursor: "pointer",
             opacity: isLocked ? 0.7 : 0.3, padding: 2,
             color: isLocked ? "var(--danger)" : "var(--text-muted)",

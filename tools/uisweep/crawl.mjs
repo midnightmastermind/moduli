@@ -107,7 +107,7 @@ async function restore(page, basePopups, baseUrl, surface, ctx, lastRow = null) 
   }
   // A modal's backdrop blocks every click whether or not the surface's root is still there (a radial closes when its item
   // opens a dialog, so the check above sees no root and no cover).
-  const modal = () => page.evaluate(() => [...document.querySelectorAll('[data-state="open"][aria-hidden="true"], .fixed.inset-0')].some((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width >= innerWidth - 2 && r.height >= innerHeight - 2 && cs.pointerEvents !== "none" && cs.display !== "none" && cs.visibility !== "hidden" && !e.closest("[data-panel-id]"); })).catch(() => false);
+  const modal = () => page.evaluate(() => [...document.querySelectorAll('[data-state="open"][aria-hidden="true"], .fixed.inset-0, [data-image-picker]')].some((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width >= innerWidth - 2 && r.height >= innerHeight - 2 && cs.pointerEvents !== "none" && cs.display !== "none" && cs.visibility !== "hidden" && !e.closest("[data-panel-id]"); })).catch(() => false);
   if (await modal()) {
     await page.keyboard.press("Escape"); await page.waitForTimeout(250);
     if (await modal()) {

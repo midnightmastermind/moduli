@@ -4148,3 +4148,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 **10:27** — "and before the other requests, fix the 11 min load time for poms. it seems to not take that long on my end so its something with the debugger." · **10:28** — "finix the debugging sweep first"
 
 **2026-11-05 11:14** — "dont do it based on differs, i want to make sure things are still visible and accessible on mobile despite being the same way on desktop" (the phone pass covers every surface)
+
+**2026-11-05 13:13** — "we also need change cover photo in the radial menu for rows"

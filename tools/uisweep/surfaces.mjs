@@ -187,7 +187,7 @@ export const SURFACES = [
   { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".page-header"); } },
   { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
-    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); await page.click(".folder-open-btn", { button: "right" }); await page.waitForTimeout(500); } },
+    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-tree .folder-open-btn`, { button: "right" }); await page.waitForTimeout(500); } },
   { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
       // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.
@@ -205,7 +205,7 @@ export const SURFACES = [
   { id: "pick.cover", area: "add", name: "Image picker (Set cover image)", from: [35], vps: ["desktop"], root: '[role="dialog"]',
     open: async (page, ctx) => {
       // A row's cover is on its radial; an artifact card's right-click has one too.
-      await goTo(page, ctx, "Books");
+      await goTo(page, ctx, "Sample Files");
       await inPanel(page, ctx, ".instance-wrap button.radial-handle");
       const it = await page.waitForSelector('.radial-menu-items [title*="over" i]', { timeout: 6000 });
       await it.click(); await page.waitForTimeout(1500);
@@ -250,7 +250,7 @@ export const SURFACES = [
   { id: "jonah", area: "drawers", name: "Jonah drawer", from: [49], root: ".assistant-drawer, [data-assistant-drawer]",
     open: async (page) => { await clear(page); await tap(page, 'button[aria-label^="Jonah"], button[title^="Jonah"]', { touch: isPhone(page) }); } },
   { id: "row.body", area: "drawers", name: "Row notes drawer", from: [48], root: "ROW",
-    open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const h = await page.$(`${P(id)} .instance-wrap`); await h.hover(); await inPanel(page, ctx, '.instance-wrap button[aria-label="Show notes"]', { touch: isPhone(page) }); ctx.root = `${P(id)} .instance-body`; } },
+    open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const h = await page.$(`${P(id)} .instance-wrap`); await h.hover(); await inPanel(page, ctx, '.instance-wrap button[aria-label="Show notes"]', { touch: isPhone(page) }); ctx.root = `${P(id)} .instance-doc-body`; } },
 
   // ── sharing / account / forms ─────────────────────────────────────────────
   { id: "share.place", area: "sharing", name: "Share placement window", from: [59], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-place?stage=${ctx.stage?.id}&k=${ctx.stage?.key}`); await page.waitForTimeout(3000); } },

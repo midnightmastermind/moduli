@@ -533,6 +533,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search instances…"
+            aria-label="Search instances"
             className="h-7 text-xs border-0 border-b border-border rounded-none"
           />
           <div className="max-h-36 overflow-y-auto">

@@ -442,7 +442,7 @@ export function OptionSearchList({
           <Input type="text" value={newValue} autoFocus={autoFocus}
             onChange={e => setNewValue(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && sections.local[0]) onPick?.(sections.local[0].value); }}
-            className="h-6 text-xs w-full" placeholder={searchPlaceholder} />
+            className="h-6 text-xs w-full" placeholder={searchPlaceholder} aria-label={searchPlaceholder} />
         </div>
       )}
       {onAddOption && (
@@ -451,8 +451,9 @@ export function OptionSearchList({
             <Input type="text" value={newValue} onChange={e => setNewValue(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAddNew()}
               className="h-6 text-xs flex-1"
+              aria-label="Search or add"
               placeholder={searchProvider ? `Search or add…` : "Search or add…"} />
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddNew} disabled={!newValue.trim()}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Add this option" onClick={handleAddNew} disabled={!newValue.trim()}>
               <Plus className="h-3 w-3" />
             </Button>
           </div>
@@ -472,7 +473,7 @@ export function OptionSearchList({
           )}
         </div>
       )}
-      <div className="max-h-48 overflow-y-auto p-1">
+      <div className="max-h-48 overflow-y-auto p-1" role="listbox" aria-label={searchPlaceholder || "Options"}>
         {/* A HEADING ONLY WHEN THERE ARE TWO SOURCES. With no provider
             configured this renders exactly as it always did — one plain list,
             no ceremony. */}

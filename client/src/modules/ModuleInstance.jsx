@@ -506,8 +506,10 @@ function InstanceInner({
   // A FILES binding alone is enough. The face can live on either field now, and
   // gating on the media binding would leave a row that binds only Files with no
   // drop target and nowhere to show the picture it is perfectly able to hold.
+  // A cover chosen for a plain row (its radial) is its picture, ahead of its media field: per placement, like an artifact's.
+  const rowCover = instance?.role === "instance" ? occurrence?.meta?.cover || null : null;
   const showMedia = !renderBody
-    && (!!mediaBinding || !!filesFieldIdFor(instance))
+    && (!!mediaBinding || !!filesFieldIdFor(instance) || !!rowCover)
     && (!cellEmbedCtx?.__inCell || !!cellEmbedCtx?.showMedia);
   // Opt-in compact media (2026-07-25, per user): a SMALL thumbnail inline with
   // the label instead of the full-width block below. Board option occurrences
@@ -527,8 +529,8 @@ function InstanceInner({
   const primaryMedia = primaryMediaOf(occurrence, {
     occurrencesById: getOccMap(), modulesById, fieldsById,
   });
-  const mediaSrc = primaryMedia?.src || null;
-  const mediaKind = primaryMedia?.kind || null;
+  const mediaSrc = rowCover || primaryMedia?.src || null;
+  const mediaKind = rowCover ? "image" : primaryMedia?.kind || null;
 
   const mediaDropRef = useRef(null);
 
@@ -700,7 +702,7 @@ function InstanceInner({
   // as the right-click item below. Two items share `group`, so with a cover they fold into one
   // "Cover" submenu and the arc stays inside its capacity.
   const coverRadialItems = useMemo(() => {
-    if (instance?.role !== "artifact" || !occurrence?.id) return [];
+    if (!["artifact", "instance"].includes(instance?.role) || !occurrence?.id) return [];
     const getOcc = () => getOccMap?.()?.[occurrence.id] || occurrence;
     const hasCover = !!occurrence?.meta?.cover;
     return [
