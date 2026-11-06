@@ -25,7 +25,7 @@ async function panels(page, ctx) {
 }
 const P = (id) => `[data-panel-id="${id}"]`;
 /** the panel the sweep works in: the first visible one (on a phone, the one on screen). */
-async function mainPanel(page, ctx) { const ps = await panels(page, ctx); return ps[0]; }
+export async function mainPanel(page, ctx) { const ps = await panels(page, ctx); return ps[0]; }
 /** Press Escape until no popup is open. */
 async function clear(page) { for (let i = 0; i < 4; i++) await page.keyboard.press("Escape"); await page.waitForTimeout(200); }
 /** On a phone the toolbar's buttons live in the side drawer. */
@@ -192,7 +192,7 @@ export const SURFACES = [
   { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".page-header"); } },
   { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
-    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-row >> nth=1`, { button: "right" }); await page.waitForTimeout(500); } },
+    open: async (page, ctx) => { await clear(page); const pid = await mainPanel(page, ctx); if (!(await page.$(`${P(pid)} .manifest-row`))) await inPanel(page, ctx, "button.panel-files-btn"); await page.waitForSelector(`${P(pid)} .manifest-row`, { timeout: 5000 }); await page.waitForTimeout(500); const row = await page.locator(`${P(pid)} .manifest-row`).nth(1).boundingBox(); await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2, { button: "right" }); await page.waitForTimeout(500); } },
   { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
       // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.
