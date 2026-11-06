@@ -34,6 +34,12 @@ on a re-run: timing.
 - **Read and left as crawler artifacts, so nobody re-chases them:** "Add a field — Escape does not close" (Escape closes it
   on a board row and inside a document, measured with listeners on window and document); the canvas colour / 2px chips
   "nothing" (already the selected values); a focused search box "nothing".
+- **Double-click selected no word in a textblock (`ui/Editor.jsx` + `helpers/clickSelection.js`):** the editor places
+  the caret itself on every left press (Firefox places none inside a draggable row), and that ran on the second press of
+  a double-click too and collapsed the word the browser had just selected. Measured: Firefox selected nothing on a live
+  block or a stand-in, Chromium nothing on a stand-in. The fix-up now selects the word on 2 clicks and the line on 3
+  (`selectionForClicks`, same word rule as the right-click menu). After: "Bonsai" selected in both browsers, and the text
+  right-click menu offers Cut / Copy / Delete / formatting again. Test `clickSelection.test.js`.
 - **tools/uisweep:** `context.text` right-clicks article PROSE (a textblock or its read-only stand-in) — it had been
   right-clicking a row in both browsers, so it reported the row menu; `goTo` waits 20s on desktop for the first search
   and, when it misses, names what the search listed.

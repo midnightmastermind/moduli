@@ -106,6 +106,7 @@ import {
   plainTextToProseContent,
 } from "../helpers/textClipboard";
 import { wordRangeAt } from "../helpers/textLookup";
+import { selectionForClicks } from "../helpers/clickSelection.js";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
@@ -3543,12 +3544,18 @@ const Editor = forwardRef(function Editor({
               // 2026-10-20, video: "if clicked off the original character position, autohighlights
               // … it works fine if i click exactly where the caret will be").
               const docAtDown = editor.state.doc;
+              // The second press of a double-click selects the word and a third the line: a caret there would
+              // collapse what the browser just selected (and Firefox selects nothing natively here at all), so
+              // double-click could never select a word in a textblock (UI sweep 2026-11-06, both browsers).
+              const clicks = e.detail || 1;
               requestAnimationFrame(() => {
                 if (editor.isDestroyed || editor.state.doc !== docAtDown) {
                   logCaretInterference("editor.setTextSelection(rAF) skipped — doc changed", { occId: (occurrence?.id || "").slice(0, 8) });
                   return;
                 }
                 try {
+                  const range = clicks >= 2 ? selectionForClicks(editor.state.doc, coords.pos, clicks) : null;
+                  if (range) { editor.commands.setTextSelection(range); return; }
                   editor.commands.setTextSelection(coords.pos);
                   logCaretInterference("editor.setTextSelection(rAF)", {
                     occId: (occurrence?.id || "").slice(0, 8),
