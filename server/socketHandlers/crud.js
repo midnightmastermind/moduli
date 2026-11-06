@@ -22,6 +22,7 @@ import { occurrencesEmbedding } from "../utils/scrubEmbeds.js";
 import { dropFieldEverywhere } from "../utils/dropFieldEverywhere.js";
 import { compressTextmap } from "../utils/textmapCompression.js";
 import { createSerialByKey } from "../utils/serialByKey.js";
+import { occurrenceWritesSettled } from "../utils/occWriteQueue.js";
 
 // SIGNED CREATES ARE ONE AT A TIME PER USER + GRID, ACROSS SOCKETS. The duplicate-
 // signature refusal is check-then-insert and each socket drains on its own queue, so
@@ -293,6 +294,9 @@ export function registerCrudHandlers(socket, {
       // nowhere" reads as one client contradicting itself.
       console.log("🗑  delete_occurrence", occurrenceId,
         fromParentId ? `from ${fromParentId}` : "(whole row)", "socket:", socket.id);
+      // A gesture sends its writes then this delete, and handlers overlap: a late list write would put the deleted row back,
+      // and the cascade below could take a child whose re-parent had not landed ("keep the items").
+      await occurrenceWritesSettled(userId);
       const uc = await getUc();
 
       // ── PLACEMENT-DELETE vs FILE-DELETE (plan Task 4 Step 5) ────────────

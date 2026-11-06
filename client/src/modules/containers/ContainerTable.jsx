@@ -4,6 +4,7 @@
 // and debounced persistence into occurrence.meta.table.cells[key].
 // Task 12: TanStack sort + per-column filter (view-only, never rewrites cells).
 // Task 13: Row + column virtualization via @tanstack/react-virtual.
+import { placeColumnMenu } from "../../helpers/placeColumnMenu";
 import React, { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
@@ -83,10 +84,14 @@ function FilterValueWidget({ comparator, value, onChange }) {
 // used at all (measured on poms' People Table: x = -143). It opens to the right there instead.
 export function keepKebabMenuInTable(el) {
   if (!el) return;
-  el.style.left = ""; el.style.right = "";
-  const box = el.closest(".table-container")?.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  if (box && r.left < box.left + 4) { el.style.right = "auto"; el.style.left = "0"; }
+  const btn = el.parentElement?.querySelector(".table-kebab-btn");
+  if (!btn) return;
+  el.style.position = "fixed"; el.style.right = "auto"; el.style.left = "0"; el.style.top = "0";
+  // A transformed ancestor moves `fixed`: measure where 0,0 landed and allow for it.
+  const origin = el.getBoundingClientRect();
+  const p = placeColumnMenu(btn.getBoundingClientRect(), { width: el.offsetWidth, height: el.scrollHeight }, { width: window.innerWidth, height: window.innerHeight });
+  el.style.left = `${p.left - origin.left}px`; el.style.top = `${p.top - origin.top}px`;
+  el.style.maxHeight = `${p.maxHeight}px`; el.style.overflowY = "auto";
 }
 
 const DEFAULT_TABLE = () => ({

@@ -14,12 +14,15 @@
 // the row its predecessor left.
 export function createSerialByKey() {
   const tails = new Map();
-  return function runSerial(key, fn) {
+  function runSerial(key, fn) {
     const before = tails.get(key) || Promise.resolve();
     const run = before.then(() => fn());
     const tail = run.then(() => {}, () => {});
     tails.set(key, tail);
     tail.then(() => { if (tails.get(key) === tail) tails.delete(key); });
     return run;
-  };
+  }
+  // Every write now running under this key prefix has finished. Later ones are not waited for.
+  runSerial.settled = (prefix) => Promise.all([...tails].filter(([k]) => k.startsWith(prefix)).map(([, t]) => t)).then(() => {});
+  return runSerial;
 }
