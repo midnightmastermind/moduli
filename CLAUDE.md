@@ -15,6 +15,26 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (6) — A DROP THAT THREW SWITCHED OFF EVERY OPERATION IN THAT TAB; Nov 7 was never built
+
+User: *"i noticed daypage and schedule fail to build on future days"* (account2 hit its limit mid-investigation).
+- **Read out of Mongo:** poms grid had Schedule + Day Page columns for Nov 6 and Nov 8 and **none for Nov 7**, the
+  date the user's Edge tab set at 12:41 CST. That tab had been open ~50 min, froze (21s/17s long tasks, server "ping
+  timeout"), reconnected, ran its load sweep (175 effects), and then **sent no create at all** for the Nov 7 step.
+- **Not reproducible in a fresh or reconnected tab** (`tools/uisweep/_futuresend2.mjs`, `_futurerecon.mjs`, writes
+  blocked): stepping to an unbuilt day sends the column creates, and a forced offline/online reconnect rebuilds Nov 7.
+  account2's last probe stepped once to Nov 8, which already existed, so its "no creates sent" was expected.
+- **The gate that can stick:** `DragProvider` called `beginDropBatch` → `routeDrop` → `endDropBatch` with no
+  `finally`. A drop that throws leaves `_dropBatchFires` non-null, and every later top-level op fire in the tab
+  (the date change's NavigationOp included) is queued into a batch nothing drains, until reload. Now
+  `operationsBridge.runDropBatch(fn)` (try/finally) is the only way DragProvider opens it. Also `drainFires`: one
+  held fire that threw stopped the rest of the batch and left the undo action open — it logs and continues.
+- **Not proven to be what hit the user's tab** (its console was not available); it is the only gate found that
+  blocks the build silently and permanently, and it fits "fresh tab works, long-open tab doesn't". A reload builds
+  Nov 7. Test `dropBatchRecovers.test.js` (4; each guard A/B'd, fails exactly its own case). Client 7,382 pass.
+
+---
+
 ### 2026-11-06 (5) — FIREFOX AGREES WITH CHROMIUM; a search opened during the load never saw the rest of the grid
 
 Sweep continued. **Firefox (the user's browser), desktop, 20 surfaces, writes blocked:** every failure it found is the

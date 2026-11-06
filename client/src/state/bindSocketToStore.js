@@ -85,7 +85,7 @@ export function echoFeedScope(incoming, prev, gridNow = null) {
   return fieldIds.length ? fieldIds : "none";
 }
 
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, findOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, findOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, readFileText: null, beginDropBatch: null, endDropBatch: null, runDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -2824,6 +2824,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // `fireOperationsOptimistic` was written to prevent.
         if (next.run) next.run();
         else fireOperations(next.transactionType, next.transaction);
+      } catch (err) {
+        // One fire that throws must not strand the rest of the batch, nor the
+        // undo action `onDone` closes (2026-11-06).
+        console.error(`[${label}] a held op fire threw — continuing`, err);
       } finally {
         _navCascadeFiredOps = prev;
       }
@@ -2847,6 +2851,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // the move and every tracker write it causes land in one transaction —
     // one Ctrl+Z puts the user back where they were.
     beginAction("Moved item");
+  };
+  // The ONLY way a drop opens the batch: it always closes, even when the drop throws. A drop
+  // that threw between a bare begin and end left `_dropBatchFires` non-null forever, and every
+  // later fire in that tab — the toolbar date change's NavigationOp included — was parked in a
+  // batch nothing drains (user, 2026-11-06: "daypage and schedule fail to build on future days").
+  operationsBridge.runDropBatch = (fn) => {
+    operationsBridge.beginDropBatch();
+    try { return fn(); }
+    finally { operationsBridge.endDropBatch(); }
   };
   operationsBridge.endDropBatch = () => {
     const batch = _dropBatchFires;

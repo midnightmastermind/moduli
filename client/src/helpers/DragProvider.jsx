@@ -1120,14 +1120,15 @@ export function DragProvider({
     }
     // Defer all operation fires until after rAF — lets the browser paint the
     // committed drop position before any op work runs (eliminates post-drop freeze).
-    operationsBridge.beginDropBatch?.();
-    routeDrop(dropContext, {
+    // runDropBatch closes the batch even if routeDrop throws; a bare begin/end left every later
+    // op fire in the tab parked forever.
+    const route = () => routeDrop(dropContext, {
       dispatch, socket,
       state: { ...state, modulesById },
       occurrencesById, baseAllPanels, baseContainers,
       clearSession, sessionRef, getCellFromPoint, getSnapEdge,
     });
-    operationsBridge.endDropBatch?.();
+    if (operationsBridge.runDropBatch) operationsBridge.runDropBatch(route); else route();
     _lap("routeDrop returned (sync mutations + op fires done)");
     clearSession();
     _lap("clearSession done — handleDrop synchronous end");
