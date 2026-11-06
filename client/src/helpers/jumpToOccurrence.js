@@ -1,6 +1,7 @@
 
 import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
 import { forceLiveAncestors } from "./lazyEditor.js";
+import { wantTileNow } from "./tileScheduler";
 import { operationsBridge } from "../state/bindSocketToStore";
 //
 // Shared "jump to + highlight" helper. Used by:
@@ -72,6 +73,7 @@ const EXPAND_DEADLINE_MS = 10000;
  *     froze the tab long enough to drop the socket (user, 2026-09-26).
  */
 export function jumpToOccurrence(occurrenceId, opts = {}) {
+  wantTileNow(occurrenceId);
   const {
     onActivatePage,
     highlightMs = HIGHLIGHT_MS,

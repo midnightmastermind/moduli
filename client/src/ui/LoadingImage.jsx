@@ -85,6 +85,18 @@ export function rememberFailedSrc(src) {
 /** Exported for tests: a session's failures are not observable any other way. */
 export function _resetFailedSrc() { FAILED_SRC.clear(); }
 
+// Pictures this page has decoded. A tile rebuilt while scrolling (or a light tile becoming its real row) would otherwise hide
+// its poster for a decode and a fade it does not need, which read as a flash per tile.
+const DECODED_SRC = new Set();
+const DECODED_MAX = 2000;
+export const isDecoded = (src) => DECODED_SRC.has(src);
+export const _forgetDecoded = () => DECODED_SRC.clear();
+export function rememberDecoded(src) {
+  if (!src) return;
+  if (DECODED_SRC.size >= DECODED_MAX) DECODED_SRC.clear();
+  DECODED_SRC.add(src);
+}
+
 export default function LoadingImage({
   src,
   alt = "",
@@ -97,12 +109,14 @@ export default function LoadingImage({
   fallback = null,
 }) {
   const ref = useRef(null);
-  const [state, setState] = useState(() => (src && FAILED_SRC.has(src) ? "error" : "loading"));
+  const [state, setState] = useState(() => (src && FAILED_SRC.has(src) ? "error" : DECODED_SRC.has(src) ? "ok" : "loading"));
+  const instant = useRef(state === "ok");
 
   // Reveal only once the bitmap is ready to paint. Guarded by the src it was
   // started for, so a fast re-point cannot reveal the previous picture.
   const reveal = (el, forSrc) => {
     const done = () => {
+      rememberDecoded(forSrc);
       if (ref.current === el && el.getAttribute("src") === forSrc) setState("ok");
     };
     if (typeof el.decode === "function") el.decode().then(done, done);
@@ -111,6 +125,8 @@ export default function LoadingImage({
 
   useEffect(() => {
     if (src && FAILED_SRC.has(src)) { setState("error"); return; }
+    if (DECODED_SRC.has(src)) { setState("ok"); return; }
+    instant.current = false;
     setState("loading");
     const el = ref.current;
     if (!el || !el.complete) return;
@@ -138,7 +154,7 @@ export default function LoadingImage({
         style={{
           ...imgStyle,
           opacity: state === "ok" ? (imgStyle?.opacity ?? 1) : 0,
-          transition: "opacity 120ms ease-out",
+          transition: instant.current ? "none" : "opacity 120ms ease-out",
         }}
         onLoad={(e) => reveal(e.currentTarget, e.currentTarget.getAttribute("src"))}
         onError={() => { rememberFailedSrc(src); setState("error"); }}

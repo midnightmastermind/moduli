@@ -16,6 +16,7 @@ import { occurrenceDisplayLabel } from "../helpers/occurrenceLabel.js";
 import { toast } from "../state/notificationStore";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { coverAppliesTo } from "../helpers/artifactCover";
+import { tileImageSrc } from "../helpers/tileImage";
 import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
@@ -831,7 +832,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
       )}
-      {renderThumbnail(kind, src, label, thumb256Src, coverSrc, module?.id, { playable: true })}
+      {renderThumbnail(kind, src, label, thumb256Src, tileImageSrc(coverSrc), module?.id, { playable: true })}
       <JellyfinPlayButton occurrence={occurrence} onPlay={playJellyfin} onPlayNext={playNextJellyfin} fieldsById={getFieldMap?.()} />
       {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
           `openViewer`), so a corner control would be a second way to do the one

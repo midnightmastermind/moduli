@@ -71,6 +71,7 @@ import {
 } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor, mediaSignature } from "../helpers/occurrenceMedia";
+import { tileImageSrc } from "../helpers/tileImage";
 import PlaceMedia from "../ui/PlaceMedia.jsx";
 import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
@@ -971,7 +972,7 @@ function InstanceInner({
     // Resolved once, above, through helpers/occurrenceMedia — the
     // local-vs-absolute fileRef split lives in resolveFileRef now rather
     // than being re-derived at every render site.
-    const src = mediaSrc;
+    const src = tileImageSrc(mediaSrc);
     return (
       <div
         ref={mediaDropRef}

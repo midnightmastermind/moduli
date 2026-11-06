@@ -3,6 +3,11 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-05 — tileScheduler, tileImage: a grid board's tiles wait for the scroll)
+- `tileScheduler.js`: `noteScroll` (from `virtualRows`), `isScrollingNow` (140ms), `scheduleTile(run, isVisible, id)` (on-screen first, 8ms a frame, `TILE_MAX_WAIT_MS` 1200 even mid-scroll), `wantTileNow(id)` (a search's target, 6s). Used by `ui/DeferredTile`, in `ModuleContainer` for `virtualRows.isGrid` only: on a stacked list a light row's height loops with the virtualizer's scroll correction (measured, root CLAUDE.md).
+- `virtualRows`: plan entries carry `size`, grid overscan 5, light tiles are not measured, `noteTileReady` observes a tile that became real.
+- `tileImage.js`: TMDB `w342` on tiles. The stored address is unchanged.
+
 ## Recent Changes (2026-11-04 (2) — a field edit re-syncs only the feeds that read the field)
 - UI sweep: on a phone (4x) a field edit's value showed up to 3-4s late. CPU profile: every edit ran a feed pass over
   ALL 59 feeds (`syncAllFeeds` → `resolveFeedItems`, 1.4-2.3s per edit), three ways:

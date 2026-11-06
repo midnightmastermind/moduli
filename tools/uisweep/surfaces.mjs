@@ -83,7 +83,8 @@ export async function goTo(page, ctx, name, kind = null) {
   const idx = await page.$$eval(".occ-search-menu .occ-search-row", (rows, { name, kind }) => {
     const info = rows.map((r) => { const l = (r.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean); return { n: l[0] || "", k: l[1] || "" }; });
     const re = kind ? new RegExp(kind, "i") : null;
-    let i = info.findIndex((x) => x.n.toLowerCase() === name.toLowerCase() && (re ? re.test(x.k) : !/folder/i.test(x.k)));
+    let i = info.findIndex((x) => x.n === name && (re ? re.test(x.k) : !/folder/i.test(x.k)));
+    if (i < 0) i = info.findIndex((x) => x.n.toLowerCase() === name.toLowerCase() && (re ? re.test(x.k) : !/folder/i.test(x.k)));
     if (i < 0) i = info.findIndex((x) => x.n.toLowerCase().startsWith(name.toLowerCase()) && !/folder/i.test(x.k));
     return i;
   }, { name, kind });

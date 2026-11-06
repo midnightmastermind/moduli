@@ -147,6 +147,7 @@ import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 import { useRenderWindow, WINDOW_MIN, WINDOW_INITIAL } from "../helpers/renderWindow";
 import { useVirtualRows } from "../helpers/virtualRows";
+import DeferredTile from "../ui/DeferredTile";
 import { usePanelRowsHidden } from "../helpers/offscreenRows";
 import { applyRowSeed } from "../helpers/rowSeed";
 import { afterPaint } from "../helpers/afterPaint";
@@ -277,6 +278,7 @@ function Container({
   // getters; the app's getters are identity-stable.
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getModMapForExport = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
+  const lightTileMaps = useCallback(() => ({ occurrencesById: getOccMap(), modulesById: getModMapForExport() }), [getOccMap, getModMapForExport]);
   const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
   // Lite state for children that only read grid/gridId/userId off a
   // state-shaped prop (FieldRenderer's gridFilters, ContainerPool). Ops in
@@ -2062,7 +2064,7 @@ function Container({
             }}
           >
             {(() => {
-            const renderRow = ({ instance, occurrence }, idx) => {
+            const renderRow = ({ instance, occurrence }, idx, rowPlan) => {
               const role = instance?.role;
               // Container-in-container: a role:"container" child mounts its own <Container> instead of a
               // <ModuleInstance>. occurrenceOverride pins the child to the
@@ -2150,6 +2152,14 @@ function Container({
               }
               // Insert-here gap BEFORE each item (only when this container's
               // occurrence is resolvable so the splice has a real parent).
+              // A long board's tile that enters during a scroll waits until the scroll settles (ui/DeferredTile).
+              if (virtualRows.active && virtualRows.isGrid && instance && role !== "container") {
+                node = (
+                  <DeferredTile occurrence={occurrence} module={instance} height={Math.max(0, (rowPlan?.size || 0) - (virtualRows.lineGap || 0))} getMaps={lightTileMaps} onReady={virtualRows.noteTileReady}>
+                    {node}
+                  </DeferredTile>
+                );
+              }
               return (
                 <React.Fragment key={occurrence.id}>
                   {containerOccurrence && (
@@ -2166,20 +2176,20 @@ function Container({
                 // the hook finds each line's tiles by occurrence id to measure it.
                 return virtualRows.plan.map((p, k) => p.spacer != null
                   ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer, flex: "0 0 100%" }} />
-                  : renderRow(itemsWithOccurrences[p.index], p.index));
+                  : renderRow(itemsWithOccurrences[p.index], p.index, p));
               }
               return virtualRows.plan.map((p, k) => p.spacer != null
                 ? <div key={`sp-${k}`} className="virtual-spacer" aria-hidden="true" style={{ height: p.spacer, flex: "0 0 auto" }} />
                 : (
                   <div key={p.key} data-index={p.index} ref={virtualRows.measureRef} className="virtual-row">
-                    {renderRow(itemsWithOccurrences[p.index], p.index)}
+                    {renderRow(itemsWithOccurrences[p.index], p.index, p)}
                   </div>
                 ));
             }
             // Eligible but the scroller is not known yet (first frame): a short
             // slice, so a long board never paints in full while it waits.
             const n = virtualEligible ? Math.min(WINDOW_INITIAL, itemsWithOccurrences.length) : renderCount;
-            return itemsWithOccurrences.slice(0, n).map(renderRow);
+            return itemsWithOccurrences.slice(0, n).map((item, i) => renderRow(item, i));
             })()}
             {/* THE WINDOW'S SEAM. A sentinel after the last rendered row asks
                for the next chunk as it approaches the viewport, so a long board

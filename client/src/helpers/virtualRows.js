@@ -29,6 +29,7 @@
 // The row then exists in the DOM at its estimated position, the jump finds it
 // and scrolls to it, and the rows around it render because they are now in
 // view. Nothing above it is mounted.
+import { noteScroll } from "./tileScheduler";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer, defaultRangeExtractor } from "@tanstack/react-virtual";
 import { RENDER_ALL_EVENT } from "./renderWindow";
@@ -101,7 +102,7 @@ export const VIRTUAL_ESTIMATE = 48;
 // A GRID's items are whole LINES of tiles, several hundred px tall each (Books: ~450px), so the row
 // overscan above would keep ~4,500px of tiles built off screen on each side. Three lines is still
 // more than a fast flick covers in one frame.
-export const VIRTUAL_GRID_OVERSCAN = 3;
+export const VIRTUAL_GRID_OVERSCAN = 5;
 // How long a jump target stays pinned. It needs to outlast the jump's own
 // look-until-mounted loop and the scroll that follows, and no more.
 export const PIN_MS = 6000;
@@ -175,7 +176,7 @@ export function planRows(virtualItems, totalSize, lineGap = 0) {
   for (const vi of virtualItems) {
     const gap = vi.start - cursor;
     if (gap > 0.5) plan.push({ spacer: Math.max(0, gap - lineGap) });
-    plan.push({ index: vi.index, key: vi.key });
+    plan.push({ index: vi.index, key: vi.key, size: vi.size });
     cursor = Math.max(cursor, vi.end);
   }
   const tail = totalSize - cursor;
@@ -307,6 +308,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       const read = () => el.scrollTop - listTop;
       let timer = null;
       const onScroll = () => {
+        noteScroll();
         cb(read(), true);
         clearTimeout(timer);
         timer = setTimeout(() => { measureTop(); cb(read(), false); }, 150);
@@ -459,7 +461,7 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     for (const p of lines) {
       if (p.spacer != null) { out.push(p); continue; }
       const from = p.index * cols, to = Math.min(count, from + cols);
-      for (let i = from; i < to; i++) out.push({ index: i, line: p.index });
+      for (let i = from; i < to; i++) out.push({ index: i, line: p.index, size: p.size });
     }
     return out;
   }, [virtualItems, totalSize, lineGap, isGrid, cols, count]);
@@ -501,7 +503,8 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
       if (p.line == null) continue;
       const id = keyOfRef.current?.(p.index);
       const el = id && byId.get(String(id));
-      if (el) tiles.push({ el, line: p.line, r: el.getBoundingClientRect() });
+      // A light tile is held at the line's estimate: measuring it would only hand the estimate back.
+      if (el && !el.classList.contains("instance-wrap--light")) tiles.push({ el, line: p.line, r: el.getBoundingClientRect() });
     }
     if (!tiles.length) return;
     // Did the browser put as many tiles on a line as we planned? Read it off
@@ -561,5 +564,11 @@ export function useVirtualRows({ count, enabled, listRef, keyOf, indexOf, grid =
     v.measureElement(node);
   }, [v]);
 
-  return { active, plan, measureRef, isGrid };
+  // A tile that became its real row is a new element the observer has not met.
+  const noteTileReady = useCallback(() => {
+    const ro = gridRoRef.current;
+    if (ro && listRef.current) { for (const el of childrenById(listRef.current).values()) if (!observedRef.current.has(el)) { observedRef.current.add(el); ro.observe(el); } }
+  }, [listRef]);
+
+  return { active, plan, measureRef, isGrid, noteTileReady, lineGap };
 }

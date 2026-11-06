@@ -11,6 +11,14 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : Infini
 
 const SHOW_TAGS = ["series", "season"];
 
+// Every tile's Play button asks this on every render, so the field search is kept per field map.
+const boardCategoryByMap = new WeakMap();
+function boardCategoryOf(fieldsById) {
+  if (!fieldsById) return null;
+  if (!boardCategoryByMap.has(fieldsById)) boardCategoryByMap.set(fieldsById, Object.values(fieldsById || {}).find((f) => f?.name === "Board Category" && f.type === "select") || null);
+  return boardCategoryByMap.get(fieldsById);
+}
+
 /**
  * A row the Jellyfin sync linked whose Board Category is series or season — a POSITIVE signal the sync stamps,
  * never the absence of a flag (a movie linked without `jellyfinPlayable` must keep Play). `fieldsById` is the grid's
@@ -18,7 +26,7 @@ const SHOW_TAGS = ["series", "season"];
  */
 export function isShowOrSeasonRow(occ, fieldsById) {
   if (!occ?.meta?.jellyfinId) return false;
-  const cat = Object.values(fieldsById || {}).find((f) => f?.name === "Board Category" && f.type === "select");
+  const cat = boardCategoryOf(fieldsById);
   if (!cat) return false;
   const v = valueOf(occ.fields?.[cat.id]);
   return (Array.isArray(v) ? v : v ? [v] : []).some((t) => SHOW_TAGS.includes(t));

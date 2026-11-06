@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-05 (3) — A LONG GRID BOARD NO LONGER BLACKS OUT: tiles entering a scroll draw light, posters are asked for late and small
+
+User: *"look into scrolling boards and scrolling large boards ... i dont want a bunch of repaints that blank out the screen or stuttering"*, with a video (Movies). Measured on poms, Movies, full screen, 1050x958, prod vs this build, alternating (`tools/uisweep/_scroll.mjs`, gitignored, like `_scrollcheck.mjs`); the ranges are two rounds, except the people row and the phone wheel:
+```
+                                       prod              this build
+longest black, wheel 1200px/30ms       757-6312ms        51-68ms
+longest black, scrollbar drag          3116-5460ms       0
+normal wheel 400px/30ms, start to end  17.6-18.3s        4.6-5.2s
+ posters showing after stopping        12.0-13.5s        1.4-2.4s     <- a drag: 1.3-2.2s, about the same as prod
+main thread blocked, drag              11-13s            0.7-1.3s
+phone 4x, drag: longest black          3.6-6.3s          1.1-1.2s
+People (stacked), 400px/30ms           no black, unchanged by design
+```
+- **Cause:** ~15 tiles a screen at ~25ms each in one task, so no paint for ~500ms while wheel events queued (hence 18s for a 5s gesture). CSS A/Bs (hover, contain, wallpaper, shadow, marquee) were not the lever.
+- **`ui/DeferredTile.jsx` + `helpers/tileScheduler.js`:** a GRID board's tile that mounts during a scroll is its picture and name; it becomes the real row when the scroll settles (140ms), on-screen first, 8ms a frame. It keeps the row's class and ids and stays a direct child of the list. Waits at most 1200ms, so a slow continuous scroll still gets real rows. Light tiles are left out of line measuring.
+- **GRIDS ONLY, and that is measured:** on stacked People a light row's other height made the virtualizer correct the scroll, which read as more scrolling, for ever (208,300px, no row ever real). Do not widen it without solving that.
+- **Posters:** `helpers/tileImage` asks TMDB for w342 (~42 KB against ~88 KB) on tiles; the viewer keeps the full picture. A light tile asks only after 120ms on screen, so a fling queues nothing. `LoadingImage` remembers decoded pictures, so a swap does not fade one in again. `showRow` lookups: a WeakMap (`nextUnwatched`), 266ms of the scroll profile.
+- A search calls `wantTileNow` (6s), so its target is real at once.
+- **Probe faults, each of which produced wrong numbers:** full screen draws the panel TWICE, so `[data-panel-id]` found the hidden copy under the one the wheel scrolled (every coverage number before that was wrong); "the first scrollable ancestor" on a phone is one tile's `.instance-fields`; a wheel does not scroll in phone emulation (use DRAG=1); `blankFrames` counts the end of the list. Only a screenshot showed light tiles without posters, while the numbers looked fine. `settle` and `longestBlackMs` are the numbers to read.
+- **Seen, left:** the search ring's designed double blink can run twice with a ~250ms gap when the page settles after the first (`jumpToOccurrence` pins this; prod re-blinks too). Scrollbar estimates on a phone vary (228k-371k px).
+- **Not watched:** a real phone, Firefox (the user's browser; all of this is headless Chromium), rotation on a live grid (`virtualAnchor` tests pass).
+
+---
+
 ### 2026-11-05 (2) — THE CRAWL WORKS NOW; a restart is 51s, not 11 min; radial items moved to Settings; duration copies
 
 User: *"fix the depugging of the sweep first"* · *"fix the 11 min load time for poms"* · move Export, Convert, Add a button, History, Apply Template into Settings, Filter Override off the radial, Hide Label on rows · a cover on a row's radial · *"make copies of occurances in the schedule for the duration"* · hide Done · the phone covers every surface, not just where it differs.
