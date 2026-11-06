@@ -1088,6 +1088,51 @@ export function recordsOnDay(list, fieldId, day) {
   return idxs.map((i) => list[i]);
 }
 
+/**
+ * When an AND condition holds a plain `_ancestors HAS_ANCESTOR <one id>` rule, that id — the FIND can then read
+ * the records under it from an index instead of testing every record. Null otherwise.
+ */
+export function hasAncestorRuleOf(predicate, $vars) {
+  if (!predicate || (predicate.operator || "AND") !== "AND" || !Array.isArray(predicate.rules)) return null;
+  for (const r of predicate.rules) {
+    if (!r || Array.isArray(r.rules) || r.comparator !== "HAS_ANCESTOR") continue;
+    if (!/^(?:\$item\.|\$record\.)?_ancestors$/.test(typeof r.left === "string" ? r.left : "")) continue;
+    const right = resolveExpr(r.right, $vars);
+    if ((typeof right === "string" && right) || typeof right === "number") return String(right);
+  }
+  return null;
+}
+
+const _ancestorIndexes = new WeakMap(); // list -> { asks, byAncestor: Map(id -> idx[]) | null }
+/**
+ * The records of `list` (in list order) that carry `ancestorId` in their `_ancestors`, or null = "scan it".
+ * The index is built on the SECOND ask of a list: a list is often asked once and then replaced (a CREATE makes a
+ * new array), and building for one ask costs more than the scan it replaces. `Schedule: Build Schedule` asks the
+ * same list once per off-screen day column (~60): ~1.4M record tests per date step on poms grid (2026-11-06).
+ */
+export function recordsUnder(list, ancestorId) {
+  let e = _ancestorIndexes.get(list);
+  if (!e) { e = { asks: 0, byAncestor: null }; _ancestorIndexes.set(list, e); }
+  if (!e.byAncestor) {
+    if (++e.asks < 2) return null;
+    const ix = new Map();
+    list.forEach((rec, i) => {
+      const anc = resolveRecordPath(rec, "_ancestors");
+      if (!Array.isArray(anc)) return;
+      const seen = new Set();
+      for (const a of anc) {
+        const k = String(a);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        if (!ix.has(k)) ix.set(k, []);
+        ix.get(k).push(i);
+      }
+    });
+    e.byAncestor = ix;
+  }
+  return (e.byAncestor.get(ancestorId) || []).map((i) => list[i]);
+}
+
 export function resolveRecordPath(record, path) {
   if (record == null || !path) return null;
   // Tolerate legacy `$item.X` / `$record.X` predicates from seed data — the
@@ -1865,6 +1910,14 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (onDay) pool = ofModules.length
         ? pool.filter((r) => recordsOnDaySet(itemList, onDay).has(r))
         : recordsOnDay(itemList, onDay.fieldId, onDay.day);
+      // A plain "_ancestors HAS_ANCESTOR <id>" rule reads the records under that id from an index. The condition
+      // still runs on every one of them, so this only narrows what is tested.
+      const underId = wantedId == null ? hasAncestorRuleOf(predicate, $vars) : null;
+      const under = underId != null ? recordsUnder(itemList, underId) : null;
+      if (under) {
+        if (pool === itemList) pool = under;
+        else { const keep = new Set(under); pool = pool.filter((r) => keep.has(r)); }
+      }
       const usable = (it) => it && !it.deleted && !it.meta?.isTemplate;
       let candidates;
       if (wantedId != null) {

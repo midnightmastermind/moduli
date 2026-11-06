@@ -231,7 +231,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       for (const f of fieldIds) if (f) _feedSyncScope.add(f);
     } else {
       // `window.__feedDiag` names who asked for a whole pass — the expensive kind.
-      if (typeof window !== "undefined" && window.__feedDiag === true) console.log("[feedDiag] whole pass asked by", new Error().stack.split("\n").slice(2, 5).map((l) => l.trim()).join(" < "));
+      if (typeof window !== "undefined" && window.__feedDiag === true) console.log("[feedDiag] whole pass asked by", new Error().stack.split("\n").slice(2, 10).map((l) => l.trim()).join(" < "));
       _feedSyncScope = "all";
     }
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);

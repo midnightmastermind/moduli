@@ -1133,11 +1133,10 @@ export function deleteOperation({ dispatch, socket, operationId, emit = true }) 
  */
 export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurrencesById, occurrenceId, fieldId, value, flow = "replace" }) {
   if (!occurrenceId || !fieldId) return;
-  const lookup = occurrencesById || {};
-  const listLookup = Array.isArray(occurrences)
-    ? Object.fromEntries(occurrences.map(o => [o.id || o._id?.toString?.(), o]))
-    : {};
-  const occ = lookup[occurrenceId] || listLookup[occurrenceId];
+  // The list is only a fallback for a row the map lacks. It used to be turned into a whole-grid map on EVERY
+  // call (~22k rows, once per op field write: ~500ms of a date step on poms grid, 2026-11-06).
+  const occ = (occurrencesById || {})[occurrenceId]
+    || (Array.isArray(occurrences) ? occurrences.find((o) => (o.id || o._id?.toString?.()) === occurrenceId) : undefined);
   if (!occ) return;
   const updatedOcc = {
     ...occ,
