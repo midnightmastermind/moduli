@@ -10,7 +10,7 @@ const state = {
 };
 
 describe("each window keeps its own layout", () => {
-  it("restores this window's panels, pages, split and date over what the server last had", () => {
+  it("restores this window's panels, pages and split over what the server last had, but takes the grid's date", () => {
     const snap = snapshotLayout(state);
     const payload = {
       gridId: "g",
@@ -24,7 +24,9 @@ describe("each window keeps its own layout", () => {
     const out = applyWindowLayout(payload, snap);
     expect(out.grid.occurrences).toEqual(["pA", "pB"]);        // pC was added by another window: not shown here
     expect(out.grid.cols).toBe(2); expect(out.grid.rows).toBe(1);
-    expect(out.grid.activeFilterValues).toEqual({ d: "2026-10-24" });
+    // The date is shared (2026-11-06): a window's own date showed in the toolbar while the pages and the build kept
+    // the grid's, so the day on screen was never built.
+    expect(out.grid.activeFilterValues).toEqual({ d: "2026-10-01" });
     expect(out.grid.meta).toEqual({ layoutTree: "mine", fieldPresets: [1] }); // shared meta kept
     expect(out.grid.name).toBe("Shared name");
     expect(out.views[0].activeOccurrenceId).toBe("page2");
@@ -88,7 +90,9 @@ describe("phone on a mosaic grid", () => {
     expect(incomingPanel({ id: "a", placement: { row: 2 }, occurrences: [1] }, new Set(["a"]), { phoneShared: true }).placement).toEqual({ row: 2 });
     expect(incomingPanel({ id: "a", placement: { row: 2 }, occurrences: [1] }, new Set(["a"])).placement).toBeUndefined();
     setLocalLayout(true);
-    expect(incomingGridPatch({ rows: 3, activeFilterId: "f" }, {}, { keepGridKeys: ["rows"] })).toEqual({ rows: 3 });
+    expect(incomingGridPatch({ rows: 3, activeFilterId: "f" }, {}, { keepGridKeys: ["rows"] })).toEqual({ rows: 3, activeFilterId: "f" });
+    // another window's date change is taken here
+    expect(incomingGridPatch({ cols: 4, activeFilterValues: { d: "2026-11-07" } }, {})).toEqual({ activeFilterValues: { d: "2026-11-07" } });
     expect(incomingGridPatch({ rows: 3 }, {})).toEqual({});
   });
 });

@@ -12,7 +12,10 @@
 //
 // Pure apart from the storage it is handed; fails quiet (no storage = the server's layout).
 
-export const GRID_LAYOUT_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences", "activeFilterValues", "activeFilterId"];
+// The DATE is not layout (user, 2026-11-06: "one shared date"). A window that restored its own date showed it in the
+// toolbar while the Schedule / Day Page / Trackers pages kept the grid's (their dates are shared data), and the build
+// ops build for the page's date — so the day on screen was never built.
+export const GRID_LAYOUT_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences"];
 export const GRID_META_LAYOUT_KEYS = ["layoutTree", "layoutRules"];
 export const PANEL_LAYOUT_KEYS = ["occurrences", "placement", "display"];
 

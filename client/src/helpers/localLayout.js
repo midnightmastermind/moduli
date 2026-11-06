@@ -1,6 +1,6 @@
 // helpers/localLayout.js — every window keeps its own layout.
 //
-// Which page each panel shows, the grid's split layout and its date filter are LAYOUT. Since 2026-10-24 (user: "turn
+// Which page each panel shows and the grid's split layout are LAYOUT (the date is shared, 2026-11-06). Since 2026-10-24 (user: "turn
 // off persisted layout between devices for all") every window keeps its own: it still SENDS its layout writes (the
 // server's copy is what a device that has never opened the grid starts from), but it IGNORES other windows' layout
 // changes as they arrive, and on a reload it restores its own saved layout (helpers/windowLayout). Before, this was
@@ -65,7 +65,8 @@ export function keepLocal(event, data) {
 // ── Incoming: another device's layout must not reshape this one either ──────
 // `occurrences` is the grid's panel list: which panels a device shows is part of its layout, so a panel added or
 // removed on another device does not appear or vanish here (user, 2026-10-26).
-const LAYOUT_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences", "activeFilterValues", "activeFilterId"];
+// Not the date: it is the grid's, shared by every window (helpers/windowLayout GRID_LAYOUT_KEYS, 2026-11-06).
+const LAYOUT_GRID_KEYS = ["rows", "cols", "colSizes", "rowSizes", "occurrences"];
 const LAYOUT_META_KEYS = ["layoutTree", "layoutRules"];
 
 /**

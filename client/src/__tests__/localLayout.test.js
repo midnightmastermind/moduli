@@ -25,11 +25,11 @@ describe("localLayout", () => {
     expect(s.emit.mock.calls.map((c) => c[0])).toEqual(["update_view", "update_grid", "update_occurrence"]);
   });
 
-  it("keeps this window's layout and date from another window's grid update, and takes everything else", () => {
+  it("keeps this window's layout from another window's grid update, and takes everything else — the date included (shared, 2026-11-06)", () => {
     const out = incomingGridPatch(
       { activeFilterValues: { d: 1 }, cols: 4, name: "Poms", meta: { layoutTree: "theirs", vrOffice: { shelves: [] } } },
       { layoutTree: "mine" },
     );
-    expect(out).toEqual({ name: "Poms", meta: { layoutTree: "mine", vrOffice: { shelves: [] } } });
+    expect(out).toEqual({ activeFilterValues: { d: 1 }, name: "Poms", meta: { layoutTree: "mine", vrOffice: { shelves: [] } } });
   });
 });

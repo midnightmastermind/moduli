@@ -4160,3 +4160,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 **2026-11-06 10:54** — "enlarge them" (rating stars + Pick random) · "make sure they are centered" · "and please continue after that … with what you were working on with the ui testing"
 
 **2026-11-06 12:41** — "i noticed daypage and schedule fail to build on future days" (account2 began; finished by account3: a drop that throws left the tab's op fires parked forever — fixed; Nov 7 was never built, a reload builds it)
+
+**2026-11-06 12:41** — "i noticed daypage and schedule fail to build on future days" · (asked) one shared date across windows · "i think it came from my reload" · "try nov 8th"

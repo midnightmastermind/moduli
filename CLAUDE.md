@@ -35,6 +35,31 @@ User: *"i noticed daypage and schedule fail to build on future days"* (account2 
 
 ---
 
+### 2026-11-06 (6) — THE DAY ON SCREEN WAS NEVER BUILT: a window restored its own date, the pages kept the grid's
+
+User: *"i noticed daypage and schedule fail to build on future days"*. Measured on poms grid: Nov 6 and Nov 8 columns
+existed, Nov 7 (the grid's date) had neither, and no create for it ever reached the server — while a fresh probe tab
+loading on Nov 7 built it fine (writes blocked; the page builds locally).
+- **Cause:** since 2026-10-24 every window keeps its own layout, the DATE included (`helpers/windowLayout`
+  GRID_LAYOUT_KEYS), and ignores other windows' date changes (`localLayout` LAYOUT_GRID_KEYS). The Schedule / Day Page /
+  Trackers pages carry their OWN date (`filterOverride`, shared data that follows the toolbar), and the build ops build
+  for the page's date. A window that reopened on its remembered date therefore showed that day in the toolbar while the
+  pages — and the build — stayed on the grid's. The user's Edge tab reopened on Nov 7 with the pages on Nov 6: its load
+  sweep built Nov 6 (already there: 175 effects applied in 1ms, no creates) and Nov 7 never. Measured the same way with
+  a probe: window date Nov 10 → toolbar "Nov 10", 105 creates, all for the grid's Nov 7.
+- **Fix (user's pick, "one shared date"):** `activeFilterValues` / `activeFilterId` are out of both lists — a window
+  keeps its panels, pages and split, takes the grid's date on reload, and takes another window's date change live (that
+  window ran the build). Probe after, window date Nov 8, pages Nov 7: old build toolbar "Sun, Nov 8", fixed build
+  "Sat, Nov 7" = the pages. `windowLayout.test.js` / `localLayout.test.js` cases inverted with the reason.
+- **The user's own reload built Nov 7** at 13:45 (50 slots + the day page), which is the same mechanism working when the
+  window's date matched the pages'.
+- Probes: `_futurebuild`, `_futuresend`, `_emitdiag` (`window.__emitDiag`), `_windate` (DAY= the window's saved date).
+  **Probe trap:** a writes-blocked probe that loads on a missing day builds it LOCALLY; the next reload in the same
+  browser can find it again (boot snapshot), so read "no creates" there with care. And `test grid 2`'s date was left on
+  a multi-day pick (Nov 7 + 9) by the end-to-end test.
+
+---
+
 ### 2026-11-06 (5) — FIREFOX AGREES WITH CHROMIUM; a search opened during the load never saw the rest of the grid
 
 Sweep continued. **Firefox (the user's browser), desktop, 20 surfaces, writes blocked:** every failure it found is the
