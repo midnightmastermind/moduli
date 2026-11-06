@@ -214,3 +214,20 @@ export function splitShownFirst(occurrences = [], modules = [], { shownRootIds =
   for (const m of modules) (placedByCore.has(m?.id) ? coreModules : deferredModules).push(m);
   return { core, deferred, coreModules, deferredModules };
 }
+
+/**
+ * THE TEMPLATES GO FIRST (2026-11-06). A day the user steps to during the load is built by cloning a template
+ * (Schedule: Build Schedule, Day Page: Build), and the template pages are not shown, so their rows were in the second
+ * message. On a slow connection (measured: ~100 KB/s, the second message ~2 minutes) the new day's Schedule spun until
+ * the whole catalogue arrived. This returns the page occurrences filed under the Templates folder (and its subfolders),
+ * to be passed as extra roots to `splitShownFirst` and `holdBackText`. Pure.
+ */
+export function templateRootIds(occurrences = [], folders = [], templatesFolderId) {
+  if (!templatesFolderId) return [];
+  const under = new Set([templatesFolderId]);
+  for (let grew = true, n = 0; grew && n < 32; n++) {
+    grew = false;
+    for (const f of folders) if (f?.id && !under.has(f.id) && under.has(f.parentId)) { under.add(f.id); grew = true; }
+  }
+  return occurrences.filter((o) => o?.id && under.has(o.parentId)).map((o) => o.id);
+}

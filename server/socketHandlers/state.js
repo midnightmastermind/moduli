@@ -5,7 +5,8 @@ import { cacheShapeOccurrence } from "../utils/cacheOccurrence.js";
 import { isCompressed } from "../utils/textmapCompression.js";
 import Grid from "../models/Grid.js";
 import { joinFeedGroup } from "./feedLeader.js";
-import { splitShownFirst, holdBackText } from "../utils/splitFullState.js";
+import { splitShownFirst, holdBackText, templateRootIds } from "../utils/splitFullState.js";
+import { findTemplatesFolder } from "../utils/templatesFolder.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 import { projectRowsForWire } from "../utils/wireProjection.js";
 
@@ -222,7 +223,9 @@ export function registerStateHandlers(socket, {
       // SHOWN PAGES FIRST (2026-11-03): the panels on this grid and the page each one shows go in this message with
       // every page row; the rows of pages nobody is looking at follow (utils/splitFullState.splitShownFirst).
       const keepRootIds = [...(gridDoc?.occurrences || []),
-        ...Object.values(uc.viewsById || {}).map((v) => v?.activeOccurrenceId).filter(Boolean)];
+        ...Object.values(uc.viewsById || {}).map((v) => v?.activeOccurrenceId).filter(Boolean),
+        // A day stepped to during the load is cloned from a template, so the templates come first too.
+        ...templateRootIds(allGridOccs, Object.values(uc.foldersById || {}), findTemplatesFolder(uc, { gridId, userId })?.id)];
       const split = splitShownFirst(allGridOccs, gridModules, { shownRootIds: keepRootIds });
       const { deferred, coreModules, deferredModules } = split;
       // Text of a kept row that is not on a shown page (a page card, a picked row) follows too.

@@ -13,6 +13,7 @@ vi.mock("../socketHandlers/feedLeader.js", () => ({ joinFeedGroup: () => {} }));
 vi.mock("../utils/splitFullState.js", () => ({
   splitShownFirst: () => ({ core: [], deferred: [{ id: "later", gridId: "g1" }], coreModules: [], deferredModules: [] }),
   holdBackText: (core) => ({ core, textmaps: {} }),
+  templateRootIds: () => [],
 }));
 
 const { registerStateHandlers, fullStateKey } = await import("../socketHandlers/state.js");

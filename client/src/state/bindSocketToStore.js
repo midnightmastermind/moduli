@@ -439,14 +439,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // new one — the gridId guard in `onFullStateRest` only covers chunks that
       // arrive AFTER this point.
       restChunks = null;
-      armRestFallback();
+      sweptOnPartial = null;
+      restWaitStartedAt = 0;
+      // The 15s below is the SERVER's time to send the rest, so it starts when the request goes out — after the
+      // paint. Started here, a page busy for 15s before it could even ask (a date change at first paint: the request
+      // left at 37s) gave up with nothing received and ran the load on half the grid (2026-11-06). This longer timer
+      // only covers a tab whose request never goes out (a hidden tab runs no animation frame).
+      armRestFallback(REST_REQUEST_GRACE_MS);
       // ASK FOR THE REST ONLY ONCE THE GRID HAS PAINTED. Pushed in the same tick
       // instead, the catalogue's frames arrive back to back and their PARSE
       // competes with the very frame this split exists to free — measured, 16.73
       // MB was already received by first paint. `afterPaint` is rAF THEN a
       // macrotask, because a rAF callback still runs before the paint (the trap
       // the textblock-mint work paid for).
-      afterPaint(() => safeEmit(socket, "request_full_state_rest", { gridId: payload.gridId }));
+      afterPaint(() => {
+        safeEmit(socket, "request_full_state_rest", { gridId: payload.gridId });
+        if (pendingFullState === payload) armRestFallback();
+      });
       return;
     }
     runLoadSweep(payload);
@@ -461,6 +470,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let pendingFullState = null;
   let restFallbackTimer = null;
   const REST_FALLBACK_MS = 15000;
+  const REST_REQUEST_GRACE_MS = 60000;
+  const REST_LATE_MS = 2000;
+  const REST_GIVE_UP_MS = 180000;
+  let restWaitStartedAt = 0;
+  // The payload a fallback swept before the rest arrived. The late chunks are added to it and the load sweep runs
+  // again over the whole grid when the last lands: the first pass ran on half a grid (a day's Schedule column was
+  // never built, 2026-11-06). The builders find what exists, so the second pass only adds what was missing.
+  let sweptOnPartial = null;
 
   // ── THE CATALOGUE IS ONE STORE WRITE, NOT ONE PER CHUNK ───────────────────
   //
@@ -498,10 +515,24 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
   }
 
-  function armRestFallback() {
+  function armRestFallback(ms = REST_FALLBACK_MS) {
     if (restFallbackTimer) clearTimeout(restFallbackTimer);
+    const armedAt = Date.now();
     restFallbackTimer = setTimeout(() => {
       restFallbackTimer = null;
+      // A TIMER THAT FIRES LATE MEANS THE PAGE WAS BUSY, NOT THAT THE SERVER WENT QUIET. The server sends every chunk
+      // the moment it is asked; on a busy page (a date change during the load) they sit in the socket's queue behind
+      // the work, and this timer can win the race to the main thread. Sweeping then ran the load on half the grid and
+      // produced ~2,900 changes (measured 2026-11-06: the Schedule spun ~80s). So: late, or the socket is down (a
+      // reconnect sends a fresh full_state) — wait another round, up to REST_GIVE_UP_MS in all.
+      const late = Date.now() - armedAt > ms + REST_LATE_MS;
+      const down = socket && socket.connected === false;
+      if (pendingFullState && (late || down) && Date.now() - (restWaitStartedAt || armedAt) < REST_GIVE_UP_MS) {
+        if (!restWaitStartedAt) restWaitStartedAt = armedAt;
+        armRestFallback(ms);
+        return;
+      }
+      restWaitStartedAt = 0;
       // Fail open on BOTH halves: the rows that arrived reach the store even
       // though `done` did not, and the sweep runs without the rest.
       const held = restChunks?.occurrences?.length || 0;
@@ -509,8 +540,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (!pendingFullState) return;
       console.warn(`[full_state] deferred chunks never completed — dispatched ${held} held occurrence(s) and running the load sweep anyway`);
       const p = pendingFullState; pendingFullState = null;
+      sweptOnPartial = p;
       runLoadSweep(p);
-    }, REST_FALLBACK_MS);
+    }, ms);
   }
 
   function onFullStateRest(rest = {}) {
@@ -532,6 +564,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // A late chunk for a grid the user has already navigated away from must not
     // be merged into the new one.
     if (rest.gridId && pendingFullState?.gridId && rest.gridId !== pendingFullState.gridId) return;
+    if (rest.gridId && sweptOnPartial?.gridId && rest.gridId !== sweptOnPartial.gridId) return;
     // The same guard for the held chunks, which outlive `pendingFullState` once
     // the fallback has fired: a late chunk for another grid must not be merged.
     if (rest.gridId && restChunks?.gridId && rest.gridId !== restChunks.gridId) return;
@@ -550,15 +583,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     // Accumulate onto the pending payload so the sweep below sees the WHOLE
     // grid — the executor builds its maps from this object, not from the store.
-    if (pendingFullState) {
+    const target = pendingFullState || sweptOnPartial;
+    if (target) {
       // The load sweep reads this object, so it gets the held text too (fresh row objects — the store's are not
       // mutated in place).
       if (rest.textmaps && Object.keys(rest.textmaps).length) {
-        pendingFullState.occurrences = pendingFullState.occurrences.map((o) =>
+        target.occurrences = target.occurrences.map((o) =>
           (o && rest.textmaps[o.id] !== undefined && (o.textmap == null || o.textHeld) ? { ...o, textmap: rest.textmaps[o.id], textHeld: undefined } : o));
       }
-      if (rest.occurrences?.length) pendingFullState.occurrences = pendingFullState.occurrences.concat(rest.occurrences);
-      if (rest.modules?.length) pendingFullState.modules = pendingFullState.modules.concat(rest.modules);
+      if (rest.occurrences?.length) target.occurrences = target.occurrences.concat(rest.occurrences);
+      if (rest.modules?.length) target.modules = target.modules.concat(rest.modules);
     }
     if (!rest.done) return;
 
@@ -568,9 +602,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     flushRestChunks();
     markLoad("rest:dispatched");
     if (restFallbackTimer) { clearTimeout(restFallbackTimer); restFallbackTimer = null; }
+    restWaitStartedAt = 0;
     const p = pendingFullState;
     pendingFullState = null;
-    if (p) runLoadSweep(p);
+    if (p) { runLoadSweep(p); return; }
+    if (sweptOnPartial) {
+      const whole = sweptOnPartial; sweptOnPartial = null;
+      console.warn("[full_state] the rest arrived after the fallback — running the load sweep again over the whole grid");
+      runLoadSweep(whole);
+    }
   }
 
   function runLoadSweep(payload) {

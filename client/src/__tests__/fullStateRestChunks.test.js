@@ -93,7 +93,8 @@ describe("deferred catalogue chunks", () => {
     socket._trigger("full_state_rest", { gridId: "g1", occurrences: [occ("a1"), occ("a2")], chunk: 1, chunks: 4, done: false });
     expect(restOf(dispatched)).toHaveLength(0);
 
-    vi.advanceTimersByTime(15000);
+    // 15s from the REQUEST, which goes out a frame after the paint (2026-11-06).
+    vi.advanceTimersByTime(15100);
 
     const rests = restOf(dispatched);
     expect(rests).toHaveLength(1);
@@ -131,5 +132,74 @@ describe("deferred catalogue chunks", () => {
     const rests = restOf(dispatched);
     expect(rests).toHaveLength(1);
     expect(rests[0].payload.occurrences.map((o) => o.id)).toEqual(["fresh"]);
+  });
+
+  // A date change at first paint kept the page busy until the request for the rest went out at 37s; the 15s fallback,
+  // started when the first half arrived, had already run the load on half the grid (the day's Schedule column was
+  // never built). The 15s is the server's, so it starts at the request (2026-11-06).
+  test("the fallback waits for the request: a page too busy to ask does not give up on the server", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }); // no animation frame: the request has not gone out
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket } = setup();
+    beginDeferredLoad(socket);
+    vi.advanceTimersByTime(30000);
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(false);
+    vi.advanceTimersByTime(31000); // the long grace still fails open for a request that never goes out
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(true);
+    warn.mockRestore();
+  });
+
+  test("once asked, the server has 15s", () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket } = setup();
+    beginDeferredLoad(socket);
+    vi.advanceTimersByTime(15100);
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(true);
+    warn.mockRestore();
+  });
+
+  test("a rest that lands after the fallback runs the load sweep again over the whole grid", () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket, dispatched } = setup();
+    beginDeferredLoad(socket);
+    vi.advanceTimersByTime(15100);
+    socket._trigger("full_state_rest", { gridId: "g1", occurrences: [occ("late1")], chunk: 1, chunks: 2, done: false });
+    socket._trigger("full_state_rest", { gridId: "g1", occurrences: [occ("late2")], chunk: 2, chunks: 2, done: true });
+    expect(restOf(dispatched).at(-1).payload.occurrences.map((o) => o.id)).toEqual(["late1", "late2"]);
+    expect(warn.mock.calls.some((c) => /running the load sweep again/.test(String(c[0])))).toBe(true);
+    warn.mockRestore();
+  });
+
+  // The server sends every chunk at once; on a busy page they wait in the socket's queue and the timer can reach the
+  // main thread first. A timer that fires LATE says the page was busy, not that the server went quiet (2026-11-06).
+  test("a fallback that fires late waits another round instead of sweeping half the grid", () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket, dispatched } = setup();
+    beginDeferredLoad(socket);
+    vi.advanceTimersByTime(20); // the request goes out
+    vi.setSystemTime(Date.now() + 25000); // the page is busy for 25s: the clock moves, the timer has not run yet
+    vi.advanceTimersByTime(15100); // now it runs, 10s late
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(false);
+    socket._trigger("full_state_rest", { gridId: "g1", occurrences: [occ("r1")], chunk: 1, chunks: 1, done: true });
+    expect(restOf(dispatched).at(-1).payload.occurrences.map((o) => o.id)).toEqual(["r1"]);
+    expect(warn.mock.calls.some((c) => /running the load sweep again/.test(String(c[0])))).toBe(false);
+    warn.mockRestore();
+  });
+
+  test("a fallback while the socket is down waits for it", () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket } = setup();
+    beginDeferredLoad(socket);
+    socket.connected = false;
+    vi.advanceTimersByTime(15100);
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(false);
+    socket.connected = true;
+    vi.advanceTimersByTime(15100);
+    expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(true);
+    warn.mockRestore();
   });
 });
