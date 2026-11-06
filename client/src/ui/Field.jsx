@@ -2506,7 +2506,7 @@ function Field({
                       autoFocus
                       value={selectQuery}
                       onChange={(e) => setSelectQuery(e.target.value)}
-                      placeholder="Filter options…"
+                      aria-label="Filter options" placeholder="Filter options…"
                       style={{
                         width: "100%", height: 28, fontSize: FIELD_FONT, fontFamily: "monospace",
                         background: "var(--input-bg)", border: "1px solid var(--input-border)",

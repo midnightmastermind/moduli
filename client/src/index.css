@@ -6631,6 +6631,8 @@ input.artifact-thumb-info-name--editing {
   z-index: 3;
   flex: 0 0 auto !important;
 }
+/* That handle sits at the top left. A tile with no picture starts with its name, which must clear it. */
+.container-items--content-column .instance-content > .instance-textcol > .instance-label:first-child { padding-left: 24px !important; }
 
 /* The picture, on top and full width. `order` only reorders the PAINT and the
    flex line — the DOM, and therefore the drop target and the artifact-viewer

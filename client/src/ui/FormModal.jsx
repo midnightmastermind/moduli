@@ -33,12 +33,12 @@ function FreeInput({ item, value, onChange, inputRef }) {
   const id = `form-item-${item.key}`;
   const type = itemType(item);
   if (type === "longtext") {
-    return <textarea id={id} ref={inputRef} rows={3} value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, resize: "vertical" }} />;
+    return <textarea id={id} aria-label={item.label || item.key} ref={inputRef} rows={3} value={value ?? ""} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, resize: "vertical" }} />;
   }
   if (type === "boolean") {
     return (
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)" }}>
-        <input id={id} ref={inputRef} type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} /> Yes
+        <input id={id} aria-label={item.label || item.key} ref={inputRef} type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} /> Yes
       </label>
     );
   }
@@ -52,12 +52,12 @@ function FreeInput({ item, value, onChange, inputRef }) {
   }
   if (type === "number") {
     return (
-      <input id={id} ref={inputRef} type="number" value={value ?? ""} style={inputStyle}
+      <input id={id} aria-label={item.label || item.key} ref={inputRef} type="number" value={value ?? ""} style={inputStyle}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />
     );
   }
   return (
-    <input id={id} ref={inputRef} type={type === "date" ? "date" : "text"} value={value ?? ""} style={inputStyle}
+    <input id={id} aria-label={item.label || item.key} ref={inputRef} type={type === "date" ? "date" : "text"} value={value ?? ""} style={inputStyle}
       onChange={(e) => onChange(e.target.value)} />
   );
 }

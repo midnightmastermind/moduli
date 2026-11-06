@@ -58,3 +58,21 @@ describe("what axe found in the settings forms and on the page", () => {
     for (const l of read("ui/StyleEditor.jsx").split("\n").filter((x) => x.includes("<SelectTrigger"))) expect(l).toContain("aria-label");
   });
 });
+
+describe("the last unnamed controls", () => {
+  it("a form's boxes carry their question", () => {
+    const src = read("ui/FormModal.jsx");
+    expect(src.match(/aria-label=\{item\.label \|\| item\.key\}/g).length).toBeGreaterThanOrEqual(3);
+  });
+  it("the option filter and the template name", () => {
+    expect(read("ui/Field.jsx")).toContain('aria-label="Filter options"');
+    expect(read("ui/TemplatesSection.jsx")).toContain('aria-label="New template name"');
+  });
+});
+
+// A column tile lifts its handle out of the row, over the picture. With no picture it landed on the row's name.
+describe("a column tile with no picture", () => {
+  it("keeps its name clear of the lifted handle", () => {
+    expect(read("index.css")).toMatch(/\.container-items--content-column \.instance-content > \.instance-textcol > \.instance-label:first-child \{ padding-left: 24px !important; \}/);
+  });
+});

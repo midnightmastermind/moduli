@@ -151,6 +151,7 @@ export default function TemplatesSection({ occurrence }) {
         <input
           value={saveName}
           onChange={(e) => setSaveName(e.target.value)}
+          aria-label="New template name"
           placeholder="Save as new template..."
           style={{
             flex: 1, fontSize: 12,

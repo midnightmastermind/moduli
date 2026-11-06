@@ -192,7 +192,7 @@ export const SURFACES = [
   { id: "context.panel", area: "context", name: "Page right-click menu", from: [40], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); await context(page, ctx, ".page-header"); } },
   { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
-    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-row`, { button: "right" }); await page.waitForTimeout(500); } },
+    open: async (page, ctx) => { await clear(page); await inPanel(page, ctx, "button.panel-files-btn"); const pid = await mainPanel(page, ctx); await page.click(`${P(pid)} .manifest-row >> nth=1`, { button: "right" }); await page.waitForTimeout(500); } },
   { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
       // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.

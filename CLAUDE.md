@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 — THE CRAWLER PRESSED THE WRONG THING IN EVERY SUB-MENU; the accessibility rows
+
+User: *"keep going please"*. Fresh crawls of every surface: phone 2,055 rows, desktop 3,707 (`docs/ui-sweep-2026-11-06-*.md`, crawled before the fixes below went out; the changed surfaces were re-crawled after).
+- **`tools/uisweep/crawl.controlsIn` never cleared its numbers.** A sub-menu's control 0 resolved to the parent's control 0, behind the menu: 70+ rows said "covered by the backdrop", and every older level-two row, pass or fail, is void. Real taps showed the menu works.
+- **Crawler reads that were wrong, so nobody re-chases them:** a phone date arrow "unreachable" was the tap landing and the thread busy past 2.5s (date moved; the crawler now says slow); a control in a `<label>` is named; Add a field "popup off screen 9000px" is a 460px menu scrolling its list; `context.tree`'s first row is PINNED, which has no menu; "Go there" on the row you are on and Escape stepping out of the field editor first are by design.
+- **Phone:** tap minimum 32 for icon and text buttons in menus and forms and boxes there; tick boxes 24 over inline widths; date arrows 32 (24 on desktop) and named "Previous date"/"Next date"; tiny icons a 24px box; a table row's + no longer lies over a pill. The drag handle stays 26 and row corners 30 (user's sizes, they sit over content).
+- **Names:** search boxes, settings close, Style and form dropdowns, form inputs, the field editor's boxes, the document editor. A row is `role="group"`: `listitem` with no list failed axe on every board.
+- **Real defects found:** Escape did not leave a full-screen panel (`FullscreenOverlay`: it waits for typing and for a popup on top). On a column tile with no picture the lifted drag handle sat on the name (`container-items--content-column`; the label sets its padding inline, so `!important`, and only measuring showed the first rule was inert). 6 of 15 rows on the rebuild's Books, 0 of 65 on poms.
+- **Left:** a few small targets (`+` 7x32, Unbind/Hide 16x32, Active 10x10, a 26x14 switch, desktop header icons under 24); axe on the date picker (`aria-prohibited-attr`, unnamed buttons); `share.place` is empty; the sweep's performance pass, destructive paths, consolidating pickers, Firefox.
+
+---
+
 ### 2026-11-05 (3) — A LONG GRID BOARD NO LONGER BLACKS OUT: tiles entering a scroll draw light, posters are asked for late and small
 
 User: *"look into scrolling boards and scrolling large boards ... i dont want a bunch of repaints that blank out the screen or stuttering"*, with a video (Movies). Measured on poms, Movies, full screen, 1050x958, prod vs this build, alternating (`tools/uisweep/_scroll.mjs`, gitignored, like `_scrollcheck.mjs`); the ranges are two rounds, except the people row and the phone wheel:
