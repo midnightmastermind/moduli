@@ -25,6 +25,9 @@ describe("placeColumnMenu", () => {
   });
 });
 describe("wiring", () => {
+  it("it lives at the top of the page: a panel's transform makes fixed clip inside it, and the next panel paints over it", () => {
+    expect(fs.readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8")).toMatch(/createPortal\(\s*<div className="table-kebab-menu"/);
+  });
   it("the table places its menu against the window", () => {
     expect(fs.readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8")).toMatch(/placeColumnMenu\(/);
   });

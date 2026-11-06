@@ -55,26 +55,49 @@ ApiTokenSchema.statics.upsertFromRaw = async function ({ rawToken, userId, name 
 };
 
 // Parse "moduli_<tokenId>_<secret>" → { tokenId, secret } or null.
+// mint() writes a 12-character base64url id, and base64url includes "_", so the
+// id is read by its LENGTH when the token has that shape. Splitting on the first
+// "_" cut ~1 id in 6 short and that token could never authenticate (2026-11-06).
+// Any other shape (a hand-written id in .env) still splits on the first "_".
+const MINTED_ID_LEN = 12;
+function splitAt(rest, sep) {
+  const tokenId = rest.slice(0, sep);
+  const secret = rest.slice(sep + 1);
+  return tokenId && secret ? { tokenId, secret } : null;
+}
 ApiTokenSchema.statics.parse = function (rawToken) {
   if (typeof rawToken !== "string" || !rawToken.startsWith("moduli_")) return null;
   const rest = rawToken.slice("moduli_".length);
+  if (rest[MINTED_ID_LEN] === "_" && rest.length > MINTED_ID_LEN + 1) return splitAt(rest, MINTED_ID_LEN);
   const sep = rest.indexOf("_");
   if (sep < 1) return null;
-  const tokenId = rest.slice(0, sep);
-  const secret = rest.slice(sep + 1);
-  if (!tokenId || !secret) return null;
-  return { tokenId, secret };
+  return splitAt(rest, sep);
 };
+// Every split authenticate may try: the parsed one, and the first-"_" one, so a token
+// that read correctly under the old rule (a short hand-written id) still does.
+function candidateSplits(rawToken, parse) {
+  const out = [];
+  const main = parse(rawToken);
+  if (main) out.push(main);
+  if (typeof rawToken === "string" && rawToken.startsWith("moduli_")) {
+    const rest = rawToken.slice("moduli_".length);
+    const sep = rest.indexOf("_");
+    const old = sep > 0 ? splitAt(rest, sep) : null;
+    if (old && !out.some((c) => c.tokenId === old.tokenId)) out.push(old);
+  }
+  return out;
+}
 
 // Look up + verify a raw token. Returns the live token doc on success,
 // null on any failure (unknown tokenId / wrong secret / revoked).
 // Updates lastUsedAt no more than once per 60s to avoid write-amplifying
 // every request.
 ApiTokenSchema.statics.authenticate = async function (rawToken) {
-  const parts = this.parse(rawToken);
-  if (!parts) return null;
-  const doc = await this.findOne({ tokenId: parts.tokenId, revoked: false });
+  const cands = candidateSplits(rawToken, (r) => this.parse(r));
+  if (!cands.length) return null;
+  const doc = await this.findOne({ tokenId: { $in: cands.map((c) => c.tokenId) }, revoked: false });
   if (!doc) return null;
+  const parts = cands.find((c) => c.tokenId === doc.tokenId);
   const ok = await bcrypt.compare(parts.secret, doc.hash);
   if (!ok) return null;
   const now = Date.now();

@@ -6,6 +6,7 @@
 // Task 13: Row + column virtualization via @tanstack/react-virtual.
 import { placeColumnMenu } from "../../helpers/placeColumnMenu";
 import React, { useMemo, useCallback, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   useReactTable,
@@ -82,10 +83,8 @@ function FilterValueWidget({ comparator, value, onChange }) {
 // The column menu hangs to the LEFT of its button (right: 0). On the first columns that runs past the
 // table's left edge, where the table's own scroll box clips it — the first column's menu could not be
 // used at all (measured on poms' People Table: x = -143). It opens to the right there instead.
-export function keepKebabMenuInTable(el) {
-  if (!el) return;
-  const btn = el.parentElement?.querySelector(".table-kebab-btn");
-  if (!btn) return;
+export function keepKebabMenuInTable(el, btn) {
+  if (!el || !btn) return;
   el.style.position = "fixed"; el.style.right = "auto"; el.style.left = "0"; el.style.top = "0";
   // A transformed ancestor moves `fixed`: measure where 0,0 landed and allow for it.
   const origin = el.getBoundingClientRect();
@@ -557,6 +556,7 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
 
   // Kebab menu state: { colIndex, anchor }
   const [kebabOpen, setKebabOpen] = useState(null);
+  const kebabBtnRef = useRef(null);
   // Which column header is being RENAMED. At rest the title is a wrapping label;
   // only the one being edited becomes an <input>.
   const [editingTitleCol, setEditingTitleCol] = useState(null);
@@ -983,6 +983,7 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
 
   // --- Kebab menu toggle ---
   const handleKebabClick = useCallback((e, colIndex) => {
+    kebabBtnRef.current = e.currentTarget;
     e.stopPropagation();
     setKebabOpen(prev => {
       if (prev?.colIndex === colIndex) {
@@ -1151,6 +1152,7 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
     if (!kebabOpen) return;
     const handler = (e) => {
       if (clickedInsidePortalLayer(e.target)) return;
+      if (e.target.closest?.(".table-kebab-menu")) return; // it lives at the top of the page, not in the table
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setKebabOpen(null);
         setFieldPickerCol(null);
@@ -1558,8 +1560,8 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
                     >
                       <MoreVertical size={12} />
                     </button>
-                    {kebabOpen?.colIndex === c && (
-                      <div className="table-kebab-menu" ref={keepKebabMenuInTable}>
+                    {kebabOpen?.colIndex === c && createPortal(
+                      <div className="table-kebab-menu" ref={(el) => keepKebabMenuInTable(el, kebabBtnRef.current)}>
                         {/* Show field picker or the Show field trigger */}
                         {fieldPickerCol === c ? (
                           <div className="table-kebab-field-picker">
@@ -1823,7 +1825,8 @@ export default function ContainerTable({ occurrence, dispatch, socket, cellText 
                             </button>
                           </>
                         )}
-                      </div>
+                      </div>,
+                      document.body
                     )}
                   </div>
                 </div>

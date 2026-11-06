@@ -5875,7 +5875,7 @@ input.artifact-thumb-info-name--editing {
 }
 .table-kebab-btn:hover { background: var(--border-default); color: var(--text-primary); }
 .table-kebab-menu {
-  position: absolute; top: calc(100% + 2px); right: 0; z-index: 20;
+  position: fixed; z-index: 1100;
   background: hsl(var(--popover-1)); border: 1px solid var(--border-default);
   border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.35);
   min-width: 200px; max-width: 280px;
