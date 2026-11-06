@@ -200,7 +200,7 @@ SharePlace 5, …), plus separate pickers that each draw their own option list: 
 
 **Files:** `docs/ui-sweep-2026-11-03.md` — a short "Please try" list.
 
-- [ ] **Step 1:** List what headless cannot cover — the real phone (iOS/Android keyboard, share sheet, momentum scroll), the Quest app, Firefox on Windows, the Bangle watch — each with the exact steps and what "working" looks like. Send it to the user as the closing message with the report link.
+- [x] **Step 1:** List what headless cannot cover — the real phone (iOS/Android keyboard, share sheet, momentum scroll), the Quest app, Firefox on Windows, the Bangle watch — each with the exact steps and what "working" looks like. Send it to the user as the closing message with the report link.
 
 ---
 
