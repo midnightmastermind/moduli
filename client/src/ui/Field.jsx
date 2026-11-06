@@ -560,7 +560,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                  ...(compact && fieldName ? { background: "rgba(var(--occ-pill) / 0.1)" } : {}) }}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" role="combobox" disabled={disabled}
+            <Button variant="outline" role="combobox" aria-label={fieldName || name || "Choose"} disabled={disabled}
               className={compact
                 ? "justify-between font-normal border-0 rounded-none h-auto px-1.5 py-0.5 text-[length:var(--cascade-field-font-size,12px)]"
                 : "w-full justify-between font-normal border-0 rounded-none h-7 text-sm"}

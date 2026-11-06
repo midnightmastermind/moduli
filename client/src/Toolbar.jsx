@@ -262,7 +262,7 @@ const gridOptions = useMemo(
               {/* width:auto overrides the trigger's `w-full`: at 100% it claimed the
                   whole left group and squeezed the logo to its minimum even at
                   1600px wide. */}
-              <SelectTrigger style={{ width: "auto", minWidth: 64, maxWidth: 150, height: 24, fontSize: 11, flexShrink: 1 }}>
+              <SelectTrigger aria-label="Grid" style={{ width: "auto", minWidth: 64, maxWidth: 150, height: 24, fontSize: 11, flexShrink: 1 }}>
                 <SelectValue placeholder="Select grid…" />
               </SelectTrigger>
               <SelectContent>
@@ -505,7 +505,7 @@ const gridOptions = useMemo(
                 value={gridId || "__none__"}
                 onValueChange={(val) => { if (val !== "__none__") { onGridChange?.({ target: { value: val } }); setDrawerOpen(false); } }}
               >
-                <SelectTrigger style={{ width: "100%", height: 28, fontSize: 11 }}>
+                <SelectTrigger aria-label="Grid" style={{ width: "100%", height: 28, fontSize: 11 }}>
                   <SelectValue placeholder="Select grid…" />
                 </SelectTrigger>
                 <SelectContent style={{ zIndex: 1200 }}>

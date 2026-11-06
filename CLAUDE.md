@@ -39,9 +39,13 @@ date arrow -> label changes        71-116ms -> 2-7     392-575ms -> 11-20
 - **Probe trap:** a probe that clicks a date right after load can be overwritten seconds later by `Grid: Snap Filter To
   Today` — with writes blocked the Last Opened marker never moves, so every probe load is a first load of the day. Settle
   30s first (`SETTLE=30000`).
-- **Seen, not fixed:** a whole-page axe run on poms rebuild still finds `aria-required-children` (a board's `role="list"`
-  holds rows that are now `role="group"`, from yesterday's a11y pass), 22 unnamed buttons (Radix select triggers among
-  them) and 34 small targets (the rating stars are 14px). Tests `deferredCommit` (7), `filterArrowsShowAtOnce` (3),
+- **Then the whole-page axe findings:** a board's items were `role="list"` holding rows that became `role="group"` the day
+  before (`aria-required-children` on every board) — the items area is a named group now (`ModuleContainer`; the row
+  component draws its own wrapper in docs and tables too, so it cannot be the list item). A `combobox` takes no name from
+  its text, so every dropdown pill and the grid picker were unnamed: `aria-label` on each (walker
+  `comboboxNamed.test.js`). The notification pill and the connection pill are 24px tall (were 22). button-name 20 -> 0,
+  aria-required-children 3 -> 0. **Left, a design call:** the rating stars (14px) and "Pick random" (23x19) are segments of
+  a row's field pills; 24px would make every desktop pill taller. Tests `deferredCommit` (7), `filterArrowsShowAtOnce` (3),
   `calendarA11y` (5); client 7,361 pass.
 
 ---

@@ -83,7 +83,7 @@ const OVERFLOW_STYLE = { ...NEUTRAL };
 
 const VISIBLE_MAX = 6;        // hard cap on inline chips; overflow → "+N"
 const PEEK_OFFSET = 14;       // px each older card peeks past the previous
-const CHIP_HEIGHT = 22;       // matches SocketStatusBanner pill height
+const CHIP_HEIGHT = 24;       // matches SocketStatusBanner pill height; 24 is the smallest target (WCAG 2.5.8)
 const CHIP_WIDTH = 280;       // fixed chip width — labels marquee inside
 const OVERFLOW_PILL_WIDTH = 36;
 const LABEL_TRACK_GAP = 28;
@@ -293,8 +293,9 @@ function ExpandButton({ note, color }) {
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          width: 14,
-          height: 14,
+          width: 24,
+          height: 24,
+          margin: "0 -5px",
           border: 0,
           borderRadius: 3,
           background: "transparent",

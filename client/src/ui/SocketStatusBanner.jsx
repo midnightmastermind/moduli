@@ -73,7 +73,7 @@ export default function SocketStatusBanner() {
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        height: 22,
+        height: 24,
         padding: "0 8px",
         borderRadius: 999,
         fontSize: 10,

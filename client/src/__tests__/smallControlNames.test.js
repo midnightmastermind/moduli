@@ -41,6 +41,11 @@ describe("what axe found in the settings forms and on the page", () => {
     expect(src).not.toMatch(/role="listitem"/);
     expect(src.match(/role="group"/g).length).toBeGreaterThanOrEqual(2);
   });
+  it("a board's items are a named group too: a list holding groups failed aria-required-children on every board", () => {
+    const src = read("modules/ModuleContainer.jsx");
+    expect(src).not.toMatch(/role="list"/);
+    expect(src).toMatch(/role="group"\s+ref=\{itemsListRef\}\s+aria-label=\{`\$\{module\.label \|\| "Container"\} items`\}/);
+  });
   it("the document editor is named", () => {
     expect(read("ui/Editor.jsx")).toMatch(/attributes: \{ "aria-label": "Document text", class: "doc-editor-content/);
   });

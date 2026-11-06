@@ -2026,7 +2026,7 @@ function Container({
           }}
         >
           <div
-            role="list"
+            role="group"
             ref={itemsListRef}
             aria-label={`${module.label || "Container"} items`}
             className={"container-items"
