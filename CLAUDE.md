@@ -35,6 +35,7 @@ People (stacked), 400px/30ms           no black, unchanged by design
 - A search calls `wantTileNow` (6s), so its target is real at once.
 - **Probe faults, each of which produced wrong numbers:** full screen draws the panel TWICE, so `[data-panel-id]` found the hidden copy under the one the wheel scrolled (every coverage number before that was wrong); "the first scrollable ancestor" on a phone is one tile's `.instance-fields`; a wheel does not scroll in phone emulation (use DRAG=1); `blankFrames` counts the end of the list. Only a screenshot showed light tiles without posters, while the numbers looked fine. `settle` and `longestBlackMs` are the numbers to read.
 - **Seen, left:** the search ring's designed double blink can run twice with a ~250ms gap when the page settles after the first (`jumpToOccurrence` pins this; prod re-blinks too). Scrollbar estimates on a phone vary (228k-371k px).
+- **Live, after deploy (served chunk sha-matched):** normal wheel 4.7s, no black. Posters after stopping varied with the row you land on: 1.4, 1.6, 4.7 and once 16.4s (still in flight or decoding, no dead image; TMDB from this box). Not a fixed 2s.
 - **Not watched:** a real phone, Firefox (the user's browser; all of this is headless Chromium), rotation on a live grid (`virtualAnchor` tests pass).
 
 ---
