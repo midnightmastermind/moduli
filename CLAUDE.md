@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (8) — A DATE STEP'S PER-COLUMN FIND READS AN INDEX; the 1.9s feed pass is traced, not changed
+
+Picked up account2 (5-hour limit mid-investigation of *"look into the speed of a schedule loading"*).
+- **`operationActions.recordsUnder`** — `Schedule: Build Schedule` asks, per off-screen day column, a FIND over
+  `$allOccurrences` (~22k rows) with `_ancestors HAS_ANCESTOR <col>`, ~60 times a date step. A plain AND rule of
+  that shape now narrows the pool from a per-LIST index (WeakMap, built on the second ask; the condition still runs
+  on every narrowed record). Safe because the sweep's `_allItemsCache` is only patched IN PLACE for value-only
+  writes (ancestors unchanged) and any structural write replaces the array. `setOccurrenceFieldValue` no longer
+  builds a whole-grid map per call. Test `findUnderAncestor` (A/B: only the speed case fails without the index).
+  Client 7,393 pass; client-only deploy `2acec349`, served chunk sha-matched. **Not re-measured on prod.**
+- **The feed pass on a date step** (`tools/uisweep/_feedstep.mjs`, writes blocked, `__feedDiag`): ~25 whole-pass
+  requests per step, decoded via the local source maps — `UPDATE_ITEM_LABEL` (tracker date prefixes),
+  `UPDATE_ITEM_META`, and the CREATE / COPY_LINK parent-list writes in `applyOperationEffect`. They debounce into
+  ONE pass, and the structural ones are real (a column added under the Schedule can change a scoped feed), so
+  scoping the label/meta writes alone would not shrink it. The lever is scoping a STRUCTURAL write to the feeds
+  whose `feed.scope` (or an `_ancestors`/`parentId` condition) lies on the written parent's chain — not done.
+
+---
+
 ### 2026-11-06 (7) — A DAY STEPPED TO DURING THE LOAD WAITED FOR THE WHOLE CATALOGUE; and a half-grid load saved short counts
 
 User: *"i just went to move nov 9th after reloading the grid and the loading bar for the schedule page just spins"* ·
