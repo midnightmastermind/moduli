@@ -728,6 +728,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
       console.log(`[full_state-client] runMatchingOperations: ${Math.round(tOps1 - tOps0)}ms — ${operations.length} ops, ${effects.length} effects, ${displayUpdates.length} display updates`);
+      // `window.__loadDiag`: which kinds of change the load produced, and on what — the worker path logs no per-op line.
+      if (typeof window !== "undefined" && window.__loadDiag) {
+        const tally = {};
+        for (const e of effects) {
+          const k = `${e._effect} ${e.fieldId || e.path || e.field || ""}`.trim();
+          tally[k] = (tally[k] || 0) + 1;
+        }
+        window.__loadEffects = { tally, sample: effects.slice(0, 40) };
+      }
       if (displayUpdates.length > 0) {
         dispatch(setComputedValuesAction(displayUpdates));
       }
