@@ -597,7 +597,7 @@ const primarySt = { background: "var(--accent, #3b82f6)", borderColor: "var(--ac
 // appears, however much overflow it has.
 function Shell({ children }) {
   return (
-    <div data-testid="share-shell" style={{
+    <div data-testid="share-shell" className="share-shell" style={{
       font: "13px/1.5 system-ui, sans-serif", color: "var(--text-primary, #eee)",
       background: "var(--body-bg, #16181c)", padding: 16, boxSizing: "border-box",
       flex: "1 1 auto", minHeight: 0, height: "100%",

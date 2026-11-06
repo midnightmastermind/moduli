@@ -9832,3 +9832,10 @@ body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title=
   display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px;
 }
 body[data-layout="mobile"] button[role="switch"] { height: 24px; }
+
+/* The share window is what a phone opens when you share to Moduli. It is its own page (no body[data-layout]), so it
+   sizes its controls for a finger itself (UI sweep 2026-11-06: radios were 13px, dropdowns 26px). */
+@media (pointer: coarse) {
+  .share-shell input:is([type="radio"], [type="checkbox"]) { width: 24px; height: 24px; vertical-align: middle; }
+  .share-shell :is(select, button, input:not([type="radio"]):not([type="checkbox"])) { min-height: 32px; }
+}

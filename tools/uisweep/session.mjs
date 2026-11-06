@@ -67,7 +67,7 @@ export async function open({ vp = "desktop", throttle, skin = null, grid = "poms
   if (skin) await page.addInitScript(skinScript(skin));
   if (localBuild) {
     const mime = (f) => /\.m?js$/.test(f) ? "application/javascript" : f.endsWith(".css") ? "text/css" : f.endsWith(".svg") ? "image/svg+xml" : "application/octet-stream";
-    await page.route(new RegExp(`^${SITE.replace(/[.]/g, "\\.")}/(\\?.*)?$`), (r) => r.fulfill({ status: 200, contentType: "text/html", body: fs.readFileSync(`${localBuild}/index.html`) }));
+    await page.route(new RegExp(`^${SITE.replace(/[.]/g, "\\.")}/(share-place|share-pending)?(\\?.*)?$`), (r) => r.fulfill({ status: 200, contentType: "text/html", body: fs.readFileSync(`${localBuild}/index.html`) }));
     await page.route(new RegExp(`^${SITE.replace(/[.]/g, "\\.")}/assets/`), (r) => {
       const f = `${localBuild}${new URL(r.request().url()).pathname}`;
       return fs.existsSync(f) ? r.fulfill({ status: 200, contentType: mime(f), body: fs.readFileSync(f) }) : r.continue();

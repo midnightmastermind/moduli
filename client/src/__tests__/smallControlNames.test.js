@@ -35,6 +35,13 @@ describe("the phone's smallest controls", () => {
   it.each([".notes-close-btn", '[title="Set image…"]', '[title="Lock document"]', '[title="Snap view to center"]'])("%s gets a 24px box", (sel) => expect(css).toContain(sel));
 });
 
+describe("the share window on a phone", () => {
+  it("sizes its own controls for a finger", () => {
+    expect(read("index.css")).toMatch(/@media \(pointer: coarse\) \{\s*\.share-shell input:is\(\[type="radio"\], \[type="checkbox"\]\) \{ width: 24px; height: 24px;/);
+    expect(read("ui/SharePlace.jsx")).toMatch(/data-testid="share-shell" className="share-shell"/);
+  });
+});
+
 describe("what axe found in the settings forms and on the page", () => {
   it("a row is a named group: a list item with no list around it failed on every board", () => {
     const src = read("modules/ModuleInstance.jsx");

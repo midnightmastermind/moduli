@@ -260,8 +260,16 @@ export const SURFACES = [
     open: async (page, ctx) => { await goTo(page, ctx, "Tasks"); const id = await mainPanel(page, ctx); const h = await page.$(`${P(id)} .instance-wrap`); await h.hover(); await inPanel(page, ctx, '.instance-wrap button[aria-label="Show notes"]', { touch: isPhone(page) }); ctx.root = `${P(id)} .instance-doc-body`; } },
 
   // ── sharing / account / forms ─────────────────────────────────────────────
-  { id: "share.place", area: "sharing", name: "Share placement window", from: [59], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-place?stage=${ctx.stage?.id}&k=${ctx.stage?.key}`); await page.waitForTimeout(3000); } },
-  { id: "share.pending", area: "sharing", name: "Share pending page", from: [60], vps: ["phone"], root: "body", open: async (page, ctx) => { await page.goto(`${ctx.site}/share-pending`); await page.waitForTimeout(2000); } },
+  { id: "share.place", area: "sharing", name: "Share placement window", from: [59], root: "body", open: async (page) => {
+    // Stage a link the way the extension does (expires in 10 min; nothing is written unless Clip is pressed).
+    const site = new URL(page.url()).origin;
+    const token = await page.evaluate(() => localStorage.getItem("moduli-token"));
+    const r = await fetch(`${site}/api/v1/share/stage`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ url: "https://en.wikipedia.org/wiki/Bonsai", title: "Bonsai - Wikipedia", shape: "page", source: "uisweep" }) });
+    const st = await r.json().catch(() => ({}));
+    if (!st.stageId) throw new Error(`could not stage a clip (${r.status})`);
+    await page.goto(`${site}/share-place?stage=${st.stageId}&k=${st.key}`); await page.waitForTimeout(3000);
+  } },
+  { id: "share.pending", area: "sharing", name: "Share pending page", from: [60], vps: ["phone"], root: "body", open: async (page) => { await page.goto(`${new URL(page.url()).origin}/share-pending`); await page.waitForTimeout(2000); } },
   { id: "extension", area: "sharing", name: "Browser extension popup", from: [61], vps: ["desktop"], root: "body", manual: true, open: async () => {} },
   { id: "account", area: "account", name: "Account menu", from: [62], root: POPUP, vps: ["desktop"], open: async (page) => { await clear(page); if (isPhone(page)) await openPhoneMenu(page); else await tap(page, 'button[aria-label="Account"], button[title="Account"]'); } },
   { id: "forms.button", area: "forms", name: "A button's form (New …)", from: [39, 37, 38], root: '[data-testid="form-modal"]',
