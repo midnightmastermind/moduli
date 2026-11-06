@@ -9,7 +9,7 @@ describe("phone controls", () => {
   it.each(["Remove column", "Move up", "Close", "Clear history"])("%s gets a tap box", (t) => expect(block).toContain(`button[title="${t}"]`));
   it("a bare dot button is not stretched into an oval", () => expect(block).toMatch(/button:not\(\[role="switch"\]\):not\(:empty\)/));
   it("tick boxes grow, and only on the phone layout", () => {
-    expect(block).toMatch(/body\[data-layout="mobile"\] :is\(input\[type="checkbox"\], input\[type="radio"\]\) \{ width: 22px; height: 22px; \}/);
+    expect(block).toMatch(/body\[data-layout="mobile"\] :is\(input\[type="checkbox"\], input\[type="radio"\]\) \{ width: 24px !important; height: 24px; min-width: 24px; \}/);
     for (const rule of block.split("}").filter((r) => r.includes("{"))) expect(rule).toMatch(/body\[data-layout="mobile"\]/);
   });
 });

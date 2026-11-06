@@ -48,7 +48,7 @@ export async function controlsIn(page, rootSel) {
       for (let n = el; n && n !== root.parentElement; n = n.parentElement) { if (Number(getComputedStyle(n).opacity) === 0) { hoverOnly = true; break; } }
       const label = (el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim().split("\n")[0] || el.getAttribute("placeholder") || el.getAttribute("name") || el.tagName.toLowerCase()).trim().slice(0, 60);
       el.setAttribute("data-uisweep-i", String(i));
-      out.push({ i, label, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || "", cls: typeof el.className === "string" ? el.className.slice(0, 80) : "", rect: { x: r.x, y: r.y, width: r.width, height: r.height }, hoverOnly, named: !!(el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim() || el.getAttribute("aria-labelledby")) });
+      out.push({ i, label, tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || "", cls: typeof el.className === "string" ? el.className.slice(0, 80) : "", rect: { x: r.x, y: r.y, width: r.width, height: r.height }, hoverOnly, named: !!(el.getAttribute("aria-label") || el.getAttribute("title") || (el.innerText || "").trim() || el.getAttribute("aria-labelledby") || [...(el.labels || [])].some((l) => (l.innerText || "").trim())) });
       i++;
     }
     return out;
@@ -194,6 +194,8 @@ export async function crawlSurface(page, surface, { budgetMs = 300000, vp = "des
     } catch (e) { activated = false; reach.push(`could not activate: ${String(e.message).split("\n")[0].slice(0, 80)}`); }
     await page.waitForTimeout(settleMs);
     const after = await snapshot(page, surface.root, errors.length);
+    // The press landed and the thread was busy past the tap's timeout: slow, not out of reach. (A phone date step at 4x.)
+    if (!activated && classifyOutcome(before, after) !== "nothing") { activated = true; reach.pop(); reach.push("slow: over 2.5s to answer"); }
     const newTag = `${surface.id}-${i}`.replace(/[^a-z0-9-]/gi, "_");
     await page.evaluate(({ sel, tag }) => { for (const e of document.querySelectorAll(sel)) if (!e.hasAttribute("data-uisweep-pre") && !e.closest("[data-uisweep-pre]")) e.setAttribute("data-uisweep-new", tag); }, { sel: POPUP_SEL, tag: newTag });
     // Could not press it: usually a state an earlier control left (full screen, a viewer, a moved page), not this control.

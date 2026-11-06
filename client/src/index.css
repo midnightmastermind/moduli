@@ -9818,6 +9818,15 @@ body[data-layout="mobile"] :is(.occ-search-clear, .page-header-close-btn, .sprea
 body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]):not(:empty) {
   min-height: 32px;
 }
-/* A tick box is 13px by default. */
-body[data-layout="mobile"] :is(input[type="checkbox"], input[type="radio"]) { width: 22px; height: 22px; }
+/* A tick box is 13px by default; some carry an inline width. */
+body[data-layout="mobile"] :is(input[type="checkbox"], input[type="radio"]) { width: 24px !important; height: 24px; min-width: 24px; }
+/* Boxes in a menu or a form. */
+body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"], [data-command-center]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select) { min-height: 32px; }
+body[data-layout="mobile"] [data-command-center] button:not([role="switch"]):not(:empty) { min-height: 32px; }
+/* A table row's + lay over the pill in a narrow cell; a table adds fields by its columns. */
+body[data-layout="mobile"] .table-row .instance-field-add-btn { display: none; }
+/* Tiny icons laid over something: the box grows, the icon does not. */
+body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title="Lock document"], [title="Unlock document"], [title="Snap view to center"], [title="Heading level"]) {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px;
+}
 body[data-layout="mobile"] button[role="switch"] { height: 24px; }

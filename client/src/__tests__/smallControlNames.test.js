@@ -22,3 +22,15 @@ describe("the picture search box", () => {
     expect(read("ui/ImagePickerMenu.jsx")).toMatch(/aria-label="Search the web for an image"/);
   });
 });
+
+describe("the field editor's boxes say what they are", () => {
+  const src = read("ui/commandCenter/FieldsTab.jsx");
+  it.each(["Field name", "Field type", "Unit", "Category", "Button label"])("%s", (n) => expect(src).toContain(`aria-label="${n}"`));
+});
+
+describe("the phone's smallest controls", () => {
+  const css = read("index.css");
+  it("tick boxes are 24px, over an inline width", () => expect(css).toMatch(/input\[type="radio"\]\) \{ width: 24px !important; height: 24px;/));
+  it("boxes in a menu or form are 32px tall", () => expect(css).toMatch(/\[data-command-center\]\) :is\(input:not[^{]*select\) \{ min-height: 32px; \}/));
+  it.each([".notes-close-btn", '[title="Set image…"]', '[title="Lock document"]', '[title="Snap view to center"]'])("%s gets a 24px box", (sel) => expect(css).toContain(sel));
+});

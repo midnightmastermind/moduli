@@ -267,7 +267,7 @@ function AffixEditor({ local, setLocal }) {
     <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
       <div style={{ flex: "0 0 60px" }}>
         <span style={labelStyle}>{label}</span>
-        <input
+        <input aria-label={label}
           value={local.meta?.[which] || ""}
           onChange={(e) => setMeta({ [which]: e.target.value })}
           style={{ ...inputStyle, width: 60 }}
@@ -276,7 +276,7 @@ function AffixEditor({ local, setLocal }) {
       </div>
       <div style={{ flex: 1 }}>
         <span style={labelStyle}>{label} choices (comma separated — leave empty for none)</span>
-        <input
+        <input aria-label={`${label} choices`}
           value={listToText(local.meta?.[`${which}Options`])}
           onChange={(e) => setMeta({ [`${which}Options`]: textToList(e.target.value) })}
           style={{ ...inputStyle, width: "100%" }}
@@ -307,7 +307,7 @@ function ButtonFieldConfig({ field, meta, operationsById, setMeta }) {
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
       <div style={{ flex: "1 1 120px" }}>
         <span style={labelStyle}>Button label</span>
-        <input
+        <input aria-label="Button label"
           value={meta?.buttonLabel || ""}
           placeholder={field?.name || "Button"}
           onChange={(e) => setMeta("buttonLabel", e.target.value)}
@@ -369,7 +369,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         <div style={{ flex: "1 1 120px" }}>
           <span style={labelStyle}>Name</span>
-          <input
+          <input aria-label="Field name"
             value={local.name || ""}
             onChange={(e) => { setNameError(null); setLocal((p) => ({ ...p, name: e.target.value })); }}
             style={{ ...inputStyle, ...(nameError ? { borderColor: "var(--danger-border)" } : {}) }}
@@ -382,7 +382,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
         </div>
         <div>
           <span style={labelStyle}>Type</span>
-          <select
+          <select aria-label="Field type"
             value={local.type}
             onChange={(e) => setLocal((p) => ({ ...p, type: e.target.value }))}
             style={{ ...inputStyle, width: "auto", minWidth: 90 }}
@@ -395,7 +395,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
         {(local.type === "number" || local.type === "duration") && (
           <div style={{ flex: "0 0 70px" }}>
             <span style={labelStyle}>Unit</span>
-            <input
+            <input aria-label="Unit"
               value={local.unit || ""}
               onChange={(e) => setLocal(p => ({ ...p, unit: e.target.value }))}
               style={{ ...inputStyle, width: 70 }}
@@ -604,7 +604,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             const srcName = derivedStart ? (fieldsById?.[d.fieldId]?.name || "another field") : null;
             const srcVal = derivedStart ? fieldsById?.[d.fieldId]?.displayConfig?.[d.from] : null;
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={labelStyle}>Start</span>
                 <input
                   type="number"
@@ -628,10 +628,10 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                     follows “{srcName}”
                   </span>
                 )}
-              </div>
+              </label>
             );
           })()}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Target</span>
             <input
               type="number"
@@ -644,8 +644,8 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               placeholder="e.g. 64"
               style={{ ...inputStyle, width: 90 }}
             />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Op</span>
             <select
               value={local.displayConfig?.targetOp || ">="}
@@ -659,8 +659,8 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               <option value="<">&lt;</option>
               <option value="==">=</option>
             </select>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Period</span>
             <select
               value={local.displayConfig?.targetPeriod || "daily"}
@@ -672,7 +672,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               <option value="monthly">monthly</option>
               <option value="yearly">yearly</option>
             </select>
-          </div>
+          </label>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Arrows</span>
             <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer", paddingTop: 2 }}>
@@ -794,7 +794,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
       {categoryFolders.length > 0 && (
         <div>
           <span style={labelStyle}>Category</span>
-          <select
+          <select aria-label="Category"
             value={local.folderId || ""}
             onChange={(e) => setLocal((p) => ({ ...p, folderId: e.target.value || null }))}
             style={{ ...inputStyle, width: "auto", minWidth: 120 }}

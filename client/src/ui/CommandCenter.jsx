@@ -69,6 +69,7 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout, init
   const CC_MAX_W = "1400px"; // was 900px: the Fields/Operations columns ran off the right edge
   return (
     <div
+      data-command-center
       data-testid="command-center"
       data-cc-open={shown ? "" : undefined}
       className="absolute left-0 right-0 font-mono"

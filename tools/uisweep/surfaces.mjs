@@ -29,7 +29,7 @@ async function mainPanel(page, ctx) { const ps = await panels(page, ctx); return
 /** Press Escape until no popup is open. */
 async function clear(page) { for (let i = 0; i < 4; i++) await page.keyboard.press("Escape"); await page.waitForTimeout(200); }
 /** On a phone the toolbar's buttons live in the side drawer. */
-async function openPhoneMenu(page) {
+export async function openPhoneMenu(page) {
   if (await page.$("[data-toolbar-drawer]")) return;
   await tap(page, 'button[aria-label="Open menu"], button[title="Open menu"]', { touch: true });
 }
