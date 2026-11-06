@@ -193,8 +193,8 @@ SharePlace 5, …), plus separate pickers that each draw their own option list: 
 
 **Files:** report rows only (fixes go through Task 7).
 
-- [ ] **Step 1:** With `--writes --grid "test grid 2"`, drive each skipped control once: delete a row / container (keep vs. delete children) / page / folder, remove from grid, Break Link, Lock in place, undo each with Ctrl+Z (desktop) and the toolbar Undo (phone side menu). Expected: each confirms or is undoable in ONE step, and the undo restores exactly (read back from Mongo).
-- [ ] **Step 2:** Clean up every probe row through the app; run `checkGrid` on test grid 2 → no new errors.
+- [x] **Step 1:** With `--writes --grid "test grid 2"`, drive each skipped control once: delete a row / container (keep vs. delete children) / page / folder, remove from grid, Break Link, Lock in place, undo each with Ctrl+Z (desktop) and the toolbar Undo (phone side menu). Expected: each confirms or is undoable in ONE step, and the undo restores exactly (read back from Mongo).
+- [x] **Step 2:** Clean up every probe row through the app; run `checkGrid` on test grid 2 → no new errors.
 
 ### Task 10: What only the user's devices can show
 

@@ -15,6 +15,41 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (2) — DESTRUCTIVE PATHS, ONCE EACH, UNDONE; 1 API token in 6 could never authenticate
+
+Sweep Task 9, picked up from the main account (weekly limit at 08:34 CST, mid-run).
+`tools/uisweep/destructiveRun.mjs` makes each case's fixture on **test grid 2** over REST, presses the control,
+reads Mongo, undoes once (Ctrl+Z on desktop, the side menu's Undo on a phone), reads Mongo again:
+```
+                 asks first                         done   one undo   desktop  phone
+row delete       no                                 ok     exact      ✓        ✓
+container, keep  Cancel / Keep them… / Delete all   ok     exact      ✓        ✓
+container, all   same                               ok     exact      ✓        ✓
+Break Link       no                                 ok     exact      ✓        ✓
+Lock in place    no                                 ok     exact      ✓        ✓
+Remove column    no                                 ok     exact      ✓        ✓
+page delete      Cancel / Delete                    ok     exact      ✓        (right-click only)
+folder delete    no (its contents move up)          ok     exact      ✓        (right-click only)
+```
+- **Fixed by the main account before its limit (`b8fd7298`, deployed):** a delete waits for the user's running writes
+  (`utils/occWriteQueue.js`, `serialByKey.settled`) — "Keep them" left an empty container in Mongo when the late list write
+  landed after the delete; and the column menu is placed against the window (`helpers/placeColumnMenu`).
+- **Then the column menu was still unreachable:** fixed to the window INSIDE a transformed panel, so the next panel painted
+  over it. Portalled to `document.body` (`ContainerTable`; the outside-click handler skips `.table-kebab-menu`).
+- **API tokens (`models/ApiToken.js`):** `mint()` draws a 12-char base64url id, which can contain `_`, and `parse()` split on
+  the first `_` — so ~1 token in 6 (`1-(63/64)^12`) was refused forever ("Invalid or revoked token"). Found because the probe's
+  own token kept 401ing (id `sG9drTxWOD3_`). `parse()` reads the minted length; `authenticate()` also tries the old split, so
+  nothing that worked stops. Live tokens with `_` in the id: 2, both the probe's. `apiTokenParse.test.js` (8; 4 fail before).
+- **Probe faults, each a failed case until found:** test grid 2's root folder is its manifest's `rootFolderId`, not
+  `usr-root-<grid>` (every probe page sat under a folder that does not exist, so the tree never showed it); a tree row must be
+  scrolled into view and hit-tested before a right-click (it opened the PAGE's menu behind it); the phone drawer's Undo is a
+  text button with no title. A crashed run's empty `ZZ`/`D …` fixtures are cleared at the next start.
+- Server 3,506 / client 7,346 pass. Deployed `5f63d17c` with a restart; desktop + phone runs above are against prod.
+- **Debris:** 17 empty orphan modules (R1, K1, A1, L1…) from the crashed runs at 14:04-14:07 UTC, swept with `sweepOrphans`.
+  test grid 2's other `checkGrid` findings predate today (a module-less row from Oct 2, 6 filtered-empty containers).
+
+---
+
 ### 2026-11-06 — THE CRAWLER PRESSED THE WRONG THING IN EVERY SUB-MENU; the accessibility rows
 
 User: *"keep going please"*. Fresh crawls of every surface: phone 2,055 rows, desktop 3,707 (`docs/ui-sweep-2026-11-06-*.md`, crawled before the fixes below went out; the changed surfaces were re-crawled after).
