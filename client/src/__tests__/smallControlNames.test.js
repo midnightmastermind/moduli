@@ -34,3 +34,27 @@ describe("the phone's smallest controls", () => {
   it("boxes in a menu or form are 32px tall", () => expect(css).toMatch(/\[data-command-center\]\) :is\(input:not[^{]*select\) \{ min-height: 32px; \}/));
   it.each([".notes-close-btn", '[title="Set image…"]', '[title="Lock document"]', '[title="Snap view to center"]'])("%s gets a 24px box", (sel) => expect(css).toContain(sel));
 });
+
+describe("what axe found in the settings forms and on the page", () => {
+  it("a row is a named group: a list item with no list around it failed on every board", () => {
+    const src = read("modules/ModuleInstance.jsx");
+    expect(src).not.toMatch(/role="listitem"/);
+    expect(src.match(/role="group"/g).length).toBeGreaterThanOrEqual(2);
+  });
+  it("the document editor is named", () => {
+    expect(read("ui/Editor.jsx")).toMatch(/attributes: \{ "aria-label": "Document text", class: "doc-editor-content/);
+  });
+  it.each(["modules/ModulePanel.jsx", "modules/ModuleInstance.jsx", "modules/ModuleContainer.jsx"])("%s: closing settings is named", (f) => {
+    for (const l of read(f).split("\n").filter((x) => x.includes("onClick={() => setSettingsOpen(false)}") && x.includes("<button"))) expect(l).toContain('aria-label="Close settings"');
+  });
+  it.each([
+    ["ui/ContainerForm.jsx", ['aria-label="Header label overflow"', 'aria-label="Add a field"']],
+    ["ui/LayoutForm.jsx", ['aria-label="View type"']],
+    ["ui/LayoutCascadeEditor.jsx", ["aria-label={label}"]],
+    ["ui/FormInput.jsx", ["aria-label={s.label"]],
+    ["ui/StyleEditor.jsx", ['aria-label={`${label} style mode`}', 'aria-label="Font family"', 'aria-label="Font size"', 'aria-label="Font weight"']],
+  ])("%s", (f, names) => { const src = read(f); for (const n of names) expect(src).toContain(n); });
+  it("every Style select trigger has a name", () => {
+    for (const l of read("ui/StyleEditor.jsx").split("\n").filter((x) => x.includes("<SelectTrigger"))) expect(l).toContain("aria-label");
+  });
+});

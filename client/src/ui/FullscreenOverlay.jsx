@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import ModulePanel from "../modules/ModulePanel";
 import FormInput from "./FormInput";
@@ -31,6 +31,21 @@ const allPanels = useMemo(() => {
     if (!panel) return -1;
     return allPanels.findIndex((p) => p?.id === panel.id);
   }, [allPanels, panel]);
+
+  // Escape leaves full screen, last: a popup on top closes first, and typing keeps the key.
+  const isOpen = !!panel;
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const t = e.target;
+      if (t?.closest?.("input, textarea, select, [contenteditable]")) return;
+      if (document.querySelector('.menu-surface, [role="dialog"], [role="menu"], [role="listbox"], .radial-menu-items, [data-radix-popper-content-wrapper], .header-dropdown')) return;
+      setFullscreenPanelId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, setFullscreenPanelId]);
 
   // ✅ after hooks
   if (!panel) return null;

@@ -380,6 +380,7 @@ export default function LayoutForm({
             <div className="space-y-1">
               <label className="text-[12px] text-muted-foreground font-semibold uppercase">View Type</label>
               <select
+                aria-label="View type"
                 value={currentViewType || "board"}
                 onChange={onViewTypeChange}
                 className="w-full text-xs bg-muted border border-border rounded px-2 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"

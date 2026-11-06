@@ -581,7 +581,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
                 <input
                   autoFocus value={wikiQuery} onChange={(e) => setWikiQuery(e.target.value)}
-                  placeholder="Search Wikipedia…"
+                  aria-label="Search Wikipedia…" placeholder="Search Wikipedia…"
                   style={{ width: "100%", padding: "7px 8px 7px 24px", background: "none", border: "none", outline: "none",
                            color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}
                 />
@@ -658,7 +658,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={`Search ${targetRole}s…`}
+                  aria-label={`Search ${targetRole}s…`} placeholder={`Search ${targetRole}s…`}
                   style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "7px 8px 7px 26px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
                 />
               </div>

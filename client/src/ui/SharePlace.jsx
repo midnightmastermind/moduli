@@ -414,7 +414,7 @@ export default function SharePlace() {
             </div>
           ) : (
             <>
-              <input placeholder="search containers and pages" value={q} onChange={(e) => setQ(e.target.value)} style={inputSt} autoFocus />
+              <input aria-label="search containers and pages" placeholder="search containers and pages" value={q} onChange={(e) => setQ(e.target.value)} style={inputSt} autoFocus />
               <div style={{ maxHeight: 170, overflowY: "auto", marginTop: 2 }}>
                 {dests.length === 0 && q.trim() && searchedQ === q && (
                   <div data-testid="no-dest" style={{ fontSize: 11, color: "var(--text-muted, #aaa)", padding: "4px 2px" }}>

@@ -43,7 +43,7 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
           <input
             value={poolSearch}
             onChange={e => setPoolSearch(e.target.value)}
-            placeholder="search…"
+            aria-label="search…" placeholder="search…"
             style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--text-primary)", fontFamily: "var(--font-mono)", flex: 1, minWidth: 0 }}
             onPointerDown={e => e.stopPropagation()}
           />

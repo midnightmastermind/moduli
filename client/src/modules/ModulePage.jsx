@@ -851,7 +851,7 @@ function Page({
                     hidden();
                 }}
                 title="Search this page"
-                placeholder="Search this page…"
+                aria-label="Search this page…" placeholder="Search this page…"
               />
               {pageModule?.kind === "doc" && (
                 <button

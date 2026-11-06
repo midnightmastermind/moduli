@@ -978,7 +978,7 @@ export default function DrilldownPicker({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={`Search ${level.items.length}…`}
+                aria-label={`Search ${level.items.length}…`} placeholder={`Search ${level.items.length}…`}
                 style={{
                   width: "100%", padding: "4px 6px", fontSize: 11,
                   fontFamily: "var(--font-mono)",

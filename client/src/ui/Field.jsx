@@ -452,7 +452,7 @@ export function OptionSearchList({
               onKeyDown={e => e.key === "Enter" && handleAddNew()}
               className="h-6 text-xs flex-1"
               aria-label="Search or add"
-              placeholder={searchProvider ? `Search or add…` : "Search or add…"} />
+              aria-label="Search or add" placeholder={searchProvider ? `Search or add…` : "Search or add…"} />
             <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Add this option" onClick={handleAddNew} disabled={!newValue.trim()}>
               <Plus className="h-3 w-3" />
             </Button>

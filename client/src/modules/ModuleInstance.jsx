@@ -829,7 +829,7 @@ function InstanceInner({
   if (instanceViewMode === "representation") {
     return (
       <div
-        role="listitem"
+        role="group"
         aria-label={label || "Untitled instance"}
         data-occ-id={occurrence?.id}
         className="font-mono instance-row instance-row-representation"
@@ -1066,7 +1066,7 @@ function InstanceInner({
   })();
   return (
     <div
-      role="listitem"
+      role="group"
       aria-label={label || "Untitled instance"}
       className={"font-mono instance-row"
         + (isOriginalActive ? " hidden" : "")
@@ -1231,7 +1231,7 @@ function InstanceInner({
               </div>
             </PopoverAnchor>
             <PopoverContent align="start" side="right" collisionPadding={8} className="w-auto p-0 settings-sheet" style={{ position: "relative" }}>
-              <button type="button" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
+              <button type="button" aria-label="Close settings" onClick={() => setSettingsOpen(false)} style={{ position: "absolute", top: 6, right: 6, zIndex: 10, background: "none", border: "none", cursor: "pointer", padding: 2, lineHeight: 0, color: "var(--text-muted)" }}><X size={14} /></button>
               <InstanceForm
                 actions={settingsActions}
                 onCloseSettings={() => setSettingsOpen(false)}

@@ -1371,7 +1371,7 @@ const Editor = forwardRef(function Editor({
       },
       // spellcheck starts OFF so unfocused textblocks don't show misspelling
       // squiggles; the focus/blur handlers below flip it on only while editing.
-      attributes: { class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false", spellcheck: "false" },
+      attributes: { "aria-label": "Document text", class: "doc-editor-content prose prose-invert max-w-none focus:outline-none", draggable: "false", spellcheck: "false" },
       handleDOMEvents: {
         // Show the red misspelling squiggles ONLY when the textblock is focused
         // (clicked into) — an unfocused block reads as clean prose. Toggling the

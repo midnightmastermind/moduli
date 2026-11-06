@@ -532,7 +532,7 @@ function SiblingLinksSection({ instance, dispatch, socket }) {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search instances…"
+            aria-label="Search instances…" placeholder="Search instances…"
             aria-label="Search instances"
             className="h-7 text-xs border-0 border-b border-border rounded-none"
           />
@@ -647,7 +647,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="search pages / containers / items…"
+              aria-label="search pages / containers / items…" placeholder="search pages / containers / items…"
               className="h-7 text-[13px]"
             />
             {matches.length > 0 && (

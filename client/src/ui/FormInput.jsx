@@ -188,7 +188,7 @@ export default function FormInput({ schema, value, onChange }) {
           onValueChange={(v) => update(s.key, v)}
           disabled={s.disabled}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label={s.label || s.key}>
             <SelectValue placeholder={s.placeholder ?? "Select…"} />
           </SelectTrigger>
           <SelectContent {...(s.contentProps ?? {})}>

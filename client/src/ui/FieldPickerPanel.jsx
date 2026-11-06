@@ -169,7 +169,7 @@ export default function FieldPickerPanel({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search fields…"
+          aria-label="Search fields…" placeholder="Search fields…"
           aria-label="Search fields"
           style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px 6px 22px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
         />

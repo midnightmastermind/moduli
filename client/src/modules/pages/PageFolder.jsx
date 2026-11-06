@@ -419,7 +419,7 @@ export default function PageFolder({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search…"
+          aria-label="Search…" placeholder="Search…"
           aria-label="Search folder"
           style={{
             flex: 1, minWidth: 0,

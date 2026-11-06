@@ -179,7 +179,7 @@ export default function FieldAddMenu({ module, anchorRect, onClose }) {
                 autoFocus={!isDrawerLayout()}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search fields…"
+                aria-label="Search fields…" placeholder="Search fields…"
                 aria-label="Search fields"
                 style={searchSt}
               />

@@ -190,7 +190,7 @@ export default function StyleEditor({
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-xs font-semibold text-foregroundScale-2">{label}</h4>
         <Select value={styleMode} onValueChange={onStyleModeChange}>
-          <SelectTrigger className="h-6 text-[10px] w-[100px]">
+          <SelectTrigger aria-label={`${label} style mode`} className="h-6 text-[10px] w-[100px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -288,7 +288,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Font Family</Label>
             <Select value={style.fontFamily || "__default"} onValueChange={(v) => updateField("fontFamily", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Font family" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -305,7 +305,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Font Size</Label>
             <Select value={style.fontSize || "__default"} onValueChange={(v) => updateField("fontSize", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Font size" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -372,7 +372,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Font Weight</Label>
             <Select value={style.fontWeight || "__default"} onValueChange={(v) => updateField("fontWeight", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Font weight" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -389,7 +389,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Line Height</Label>
             <Select value={style.lineHeight || "__default"} onValueChange={(v) => updateField("lineHeight", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Line height" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -432,7 +432,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Border Width</Label>
             <Select value={style.borderWidth || "__default"} onValueChange={(v) => updateField("borderWidth", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Border width" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -447,7 +447,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Border Style</Label>
             <Select value={style.borderStyle || "__default"} onValueChange={(v) => updateField("borderStyle", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Border style" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -464,7 +464,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Border Radius</Label>
             <Select value={style.borderRadius || "__default"} onValueChange={(v) => updateField("borderRadius", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Border radius" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -502,7 +502,7 @@ export default function StyleEditor({
           <div>
             <Label className="text-[10px] text-muted-foreground">Padding</Label>
             <Select value={style.padding || "__default"} onValueChange={(v) => updateField("padding", v === "__default" ? null : v)}>
-              <SelectTrigger className="h-6 text-[10px]">
+              <SelectTrigger aria-label="Padding" className="h-6 text-[10px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

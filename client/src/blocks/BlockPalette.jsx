@@ -240,7 +240,7 @@ export function SearchablePalette({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search blocks..."
+          aria-label="Search blocks..." placeholder="Search blocks..."
           className="w-full h-7 px-2 text-xs rounded border border-border bg-background"
         />
       </div>

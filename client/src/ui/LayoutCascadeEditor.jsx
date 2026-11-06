@@ -389,6 +389,7 @@ function RuleSelect({ label, value, onChange, options }) {
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
       <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
       <select
+        aria-label={label}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
         style={{

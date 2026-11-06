@@ -212,6 +212,7 @@ export default function ContainerForm({
             <div className="py-2">
               <span className="text-[12px] text-muted-foreground font-semibold block mb-1">Header label overflow</span>
               <select
+                aria-label="Header label overflow"
                 className="h-7 w-full text-[13px] px-1 rounded bg-backgroundScale-0 border border-borderScale-1 text-foreground outline-none cursor-pointer"
                 value={occurrence?.meta?.labelOverflow ?? "marquee"}
                 onChange={(e) => onOccurrenceUpdate?.({ meta: { ...(occurrence?.meta || {}), labelOverflow: e.target.value } })}
@@ -260,6 +261,7 @@ export default function ContainerForm({
                         );
                       })}
                       <select
+                        aria-label="Add a field"
                         className="text-[12px] h-5 px-1 rounded border border-border bg-input text-foreground"
                         value=""
                         onChange={e => {
