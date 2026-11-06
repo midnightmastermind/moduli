@@ -54,3 +54,11 @@ test("crawlSurface: opened, nothing, hover-only change, wrote; a destructive one
   assert.equal(by.Save.works, "✅ wrote");
   assert.match(by["Delete row"].works, /skipped/);
 });
+
+// A sub-menu's control 0 resolved to the parent's control 0, behind the menu: every level-two row pressed the wrong thing.
+test("controlsIn clears the numbers an earlier crawl left", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("../crawl.mjs", import.meta.url), "utf8");
+  const body = src.slice(src.indexOf("export async function controlsIn"));
+  const clear = body.indexOf('el.removeAttribute("data-uisweep-i")'), tag = body.indexOf('el.setAttribute("data-uisweep-i"');
+  assert.ok(clear > 0 && clear < tag);
+});

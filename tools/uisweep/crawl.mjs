@@ -31,6 +31,9 @@ export async function controlsIn(page, rootSel) {
     // had closed, and reported the same 46 page-chrome rows for each.
     const root = document.querySelector(rootSel);
     if (!root) return [];
+    // Numbers are looked up across the whole page, so a parent crawl's tags would answer for this one's: a sub-menu's control 0
+    // was the handle behind the menu, "covered by" the backdrop, on every level-two row.
+    for (const el of document.querySelectorAll("[data-uisweep-i]")) el.removeAttribute("data-uisweep-i");
     const out = [];
     let i = 0;
     for (const el of root.querySelectorAll(SEL)) {

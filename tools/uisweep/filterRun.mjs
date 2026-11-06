@@ -58,7 +58,7 @@ const picker = (name) => page.evaluateHandle(({ MENU, name }) => {
   let row = lab?.parentElement; for (let i = 0; i < 3 && row && !row.querySelector("button, input"); i++) row = row.parentElement;
   return row || null;
 }, { MENU, name });
-const kindOf = (row) => row.evaluate((r) => r.querySelector(".filter-multipick-btn") ? "multipick" : r.querySelector('[role="switch"]') ? "switch" : r.querySelector("input") ? "input" : r.querySelector('button[title="Next"], button[aria-label="Next"]') ? "arrows" : r.querySelector("button") ? "other" : "none");
+const kindOf = (row) => row.evaluate((r) => r.querySelector(".filter-multipick-btn") ? "multipick" : r.querySelector('[role="switch"]') ? "switch" : r.querySelector("input") ? "input" : r.querySelector('button[aria-label="Next date"]') ? "arrows" : r.querySelector("button") ? "other" : "none");
 const ctlName = (row, sel) => row.evaluate((r, sel) => { const c = r.querySelector(sel); if (!c) return ""; return c.getAttribute("aria-label") || (c.getAttribute("aria-labelledby") ? "labelledby" : "") || (c.closest("label") ? "label" : "") || ((c.innerText || "").trim() && c.tagName === "BUTTON" ? "text" : ""); }, sel);
 
 async function removeFilter(name) {
@@ -125,10 +125,10 @@ async function driveOne(variant, f) {
   } else if (kind === "arrows") {
     const label = () => row.evaluate((r) => (r.innerText || "").replace(/\s+/g, " ").trim());
     const before = await label();
-    const next = await row.$('button[title="Next"], button[aria-label="Next"]'); await press(next); await page.waitForTimeout(800);
+    const next = await row.$('button[aria-label="Next date"]'); await press(next); await page.waitForTimeout(800);
     const mid = await label(); const st1 = await stored(f.id);
     step("next → shown + stored", mid !== before && st1.override != null, `"${before}" → "${mid}" stored ${JSON.stringify(st1.override)}`);
-    const prev = await row.$('button[title="Prev"], button[aria-label="Prev"], button[title="Previous"]'); if (prev) { await press(prev); await page.waitForTimeout(800); }
+    const prev = await row.$('button[aria-label="Previous date"], button[title="Previous"]'); if (prev) { await press(prev); await page.waitForTimeout(800); }
     step("prev → back", (await label()) === before, await label());
   } else step("drive", false, `no driver for "${kind}"`);
   const removed = await removeFilter(f.name);

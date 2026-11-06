@@ -213,7 +213,9 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav, nowrap = fals
       <button
         onClick={onPrev}
         disabled={arrow.disabled}
-        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Prev"}
+        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Previous date"}
+        aria-label="Previous date"
+        className="date-nav-arrow"
         style={{
           background: "transparent", border: 0,
           color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",
@@ -232,7 +234,9 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav, nowrap = fals
       <button
         onClick={onNext}
         disabled={arrow.disabled}
-        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Next"}
+        title={arrow.disabled ? "Arrows disabled — discrete days selected" : "Next date"}
+        aria-label="Next date"
+        className="date-nav-arrow"
         style={{
           background: "transparent", border: 0,
           color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",

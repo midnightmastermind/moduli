@@ -9799,6 +9799,9 @@ body[data-layout="mobile"] .panel-stack-btn-inline {
 .instance-light-picture { display: block; width: 100%; max-height: 72%; object-fit: contain; flex: 0 1 auto; min-height: 0; }
 .instance-light-label { font-size: var(--instance-label-px, 13px); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
+.date-nav-arrow { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; padding: 0; }
+body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; }
+
 /* ── Phone: every control can be seen and pressed (sweep 2026-11-05 measured these from 10x15px up) ── */
 /* A touch screen has no hover: what appears on hover stays shown. */
 body[data-layout="mobile"] .page-header-close-btn { opacity: 1; }
@@ -9809,11 +9812,11 @@ body[data-layout="mobile"] :is(.occ-search-clear, .page-header-close-btn, .sprea
   button[title="New folder"], button[title="Add page"], button[title="Search pages"], button[title="Settings"],
   button[title="Toolbar"], button[title^="Connect cards"]) {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 30px; min-height: 30px;
+  min-width: 32px; min-height: 32px;
 }
 /* Text buttons in a menu or a settings form. */
 body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]):not(:empty) {
-  min-height: 30px;
+  min-height: 32px;
 }
 /* A tick box is 13px by default. */
 body[data-layout="mobile"] :is(input[type="checkbox"], input[type="radio"]) { width: 22px; height: 22px; }

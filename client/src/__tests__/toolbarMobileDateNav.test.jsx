@@ -27,7 +27,7 @@ const mount = (props) => render(<GridActionsContext.Provider value={ctx}><Toolba
 describe("toolbar date nav", () => {
   it("desktop: inline on the toolbar", () => {
     mount();
-    expect(screen.getAllByTitle("Prev").length).toBe(1);
+    expect(screen.getAllByTitle("Previous date").length).toBe(1);
   });
 
   it("mobile: not on the toolbar, but inside the side drawer with the filters", () => {
@@ -38,6 +38,6 @@ describe("toolbar date nav", () => {
     fireEvent.click(screen.getByTitle("Open menu"));
     expect(screen.getByTestId("toolbar-filter-inline")).toBeTruthy();
     expect(screen.getByTestId("toolbar-filter-date")).toBeTruthy();
-    expect(screen.getAllByTitle("Prev").length).toBe(1);
+    expect(screen.getAllByTitle("Previous date").length).toBe(1);
   });
 });

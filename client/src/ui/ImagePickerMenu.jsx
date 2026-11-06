@@ -250,6 +250,7 @@ export default function ImagePickerMenu({
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
                   placeholder="Search the web for an image…"
+                  aria-label="Search the web for an image"
                   autoFocus
                   style={{
                     flex: 1, padding: "7px 10px", fontSize: 12.5,
