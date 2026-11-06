@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (3) — A PICKED DATE SHOWS AT ONCE; the date picker passes axe
+
+User: *"keep going"*, then *"make sure to look at the performance of the datepicker too in things like filters. it should
+be selected right away despite the filtered datas timeline"*. Measured with writes blocked, poms rebuild:
+```
+                                   desktop 1x          phone 4x
+calendar day -> shown selected     77-115ms -> 4-7     382-923ms -> 30-39
+date arrow -> label changes        71-116ms -> 2-7     392-575ms -> 11-20
+```
+- **Cause:** the picker set its selection and called `onCommit` in one handler, and `onCommit` is the filter change (the
+  write, the ops listening to the date, every dated board's re-render), so nothing painted until all of it was done. The
+  arrows' label came from the stored value, same wait.
+- **`helpers/deferredCommit.js` (NEW):** `push` keeps the latest value and commits it after the paint (`afterPaint`);
+  `flush` commits now. `NavPickerPopover` sends both commits through it and flushes on close and unmount.
+  `FilterNavWidgets.ArrowsWidget` shows a `pending` date at once, later taps step from it (two quick taps = two days,
+  one write), and the stored value wins again once the write has gone. Read back: 2x Next -> Nov 8 stored, 2x Prev -> Nov 6.
+  Every date filter (toolbar, a page's or container's filter menu) uses these two components.
+- **axe (sweep row toolbar#11):** react-multi-date-picker hard-codes unnamed month arrows and an `aria-label` on the
+  other month's blank filler days. `helpers/calendarA11y.jsx`: `renderButton={calendarArrow}` (the library's classes kept,
+  named Previous/Next month) and `watchHiddenDays` (filler days `aria-hidden`, re-applied as the month changes). axe on
+  the open picker: 7 violations -> 0; Next month still turns November -> December.
+- **Probe trap:** a probe that clicks a date right after load can be overwritten seconds later by `Grid: Snap Filter To
+  Today` — with writes blocked the Last Opened marker never moves, so every probe load is a first load of the day. Settle
+  30s first (`SETTLE=30000`).
+- **Seen, not fixed:** a whole-page axe run on poms rebuild still finds `aria-required-children` (a board's `role="list"`
+  holds rows that are now `role="group"`, from yesterday's a11y pass), 22 unnamed buttons (Radix select triggers among
+  them) and 34 small targets (the rating stars are 14px). Tests `deferredCommit` (7), `filterArrowsShowAtOnce` (3),
+  `calendarA11y` (5); client 7,361 pass.
+
+---
+
 ### 2026-11-06 (2) — DESTRUCTIVE PATHS, ONCE EACH, UNDONE; 1 API token in 6 could never authenticate
 
 Sweep Task 9, picked up from the main account (weekly limit at 08:34 CST, mid-run).

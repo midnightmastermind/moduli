@@ -4154,3 +4154,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 **2026-11-05 15:58** — "i put a video in screenshots showing off the scrolling issues from before. its choppy and paint takes too long" (for the board-scrolling pass)
 
 **2026-11-06 08:39** — "please continue with the tasks from my other claude account, read its chat logs" (account2; picked up sweep Task 9, destructive paths, where the main account hit its weekly limit)
+
+**2026-11-06 09:59** — "make sure to look at the performance of the datepicker too in things like filters. it should be selected right away despite the filtered datas timeline"

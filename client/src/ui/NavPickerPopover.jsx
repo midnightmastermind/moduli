@@ -23,6 +23,8 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar, DateObject } from "react-multi-date-picker";
 import DatePanel from "react-multi-date-picker/plugins/date_panel";
 import Toolbar from "react-multi-date-picker/plugins/toolbar";
+import { calendarArrow, watchHiddenDays } from "../helpers/calendarA11y.jsx";
+import { createDeferredCommit } from "../helpers/deferredCommit.js";
 // NO LIBRARY THEME CSS IS IMPORTED, deliberately. `bg-dark.css` + `teal.css`
 // hardcode a dark slab and a teal accent, so the calendar rendered as a dark
 // teal box on every skin — including the three LIGHT ones. They also collide
@@ -195,6 +197,9 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
     return () => { document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey, true); };
   }, [open]);
 
+  // The calendar's filler days are hidden from screen readers (helpers/calendarA11y).
+  useEffect(() => (open ? watchHiddenDays(popoverRef.current) : undefined), [open]);
+
   // Day list carried by the incoming persisted shape (multi → dates[];
   // range → value..value+span-1; single → [value]). Used to seed the picker's
   // working state when it opens.
@@ -231,6 +236,14 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
   // bar and clobber a deliberately-distinct neighbor pair).
   const lastCommittedKeys = useRef([]);
 
+  // The picked day paints first; the filter change it sets off follows after the paint (helpers/deferredCommit).
+  // Several clicks inside one frame send one commit, the last. Closing or unmounting sends what is waiting.
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+  const deferred = useMemo(() => createDeferredCommit((v) => onCommitRef.current?.(v)), []);
+  useEffect(() => { if (!open) deferred.flush(); }, [open, deferred]);
+  useEffect(() => () => deferred.flush(), [deferred]);
+
   // Push a working selection out to the parent in the persisted shape.
   const commit = (nextSel) => {
     let working = nextSel;
@@ -240,7 +253,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
     setSel(working);
     lastCommittedKeys.current = working.keys;
     if (!working.keys.length) {
-      onCommit?.({ kind: "single", value: null, span: 1, dates: null, unit: "day" });
+      deferred.push({ kind: "single", value: null, span: 1, dates: null, unit: "day" });
       return;
     }
     const next = classifySelection(working.keys.map(parseISO));
@@ -249,7 +262,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
       if (next.kind === "multi" && allowedKinds.includes("range")) next.kind = "range";
       else if (!allowedKinds.includes("single")) return;
     }
-    onCommit?.(next);
+    deferred.push(next);
   };
 
   const handleDayClick = (dateObj) => {
@@ -363,6 +376,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
             value={pickerValue}
             onChange={handleExternalChange}
             mapDays={mapDays}
+            renderButton={calendarArrow}
             className="moduli-calendar"
             plugins={[
               <DatePanel key="panel" position="right" sort="date" removeButton />,

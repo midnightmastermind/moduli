@@ -1,6 +1,7 @@
 // client/src/ui/FilterNavWidgets.jsx
-import React, { startTransition, useEffect, useRef, useState } from "react";
+import React, { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { afterPaint } from "../helpers/afterPaint";
+import { createDeferredCommit } from "../helpers/deferredCommit.js";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { OptionSearchList } from "./Field.jsx";
@@ -130,7 +131,20 @@ function resolveArrowBehavior(shape, navConfig, filter) {
   };
 }
 
-function ArrowsWidget({ filter, navConfig, value, dispatch, onNav, nowrap = false }) {
+function ArrowsWidget({ filter, navConfig, value: storedValue, dispatch, onNav, nowrap = false }) {
+  // The new date shows at once and the write (with everything that listens to the date) follows after the paint
+  // (helpers/deferredCommit). `pending` is the date on screen until the stored value has caught up with the write;
+  // later taps step from it, so two quick taps move two days. Once our write has gone, the stored value wins again.
+  const [pending, setPending] = useState(null); // { v, sent }
+  const sendRef = useRef(null);
+  const deferred = useMemo(() => createDeferredCommit((v) => {
+    sendRef.current?.(v);
+    setPending((p) => (p && p.v === v ? { ...p, sent: true } : p));
+  }), []);
+  useEffect(() => () => deferred.flush(), [deferred]);
+  const storedKey = JSON.stringify(storedValue ?? null);
+  useEffect(() => { setPending((p) => (p?.sent ? null : p)); }, [storedKey]);
+  const value = pending ? pending.v : storedValue;
   const shape = readValueShape(value);
   // Unit precedence: the value's own unit (object form) wins over the filter's
   // static timeUnit. Lets users pick D/W/M/Y per-occurrence without rewriting
@@ -142,7 +156,8 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav, nowrap = fals
     : null;
   // Cascaded constraints — occurrence's navConfig.constraints wins, then filter's.
   const constraints = navConfig?.constraints || filter?.constraints || null;
-  const write = makeWriter(filter, onNav, dispatch);
+  sendRef.current = makeWriter(filter, onNav, dispatch);
+  const write = (v) => { setPending({ v, sent: false }); deferred.push(v); };
 
   // Object shape is required as soon as the value carries unit != "day" OR a
   // span > 1 OR a discrete dates[] OR a non-default kind. Day-unit + span=1 +
