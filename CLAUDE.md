@@ -15,6 +15,50 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (5) — FIREFOX AGREES WITH CHROMIUM; a search opened during the load never saw the rest of the grid
+
+Sweep continued. **Firefox (the user's browser), desktop, 20 surfaces, writes blocked:** every failure it found is the
+same row in Chromium's crawl — nothing Firefox-only. Its one difference (the row right-click menu "could not open") passed
+on a re-run: timing.
+- **Search (`ui/OccurrenceSearch`):** an open search keeps ONE index (2026-11-02, so a phone does not rebuild per key),
+  built when it is opened — so a search opened before the deferred half arrived never showed the catalogue or imported
+  pages until it was closed, and said "No matches". Found because the sweep's text-menu surface searched "Bonsai" 6s after
+  a reload: empty for 60-90s. While `state.awaitingDeferred`, the held index is rebuilt only when ROWS were added (size
+  change; a field write's new identity does not rebuild), and once more when the rest lands; the empty state says "still
+  loading". Measured on a local build: Bonsai listed 8-10s after the search opened, without reopening. Test
+  `searchWhileLoading.test.jsx`.
+- **Alarms panel (`ui/AlarmDropdown`):** the close button and both on/off switches named; Preview sound / Delete / Clear
+  are 24px boxes, the Alarm/Reminder toggle 24px tall. axe on the open panel: 0.
+- **Field editors (`ui/Field.jsx`):** the six full-size `<Input>`s (text, number, date, duration hours/minutes) are
+  named after their field (walker in `comboboxNamed.test.js`).
+- **Read and left as crawler artifacts, so nobody re-chases them:** "Add a field — Escape does not close" (Escape closes it
+  on a board row and inside a document, measured with listeners on window and document); the canvas colour / 2px chips
+  "nothing" (already the selected values); a focused search box "nothing".
+- **tools/uisweep:** `context.text` right-clicks article PROSE (a textblock or its read-only stand-in) — it had been
+  right-clicking a row in both browsers, so it reported the row menu; `goTo` waits 20s on desktop for the first search
+  and, when it misses, names what the search listed.
+
+---
+
+### 2026-11-06 (4) — RATING STARS AND THE PILL'S DICE ARE 24px; the share window sizes itself for a phone
+
+User: *"enlarge them"* · *"make sure they are centered"* · *"please continue … with the ui testing"*.
+- **`ui/Field.jsx`:** rating stars (both variants) are 24x24 buttons with a centred 16/18px star; "Pick random" (both)
+  and the occurrence pill's "Go to" segment are at least 24x24. Measured on the Sweep Row: every star icon offset 0,0
+  from its box, the dice/Go to 0.5px (their 1px left divider), every box centred in its pill; screenshot looked at.
+  Live axe on poms rebuild: target-size 40 -> 4 (the 4 are the notification stack's back cards, behind the front pill
+  by design). Test `ratingDiceTargets.test.jsx`.
+- **`meta-viewport` is left, the user's call:** `user-scalable=no` (since the first commit) blocks pinch zoom, which
+  fails WCAG, but the app has its own pinch gestures (ZoomableImage, EChart, graphView) and only a real phone shows how
+  page zoom would interact with them.
+- **Share window (`ui/SharePlace`):** it is its own page, so the phone sizing keyed on `body[data-layout]` never reached
+  it — radios 13px, dropdowns 26px. `.share-shell` + `@media (pointer: coarse)`: radios 24px, boxes ≥32px (radios sit in
+  their label, so the whole row is the target). **tools/uisweep:** `share.place` stages a link before opening (it had
+  always opened an empty window — nothing set `ctx.stage`), and `LOCALBUILD` serves the share pages too (it served only
+  `/`, so a local check of `/share-place` silently ran the live bundle).
+
+---
+
 ### 2026-11-06 (3) — A PICKED DATE SHOWS AT ONCE; the date picker passes axe
 
 User: *"keep going"*, then *"make sure to look at the performance of the datepicker too in things like filters. it should

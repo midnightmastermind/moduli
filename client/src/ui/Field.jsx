@@ -1932,7 +1932,7 @@ function Field({
         return withFlowToggle(
           <div className={`field-input editing inline-flex items-center gap-0.5 ${showFlowToggle ? "px-1" : ""}`}>
             {inlinePrefix && <span className="text-[length:var(--cascade-field-font-size,12px)] text-muted-foreground">{inlinePrefix}</span>}
-            <Input ref={inputRef} type={numericInput ? "number" : "text"}
+            <Input aria-label={name || "Value"} ref={inputRef} type={numericInput ? "number" : "text"}
               value={localValue ?? ""}
               onChange={(e) => handleChange(numericInput ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
               onKeyDown={handleKeyDown} onBlur={handleCommit} disabled={disabled}
@@ -2246,7 +2246,7 @@ function Field({
                 <AffixSegment value={prefix} options={affixPrefixMenu} side="prefix"
                   onPick={(v) => onAffixChange("prefix", v)} compact={compact} disabled={disabled} />
               )}
-              <Input type="number" value={localValue ?? ""} disabled={disabled}
+              <Input aria-label={name || "Number"} type="number" value={localValue ?? ""} disabled={disabled}
                 placeholder="0"
                 className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-16" : "h-7 text-sm"}`}
                 style={{ color: "inherit" }}
@@ -2341,7 +2341,7 @@ function Field({
         <div className="field-input field-input-text" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <Input type="text" value={localValue ?? ""} disabled={disabled}
+            <Input aria-label={name || "Text"} type="text" value={localValue ?? ""} disabled={disabled}
               placeholder=""
               className={compact ? "h-6 text-xs" : "h-7 text-sm"}
               onChange={e => handleChange(e.target.value)}
@@ -2558,7 +2558,7 @@ function Field({
         <div className="field-input field-input-date" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Input type="date" value={localValue ?? ""} disabled={disabled}
+            <Input aria-label={name || "Date"} type="date" value={localValue ?? ""} disabled={disabled}
               className={compact ? "h-6 text-xs" : "h-7 text-sm"}
               onChange={e => handleChange(e.target.value)} onBlur={handleCommit} />
             {relativeDateLabel && (
@@ -2605,13 +2605,13 @@ function Field({
           <div className={`inline-flex items-center gap-1 rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
             style={{ background: fullFlowTint.bg, borderColor: fullFlowTint.border, color: fullFlowTint.text, alignSelf: "flex-start" }}>
             <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} segment />
-            <Input type="number" value={hours} disabled={disabled} min={0} max={23} placeholder="0"
+            <Input aria-label={`${name ? name + " " : ""}hours`} type="number" value={hours} disabled={disabled} min={0} max={23} placeholder="0"
               className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}`}
               style={{ color: "inherit" }}
               onChange={e => updateDuration(parseInt(e.target.value) || 0, minutes)}
               onBlur={handleCommit} onKeyDown={handleKeyDown} />
             <span style={{ fontSize: FIELD_FONT, opacity: 0.7 }}>h</span>
-            <Input type="number" value={minutes} disabled={disabled} min={0} max={59} step={5} placeholder="0"
+            <Input aria-label={`${name ? name + " " : ""}minutes`} type="number" value={minutes} disabled={disabled} min={0} max={59} step={5} placeholder="0"
               className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}`}
               style={{ color: "inherit" }}
               onChange={e => updateDuration(hours, parseInt(e.target.value) || 0)}

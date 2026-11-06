@@ -104,7 +104,7 @@ describe("every renderer reads duration through the one helper", () => {
   it("the COMPACT editor treats a duration as numeric, not free text", () => {
     // It stored a string, which is how one field came to hold both types.
     expect(fieldCode).toMatch(/const numericInput = type === "number" \|\| type === "duration";/);
-    const at = fieldCode.indexOf("<Input ref={inputRef}");
+    const at = fieldCode.search(/<Input (aria-label=\{[^}]*\} )?ref=\{inputRef\}/);
     expect(at).toBeGreaterThan(-1);
     const el = fieldCode.slice(at, at + 900);
     expect(el).toContain('type={numericInput ? "number" : "text"}');

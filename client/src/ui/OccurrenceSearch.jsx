@@ -89,6 +89,9 @@ export default function OccurrenceSearch({
 
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
+  // The rest of the grid (the catalogue, imported pages) arrives after the first paint. An index built before then
+  // is never kept, and the open search re-runs when the rest lands, so it does not answer "No matches" for good.
+  const awaitingRest = useGridActionsSelector(s => !!s.state?.awaitingDeferred);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const gridId = useGridActionsSelector(s => s.grid?._id || s.state?.grid?._id || null);
   // Folders, so a result's path starts at Root (the folders it sits in).
@@ -108,18 +111,27 @@ export default function OccurrenceSearch({
     if (!term) return { results: [], total: 0 };
     // ONE INDEX PER OPEN SEARCH. While the load sweep writes, every write gives the map a new identity, and
     // rebuilding per keystroke froze a phone for seconds a key (2026-11-02). Closing the search drops it.
-    const index = sessionIndexRef.current || (sessionIndexRef.current = getSearchIndex({
-      occurrencesById: getOccMap(),
-      modulesById: getModMap(),
-      fieldsById,
-      gridId,
-      foldersById,
-    }));
+    // While the rest is arriving, the held index is rebuilt only when rows were ADDED (a field write changes the
+    // map's identity on every op write, and rebuilding for those froze a phone, 2026-11-02).
+    const occs = getOccMap();
+    const size = Object.keys(occs).length;
+    const held = sessionIndexRef.current;
+    const stale = !held || (held.loading && (held.size !== size || !awaitingRest));
+    if (stale) {
+      sessionIndexRef.current = { loading: awaitingRest, size, index: getSearchIndex({
+        occurrencesById: occs,
+        modulesById: getModMap(),
+        fieldsById,
+        gridId,
+        foldersById,
+      }) };
+    }
+    const index = sessionIndexRef.current.index;
     const keep = keepFilters ? makeFilterKeeper({ grid, occurrencesById: getOccMap(), modulesById: getModMap() }) : null;
     return searchOccurrences(index, term, { scopeRootId, preferRootId, keep });
     // getOccMap/getModMap are stable getters — read at compute time, not deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldsById, gridId, scopeRootId, preferRootId, keepFilters, grid, foldersById]);
+  }, [fieldsById, gridId, scopeRootId, preferRootId, keepFilters, grid, foldersById, awaitingRest]);
 
   // Read at warm-up time, not at mount: a map captured early has another identity by then and the index cache
   // would miss on the first real search.
@@ -213,7 +225,7 @@ export default function OccurrenceSearch({
         Keep filters
       </label>
       {hits.results.length === 0 ? (
-        <div className="occ-search-empty">{keepFilters ? "No matches under the current filters" : "No matches"}</div>
+        <div className="occ-search-empty">{awaitingRest ? "No matches yet — still loading the rest of the grid" : keepFilters ? "No matches under the current filters" : "No matches"}</div>
       ) : (
         <>
           {hits.results.map((hit, i) => (

@@ -29,3 +29,13 @@ describe("every combobox is named", () => {
     expect(files.some((f) => f.endsWith(path.join("ui", "Field.jsx")))).toBe(true);
   });
 });
+
+describe("a field's own editors are named", () => {
+  it("every <Input> in Field.jsx carries an aria-label", () => {
+    const src = fs.readFileSync(path.join(root, "ui", "Field.jsx"), "utf8");
+    const missing = [];
+    let i = -1;
+    while ((i = src.indexOf("<Input ", i + 1)) >= 0) { const end = src.indexOf("/>", i); if (!/aria-label=/.test(src.slice(i, end))) missing.push(src.slice(i, i + 60)); }
+    expect(missing).toEqual([]);
+  });
+});

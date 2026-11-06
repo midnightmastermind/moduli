@@ -78,7 +78,7 @@ export async function goTo(page, ctx, name, kind = null) {
   await inPanel(page, ctx, "button.occ-search-trigger", { touch: isPhone(page) });
   await page.keyboard.type(name, { delay: 20 });
   // A phone at 4x CPU builds its first search index slowly: look until the hit is listed.
-  await page.waitForFunction((n) => [...document.querySelectorAll(".occ-search-menu .occ-search-row")].some((r) => (r.innerText || "").toLowerCase().includes(n.toLowerCase())), name, { timeout: isPhone(page) ? 30000 : 8000 }).catch(() => {});
+  await page.waitForFunction((n) => [...document.querySelectorAll(".occ-search-menu .occ-search-row")].some((r) => (r.innerText || "").toLowerCase().includes(n.toLowerCase())), name, { timeout: isPhone(page) ? 30000 : 20000 }).catch(() => {});
   await page.waitForTimeout(300);
   const idx = await page.$$eval(".occ-search-menu .occ-search-row", (rows, { name, kind }) => {
     const info = rows.map((r) => { const l = (r.innerText || "").split("\n").map((x) => x.trim()).filter(Boolean); return { n: l[0] || "", k: l[1] || "" }; });
@@ -88,7 +88,7 @@ export async function goTo(page, ctx, name, kind = null) {
     if (i < 0) i = info.findIndex((x) => x.n.toLowerCase().startsWith(name.toLowerCase()) && !/folder/i.test(x.k));
     return i;
   }, { name, kind });
-  if (idx < 0) throw new Error(`search "${name}": no matching hit`);
+  if (idx < 0) { const seen = await page.$$eval(".occ-search-menu .occ-search-row", (rs) => rs.slice(0, 4).map((r) => r.innerText.split("\n")[0].slice(0, 40))); const box = await page.evaluate(() => document.activeElement?.value ?? document.activeElement?.tagName); throw new Error(`search "${name}": no matching hit; typed into ${JSON.stringify(box)}; listed ${JSON.stringify(seen)}`); }
   const rows = await page.$$(".occ-search-menu .occ-search-row");
   if (isPhone(page)) await rows[idx].tap(); else await rows[idx].click();
   await page.waitForTimeout(2500);
@@ -194,7 +194,8 @@ export const SURFACES = [
   { id: "context.tree", area: "context", name: "Manifest tree right-click", from: [40, 47], vps: ["desktop"], root: ".menu-surface",
     open: async (page, ctx) => { await clear(page); const pid = await mainPanel(page, ctx); if (!(await page.$(`${P(pid)} .manifest-row`))) await inPanel(page, ctx, "button.panel-files-btn"); await page.waitForSelector(`${P(pid)} .manifest-row`, { timeout: 5000 }); await page.waitForTimeout(500); const row = await page.locator(`${P(pid)} .manifest-row`).nth(1).boundingBox(); await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2, { button: "right" }); await page.waitForTimeout(500); } },
   { id: "context.text", area: "context", name: "Text right-click (cut/copy/paste, Define)", from: [41], vps: ["desktop"], root: ".menu-surface",
-    open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); const p = await page.$(`${P(id)} .ProseMirror p`); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
+    open: async (page, ctx) => { await goTo(page, ctx, "Bonsai"); const id = await mainPanel(page, ctx); // Article prose in a textblock (live, or its read-only stand-in), not a caption or a link chip.
+      const h = await page.evaluateHandle((sel) => [...document.querySelectorAll(`${sel} :is(.textblock-card .ProseMirror p, .textblock-card-placeholder > div)`)].find((x) => !x.closest(".instance-textblock-inline") && (x.innerText || "").trim().length >= 30), P(id)); const p = h.asElement(); if (!p) throw new Error("no prose paragraph"); await p.scrollIntoViewIfNeeded(); const b = await p.boundingBox(); const x = b.x + 40, y = b.y + 8;
       // Coordinates: the press swaps a lazy block's stand-in for its editor, so the element handle goes stale.
       await page.mouse.dblclick(x, y); await page.waitForTimeout(500); await page.mouse.click(x, y, { button: "right" }); await page.waitForTimeout(500); } },
 

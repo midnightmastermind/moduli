@@ -9804,6 +9804,13 @@ body[data-layout="mobile"] .panel-stack-btn-inline {
 .date-nav-arrow { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; padding: 0; }
 body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; }
 
+/* The share window is what a phone opens when you share to Moduli. It is its own page (no body[data-layout]), so it
+   sizes its controls for a finger itself (UI sweep 2026-11-06: radios were 13px, dropdowns 26px). */
+@media (pointer: coarse) {
+  .share-shell input:is([type="radio"], [type="checkbox"]) { width: 24px; height: 24px; vertical-align: middle; }
+  .share-shell :is(select, button, input:not([type="radio"]):not([type="checkbox"])) { min-height: 32px; }
+}
+
 /* ── Phone: every control can be seen and pressed (sweep 2026-11-05 measured these from 10x15px up) ── */
 /* A touch screen has no hover: what appears on hover stays shown. */
 body[data-layout="mobile"] .page-header-close-btn { opacity: 1; }
@@ -9833,9 +9840,3 @@ body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title=
 }
 body[data-layout="mobile"] button[role="switch"] { height: 24px; }
 
-/* The share window is what a phone opens when you share to Moduli. It is its own page (no body[data-layout]), so it
-   sizes its controls for a finger itself (UI sweep 2026-11-06: radios were 13px, dropdowns 26px). */
-@media (pointer: coarse) {
-  .share-shell input:is([type="radio"], [type="checkbox"]) { width: 24px; height: 24px; vertical-align: middle; }
-  .share-shell :is(select, button, input:not([type="radio"]):not([type="checkbox"])) { min-height: 32px; }
-}

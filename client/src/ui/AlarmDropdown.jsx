@@ -56,9 +56,9 @@ export function FieldReminderRow({ op, fieldName, onToggle, onClear }) {
           {fieldName ? ` · ${fieldName} field` : ""}
         </span>
       </div>
-      <button type="button" title="Clear the reminder" onClick={onClear}
-        className="text-text-muted hover:text-red-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-      <Switch checked={!!op.enabled} onCheckedChange={onToggle} />
+      <button type="button" title="Clear the reminder" aria-label="Clear the reminder" onClick={onClear}
+        className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-red-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+      <Switch aria-label={`${fieldName ? fieldName + " reminder" : "Reminder"} on`} checked={!!op.enabled} onCheckedChange={onToggle} />
     </div>
   );
 }
@@ -89,7 +89,7 @@ export function AlarmRow({ op, onPatch, onDelete, autoFocusName = false }) {
           style={{ borderColor: "var(--border-default)" }} />
         <button type="button" onClick={() => onPatch({ type: isAlarm ? "reminder" : "alarm" })}
           title="Alarms ring + notify; reminders only notify. Click to switch."
-          className="self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-px rounded-full border cursor-pointer hover:brightness-125"
+          className="self-start inline-flex items-center gap-1 text-[10px] px-1.5 min-h-[24px] rounded-full border cursor-pointer hover:brightness-125"
           style={isAlarm
             // An alarm rings (warn), a reminder only notifies (neutral-blue).
             // Both were literal tailwind values that ignored the skin entirely.
@@ -100,12 +100,12 @@ export function AlarmRow({ op, onPatch, onDelete, autoFocusName = false }) {
         </button>
       </div>
       {isAlarm && (
-        <button type="button" title="Preview sound" onClick={() => ringAlarm({ bursts: 2 })}
-          className="text-text-muted hover:text-foreground cursor-pointer"><Volume2 className="w-3.5 h-3.5" /></button>
+        <button type="button" title="Preview sound" aria-label="Preview sound" onClick={() => ringAlarm({ bursts: 2 })}
+          className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-foreground cursor-pointer"><Volume2 className="w-3.5 h-3.5" /></button>
       )}
-      <button type="button" title="Delete" onClick={onDelete}
-        className="text-text-muted hover:text-red-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
-      <Switch checked={!!op.enabled} onCheckedChange={(v) => onPatch({ enabled: v })} />
+      <button type="button" title="Delete" aria-label={`Delete ${isAlarm ? "alarm" : "reminder"}`} onClick={onDelete}
+        className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-red-400 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+      <Switch aria-label={`${alarm.label || (isAlarm ? "Alarm" : "Reminder")} on`} checked={!!op.enabled} onCheckedChange={(v) => onPatch({ enabled: v })} />
     </div>
   );
 }
@@ -256,7 +256,7 @@ export default function AlarmDropdown({ showLabel = false }) {
               <button type="button" onClick={() => add("reminder")} title="New reminder"
                 className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border cursor-pointer hover:brightness-125"
                 style={{ borderColor: "var(--input-border)", color: "var(--text-primary)" }}><Plus className="w-3 h-3" /> Reminder</button>
-              <button type="button" onClick={() => setOpen(false)} className="text-text-muted hover:text-foreground cursor-pointer ml-0.5"><X className="w-3.5 h-3.5" /></button>
+              <button type="button" aria-label="Close" title="Close" onClick={() => setOpen(false)} className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-foreground cursor-pointer ml-0.5"><X className="w-3.5 h-3.5" /></button>
             </div>
           </div>
 
