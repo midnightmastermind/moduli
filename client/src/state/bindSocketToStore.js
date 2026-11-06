@@ -439,7 +439,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // new one — the gridId guard in `onFullStateRest` only covers chunks that
       // arrive AFTER this point.
       restChunks = null;
-      sweptOnPartial = null;
+      sweptOnPartial = null; sweptPartialIds = null;
       restWaitStartedAt = 0;
       // The 15s below is the SERVER's time to send the rest, so it starts when the request goes out — after the
       // paint. Started here, a page busy for 15s before it could even ask (a date change at first paint: the request
@@ -478,6 +478,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // again over the whole grid when the last lands: the first pass ran on half a grid (a day's Schedule column was
   // never built, 2026-11-06). The builders find what exists, so the second pass only adds what was missing.
   let sweptOnPartial = null;
+  // The rows the half-grid pass started from: one of them missing from the overlay afterwards was deleted by it.
+  let sweptPartialIds = null;
 
   // ── THE CATALOGUE IS ONE STORE WRITE, NOT ONE PER CHUNK ───────────────────
   //
@@ -541,6 +543,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       console.warn(`[full_state] deferred chunks never completed — dispatched ${held} held occurrence(s) and running the load sweep anyway`);
       const p = pendingFullState; pendingFullState = null;
       sweptOnPartial = p;
+      sweptPartialIds = new Set((p.occurrences || []).map((o) => o?.id).filter(Boolean));
       runLoadSweep(p);
     }, ms);
   }
@@ -609,8 +612,25 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (sweptOnPartial) {
       const whole = sweptOnPartial; sweptOnPartial = null;
       console.warn("[full_state] the rest arrived after the fallback — running the load sweep again over the whole grid");
-      runLoadSweep(whole);
+      runLoadSweep(withRowsSinceLoad(whole));
     }
+  }
+
+  // THE SECOND PASS MUST SEE WHAT THE FIRST ONE MADE. `runLoadSweep` rebuilds its maps from the payload and clears the
+  // local overlay, so re-running it on the downloaded payload hides every row the first pass created and every field it
+  // wrote — and the builders create them all again (45 duplicate routine items in one day column, 2026-11-06). The
+  // payload's rows, then the store's, then the local overlay's (the first pass's own writes, newest) win in that order.
+  function withRowsSinceLoad(payload) {
+    const byId = new Map();
+    for (const o of payload.occurrences || []) { const id = o?.id; if (id) byId.set(id, o); }
+    for (const o of stateRef.current?.occurrences || []) if (o?.id && !byId.has(o.id)) byId.set(o.id, o);
+    const local = mergedOccsOverlay(null) || {};
+    if (sweptPartialIds) for (const id of sweptPartialIds) if (!local[id]) byId.delete(id);
+    for (const [id, o] of Object.entries(local)) if (o) byId.set(id, o);
+    sweptPartialIds = null;
+    const modById = new Map((payload.modules || []).map((m) => [m?.id, m]));
+    for (const m of stateRef.current?.modules || []) if (m?.id && !modById.has(m.id)) modById.set(m.id, m);
+    return { ...payload, occurrences: [...byId.values()], modules: [...modById.values()] };
   }
 
   function runLoadSweep(payload) {

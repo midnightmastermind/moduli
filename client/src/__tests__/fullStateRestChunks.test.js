@@ -202,4 +202,23 @@ describe("deferred catalogue chunks", () => {
     expect(warn.mock.calls.some((c) => /never completed/.test(String(c[0])))).toBe(true);
     warn.mockRestore();
   });
+
+  // The second pass rebuilt from the DOWNLOAD and cleared the overlay, so it could not see what the first pass made and
+  // made it again (45 duplicate routine items in Monday's column, 2026-11-06).
+  test("the second pass over the whole grid keeps what the first pass made and leaves out what it deleted", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { socket } = setup();
+    socket._trigger("full_state", { gridId: "g1", modules: [], occurrences: [occ("kept"), occ("gone")], fields: [], operations: [], deferredCount: 10 });
+    vi.advanceTimersByTime(15100); // fallback: the first pass runs on half the grid
+    const { operationsBridge } = await import("../state/bindSocketToStore.js");
+    operationsBridge.updateLocalOcc({ id: "made", moduleId: "ma" }); // the first pass created a row …
+    operationsBridge.removeLocalOcc("gone"); // … and deleted one
+    socket._trigger("full_state_rest", { gridId: "g1", occurrences: [occ("late")], chunk: 1, chunks: 1, done: true });
+    expect(operationsBridge.getLocalOcc("made")).toBeTruthy();
+    expect(operationsBridge.getLocalOcc("late")).toBeTruthy();
+    expect(operationsBridge.getLocalOcc("kept")).toBeTruthy();
+    expect(operationsBridge.getLocalOcc("gone")).toBeNull();
+    warn.mockRestore();
+  });
 });
