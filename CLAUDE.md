@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-06 (7) — A DAY STEPPED TO DURING THE LOAD WAITED FOR THE WHOLE CATALOGUE; and a half-grid load saved short counts
+
+User: *"i just went to move nov 9th after reloading the grid and the loading bar for the schedule page just spins"* ·
+*"it just showed up but that took forever"*.
+- **Measured (probe `_restchunks.mjs`, prod):** the second half of full_state is 49 chunks of ~1.4 MB (~11 MB on the
+  wire, deflate is negotiated). This PC's connection measured 65-100 KB/s to every host (cdnjs and Google too), so the
+  rest took ~2 minutes; the same probe an hour later got it in 12s. The server sends every chunk the moment it is
+  asked; the wait is the link.
+- **And every template was in that half** (`_tplcore.mjs`: the Schedule's nine templates and the Day Page template all
+  read 0 of 1 children when the first half landed). A new day is cloned from a template, so it could not be built
+  until the end. `utils/splitFullState.templateRootIds` (pages under the Templates folder and its subfolders) are now
+  extra roots of `splitShownFirst` / `holdBackText` in `state.js`: +542 rows in the first message. Watched on prod:
+  every template complete in the first half; Next during the load built Nov 10's Schedule and Day Page columns at once.
+- **The client fallback** (`bindSocketToStore`): it counts from the request (it used to count from the first half, and a
+  page busy for 15s gave up before asking), a timer that fires LATE (>2s, the page was busy and the chunks were queued
+  behind it) or while the socket is down waits another round (up to 180s), and a rest that lands after it ran re-runs
+  the load sweep over the whole grid.
+- **What the half-grid sweeps cost, read out of Mongo:** a load at 14:20 CST wrote short Song Counts (Ouse 87 of 92,
+  Red Hot Chili Peppers 8 of 21, Khalid 2 of 24); a full load wants to correct 451 Song / 185 Episode / 181 Season
+  counts. The next full load writes them (one ~18s apply), after that they hold. Found with the new opt-in tally
+  `window.__loadDiag` → `window.__loadEffects` (the worker path logs no per-op line).
+- Tests `templatesFirst.test.js` (3, wiring A/B'd), `fullStateRestChunks` (+2, both fail without the change). Server
+  3,509 / client 7,387 pass. Deployed with a restart (`f166aac3`), then client-only.
+
+---
+
 ### 2026-11-06 (6) — A DROP THAT THREW SWITCHED OFF EVERY OPERATION IN THAT TAB; Nov 7 was never built
 
 User: *"i noticed daypage and schedule fail to build on future days"* (account2 hit its limit mid-investigation).
