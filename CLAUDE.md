@@ -15,6 +15,27 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-08 — A DAY'S OCCASIONS HOLDS ITS APPOINTMENTS (`0488`); an Occasions copy is a mirror
+
+User: *"put in the occassion container in schedule, a copylink of the appointments for that day"* · *"using an
+operation of course"*.
+- **`Schedule: Place Dated Work`** gets a pass inside its Occasions block (0453): each instance under Tasks ›
+  Appointments dated that day is copy-linked into the day's Occasions (`meta.datedWork/occasion/occasionAppt`);
+  a copy whose appointment left Appointments is deleted (one moved to another day already was, by 0453's sweep).
+  Triggers +3: added to / moved into / moved out of Appointments (0465's helper). Work Shifts are NOT included.
+- **The double count, found before it shipped:** the appointment already has a linked copy in its start slot
+  (0447), both under the Schedule, so every tracker counting completed Schedule rows would count it twice. Every
+  AND group that skips feed copies (`<x>.meta.feedSourceId IS_EMPTY`) now also skips `<x>.meta.occasion`, and so
+  does a group over INSTANCES/ITEMS under the Schedule page with no feed rule (`Day Page: Build Tasks Completed`).
+  Container lookups are left alone (an Occasions copy is never one); OR groups are never touched. 56 ops. Holiday
+  copies (0453) are now skipped the same way. Birthday cards carry no `meta.occasion` (checked).
+- Tests `server/__tests__/occasionsAppointments.test.js` (7), `client/src/__tests__/occasionsAppointments.test.js`
+  (5, real executor; A/B: no pass fails 5, no exclusion fails the count case). Applied to poms, read back, pm2
+  restarted. **Watched (writes blocked):** stepping to Nov 9 put "CPS Class" in that day's Occasions beside its
+  birthdays. A day not on screen fills when it is shown. Probe `tools/uisweep/_occappt.mjs`.
+
+---
+
 ### 2026-11-06 (8) — A DATE STEP'S PER-COLUMN FIND READS AN INDEX; the 1.9s feed pass is traced, not changed
 
 Picked up account2 (5-hour limit mid-investigation of *"look into the speed of a schedule loading"*).
