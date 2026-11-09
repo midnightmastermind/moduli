@@ -1,0 +1,57 @@
+{
+  "elliott": {
+    "total": 0.322,
+    "parts": {
+      "paragraphs": 0.3636363636363636,
+      "chars": 0.2796052631578947
+    }
+  },
+  "ellis": {
+    "total": 0.899,
+    "parts": {
+      "paragraphs": 0.8333333333333333,
+      "headings": 0.6666666666666666,
+      "title": 1,
+      "imageKept": 1,
+      "chars": 0.9941546762589928
+    }
+  },
+  "factor": {
+    "total": 1,
+    "parts": {
+      "paragraphs": 1,
+      "headings": 1,
+      "title": 1,
+      "chars": 1
+    }
+  },
+  "gnosis": {
+    "total": 0.511,
+    "parts": {
+      "paragraphs": 0.5714285714285714,
+      "headings": 1,
+      "quotes": 0,
+      "title": 0,
+      "chars": 0.9822904368358913
+    }
+  },
+  "mtu": {
+    "total": 0.855,
+    "parts": {
+      "paragraphs": 0.5581395348837209,
+      "headings": 1,
+      "title": 1,
+      "chars": 0.8618458610846813
+    }
+  },
+  "stanford": {
+    "total": 1,
+    "parts": {
+      "paragraphs": 1,
+      "headings": 1,
+      "quotes": 1,
+      "title": 1,
+      "chars": 0.9988308651597818
+    }
+  }
+}
