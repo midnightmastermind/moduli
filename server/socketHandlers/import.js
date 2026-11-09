@@ -50,7 +50,7 @@ import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { readerHostStalls } from "../utils/hostStallMemory.js";
-import { readLinkForImport } from "../utils/linkImport.js";
+import { extractImport, runImport } from "../services/importPipeline.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
 /**
@@ -115,6 +115,7 @@ export function registerImportHandlers(socket, {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
       title = "", htmlOpts = {}, requestId = null, shape = "magic", embed = false, dedupe = false,
+      ocrPage = null, imageOccurrenceId = null,
     } = payload;
     const userId = socket.userId;
 
@@ -126,6 +127,22 @@ export function registerImportHandlers(socket, {
     try {
       if (!userId) return reply({ ok: false, error: "unauthenticated" });
       if (!gridId) return reply({ ok: false, error: "gridId required" });
+
+      // The OCR viewer's "+ Page" sends the page tesseract read, not markdown: the pipeline builds it the
+      // way an Auto image share would — paragraphs as textblocks, the quote, and the picture itself
+      // (its existing occurrence) wrapped beside the text. No re-OCR: the client's page is the input.
+      if (ocrPage && typeof ocrPage === "object") {
+        const uc = await getUC(userId, gridId);
+        const imgOcc = imageOccurrenceId ? uc?.occurrencesById?.[imageOccurrenceId] : null;
+        const imgMod = imgOcc?.moduleId ? uc?.modulesById?.[imgOcc.moduleId] : null;
+        const out = await runImport({
+          source: { kind: "image", ocrPage, imageOccurrenceId: imgOcc ? imageOccurrenceId : null, url: imgMod?.fileRef || null, title },
+          gridId, userId, parentId,
+        }, { uc, broadcast: (evt, p) => io.to(userRoom(userId)).emit(evt, p) });
+        if (out.empty) return reply({ ok: false, empty: true, error: "no text was read off the picture" });
+        return reply({ ok: true, rootOccurrenceId: out.rootOccurrenceId, title: out.meta.title || null, stats: out.plan.stats, detectedFormat: "ocr" });
+      }
+
       if (typeof content !== "string" || !content.trim()) {
         return reply({ ok: false, error: "content (non-empty string) required" });
       }
@@ -466,11 +483,18 @@ export function registerImportHandlers(socket, {
       // mints matches the Reader/Magic view of that link — lead image included.
       // The guard's reason is handed back verbatim so the UI can say WHY a link
       // refused to convert ("not a web page", "timed out", "redirected").
-      const read = await readLinkForImport(url, { title, fetchPageHtml });
-      if (!read.ok) return reply({ ok: false, error: read.reason });
+      // Extract through the one import pipeline in viewer mode (its markdown and <title> are exactly
+      // readLinkForImport's), then build this handler's own reader/magic shape (ruling R1).
+      let read;
+      try {
+        read = await extractImport({ kind: "link", url, title }, { fetchPageHtml }, { viewer: true });
+      } catch (e) {
+        if (e?.code === "fetch_failed") return reply({ ok: false, error: e.message });
+        throw e;
+      }
 
       const result = await buildImportShape({
-        shape, gridId, userId, markdown: read.markdown, title: read.title, parentId, dryRun: false,
+        shape, gridId, userId, markdown: read.markdown, title: read.pageTitle, parentId, dryRun: false,
       });
 
       const uc = await getUC(userId, gridId);
@@ -488,7 +512,7 @@ export function registerImportHandlers(socket, {
         rootOccurrenceId: result.rootOccurrenceId,
         // The page's own title — a caller that wraps the import in a page
         // names it with this rather than a bare host.
-        title: read.title || null,
+        title: read.pageTitle || null,
         sourceUrl: read.sourceUrl,
         stats: result.stats,
       });

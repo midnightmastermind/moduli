@@ -4,8 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scoreCase, compareToBaseline } from "./score.js";
-import { readerFromHtml } from "../../utils/readerExtract.js";
-import { ocrToMarkdown } from "../../../client/src/helpers/ocrLayout.js";
+import { runImport } from "../../services/importPipeline.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const casesDir = path.join(here, "cases");
@@ -18,28 +17,28 @@ const withOllama = flag("--with-ollama"); // Task 7 hooks in here
 
 const read = (p, d = null) => (fs.existsSync(p) ? fs.readFileSync(p, "utf8") : d);
 
-function htmlTitle(html) {
-  const t = (html.match(/<title>([^<]*)<\/title>/i)?.[1] || "").replace(/\s+/g, " ").trim();
-  return t.split(/\s+[|–—-]\s+/)[0].replace(/\s*\([^)]*\)\s*$/, "").trim();
-}
-const imagesIn = (md) => [...md.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map((m) => m[1]);
-
-/** The import under test, run on one case. Task 3 replaces this with `runImport` in dry-run mode. */
-async function actualFor(dir, expectedMeta, _opts) {
-  if (fs.existsSync(path.join(dir, "ocr.json"))) {
-    const md = ocrToMarkdown(JSON.parse(read(path.join(dir, "ocr.json"))), { mode: "magic" });
-    const title = md.match(/^#\s+(.+)$/m)?.[1] || "";
-    return { md, meta: { title, images: [] } };
+/** The source a case describes. An image case replays its recorded OCR instead of running tesseract. */
+function sourceFor(dir) {
+  const ocr = path.join(dir, "ocr.json");
+  if (fs.existsSync(ocr)) {
+    const img = ["source.jpg", "source.png"].map((f) => path.join(dir, f)).find((f) => fs.existsSync(f)) || path.join(dir, "source.jpg");
+    return { source: { kind: "image", filePath: img, imageOccurrenceId: "eval-image" }, page: JSON.parse(read(ocr)) };
   }
   const html = read(path.join(dir, "source.html"));
-  if (html != null) {
-    const title = htmlTitle(html);
-    const { markdown } = readerFromHtml(html, expectedMeta.type === "wikipedia" ? title : "");
-    return { md: markdown, meta: { title, images: imagesIn(markdown) } };
-  }
+  if (html != null) return { source: { kind: "html", html, url: (read(path.join(dir, "url.txt"), "") || "").trim() } };
   const txt = read(path.join(dir, "source.txt"));
-  if (txt != null) return { md: txt, meta: { title: "", images: [] } };
+  if (txt != null) return { source: { kind: "text", text: txt } };
   throw new Error(`no source in ${dir}`);
+}
+
+/** The import under test: the one pipeline, planned and never written. */
+async function actualFor(dir, _expectedMeta, _opts) {
+  const { source, page } = sourceFor(dir);
+  const out = await runImport({ source, userId: "eval", gridId: null, dryRun: true }, {
+    ocrImage: async () => page,
+    fetchPageHtml: async () => { throw new Error("eval runs offline"); },
+  });
+  return { md: out.markdown, meta: out.meta };
 }
 
 const names = fs.readdirSync(casesDir).filter((n) => fs.statSync(path.join(casesDir, n)).isDirectory()).sort();

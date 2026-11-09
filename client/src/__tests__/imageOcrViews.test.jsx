@@ -77,6 +77,28 @@ describe("ImageOcrViews", () => {
     expect(createImportsDocPage.mock.calls[0][0]).toMatchObject({ rootOccId: "imp1", folderId: "imports", label: "Receipt" });
   });
 
+  it("+ Page from Magic sends the OCR page and the picture, so the server builds the page an Auto share would", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    fireEvent.click(screen.getByRole("button", { name: "OCR Magic" }));
+    await waitFor(() => screen.getByTestId("preview"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add as page" })); });
+    const imp = socket.emits.find((e) => e.event === "import_text");
+    expect(imp.payload.ocrPage).toBe(PAGE);
+    expect(imp.payload.imageOccurrenceId).toBe("img1");
+  });
+
+  it("+ Page from Reader stays plain text — the control", async () => {
+    const socket = makeSocket();
+    mount(socket);
+    fireEvent.click(screen.getByRole("button", { name: "OCR Reader" }));
+    await waitFor(() => screen.getByTestId("preview"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add as page" })); });
+    const imp = socket.emits.find((e) => e.event === "import_text");
+    expect(imp.payload.shape).toBe("reader");
+    expect(imp.payload.ocrPage).toBeUndefined();
+  });
+
   it("Attach puts the text under the picture as a textblock and returns to the picture", async () => {
     mount(makeSocket());
     fireEvent.click(screen.getByRole("button", { name: "OCR Reader" }));

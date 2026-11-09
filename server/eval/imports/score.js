@@ -13,7 +13,11 @@ const strip = (t) =>
 const words = (t) => strip(t).toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean);
 const norm = (t) => words(t).join(" ");
 
-/** Split markdown into blocks: `{ type: "heading"|"quote"|"para", text }`. */
+/**
+ * Split markdown into blocks: `{ type: "heading"|"quote"|"para", text }`. A block with no text once
+ * markup is stripped (a lone picture line) is not prose and is dropped: pictures are scored by
+ * `imageKept`, and counting one as a paragraph would charge a page for keeping its picture.
+ */
 export function parseBlocks(md) {
   return String(md || "")
     .split(/\n\s*\n/)
@@ -24,7 +28,8 @@ export function parseBlocks(md) {
       if (/^#{1,6}\s/.test(lines[0])) return { type: "heading", text: strip(lines[0]) };
       if (lines.every((l) => /^\s*>/.test(l))) return { type: "quote", text: strip(b) };
       return { type: "para", text: strip(b) };
-    });
+    })
+    .filter((b) => b.text);
 }
 
 function lev(a, b) {

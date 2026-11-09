@@ -26,14 +26,16 @@ import { hostOf } from "./pageTitle.js";
  * Fetch a link and turn it into the markdown the viewer would show.
  * @returns {{ok:false, reason:string} | {ok:true, markdown:string, title:string, sourceUrl:string, words:number}}
  */
-export async function readLinkForImport(url, { title = "", fetchPageHtml }) {
+export async function readLinkForImport(url, { title = "", fetchPageHtml, headWithTitle = true }) {
   const fetched = await fetchPageHtml(url);
   if (!fetched?.ok) return { ok: false, reason: fetched?.reason || "could not reach that link" };
   const sourceUrl = fetched.url || url;
   // The page's own <title> heads the imported container, as the viewer heads
   // Reader/Magic with it; an explicit title outranks it.
   const pageTitle = title || titleFromHtml(fetched.html) || hostOf(sourceUrl) || sourceUrl;
-  const { markdown, words } = readerFromHtml(fetched.html, pageTitle);
+  // `headWithTitle: false` (the import pipeline) keeps the markdown to the page's own content: the title
+  // travels beside it as metadata and heads the root container from there.
+  const { markdown, words } = readerFromHtml(fetched.html, headWithTitle ? pageTitle : "");
   return { ok: true, markdown, words, title: pageTitle, sourceUrl };
 }
 

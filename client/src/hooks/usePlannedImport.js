@@ -44,7 +44,8 @@ export function usePlannedImport({ socket, gridId, content, format = "markdown",
 }
 
 /**
- * Returns `save({ content, format, shape, title }) → Promise<{ ok, error? }>`. `rootRef` is the
+ * Returns `save({ content, format, shape, title, extra }) → Promise<{ ok, error? }>`; `extra` is merged into
+ * the import_text payload (the OCR viewer sends `{ ocrPage, imageOccurrenceId }`). `rootRef` is the
  * viewer's own element (to find the panel it is drawn in); `occurrence` is the fallback for that.
  */
 export function useSaveAsPage({ socket, gridId: gridIdProp, userId: userIdProp, dispatch, rootRef, occurrence }) {
@@ -53,9 +54,9 @@ export function useSaveAsPage({ socket, gridId: gridIdProp, userId: userIdProp, 
   const gridId = gridIdProp || ctx.gridId || state?.gridId;
   const userId = userIdProp || ctx.userId || state?.userId;
   const disp = dispatch || ctx.dispatch;
-  return useCallback(({ content, format = "markdown", shape = "magic", title = "" }) => new Promise((resolve) => {
+  return useCallback(({ content, format = "markdown", shape = "magic", title = "", extra = null }) => new Promise((resolve) => {
     if (!content || !socket || !gridId) { resolve({ ok: false, error: "nothing to save" }); return; }
-    socket.emit("import_text", { content, format, gridId, parentId: null, title, shape }, (out) => {
+    socket.emit("import_text", { content, format, gridId, parentId: null, title, shape, ...(extra || {}) }, (out) => {
       if (!out?.ok || !out.rootOccurrenceId) { resolve({ ok: false, error: out?.error || "no reply" }); return; }
       const { folderId } = ensureImportsFolderAndPage({
         grid: state?.grid, manifests: Object.values(manifestsById || {}), folders: Object.values(foldersById || {}),

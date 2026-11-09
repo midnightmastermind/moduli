@@ -53,3 +53,10 @@ describe("compareToBaseline", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("parseBlocks", () => {
+  it("a lone picture line is not a paragraph (pictures are scored by imageKept)", async () => {
+    const { parseBlocks } = await import("../eval/imports/score.js");
+    expect(parseBlocks("# T\n\n![](x.jpg)\n\nOne.\n\nTwo.").map((b) => b.type)).toEqual(["heading", "para", "para"]);
+  });
+});

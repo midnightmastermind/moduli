@@ -7,9 +7,9 @@
     }
   },
   "ellis": {
-    "total": 0.899,
+    "total": 0.914,
     "parts": {
-      "paragraphs": 0.8333333333333333,
+      "paragraphs": 0.9090909090909091,
       "headings": 0.6666666666666666,
       "title": 1,
       "imageKept": 1,
@@ -26,12 +26,12 @@
     }
   },
   "gnosis": {
-    "total": 0.797,
+    "total": 0.997,
     "parts": {
       "paragraphs": 1,
       "headings": 1,
       "quotes": 1,
-      "title": 0,
+      "title": 1,
       "chars": 0.9858490566037735
     }
   },
