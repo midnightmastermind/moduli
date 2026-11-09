@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { scoreCase } from "./score.js";
+import { scoreCase, compareToBaseline } from "./score.js";
 import { readerFromHtml } from "../../utils/readerExtract.js";
 import { ocrToMarkdown } from "../../../client/src/helpers/ocrLayout.js";
 
@@ -51,11 +51,13 @@ for (const name of names) {
   const expectedMeta = JSON.parse(read(path.join(dir, "expected.json"), "{}"));
   const actual = await actualFor(dir, expectedMeta, { withOllama });
   let actualMd = actual.md;
+  const warnings = [];
   if (expectedMeta.cutAfter) {
     const i = actualMd.indexOf(expectedMeta.cutAfter);
     if (i >= 0) actualMd = actualMd.slice(0, i + expectedMeta.cutAfter.length);
+    else warnings.push(`cutAfter marker not found in output: ${JSON.stringify(expectedMeta.cutAfter)}`);
   }
-  results[name] = scoreCase({ expectedMd, expectedMeta, actualMd, actualMeta: actual.meta });
+  results[name] = { ...scoreCase({ expectedMd, expectedMeta, actualMd, actualMeta: actual.meta }), warnings };
 }
 
 const PARTS = ["paragraphs", "headings", "quotes", "title", "imageKept", "board", "chars"];
@@ -66,6 +68,7 @@ for (const [n, r] of Object.entries(results)) {
 }
 console.table(rows);
 
+for (const [n, r] of Object.entries(results)) for (const w of r.warnings) console.warn(`WARNING ${n}: ${w}`);
 if (flag("--baseline")) {
   const out = {};
   for (const [n, r] of Object.entries(results)) out[n] = { total: round(r.total), parts: r.parts };
@@ -73,8 +76,7 @@ if (flag("--baseline")) {
   console.log("wrote", baselinePath);
 }
 if (flag("--check")) {
-  const base = JSON.parse(read(baselinePath, "{}"));
-  const bad = Object.entries(results).filter(([n, r]) => base[n] && r.total < base[n].total - 0.001);
-  for (const [n, r] of bad) console.error(`REGRESSION ${n}: ${round(r.total)} < baseline ${base[n].total}`);
-  if (bad.length) process.exit(1);
+  const { ok, problems } = compareToBaseline(results, JSON.parse(read(baselinePath, "{}")), { only });
+  for (const p of problems) console.error(`REGRESSION ${p}`);
+  if (!ok) process.exit(1);
 }

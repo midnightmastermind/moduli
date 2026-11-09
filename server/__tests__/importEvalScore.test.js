@@ -32,3 +32,24 @@ describe("scoreCase", () => {
     expect(r.parts.imageKept).toBe(0);
   });
 });
+
+import { compareToBaseline } from "../eval/imports/score.js";
+describe("compareToBaseline", () => {
+  const base = { a: { total: 0.8, parts: { quotes: 1, chars: 0.6 } }, b: { total: 1, parts: { chars: 1 } } };
+  const good = { a: { total: 0.8, parts: { quotes: 1, chars: 0.6 } }, b: { total: 1, parts: { chars: 1 } } };
+  it("passes when unchanged", () => expect(compareToBaseline(good, base).ok).toBe(true));
+  it("fails when one part regresses though the total rises", () => {
+    const r = compareToBaseline({ ...good, a: { total: 0.9, parts: { quotes: 0, chars: 1 } } }, base);
+    expect(r.ok).toBe(false);
+    expect(r.problems.join()).toMatch(/a\.quotes/);
+  });
+  it("fails when a baseline case is missing on a full run, not with only", () => {
+    const { b, ...rest } = good;
+    expect(compareToBaseline(rest, base).problems.join()).toMatch(/b: in baseline/);
+    expect(compareToBaseline(rest, base, { only: "a" }).ok).toBe(true);
+  });
+  it("fails when a case carries a warning", () => {
+    const r = compareToBaseline({ ...good, a: { ...good.a, warnings: ["cutAfter marker not found"] } }, base);
+    expect(r.ok).toBe(false);
+  });
+});

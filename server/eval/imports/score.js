@@ -97,3 +97,26 @@ export function scoreCase({ expectedMd, expectedMeta = {}, actualMd, actualMeta 
   const vals = Object.values(parts);
   return { total: vals.reduce((s, v) => s + v, 0) / vals.length, parts };
 }
+
+/**
+ * Compare current results to a baseline. results: { case: { total, parts, warnings? } }.
+ * Fails on a total or any single part dropping > 0.001, a baseline case missing from a full run,
+ * or a case carrying warnings (e.g. a cutAfter marker that was not found).
+ */
+export function compareToBaseline(results, baseline, { only = null } = {}) {
+  const problems = [];
+  const EPS = 0.001;
+  for (const [n, r] of Object.entries(results)) {
+    for (const w of r.warnings || []) problems.push(`${n}: ${w}`);
+    const b = baseline[n];
+    if (!b) continue;
+    if (r.total < b.total - EPS) problems.push(`${n}: total ${r.total.toFixed(3)} < baseline ${b.total}`);
+    for (const [p, v] of Object.entries(b.parts || {})) {
+      const cur = r.parts?.[p];
+      if (cur === undefined) problems.push(`${n}.${p}: part missing (baseline ${v})`);
+      else if (cur < v - EPS) problems.push(`${n}.${p}: ${cur.toFixed(3)} < baseline ${v}`);
+    }
+  }
+  if (!only) for (const n of Object.keys(baseline)) if (!(n in results)) problems.push(`${n}: in baseline but not in results (renamed or deleted?)`);
+  return { ok: problems.length === 0, problems };
+}
