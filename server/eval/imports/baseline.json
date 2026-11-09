@@ -1,8 +1,8 @@
 {
   "elliott": {
-    "total": 0.322,
+    "total": 0.426,
     "parts": {
-      "paragraphs": 0.3636363636363636,
+      "paragraphs": 0.5714285714285715,
       "chars": 0.2796052631578947
     }
   },
@@ -26,13 +26,13 @@
     }
   },
   "gnosis": {
-    "total": 0.511,
+    "total": 0.797,
     "parts": {
-      "paragraphs": 0.5714285714285714,
+      "paragraphs": 1,
       "headings": 1,
-      "quotes": 0,
+      "quotes": 1,
       "title": 0,
-      "chars": 0.9822904368358913
+      "chars": 0.9858490566037735
     }
   },
   "mtu": {
