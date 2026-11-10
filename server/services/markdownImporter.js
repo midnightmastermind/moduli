@@ -328,6 +328,12 @@ function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId 
 // Produces a tree of { kind, level?, text?, content?, children? } nodes
 // before we mint entities. Lets us decide structure separately from
 // persistence.
+/** Quoted lines that are a markdown table: every non-empty line a `|` row, one of them the `---` separator. */
+function isQuotedTable(qLines) {
+  const rows = qLines.map((l) => l.trim()).filter(Boolean);
+  return rows.length >= 2 && rows.every((l) => l.startsWith("|")) && rows.some((l) => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/.test(l));
+}
+
 export function parseBlocks(markdown) {
   const lines = markdown.split(/\r?\n/);
   const blocks = [];
@@ -404,10 +410,20 @@ export function parseBlocks(markdown) {
     // with literal `>` text. A trailing em/en-dash attribution ("— Author") is
     // split off so the renderer can show it under the quote.
     if (/^\s*>\s?/.test(line)) {
+      const qStart = i;
       const qLines = [];
       while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
         qLines.push(lines[i].replace(/^\s*>\s?/, ""));
         i++;
+      }
+      // A TABLE IN A BLOCKQUOTE IS A BOX, NOT A QUOTATION. Sites wrap tool panels in <blockquote> (the
+      // Stanford Encyclopedia's "Academic Tools": a table of icons beside links), and reading it as a
+      // pull-quote printed "| | How to cite this entry. | | --- |" in a quote card (2026-11-10). The lines go
+      // back unquoted and are parsed as the table they are.
+      if (isQuotedTable(qLines)) {
+        lines.splice(qStart, i - qStart, ...qLines);
+        i = qStart;
+        continue;
       }
       // Inline markdown is STRIPPED here, as it already is for headings and table
       // headers. Measured on the badgerherald article: two blockquotes are a

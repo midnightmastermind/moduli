@@ -33,3 +33,18 @@ describe("an imported quote belongs to the text that embeds it", () => {
     expect(occs[2].parentId).toBeNull();
   });
 });
+
+describe("0490 repairs what is already stored", async () => {
+  const { planOwnEmbeds } = await import("../migrations/0490-own-embedded-blocks.mjs");
+  const tb = (id, embeds, extra = {}) => ({ id, textmap: { type: "doc", content: embeds.map((e) => ({ type: "moduleEmbed", attrs: { occurrenceId: e } })) }, ...extra });
+  it("a quote one text embeds and nothing owns is planned for that text", () => {
+    expect(planOwnEmbeds([tb("t1", ["q1"]), { id: "q1", parentId: null }]).plan).toEqual([{ blockId: "q1", holderId: "t1" }]);
+  });
+  it("embedded by two texts: no owner is guessed", () => {
+    const r = planOwnEmbeds([tb("t1", ["q1"]), tb("t2", ["q1"]), { id: "q1", parentId: null }]);
+    expect(r.plan).toEqual([]); expect(r.shared).toEqual(["q1"]);
+  });
+  it("a block already parented or listed is left — the control", () => {
+    expect(planOwnEmbeds([tb("t1", ["q1", "q2"]), { id: "q1", parentId: "elsewhere" }, { id: "q2", parentId: null }, { id: "p", occurrences: ["q2"] }]).plan).toEqual([]);
+  });
+});
