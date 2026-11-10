@@ -853,8 +853,9 @@ export function removeOccurrence(args) {
 
 function _removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true, fireTrigger = true }) {
   if (!occurrenceId) return;
-  // Capture ancestor chain BEFORE eviction (see deleteOccurrence for rationale).
-  const ancestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
+  // Capture ancestor chain BEFORE eviction (see deleteOccurrence for rationale). Only the trigger reads it, and a
+  // derived sweep fires none — each feed-copy sweep paid a whole parent-map rebuild for nothing (2026-11-06).
+  const ancestors = fireTrigger ? (operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] }) : null;
   // Evict from local cache BEFORE dispatch so fireOperations sees updated state
   operationsBridge.removeLocalOcc?.(occurrenceId);
   // Update parent's occurrences array optimistically

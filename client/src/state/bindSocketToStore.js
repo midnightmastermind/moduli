@@ -225,7 +225,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // What the pending pass must cover: "all", or a Set of field ids when every request since the last pass was a
   // field write (helpers/feedSync.feedMayReadFields). Any unscoped request widens it to "all".
   let _feedSyncScope = null;
+  // A pass runs synchronously, so a request made DURING one is the pass's own writes asking again: a mint tags its
+  // source (assignLinkedGroup) and a relist rewrites the parent's list, both through updateOccurrence. Each woke a
+  // whole new pass that found nothing: three passes per date step on poms grid, ~1.5s (2026-11-06).
+  let _feedPassRunning = false;
   const scheduleFeedSync = (delay = 300, { fieldIds = null } = {}) => {
+    if (_feedPassRunning) return;
     if (fieldIds?.length && _feedSyncScope !== "all") {
       if (!(_feedSyncScope instanceof Set)) _feedSyncScope = new Set();
       for (const f of fieldIds) if (f) _feedSyncScope.add(f);
@@ -268,8 +273,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         }
         const mods = {};
         for (const m of state.modules || []) if (m?.id) mods[m.id] = m;
-        syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket,
-          onlyFieldIds: scope instanceof Set ? [...scope] : null });
+        _feedPassRunning = true;
+        try {
+          syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket,
+            onlyFieldIds: scope instanceof Set ? [...scope] : null });
+        } finally { _feedPassRunning = false; }
       } catch (e) {
         console.warn("[feedSync] pass failed:", e);
       }
