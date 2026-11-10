@@ -1433,6 +1433,19 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // WHAT WILL BE CREATED (smarter imports Task 5): the import pipeline in dry-run mode over the staged
+  // clip — the page's label, its first lines and its pictures. Key-authorized like the stage read. Never
+  // a 5xx for a page that cannot be read: that is `willBuildPage: false` with the clip's own label.
+  router.get("/share/stage/:id/import-preview", async (req, res) => {
+    try {
+      const { readStage } = await import("../services/shareStage.js");
+      const payload = await readStage(req.params.id, req.query.k);
+      if (!payload) return err(res, 404, "not_found", "no such stage");
+      const { buildImportPreview } = await import("../services/importPreview.js");
+      res.json(await buildImportPreview(payload));
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // Which rule Auto would run, and where it files things — said BEFORE Clip is
   // pressed. Key-authorized like the stage read. Resolved through
   // selectShareRules, the function the real run uses, so the window cannot

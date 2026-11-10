@@ -116,7 +116,7 @@ export async function imageSourceOf(occurrenceId, userId) {
  * @returns {Promise<{ ok, rootOccurrenceId?, empty?, skipped?, error? }>}
  */
 export async function runImportJob(job) {
-  const { source, gridId, userId, parentFolderId, linkTo = null, externalId = null, io = null, mirror = null } = job;
+  const { source, gridId, userId, parentFolderId = null, parentId = null, linkTo = null, externalId = null, overrides = null, io = null, mirror = null } = job;
   const deps = { ...(job.deps || {}), mirror, broadcast: (evt, p) => io?.to?.(`user:${userId}`)?.emit?.(evt, p) };
 
   if (linkTo) {
@@ -134,7 +134,7 @@ export async function runImportJob(job) {
   let out;
   try {
     if (src.kind === "image" && !src.filePath && !src.ocrPage) throw new Error("the picture's file is not on this server");
-    out = await runImport({ source: src, gridId, userId, parentFolderId, externalId }, deps);
+    out = await runImport({ source: src, gridId, userId, parentFolderId, parentId, externalId, overrides }, deps);
   } catch (err) {
     const reason = String(err?.message || err);
     console.warn(`[importJobs] ${src.kind} import did not build a page: ${reason}`);

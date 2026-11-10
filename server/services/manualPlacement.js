@@ -13,6 +13,8 @@
 // `/share` logs a hand placement exactly as it logs a rule.
 import { runOperationServerSide } from "./serverExecutor.js";
 import Field from "../models/Field.js";
+import { runImportJob, queueImport } from "./importJobs.js";
+import { shareImportSource } from "./importSource.js";
 
 // The window's mapping boxes are TEXT, so a year arrives as "2006" while the
 // rows beside it hold 2006 (poms' Movies: 864 numbers, 0 strings before this).
@@ -91,6 +93,28 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
     };
   }
 
+  // A LINK can become its readable page instead of (or as well as) a bookmark (smarter imports Task 5):
+  // importAs "bookmark" (the default) | "page" | "both". The page goes into the chosen destination with
+  // the window's label, body and pictures. A page that cannot be read falls back to the bookmark, so a
+  // placement never answers with nothing saved.
+  const importAs = share?.type === "link" && ["page", "both"].includes(p.importAs) ? p.importAs : "bookmark";
+  const linkUrl = importAs !== "bookmark" ? shareImportSource(share)?.url : null;
+  const overrides = {
+    ...(p.label ? { title: p.label } : {}),
+    ...(typeof p.pageBody === "string" && p.pageBody.trim() ? { body: p.pageBody } : {}),
+    ...(Array.isArray(p.images) ? { images: p.images } : {}),
+  };
+  let pageError = null;
+  if (importAs === "page" && linkUrl) {
+    const r = await runImportJob({ source: { kind: "link", url: linkUrl }, gridId, userId, parentId: p.parentId,
+      externalId: share?.externalId || null, overrides, io, mirror });
+    if (r.ok && r.rootOccurrenceId) {
+      return { ran: [{ ruleId: "manual", ruleName: "Placed by hand", ok: true, error: null,
+        created: [{ _effect: "IMPORT_TO_PAGE", occurrenceId: r.rootOccurrenceId }], unsupported: [] }], halted: true };
+    }
+    pageError = r.error || "the page has no readable text";
+  }
+
   const op = {
     id: "manual-placement", name: "Placed by hand", enabled: true,
     pipeline: { sources: [], steps: [{
@@ -123,13 +147,22 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
   };
 
   const res = await runOperationServerSide(op, { vars: { $share: share }, userId, gridId, io, mirror });
+  const created = (res.effects || []).filter((e) => e._effect === "CREATE");
+  // "both": the readable page is built after the answer, beside the bookmark, and the two point at each other.
+  let pageQueued = false;
+  if (importAs === "both" && linkUrl && created[0]?.occurrenceId) {
+    pageQueued = queueImport({ source: { kind: "link", url: linkUrl }, gridId, userId, parentId: p.parentId,
+      linkTo: created[0].occurrenceId, externalId: share?.externalId || null, overrides, io, mirror });
+  }
   return {
     ran: [{
       ruleId: "manual", ruleName: "Placed by hand",
       ok: res.ok !== false,
       error: res.error || null,
-      created: (res.effects || []).filter((e) => e._effect === "CREATE"),
+      created,
       unsupported: res.unsupported || [],
+      ...(pageError ? { pageError } : {}),
+      ...(pageQueued ? { pageQueued: true } : {}),
     }],
     halted: true,
   };

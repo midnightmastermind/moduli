@@ -37,6 +37,7 @@ import {
 } from "../helpers/sharePlacement.js";
 import { coverSearchQuery } from "../helpers/coverQuery.js";
 import { readPresets, withPreset, replacePreset, deletePreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
+import ShareImportPreview from "./ShareImportPreview.jsx";
 
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const param = (k) => new URLSearchParams(window.location.search).get(k) || "";
@@ -109,6 +110,14 @@ export default function SharePlace() {
   // Every picture the clipped page offers, so the picker opens on the share's
   // own photos rather than a web search for its title.
   const [coverChoices, setCoverChoices] = useState([]);
+  // WHAT AUTO WILL CREATE — the server's import pipeline in dry-run mode over this clip (smarter imports).
+  const [importPreview, setImportPreview] = useState(null);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
+  // A link placed by hand: kept as a bookmark (default), turned into its readable page, or both.
+  const [importAs, setImportAs] = useState("bookmark");
+  const [pageBody, setPageBody] = useState("");
+  // null = the user has not touched the pictures, so the page keeps all of them and none are sent.
+  const [pickedImages, setPickedImages] = useState(null);
 
   const clip = useMemo(() => (payload ? clipFromStage(payload) : null), [payload]);
   const shape = useMemo(
@@ -154,6 +163,19 @@ export default function SharePlace() {
       .catch(() => { if (live) setPreview(null); });
     return () => { live = false; };
   }, [payload, gridId, stageId, stageKey, token, sessionExpired]);
+
+  // ── what will be created: asked once per clip ───────────────────────────
+  useEffect(() => {
+    if (!payload) return;
+    let live = true;
+    setImportPreviewLoading(true);
+    fetch(`/api/v1/share/stage/${enc(stageId)}/import-preview?k=${enc(stageKey)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => { if (live) setImportPreview(b); })
+      .catch(() => { if (live) setImportPreview(null); })
+      .finally(() => { if (live) setImportPreviewLoading(false); });
+    return () => { live = false; };
+  }, [payload, stageId, stageKey]);
 
   // ── the grid's fields and presets; a grid change resets the form ────────
   useEffect(() => {
@@ -279,6 +301,10 @@ export default function SharePlace() {
     return () => { live = false; };
   }, [wantsCover, coverTouched, cover, coverChoices.length, stageId, stageKey]);
 
+  // Only a LINK can become its readable page; the server decides what the clip is (the preview's type).
+  const isLinkClip = importPreview?.type === "link";
+  const pictureChoices = [...new Set([...(importPreview?.images || []), ...coverChoices.map((c) => c?.url).filter(Boolean)])];
+  const pickedNow = pickedImages ?? (importPreview?.images || []);
   const canClip = !busy && !!payload && (manual ? !!destination && !!token && !!gridId : true);
 
   const submit = async () => {
@@ -287,6 +313,7 @@ export default function SharePlace() {
       const body = buildSharePayload({
         gridId, mode: manual ? "manual" : "auto", stageId, stageKey,
         destination, shape, mappings, labelMapping, bodyMapping: bodyMappingNow, clip, cover: wantsCover ? cover : "",
+        ...(isLinkClip ? { importAs, pageBody, images: pickedImages } : null),
       });
       const r = await fetch("/api/v1/share", {
         method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
@@ -363,6 +390,7 @@ export default function SharePlace() {
               : "No rule matches — it goes to Files."}
           </div>
         )}
+        {mode === "auto" && <ShareImportPreview preview={importPreview} loading={importPreviewLoading} />}
         <label style={rowSt}>
           <input type="radio" name="mode" aria-label="New" checked={mode === "new"} onChange={() => setMode("new")} disabled={!token} /> Choose where <span style={hintSt}>— pick a board, page or container</span>
         </label>
@@ -476,6 +504,42 @@ export default function SharePlace() {
             </div>
           )}
 
+          {isLinkClip && destination && (
+            <div data-testid="link-choice" style={{ marginTop: 8 }}>
+              {LINK_CHOICES.map(([v, label]) => (
+                <label key={v} style={rowSt}>
+                  <input type="radio" name="importAs" aria-label={label} checked={importAs === v} onChange={() => setImportAs(v)} /> {label}
+                </label>
+              ))}
+              {importAs !== "bookmark" && (
+                <>
+                  <label htmlFor="share-page-body" style={{ ...lblSt, marginTop: 6 }}>Body</label>
+                  <textarea id="share-page-body" aria-label="Body" value={pageBody} onChange={(e) => setPageBody(e.target.value)}
+                    placeholder={importPreview?.bodyLines?.[1] || importPreview?.bodyLines?.[0] || "the page's own text"}
+                    rows={3} style={{ ...inputSt, resize: "vertical" }} />
+                  <div style={hintSt}>Replaces the page's first paragraph. Leave empty to keep the page's own.</div>
+                  {pictureChoices.length > 0 && (
+                    <>
+                      <label style={{ ...lblSt, marginTop: 6 }}>Pictures</label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {pictureChoices.map((u) => {
+                          const on = pickedNow.includes(u);
+                          return (
+                            <button key={u} type="button" aria-pressed={on} aria-label={on ? "Leave this picture out" : "Keep this picture"}
+                              onClick={() => setPickedImages(on ? pickedNow.filter((x) => x !== u) : [...pickedNow, u])}
+                              style={{ padding: 0, border: `2px solid ${on ? "var(--accent, #3b82f6)" : "transparent"}`, borderRadius: 4, background: "transparent", cursor: "pointer", opacity: on ? 1 : 0.45 }}>
+                              <img src={u} alt="" style={{ width: 48, height: 48, objectFit: "cover", display: "block", borderRadius: 2 }} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <label style={{ ...lblSt, marginTop: 10 }}>What it fills in</label>
           <div style={{ ...hintSt, marginBottom: 6 }}>Each box shows what will be saved. Type over it, or change where it comes from.</div>
           {isTextblock
@@ -562,6 +626,9 @@ function MappingRow({ name, mapping, clip, onChange, onRemove }) {
     </div>
   );
 }
+
+// The three things a link placed by hand can become (exact copy, plan Task 5).
+const LINK_CHOICES = [["bookmark", "Keep as bookmark"], ["page", "Turn into a page"], ["both", "Both"]];
 
 // Plain words for the two sources whose list labels are symbols.
 const SOURCE_WORDS = { none: "nothing — I'll type it", literal: "what I type" };

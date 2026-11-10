@@ -32,6 +32,7 @@ import { imagesFromHtml } from "../utils/pageImages.js";
 import { bestTitleFrom } from "../utils/pageTitle.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { linkRootIntoParent } from "../utils/linkRootIntoParent.js";
+import { decompressTextmap } from "../utils/textmapCompression.js";
 
 /** Fewer words than this and an import is EMPTY: nothing is written (an OCR of a photo with no text). */
 export const MIN_IMPORT_WORDS = 3;
@@ -185,12 +186,39 @@ export async function extractImport(source, deps = {}, { viewer = false } = {}) 
   throw new Error(`extractImport: unknown source kind "${source.kind}"`);
 }
 
+const IMAGE_LINE = /^\s*!\[[^\]]*\]\(\s*([^)\s]+)[^)]*\)\s*$/;
+
+/**
+ * What the share window let the user change (Task 5), applied to the extracted page. Pure.
+ *   title   the page's name
+ *   body    replaces the page's FIRST paragraph (not a heading, picture, quote or list); appended if none
+ *   images  the pictures to keep: an image line whose address is not in the list is dropped
+ */
+export function applyImportOverrides(markdown, meta, { title, body, images } = {}) {
+  let md = String(markdown || "");
+  const next = { ...meta, images: [...(meta?.images || [])] };
+  if (typeof title === "string" && title.trim()) next.title = title.trim();
+  if (Array.isArray(images)) {
+    const keep = new Set(images);
+    md = md.split("\n").filter((l) => { const m = IMAGE_LINE.exec(l); return !m || keep.has(m[1]); }).join("\n");
+    next.images = next.images.filter((im) => keep.has(im.url));
+  }
+  if (typeof body === "string" && body.trim()) {
+    const blocks = md.split(/\n\s*\n/);
+    const i = blocks.findIndex((b) => { const t = b.trim(); return t && !/^(#|>|!\[|[-*+]\s|\d+\.\s|\|)/.test(t); });
+    if (i >= 0) blocks[i] = body.trim(); else blocks.push(body.trim());
+    md = blocks.join("\n\n");
+  }
+  return { markdown: md, meta: next };
+}
+
 /**
  * The whole import. dryRun plans and writes nothing (the share window's preview, the eval runner).
  * @returns {{ markdown, meta, plan?, rootOccurrenceId?, empty: boolean }}
  */
-export async function runImport({ source, gridId, userId, parentId = null, parentFolderId = null, dryRun = false, externalId = null }, deps = {}) {
-  const { markdown, meta } = await extractImport(source, deps);
+export async function runImport({ source, gridId, userId, parentId = null, parentFolderId = null, dryRun = false, externalId = null, overrides = null }, deps = {}) {
+  const extracted = await extractImport(source, deps);
+  const { markdown, meta } = overrides ? applyImportOverrides(extracted.markdown, extracted.meta, overrides) : extracted;
   if (importWordCount(markdown) < MIN_IMPORT_WORDS) return { markdown, meta, empty: true };
 
   const existingImages = {};
@@ -223,6 +251,8 @@ export async function runImport({ source, gridId, userId, parentId = null, paren
       if (deps.uc?.occurrencesById?.[parentObj.id]) {
         deps.uc.occurrencesById[parentObj.id] = { ...deps.uc.occurrencesById[parentObj.id], occurrences: parentObj.occurrences };
       }
+      if (parentObj.textmap) parentObj.textmap = decompressTextmap(parentObj.textmap);
+      deps.mirror?.("occurrence", parentObj);
       deps.broadcast?.("occurrence_updated", { occurrence: parentObj });
     }
   }
