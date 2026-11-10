@@ -189,7 +189,7 @@ export async function extractImport(source, deps = {}, { viewer = false } = {}) 
  * The whole import. dryRun plans and writes nothing (the share window's preview, the eval runner).
  * @returns {{ markdown, meta, plan?, rootOccurrenceId?, empty: boolean }}
  */
-export async function runImport({ source, gridId, userId, parentId = null, parentFolderId = null, dryRun = false }, deps = {}) {
+export async function runImport({ source, gridId, userId, parentId = null, parentFolderId = null, dryRun = false, externalId = null }, deps = {}) {
   const { markdown, meta } = await extractImport(source, deps);
   if (importWordCount(markdown) < MIN_IMPORT_WORDS) return { markdown, meta, empty: true };
 
@@ -203,13 +203,19 @@ export async function runImport({ source, gridId, userId, parentId = null, paren
     title: meta.title || null, sourceUrl,
     sourceLabel: sourceUrl ? `${meta.title || "Source"} ↗` : null,
     boldSections: true, paragraphBlocks: true, existingImages,
-    rootMeta: { importSource: meta.source, importedAt: new Date().toISOString() },
+    // `importExternalId`: the share this page came from, so a re-share finds the page instead of minting another.
+    rootMeta: { importSource: meta.source, importedAt: new Date().toISOString(), ...(externalId ? { importExternalId: externalId } : {}) },
   });
   if (dryRun) return { markdown, meta, plan, empty: false };
 
   // markdownToModuli has written Mongo (and pushed the root into its parent). Mirror the rows into the
   // warm cache as the import handlers do (persistImportResult), sync the parent, announce to the tabs.
   await persistImportResult({ result: plan, userId, uc: deps.uc || null });
+  // A caller with no cache handle (a background job) mirrors through `deps.mirror(model, doc)` instead.
+  if (deps.mirror) {
+    for (const m of plan.modules) deps.mirror("module", { ...m, userId });
+    for (const o of plan.occurrences) deps.mirror("occurrence", { ...o, userId });
+  }
   if (parentId) {
     const linked = await linkRootIntoParent({ parentId, childId: plan.rootOccurrenceId, userId });
     if (linked) {

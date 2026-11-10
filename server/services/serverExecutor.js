@@ -525,6 +525,68 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       effects.push({ _effect: "CREATE", ...res });
       return;
     }
+    if (type === "IMPORT_TO_PAGE") {
+      // A share becomes a readable page in Imports (smarter imports, Task 4). config:
+      //   { from: "$share", parentFolderId, linkTo?: "$bookmarkId", linkResult?: "$bookmarkRes", into?: "$pageId" }
+      // link / image: QUEUED (services/importJobs) — the fetch / OCR never holds up the share's answer.
+      // text: built now (nothing to fetch); `into` gets the page root, or null when the text was too short
+      //   to make a page (the rule's own CREATE then saves it as a row).
+      // A share already imported (its externalId on a page root) binds that page and builds nothing.
+      if (!gridId) throw new Error("IMPORT_TO_PAGE requires gridId");
+      const share = await resolveExprAsync(cfg.from || "$share", $vars, opts);
+      const parentFolderId = await resolveExprAsync(cfg.parentFolderId, $vars, opts);
+      if (!parentFolderId) throw new Error("IMPORT_TO_PAGE: no Imports folder given");
+      const folder = await Folder.findOne({ id: parentFolderId, userId, gridId }).lean();
+      if (!folder) throw new Error(`IMPORT_TO_PAGE: folder ${parentFolderId} not found on this grid`);
+      const into = cfg.into ? (String(cfg.into).startsWith("$") ? cfg.into : `$${cfg.into}`) : null;
+      if (into) $vars[into] = null;
+
+      const { shareImportSource } = await import("./importSource.js");
+      const plan = shareImportSource(share);
+      if (!plan) { effects.push({ _effect: "IMPORT_TO_PAGE", skipped: "nothing to import" }); return; }
+      const externalId = share?.externalId || null;
+
+      if (externalId) {
+        const prior = await Occurrence.findOne({ userId, gridId, "meta.importExternalId": externalId }).lean();
+        if (prior) {
+          if (into) $vars[into] = prior.id;
+          effects.push({ _effect: "IMPORT_TO_PAGE", skipped: "already imported", rootOccurrenceId: prior.id });
+          return;
+        }
+      }
+
+      const { queueImport } = await import("./importJobs.js");
+      if (plan.kind === "link") {
+        const linkTo = cfg.linkTo ? await resolveExprAsync(cfg.linkTo, $vars, opts) : null;
+        const linkRes = cfg.linkResult ? await resolveExprAsync(cfg.linkResult, $vars, opts) : null;
+        if (typeof linkTo === "string" && linkTo) {
+          const bm = await Occurrence.findOne({ id: linkTo, userId, gridId }).lean();
+          // Ruling R2: a bookmark that already has its page, or an EXISTING bookmark (a re-share of
+          // something saved before) whose page did not fail, is left as it is.
+          if (bm?.meta?.readerPageId || (linkRes?.status === "updated" && !bm?.meta?.readerPageError)) {
+            effects.push({ _effect: "IMPORT_TO_PAGE", skipped: "bookmark already saved", bookmarkId: linkTo });
+            return;
+          }
+        }
+        const queued = queueImport({ source: plan, gridId, userId, parentFolderId, externalId,
+          linkTo: typeof linkTo === "string" && linkTo ? linkTo : null, io, mirror });
+        effects.push({ _effect: "IMPORT_TO_PAGE", queued, kind: "link" });
+        return;
+      }
+      if (plan.kind === "image") {
+        const queued = queueImport({ source: plan, gridId, userId, parentFolderId, externalId,
+          imageOccurrenceId: plan.imageOccurrenceId, io, mirror });
+        effects.push({ _effect: "IMPORT_TO_PAGE", queued, kind: "image" });
+        return;
+      }
+      // text — now.
+      const { runImport } = await import("./importPipeline.js");
+      const out = await runImport({ source: plan, gridId, userId, parentFolderId, externalId },
+        { mirror, broadcast: (evt, p) => io?.to?.(`user:${userId}`)?.emit?.(evt, p) });
+      if (into) $vars[into] = out.empty ? null : out.rootOccurrenceId;
+      effects.push({ _effect: "IMPORT_TO_PAGE", kind: "text", empty: !!out.empty, rootOccurrenceId: out.rootOccurrenceId || null });
+      return;
+    }
     if (type === "MOVE_OCCURRENCE") {
       // Move one existing row under a new parent — a CONTAINER (listed in its
       // occurrences[]) or a FOLDER (held by parentId alone). Same config as the

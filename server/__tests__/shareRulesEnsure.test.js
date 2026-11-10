@@ -115,7 +115,19 @@ describe("upgrading an existing catch-all", () => {
     const r = await ensureCatchAllRule({ userId: "u1", gridId: "g1" });
     expect(r.upgraded).toBe(true);
     expect(store[0].pipeline.steps).toHaveLength(1);
-    expect(store[0].meta.catchAllVersion).toBe(2);
+    expect(store[0].meta.catchAllVersion).toBe(3);
+  });
+
+  it("v3: a grid with an Imports folder files the catch-all there", async () => {
+    folders.push({ id: "imports-g1", userId: "u1", gridId: "g1", name: "Imports", meta: { protected: true } });
+    await ensureCatchAllRule({ userId: "u1", gridId: "g1" });
+    expect(JSON.stringify(store[0].pipeline)).toContain("literal:imports-g1");
+    expect(JSON.stringify(store[0].pipeline)).not.toContain("files-folder-g1");
+  });
+
+  it("v3: no Imports folder still lands in Files — the control", async () => {
+    await ensureCatchAllRule({ userId: "u1", gridId: "g1" });
+    expect(JSON.stringify(store[0].pipeline)).toContain("literal:files-folder-g1");
   });
 
   it("NEVER overwrites one the user edited", async () => {
