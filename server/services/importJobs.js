@@ -46,6 +46,25 @@ export function queueImport(job) {
   return true;
 }
 
+// THE CLEAN-UP LINE (Task 7): Ollama after every import, one at a time, on its own chain so a 60s model call
+// never holds up the next share's page. Off unless IMPORT_AI_CLEANUP=1 — it ships on only when measured to help.
+let enrichChain = Promise.resolve();
+export const aiCleanupOn = () => process.env.IMPORT_AI_CLEANUP === "1";
+/** Queue Ollama clean-up of a written import. @returns {boolean} queued */
+export function queueEnrich({ rootOccurrenceId, gridId, userId, io = null, mirror = null }, deps = {}) {
+  if (!rootOccurrenceId || !aiCleanupOn()) return false;
+  enrichChain = enrichChain.then(async () => {
+    try {
+      const { enrichImport } = await import("./importEnrich.js");
+      const { examplesFor } = await import("./importCorrections.js").catch(() => ({}));
+      const r = await enrichImport({ rootOccurrenceId, gridId, userId, io, mirror }, { examplesFor, ...deps });
+      if (!r.applied) console.log(`[importJobs] clean-up left ${rootOccurrenceId} as written: ${r.reason || "no change"}`);
+    } catch (err) { console.warn("[importJobs] clean-up failed:", err?.message || err); }
+  });
+  return true;
+}
+export function whenEnrichIdle() { return enrichChain; }
+
 /** Resolves when the queue is empty (tests). */
 export function whenImportsIdle() {
   if (!draining && !queue.length) return Promise.resolve();
@@ -152,6 +171,7 @@ export async function runImportJob(job) {
   }
 
   const rootId = out.rootOccurrenceId;
+  queueEnrich({ rootOccurrenceId: rootId, gridId, userId, io, mirror });
   if (linkTo) {
     await setOccMeta({ id: rootId, userId, set: { bookmarkId: linkTo }, io, mirror });
     await setOccMeta({ id: linkTo, userId, set: { readerPageId: rootId, readerPageError: null }, io, mirror });

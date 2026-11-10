@@ -555,7 +555,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
         }
       }
 
-      const { queueImport } = await import("./importJobs.js");
+      const { queueImport, queueEnrich } = await import("./importJobs.js");
       if (plan.kind === "link") {
         const linkTo = cfg.linkTo ? await resolveExprAsync(cfg.linkTo, $vars, opts) : null;
         const linkRes = cfg.linkResult ? await resolveExprAsync(cfg.linkResult, $vars, opts) : null;
@@ -584,6 +584,7 @@ export async function runOperationServerSide(op, { vars = {}, userId, gridId, io
       const out = await runImport({ source: plan, gridId, userId, parentFolderId, externalId },
         { mirror, broadcast: (evt, p) => io?.to?.(`user:${userId}`)?.emit?.(evt, p) });
       if (into) $vars[into] = out.empty ? null : out.rootOccurrenceId;
+      if (!out.empty) queueEnrich({ rootOccurrenceId: out.rootOccurrenceId, gridId, userId, io, mirror });
       effects.push({ _effect: "IMPORT_TO_PAGE", kind: "text", empty: !!out.empty, rootOccurrenceId: out.rootOccurrenceId || null });
       return;
     }
