@@ -15,6 +15,39 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-10 — SMARTER IMPORTS: one pipeline, shares land in Imports, a preview before Clip (`0489`)
+
+Plan `docs/superpowers/plans/2026-11-09-smarter-imports.md` (spec `…/specs/2026-11-09-smarter-imports-design.md`,
+ledger `.superpowers/sdd/2026-11-09-smarter-imports/progress.md` in the worktree — rulings R1-R12 are there). Tasks 1-2
+by account3 (test set + OCR layout), 3-8 by account2 (account3 hit its limit mid-Task 3).
+- **One pipeline** (`services/importPipeline.runImport`, extract -> `markdownToModuli` with `paragraphBlocks`): server
+  OCR (`services/serverOcr`, tesseract.js, language data in `server/cache/tesseract/`; Node 22 needs the
+  `wasm-feature-detect` 1.8.0 override), an image page PLACES the existing picture occurrence, < 3 words writes nothing.
+  The OCR viewer's Magic "+ Page" sends the OCR page to the server.
+- **Auto files into Imports (`0489`):** the link / text / image / pdf / catch-all rules' FIXED destinations -> the
+  Imports folder (an expression destination — the extension's own pick — is kept); calendar, video, contact, profile
+  untouched; already-shared items stay where they are. `IMPORT_TO_PAGE` (server executor): a link is a bookmark now and
+  its readable page queued (`services/importJobs`, one at a time; they point at each other, `meta.readerPageId` /
+  `meta.bookmarkId`; a page that cannot be read leaves `meta.readerPageError`); an image is OCR'd into a page, or with
+  no text the picture moves into Imports; text is a page, or a row when too short. A re-share binds its page
+  (`meta.importExternalId`). Catch-all v3 targets Imports.
+- **Share window:** `GET /share/stage/:id/import-preview` (the pipeline in dry-run, 8s cap) -> "Will be created in
+  Imports" under Auto; a link placed by hand: Keep as bookmark / Turn into a page / Both, a Body box, Pictures toggles.
+- **Typed pages:** `utils/structuredData` (JSON-LD incl. `@graph` + `@id`, then Open Graph) and `services/boardMatch`
+  (the board whose rows agree on the type's Board Category): a Movie page takes the Movies row's bindings and values,
+  still in Imports. A link field is never written a name string.
+- **Ollama clean-up (`services/importEnrich`) is built and OFF** (`IMPORT_AI_CLEANUP` unset). Measured 2026-11-10 on
+  this PC's Ollama with llama3.2:3b (prod's model): rules 5.191 vs with-ollama 5.191; gnosis 0.997 -> 0.996; ellis +
+  stanford refused by `acceptCleanup` (rewrites); mtu timed out; 14-64s per page. Re-measure with
+  `node server/eval/imports/run.mjs --with-ollama`.
+- **Corrections (`services/importCorrections`):** a user's own edit to a textblock of a page imported in the last 14
+  days is kept (one per textblock per 10 min), fed to the clean-up as examples; `run.mjs --add-correction <id>`.
+- **Eval:** `server/eval/imports/` (6 cases); `--check` gates OCR / import changes. Gnosis 0.797 -> 0.997, Ellis 0.899
+  -> 0.914 over the morning's baseline.
+- Server 3,599 / client 7,407 pass.
+
+---
+
 ### 2026-11-08 — A DAY'S OCCASIONS HOLDS ITS APPOINTMENTS (`0488`); an Occasions copy is a mirror
 
 User: *"put in the occassion container in schedule, a copylink of the appointments for that day"* · *"using an

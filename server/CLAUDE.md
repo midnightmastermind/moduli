@@ -2,6 +2,21 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-11-10 — smarter imports: the import pipeline, jobs, preview, structured data)
+- `services/importPipeline.js` — `extractImport(source)` (link / html / image / text -> `{markdown, meta}`),
+  `runImport({source, gridId, userId, parentId|parentFolderId, dryRun, externalId, overrides}, deps)` (deps:
+  `fetchPageHtml`, `ocrImage`, `matchBoard`, `uc` | `mirror`, `broadcast`), `applyImportOverrides` (title / body /
+  images). import_text / import_url / POST /import/url extract through it and keep their own shapes (ruling R1).
+- `services/serverOcr.js` (one reused tesseract worker), `services/importJobs.js` (`queueImport`, `runImportJob`,
+  `queueEnrich` — its own chain, `IMPORT_AI_CLEANUP=1` only), `services/importSource.js` (a `$share` -> a source),
+  `services/importPreview.js` (+ route `/share/stage/:id/import-preview`), `utils/importsFolder.findImportsFolder`.
+- `serverExecutor` action `IMPORT_TO_PAGE { from, parentFolderId, linkTo?, linkResult?, into? }`.
+- `manualPlacement` takes `placement.importAs` ("page" | "both"), `pageBody`, `images`.
+- `utils/structuredData.js`, `services/boardMatch.js`; `markdownToModuli` takes `rootFields { bindings, values, show }`.
+- `services/importEnrich.js` (`acceptCleanup`, `cleanupWithOllama`, `enrichImport`), `services/importCorrections.js`
+  + `models/ImportCorrection.js` (hooked in `update_occurrence`, not awaited). `utils/ollamaHeaders.js` (shared w/ Jonah).
+- Migration `0489-auto-shares-into-imports`; `shareRulesEnsure.CATCH_ALL_VERSION = 3`.
+
 ## Recent Changes (2026-11-05 — the warm cache is kept on disk; a grid switch does not re-send)
 - `services/gridSnapshot.js` + `loadUserIntoCache` + `snapshotLoadedGrids`: modules + occurrences saved to `server/cache/grids/<gridId>.ndjson` a minute after a load and every 15 min. A cold load reads them back, then `reconcileRows` asks Atlas for id + updatedAt and whole rows only where they differ. Why: reads are limited at ~103 KB/s (measured on the droplet, compression changes nothing), so a full read of poms is 11 min. Refused when the grid's migration ledger moved (native-driver migrations do not move updatedAt). `CACHE_SNAPSHOT=0` or deleting the folder forces a full read. A script writing with the native driver and no ledger entry is invisible to it.
 - `socketHandlers/state.js request_full_state`: a repeat of the question in flight is dropped, a `retry` of one already answered on this socket is dropped, a newer answer cancels the deferred send still waiting. A plain request is always answered (undo resync).
