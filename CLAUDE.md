@@ -44,7 +44,18 @@ by account3 (test set + OCR layout), 3-8 by account2 (account3 hit its limit mid
   days is kept (one per textblock per 10 min), fed to the clean-up as examples; `run.mjs --add-correction <id>`.
 - **Eval:** `server/eval/imports/` (6 cases); `--check` gates OCR / import changes. Gnosis 0.797 -> 0.997, Ellis 0.899
   -> 0.914 over the morning's baseline.
-- Server 3,599 / client 7,407 pass.
+- Server 3,599 / client 7,410 pass. `0489` applied to poms grid (snapshot `backups/poms-grid/2026-11-10T14-34-19…`) and
+  test grid 2 (its catch-all), read back, deployed with a restart (prod Node 22: tesseract worker reads the Gnosis
+  card; `wasm-feature-detect` 1.8.0 installed).
+- **Watched on prod, test grid 2** (probe rules in poms' shape, a scratch token; all removed after): the Gnosis photo ->
+  a page in Imports, 4 paragraph textblocks + its quote + the photo itself (still in Files); a Stanford Encyclopedia
+  link -> bookmark + page in Imports (36 sections, 165 textblocks), pointing at each other; a Wikipedia link -> the
+  same (20 sections, 50 textblocks, the lead picture). `run.mjs --check` passes on prod.
+- **Found cleaning up:** deleting an imported page left its QUOTES behind (embedded in a textblock, listed and parented
+  by nothing). `inlineChipOwnership.ownEmbeddedBlocks` lists + parents them to the text (`03f11eb9`, deployed).
+  Pages imported before it keep the gap. Also seen: the Stanford page's citation table was read as a quote.
+- **Not watched:** a share from the phone or the extension, the share window's preview and link choices in a browser,
+  a Movie page matching the Movies board on a real grid.
 
 ---
 
