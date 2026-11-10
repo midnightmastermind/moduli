@@ -1256,7 +1256,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
       if (applyEffectsToLiveOccs(liveOccs, results)) {
         // Value-only writes refresh the touched entries; anything that can move
         // structure discards the read model. See _VALUE_ONLY_EFFECTS.
-        if (effectsAreStructural(results)) {
+        if (effectsAreStructural(results) && !appendCreatesToCache(liveCtx, liveOccs, results)) {
           liveCtx._allItemsCache = null;
           // Opt-in: which ops (and which effect types) throw the read model away.
           if (globalThis.__readModelDiag) {
@@ -1512,6 +1512,51 @@ export function patchAllItemsCache(context, liveOccs, effects) {
     for (const k of Object.keys(item)) if (!(k in next)) delete item[k];
     Object.assign(item, next);
   }
+}
+
+// A CREATE ADDS ROWS; IT MOVES NOTHING ELSE (2026-11-10). Measured on poms grid: a
+// date step threw the ~22k-row read model away 1-3 times, every time because an op
+// created a row (People: Birthdays, Place Dated Work), and the next op paid
+// ~0.2-0.35s to rebuild it. A create's new rows are enriched and appended (the
+// rebuild appends them at the same place, since `Object.values` keeps insertion
+// order), and each parent whose child list grew is re-enriched in place. The
+// shared parent map is already patched by the CREATE action itself.
+//   Falls back to a rebuild (returns false) on anything it cannot prove: a
+//   structural effect that is not a create, a create whose id is already cached,
+//   a create listing a row that already existed (that row would MOVE), or a row
+//   missing from the overlay. The array is REPLACED, never pushed into: the per-list
+//   FIND indexes and role slices are keyed on its identity.
+export function appendCreatesToCache(context, liveOccs, effects) {
+  const cache = context?._allItemsCache;
+  const index = context?._allItemsIndex;
+  const enrich = context?._allItemsEnrich;
+  if (!Array.isArray(cache) || !index || typeof enrich !== "function") return false;
+  const created = [];
+  for (const eff of effects) {
+    if (!eff?._effect || !_LIVEOCCS_MUTATING.has(eff._effect) || _VALUE_ONLY_EFFECTS.has(eff._effect)) continue;
+    if (eff._effect !== "CREATE_ITEM") return false;
+    const id = eff.instance?.id;
+    if (!id || index.has(id) || !liveOccs[id]) return false;
+    created.push(id);
+  }
+  if (!created.length) return false;
+  const fresh = new Set(created);
+  const parents = new Set();
+  for (const id of created) {
+    const occ = liveOccs[id];
+    for (const kid of occ.occurrences || []) if (!fresh.has(kid)) return false;
+    if (occ.parentId && !fresh.has(occ.parentId) && index.has(occ.parentId)) parents.add(occ.parentId);
+  }
+  const added = created.map((id) => enrich(liveOccs[id]));
+  for (const pid of parents) {
+    const item = index.get(pid);
+    const next = enrich(liveOccs[pid]);
+    for (const k of Object.keys(item)) if (!(k in next)) delete item[k];
+    Object.assign(item, next);
+  }
+  for (const it of added) index.set(it.id, it);
+  context._allItemsCache = cache.concat(added);
+  return true;
 }
 
 // Returns true if any effect mutated `liveOccs` (so callers can invalidate caches

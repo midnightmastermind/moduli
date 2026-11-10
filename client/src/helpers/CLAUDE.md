@@ -3,6 +3,17 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-10 (2) — a CREATE appends to the read model instead of discarding it)
+- `operationExecutor.appendCreatesToCache(context, liveOccs, effects)` (exported): when every structural effect of
+  an op is a `CREATE_ITEM`, the new rows are enriched and appended (a NEW array — the per-list FIND indexes and role
+  slices key on its identity) and each parent whose child list grew is re-enriched in place. The CREATE action
+  already patches the shared parent map, and the rebuild would append new rows at the same place (`Object.values`
+  insertion order). Rebuilds instead on a create listing an EXISTING row (it would move), an id already cached, a
+  row missing from the overlay, or any other structural effect beside it.
+- Why: after the meta/textmap fix the remaining rebuilds per date step all followed a create (People: Birthdays,
+  Place Dated Work); the next op paid ~0.2-0.35s each. Test `allItemsCacheCreate.test.js` (6; A/B: with the call
+  removed exactly the "built once" case fails).
+
 ## Recent Changes (2026-11-10 — a date step rebuilt the 22k-row read model for writes that cannot move it; FIND by parent)
 - `operationExecutor._VALUE_ONLY_EFFECTS` += UPDATE_ITEM_META, UPDATE_ITEM_TEXTMAP, UPDATE_ITEM_FIELD_VISIBILITY.
   Another item's enrichment reads only child lists / parentId (`_ancestors`) and filterOverride (`_effectiveFilter`),
