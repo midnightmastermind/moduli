@@ -53,7 +53,13 @@ by account3 (test set + OCR layout), 3-8 by account2 (account3 hit its limit mid
   same (20 sections, 50 textblocks, the lead picture). `run.mjs --check` passes on prod.
 - **Found cleaning up:** deleting an imported page left its QUOTES behind (embedded in a textblock, listed and parented
   by nothing). `inlineChipOwnership.ownEmbeddedBlocks` lists + parents them to the text (`03f11eb9`, deployed).
-  Pages imported before it keep the gap. Also seen: the Stanford page's citation table was read as a quote.
+  **`0490`** repaired what was stored (`758db14f`): a block embedded in exactly one text and owned by nothing is
+  parented to and listed by it — poms 547 (541 quotes, the Eminem and Viafluere articles' root sections, 2 tables,
+  2 textblocks) in 250 texts, test grid 2 26; read back 0 left; checkGrid shows no new finding.
+- **A table in a blockquote is a table** (`758db14f`): the Stanford Encyclopedia's "Academic Tools" box (a
+  `<blockquote>` holding a table) became a pull-quote reading "| | How to cite this entry. |". `parseBlocks` unquotes
+  lines that form a markdown table (`|` rows + a `---` row); a real quote holding a `|` stays a quote. Re-planned:
+  1 table, 0 quotes. After the deploy poms grid loaded in 9s (a full read; the ledger moved).
 - **Not watched:** a share from the phone or the extension, the share window's preview and link choices in a browser,
   a Movie page matching the Movies board on a real grid.
 
