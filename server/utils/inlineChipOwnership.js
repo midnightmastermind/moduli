@@ -34,3 +34,38 @@ export function ownInlineChips(occurrences) {
   }
   return [...changed];
 }
+
+
+/** Occurrence ids a textmap embeds as BLOCKS (`moduleEmbed`: a quote, a picture inside a paragraph). */
+export function embeddedBlockIds(textmap) {
+  const out = [];
+  const walk = (n) => {
+    if (!n || typeof n !== "object") return;
+    if (n.type === "moduleEmbed" && n.attrs?.occurrenceId && !out.includes(n.attrs.occurrenceId)) out.push(n.attrs.occurrenceId);
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(textmap);
+  return out;
+}
+
+/** MUTATES: a block an import minted and embedded in a text — and that NOTHING lists or parents — is listed
+ *  by that text and parented to it, so deleting the page reaches it (2026-11-10: deleting an imported page
+ *  left its quotes behind, embedded in a textblock and owned by nothing). Only occurrences in this list are
+ *  touched, so an existing row the import merely places (an OCR'd photo) keeps its own home. */
+export function ownEmbeddedBlocks(occurrences) {
+  const byId = new Map(occurrences.map((o) => [o.id, o]));
+  const listed = new Set(occurrences.flatMap((o) => o.occurrences || []));
+  const changed = new Set();
+  for (const holder of occurrences) {
+    if (!holder?.textmap || typeof holder.textmap !== "object") continue;
+    for (const id of embeddedBlockIds(holder.textmap)) {
+      const block = byId.get(id);
+      if (!block || block === holder || block.parentId != null || listed.has(id)) continue;
+      holder.occurrences = [...(Array.isArray(holder.occurrences) ? holder.occurrences : []), id];
+      block.parentId = holder.id;
+      listed.add(id);
+      changed.add(holder.id); changed.add(id);
+    }
+  }
+  return [...changed];
+}

@@ -28,7 +28,7 @@
 // Returns { modules: [...], occurrences: [...], rootOccurrenceId, dryRun }.
 // Caller broadcasts the entities via socket so connected tabs sync.
 
-import { ownInlineChips } from "../utils/inlineChipOwnership.js";
+import { ownInlineChips, ownEmbeddedBlocks } from "../utils/inlineChipOwnership.js";
 import crypto from "crypto";
 import { annotationLabelOf } from "../utils/codexParse.js";
 import Module from "../models/Module.js";
@@ -966,6 +966,7 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   // A link chip belongs to the text that embeds it — parented and listed, as "Make inline
   // textblock" does — so deleting that text reaches it (utils/inlineChipOwnership).
   ownInlineChips(occurrences);
+  ownEmbeddedBlocks(occurrences);
   const byId = new Map(occurrences.map((o) => [o.id, o]));
   for (const parent of occurrences) {
     for (const childId of parent.occurrences || []) {
