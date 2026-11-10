@@ -1256,10 +1256,16 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
       if (applyEffectsToLiveOccs(liveOccs, results)) {
         // Value-only writes refresh the touched entries; anything that can move
         // structure discards the read model. See _VALUE_ONLY_EFFECTS.
-        const structural = results.some(
-          r => r?._effect && _LIVEOCCS_MUTATING.has(r._effect) && !_VALUE_ONLY_EFFECTS.has(r._effect),
-        );
-        if (structural) liveCtx._allItemsCache = null;
+        if (effectsAreStructural(results)) {
+          liveCtx._allItemsCache = null;
+          // Opt-in: which ops (and which effect types) throw the read model away.
+          if (globalThis.__readModelDiag) {
+            (globalThis.__readModelInval ||= []).push({
+              op: op.name,
+              effects: [...new Set(results.map(r => r?._effect).filter(Boolean))].join(","),
+            });
+          }
+        }
         else patchAllItemsCache(liveCtx, liveOccs, results);
       }
       // Tag each effect with its source op so the fire layer can mark the op
@@ -1445,14 +1451,8 @@ const _LIVEOCCS_MUTATING = new Set([
   // Which of a tile's fields RENDER. In the overlay for the same reason as the
   // date move above: a later step in the same sweep that reads the occurrence
   // must see the new visibility, or a two-pass op disagrees with itself.
-  //
-  // Deliberately NOT in `_VALUE_ONLY_EFFECTS`, even though it changes no
-  // occurrence's existence, parentage or effective filter. That set exists so
-  // `patchAllItemsCache` can surgically refresh the cached read model, and it
-  // only knows how to patch `fields` — listing this there would leave the cached
-  // entry carrying the OLD fieldVisibility while the overlay carried the new one.
-  // A full rebuild is the cheap, correct answer, and it is the posture this file
-  // already takes: "a stale read model is far worse than a rebuild".
+  // It changes no occurrence's existence, parentage or effective filter, so it is
+  // also in `_VALUE_ONLY_EFFECTS`: the cached entry is re-enriched in place.
   "UPDATE_ITEM_FIELD_VISIBILITY",
 ]);
 
@@ -1467,7 +1467,25 @@ const _LIVEOCCS_MUTATING = new Set([
 // collection once PER TRACKER. Measured on test grid 2 (7295 occurrences):
 // **44 full rebuilds for a single date change**, each one re-walking every
 // occurrence's ancestor chain and effective filter.
-const _VALUE_ONLY_EFFECTS = new Set(["UPDATE_ITEM_FIELD"]);
+//
+// META, TEXTMAP and FIELD_VISIBILITY joined it 2026-11-10. None of them changes
+// the set of occurrences, a child list, a parentId or a filterOverride — the only
+// inputs another item's enrichment reads (`_ancestors` walks child lists /
+// parentId, `_effectiveFilter` walks filterOverride). And the patch re-enriches
+// the WHOLE entry (`enrich(occ)` + copy every key), not just `fields`. Measured on
+// poms grid: a date step rebuilt the 22k-row read model 3 times, twice because
+// `Schedule: Build Schedule` writes meta and `Day Page: Build` writes meta +
+// textmap; the next op paid ~220ms each time (Fill Day, Day Page: Readings).
+const _VALUE_ONLY_EFFECTS = new Set([
+  "UPDATE_ITEM_FIELD", "UPDATE_ITEM_META", "UPDATE_ITEM_TEXTMAP", "UPDATE_ITEM_FIELD_VISIBILITY",
+]);
+
+/** True when an op's effects may have moved structure, so the read model must be rebuilt. */
+export function effectsAreStructural(results) {
+  return Array.isArray(results) && results.some(
+    r => r?._effect && _LIVEOCCS_MUTATING.has(r._effect) && !_VALUE_ONLY_EFFECTS.has(r._effect),
+  );
+}
 
 /**
  * Refresh the cached $allItems entries touched by value-only effects.
@@ -1903,6 +1921,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     };
   };
   allItems = Object.values(occurrencesById).map(enrichOne);
+    if (globalThis.__readModelDiag) (globalThis.__readModelBuilds ||= []).push(operation.name);
     if (_canCache) {
       context._allItemsCache = allItems;
       // Kept beside the cache so a VALUE-ONLY write can refresh one entry

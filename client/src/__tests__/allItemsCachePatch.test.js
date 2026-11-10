@@ -16,7 +16,7 @@
 // on screen would simply be wrong. So these tests assert what the next op SEES,
 // not just that the cache survived.
 import { describe, it, expect } from "vitest";
-import { patchAllItemsCache } from "../helpers/operationExecutor";
+import { patchAllItemsCache, effectsAreStructural, runMatchingOperations } from "../helpers/operationExecutor";
 
 function ctx() {
   const item = {
@@ -77,7 +77,7 @@ describe("patchAllItemsCache — a field write refreshes one entry", () => {
   it("ignores effects that are not value-only", () => {
     const c = ctx();
     patchAllItemsCache(c, liveOccsWith({ f1: { value: 1 } }), [
-      { _effect: "UPDATE_ITEM_TEXTMAP", itemId: "occ-1", textmap: {} },
+      { _effect: "UPDATE_ITEM_PARENT", itemId: "occ-1", toParentId: "x" },
     ]);
     expect(c._allItemsCache[0].fields.f1.value).toBe(1);
   });
@@ -106,5 +106,65 @@ describe("patchAllItemsCache — falls back to discarding when it cannot prove t
       { _effect: "UPDATE_ITEM_FIELD", itemId: "occ-1" },
     ]);
     expect(c._allItemsCache).toBeNull();
+  });
+});
+
+// 2026-11-10: meta / textmap / fieldVisibility writes are patched too. On poms
+// grid a date step rebuilt the 22k-row read model three times, twice because
+// Build Schedule writes meta and Day Page: Build writes meta + textmap.
+describe("which effects keep the read model", () => {
+  it("meta, textmap, fieldVisibility and field writes are value-only", () => {
+    for (const e of ["UPDATE_ITEM_FIELD", "UPDATE_ITEM_META", "UPDATE_ITEM_TEXTMAP", "UPDATE_ITEM_FIELD_VISIBILITY"]) {
+      expect(effectsAreStructural([{ _effect: e, itemId: "a" }]), e).toBe(false);
+    }
+  });
+
+  it("anything that can move structure or a filter still discards it", () => {
+    for (const e of ["CREATE_ITEM", "DELETE_ITEM", "UPDATE_ITEM_PARENT", "LINK_OCCURRENCE_TO_PARENT", "UPDATE_ITEM_FILTER_OVERRIDE"]) {
+      expect(effectsAreStructural([{ _effect: e, itemId: "a" }]), e).toBe(true);
+    }
+    // one structural effect among value-only ones is enough
+    expect(effectsAreStructural([{ _effect: "UPDATE_ITEM_META" }, { _effect: "CREATE_ITEM" }])).toBe(true);
+  });
+
+  it("a meta write refreshes the cached entry", () => {
+    const c = ctx();
+    patchAllItemsCache(c, { "occ-1": { id: "occ-1", moduleId: "m-1", fields: { f1: { value: 1 } }, meta: { flag: "on" } } }, [
+      { _effect: "UPDATE_ITEM_META", itemId: "occ-1", metaPath: ["flag"], value: "on" },
+    ]);
+    expect(c._allItemsCache).not.toBeNull();
+    expect(c._allItemsCache[0]).toBe(c._item);
+  });
+});
+
+// THE BEHAVIOUR THAT MATTERS: an op later in the same sweep reads what an
+// earlier op wrote to meta, through the kept (patched) read model.
+describe("a later op in the sweep sees an earlier op's meta write", () => {
+  const step = (config) => ({ type: "action", config });
+  const ops = [
+    { id: "w", name: "writer", enabled: true, triggers: [{ type: "onLoad", priority: 1 }],
+      pipeline: { steps: [
+        step({ type: "INIT_VAR", name: "$x", expr: "$allItemsById.occ-1" }),
+        step({ type: "UPDATE", path: "$x.meta.flag", value: "literal:on" }),
+      ] } },
+    { id: "r", name: "reader", enabled: true, triggers: [{ type: "onLoad", priority: 2 }],
+      pipeline: { steps: [
+        step({ type: "INIT_VAR", name: "$x", expr: "$allItemsById.occ-1" }),
+        step({ type: "UPDATE", path: "$x.fields.f1.value", value: "$x.meta.flag" }),
+      ] } },
+  ];
+  it("reads 'on'", () => {
+    const occurrencesById = {
+      "occ-1": { id: "occ-1", moduleId: "m-1", fields: { f1: { value: "off" } }, meta: { flag: "off" }, occurrences: [] },
+    };
+    const modulesById = { "m-1": { id: "m-1", role: "instance", label: "X", fieldBindings: [{ fieldId: "f1" }] } };
+    const fieldsById = { f1: { id: "f1", name: "F", type: "text" } };
+    const ctx = { state: { grid: {}, modules: Object.values(modulesById) }, occurrencesById, modulesById, fieldsById,
+      operationsById: Object.fromEntries(ops.map(o => [o.id, o])) };
+    const out = runMatchingOperations(ops, null, null, ctx);
+    const meta = out.find(e => e._effect === "UPDATE_ITEM_META");
+    expect(meta, "the writer emitted no meta write — fixture shape wrong").toBeTruthy();
+    const fieldWrite = out.find(e => e._effect === "UPDATE_ITEM_FIELD" && e.itemId === "occ-1");
+    expect(fieldWrite?.value).toBe("on");
   });
 });

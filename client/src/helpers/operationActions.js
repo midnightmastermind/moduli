@@ -1133,6 +1133,45 @@ export function recordsUnder(list, ancestorId) {
   return (e.byAncestor.get(ancestorId) || []).map((i) => list[i]);
 }
 
+/**
+ * When an AND condition holds a plain `parentId IS <one id>` rule, that id — the FIND can then read that parent's
+ * records from an index instead of testing every record. Null otherwise (an OR group, no such rule, an empty right).
+ * `Day Page: Add Reading` runs four such FINDs over every occurrence, once per day per book (2026-11-10, ~300ms of a
+ * date step on poms grid).
+ */
+export function parentRuleOf(predicate, $vars) {
+  if (!predicate || (predicate.operator || "AND") !== "AND" || !Array.isArray(predicate.rules)) return null;
+  for (const r of predicate.rules) {
+    if (!r || Array.isArray(r.rules) || r.comparator !== "IS") continue;
+    if (!/^(?:\$item\.|\$record\.)?parentId$/.test(typeof r.left === "string" ? r.left : "")) continue;
+    const right = resolveExpr(r.right, $vars);
+    if ((typeof right === "string" && right) || typeof right === "number") return String(right);
+  }
+  return null;
+}
+
+const _parentIndexes = new WeakMap(); // list -> Map(parentId -> record[])
+/**
+ * The records of `list` (in list order) whose `parentId` is `parentId`. Built once per list identity, like
+ * idIndexFor: an addition REPLACES the array, a move is structural (the read model is rebuilt), and the in-place
+ * read-model patch never changes a parentId. The condition still runs on every returned record.
+ */
+export function recordsWithParent(list, parentId) {
+  let ix = _parentIndexes.get(list);
+  if (!ix) {
+    ix = new Map();
+    for (const rec of list) {
+      const p = rec?.parentId;
+      if (p == null || p === "") continue;
+      const k = String(p);
+      if (!ix.has(k)) ix.set(k, []);
+      ix.get(k).push(rec);
+    }
+    _parentIndexes.set(list, ix);
+  }
+  return ix.get(parentId) || [];
+}
+
 export function resolveRecordPath(record, path) {
   if (record == null || !path) return null;
   // Tolerate legacy `$item.X` / `$record.X` predicates from seed data — the
@@ -1917,6 +1956,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (under) {
         if (pool === itemList) pool = under;
         else { const keep = new Set(under); pool = pool.filter((r) => keep.has(r)); }
+      }
+      // A plain "parentId IS <id>" rule reads that parent's records from an index (same narrowing).
+      const parentIs = wantedId == null && Array.isArray(itemList) ? parentRuleOf(predicate, $vars) : null;
+      if (parentIs != null) {
+        const kids = recordsWithParent(itemList, parentIs);
+        if (pool === itemList) pool = kids;
+        else { const keep = new Set(kids); pool = pool.filter((r) => keep.has(r)); }
       }
       const usable = (it) => it && !it.deleted && !it.meta?.isTemplate;
       let candidates;

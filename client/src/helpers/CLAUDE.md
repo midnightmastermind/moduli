@@ -3,6 +3,19 @@
 _Updated: 2026-09-27. Check this file before re-reading source._
 
 
+## Recent Changes (2026-11-10 — a date step rebuilt the 22k-row read model for writes that cannot move it; FIND by parent)
+- `operationExecutor._VALUE_ONLY_EFFECTS` += UPDATE_ITEM_META, UPDATE_ITEM_TEXTMAP, UPDATE_ITEM_FIELD_VISIBILITY.
+  Another item's enrichment reads only child lists / parentId (`_ancestors`) and filterOverride (`_effectiveFilter`),
+  and `patchAllItemsCache` re-enriches the whole entry, so these are patched in place. `effectsAreStructural(results)`
+  (exported) is the decision. Measured on poms (`tools/uisweep/_rmdiag.mjs`, `window.__readModelDiag`): rebuilds per
+  date step 3 → 1 (Previous), 6 → 3 (Next; the rest follow real creates). The op after a rebuild paid ~220ms.
+- `operationActions.parentRuleOf` + `recordsWithParent`: a FIND with a plain AND `parentId IS <id>` rule reads that
+  parent's records from an index (per list identity, like idIndexFor). `Day Page: Add Reading` runs four per day per book.
+- Measured (`_opfreeze.mjs`): ops per date step 2.0–2.3s → 0.9–1.4s, load ops 2.1s → 1.0s, Readings 300 → 30ms.
+  Left: Build Schedule ~0.4s, and ~1s of each date-step freeze outside the ops (render, feed pass).
+  Tests `allItemsCachePatch` (+4), `findParentIndex` (4).
+
+
 ## Recent Changes (2026-11-05 — tileScheduler, tileImage: a grid board's tiles wait for the scroll)
 - `tileScheduler.js`: `noteScroll` (from `virtualRows`), `isScrollingNow` (140ms), `scheduleTile(run, isVisible, id)` (on-screen first, 8ms a frame, `TILE_MAX_WAIT_MS` 1200 even mid-scroll), `wantTileNow(id)` (a search's target, 6s). Used by `ui/DeferredTile`, in `ModuleContainer` for `virtualRows.isGrid` only: on a stacked list a light row's height loops with the virtualizer's scroll correction (measured, root CLAUDE.md).
 - `virtualRows`: plan entries carry `size`, grid overscan 5, light tiles are not measured, `noteTileReady` observes a tile that became real.

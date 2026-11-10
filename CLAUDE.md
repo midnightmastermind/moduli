@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-10 (2) — A DATE STEP'S OPERATIONS 2.2s → 1.1s: the read model was rebuilt for writes that cannot move it
+
+User (account2): *"look into operations next and see if we can improve the performance at all so it doesnt freeze up
+the app"*. account2 measured (`tools/uisweep/_opfreeze.mjs`, writes blocked) and hit its limit; finished here.
+- **Cause, from a CPU profile + a rebuild counter (`window.__readModelDiag`):** the executor rebuilds its enriched
+  `$allItems` (22k rows) after any op whose effects it treats as structural, and that list included meta, textmap and
+  field-visibility writes. Build Schedule writes meta and Day Page: Build writes meta + textmap, so a date step rebuilt
+  it 3 times and the NEXT op paid ~220ms each — Fill Day and Readings looked slow while changing nothing. Those three
+  are now patched in place (they change no child list, parentId or filterOverride, the only things another row's
+  enrichment reads). Readings' own cost was four `parentId IS x` FINDs over every row per day per book: FIND now reads
+  a parent's rows from an index.
+- **Measured on poms, local build, writes blocked:** ops per date step 2.0–2.3s → 0.9–1.4s; longest freeze 3.1s → 2.4s
+  (Next), 2.8s → 1.6–1.8s (Previous); load ops 2.1s → 1.0s. Client 7,418 pass.
+- **Left:** Build Schedule ~0.4s per step; ~1s of each freeze is outside the ops (redraw, feed pass).
+
+---
+
 ### 2026-11-10 — SMARTER IMPORTS: one pipeline, shares land in Imports, a preview before Clip (`0489`)
 
 Plan `docs/superpowers/plans/2026-11-09-smarter-imports.md` (spec `…/specs/2026-11-09-smarter-imports-design.md`,
