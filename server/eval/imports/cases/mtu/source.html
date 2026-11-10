@@ -1,0 +1,1161 @@
+<!DOCTYPE HTML><html lang="en">
+   <head>
+      <meta itemprop="inLanguage" content="en-US">
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="robots" content="max-image-preview: large">
+      <meta name="description" content="Interested in making an investment that promises a 100 percent return on your money, and then some? Buy a low-cost, open-source 3-D printer, plug it in and print household items.">
+      <meta name="keywords" content="3Dprinting, 3Dprinter, consumers, lulzbot">
+      <title>Just Press Print: 3-D Printing At Home Saves Cash | News</title>
+      
+
+
+<link type="text/css" rel="stylesheet" href="//www.mtu.edu/mtu_resources/styles/n/normalize.css" />
+<link type="text/css" rel="stylesheet" href="//www.mtu.edu/mtu_resources/styles/n/base.css" />
+<link type="text/css" rel="stylesheet" href="//www.mtu.edu/mtu_resources/styles/n/pubs.css" />
+
+<!--[if lte IE 9]>
+	<script src="/_resources/js/html5.js"></script><![endif]-->
+
+<!-- this is the headcode include -->
+<link rel="stylesheet" href="/_resources/css/oustyles.css" />
+
+<link href="//www.mtu.edu/mtu_resources/styles/n/print.css" type="text/css" rel="stylesheet" media="print" />
+
+<script>
+dataLayer = [{
+'internalExternal' : 'external'
+}];
+</script>
+<script>/**
+ * +------------------------------------------------------------------------+
+ * | Global Settings                                                        |
+ * +------------------------------------------------------------------------+
+ */
+(function() {
+	// TODO: Fix if the user has switched their system preferences. 
+	// Only set cookie in settings page.	
+	function setFontSize(value) {
+		if (value) {
+			document.documentElement.classList.remove(window.mtuFontSize);
+			document.documentElement.classList.add(value);
+			window.mtuFontSize = value;
+		}
+	}
+
+	function setReducedMotion(value) {
+		if (value) {
+			document.documentElement.classList.add("reduce-animations");
+		} else {
+			document.documentElement.classList.remove("reduce-animations");
+		}
+	}
+
+	function setTheme(value) {
+		if (value) {
+			document.documentElement.classList.remove(window.mtuTheme);
+			document.documentElement.classList.add(value);
+			window.mtuTheme = value;
+		}
+	}
+	
+	const animQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+	const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+	let mtuAnimations;
+	let mtuFontSize;
+	let mtuTheme;
+
+	try {
+		mtuAnimations = localStorage.getItem("mtuAnimations");
+		mtuFontSize = localStorage.getItem("mtuFontSize");
+		mtuTheme = localStorage.getItem("mtuTheme");
+	} catch (error) {
+		console.error(error);
+		return;
+	}
+
+	setFontSize(mtuFontSize);
+	setReducedMotion(mtuAnimations === "reduced" || animQuery.matches);
+
+	if (mtuTheme === "system") {
+		mtuTheme = darkQuery.matches ? "dark" : "light";
+	}
+
+	if (mtuTheme === "dark") {
+		const link = document.createElement("link");
+		link.href = "/mtu_resources/assets/css/app-dark.css";
+		link.rel = "stylesheet";
+		link.type = "text/css";
+
+		document.head.append(link);
+	}
+
+	setTheme(mtuTheme);
+})();
+
+/**
+ * +------------------------------------------------------------------------+
+ * | Global Header and Navigation                                           |
+ * +------------------------------------------------------------------------+
+ */
+(function() {
+	function adjustNav() {
+		let navBar = document.querySelector('.nav-bar');
+		if (navBar) {
+			let navCount = navBar.querySelectorAll('.menu_item').length;
+			let height = navBar.clientHeight;	
+
+			if (height > 50) {
+			  navBar.style.setProperty('--navCount', navCount);
+			  navBar.classList.add('nav-tall');
+			} else {
+			  navBar.style.removeProperty('--navCount');
+			  navBar.classList.remove('nav-tall');
+			}	
+		}
+	}
+	
+	// Re-adjust header height as content loads.
+	window.addEventListener("DOMContentLoaded", adjustNav);
+	window.addEventListener("load", adjustNav);
+	
+	// Setting up some space for items after the nav to be seen.
+	function onResize() {
+		let header = document.querySelector(".nav, .mtu-nav");
+		let headerHeight;
+		
+		if (header) {
+			headerHeight = Math.floor(header.getBoundingClientRect().height || header.clientHeight) + "px";
+			document.documentElement.style.setProperty("--mtu-header-height", headerHeight);
+		}
+	}
+	
+	// Update --mtu-header-height on load.
+	window.addEventListener("DOMContentLoaded", onResize);
+	window.addEventListener("load", onResize);
+	
+	// Update --mtu-header-height on resize.
+	let frameId;
+	window.addEventListener("resize", function() {
+		// Debounce the resize event.
+		if (frameId) {
+			window.cancelAnimationFrame(frameId);
+		}
+		
+		frameId = window.requestAnimationFrame(onResize);
+	});
+})();
+
+/**
+ * Defers execution of the given function until after jQuery is loaded.
+ */
+function defer(fn) {
+	if (window.jsSet) {
+		fn();
+		return;
+	}
+	
+	setTimeout(function() {
+		defer(fn);
+	}, 100);
+}
+</script><link rel="preload" as="image" imagesrcset=" " imagesizes="100vw" fetchpriority="high">
+      <link rel="canonical" href="https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html">
+      <meta property="mtu:ou_content_type" content="news">
+      <meta property="mtu:ou_content_id" content="a19c7f29-c16f-4836-ac2d-6ec68b298e22">
+      <meta property="og:title" content="Just Press Print: 3-D Printing At Home Saves Cash">
+      <meta property="og:description" content="Interested in making an investment that promises a 100 percent return on your money, and then some? Buy a low-cost, open-source 3-D printer, plug it in and print household items.">
+      <meta property="og:type" content="article">
+      <meta property="og:url" content="https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html">
+      <meta property="og:site_name" content="Michigan Technological University">
+      <meta property="fb:pages" content="5652694310">
+      <meta property="article:published_time" content="2017-02-13T15:00:00-5:00">
+      <meta property="article:modified_time" content="2026-03-12T14:21:41-05:00">
+      <meta property="article:tag" content="3Dprinting, 3Dprinter, consumers, lulzbot">
+      <meta property="article:publisher" content="https://www.facebook.com/michigantech/">
+      <meta property="article:content_tier" content="free">
+      <meta name="author" content="Stefanie Sidortsova">
+      <meta property="og:image" content="https://www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg">
+      <meta property="og:image:alt" content="3-D Print At Home">
+      <meta property="og:image:height" content="427">
+      <meta property="og:image:width" content="1024">
+      <meta name="twitter:card" content="summary_large_image">
+      <meta name="twitter:site" content="@michigantech">
+      <meta name="twitter:creator" content="@michigantech">
+      <meta name="twitter:title" content="Just Press Print: 3-D Printing At Home Saves Cash">
+      <meta name="twitter:url" content="https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html">
+      <meta name="twitter:description" content="Interested in making an investment that promises a 100 percent return on your money, and then some? Buy a low-cost, open-source 3-D printer, plug it in and print household items.">
+      <meta name="twitter:image" content="https://www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg">
+      <meta name="twitter:image:alt" content="3-D Print At Home"><script type="application/ld+json">
+			{
+			  "@context": "https://schema.org",
+			  "@type": "NewsArticle",
+			  "name": "Just Press Print: 3-D Printing At Home Saves Cash",
+			  "headline": "Just Press Print: 3-D Printing At Home Saves Cash",
+			  "description": "Interested in making an investment that promises a 100 percent return on your money, and then some? Buy a low-cost, open-source 3-D printer, plug it in and print household items.",
+			  "inLanguage": "en",
+			  "speakable":{
+			  	"@type": "SpeakableSpecification",
+				"xPath": [
+					"/html/head/title",
+					"/html/head/meta[@name='description']/@content"
+				]},
+			  "keywords": ["3Dprinting"," 3Dprinter"," consumers"," lulzbot"],
+			
+			  "image": [
+				"https://www.mtu.edu/mtu_resources/php/ou/images/crop.php?width=400&height=400&quality=80&path=//www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg",
+				"https://www.mtu.edu/mtu_resources/php/ou/images/crop.php?width=400&height=300&quality=80&path=//www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg",
+				"https://www.mtu.edu/mtu_resources/php/ou/images/crop.php?width=800&height=450&quality=80&path=//www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg",
+				"https://www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg"
+			   ],
+			
+			  "datePublished": "2017-02-13T15:00:00-5:00",
+			  "dateModified": "2026-03-12T14:21:41-05:00",
+			  
+			  "author": [{"@type":"Person","name":"Stefanie Sidortsova","url":"https://www.mtu.edu/news/writers/sidortsova/index.html"}],
+			  "publisher":[{
+				"@type": "CollegeOrUniversity",
+				"name": "Michigan Technological University",
+				"url": "https://www.mtu.edu",
+				"sameAs": [
+					"https://www.facebook.com/michigantech/",
+					"https://twitter.com/MichiganTech",
+					"https://www.linkedin.com/school/michigan-technological-university/",
+					"https://www.instagram.com/michigantech/",
+					"https://www.youtube.com/michigantech"
+				],
+				"logo": {
+				  "@type": "ImageObject",
+				  "url": "https://www.mtu.edu/images/michigan-tech-logo-gold.jpg"
+				}
+			  }]
+			}
+    	</script>
+      <script>
+window.dataLayer = window.dataLayer || [];
+if(window.devicePixelRatio > 1.5) {
+	dataLayer.push({'retina':'true'});
+} else {
+	dataLayer.push({'retina':'false'});
+}
+let theme = localStorage.getItem('mtuTheme') || 'light';
+let animations = localStorage.getItem('mtuAnimations') || 'no-preference';
+let fontSize = localStorage.getItem('mtuFontSize') || 'font-normal';
+
+dataLayer.push({'themes':theme,'animations':animations,'font_size':fontSize});
+dataLayer.push({'internalExternal' : 'external'});
+</script>
+
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://gtm-tagging-1.mtu.edu/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-K6W7S4L9');</script>
+<!-- End Google Tag Manager -->
+
+
+<!-- <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600;1,700&display=swap" rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600;1,700&display=swap">
+</noscript> -->
+
+<link rel="preload" as="font" type="font/woff2" crossorigin
+    href="https://www.mtu.edu/mtu_resources/assets/fonts/open-sans-italic-v44.woff2"></head>
+   <body>
+      <div aria-atomic="true" aria-live="polite" class="sr-only" id="sr-announcements" role="status"></div>
+      <div class="stick"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-dark-grayscale"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0 0.49803921568627" /><feFuncG type="table" tableValues="0 0.49803921568627" /><feFuncB type="table" tableValues="0 0.49803921568627" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-grayscale"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0 1" /><feFuncG type="table" tableValues="0 1" /><feFuncB type="table" tableValues="0 1" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-purple-yellow"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0.54901960784314 0.98823529411765" /><feFuncG type="table" tableValues="0 1" /><feFuncB type="table" tableValues="0.71764705882353 0.25490196078431" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-blue-red"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0 1" /><feFuncG type="table" tableValues="0 0.27843137254902" /><feFuncB type="table" tableValues="0.5921568627451 0.27843137254902" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-midnight"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0 0" /><feFuncG type="table" tableValues="0 0.64705882352941" /><feFuncB type="table" tableValues="0 1" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-magenta-yellow"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0.78039215686275 1" /><feFuncG type="table" tableValues="0 0.94901960784314" /><feFuncB type="table" tableValues="0.35294117647059 0.47058823529412" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-purple-green"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0.65098039215686 0.40392156862745" /><feFuncG type="table" tableValues="0 1" /><feFuncB type="table" tableValues="0.44705882352941 0.4" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;" ><defs><filter id="wp-duotone-blue-orange"><feColorMatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 " /><feComponentTransfer color-interpolation-filters="sRGB" ><feFuncR type="table" tableValues="0.098039215686275 1" /><feFuncG type="table" tableValues="0 0.66274509803922" /><feFuncB type="table" tableValues="0.84705882352941 0.41960784313725" /><feFuncA type="table" tableValues="1 1" /></feComponentTransfer><feComposite in2="SourceGraphic" operator="in" /></filter></defs></svg>
+
+<section aria-label="skip links">
+    <div class="skip-links" id="skip">
+        <a href="#main">Skip to page content</a>
+        <a href="#mtu-footer">Skip to footer navigation</a>
+    </div>
+</section>
+
+<header class="mtu-nav">
+    <div class="pre-nav-wrapper background-gold">
+        <div class="pre-nav">
+            <button class="mobile-menu-button hide-for-desktop"
+                    data-inactive>
+                <span class="mobile-button-text">Menu</span>
+            </button>
+
+            <div class="pre-nav-logo">
+                <a class="pre-nav-logo-link" href="https://www.mtu.edu">
+                    <img alt="Michigan Tech Logo"                          class="pre-nav-logo-image"                          src="https://www.mtu.edu/_resources/images/sitewide/michigan-tech-logo-full-black.svg"                          width="255"                          height="45" />
+                </a>
+            </div>
+
+            <div class="audience-search show-for-desktop">
+                <div class="audience-wrapper show-for-desktop">
+                    <ul aria-label="Audiences"
+                        class="audience-nav">
+                        <li class="menu_item">
+                                <a class="menu_link"
+									aria-label="Request Information from Michigan Tech"
+                                   href="/request/index.html">
+                                    Request Info
+                                </a>
+                            </li><li class="menu_item">
+                                <a class="menu_link"
+									aria-label="Visit Michigan Tech"
+                                   href="/visit/index.html">
+                                    Visit
+                                </a>
+                            </li><li class="menu_item">
+                                <a class="menu_link"
+									aria-label="Apply to Michigan Tech"
+                                   href="/apply/index.html">
+                                    Apply
+                                </a>
+                            </li><li class="menu_item">
+                                <a class="menu_link"
+									aria-label="Give to Michigan Tech"
+                                   href="/giving/">
+                                    Give
+                                </a>
+                            </li> 
+                        
+                        <li class="menu_item resources-links tech-links">
+                                        <div class="menu_link">
+                                            Resources for You
+                                        </div>
+                                        
+                                        <button aria-label="Open sub-menu"
+                                                class="submenu-button arrow"></button>
+                                        
+                                        <ul class="tech-links-menu menu_submenu">
+                                        
+                                            <li class="submenu_item">
+                                                    <a
+                                                       href="/future/index.html">
+                                                        Prospective Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/admissions/enroll/index.html">
+                                                        Admitted Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/current/index.html">
+                                                        Current Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/faculty-staff/index.html">
+                                                        Faculty and Staff
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/alumni/index.html">
+                                                        Alumni and Friends
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/admissions/connect/parents/index.html">
+                                                        Parents and Family
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a
+                                                       href="/industry/index.html">
+                                                        Industry and Partners
+                                                    </a>
+                                                </li> 
+                                            
+                                        </ul>
+                                    </li>
+                        
+                        <li class="menu_item tech-links">
+                            <div class="menu_link">
+                                Tech Links
+                            </div>
+
+                            <button aria-label="Open sub-menu"
+                                    class="submenu-button arrow"></button>
+
+                            <ul class="tech-links-menu menu_submenu">
+    <li class="submenu_item">
+        <a class="link-az" href="/a2z/index.html">
+            A to Z
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-directory" href="/directory/">
+            Campus Directory
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-canvas" href="https://mtu.instructure.com/">
+            Canvas
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-concur" href="https://sso.mtu.edu/cas/idp/profile/SAML2/Unsolicited/SSO?providerId=https%3A%2F%2Fwww.concursolutions.com">
+            Concur
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-email" href="https://mail.google.com/a/mtu.edu/">
+            Email
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-mymt" href="https://www.mtu.edu/experience/">
+            Experience
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-sds" href="https://www.mtu.edu/sds/">
+            Safety Data Sheets
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-settings" href="/site-settings/index.html">
+            Website Settings
+        </a>
+    </li>
+</ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Google Tag Manager (noscript) -->
+<noscript aria-hidden="true"><iframe src="https://gtm-tagging-1.mtu.edu/ns.html?id=GTM-K6W7S4L9"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+	<div class="desktop-search-bar search-bar show-for-desktop">
+		<form action="https://www.mtu.edu/search/" class="search-fields">
+				<label for="desktop-search">
+					Search
+				</label>
+
+			<input class="search-text"
+				id="desktop-search"
+				name="q"
+				placeholder="Search"
+				type="search" />
+
+			<button class="search-clear">
+				Clear Search Input
+			</button>
+
+			<label for="search-options" hidden>
+				Search Category
+			</label>
+
+			<select class="search-options" id="search-options">
+				<option value="mtu">
+					Michigan Tech
+				</option>
+								<option data-action="https://www.mtu.edu/news/" data-name="s" value="site">
+					This Site
+				</option>
+								<option data-action="https://www.mtu.edu/majors/"
+						value="programs">
+					Programs
+				</option>
+			</select>
+
+			<button class="search-button" type="submit">
+				Go
+			</button>
+		</form>
+	</div>
+            </div>
+        </div>
+    </div>
+
+   <nav class="nav-bar show-for-desktop">
+      <ul class="menu" aria-label="Main Navigation">
+      <li class="menu_item menu_has-submenu"><div class="menu_link">News Sites</div><button class="submenu-button arrow" aria-expanded="false" aria-label="News Sites sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/"><span>Michigan Tech News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/magazine/"><span>Tech Magazine</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/business/" aria-label="College of Business News"><span>College of Business</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/computing/" aria-label="College of Computing News"><span>College of Computing</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/engineering/" aria-label="College of Engineering News"><span>College of Engineering</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/forest/" aria-label="College of Forest Resources and Environmental Science News"><span>College of Forest Resources and Environmental Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/sciences-arts/" aria-label="College of Sciences and Arts News"><span>College of Sciences and Arts</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://michigantechhuskies.com/archives"><span>Michigan Tech Athletics</span></a>
+</li></ul>
+</li><li class="menu_item menu_has-submenu"><div class="menu_link">Categories</div><button class="submenu-button arrow" aria-expanded="false" aria-label="Categories sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Arts+and+Humanities"><span>Arts and Humanities</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://michigantechhuskies.com/archives"><span>Athletics</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Campus+and+Community"><span>Campus and Community</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Computing+and+Data+Science"><span>Computing and Data Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Environment+and+Sustainability"><span>Environment and Sustainability</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Health+and+Life+Sciences"><span>Health and Life Sciences</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Honors+and+Awards"><span>Honors and Awards</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Policy+and+Social+Science"><span>Policy and Social Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Research"><span>Research</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Science+and+Engineering"><span>Science and Engineering</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Interdisciplinary+Collaborations"><span>Interdisciplinary Collaborations</span></a>
+</li></ul>
+</li><li class="menu_item"><a href="/news/archives/" class="menu_link">Archives</a>
+</li><li class="menu_item menu_has-submenu"><div class="menu_link">Resources</div><button class="submenu-button arrow" aria-expanded="false" aria-label="Resources sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/umc/services/media/resources/"><span>Media Resources</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/mentions/"><span>In The News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/press/"><span>Press Releases</span></a>
+</li></ul>
+</li><li class="menu_item menu_has-submenu menu_item-yellow"><a href="/news/subscribe/?type=Nav%20Link" class="menu_link">Subscribe</a><button class="submenu-button arrow" aria-expanded="false" aria-label="Subscribe sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/subscribe/"><span>Emails</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://apple.news/TtYc8xrvmSFiZvoFrkYd5qg"><span>Apple News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://news.google.com/s/CBIw97nJkyo"><span>Google News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/subscribe/feeds/"><span>RSS Feeds</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/social/"><span>Social Media</span></a>
+</li></ul>
+</li>      </ul>
+   </nav>
+
+    <nav class="offscreen-nav invisible">
+      <div class="mobile-search-bar search-bar">
+	<form action="https://www.mtu.edu/search/">
+		<label for="mobile-search"
+			   hidden>
+			Search
+		</label>
+
+		<input class="search-text"
+			   id="mobile-search"
+			   name="q"
+			   placeholder="Search"
+			   type="search" />
+
+		<button class="search-clear">
+			Clear Search Input
+		</button>
+
+		<label for="mobile-search-options"
+			   hidden>
+			Search Category
+		</label>
+
+		<select class="search-options"
+				id="mobile-search-options">
+			<option value="mtu">
+				Michigan Tech
+			</option>
+
+						<option data-action="https://www.mtu.edu/news/" data-name="s" value="site">
+				This Site
+			</option>
+			
+			<option data-action="https://www.mtu.edu/majors"
+					value="programs">
+				Programs
+			</option>
+		</select>
+
+		<button class="search-button"
+				type="submit">
+			Search
+		</button>
+	</form>
+</div>
+        
+
+        <ul class="menu"
+            aria-label="Main Navigation">
+
+           
+            <li class="menu_item menu_has-submenu"><div class="menu_link">News Sites</div><button class="submenu-button arrow" aria-expanded="false" aria-label="News Sites sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/"><span>Michigan Tech News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/magazine/"><span>Tech Magazine</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/business/" aria-label="College of Business News"><span>College of Business</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/computing/" aria-label="College of Computing News"><span>College of Computing</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/engineering/" aria-label="College of Engineering News"><span>College of Engineering</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/forest/" aria-label="College of Forest Resources and Environmental Science News"><span>College of Forest Resources and Environmental Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/sciences-arts/" aria-label="College of Sciences and Arts News"><span>College of Sciences and Arts</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://michigantechhuskies.com/archives"><span>Michigan Tech Athletics</span></a>
+</li></ul>
+</li><li class="menu_item menu_has-submenu"><div class="menu_link">Categories</div><button class="submenu-button arrow" aria-expanded="false" aria-label="Categories sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Arts+and+Humanities"><span>Arts and Humanities</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://michigantechhuskies.com/archives"><span>Athletics</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Campus+and+Community"><span>Campus and Community</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Computing+and+Data+Science"><span>Computing and Data Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Environment+and+Sustainability"><span>Environment and Sustainability</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Health+and+Life+Sciences"><span>Health and Life Sciences</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Honors+and+Awards"><span>Honors and Awards</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Policy+and+Social+Science"><span>Policy and Social Science</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Research"><span>Research</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Science+and+Engineering"><span>Science and Engineering</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/archives/?category=Interdisciplinary+Collaborations"><span>Interdisciplinary Collaborations</span></a>
+</li></ul>
+</li><li class="menu_item"><a href="/news/archives/" class="menu_link">Archives</a>
+</li><li class="menu_item menu_has-submenu"><div class="menu_link">Resources</div><button class="submenu-button arrow" aria-expanded="false" aria-label="Resources sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/umc/services/media/resources/"><span>Media Resources</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/mentions/"><span>In The News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/press/"><span>Press Releases</span></a>
+</li></ul>
+</li><li class="menu_item menu_has-submenu menu_item-yellow"><a href="/news/subscribe/?type=Nav%20Link" class="menu_link">Subscribe</a><button class="submenu-button arrow" aria-expanded="false" aria-label="Subscribe sub-menu"></button>
+<ul class="menu_submenu"><li class="submenu_item"><a class="submenu_link" href="/news/subscribe/"><span>Emails</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://apple.news/TtYc8xrvmSFiZvoFrkYd5qg"><span>Apple News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="https://news.google.com/s/CBIw97nJkyo"><span>Google News</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/news/subscribe/feeds/"><span>RSS Feeds</span></a>
+</li><li class="submenu_item"><a class="submenu_link" href="/social/"><span>Social Media</span></a>
+</li></ul>
+</li>    
+            <li class="menu_item menu_has-submenu menu_item-black">
+                <div class="menu_link">
+				Connect with Us                </div>
+
+                <button aria-label="Open sub-menu"
+                        class="submenu-button arrow"></button>
+
+                <ul class="tech-links-menu menu_submenu">
+                    <li class="submenu_item">
+                            <a class="submenu_link"
+							   aria-label="Request Information from Michigan Tech"
+                               href="/request/index.html">
+                                Request Info
+                            </a>
+                        </li><li class="submenu_item">
+                            <a class="submenu_link"
+							   aria-label="Visit Michigan Tech"
+                               href="/visit/index.html">
+                                Visit
+                            </a>
+                        </li><li class="submenu_item">
+                            <a class="submenu_link"
+							   aria-label="Apply to Michigan Tech"
+                               href="/apply/index.html">
+                                Apply
+                            </a>
+                        </li><li class="submenu_item">
+                            <a class="submenu_link"
+							   aria-label="Give to Michigan Tech"
+                               href="/giving/">
+                                Give
+                            </a>
+                        </li> 
+                </ul>
+            </li>
+            
+            <li class="menu_item menu_has-submenu menu_item-black">
+                                        <div class="menu_link">
+                                            Resources for You
+                                        </div>
+                                        
+                                        <button aria-label="Open sub-menu"
+                                                class="submenu-button arrow"></button>
+                                        
+                                        <ul class="tech-links-menu menu_submenu">
+                                        
+                                            <li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/future/index.html">
+                                                        Prospective Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/admissions/enroll/index.html">
+                                                        Admitted Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/current/index.html">
+                                                        Current Students
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/faculty-staff/index.html">
+                                                        Faculty and Staff
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/alumni/index.html">
+                                                        Alumni and Friends
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/admissions/connect/parents/index.html">
+                                                        Parents and Family
+                                                    </a>
+                                                </li><li class="submenu_item">
+                                                    <a class="submenu_link"
+                                                       href="/industry/index.html">
+                                                        Industry and Partners
+                                                    </a>
+                                                </li> 
+                                            
+                                        </ul>
+                                    </li>
+
+            <li class="menu_item menu_has-submenu menu_item-black">
+                <div class="menu_link">
+                    Tech Links
+                </div>
+
+                <button aria-label="Open sub-menu"
+                        class="submenu-button arrow"></button>
+
+                <ul class="tech-links-menu menu_submenu">
+    <li class="submenu_item">
+        <a class="link-az" href="/a2z/index.html">
+            A to Z
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-directory" href="/directory/">
+            Campus Directory
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-canvas" href="https://mtu.instructure.com/">
+            Canvas
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-concur" href="https://sso.mtu.edu/cas/idp/profile/SAML2/Unsolicited/SSO?providerId=https%3A%2F%2Fwww.concursolutions.com">
+            Concur
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-email" href="https://mail.google.com/a/mtu.edu/">
+            Email
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-mymt" href="https://www.mtu.edu/experience/">
+            Experience
+        </a>
+    </li>
+
+    <li class="submenu_item">
+        <a class="link-sds" href="https://www.mtu.edu/sds/">
+            Safety Data Sheets
+        </a>
+    </li>
+    
+    <li class="submenu_item">
+        <a class="link-settings" href="/site-settings/index.html">
+            Website Settings
+        </a>
+    </li>
+</ul>
+            </li>
+        </ul>
+    </nav>
+	<script>
+		(function () {
+    var nav = document.querySelector(".nav, .mtu-nav");
+    if (nav && nav.clientHeight) {
+        document.documentElement.style.setProperty("--mtu-header-height", Math.floor(nav.getBoundingClientRect().height || nav.clientHeight) + "px");
+    }
+})();
+	</script>
+</header>         <section class="background-light-gray" aria-label="Site Title">
+            <div class="site-title-wrapper">
+               <div class="site-title">
+                  <div class="title"><span><a href="/news/">Michigan Tech News</a></span></div>
+               </div>
+               </div>
+         </section>
+         <div id="main" role="main" class="main">
+            <section id="media" aria-label="featured media">
+               <div class="section-padding--bottom">
+                  <header class="row row--wide">
+                     <h1 class="section-padding hero__header">Just Press Print: 3-D Printing At Home Saves Cash</h1>
+                     <div class="hero"><button aria-expanded="false" id="js-info-button" class="js-info-trigger hero__info-button" aria-label="Image Caption"></button><div id="prev" class="prev" style="display: none;"></div>
+                        <div class="hero__image hero__image--background"><img class="hero__image-inside" src="https://www.mtu.edu/news/2017/02/images/image161075-fshorizw.jpg" srcset=" " sizes="(max-width: 480px) 450px,             (max-width: 830px) 800px,             (max-width: 1230px) 1200px" alt="3-D Print At Home" fetchpriority="high"></div>
+                        <div id="next" class="next" style="display: none;"></div>
+                        <div class="slide hide" id="slide-1"><a data-fancybox-group="gallery" class="fancybox" href="/news/2017/02/images/image161075-fshorizw.jpg" title="The team assembled 26 items printed with the Lulzbot Mini, including parts for a Christmas tree stand, a juicer, tool holders, a soap dish, a bathroom wine glass holder, a camera lens holder, parts of a coin holder, and a shaving brush stand."><img loading="lazy" src="/news/2017/02/images/image161075-fshorizw.jpg" title="The team assembled 26 items printed with the Lulzbot Mini, including parts for a Christmas tree stand, a juicer, tool holders, a soap dish, a bathroom wine glass holder, a camera lens holder, parts of a coin holder, and a shaving brush stand." alt="3-D Print At Home"></a></div>
+                        <div class="hero__social hero__social--right">
+                           <div class="hide"><svg xmlns="http://www.w3.org/2000/svg">
+                                 <symbol id="facebook" viewBox="-200 -200 2200 2200">
+                                    <path d="M1343 12v264h-157q-86 0-116 36t-30 108v189h293l-39 296h-254v759H734V905H479V609h255V391q0-186 104-288.5T1115 0q147 0 228 12z"/>
+                                 </symbol>
+                                 <symbol id="linkedin" viewBox="-80 -50 575 575">
+                                    <path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/>
+                                 </symbol>
+                                 <symbol id="google-plus" viewBox="-240 -240 2300 2300">
+                                    <path d="M1181 913q0 208-87 370.5t-248 254-369 91.5q-149 0-285-58t-234-156-156-234-58-285 58-285 156-234 234-156 285-58q286 0 491 192L769 546Q652 433 477 433q-123 0-227.5 62T84 663.5 23 896t61 232.5T249.5 1297t227.5 62q83 0 152.5-23t114.5-57.5 78.5-78.5 49-83 21.5-74H477V791h692q12 63 12 122zm867-122v210h-209v209h-210v-209h-209V791h209V582h210v209h209z"/>
+                                 </symbol>
+                                 <symbol id="instagram" viewBox="-200 -200 2200 2200">
+                                    <path d="M1490 1426V778h-135q20 63 20 131 0 126-64 232.5T1137 1310t-240 62q-197 0-337-135.5T420 909q0-68 20-131H299v648q0 26 17.5 43.5T360 1487h1069q25 0 43-17.5t18-43.5zm-284-533q0-124-90.5-211.5T897 594q-127 0-217.5 87.5T589 893t90.5 211.5T897 1192q128 0 218.5-87.5T1206 893zm284-360V368q0-28-20-48.5t-49-20.5h-174q-29 0-49 20.5t-20 48.5v165q0 29 20 49t49 20h174q29 0 49-20t20-49zm174-208v1142q0 81-58 139t-139 58H325q-81 0-139-58t-58-139V325q0-81 58-139t139-58h1142q81 0 139 58t58 139z"/>
+                                 </symbol>
+                                 <symbol id="twitter" viewBox="-200 -200 2200 2200">
+                                    <path d="M1684 408q-67 98-162 167 1 14 1 42 0 130-38 259.5T1369.5 1125 1185 1335.5t-258 146-323 54.5q-271 0-496-145 35 4 78 4 225 0 401-138-105-2-188-64.5T285 1033q33 5 61 5 43 0 85-11-112-23-185.5-111.5T172 710v-4q68 38 146 41-66-44-105-115t-39-154q0-88 44-163 121 149 294.5 238.5T884 653q-8-38-8-74 0-134 94.5-228.5T1199 256q140 0 236 102 109-21 205-78-37 115-142 178 93-10 186-50z"/>
+                                 </symbol>
+                                 <symbol id="envelope" viewBox="0 -50 512 600">
+                                    <path d="M502.3 190.8c3.9-3.1 9.7-.2 9.7 4.7V400c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V195.6c0-5 5.7-7.8 9.7-4.7 22.4 17.4 52.1 39.5 154.1 113.6 21.1 15.4 56.7 47.8 92.2 47.6 35.7.3 72-32.8 92.3-47.6 102-74.1 131.6-96.3 154-113.7zM256 320c23.2.4 56.6-29.2 73.4-41.4 132.7-96.3 142.8-104.7 173.4-128.7 5.8-4.5 9.2-11.5 9.2-18.9v-19c0-26.5-21.5-48-48-48H48C21.5 64 0 85.5 0 112v19c0 7.4 3.4 14.3 9.2 18.9 30.6 23.9 40.7 32.4 173.4 128.7 16.8 12.2 50.2 41.8 73.4 41.4z"/>
+                                 </symbol>
+                                 <symbol id="print" viewBox="-50 0 600 512">
+                                    <title id="print-title">print</title>
+                                    <path d="M464 192h-16V81.941a24 24 0 0 0-7.029-16.97L383.029 7.029A24 24 0 0 0 366.059 0H88C74.745 0 64 10.745 64 24v168H48c-26.51 0-48 21.49-48 48v132c0 6.627 5.373 12 12 12h52v104c0 13.255 10.745 24 24 24h336c13.255 0 24-10.745 24-24V384h52c6.627 0 12-5.373 12-12V240c0-26.51-21.49-48-48-48zm-80 256H128v-96h256v96zM128 224V64h192v40c0 13.2 10.8 24 24 24h40v96H128zm304 72c-13.254 0-24-10.746-24-24s10.746-24 24-24 24 10.746 24 24-10.746 24-24 24z"/>
+                                 </symbol>
+                                 <symbol id="camera" viewBox="0 0 512 512">
+                                    <path d="M512 144v288c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V144c0-26.5 21.5-48 48-48h88l12.3-32.9c7-18.7 24.9-31.1 44.9-31.1h125.5c20 0 37.9 12.4 44.9 31.1L376 96h88c26.5 0 48 21.5 48 48zM376 288c0-66.2-53.8-120-120-120s-120 53.8-120 120 53.8 120 120 120 120-53.8 120-120zm-32 0c0 48.5-39.5 88-88 88s-88-39.5-88-88 39.5-88 88-88 88 39.5 88 88z"/>
+                                 </symbol></svg></div>
+                           <div class="socialpubs-menu">
+                              <div class="socialpubs-menu__header">Share this story:</div>
+                              <ul class="socialpubs-menu__list socialpubs-menu--horizontal">
+                                 <li class="socialpubs-menu__list-item facebook"><a href="https://www.facebook.com/sharer/sharer.php?u=https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html" aria-label="Share on Facebook"><svg class="icon icon--white facebook">
+                                          <desc>Share on Facebook</desc>
+                                          <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#facebook"></use></svg></a></li>
+                                 <li class="socialpubs-menu__list-item twitter"><a href="https://twitter.com/intent/tweet?text=Just%20Press%20Print%3A%203-D%20Printing%20At%20Home%20Saves%20Cash%20%40MichiganTech%20https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html" aria-label="Share on Twitter"><svg class="icon icon--white twitter">
+                                          <desc>Share on Twitter</desc>
+                                          <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#twitter"></use></svg></a></li>
+                                 <li class="socialpubs-menu__list-item linkedin"><a href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html&amp;title=Just%20Press%20Print%3A%203-D%20Printing%20At%20Home%20Saves%20Cash&amp;source=Michigan%20Tech" aria-label="Share on LinkedIn"><svg class="icon icon--white linkedin">
+                                          <desc>Share on LinkedIn</desc>
+                                          <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#linkedin"></use></svg></a></li>
+                                 <li class="socialpubs-menu__list-item envelope"><a href="mailto:?subject=Just%20Press%20Print%3A%203-D%20Printing%20At%20Home%20Saves%20Cash&amp;body=https://www.mtu.edu/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html" aria-label="Share via Email"><svg class="icon icon--white envelope">
+                                          <desc>Share via Email</desc>
+                                          <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#envelope"></use></svg></a></li>
+                              </ul>
+                           </div>
+                        </div>
+                        <div class="hero__info">
+                           <div id="js-info-content" class="hero__info-content">
+                              <div class="hero__info-content-inside">The team assembled 26 items printed with the Lulzbot Mini, including parts for a Christmas
+                                 tree stand, a juicer, tool holders, a soap dish, a bathroom wine glass holder, a camera
+                                 lens holder, parts of a coin holder, and a shaving brush stand.
+                                 <div class="js-info-trigger hero__info-content__close-button" title="Close Caption">×</div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                     <div class="hero__info-wrapper">
+                        <div class="hero__byline">
+                           <div class="hero__byline__author">By <a href="/news/writers/sidortsova/index.html">Stefanie Sidortsova</a></div>
+                           <div class="hero__byline__published">
+                              						Published <time datetime="2017-02-13T15:00:00-5:00">3:00 p.m., February 13, 2017</time></div>
+                        </div>
+                        <div class="hero__details">
+                           <div class="hero__byline__tags">Category: <a class="gold-underline" href="/news/archives/?category=Academics%2C+Research%2C">Academics, Research,</a></div>
+                        </div>
+                     </div>
+                  </header>
+               </div>
+            </section>
+            <section id="news" class="news row" aria-label="story">
+               <div class="full-width">
+                  <div id="content">
+                     <article id="content_body" aria-label="story content">
+                        
+                        <p class="preview">Interested in making an investment that promises a 100 percent return on your money,
+                           and then some? Buy a low-cost, open-source 3-D printer, plug it in and print household
+                           items.</p>
+                        
+                        <p>In a <a href="http://www.mdpi.com/2227-7080/5/1/7">recent study published in <em>Technologies</em></a> (DOI: <a href="https://www.academia.edu/31327768/Emergence_of_Home_Manufacturing_in_the_Developed_World_Return_on_Investment_for_Open-Source_3-D_Printers">10.3390/technologies5010007</a>), Michigan Technological University Associate Professor Joshua Pearce set out to
+                           determine how practical and cost effective at-home 3-D printing is for the average
+                           consumer.</p>
+                        
+                        <p>He found that consumers—even those who are technologically illiterate—can not only
+                           make their money back within six months, but can also earn an almost 1,000 percent
+                           return on their investment over a five-year period. Pearce estimates that using only
+                           the random 26 objects analyzed in the study may have already saved consumers who use
+                           3-D printers at home more than $4 million. There are several million free 3-D printable
+                           designs available on the web.</p>
+                        
+                        <h2>Out of the Box</h2>
+                        
+                        <p>To compile the data, Pearce asked Emily Petersen, an undergraduate student majoring
+                           in materials science and engineering, to use a 3-D printer fresh out of the box with
+                           no prior experience, instruction or guidance.</p>
+                        
+                        <p>“I’d never been up close and personal with a 3-D printer before,” Petersen says. “And
+                           the few printers I had seen were industrial ones. I thought learning to operate the
+                           printer was going to take me forever, but I was relieved when it turned out to be
+                           so easy.”</p>
+                        
+                        <p>Petersen used a Lulzbot Mini – a low-cost model that can print in high resolution,
+                           works with a variety of operating systems and supports open-source hardware and software
+                           (meaning that all source codes associated with the printer and its programs are freely
+                           available and can be modified).</p>
+                        
+                        <p>After commissioning the Lulzbot—a process that took roughly half an hour—Petersen
+                           used a 3-D design file search engine called Yeggi to find and build 26 popular, everyday
+                           items.</p>
+                        
+                        <p>“You search, select, and hit print,” Pearce says, “just like a regular computer and
+                           office paper printer.”</p>
+                        
+                        <p>Petersen’s favorite creation? A fan-art Pokemon Bulbasaur planter that she filled
+                           with a small cactus and gave to her mom for Christmas.</p>
+                        
+                        <div class="movie-wrapper preview"><a class="various fancybox.iframe yt-embed"  href="https://www.youtube.com/embed/cDRpjYGkNTQ?autoplay=true&amp;rel=0&amp;showinfo=1&amp;enablejsapi=1&amp;origin=https://www.mtu.edu" rel="noopener" target="_blank"><div class="yt-iframe" id="yt-cDRpjYGkNTQ" data-yt="cDRpjYGkNTQ"><div class="movie new-movie yt-iframe" style="height:auto;">
+		<div class="show-for-sr">Watch 3-D Printing at Home video</div>
+		<img loading="lazy" src="//www.mtu.edu/mtu_resources/php/ou/images/crop.php?path=https%3A%2F%2Fi.ytimg.com%2Fvi%2FcDRpjYGkNTQ%2Fhqdefault.jpg&amp;width=480&amp;height=270" height="270" width="480" alt="Preview image for 3-D Printing at Home video" />
+		<button class="playhead" aria-hidden="true" tabindex="-1" aria-label="Watch 3-D Printing at Home">
+		<svg xmlns="http://www.w3.org/2000/svg" height="155" width="120" stroke="#000" fill="#fff" stroke-width="0" viewBox="0 -10 120 155" role="presentation">
+			<polygon points="25,0 100,40 25,80"></polygon>
+			<text x="10" y="140" fill="#000" stroke="none" style="font-size: 34px; font-family: 'Open Sans', Arial, sans-serif; font-weight:600;">Watch</text>
+		</svg>
+		</button>
+		</div></div></a>                           <div class="movie-title">
+                              <h2>3-D Printing at Home</h2><button><span class="show-for-sr">Expand</span></button></div>
+                           <div class="movie-description"></div>
+                        </div>
+                        
+                        
+                        <h3>Printing Money</h3>
+                        
+                        <p>After Petersen finished printing, she worked with Pearce on the economic analysis.
+                           By printing 26 items, the researchers simulated household 3-D printer use over a six-month
+                           period, with the conservative assumption that a typical household might print one
+                           “homemade” item per week.</p>
+                        
+                        <p>Petersen printed items that were reasonably popular, such as tool holders, snowboard
+                           binder clips and shower heads. She and Pearce monitored each item's energy, print
+                           time and plastic use to determine its costs, then conducted a savings analysis on
+                           a per-item basis.</p>
+                        
+                        <p>For each item printed, from mounts for GoPro cameras to Dremel tools, Pearce and Petersen
+                           ran high-cost and low-cost comparisons. For example, for a printed cell phone case,
+                           the total cost of printing was compared with the purchase cost of both a high-end
+                           phone case and the least expensive model available.</p>
+                        
+                        <p>The low-cost comparisons showed an average 93 percent savings, while the high-cost
+                           comparisons showed an average savings of 98.65 percent.</p>
+                        
+                        <p>“With the low-cost estimates, the printer pays for itself in three years and all the
+                           costs associated with printing—such as the price of plastic and electricity—are not
+                           only earned back, but provide a 25 percent return on investment. After five years,
+                           it’s more than 100 percent,” Pearce says. “With the high-cost estimates, the printer
+                           pays for itself within six months. And after five years, you’ve not only recouped
+                           all the costs associated with printing, you’ve saved more than $12,000.”</p>
+                        
+                        <p>Pearce says a five-year life cycle for the printer is reasonable, mainly because the
+                           Lulzbot Mini is open source—all the files to upgrade and fix the machine are available
+                           for free online. Many of the parts most likely to break are even 3-D printable. Pearce
+                           also emphasizes that Petersen used the printer’s default settings and didn’t print
+                           any complicated items, such as scientific equipment.</p>
+                        
+                        <p>“I’m an engineering student,” Petersen says, “but I was new to this type of hands-on
+                           troubleshooting. The fact that I was able to troubleshoot any issues I had and produce
+                           26 items relatively easily is a testament to how accessible this technology is to
+                           the average American consumer.”</p>
+                        
+                        <p>Petersen hopes her experience will help others have more confidence in at-home 3-D
+                           printing. As the technology develops and more printable designs become freely available
+                           online, Pearce and Petersen agree that it will only get easier.</p>
+                        <div class="clearer"></div>
+                        <p class="small clearer margin-top-2x"><em>Michigan Technological University is an R1 public research university founded in 1885 in Houghton, and is home to nearly 7,500 students from more than 60 countries around the world. Consistently ranked among the best universities in the country for return on investment, Michigan's flagship technological university offers more than 185 <a href="/admissions/academics/majors/index.html">undergraduate</a> and <a href="/globalcampus/gradadmissions/programs/degrees/index.html">graduate</a> degree programs in science, technology, engineering, mathematics, computing, forestry, business, health professions, robotics, psychology, social sciences, humanities, and the arts. The rural campus is situated just miles from Lake Superior in Michigan's Upper Peninsula, offering year-round opportunities for outdoor adventure.</em></p></article>
+                  </div>
+                  <div class="row">
+                     <hr>
+                     <div class="small-stories"> <h2 class="sr-only">Related Stories</h2><ul class="related-stories nobullets"><li class="small-story-wrapper">
+							<a href="/magazine/2024/stories/powering-michigan/index.html"><div id="story-1" class="small-story">
+								<div class="box-cover"><img loading="lazy" alt="Consumers Energy is on track to go coal-free by 2025 and achieve net-zero carbon emissions by 2040, part of the Michigan utility's ambitious clean energy plan being led by five Michigan Tech alumni." src="//www.mtu.edu/magazine/2024/stories/powering-michigan/images/consumers-energy-banner450.jpg" /></div><div class="article-date">March 10, 2024</div></div>
+							Powering Michigan: Michigan Tech Alumni Lead the Energy Industry Transformation</a>
+						   </li>
+<li class="small-story-wrapper">
+							<a href="/news/2021/02/shining-a-light-on-the-true-value-of-solar-power.html"><div id="story-2" class="small-story">
+								<div class="box-cover"><img loading="lazy" alt=""Customers with solar distributed generation are making it so utility companies don’t have to make as many infrastructure investments, while at the same time solar shaves down peak demands when electricity is the most expensive," says Joshua Pearce, Richard Witte Endowed Professor of Materials Science and Engineering and professor of electrical and computer engineering at Michigan Technological University." src="//www.mtu.edu/news/2021/02/images/lanse-solar-panel-value-photovoltaic-banner450.jpg" /></div><div class="article-date">February 08, 2021</div></div>
+							Shining a Light on the True Value of Solar Power</a>
+						   </li>
+<li class="small-story-wrapper">
+							<a href="/news/2019/03/power-by-the-people-renewable-energy-reduces-the-highest-electric-rates-in-the-nation.html"><div id="story-3" class="small-story">
+								<div class="box-cover"><img loading="lazy" alt="Michigan residents could see substantial savings if they produce their own electricity with solar photovoltaic panels." src="//www.mtu.edu/news/2019/03/images/solar-electric-rates-renewable-energy-michigan-2-1024feature.jpg" /></div><div class="article-date">March 14, 2019</div></div>
+							Power by the People: Renewable Energy Reduces the Highest Electric Rates in the Nation</a>
+						   </li>
+<li class="small-story-wrapper">
+							<a href="/news/2026/10/doe-selects-michigan-tech-for-1m-critical-minerals-workforce-prize.html"><div id="story-4" class="small-story">
+								<div class="box-cover"><img loading="lazy" alt="The U.S. Department of Energy has selected Michigan Tech to receive funding to continue advancing national efforts to grow a skilled critical minerals and materials workforce." src="//www.mtu.edu/news/2026/10/images/sunset-houghton-banner450.jpg" /></div><div class="article-date">October 27, 2026</div></div>
+							DOE Selects Michigan Tech for $1M Critical Minerals Workforce Prize</a>
+						   </li>
+</div></div>
+                  </div><script src="https://www.mtu.edu/mtu_resources/script/n/pubs-new.js"></script></div>
+            </section>
+            <div aria-labelledby="popover-banner-title" class="popover popover--banner hidden" data-cookie-name="subscribe-news" data-end="01/01/2029" data-start="09/01/2019" role="dialog">
+	<div class="popover-wrapper">
+		<div class="popover__toggle-wrapper">
+			<button aria-expanded="true" class="popover__toggle-button">Subscribe</button>
+		</div>
+		<div class="popover__content">
+			<h2 class="h5-like padding-bottom text-center" id="popover-banner-title">Subscribe to Michigan Tech News</h2>
+			<div class="middle" style="max-width: 700px;">
+				<form action="/news/subscribe/index.html" class="signup-form__form padding-bottom" method="get">
+					<label class="signup-form__email-label" for="email-popover"><span class="show-for-sr">Email</span> <input name="type" type="hidden" value="Popover"> <input class="signup-form__email-field" id="email-popover" name="email" placeholder="Email" type="text"></label> <button class="signup-form__button" type="submit">Sign Up</button>
+				</form>
+			</div>
+		</div>
+		</div>
+</div></div>
+         <div class="push"></div>
+      </div>
+      <footer xmlns:xlink="http://www.w3.org/1999/xlink" id="mtu-footer" class="mtu-footer">
+   <div class="footer__pre-nav-wrapper footer__pre-nav-wrapper--cards">
+      <ul class="footer__pre-nav row no-bullet">
+         <li class="footer-cta-group__item footer-cta-group__item--connect"><a class="footer-button footer-button--request" href="/request/index.html" aria-label="Request Information from Michigan Tech"><span class="footer-button__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg></span><span class="footer-button__text"><span class="footer-button__title">Request Information</span><span class="footer-button__desc">Tell us about yourself and stay connected with Michigan Tech.</span></span><span class="footer-button__chevron"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span></a></li>
+         <li class="footer-cta-group__item footer-cta-group__item--connect"><a class="footer-button footer-button--visit" href="/visit/index.html" aria-label="Schedule a Visit at Michigan Tech"><span class="footer-button__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z"/></svg></span><span class="footer-button__text"><span class="footer-button__title">Schedule a Visit</span><span class="footer-button__desc">See campus for yourself and discover what makes Tech special.</span></span><span class="footer-button__chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span></a></li>
+         <li class="footer-cta-group__item footer-cta-group__item--connect"><a class="footer-button-apply footer-button--apply" href="/apply/index.html" aria-label="Apply to Michigan Tech"><span class="footer-button__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg></span><span class="footer-button__text"><span class="footer-button__title">Apply Now</span><span class="footer-button__desc">Take the next step toward becoming a Michigan Tech Husky.</span></span><span class="footer-button__chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span></a></li>
+         <li class="footer-cta-group__item footer-cta-group__item--give"><a class="footer-button-give footer-button--give" href="/giving/index.html" aria-label="Give to Michigan Tech"><span class="footer-button__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/></svg></span><span class="footer-button__text"><span class="footer-button__title">Give to <span class="footer-cta__dept">Michigan Tech</span></span><span class="footer-button__desc">Support the people, ideas, and research that move Tech forward.</span></span><span class="footer-button__chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span></a></li>
+      </ul>
+   </div>
+   <div class="footer row">
+      <div class="footer-menu">
+         <h2 class="footer-menu__title">Admissions</h2>
+         <ul class="no-bullet">
+            <li><a href="/admissions/index.html">Undergraduate Admissions</a></li>
+            <li><a href="/globalcampus/gradadmissions/index.html">Graduate Admissions</a></li>
+            <li><a href="/globalcampus/index.html">Global Campus</a></li>
+            <li><a aria-label="Request Information from Michigan Tech" href="/request/index.html" class="footer-rfi">Request Information</a></li>
+            <li><a aria-label="Schedule a Visit to Michigan Tech" href="/visit/index.html" class="footer-visit">Schedule a Visit</a></li>
+            <li><a aria-label="Apply to Michigan Tech" href="/apply/index.html" class="footer-apply">Apply</a></li>
+            <li><a aria-label="Virtual Tours of Michigan Tech" href="/virtual-tours/index.html">Virtual Tours</a></li>
+         </ul>
+      </div>
+      <div class="footer-menu">
+         <h2 class="footer-menu__title">Study and Live</h2>
+         <ul class="no-bullet">
+            <li><a href="/academics/index.html">Academics</a></li>
+            <li><a href="/majors/index.html">Degrees / Majors</a></li>
+            <li><a href="/library/index.html">Library</a></li>
+            <li><a href="https://michigantechhuskies.com/">Athletics</a></li>
+            <li><a href="/tour/index.html">Campus and Beyond</a></li>
+            <li><a href="https://events.mtu.edu/">Events Calendar</a></li>
+            <li><a href="https://michigantechrecreation.com/">Recreation</a></li>
+         </ul>
+      </div>
+      <div class="footer-menu">
+         <h2 class="footer-menu__title">Campus Info</h2>
+         <ul class="no-bullet">
+            <li><a href="/about/index.html">About Michigan Tech</a></li>
+            <li><a href="/provost/accreditation/index.html" aria-label="University Accreditation">Accreditation</a></li>
+            <li><a href="https://map.mtu.edu/">Campus Map</a></li>
+            <li><a href="/jobs/index.html">Jobs at Michigan Tech</a></li>
+            <li><a href="/news/index.html">News</a></li>
+            <li><a href="/syp/index.html">Summer Youth Programs</a></li>
+            <li><a href="/webcams/index.html">Webcams</a></li>
+         </ul>
+      </div>
+      <div class="footer-menu">
+         <h2 class="footer-menu__title">Policies and Safety</h2>
+         <ul class="no-bullet">
+            <li><a href="/title-ix/resources/campus-safety/index.html" aria-label="Campus Safety Information and Resources">Campus Safety Information</a></li>
+            <li><a href="/emergencycontacts/index.html">Emergency Contact Information</a></li>
+            <li><a href="/deanofstudents/concern/index.html">Report a Concern</a></li>
+            <li><a href="/publicsafety/index.html">Public Safety / Police Services</a></li>
+            <li><a href="/student-affairs/interests/student-disclosure/index.html">Student Disclosures</a></li>
+            <li><a href="/title-ix/index.html">Title IX</a></li>
+            <li><a href="/policy/policies/index.html">University Policies</a></li>
+         </ul>
+      </div>
+   </div>
+   <div class="row footer__contact">
+      <div class="footer__contact-info"><style>
+				.footer__pre-nav, .footer__pre-nav-wrapper, .footer__pre-nav-wrapper--cards, .footer__pre-nav li:nth-of-type(1), .footer__pre-nav li:nth-of-type(2), .footer__pre-nav li:nth-of-type(3), .footer__pre-nav li:nth-of-type(4) {
+					display: none;
+				}
+				.footer{
+					margin-top:0;
+				}
+			</style><h2><a class="text-gold underline-on-hover" href="/umc/services/media/">News and Media Relations</a></h2><div class="footer__contact-info-address">Administration Building G20<br />													1400 Townsend Drive, Houghton, Michigan 49931-1295</div><div><ul class="bar-separator no-bullet"><li class="phone"><a href="tel:9064871777">906-487-1777</a></li><li class="fax"><a href="tel:9064873553">906-487-3553</a></li><li class="email"><a href="mailto:umc@mtu.edu">umc@mtu.edu</a></li></ul></div><ul class="social-medium center"><li><a class="facebook" href="https://www.facebook.com/michigantech/" target="_blank">Facebook</a></li><li><a class="instagram" href="https://www.instagram.com/michigantech/" target="_blank">Instagram</a></li><li><a class="snapchat" href="https://www.snapchat.com/add/michigan_tech?locale=en-US" target="_blank">Snapchat</a></li><li><a class="twitter" href="https://x.com/MichiganTech" target="_blank">Twitter</a></li><li><a class="linkedin" href="https://www.linkedin.com/school/michigan-technological-university/" target="_blank">Linkedin</a></li><li><a class="youtube" href="https://www.youtube.com/michigantech" target="_blank">Youtube</a></li></ul></div>
+      <div class="footer__contact-social">
+         <div class="mtu-logo logo"><a href="/" class="mtu-logo mtu-logo-footer"><img src="//www.mtu.edu/mtu_resources/images/logos/michigan-tech-logo-fullname-solid-old.svg" height="132" width="200" alt="Michigan Technological University" loading="lazy"></a></div>
+      </div>
+   </div>
+   <div class="footer__post-info row">
+      <div>
+         <ul class="bar-separator no-bullet aside">
+            <li><a href="/accessibility/index.html">Accessibility</a></li>
+            <li><a href="/eo-compliance/equal-opportunity-hiring/index.html">Equal Opportunity</a></li>
+            <li><a href="mailto:webmaster@mtu.edu">Email the Webmaster</a></li>
+         </ul>
+      </div>
+      <div>
+         <ul class="bar-separator no-bullet">
+            <li><span id="directedit">©</span>
+               2026 <a href="https://www.mtu.edu">Michigan Technological University</a></li>
+         </ul>
+      </div>
+   </div>
+</footer>
+
+<!--[if (!IE)|(gt IE 8)]><!--> 
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script> 
+	<script>window.jQuery || document.write('<script src="https://www.mtu.edu/mtu_resources/script/n/jquery.js"><\/script>')</script> 
+<!--<![endif]-->
+
+<!--[if lte IE 8]>
+	<script src="https://www.mtu.edu/mtu_resources/script/n/jquery-ie.js"></script>
+<![endif]-->
+
+<script src="https://www.mtu.edu/mtu_resources/assets/js/app.js"></script>
+<script src="https://www.mtu.edu/mtu_resources/script/n/pubs.js"></script>
+<script>
+            var OUC = OUC || {};
+            OUC.globalProps = OUC.globalProps || {};
+            OUC.props = OUC.props || {};
+            
+            
+                OUC.globalProps['path'] = "/news/2017/02/just-press-print-3-d-printing-home-saves-cash.html";
+                OUC.globalProps['domain'] = "https://www.mtu.edu";
+                OUC.globalProps['index-file'] = "index";
+                OUC.globalProps['extension'] = "html";
+            
+            var key;
+            for (key in OUC.globalProps) {
+            OUC.props[key] = OUC.globalProps[key];
+            }
+        </script>
+      <script>
+	$(function(){
+		var $domain      = OUC.globalProps['domain'];
+		var $currentPage = OUC.globalProps['path'];
+		var $extension   = OUC.globalProps['extension'];
+		var $indexFile   = OUC.globalProps['index-file'];
+		
+		$currentPage = $domain + $currentPage.replace(/index\.\w+/i, '');
+		
+		
+		$('.leftnav .sublinks ul li').each(function(index, anchorTag){
+
+			$link =  $("> a", this).attr('href');
+			$link = $domain+$link.replace(/index\.\w+/i, '');
+			var $count1 = ($link.match(/\//g) || []).length;
+			
+			// check if link matches current page
+			/*if ($currentPage.includes($link) && $count1 > 4)
+			{
+				$(this).addClass('active');
+				// break out of the loop
+				return false;
+			}*/
+		});
+
+		$('.category-nav-bar > li.main-nav-item').each(function(index, anchorTag){
+
+			$link =  $("a", this).attr('href');
+			if($link) {
+				$link = $domain+$link.replace(/index\.\w+/i, '');
+			}
+			// check if link matches current page
+			if ($currentPage.includes($link))
+			{
+				$(this).addClass('in');
+				// break out of the loop
+				return false;
+			}
+		});
+	});
+</script>
+<div id="hidden" style="display:none;"><a id="de" href="https://a.cms.omniupdate.com/11/?skin=oucampus&amp;account=MTU&amp;site=www&amp;action=de&amp;path=/news/2017/02/just-press-print-3-d-printing-home-saves-cash.pcf">©</a></div>
+   </body>
+</html>

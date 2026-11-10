@@ -498,8 +498,16 @@ function blocksToTree(blocks, rootTitle) {
   return root;
 }
 
+// Does the running prose end with a lead-in ("…who said:")? Read off the last paragraph node's text.
+function endsWithLeadIn(nodes) {
+  const last = nodes[nodes.length - 1];
+  if (!last || last.type !== "paragraph") return false;
+  const text = (last.content || []).filter((n) => n.type === "text").map((n) => n.text).join("");
+  return /:\s*$/.test(text);
+}
+
 // ----- Mint entities from the tree -----
-function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null }) {
+function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null, paragraphBlocks = false, existingImages = null, rootMeta = null, rootFields = null }) {
   const modules = [];
   const occurrences = [];
 
@@ -582,6 +590,10 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   // remote URLs into the user's /uploads dir, but the renderer
   // already serves absolute http(s):// urls via plain <img src>.
   function buildArtifactImage({ alt, src }) {
+    // A picture that already has an occurrence (the OCR'd photo itself) is placed, not copied: the page
+    // lists and embeds that occurrence, so the file keeps one row and one home.
+    const existing = existingImages && Object.prototype.hasOwnProperty.call(existingImages, src) ? existingImages[src] : null;
+    if (existing) return existing;
     const moduleId = uid();
     const occurrenceId = uid();
     modules.push({
@@ -782,6 +794,9 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     };
     for (const c of node.children || []) {
       if (c.kind === "paragraph") {
+        // paragraphBlocks: each prose paragraph is its OWN textblock (Magic for an OCR'd page or an
+        // article: one block per real paragraph). Default off — imports merge running prose.
+        if (paragraphBlocks) flushPara();
         // Accumulate this paragraph's blocks (paragraphToBlocks may split out inline
         // images into their own nodes within the same textblock); a blank-line gap
         // between paragraphs is preserved as separate paragraph nodes in the block.
@@ -793,6 +808,9 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         // but it's embedded INSIDE the lead-up textblock (the prose that introduces
         // it, e.g. "…who said:") via a moduleEmbed — so the quote flows right after
         // its lead-in instead of becoming a detached sibling block. Does NOT flush.
+        // With paragraphBlocks a quote stays with the paragraph before it only when that paragraph
+        // introduces it (ends with ':'); otherwise it is a block of its own.
+        if (paragraphBlocks && !endsWithLeadIn(pendingPara)) flushPara();
         const qId = buildArtifactQuote({ text: c.text, attribution: c.attribution, annotation: c.annotation });
         pendingPara.push({ type: "moduleEmbed", attrs: { occurrenceId: qId, align: "full" } });
         continue;
@@ -920,6 +938,25 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     tree.children = [...(tree.children || []), { kind: "sourceLink", url: sourceUrl, label: sourceLabel }];
   }
   const rootOccurrenceId = buildContainer(tree, rootParentId, true);
+  if (rootMeta) {
+    const root = occurrences.find((o) => o.id === rootOccurrenceId);
+    root.meta = { ...(root.meta || {}), ...rootMeta };
+  }
+  // A typed page takes its board's row shape (smarter imports Task 6): the board's field bindings on the
+  // root's module and the values the page carries on the root.
+  if (rootFields && Object.keys(rootFields.values || {}).length + (rootFields.bindings || []).length) {
+    const root = occurrences.find((o) => o.id === rootOccurrenceId);
+    const mod = modules.find((m) => m.id === root.moduleId);
+    const values = rootFields.values || {};
+    // The board row's bindings as they are; a field named in `show` (read off this page) is shown.
+    const show = new Set(rootFields.show || []);
+    const bindings = (rootFields.bindings || []).map((b) => (show.has(b.fieldId) && b.hidden ? { ...b, hidden: false } : { ...b }));
+    let order = Math.max(0, ...bindings.map((b) => b.order ?? 0)) + 1;
+    for (const fid of Object.keys(values)) if (!bindings.some((b) => b.fieldId === fid)) bindings.push({ fieldId: fid, role: "input", order: order++ });
+    if (mod) mod.fieldBindings = bindings;
+    root.fields = { ...(root.fields || {}) };
+    for (const [fid, value] of Object.entries(rootFields.values || {})) root.fields[fid] = { value, flow: "in" };
+  }
   // Every LISTED child gets the parent that lists it. Children are minted before
   // their parent exists (parents push themselves after recursing), so they carry
   // `parentId: null` — and `delete_occurrence` cascades only through children
@@ -1106,11 +1143,23 @@ export function promoteBoldParagraphs(blocks) {
   });
 }
 
-export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, boldSections = false }) {
+/**
+ * - paragraphBlocks: each prose paragraph becomes its own textblock (default: consecutive ones merge).
+ * - existingImages: { [src]: occurrenceId } — an image line naming one of these places that occurrence
+ *   instead of minting a copy (an OCR'd photo kept on its own page).
+ * - parentFolderId: the root sits in a FOLDER (parentId = the folder, nothing listed). Exclusive with parentId.
+ * - rootMeta / sourceLabel: merged into the root's meta / the source link's label.
+ */
+export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, boldSections = false, paragraphBlocks = false, existingImages = null, parentFolderId = null, rootMeta = null, rootFields = null, sourceLabel = undefined }) {
+  if (parentId && parentFolderId) throw new Error("parentId and parentFolderId are mutually exclusive");
   const parsed = parseBlocks(markdown);
   const blocks = boldSections ? promoteBoldParagraphs(parsed) : parsed;
   const tree = blocksToTree(blocks, title);
-  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null });
+  const planned = mintEntities(tree, {
+    gridId, userId, rootParentId: parentId || parentFolderId, sourceUrl,
+    sourceLabel: sourceLabel !== undefined ? sourceLabel : (title ? `${title} — Wikipedia ↗` : null),
+    paragraphBlocks, existingImages, rootMeta, rootFields,
+  });
 
   if (!dryRun) {
     // Insert in dependency order: modules first (no FK between them),

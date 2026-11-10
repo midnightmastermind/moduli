@@ -20,7 +20,7 @@ describe("joinLines", () => {
 describe("ocrParagraphs", () => {
   it("drops low-confidence specks", () => {
     const p = page(para([line("·")], 20), para([line("Real text here")]));
-    expect(ocrParagraphs(p).map((x) => x.lines[0].text)).toEqual(["Real text here"]);
+    expect(ocrParagraphs(p).paragraphs.map((x) => x.lines[0].text)).toEqual(["Real text here"]);
   });
 });
 
@@ -32,7 +32,7 @@ describe("layout breaks inside one tesseract paragraph", () => {
     at("until the afternoon.", 124, 24), at("Shopping List", 152, 34)]),
   para([at("Body text body text.", 400, 24)]), para([at("More body text.", 440, 24)]));
   it("splits where the line height jumps", () => {
-    expect(ocrParagraphs(flyer).map((p) => p.lines.map((l) => l.text).join(" | "))).toEqual([
+    expect(ocrParagraphs(flyer).paragraphs.map((p) => p.lines.map((l) => l.text).join(" | "))).toEqual([
       "Weekend Picnic Plan", "We meet at the lake on Saturday | until the afternoon.", "Shopping List",
       "Body text body text.", "More body text.",
     ]);
@@ -48,11 +48,11 @@ describe("layout breaks inside one tesseract paragraph", () => {
     // 18px against 23px. tesseract's rowHeight (23 / 23.29) is what says they are the same size.
     const row = (text, y0, y1, rowHeight) => ({ text, bbox: { x0: 0, y0, x1: 100, y1 }, rowAttributes: { rowHeight } });
     const p = page(para([row("If it rains we will move everything to the shelter", 442, 465, 23), row("near the boat house.", 474, 492, 23.289568)]));
-    expect(ocrParagraphs(p).map((x) => x.lines.length)).toEqual([2]);
+    expect(ocrParagraphs(p).paragraphs.map((x) => x.lines.length)).toEqual([2]);
   });
   it("splits at a gap wider than a line, even at the same size", () => {
     const p = page(para([at("one", 0, 20), at("two", 22, 20), at("three", 80, 20)]));
-    expect(ocrParagraphs(p).map((x) => x.lines.length)).toEqual([2, 1]);
+    expect(ocrParagraphs(p).paragraphs.map((x) => x.lines.length)).toEqual([2, 1]);
   });
 });
 

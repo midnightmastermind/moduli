@@ -659,6 +659,15 @@ export function registerOccurrenceHandlers(socket, {
       // (last-writer marker was set synchronously above, before any await,
       // so concurrent handlers from this socket see it without a race.)
 
+      // A user's own edit to a freshly imported textblock is kept as a correction the import clean-up learns
+      // from (services/importCorrections). Not awaited, and it cannot throw into this write.
+      if (payload?.__actionId && textmap !== undefined) {
+        import("../services/importCorrections.js")
+          .then(({ recordCorrection }) => recordCorrection({ occurrence: next, prevTextmap: prev.textmap, nextTextmap: textmap,
+            uc, userId, gridId: txGridId || socket.data.activeGridId }))
+          .catch(() => {});
+      }
+
       // Broadcast includes textmap so other windows get it. Include
       // updatedAt so receivers can keep their local copies in sync for
       // future stale-write checks.

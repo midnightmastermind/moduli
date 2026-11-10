@@ -125,7 +125,7 @@ const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && !v.length);
  * reads the clip's content from the STAGE — the body only chooses where it
  * goes and what it becomes.
  */
-export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, bodyMapping, clip, cover }) {
+export function buildSharePayload({ gridId, mode, stageId, stageKey, destination, shape, mappings, labelMapping, bodyMapping, clip, cover, importAs, pageBody, images }) {
   const base = { mode, stageId, stageKey, ...(gridId ? { gridId } : null) };
   if (mode !== "manual") return base;
   if (!destination?.id) throw new Error("a manual placement needs a destination");
@@ -159,6 +159,13 @@ export function buildSharePayload({ gridId, mode, stageId, stageKey, destination
       ...(shape?.bindingsLike ? { bindingsLike: shape.bindingsLike } : null),
       ...(bindFields.length ? { bindFields } : null),
       ...(coverUrl ? { cover: coverUrl } : null),
+      // A LINK can be saved as its readable page too (smarter imports): "bookmark" is the default and is
+      // not sent; "page" / "both" carry the page's body and the pictures to keep.
+      ...(importAs === "page" || importAs === "both" ? {
+        importAs,
+        ...(typeof pageBody === "string" && pageBody.trim() ? { pageBody: pageBody.trim() } : null),
+        ...(Array.isArray(images) ? { images } : null),
+      } : null),
       fields,
     },
   };

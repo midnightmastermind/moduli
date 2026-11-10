@@ -1155,7 +1155,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   router.post("/import/url", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
-      const { readLinkForImport } = await import("../utils/linkImport.js");
+      const { extractImport } = await import("../services/importPipeline.js");
       const { buildImportShape } = await import("../services/importShape.js");
       const { gridId, url, parentId = null, title = "", dryRun = false, shape = "magic" } = req.body || {};
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
@@ -1164,13 +1164,20 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       // The same read the Reader/Magic viewer does, so "make a page from this
       // link" builds the page the viewer shows — see utils/linkImport.js for
       // why the old private chain here was wrong.
-      const read = await readLinkForImport(url, { title, fetchPageHtml });
-      // 400, not 500: a refused or unreachable URL is the caller's input being
-      // wrong, and the reason is safe to hand back so the UI can say WHY.
-      if (!read.ok) return err(res, 400, "fetch_failed", read.reason);
+      // Extracted through the one import pipeline in viewer mode (readLinkForImport's markdown and
+      // <title>, unchanged); the shape below stays this route's own (ruling R1).
+      let read;
+      try {
+        read = await extractImport({ kind: "link", url, title }, { fetchPageHtml }, { viewer: true });
+      } catch (e) {
+        // 400, not 500: a refused or unreachable URL is the caller's input being
+        // wrong, and the reason is safe to hand back so the UI can say WHY.
+        if (e?.code === "fetch_failed") return err(res, 400, "fetch_failed", e.message);
+        throw e;
+      }
 
       const result = await buildImportShape({
-        shape, gridId, userId: req.userId, markdown: read.markdown, title: read.title, parentId, dryRun,
+        shape, gridId, userId: req.userId, markdown: read.markdown, title: read.pageTitle, parentId, dryRun,
       });
 
       if (!dryRun) {
@@ -1186,7 +1193,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       res.json({
         ...result,
         sourceUrl: read.sourceUrl,
-        source: { title: read.title, url: read.sourceUrl },
+        source: { title: read.pageTitle, url: read.sourceUrl },
         shape: shape === "reader" ? "reader" : "magic",
         // A dry run plans the tree but persists nothing, so it must NOT hand
         // back a root id — the 2026-06-12 "empty embed" bug was exactly that.
@@ -1423,6 +1430,22 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         } catch (e) { console.warn("[share/stage/cover] image scan failed:", e.message); }
       }
       res.json({ cover: og || null, via: og ? "og" : null, candidates });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // WHAT WILL BE CREATED (smarter imports Task 5): the import pipeline in dry-run mode over the staged
+  // clip — the page's label, its first lines and its pictures. Key-authorized like the stage read. Never
+  // a 5xx for a page that cannot be read: that is `willBuildPage: false` with the clip's own label.
+  router.get("/share/stage/:id/import-preview", async (req, res) => {
+    try {
+      const { readStage } = await import("../services/shareStage.js");
+      const opened = await readStage(req.params.id, req.query.k, { withUser: true });
+      if (!opened) return err(res, 404, "not_found", "no such stage");
+      // The grid names the board a typed page would take the shape of; only one the clip's owner owns.
+      let gridId = req.query.gridId || opened.payload?.gridId || null;
+      if (gridId && !(await Grid.findOne({ _id: gridId, userId: opened.userId }).select("_id").lean().catch(() => null))) gridId = null;
+      const { buildImportPreview } = await import("../services/importPreview.js");
+      res.json(await buildImportPreview(opened.payload || {}, {}, { userId: opened.userId, gridId }));
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

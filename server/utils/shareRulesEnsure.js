@@ -18,6 +18,7 @@
 import Operation from "../models/Operation.js";
 import Folder from "../models/Folder.js";
 import { FILES_FOLDER_NAME } from "./protectedFolders.js";
+import { findImportsFolder } from "./importsFolder.js";
 import { randomUUID } from "node:crypto";
 
 export const CATCH_ALL_PRIORITY = 99;
@@ -25,7 +26,9 @@ export const CATCH_ALL_NAME = "Share: anything else";
 // Bumped whenever the pipeline below changes. An existing catch-all nobody has
 // edited (`meta.userEdited` unset) is brought up to date; an edited one is the
 // user's and is never overwritten.
-export const CATCH_ALL_VERSION = 2;
+// v3 (2026-11-10, smarter imports): the destination is the Imports folder when the grid has one (every
+// share lands in one place), else Files as before. The pipeline itself is unchanged.
+export const CATCH_ALL_VERSION = 3;
 
 const ifStep = (rules, then, otherwise = []) => ({
   id: randomUUID(), type: "if",
@@ -56,8 +59,8 @@ const clipCreate = (parent) => create({
   meta: "$share.clip.meta",
 });
 
-export function catchAllPipeline(filesFolderId) {
-  const inFiles = { parentFolderId: `literal:${filesFolderId}` };
+export function catchAllPipeline(destFolderId) {
+  const inFiles = { parentFolderId: `literal:${destFolderId}` };
   return { steps: [
     ifStep(
       [{ left: "$share.clip", comparator: "IS_NOT_EMPTY", right: "" }],
@@ -86,16 +89,18 @@ export async function ensureCatchAllRule({ userId, gridId }) {
     && !existing.meta?.userEdited;
   if (existing && !stale) return { ruleId: existing.id, created: false };
 
-  const files = await Folder.findOne({
+  const importsId = await findImportsFolder({ userId, gridId });
+  const files = importsId ? null : await Folder.findOne({
     userId, gridId, name: FILES_FOLDER_NAME, "meta.protected": true,
   }).lean();
-  if (!files) {
-    throw new Error("this grid has no Files folder, so a share has nowhere to land");
+  const destId = importsId || files?.id;
+  if (!destId) {
+    throw new Error("this grid has no Imports or Files folder, so a share has nowhere to land");
   }
 
   if (stale) {
     await Operation.updateOne({ id: existing.id, userId }, { $set: {
-      pipeline: catchAllPipeline(files.id),
+      pipeline: catchAllPipeline(destId),
       "meta.catchAllVersion": CATCH_ALL_VERSION,
     }});
     return { ruleId: existing.id, created: false, upgraded: true };
@@ -107,7 +112,7 @@ export async function ensureCatchAllRule({ userId, gridId }) {
     enabled: true, priority: CATCH_ALL_PRIORITY,
     triggerType: "onShare",
     triggerObjects: [{ eventType: "onShare", shareType: "*" }],
-    pipeline: catchAllPipeline(files.id),
+    pipeline: catchAllPipeline(destId),
     meta: { catchAllVersion: CATCH_ALL_VERSION },
   });
   return { ruleId: op.id, created: true };

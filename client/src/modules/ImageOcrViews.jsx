@@ -92,11 +92,15 @@ export default function ImageOcrViews({ occurrence, module, imgSrc, children, di
   const addAsPage = useCallback(() => {
     if (!markdown || busy) return;
     setBusy("page");
-    saveAsPage({ content: markdown, format: "markdown", shape: mode, title }).then((res) => {
+    // Magic sends the page tesseract read, so the server builds it the way an Auto image share does:
+    // a textblock per paragraph, the quote, and this picture (its own occurrence) beside the text.
+    // Reader stays plain text — that view is the deliberate "just the words" pick.
+    const extra = mode === "magic" && ocr.status === "done" ? { ocrPage: ocr.page, imageOccurrenceId: occurrence?.id || null } : null;
+    saveAsPage({ content: markdown, format: "markdown", shape: mode, title, extra }).then((res) => {
       setBusy(null);
       flash(res.ok ? "Added as a page in Imports" : `Could not add the page: ${res.error}`);
     });
-  }, [markdown, busy, saveAsPage, mode, title]);
+  }, [markdown, busy, saveAsPage, mode, title, ocr, occurrence?.id]);
 
   // The old OCR button's outcome: the text as an editable textblock under the image.
   const attach = useCallback(() => {
