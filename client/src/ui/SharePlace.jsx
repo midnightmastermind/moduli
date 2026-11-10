@@ -302,7 +302,7 @@ export default function SharePlace() {
   }, [wantsCover, coverTouched, cover, coverChoices.length, stageId, stageKey]);
 
   // Only a LINK can become its readable page; the server decides what the clip is (the preview's type).
-  const isLinkClip = importPreview?.type === "link";
+  const isLinkClip = importPreview?.kind === "link";
   const pictureChoices = [...new Set([...(importPreview?.images || []), ...coverChoices.map((c) => c?.url).filter(Boolean)])];
   const pickedNow = pickedImages ?? (importPreview?.images || []);
   const canClip = !busy && !!payload && (manual ? !!destination && !!token && !!gridId : true);

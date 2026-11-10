@@ -44,17 +44,20 @@ export function stageLabel(payload = {}) {
  * The preview for one staged clip. Never throws: an unreachable page answers willBuildPage:false with the
  * stage's label; a read slower than `timeoutMs` answers partial:true. @param deps passed to runImport.
  */
-export async function buildImportPreview(payload, deps = {}, { timeoutMs = PREVIEW_TIMEOUT_MS } = {}) {
-  const base = { where: "Imports", label: stageLabel(payload), type: null, board: null, fields: {},
+export async function buildImportPreview(payload, deps = {}, { timeoutMs = PREVIEW_TIMEOUT_MS, userId = "preview", gridId = null } = {}) {
+  const base = { where: "Imports", label: stageLabel(payload), kind: null, type: null, board: null, fields: {},
     bodyLines: [], images: [], willBuildPage: false, aiNote: AI_NOTE };
   const source = stageImportSource(payload);
   if (!source) return base;
+  // `kind` is what the clip IS (link / image / text — decides the window's link choices); `type` is what the
+  // page says it is (Movie, Article…), once read.
+  base.kind = source.kind;
   base.type = source.kind;
   let timer;
   const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve("timeout"), timeoutMs); });
   let out;
   try {
-    out = await Promise.race([runImport({ source, userId: "preview", gridId: null, dryRun: true }, deps), timeout]);
+    out = await Promise.race([runImport({ source, userId, gridId, dryRun: true }, deps), timeout]);
   } catch (err) {
     clearTimeout(timer);
     return { ...base, error: String(err?.message || err) };
@@ -68,6 +71,8 @@ export async function buildImportPreview(payload, deps = {}, { timeoutMs = PREVI
     type: out.meta?.type || source.kind,
     bodyLines: out.empty ? [] : bodyLinesOf(out.markdown),
     images,
+    board: out.meta?.board || null,
+    fields: out.meta?.boardValues || {},
     willBuildPage: !out.empty,
   };
 }

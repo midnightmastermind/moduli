@@ -33,6 +33,8 @@ import { bestTitleFrom } from "../utils/pageTitle.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { linkRootIntoParent } from "../utils/linkRootIntoParent.js";
 import { decompressTextmap } from "../utils/textmapCompression.js";
+import { readStructuredData } from "../utils/structuredData.js";
+import { matchBoard as defaultMatchBoard, structuredFieldValues } from "./boardMatch.js";
 
 /** Fewer words than this and an import is EMPTY: nothing is written (an OCR of a photo with no text). */
 export const MIN_IMPORT_WORDS = 3;
@@ -133,8 +135,16 @@ async function extractPage({ url, title, fetchPageHtml, source, viewer }) {
   const pageUrl = read.sourceUrl || fetched?.url || url;
   if (pageUrl) meta.source.url = pageUrl;
   if (wikiTitle) meta.type = "wikipedia";
-  meta.title = title || wikiTitle || (fetched && !viewer ? importTitleFromHtml(fetched.html, pageUrl) : "") || read.title || "";
+  // What the page says it is (JSON-LD, then Open Graph): its type, its own title, its values (Task 6).
+  const sd = fetched && !viewer ? readStructuredData(fetched.html, pageUrl) : null;
+  if (sd?.type && !wikiTitle) meta.type = sd.type;
+  meta.title = title || wikiTitle || (sd?.type && sd.title) || (fetched && !viewer ? importTitleFromHtml(fetched.html, pageUrl) : "") || read.title || "";
   meta.images = fetched ? imagesFromHtml(fetched.html, pageUrl).map((im) => ({ url: im.url })) : [];
+  if (sd?.image && /^https?:/i.test(sd.image) && !meta.images.some((im) => im.url === sd.image)) meta.images.unshift({ url: sd.image });
+  if (sd) {
+    meta.fields = { ...sd.fields, ...(sd.author ? { author: sd.author } : {}), ...(sd.date ? { date: sd.date } : {}),
+      ...(meta.title ? { title: meta.title } : {}), ...(pageUrl ? { url: pageUrl } : {}) };
+  }
   return { markdown: read.markdown, meta, pageTitle: read.title || "", sourceUrl: pageUrl };
 }
 
@@ -221,6 +231,19 @@ export async function runImport({ source, gridId, userId, parentId = null, paren
   const { markdown, meta } = overrides ? applyImportOverrides(extracted.markdown, extracted.meta, overrides) : extracted;
   if (importWordCount(markdown) < MIN_IMPORT_WORDS) return { markdown, meta, empty: true };
 
+  // A typed page takes the row shape of the board where the grid keeps that type (it still lands in Imports).
+  if (meta.type && gridId && !deps.noBoard) {
+    const board = await (deps.matchBoard || defaultMatchBoard)({ userId, gridId, type: meta.type });
+    if (board) {
+      meta.board = { id: board.id, label: board.label };
+      const read = structuredFieldValues(board.fields, meta.fields);
+      meta.boardValues = { ...(board.shape?.autoFields || {}), ...read };
+      // Only what was READ off the page is shown; the board's own values keep the board's hidden flags.
+      meta.boardShown = Object.keys(read);
+      meta.boardBindings = board.bindings || [];
+    }
+  }
+
   const existingImages = {};
   for (const im of meta.images) if (im.occurrenceId) existingImages[im.url] = im.occurrenceId;
   const sourceUrl = source.kind === "link" || source.kind === "html" ? (meta.source.url || source.url || null) : null;
@@ -231,6 +254,7 @@ export async function runImport({ source, gridId, userId, parentId = null, paren
     title: meta.title || null, sourceUrl,
     sourceLabel: sourceUrl ? `${meta.title || "Source"} ↗` : null,
     boldSections: true, paragraphBlocks: true, existingImages,
+    ...(meta.board ? { rootFields: { bindings: meta.boardBindings, values: meta.boardValues, show: meta.boardShown } } : {}),
     // `importExternalId`: the share this page came from, so a re-share finds the page instead of minting another.
     rootMeta: { importSource: meta.source, importedAt: new Date().toISOString(), ...(externalId ? { importExternalId: externalId } : {}) },
   });

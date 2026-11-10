@@ -1439,10 +1439,13 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   router.get("/share/stage/:id/import-preview", async (req, res) => {
     try {
       const { readStage } = await import("../services/shareStage.js");
-      const payload = await readStage(req.params.id, req.query.k);
-      if (!payload) return err(res, 404, "not_found", "no such stage");
+      const opened = await readStage(req.params.id, req.query.k, { withUser: true });
+      if (!opened) return err(res, 404, "not_found", "no such stage");
+      // The grid names the board a typed page would take the shape of; only one the clip's owner owns.
+      let gridId = req.query.gridId || opened.payload?.gridId || null;
+      if (gridId && !(await Grid.findOne({ _id: gridId, userId: opened.userId }).select("_id").lean().catch(() => null))) gridId = null;
       const { buildImportPreview } = await import("../services/importPreview.js");
-      res.json(await buildImportPreview(payload));
+      res.json(await buildImportPreview(opened.payload || {}, {}, { userId: opened.userId, gridId }));
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

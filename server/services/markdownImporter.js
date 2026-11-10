@@ -507,7 +507,7 @@ function endsWithLeadIn(nodes) {
 }
 
 // ----- Mint entities from the tree -----
-function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null, paragraphBlocks = false, existingImages = null, rootMeta = null }) {
+function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null, paragraphBlocks = false, existingImages = null, rootMeta = null, rootFields = null }) {
   const modules = [];
   const occurrences = [];
 
@@ -942,6 +942,21 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     const root = occurrences.find((o) => o.id === rootOccurrenceId);
     root.meta = { ...(root.meta || {}), ...rootMeta };
   }
+  // A typed page takes its board's row shape (smarter imports Task 6): the board's field bindings on the
+  // root's module and the values the page carries on the root.
+  if (rootFields && Object.keys(rootFields.values || {}).length + (rootFields.bindings || []).length) {
+    const root = occurrences.find((o) => o.id === rootOccurrenceId);
+    const mod = modules.find((m) => m.id === root.moduleId);
+    const values = rootFields.values || {};
+    // The board row's bindings as they are; a field named in `show` (read off this page) is shown.
+    const show = new Set(rootFields.show || []);
+    const bindings = (rootFields.bindings || []).map((b) => (show.has(b.fieldId) && b.hidden ? { ...b, hidden: false } : { ...b }));
+    let order = Math.max(0, ...bindings.map((b) => b.order ?? 0)) + 1;
+    for (const fid of Object.keys(values)) if (!bindings.some((b) => b.fieldId === fid)) bindings.push({ fieldId: fid, role: "input", order: order++ });
+    if (mod) mod.fieldBindings = bindings;
+    root.fields = { ...(root.fields || {}) };
+    for (const [fid, value] of Object.entries(rootFields.values || {})) root.fields[fid] = { value, flow: "in" };
+  }
   // Every LISTED child gets the parent that lists it. Children are minted before
   // their parent exists (parents push themselves after recursing), so they carry
   // `parentId: null` — and `delete_occurrence` cascades only through children
@@ -1135,7 +1150,7 @@ export function promoteBoldParagraphs(blocks) {
  * - parentFolderId: the root sits in a FOLDER (parentId = the folder, nothing listed). Exclusive with parentId.
  * - rootMeta / sourceLabel: merged into the root's meta / the source link's label.
  */
-export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, boldSections = false, paragraphBlocks = false, existingImages = null, parentFolderId = null, rootMeta = null, sourceLabel = undefined }) {
+export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, boldSections = false, paragraphBlocks = false, existingImages = null, parentFolderId = null, rootMeta = null, rootFields = null, sourceLabel = undefined }) {
   if (parentId && parentFolderId) throw new Error("parentId and parentFolderId are mutually exclusive");
   const parsed = parseBlocks(markdown);
   const blocks = boldSections ? promoteBoldParagraphs(parsed) : parsed;
@@ -1143,7 +1158,7 @@ export async function markdownToModuli({ gridId, parentId = null, userId, markdo
   const planned = mintEntities(tree, {
     gridId, userId, rootParentId: parentId || parentFolderId, sourceUrl,
     sourceLabel: sourceLabel !== undefined ? sourceLabel : (title ? `${title} — Wikipedia ↗` : null),
-    paragraphBlocks, existingImages, rootMeta,
+    paragraphBlocks, existingImages, rootMeta, rootFields,
   });
 
   if (!dryRun) {

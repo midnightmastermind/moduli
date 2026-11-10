@@ -11,7 +11,7 @@ vi.mock("../ui/FieldSelect.jsx", () => ({ default: () => null }));
 
 const STAGED = { source: "extension", shape: "page", url: "https://en.wikipedia.org/wiki/Albert_Ellis", title: "Albert Ellis - Wikipedia" };
 const PREVIEW = {
-  where: "Imports", label: "Albert Ellis", type: "link", board: null, fields: {},
+  where: "Imports", label: "Albert Ellis", kind: "link", type: "wikipedia", board: null, fields: {},
   bodyLines: ["Albert Ellis", "Albert Ellis was an American psychologist."], images: ["https://img/a.jpg", "https://img/b.jpg"],
   willBuildPage: true, aiNote: "AI clean-up will run after saving",
 };
@@ -96,7 +96,7 @@ describe("a link placed by hand", () => {
   });
 
   it("a clip that is not a link gets no link choices — the control", async () => {
-    preview = { ...PREVIEW, type: "text" };
+    preview = { ...PREVIEW, kind: "text", type: "text" };
     await ready();
     await pickBoard();
     expect(screen.queryByLabelText("Keep as bookmark")).toBeNull();

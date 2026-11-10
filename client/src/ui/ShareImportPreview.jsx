@@ -19,11 +19,14 @@ export default function ShareImportPreview({ preview, loading }) {
       {loading && !preview ? <div style={mutedSt}>{MSG.loading}</div> : preview ? (
         <>
           <div style={{ fontWeight: 600, fontSize: 12, wordBreak: "break-word" }}>{preview.label}</div>
+          {preview.board && (
+            <div data-testid="preview-board" style={mutedSt}>Shaped like a row of “{preview.board.label}” — you file it from Imports.</div>
+          )}
           {preview.partial ? <div style={mutedSt}>{MSG.partial}</div>
-            : !preview.willBuildPage ? <div style={mutedSt}>{preview.type === "link" ? MSG.noLinkPage : MSG.noPage}</div>
+            : !preview.willBuildPage ? <div style={mutedSt}>{preview.kind === "link" ? MSG.noLinkPage : MSG.noPage}</div>
             : (
               <>
-                {preview.type === "link" && <div style={mutedSt}>A bookmark, and the page laid out to read:</div>}
+                {preview.kind === "link" && <div style={mutedSt}>A bookmark, and the page laid out to read:</div>}
                 <div data-testid="preview-body" style={bodySt}>
                   {(preview.bodyLines || []).map((l, i) => <div key={i} style={lineSt}>{l}</div>)}
                 </div>
