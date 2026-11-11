@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-11-11 — filter menu rows stack; the header counts ancestor-declared filters)
+- `FiltersSection`: each ancestor/local row is two lines — lock + "Field = value" (wraps, no "…"), then
+  Active / Show / edit / remove underneath (`rowHeadStyle`, `rowControlsStyle`).
+- `HeaderChevron.computeFilterState` (exported) counts filters declared on the occurrence OR an ancestor
+  (`getInheritedLocalFilterConditions`) beside the toolbar's nav fields; an empty pick list is not a value.
+  The People container (page declares Relationship, container holds "acquaintance") read red with no pill.
+  Test `headerFilterState.test.js` (6).
+
 ## Recent Changes (2026-11-05 — Convert, Export to Markdown and Add a button moved from the radial to Settings)
 - `SettingsActions.jsx` (NEW) draws radial-style items in a form: `actions` + `onCloseSettings` on InstanceForm and ContainerForm (Settings tab), LayoutForm (Actions tab), and directly in the page's settings popover. Settings closes before the item runs. A container's Convert submenu and an embed's "To pill" (`splitConvertItems`) land in one "Convert to" row.
 - The right-click menu keeps its own Convert entries. Test `settingsActions.test.jsx`.

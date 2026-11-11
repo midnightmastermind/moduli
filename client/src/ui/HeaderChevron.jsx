@@ -2,7 +2,7 @@
 import React, { useMemo } from "react";
 import { Filter } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
-import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { getEffectiveFilterForOccurrence, getInheritedLocalFilterConditions } from "../state/selectors";
 import { summarizeSelection } from "./filterSummary";
 
 // Muted swatches per user request — readable but not loud.
@@ -87,15 +87,18 @@ export function formatFilterValue(fieldId, value, fieldsById) {
 
 /**
  * Detect filter state for this occurrence:
- *   - Grid's active named filter contributes its nav-condition fieldIds.
- *   - The occurrence's own `filters[]` entries (e.g. schedule's Time Slot)
- *     contribute their fieldIds when `active === true`.
- * For each contributing fieldId, "applied here" = the field is present in
- * the cascade-resolved `ownEffectiveFilter`. If any are applied → active;
- * if none are but some exist → deactivated; if no filters touch this
- * occurrence at all → none.
+ *   - The grid's active named filter contributes its nav-condition fieldIds.
+ *   - Every filter DECLARED on this occurrence OR an ancestor contributes its
+ *     fieldId (nearest declaration wins, so one switched off below is out).
+ *     Before 2026-11-11 only the occurrence's OWN `filters[]` counted, so a
+ *     container under a page that declares Relationship never saw its own
+ *     "acquaintance" value: the icon read red and no pill was drawn.
+ * "Applied here" = the field has a value in the cascade-resolved effective
+ * filter (an empty pick list shows every row, so it is not a value). Any
+ * applied → active (green); declared but none applied → deactivated (red);
+ * nothing declared → none.
  */
-function computeFilterState(occurrence, grid, ownEffectiveFilter) {
+export function computeFilterState(occurrence, grid, ownEffectiveFilter, { occurrencesById } = {}) {
   if (!occurrence) return "none";
   const fieldIds = new Set();
 
@@ -103,13 +106,17 @@ function computeFilterState(occurrence, grid, ownEffectiveFilter) {
   for (const c of (activeFilter?.conditions || [])) {
     if (c?.fieldId && c?.isNav) fieldIds.add(c.fieldId);
   }
-  for (const f of (occurrence.filters || [])) {
-    if (f?.fieldId && f?.active !== false) fieldIds.add(f.fieldId);
+  for (const c of getInheritedLocalFilterConditions(occurrence, { occurrencesById })) {
+    if (c?.fieldId) fieldIds.add(c.fieldId);
   }
 
   if (!fieldIds.size) return "none";
+  const eff = ownEffectiveFilter || {};
   for (const fid of fieldIds) {
-    if (fid in (ownEffectiveFilter || {})) return "active";
+    if (!(fid in eff)) continue;
+    const v = eff[fid];
+    if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) continue;
+    return "active";
   }
   return "deactivated";
 }
@@ -137,8 +144,8 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null, show
   }, [occurrence, grid, occurrencesById]);
 
   const state = useMemo(
-    () => computeFilterState(occurrence, grid, ownEffectiveFilter),
-    [occurrence, grid, ownEffectiveFilter],
+    () => computeFilterState(occurrence, grid, ownEffectiveFilter, { occurrencesById }),
+    [occurrence, grid, ownEffectiveFilter, occurrencesById],
   );
   const color = STATE_COLOR[state];
 

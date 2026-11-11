@@ -313,8 +313,12 @@ export default function FiltersSection({ occurrence }) {
     });
   };
 
-  const rowStyle = { display: "flex", alignItems: "center", gap: 8, padding: "4px 0" };
-  const labelStyle = { flex: 1, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  // A row is two lines: "Field = value" on top, its controls underneath (user, 2026-11-11: one line cut the
+  // name and value off with "…"). The value wraps rather than truncates.
+  const rowStyle = { display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" };
+  const rowHeadStyle = { display: "flex", alignItems: "flex-start", gap: 6 };
+  const rowControlsStyle = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, paddingLeft: 17 };
+  const labelStyle = { flex: 1, fontSize: 12, minWidth: 0, whiteSpace: "normal", overflowWrap: "anywhere" };
   const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
 
   return (
@@ -452,6 +456,7 @@ export default function FiltersSection({ occurrence }) {
             const relock = () => filterConfig.clearFilterOverride({ ...cfgArgs, fieldId: row.fieldId });
             return (
               <div key={row.id} style={rowStyle}>
+                <div style={rowHeadStyle}>
                 <button
                   type="button"
                   onClick={followsParent ? undefined : relock}
@@ -472,6 +477,8 @@ export default function FiltersSection({ occurrence }) {
                   <strong>{row.fieldName}</strong>
                   <span style={{ opacity: 0.6 }}> = {valueShown}</span>
                 </span>
+                </div>
+                <div style={rowControlsStyle}>
                 <Switch
                   label="Active"
                   checked={effectivelyActive}
@@ -511,6 +518,7 @@ export default function FiltersSection({ occurrence }) {
                   checked={pillShown(row.fieldId)}
                   onChange={(v) => setPillShown(row.fieldId, v)}
                 />
+                </div>
               </div>
             );
           })}
@@ -534,10 +542,13 @@ export default function FiltersSection({ occurrence }) {
           : () => removeLocal(row.fieldId);
         return (
           <div key={row.id} style={rowStyle}>
+            <div style={rowHeadStyle}>
             <span style={labelStyle} title={row.fieldName}>
               <strong>{row.fieldName}</strong>
               <span style={{ opacity: 0.6 }}> = {valueLabel}</span>
             </span>
+            </div>
+            <div style={{ ...rowControlsStyle, paddingLeft: 0 }}>
             <Switch label="Active" checked={active} onChange={onActive} title={isDeclared ? "Toggle to enable/disable this filter" : "Toggle off to remove this local filter"} />
             <Switch label="Show" title="Show this filter's value on the header" checked={pillShown(row.fieldId)} onChange={(v) => setPillShown(row.fieldId, v)} />
             <button
@@ -556,6 +567,7 @@ export default function FiltersSection({ occurrence }) {
             >
               <X size={11} />
             </button>
+            </div>
           </div>
         );
       })}

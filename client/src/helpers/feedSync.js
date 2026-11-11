@@ -24,6 +24,7 @@ import * as CommitHelpers from "./CommitHelpers";
 import { runDerived } from "./actionScope";
 import { isPullOnlyFeed } from "./feedPull";
 import * as LayoutHelpers from "./LayoutHelpers";
+import { allAncestorsOf, cachedParentMap } from "./dragHitTesting";
 import {
   resolveFeedItems,
   getEffectiveFilterForOccurrence,
@@ -220,6 +221,24 @@ export function feedMayReadFields(feedOcc, fieldIds, { state, occurrencesById } 
 // Sync EVERY enabled feed on the grid. Called after full_state settles and
 // (debounced) after filter changes / occurrence CRUD — the same moments the
 // old Build ops' trigger objects covered, minus the per-op wiring.
+// Which feeds a scoped pass covers. No scope → all. Otherwise a feed is in when it reads one of the fields
+// (feedMayReadFields) OR its owner is one of `onlyUnderIds` or sits under one: a filter changed there moves the
+// owner's effective filter, which is what a feed applies to its matches. A filter on the People container used to
+// re-sync all ~59 feeds (~0.5s per pick, 2026-11-11).
+export function feedInScope(feedOcc, { onlyFieldIds = null, onlyUnderIds = null, state, occurrencesById } = {}) {
+  const fields = onlyFieldIds?.length ? onlyFieldIds : null;
+  const under = onlyUnderIds?.length ? onlyUnderIds : null;
+  if (!fields && !under) return true;
+  if (fields && feedMayReadFields(feedOcc, fields, { state, occurrencesById })) return true;
+  if (under) {
+    const set = new Set(under.map(String));
+    if (set.has(String(feedOcc.id))) return true;
+    const chain = allAncestorsOf(feedOcc.id, occurrencesById, cachedParentMap(occurrencesById));
+    for (const a of chain) if (set.has(String(a))) return true;
+  }
+  return false;
+}
+
 export function syncAllFeeds(args) {
   // Feed sync materialises a query — it is the app keeping a view in step, not
   // something the user did, so its mints and sweeps must never be undo steps.
@@ -228,7 +247,7 @@ export function syncAllFeeds(args) {
   return runDerived(() => _syncAllFeeds(args));
 }
 
-function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket, onlyFieldIds = null }) {
+function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket, onlyFieldIds = null, onlyUnderIds = null }) {
   let minted = 0, swept = 0, feeds = 0;
   // `window.__feedDiag = true` prints a per-feed breakdown. A feed that mints
   // nothing is indistinguishable from a feed that never ran, which is exactly
@@ -249,7 +268,7 @@ function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket, 
     // 50 more on 2026-09-22. An owner naming NO grid is a local optimistic
     // mint belonging to the current one, so only a disagreement is skipped.
     if (gridNow && occ.gridId && occ.gridId !== gridNow) continue;
-    if (onlyFieldIds && !feedMayReadFields(occ, onlyFieldIds, { state, occurrencesById })) continue;
+    if (!feedInScope(occ, { onlyFieldIds, onlyUnderIds, state, occurrencesById })) continue;
     feeds++;
     const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag, copyIdx });
     minted += r.minted; swept += r.swept;

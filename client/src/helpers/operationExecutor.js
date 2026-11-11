@@ -620,6 +620,38 @@ export function changeTouchesOp(op, transactionType, transaction, context) {
 }
 
 /**
+ * A local filter change names the filter fields that moved (`changedFieldIds`). When none of them is a date field
+ * and the op never mentions one of them — in its steps, triggers or config — nothing it can read has changed:
+ * `$activeDate` and the other period vars follow date fields only, and any other filter value is read by naming
+ * its field (`_effectiveFilter.<id>`, `filterOverride.<id>`, a trigger's target). Such an op is skipped.
+ * A transaction naming no fields (the toolbar's, an op's own) runs every op, as before. Measured 2026-11-11:
+ * a Relationship pick on the People container ran six date ops, ~0.4s (Fill Day, Days Until Due, Birthdays…).
+ */
+const _opTextCache = new WeakMap();
+function opText(op) {
+  let t = _opTextCache.get(op);
+  if (t === undefined) {
+    try { t = JSON.stringify([op.pipeline, op.triggerObjects, op.triggerConfig, op.triggerTypes, op.blockTree, op.targetFieldId]); }
+    catch { t = null; }
+    _opTextCache.set(op, t);
+  }
+  return t;
+}
+export function navChangeTouchesOp(op, transaction, context) {
+  const changed = transaction?.changedFieldIds;
+  if (!Array.isArray(changed) || changed.length === 0) return true;
+  const fieldsById = context?.fieldsById || {};
+  const text = opText(op);
+  if (text == null) return true;
+  for (const fid of changed) {
+    const f = fieldsById[fid];
+    if (!f || f.type === "date") return true;
+    if (text.includes(fid)) return true;
+  }
+  return false;
+}
+
+/**
  * Optional module scoping: a trigger carrying `moduleIds` fires only for an
  * occurrence of one of those modules. An event whose module cannot be told
  * does NOT fire it — a scope exists to keep the op off everything else.
@@ -1155,9 +1187,8 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
   // the sweep: CREATE patches new child links into this map in place (see
   // operationActions CREATE), and walkers null-guard entries whose occurrence
   // was deleted mid-sweep.
-  if (context && !context._parentByChildId && context.occurrencesById) {
-    context._parentByChildId = sweepParentMap(context.occurrencesById, context._occVersion);
-  }
+  // Built only once something matched (below): a sweep that matches nothing used to pay ~75ms for it on poms
+  // grid (a filter pick fans out one transaction per descendant, 2026-11-11).
 
   // Stamp the created/deleted occurrence's ROLE onto the transaction so an
   // onAdd/onDelete `subjectRole:"instance", targetId:""` trigger can match only
@@ -1194,6 +1225,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     const m = computeTriggerMatch(op, transactionType, transaction);
     if (!m) continue;
     if (op.skipIfUnchanged && !changeTouchesOp(op, transactionType, transaction, context)) continue;
+    if (transactionType === "NavigationOp" && !navChangeTouchesOp(op, transaction, context)) continue;
     // "Wait N ms": the op runs once things have been quiet that long, with the
     // last event — typing in a field runs it once, not per keystroke.
     const waitMs = Number(m.triggerObject?.waitMs) || 0;
@@ -1215,6 +1247,9 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
   // and the cascade dedup leaves most of them empty, so that copy was ~2.7s of
   // a Day Page date step (prod profile, 2026-09-19).
   if (matched.length === 0) return updates;
+  if (context && !context._parentByChildId && context.occurrencesById) {
+    context._parentByChildId = sweepParentMap(context.occurrencesById, context._occVersion);
+  }
 
   // Live overlay of occurrencesById that picks up each op's CREATE_ITEM /
   // UPDATE_ITEM_* / DELETE_ITEM effects in batch-order. Without this the next

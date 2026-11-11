@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-11 — FILTERS: stacked menu rows, a green icon for ancestor filters, and a pick that runs no date ops
+
+User: *"lets test filters next to improve performance there"* · menu rows *"stacked to avoid the …"* · the icon
+*"should be green if any filter is set, local or ancestor"* · *"for the acquaintance one, its not showing that in the
+header"*. Screenshots: the People container held Relationship = acquaintance (declared on the People page), its
+icon red, no pill.
+- **One cause for icon + pill:** `HeaderChevron` counted only the occurrence's OWN `filters[]` and the toolbar's nav
+  fields, and pills draw only in the "active" state. Inherited declarations count now.
+- **Menu rows** are two lines: name = value on top (wraps), controls underneath. Looked at on a local build.
+- **Speed (People › Relationship pick, poms, writes blocked):** six date ops ran on every pick (Fill Day 0.24s,
+  Days Until Due writing 13 values, Birthdays) and every feed re-synced. Now an op is skipped when every changed
+  filter field is a non-date field it never mentions, feed passes are scoped to feeds under the changed occurrence,
+  and an empty sweep builds no parent map. Blocked 1.7s → 1.1s, worst freeze 0.66s → 0.34s. Left: redrawing the
+  People board (~1s until rows change). Client 7,443 pass.
+
+---
+
 ### 2026-11-10 (2) — A DATE STEP'S OPERATIONS 2.2s → 1.1s: the read model was rebuilt for writes that cannot move it
 
 User (account2): *"look into operations next and see if we can improve the performance at all so it doesnt freeze up

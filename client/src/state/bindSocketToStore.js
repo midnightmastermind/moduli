@@ -70,8 +70,14 @@ export function echoFeedScope(incoming, prev, gridNow = null) {
   if (gridNow && incoming?.gridId && String(incoming.gridId) !== String(gridNow)) return "none";
   if (!prev) return "all";
   const fieldIds = [];
+  let filterMoved = false;
   for (const k of Object.keys(incoming || {})) {
     if (k === "id" || ECHO_BOOKKEEPING.has(k)) continue;
+    // A filter set ON this row changes only the feeds owned at or under it (2026-11-11).
+    if (k === "filterOverride" || k === "filterNavConfig") {
+      if (JSON.stringify(incoming[k] ?? null) !== JSON.stringify(prev[k] ?? null)) filterMoved = true;
+      continue;
+    }
     if (k === "fields") {
       const a = incoming.fields || {}, b = prev.fields || {};
       for (const fid of new Set([...Object.keys(a), ...Object.keys(b)])) {
@@ -82,6 +88,7 @@ export function echoFeedScope(incoming, prev, gridNow = null) {
     }
     if (JSON.stringify(incoming[k]) !== JSON.stringify(prev[k])) return "all";
   }
+  if (filterMoved) return fieldIds.length ? "all" : { underIds: [incoming.id] };
   return fieldIds.length ? fieldIds : "none";
 }
 
@@ -229,11 +236,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // source (assignLinkedGroup) and a relist rewrites the parent's list, both through updateOccurrence. Each woke a
   // whole new pass that found nothing: three passes per date step on poms grid, ~1.5s (2026-11-06).
   let _feedPassRunning = false;
-  const scheduleFeedSync = (delay = 300, { fieldIds = null } = {}) => {
+  // A scoped request names fields (a field write: feeds reading them) and/or occurrences (a filter change there:
+  // feeds owned at or under them, since a feed applies its owner's effective filter). Scopes union; "all" wins.
+  const scheduleFeedSync = (delay = 300, { fieldIds = null, underIds = null } = {}) => {
     if (_feedPassRunning) return;
-    if (fieldIds?.length && _feedSyncScope !== "all") {
-      if (!(_feedSyncScope instanceof Set)) _feedSyncScope = new Set();
-      for (const f of fieldIds) if (f) _feedSyncScope.add(f);
+    if ((fieldIds?.length || underIds?.length) && _feedSyncScope !== "all") {
+      if (!_feedSyncScope) _feedSyncScope = { fields: new Set(), under: new Set() };
+      for (const f of fieldIds || []) if (f) _feedSyncScope.fields.add(f);
+      for (const u of underIds || []) if (u) _feedSyncScope.under.add(u);
     } else {
       // `window.__feedDiag` names who asked for a whole pass — the expensive kind.
       if (typeof window !== "undefined" && window.__feedDiag === true) console.log("[feedDiag] whole pass asked by", new Error().stack.split("\n").slice(2, 10).map((l) => l.trim()).join(" < "));
@@ -276,7 +286,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         _feedPassRunning = true;
         try {
           syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket,
-            onlyFieldIds: scope instanceof Set ? [...scope] : null });
+            onlyFieldIds: scope && scope !== "all" ? [...scope.fields] : null,
+            onlyUnderIds: scope && scope !== "all" ? [...scope.under] : null });
         } finally { _feedPassRunning = false; }
       } catch (e) {
         console.warn("[feedSync] pass failed:", e);
@@ -293,7 +304,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (scope === "all" && typeof window !== "undefined" && window.__feedDiag === true) {
       console.log("[feedDiag] echo changed", prev ? Object.keys(incoming).filter((k) => k !== "fields" && JSON.stringify(incoming[k]) !== JSON.stringify(prev[k])).join(",") : "(row unknown here)", incoming.id);
     }
-    scheduleFeedSync(300, scope === "all" ? {} : { fieldIds: scope });
+    scheduleFeedSync(300, scope === "all" ? {} : Array.isArray(scope) ? { fieldIds: scope } : scope);
   };
 
   const _markOpEmitted = (id) => {
@@ -2858,8 +2869,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     } finally {
       _navCascadeFiredOps = prev;
     }
-    // Local filter changes (date switches) re-scope every feed — reconcile.
-    scheduleFeedSync();
+    // A local filter change moves the effective filter of the occurrence it was set on and everything under it,
+    // so only feeds owned there need a pass. Writes the ops above made ask for their own (creates and deletes
+    // through their echoes, field writes through updateOccurrence). A whole pass here cost ~0.5s per filter pick
+    // on poms grid (2026-11-11).
+    const underIds = transactions.map((t) => t?.occurrenceId).filter(Boolean);
+    scheduleFeedSync(300, underIds.length ? { underIds } : {});
   }
 
   // Drop-batch: collect all top-level op fires during a drop, then flush

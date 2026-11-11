@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-27. Check this file before re-reading source._
 
+## Recent Changes (2026-11-11 — a non-date filter pick skips date ops and re-syncs only feeds under it)
+- `CommitHelpers.updateOccurrenceFilterOverride` stamps `changedFieldIds` on its NavigationOp transactions.
+  `operationExecutor.navChangeTouchesOp`: when every changed field is a non-date field the op never mentions
+  (steps, triggers, config — JSON text, cached per op), the op is skipped. No `changedFieldIds` → runs, as before.
+- `feedSync.feedInScope` + `onlyUnderIds`: a scoped pass covers feeds reading the listed fields OR owned at/under the
+  listed occurrences. `bindSocketToStore.fireOperationsBatch` and `echoFeedScope` (filterOverride/filterNavConfig
+  only → `{underIds}`) use it; the scheduler's scope is `{fields, under}` sets, "all" still wins.
+- The sweep's parent map is built only after something matched.
+- Measured (People › Relationship pick, poms, writes blocked, `tools/uisweep/_fltperf.mjs`): blocked 1.7s → 1.1s,
+  worst freeze 0.66s → 0.34s, 6 ops → 0. Tests `navChangeTouchesOp` (5), `feedSyncUnderScope` (8).
+
 
 ## Recent Changes (2026-11-10 (2) — a CREATE appends to the read model instead of discarding it)
 - `operationExecutor.appendCreatesToCache(context, liveOccs, effects)` (exported): when every structural effect of
