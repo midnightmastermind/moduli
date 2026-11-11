@@ -1,3 +1,4 @@
+import { beginFilterLoading } from "./helpers/filterLoading";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import AlarmDropdown from "./ui/AlarmDropdown";
@@ -131,6 +132,8 @@ export default function Toolbar({
       CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id, filterOverride } });
       operationsBridge.updateLocalOcc?.({ ...(occurrencesById[id] || { id }), filterOverride });
     }
+    // The panels showing pages filtered by these fields draw their loader until the rebuild lands.
+    beginFilterLoading(navConditions.map((c) => c.fieldId));
     CommitHelpers.updateGrid({
       dispatch, socket,
       gridId,

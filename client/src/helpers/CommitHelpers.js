@@ -1,4 +1,5 @@
 // helpers/CommitHelpers.js
+import { afterPaint } from "./afterPaint";
 import { pageTwin, twinRenameWrite } from "./pageTwin";
 import { renameTarget } from "./sharedModule.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
@@ -95,13 +96,15 @@ function fireGridFilterNavigation(activeFilterValues) {
   // write. Firing synchronously makes the ops read the PREVIOUS date — the same
   // ordering trap `updateOccurrenceFilterOverride` documents (2026-04-30), where
   // a stale snapshot made the build run for the day you just left.
-  setTimeout(() => {
+  // AFTER THE PAINT, not just a task later (2026-11-11): the panels whose rows this rebuilds draw their loader in
+  // the same commit (helpers/filterLoading), and a sweep started before the browser paints blocks that frame too.
+  afterPaint(() => {
     operationsBridge.fireOperations?.("NavigationOp", {
       type: "NavigationOp",
       activeFilterValues: values,
       date,
     });
-  }, 0);
+  });
 }
 
 export function deleteGrid({ dispatch, socket, gridId, emit = true }) {

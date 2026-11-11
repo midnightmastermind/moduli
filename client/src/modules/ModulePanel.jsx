@@ -3,6 +3,8 @@
 // Renders a panel shell with its containers.
 // Handles panel-specific UI: iteration nav, fullscreen, resize, stacking, copy/split/delete.
 
+import { useFilterLoading, filterIsLoading } from "../helpers/filterLoading";
+import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext, useSyncExternalStore } from "react";
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
@@ -397,6 +399,8 @@ function Panel({
       + Math.abs((module?.col ?? 0) - (stagingCell?.col ?? 0))
     : (module?.row ?? 0) * 100 + (module?.col ?? 0);
   const contentReady = useStagedContent(`panel:${module?.id}`, stagePriority);
+  // A toolbar date change in flight (helpers/filterLoading): the field ids it moved, or null.
+  const loadingFilterFields = useFilterLoading();
 
   // ── OFF-SCREEN PANELS DO NOT MOUNT THEIR ROWS ────────────────────────────
   // The panel is the only thing that knows where it sits; the container is the
@@ -1008,6 +1012,11 @@ function Panel({
     return pagesList[0] || null;
   })();
 
+  // This panel's page is filtered by a field the toolbar just moved: its rows are being rebuilt, so the panel shows
+  // its loader over the old rows instead of looking frozen (user, 2026-11-11). Only worked out while a change runs.
+  const filterLoadingHere = !!loadingFilterFields && !!activePageEntry?.occurrence
+    && filterIsLoading(loadingFilterFields, getEffectiveFilterForOccurrence(activePageEntry.occurrence, { grid: state?.grid, occurrencesById }));
+
   return (
     <div
       ref={(node) => {
@@ -1343,8 +1352,13 @@ function Panel({
                     the right side"). The left rail it replaced held the panel-local
                     tree, which is now the Pinned section of the one on the right. */}
                 {/* Page content — flex-grows between sidebars */}
-                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" }}>
                   {contentReady ? pageContent : stagedHold}
+                  {contentReady && filterLoadingHere && (
+                    <div className="panel-filter-loading" aria-busy="true" aria-label="Loading">
+                      <Spinner size="sm" className="staged-hold-spinner" />
+                    </div>
+                  )}
                 </div>
                 {/* Root tree sidebar — RIGHT. Pushes the page wherever there is
                     room for it (desktop AND tablet, portrait included); overlays only

@@ -2212,6 +2212,13 @@ body[data-drag-kind="panel"] .container-shell {
    compositor, whatever JavaScript is doing. A panel that becomes ready inside
    the delay still never flashes one — it unmounts before the animation starts. */
 @keyframes staged-hold-in { from { opacity: 0; } to { opacity: 1; } }
+/* A panel whose page's filter is being rebuilt (helpers/filterLoading): the panel's own loader over its rows.
+   No dimming, so a change that lands inside the spinner's 150ms delay shows nothing at all. */
+.panel-filter-loading {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
 .staged-hold-spinner { animation: staged-hold-in 160ms ease-out 150ms both; }
 @keyframes spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 

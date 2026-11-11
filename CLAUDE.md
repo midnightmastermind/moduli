@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-11 (3) — A TOOLBAR DATE STEP SHOWS EACH AFFECTED PANEL'S LOADER
+
+User: *"in that second, could you put the loading icon up for the effected filters cascaded … so the panels dont look
+frozen"* · *"it should be the panels loading icon"*.
+- `helpers/filterLoading.js` (NEW): the toolbar marks the filter fields it moved (`beginFilterLoading`); a panel whose
+  shown page's effective filter holds one draws its own staged loader (`Spinner sm` + `.staged-hold-spinner`, 150ms CSS
+  delay so a quick change shows nothing) over its body (`.panel-filter-loading`). It ends 400ms after the last op sweep
+  (helpers/opActivity) plus a paint, 700ms if no sweep starts, 8s at most. The cap is armed once — the first version
+  re-armed it per sweep, so a sweep that never stopped held it forever (the test caught it).
+- The date change's NavigationOp now fires `afterPaint` (was `setTimeout 0`), so the loader is painted before the
+  sweep blocks the thread.
+- Watched on a local build against prod, writes blocked, with screencast frames: Next → Drive Map and Trackers (date
+  filtered) show the spinner through a 4.8s block, Routines and Tasks (unfiltered) never do; Previous → on at ~0.5s,
+  off at 3.5s. Test `filterLoading` (6). Client 7,454 pass.
+
+---
+
 ### 2026-11-11 (2) — MAGIC REACHES A "+ PAGE" ARTICLE; quotes have one frame; a chip opens in our browser
 
 User: Panta rhei (a page made with a link's "+ Page") "is not turning them into our nested containers … and i cant

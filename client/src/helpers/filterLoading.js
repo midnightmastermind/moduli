@@ -1,0 +1,112 @@
+// helpers/filterLoading.js — "this panel's filter just changed and its rows are being rebuilt".
+//
+// User, 2026-11-11: "when i switch to a diff date in the toolbar, it takes a second for the new schedule to load.
+// in that second, could you put the loading icon up for the effected filters cascaded … the panels dont look frozen
+// while they load" · "it should be the panels loading icon".
+//
+// A toolbar date change names the filter FIELDS it moved. Each panel decides for itself whether its shown page is
+// filtered by one of them (the cascade, `getEffectiveFilterForOccurrence`), and draws the panel's own staged loader
+// over its body while the change is loading. Pages that pinned their own value follow the toolbar
+// (helpers/filterFollow), so "filtered by the field" is the whole rule.
+//
+// THE END: the date change runs as op sweeps (sliced, nothing to await), reported by helpers/opActivity. The load
+// is over once no sweep has run for QUIET_MS after the change and the browser has painted the result. A change that
+// starts no sweep at all ends after NO_SWEEP_MS, and MAX_MS ends it whatever happens — a loader that can stick is
+// worse than none. A newer change restarts it.
+
+import { useSyncExternalStore } from "react";
+import { subscribeOpActivity } from "./opActivity";
+import { afterPaint } from "./afterPaint";
+
+const QUIET_MS = 400;
+const NO_SWEEP_MS = 700;
+const MAX_MS = 8000;
+
+const listeners = new Set();
+let snap = null; // null, or a frozen array of field ids
+let timers = [];
+let unsubscribe = null;
+let sawSweep = false;
+let token = 0;
+
+function publish(next) {
+  snap = next;
+  for (const fn of listeners) fn();
+}
+
+function later(fn, ms) {
+  const id = setTimeout(fn, ms);
+  timers.push(() => clearTimeout(id));
+}
+
+let quietTimer = null;
+let capTimer = null;
+
+function clearTimers() {
+  for (const t of timers) t();
+  timers = [];
+  clearTimeout(quietTimer); quietTimer = null;
+  clearTimeout(capTimer); capTimer = null;
+}
+
+function finish(my) {
+  if (my !== token) return;
+  clearTimers();
+  unsubscribe?.();
+  unsubscribe = null;
+  // After a paint, so the rebuilt rows are on screen when the loader leaves.
+  const cancel = afterPaint(() => { if (my === token) publish(null); });
+  timers.push(cancel);
+}
+
+/** A filter change on these field ids started. */
+export function beginFilterLoading(fieldIds) {
+  const ids = (fieldIds || []).filter(Boolean);
+  if (!ids.length) return;
+  const my = ++token;
+  clearTimers();
+  unsubscribe?.();
+  sawSweep = false;
+  publish(Object.freeze([...new Set(ids)]));
+  // The quiet timer restarts on every sweep; the cap is armed ONCE, so a sweep that never stops cannot hold it.
+  unsubscribe = subscribeOpActivity(() => {
+    if (my !== token) return;
+    sawSweep = true;
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => finish(my), QUIET_MS);
+  });
+  later(() => { if (!sawSweep) finish(my); }, NO_SWEEP_MS);
+  capTimer = setTimeout(() => finish(my), MAX_MS);
+}
+
+export function subscribeFilterLoading(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function getFilterLoading() {
+  return snap;
+}
+
+/** The field ids being loaded, or null. */
+export function useFilterLoading() {
+  return useSyncExternalStore(subscribeFilterLoading, getFilterLoading, getFilterLoading);
+}
+
+/** Is a page with this effective filter affected by the fields loading? Pure. */
+export function filterIsLoading(loadingFieldIds, effectiveFilter) {
+  if (!loadingFieldIds?.length || !effectiveFilter) return false;
+  return loadingFieldIds.some((fid) => fid in effectiveFilter && effectiveFilter[fid] != null);
+}
+
+/** Tests only. */
+export function _resetFilterLoading() {
+  token++;
+  clearTimers();
+  unsubscribe?.();
+  unsubscribe = null;
+  sawSweep = false;
+  snap = null;
+}
+
+export const _FILTER_LOADING = { QUIET_MS, NO_SWEEP_MS, MAX_MS };
