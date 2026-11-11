@@ -16,6 +16,14 @@ describe("filter menu", () => {
     expect(fs).toMatch(/for \(const row of \[\.\.\.ancestorRows, \.\.\.localRows\]\)/);
     expect(fs).not.toMatch(/explicitOn|isActiveDefault/);
   });
+  // User, 2026-11-11: People's Date read Active off / Show on (switched off before Active turned Show off too).
+  // Show is read as off and greyed out whenever Active is off, whatever is stored.
+  it("Show reads off and is disabled while Active is off, on both row kinds", () => {
+    expect(fs).toMatch(/checked=\{effectivelyActive && pillShown\(row\.fieldId\)\}/);
+    expect(fs).toMatch(/disabled=\{!effectivelyActive\}/);
+    expect(fs).toMatch(/checked=\{active && pillShown\(row\.fieldId\)\} disabled=\{!active\}/);
+    expect(fs).toMatch(/if \(!disabled\) onChange/);
+  });
 });
 
 describe("header pill", () => {

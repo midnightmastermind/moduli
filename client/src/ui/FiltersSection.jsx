@@ -18,20 +18,22 @@ import { getEffectiveFilterForOccurrence, getParentOccurrence } from "../state/s
 import { buildParentMap } from "../helpers/dragHitTesting";
 import { MENU_CAPTION } from "./menuText";
 
-function Switch({ checked, onChange, label, title }) {
+function Switch({ checked, onChange, label, title, disabled = false }) {
   const button = (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
       title={title || label}
-      onClick={() => onChange(!checked)}
+      onClick={() => { if (!disabled) onChange(!checked); }}
       style={{
         width: 26, height: 14, padding: 0,
         border: "1px solid var(--border-default, #374151)",
         borderRadius: 999,
         background: checked ? "var(--accent-blue, #14b8a6)" : "transparent",
-        position: "relative", cursor: "pointer",
+        position: "relative", cursor: disabled ? "not-allowed" : "pointer",
         flexShrink: 0,
       }}
     >
@@ -45,7 +47,7 @@ function Switch({ checked, onChange, label, title }) {
   );
   if (!label) return button;
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, opacity: 0.85, cursor: "pointer", flexShrink: 0 }}>
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, opacity: disabled ? 0.4 : 0.85, cursor: disabled ? "not-allowed" : "pointer", flexShrink: 0 }}>
       <span>{label}</span>
       {button}
     </label>
@@ -514,8 +516,9 @@ export default function FiltersSection({ occurrence }) {
                 />
                 <Switch
                   label="Show"
-                  title="Show this filter's value on the header"
-                  checked={pillShown(row.fieldId)}
+                  title={effectivelyActive ? "Show this filter's value on the header" : "Turn the filter on to show its value"}
+                  checked={effectivelyActive && pillShown(row.fieldId)}
+                  disabled={!effectivelyActive}
                   onChange={(v) => setPillShown(row.fieldId, v)}
                 />
                 </div>
@@ -550,7 +553,7 @@ export default function FiltersSection({ occurrence }) {
             </div>
             <div style={{ ...rowControlsStyle, paddingLeft: 0 }}>
             <Switch label="Active" checked={active} onChange={onActive} title={isDeclared ? "Toggle to enable/disable this filter" : "Toggle off to remove this local filter"} />
-            <Switch label="Show" title="Show this filter's value on the header" checked={pillShown(row.fieldId)} onChange={(v) => setPillShown(row.fieldId, v)} />
+            <Switch label="Show" title={active ? "Show this filter's value on the header" : "Turn the filter on to show its value"} checked={active && pillShown(row.fieldId)} disabled={!active} onChange={(v) => setPillShown(row.fieldId, v)} />
             <button
               type="button"
               title="Edit this filter"
