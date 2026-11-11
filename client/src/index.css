@@ -4187,6 +4187,13 @@ input.artifact-thumb-info-name--editing {
   border-radius: 6px;
   overflow: visible;
 }
+/* Inside a row, the ROW is the quote's frame: the card's own border, left bar and tint read as a box inside a box
+   (user, 2026-11-11: "i dont want its own frame, the other one should be the frame"). */
+.instance-row .artifact-card--quote {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
 .artifact-quote-mark {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 30px;

@@ -23,6 +23,9 @@ import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { logCaretPointerDown } from "../../helpers/caretDiag";
 import { linkEditText, parseLinkEdit } from "../linkChipEdit.js";
+import { openUrlInPanel } from "../../helpers/openBookmark";
+import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../../helpers/targetPanel";
+import { toast } from "../../state/notificationStore";
 
 // Walk a TipTap doc and join its text nodes with a single space — preserves
 // readability without inserting paragraph breaks (this node is inline).
@@ -61,7 +64,8 @@ function resolveHref(u) {
 }
 
 export default function InstanceTextblockInlineNode({ node, editor, getPos, deleteNode }) {
-  const { occurrencesById, dispatch, socket } = useGridActions() || {};
+  const actions = useGridActions() || {};
+  const { occurrencesById, dispatch, socket } = actions;
   const { occurrenceId, instanceId } = node.attrs;
   const occurrence = occurrencesById?.[occurrenceId] || null;
 
@@ -237,6 +241,24 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     if (targetId) jumpToOccurrence(targetId);
   }, [isUrl, href, link?.occId, link?.target]);
 
+  // Beside the arrow: open the link as a browser page in the panel (the row's open-as-page path, openUrlInPanel).
+  const openInPanel = useCallback((e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!occurrenceId) return;
+    const occMap = actions.getOccMap?.() || occurrencesById || {};
+    const modMap = actions.getModMap?.() || {};
+    const panelsById = collectPanelOccurrences(occMap, modMap);
+    const fromPanelOccId = panelOccIdForElement(e.currentTarget, panelsById) || enclosingPanelId(occurrenceId, occMap, panelsById);
+    const res = openUrlInPanel({
+      occId: occurrenceId, grid: actions.getState?.()?.grid || null, fromPanelOccId, panelsById,
+      occurrencesById: occMap, modulesById: modMap, viewsById: actions.getViewMap?.() || {},
+      fieldsById: actions.fieldsById || {}, dispatch, socket,
+    });
+    if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
+    else if (!res.ok) toast.error(res.reason || "Could not open this");
+  }, [occurrenceId, actions, occurrencesById, dispatch, socket]);
+
   const radialItems = useMemo(() => ([
     // The way back from "To pill": the same occurrence as a block (docs/toPill.js).
     {
@@ -373,10 +395,30 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
           role="button"
           tabIndex={-1}
           title={isUrl ? href : "Open linked item"}
+          // pointerdown too: a read-only stand-in swaps itself for the live editor on a left press, which replaced
+          // this chip under the pointer and lost the first click (measured: pointerdown here, mousedown on the card).
+          onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
           onClick={openTarget}
         >
           {isUrl ? "↗" : "→"}
+        </span>
+      )}
+      {isUrl && href && (
+        <span
+          className="itbi-arrow itbi-browser"
+          contentEditable={false}
+          role="button"
+          tabIndex={-1}
+          aria-label="Open in browser panel"
+          title="Open in our browser (in the panel)"
+          // pointerdown too: a read-only stand-in swaps itself for the live editor on a left press, which replaced
+          // this chip under the pointer and lost the first click (measured: pointerdown here, mousedown on the card).
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={openInPanel}
+        >
+          🌐
         </span>
       )}
     </NodeViewWrapper>

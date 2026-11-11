@@ -128,8 +128,10 @@ export function openUrlInPanel({
     return openArtifactInPanel({ occId, occurrencesById, modulesById, ...common });
   }
 
+  // A url field, or the occurrence's own outward link (a mini textblock's chip, `meta.link`): user, 2026-11-11,
+  // "an open in our browser button next to the open link button for minitextblocks".
   const hit = occurrenceUrl(occ, { module: mod, fieldsById });
-  if (hit?.from !== "field") return { ok: false, panelId: null, via: "none", reason: "no link to open" };
+  if (hit?.from !== "field" && hit?.from !== "link") return { ok: false, panelId: null, via: "none", reason: "no link to open" };
 
   // Refuse BEFORE minting: a click with nowhere to go must not leave a browser
   // behind that nothing will ever show.

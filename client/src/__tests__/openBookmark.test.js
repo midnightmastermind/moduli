@@ -185,6 +185,17 @@ describe("openUrlInPanel", () => {
     expect(updateOccurrence.mock.calls[0][0].occurrence.meta).toEqual({ browserFor: "place", url: "https://example.com/a" });
   });
 
+  it("a mini textblock's own link (meta.link) opens as a browser too", () => {
+    const chip = { id: "chip", moduleId: "cm", gridId: "g", userId: "u", fields: {}, meta: { link: { kind: "url", url: "https://en.wikipedia.org/wiki/Heraclitus" } } };
+    const r = openUrlInPanel({
+      occId: "chip", grid: {}, fromPanelOccId: "pA", panelsById,
+      occurrencesById: { chip }, modulesById: { cm: { id: "cm", role: "textblock", kind: "inline" } },
+      viewsById: {}, dispatch: vi.fn(), socket: {},
+    });
+    expect(r).toMatchObject({ ok: true, panelId: "pA" });
+    expect(addBookmarkOccurrence.mock.calls[0][0]).toMatchObject({ url: "https://en.wikipedia.org/wiki/Heraclitus", list: false, meta: { browserFor: "chip" } });
+  });
+
   it("REFUSES a picture stored BY url — the url is the file, not a page", () => {
     const img = { id: "img", moduleId: "im", gridId: "g", userId: "u", fields: {} };
     const r = openUrlInPanel({

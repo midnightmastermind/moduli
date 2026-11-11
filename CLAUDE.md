@@ -15,6 +15,25 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-11-11 (2) — MAGIC REACHES A "+ PAGE" ARTICLE; quotes have one frame; a chip opens in our browser
+
+User: Panta rhei (a page made with a link's "+ Page") "is not turning them into our nested containers … and i cant
+magic it again" · the quote box has "a border inside of a border … the other one should be the frame" · "an open in
+our browser button next to the open link button for minitextblocks" · Show greys out while Active is off (d94a2f86).
+- **Magic found nothing:** the page is page -> doc container -> ONE textblock holding the whole article, and
+  `helpers/pageMagic` only scanned the page's top level ("no plain text blocks"). `magicHosts` also scans the doc
+  containers embedded on the page (one level, so a second click does not re-plan the sections Magic made), and
+  `placePlan` drops the planner's "Imported" wrapper: its sections take the textblock's place. Watched on a local
+  build against prod, writes blocked: the one textblock -> Origin · Flux doctrine · Reception by Goethe · See also ·
+  Literature, 34 chips, quotes. **Not pressed on prod** (it rewrites the page; one Magic click does it).
+- **Quotes:** inside a row the card draws no border / tint / left bar (`.instance-row .artifact-card--quote`).
+- **🌐 on a URL chip** (`.itbi-browser`): `openUrlInPanel` now takes an occurrence's own `meta.link` as well as a url
+  field. **And the first click on a chip's ↗ / 🌐 was always lost:** a read-only stand-in swaps to the live editor on
+  pointerdown and replaced the chip under the pointer (pointerdown on the button, mousedown on the card) — both
+  buttons stop pointerdown now. Tests `pageMagic` (+3), `openBookmark` (+1). Client 7,448 pass.
+
+---
+
 ### 2026-11-11 — FILTERS: stacked menu rows, a green icon for ancestor filters, and a pick that runs no date ops
 
 User: *"lets test filters next to improve performance there"* · menu rows *"stacked to avoid the …"* · the icon
