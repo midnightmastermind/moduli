@@ -1,67 +1,48 @@
-# Vision vs Now — Reconciliation Checklist
+# Vision vs Now — 2026-11-12
 
-**Date:** 2026-05-23 · **Task:** #39
+Supersedes the 2026-05-23 version of this file and `deck-vs-now-2026-08-19.md` as the current status. Sources:
+`original-vision.md` (the day-planner pitch), the 32-slide pitch deck (`moduli_pitchdeck_styled.pptx`), and
+`FUTURE_ROADMAP.md` (phases 9–15). Items marked unsure were checked against the code on this date.
 
-The 2026-04 `original-vision.md` framed Moduli as a day-planner: drag-and-drop daily command center, every task measurable, time + category filtering, calendar + to-do + habit tracker + budget/nutrition/workout. This doc audits each piece of that vision against what shipped, flags drift / scope expansion, and lists the features the original described that haven't landed yet.
+## Original day-planner vision — done
+Drag tasks into time slots, the schedule as plan and log, measurable tasks, totals, time + category lenses,
+task-bank bundles: all built. The May gaps:
 
-## Vision → shipped status
+| Gap (May) | Now |
+|---|---|
+| Streaks | ✅ Current / Longest Streak trackers |
+| Pomodoro wired into operations | ✅ each session is an instance on the schedule |
+| Offline | ✅ boots offline from the last visit; offline edits kept |
+| Multi-window sync | 🟡 shared date, one feed leader; rough edges remain |
+| Achievement badges | ❌ never started |
 
-| Original-vision piece | Today's status | Note |
-|---|---|---|
-| **Drag-and-drop daily command center** | ✅ Shipped | Grid + panels + pages + containers + instances; Pragmatic DnD throughout. |
-| **Plan your day by dragging tasks into time slots** | ✅ Shipped | Schedule page with timeslot containers. |
-| **Track what you actually did** | ✅ Shipped | Per-occurrence field values; complete/incomplete bookkeeping. |
-| **Calculate totals, streaks, progress, stats from whatever you log** | ✅ Shipped | Operations pipeline + 15 aggregations + tracker display fields with `$displayRules`. |
-| **Every task can be checkbox OR checkbox + numbers/text** | ✅ Shipped | Field types: number / text / boolean / select / occurrence / date / rating / duration. |
-| **"Anything you do can be measured"** | ✅ Shipped | Any module can carry any field. |
-| **Task Bank library** | ✅ Shipped (different shape) | Daily Toolkit folder + Library page; Templates manifest replaces the original "bundled tasks" concept. |
-| **Drag tasks into your day — single / multiple / preset bundles** | ✅ Shipped | Drag-to-schedule + Apply Template (multi-occurrence stamp). |
-| **Schedule becomes plan AND log** | ✅ Shipped | One occurrence carries both stamped slot + tracked field values. |
-| **Time-lens filtering (today / week / month)** | ✅ Shipped | DrilldownDatePicker → DrilldownTimePicker; multi-date selection; per-period aggregation. |
-| **Category filtering (work / personal / health)** | ✅ Shipped | `grid.namedFilters` + per-occurrence `filterOverride` cascade; visible via HeaderChevron filter button. |
-| **Calculate across time window + category** | ✅ Shipped | DATE_IN_PERIOD + filterCascade evaluator. |
+## Pitch deck — 12 of 14 headline features built
+Built: grid, DnD, occurrences, fields, calculations + 9 chart types, rich docs, live values in docs, uploads,
+OCR, automation engine, file viewer (now books/PDF/code/CSV/markdown in place), AI assistant (Jonah: build tools,
+notes; limited by the local 3B model).
+Partial: **undo/redo** (redo switched off, edit grouping never done); **script runner** (none user-facing;
+integrations grew instead). File viewer still lacks a timeline / gallery-vs-table switch.
 
-## Scope expansion beyond the original vision
+## Future roadmap by phase
+| Phase | Status |
+|---|---|
+| 9 API & connections | ✅ REST API + tokens, Google Drive, share (extension / phone / Windows), calendar + RSS feeds (one-way), Jellyfin play + sync, TMDB/USDA providers, Spotify album linking, OCR, markdown export. 🟡 Raindrop / Notion / Obsidian were one-off imports; arrs configured outside the app. ❌ Bangle watch, two-way Google Calendar, email/SMS, GitHub/Jira, social feeds, widget panels, public profiles |
+| 10 Canvas | ✅ drawing, connectors, quick add. ❌ nested grids, doc-as-background |
+| 11 Automation | ✅ scheduled triggers, if/else, RUN_OPERATION, day pages + schedules built by ops, buttons, forms |
+| 12 Mobile | ✅ phone layout, installable PWA with offline shell, share target. ❌ push notifications, home-screen widgets, watch. (Quest VR app is native) |
+| 13 Data & privacy | 🟡 backup/restore CLI only; encrypted stored keys. ❌ restore UI, Docker self-host, E2E encryption |
+| 15 AI | 🟡 offline chat that edits the grid. ❌ insights, auto-tagging (import clean-up built, switched off), onboarding |
+| Phase 6 leftovers | ✅ kanban, virtual scrolling, error boundaries. 🟡 server-side validation |
 
-The product has grown well past "day planner" — these are surfaces the vision doc doesn't mention but that shipped:
+## Not started (the August "close" list)
+Calendar view · timeline / Gantt · global command palette (toolbar search is grid-wide but runs no commands) ·
+formula field · named snapshots with diff / rollback · durable notifications inbox (notification dropdown is partial).
+**Far:** multi-user (shared grids, roles, comments) — the one big architectural decision left.
 
-- **Rich text editor system** (TipTap doc containers, field pills, instance embeds, doc links, block-level handle menu, command palette)
-- **Artifact system** (image / pdf / audio / video / code / markdown artifacts; OCR; sharp thumbnails; SHA-256 dedup; year-month shard; waveform; EXIF)
-- **Canvas** (4000×4000 pannable world, drawing tools — pen / marker / fill / line / rect / circle / connect / eraser, color picker, undo/redo, edges between cards)
-- **Visual operations builder** (categorized drilldown action picker, value manipulator actions, FIND auto-array, multiple switch on every action)
-- **Templates v2** (clone-as-template, apply-template via ops, save-over)
-- **Layout cascade** (per-kind drag-in view + nav options + lock + drop rules)
-- **Style cascade** (Grid → Panel → Page → Container → Instance ownStyle chain with editor cascade preview)
-- **Representation view** (label + icon + thumb + hover popup + inline-field chips)
-- **Multi-day Schedule** (hybrid day-col wrappers + shared slot containers; ≤7 days = timeslot format, >7 = shortened grid)
-- **REST API + Operations as callable endpoints** (`/api/v1`, Idempotency-Key, OpenAPI, rate limit, CALL_API outbound, IMPORT_HTML/IMPORT_MARKDOWN actions)
-- **Jarvis assistant chat drawer** (tool catalog, server-side dispatcher, Anthropic SDK fallback)
-- **Drag-to-import** (HTML / markdown / plain-text drop → native doc tree; Wikipedia smoke test; inline images; markdown pipe-tables → `kind:"table"` container)
-- **Display rules** (per-occurrence color / icon / suffix / replaceValue rules attached to computed values)
-- **Project kanban** (6 columns, Status Router op, bidirectional COPY_LINK to Todo List — partial)
+## Built that no plan mentioned
+VR office + Quest app, Jellyfin playback in the app, the book reader with Magic, the share placement window,
+feeds as live queries, skins, mobile scroll / load performance work.
 
-## Still-open features the original vision described (or directly implies)
-
-| Feature | Status | Where it lives in the docket |
-|---|---|---|
-| **Persistent streaks** | ⬜ Not started | Vision says "streaks" but no streak fields / ops shipped. Could be a `Tracker: Streak` op pattern. |
-| **Achievement badges** | ⬜ Not started | Phase 3 docket — never picked up. |
-| **Offline support with sync queue** | 🟡 Partial | `offlineQueue.js` buffers writes; conflict resolution + UI status surfaced via SocketStatusBanner. Multi-window full sync still pending. |
-| **Pomodoro timer wired into operations** | 🟡 Partial | PomodoroTimer component exists but isn't wired to mint a per-pomodoro instance + tracker. Docket #15 (carried from old BUGS list). |
-| **Quick-add presets / bundles** | 🟡 Partial | Templates cover this; "Daily Routine" template exists. The vision implied user-defined "bundle" objects — Templates IS that, but the UI surface for "drag the bundle into a slot" is just template-apply, which is fine but doesn't match the original phrasing. |
-
-## Gaps the original vision DIDN'T describe but should have
-
-The vision doc was written before:
-
-- **External I/O surface** (browser extension, voice, Windows right-click, BangleJS, Spotify widget — see [#40](../client/src/CLAUDE.md) + #53 in the docket)
-- **Mobile UX** (separate touch / drag / autoscroll codepaths)
-- **AI assistant integration** (Jarvis drawer + offline LLM stack `docs/aispecs.md`)
-- **Multi-tenant / per-user storage quota** (file-audit gap #15)
-- **People library / profile cards** (#46 in the docket — depends on page-within-page primitive that just shipped)
-
-## TL;DR
-
-The original day-planner vision is **substantially over-delivered** — every promise in the vision doc has shipped, and ~10 major surfaces have been added on top (rich editor / artifact system / canvas / ops builder / templates v2 / cascades / multi-day / REST API / assistant / drag-import). The remaining vision-side gaps are small (streaks, badges, multi-window sync polish). The bigger forward direction is the scope-expansion items the vision doc never anticipated — external I/O, AI assistant tools, mobile parity, multi-tenant prep.
-
-Recommended next direction: keep working through `client/src/CLAUDE.md` docket. The vision doc itself can stay as historical orientation only; the docket is authoritative.
+## Suggested next
+1. Calendar view (data supports it; renderer only). 2. Fix redo + group an editing burst into one undo step.
+3. Command palette. 4. Named snapshots.
