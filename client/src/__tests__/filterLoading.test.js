@@ -63,3 +63,12 @@ describe("filterLoading", () => {
     expect(strip("helpers/CommitHelpers.js")).toMatch(/afterPaint\(\(\) => \{\s*operationsBridge\.fireOperations\?\.\("NavigationOp"/);
   });
 });
+
+describe("PageBoard empty placeholder while a filter loads", () => {
+  it("hides 'Drop containers here' when the page's filter is loading", async () => {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync(new URL("../modules/pages/PageBoard.jsx", import.meta.url), "utf8");
+    expect(src).toMatch(/filterIsLoading\(loadingFilterFields/);
+    expect(src).toMatch(/visibleList\.length === 0 && !filterLoading &&[^\n]*\n\s*<div[^>]*empty-placeholder/);
+  });
+});

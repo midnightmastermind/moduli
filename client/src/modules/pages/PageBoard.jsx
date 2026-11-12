@@ -23,6 +23,8 @@ import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
 import InsertGap from "../../ui/InsertGap.jsx";
+import { useFilterLoading, filterIsLoading } from "../../helpers/filterLoading";
+import { getEffectiveFilterForOccurrence } from "../../state/selectors";
 
 /**
  * Which component renders a page's direct child?
@@ -94,6 +96,13 @@ export default function PageBoard({
     }
     return out;
   });
+
+  // A toolbar date step in flight that re-filters this page: the panel draws its loader over the body, so an
+  // empty board is "not loaded yet", not "Drop containers here".
+  const loadingFilterFields = useFilterLoading();
+  const gridForFilter = useGridActionsSelector(s => s.state?.grid || s.grid);
+  const filterLoading = !!loadingFilterFields && !!occurrence
+    && filterIsLoading(loadingFilterFields, getEffectiveFilterForOccurrence(occurrence, { grid: gridForFilter, occurrencesById: getOccMap() }));
 
   const layout = useMemo(
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -299,7 +308,7 @@ export default function PageBoard({
             <Spinner size="sm" />
           </div>
         )}
-        {visibleList.length === 0 && (fullStateLoaded || !occurrence.occurrences?.length) && (
+        {visibleList.length === 0 && !filterLoading && (fullStateLoaded || !occurrence.occurrences?.length) && (
           <div className="text-xs text-muted-foreground text-center empty-placeholder">
             Drop containers here
           </div>
