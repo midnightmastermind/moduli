@@ -48,7 +48,7 @@ const FULLSCREEN_CLOSE_MS = 190;
 const MD_LINK = /\[([^\]]+)\]\((https?:\/\/(?:[^()\s]|\([^)\s]*\))*)\)/g;
 const BARE_URL = /(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
 
-function linkifyText(text) {
+export function linkifyText(text) {
   if (!text || typeof text !== "string") return text;
   const anchor = (href, label, key) => (
     <a key={key} href={href} target="_blank" rel="noopener noreferrer"
@@ -58,15 +58,36 @@ function linkifyText(text) {
   let last = 0, m, k = 0;
   MD_LINK.lastIndex = 0;
   while ((m = MD_LINK.exec(text)) !== null) {
-    if (m.index > last) out.push(...bareUrlParts(text.slice(last, m.index), anchor, `b${k++}`));
-    out.push(anchor(m[2], m[1], `m${k++}`));
+    if (m.index > last) out.push(...emphasisParts(text.slice(last, m.index), anchor, `b${k++}`));
+    out.push(anchor(m[2], emphasisParts(m[1], anchor, `l${k}`), `m${k++}`));
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push(...bareUrlParts(text.slice(last), anchor, `b${k++}`));
+  if (last < text.length) out.push(...emphasisParts(text.slice(last), anchor, `b${k++}`));
   if (!out.length) return text;
   // A string with no links at all comes back as itself, so nothing that used to
   // render as plain text starts rendering as an array of one.
   return out.length === 1 && typeof out[0] === "string" ? out[0] : out;
+}
+
+// `**bold**`, `*italic*` / `_italic_` and `` `code` `` in a quote (user 2026-11-12: "make sure that markdown resolves,
+// i see that just printed out in many quotes already" — 411 of 544 quotes carried it). Links are cut out first, so a
+// URL's underscores never read as italics; an underscore or star inside a word is left alone.
+const emphasisRx = () => /\*\*(?!\s)([^*]+?)(?<!\s)\*\*|(?<![\w*])\*(?![\s*])([^*]+?)(?<!\s)\*(?![\w*])|(?<![\w_])_(?![\s_])([^_]+?)(?<!\s)_(?![\w_])|`([^`]+)`/g;
+
+function emphasisParts(chunk, anchor, keyBase) {
+  const rx = emphasisRx();
+  const out = [];
+  let last = 0, m, k = 0;
+  while ((m = rx.exec(chunk)) !== null) {
+    if (m.index > last) out.push(...bareUrlParts(chunk.slice(last, m.index), anchor, `${keyBase}t${k++}`));
+    const key = `${keyBase}e${k++}`;
+    if (m[1] != null) out.push(<strong key={key}>{emphasisParts(m[1], anchor, key)}</strong>);
+    else if (m[2] != null || m[3] != null) out.push(<em key={key}>{emphasisParts(m[2] ?? m[3], anchor, key)}</em>);
+    else out.push(<code key={key}>{m[4]}</code>);
+    last = m.index + m[0].length;
+  }
+  if (last < chunk.length) out.push(...bareUrlParts(chunk.slice(last), anchor, `${keyBase}t${k++}`));
+  return out;
 }
 
 function bareUrlParts(chunk, anchor, keyBase) {
