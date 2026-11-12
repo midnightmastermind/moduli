@@ -22,6 +22,7 @@
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
+import { carriedBody } from "./carriedBody.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
 import { matchesPattern } from "../../../server/utils/matchesPattern.js";
@@ -2709,6 +2710,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             linkedGroupId,
             occurrences: childIds,
             ...(rootVisibility ? { fieldVisibility: rootVisibility } : {}),
+            // The copy shows the source's notes (helpers/carriedBody) — a copy with children keeps its own body.
+            ...carriedBody(src, { copiesChildren: childIds.length > 0 }),
             // Persist a discoverable "this is a copy of <src.id>" marker
             // so idempotency FINDs in op pipelines can match on
             // `meta.copyLinkSource IS $sourceId` directly — without

@@ -1,4 +1,5 @@
 // helpers/LayoutHelpers.js
+import { carriedBody } from "./carriedBody";
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import * as CommitHelpers from "./CommitHelpers";
 import { kindForNewModule } from "./operationActions.js";
@@ -905,6 +906,8 @@ export function mintLinkedCopy({
       : {}),
     ...(placementMetaFor(sourceOccurrence, initialMeta)),
     ...(dragMode ? { dragMode } : {}),
+    // The copy shows the source's notes (helpers/carriedBody).
+    ...carriedBody(sourceOccurrence, { copiesChildren: (sourceOccurrence?.occurrences || []).length > 0 }),
   };
 
   CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger, insertAtIndex });

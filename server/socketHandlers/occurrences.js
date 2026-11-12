@@ -103,6 +103,37 @@ export function textSaveIsStale({ basis, incoming, stored, inFlight }) {
   return true;
 }
 
+/** Does a doc carry anything but empty lines? */
+export function textmapHasContent(textmap) {
+  let doc = textmap;
+  if (typeof doc === "string") { try { doc = decompressTextmap(doc); } catch { return true; } }
+  if (!doc || typeof doc !== "object") return false;
+  const walk = (n) => {
+    if (!n || typeof n !== "object") return false;
+    if (n.type === "text") return !!(n.text && n.text.trim());
+    if (n.type && n.type !== "doc" && n.type !== "paragraph" && n.type !== "hardBreak") return true;
+    return (n.content || []).some(walk);
+  };
+  return walk(doc);
+}
+
+/**
+ * Should a text save on one copy-linked row be written onto a sibling?
+ *
+ * CPS Class, 2026-11: the copies an operation made (the Schedule slot copy, a feed copy) carried no body, and saving
+ * one fanned its EMPTY text onto the original, wiping the meeting notes. So: a sibling that is empty always takes the
+ * text; a sibling holding text is never overwritten with nothing; and when the editor says what text it was built on
+ * (`basis`), a sibling holding something else is left alone — the writer never saw it.
+ */
+export function textmapFansTo({ incoming, sibling, basis }) {
+  if (!textmapHasContent(sibling)) return true;
+  if (!textmapHasContent(incoming)) return false;
+  if (!basis) return true;
+  let sib = sibling;
+  if (typeof sib === "string") { try { sib = decompressTextmap(sib); } catch { return false; } }
+  return textmapDigest(sib) === basis;
+}
+
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
   userRoom,
@@ -710,7 +741,9 @@ export function registerOccurrenceHandlers(socket, {
           if (fanFields && Object.keys(fanFields).length > 0) {
             patch.fields = { ...(linked.fields || {}), ...fanFields };
           }
-          if (textmap !== undefined) patch.textmap = textmap;
+          if (textmap !== undefined && textmapFansTo({ incoming: textmap, sibling: linked.textmap, basis: payload.textmapBasis })) {
+            patch.textmap = textmap;
+          }
           // The NAME is shared too (user, 2026-10-28: renaming a copy left the original on the old name). A row with
           // no name of its own (null) follows its module, so clearing it clears the group's.
           if (Object.prototype.hasOwnProperty.call(occurrence, "label") && (linked.label || null) !== (occurrence.label || null)) {
