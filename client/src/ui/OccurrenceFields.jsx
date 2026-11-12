@@ -42,7 +42,7 @@ import {
  * with the container's simpler copy in the first place). A caller may still pass
  * `fieldVisibility` explicitly to override, which is what a table column needs.
  *
- * @param position "under" (has a label to sit beneath) | "corner" (has none)
+ * @param position "under" (has a label to sit beneath) | "corner" (has none) | "inline" (in a header's button row)
  */
 export default function OccurrenceFields({
   occurrence, module, grid, fieldsById, occurrencesById,
@@ -85,7 +85,10 @@ export default function OccurrenceFields({
     // textblock's prose must not reflow around it, and under `reveal:hover`
     // nothing may move at all. The host sets `position: relative`.
     ? { ...base, position: "absolute", top: 2, right: 4, justifyContent: "flex-end", zIndex: 2, maxWidth: "60%" }
-    : { ...base, padding: "0px 12px 4px 28px" };
+    // "inline": inside a header's button row, so no indent and one line.
+    : position === "inline"
+      ? { ...base, flexWrap: "nowrap", padding: 0 }
+      : { ...base, padding: "0px 12px 4px 28px" };
 
   return (
     <div

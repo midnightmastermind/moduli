@@ -125,9 +125,15 @@ export const FIELD_FONT = `var(--cascade-field-font-size, var(--field-font-px, $
 const FIELD_FAMILY = "var(--cascade-field-font, var(--font-mono))";
 const FIELD_INK = (fallback) => `var(--cascade-field-ink, var(${fallback}))`;
 
+// A list field's grid cell (user 2026-11-12: "the table should have lines separating the columns and rows and a little
+// more gap between the columns"): each cell is padded and bordered; the first column has no left rule and the last row
+// no bottom rule, so the lines sit only BETWEEN cells inside the box's own border. index.css .field-list-grid.
+const listCellClass = (ci, isLastRow) => `flc${ci === 0 ? " flc--first-col" : ""}${isLastRow ? " flc--last-row" : ""}`;
+
 // The pill + menu for a `when` field. Opens the WhenPicker; Save writes the value, Clear writes null.
 // A pill's VALUE, in its own clip box: in a row the label stays still and only this scrolls when the pill is too wide
 // (ui/AutoMarquee `part`, OccurrenceFields). Outside a row it is plain inline content.
+
 function PillValue({ children }) {
   return <span className="field-pill-value"><span className="field-pill-value-run">{children}</span></span>;
 }
@@ -2826,17 +2832,17 @@ function Field({
               grid take its natural width so the overflow is measurable. */}
           <AutoMarquee>
           <div style={{
-            display: "grid", gridTemplateColumns, columnGap: 6,
+            display: "grid", gridTemplateColumns, columnGap: 0,
             fontSize: FIELD_FONT, fontFamily: FIELD_FAMILY,
             background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
             // the same corner curve a one-line field pill shows (its 999px radius on a ~22px pill = 11px)
             borderRadius: 11, padding: "3px 8px", width: "max-content",
-          }}>
+          }} className="field-list-grid">
             {!hideName && name && (
               <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, opacity: 0.55, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>{name}:</div>
             )}
             {compactColumns.map((c, i) => (
-              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 1 }}>
+              <div key={`h${i}`} className={listCellClass(i, rawDisplayValue.length === 0)} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 1 }}>
                 {c.header || c.path}
               </div>
             ))}
@@ -2847,6 +2853,7 @@ function Field({
                 return (
                   <div
                     key={`${ri}-${ci}`}
+                    className={listCellClass(ci, ri === rawDisplayValue.length - 1)}
                     style={rich
                       ? { minWidth: 0, color: FIELD_INK("--text-primary"), display: "flex", alignItems: "center" }
                       : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: FIELD_INK("--text-primary") }}
@@ -2958,7 +2965,7 @@ function Field({
         <div style={{
           display: "grid",
           gridTemplateColumns,
-          columnGap: 8,
+          columnGap: 0,
           fontSize: FIELD_FONT,
           fontFamily: FIELD_FAMILY,
           background: "var(--input-bg)",
@@ -2966,12 +2973,12 @@ function Field({
           borderRadius: 11,
           padding: "4px 10px",
           width: "max-content",
-        }}>
+        }} className="field-list-grid">
           {showLabel && name && (
             <div style={{ gridColumn: "1 / -1", fontWeight: 600, fontSize: FIELD_FONT, opacity: 0.55, color: FIELD_INK("--text-muted"), paddingBottom: 3 }}>{name}:</div>
           )}
           {cols.map((c, i) => (
-            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>
+            <div key={`h${i}`} className={listCellClass(i, rawDisplayValue.length === 0)} style={{ fontWeight: 600, opacity: 0.55, fontSize: FIELD_FONT, color: FIELD_INK("--text-muted"), paddingBottom: 2 }}>
               {c.header || c.path}
             </div>
           ))}
@@ -2982,6 +2989,7 @@ function Field({
               return (
                 <div
                   key={`${ri}-${ci}`}
+                  className={listCellClass(ci, ri === rawDisplayValue.length - 1)}
                   style={rich
                     ? { minWidth: 0, color: FIELD_INK("--text-primary"), display: "flex", alignItems: "center" }
                     : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: FIELD_INK("--text-primary") }}

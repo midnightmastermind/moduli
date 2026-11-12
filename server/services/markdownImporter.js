@@ -115,7 +115,7 @@ function applyMarks(nodes, marks) {
 // entries) → `[ ](/wiki/Article_Name)`. The regex below matches a blank label,
 // so the chip came out empty. When the label is blank, derive a readable label
 // from the URL slug (for /wiki/X the slug IS the article name).
-function deriveLinkLabel(label, url) {
+export function deriveLinkLabel(label, url) {
   const t = String(label || "").trim();
   if (t) return t;
   const u = String(url || "");
@@ -136,7 +136,7 @@ function deriveLinkLabel(label, url) {
 // instead of an un-resolving inline link mark. When absent (non-prose) links
 // stay as plain link marks. Bold/italic spans RECURSE through parseInline so a
 // link nested inside emphasis is still detected and minted.
-function parseInline(text, mintLink) {
+export function parseInline(text, mintLink) {
   const out = [];
   let i = 0;
   while (i < text.length) {

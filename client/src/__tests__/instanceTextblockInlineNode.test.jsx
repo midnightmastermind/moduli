@@ -88,8 +88,11 @@ describe("InstanceTextblockInlineNode — inline context", () => {
     };
     setCtx(linked);
     const { container: c2 } = render(<InstanceTextblockInlineNode {...nodeProps(linked)} />);
-    const arrow = c2.querySelector(".itbi-arrow");
+    const arrow = c2.querySelector(".itbi-arrow:not(.itbi-browser)");
     expect(arrow).not.toBeNull();
+    // 🌐 (open in our browser) comes first, then ↗ (user 2026-11-12).
+    const buttons = [...c2.querySelectorAll(".itbi-arrow")].map((b) => b.textContent);
+    expect(buttons).toEqual(["🌐", "↗"]);
     // A URL chip carries the href as its title and the ↗ glyph.
     expect(arrow).toHaveAttribute("title", "https://example.com");
     expect(arrow.textContent).toBe("↗");

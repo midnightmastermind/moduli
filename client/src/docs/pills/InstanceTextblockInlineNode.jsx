@@ -386,6 +386,24 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         onKeyDown={onKeyDown}
       />
 
+      {/* The 🌐 (open in our browser) comes first, then the ↗ (user 2026-11-12: swap them). */}
+      {isUrl && href && (
+        <span
+          className="itbi-arrow itbi-browser"
+          contentEditable={false}
+          role="button"
+          tabIndex={-1}
+          aria-label="Open in browser panel"
+          title="Open in our browser (in the panel)"
+          // pointerdown too: a read-only stand-in swaps itself for the live editor on a left press, which replaced
+          // this chip under the pointer and lost the first click (measured: pointerdown here, mousedown on the card).
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={openInPanel}
+        >
+          🌐
+        </span>
+      )}
       {/* RIGHT — "enter" arrow: opens the link target in a new tab (URL) or
           jumps to the occurrence (in-app). Only for link chips. */}
       {hasLink && (
@@ -402,23 +420,6 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
           onClick={openTarget}
         >
           {isUrl ? "↗" : "→"}
-        </span>
-      )}
-      {isUrl && href && (
-        <span
-          className="itbi-arrow itbi-browser"
-          contentEditable={false}
-          role="button"
-          tabIndex={-1}
-          aria-label="Open in browser panel"
-          title="Open in our browser (in the panel)"
-          // pointerdown too: a read-only stand-in swaps itself for the live editor on a left press, which replaced
-          // this chip under the pointer and lost the first click (measured: pointerdown here, mousedown on the card).
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          onClick={openInPanel}
-        >
-          🌐
         </span>
       )}
     </NodeViewWrapper>

@@ -842,6 +842,19 @@ function Page({
             {/* The label leads (beside the handle); the buttons sit together on the right (user, 2026-11-03:
                 headers had the label and the feed icon stuck in the middle). */}
             <div className="page-header-buttons" onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center", order: 2, marginLeft: "auto" }}>
+              {/* The page's OWN fields lead the cluster, left of search / filter / + (user 2026-11-12: "the codex
+                  tags … should be on the left side of all that") — the same order a container header uses. */}
+              <OccurrenceFields
+                occurrence={occurrence}
+                module={pageModule}
+                grid={ctxGrid}
+                fieldsById={fieldsById}
+                occurrencesById={getOccMap()}
+                position="inline"
+                state={ctxStateLite}
+                dispatch={dispatch}
+                socket={socket}
+              />
               {/* Search scoped to THIS page — the result is already open, so
                   picking one only scrolls + flashes it. */}
               <OccurrenceSearch
@@ -986,20 +999,6 @@ function Page({
             </div>
           </div>
         )}
-        {/* The page's OWN fields, under its label — pages could carry bindings
-            all along (the data model never restricted them) but nothing rendered
-            them, so a page-level field was invisible on every grid. */}
-        <OccurrenceFields
-          occurrence={occurrence}
-          module={pageModule}
-          grid={ctxGrid}
-          fieldsById={fieldsById}
-          occurrencesById={getOccMap()}
-          position="under"
-          state={ctxStateLite}
-          dispatch={dispatch}
-          socket={socket}
-        />
       </div>
 
       {/* Content */}

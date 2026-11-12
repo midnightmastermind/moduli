@@ -32,6 +32,11 @@ import { fileHomeOccId, isUploadedFile } from "../helpers/fileHome.js";
 import { JellyfinPlayButton } from "../ui/JellyfinPlayButton.jsx";
 import { openJellyfinPlayer, playNextUnwatched } from "../helpers/jellyfinPlay";
 
+// A quote with a text body is drawn by the textblock editor, so its link chips are real mini textblocks (0495).
+// Lazy: TextblockCard -> Editor -> ModuleEmbedNode -> ArtifactCard is a cycle.
+const TextblockCard = React.lazy(() => import("./TextblockCard.jsx"));
+const isDocBody = (tm) => !!(tm && typeof tm === "object" && tm.type === "doc" && (tm.content || []).length);
+
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
 
@@ -513,10 +518,21 @@ export default function ArtifactCard({ module, label, occurrence }) {
             absolutely at the card's bottom-right — an attribution line renders there
             (right-aligned) and the two would sit on top of each other. Inline, it
             always follows the last word and cannot collide with anything. */}
-        <blockquote className="artifact-quote-text">
-          {linkifyText(quote)}
-          <span className="artifact-quote-mark artifact-quote-mark--close" aria-hidden="true">&rdquo;</span>
-        </blockquote>
+        {isDocBody(occurrence?.textmap) ? (
+          // The quote's own body: editable, and its links are chips with their open buttons (user 2026-11-12:
+          // "make sure minitextblocks work inside quotes so they can be editable and accessed").
+          <blockquote className="artifact-quote-text artifact-quote-text--body">
+            <React.Suspense fallback={linkifyText(quote)}>
+              <TextblockCard occurrence={occurrence} module={module} />
+            </React.Suspense>
+            <span className="artifact-quote-mark artifact-quote-mark--close" aria-hidden="true">&rdquo;</span>
+          </blockquote>
+        ) : (
+          <blockquote className="artifact-quote-text">
+            {linkifyText(quote)}
+            <span className="artifact-quote-mark artifact-quote-mark--close" aria-hidden="true">&rdquo;</span>
+          </blockquote>
+        )}
         {attribution && <cite className="artifact-quote-attr">&mdash; {attribution}</cite>}
       </div>
     );

@@ -4263,6 +4263,39 @@ input.artifact-thumb-info-name--editing {
   line-height: 1.6;
   color: var(--text-primary);
 }
+/* A list field's grid (Workouts, Cardio, Meals…): lines between columns and rows, and more room between columns
+   (user 2026-11-12). The box's own border is the outside; these rules sit only between cells. ui/Field.jsx
+   listCellClass. */
+.field-list-grid > .flc {
+  padding: 2px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.field-list-grid > .flc:not(.flc--first-col) { border-left: 1px solid var(--border-subtle); }
+.field-list-grid > .flc--first-col { padding-left: 0; }
+.field-list-grid > .flc--last-row { border-bottom: none; }
+
+/* A quote drawn from its own text body (0495): the textblock editor inside reads as the quote's words, not as a
+   card in a card — no tint, frame or padding, the quote's italic size, and the closing mark after the last line. */
+.artifact-quote-text--body .textblock-card,
+.artifact-quote-text--body .textblock-card:hover {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.artifact-quote-text--body .doc-editor-content.ProseMirror,
+.artifact-quote-text--body .textblock-card-placeholder {
+  font-size: 13px;
+  line-height: 1.6;
+  font-style: italic;
+  padding: 0 !important;
+  min-height: 0;
+}
+.artifact-quote-text--body .doc-editor-content.ProseMirror p,
+.artifact-quote-text--body .textblock-card-placeholder p { margin: 0; text-indent: 0; }
+.artifact-quote-text--body .doc-editor-wrapper,
+.artifact-quote-text--body .doc-editor { min-height: 0 !important; padding: 0 !important; }
+.artifact-quote-text--body > .artifact-quote-mark--close { display: block; text-align: right; }
 .artifact-quote-attr {
   display: block;
   margin-top: 8px;
