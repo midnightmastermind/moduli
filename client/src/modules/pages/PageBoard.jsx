@@ -14,7 +14,7 @@
 //   hideChildIds  array of occurrence IDs to skip rendering at this
 //                 level (children may still appear elsewhere via
 //                 multi-parenting)
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import ArtifactCard from "../ArtifactCard.jsx";
@@ -23,7 +23,7 @@ import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
 import InsertGap from "../../ui/InsertGap.jsx";
-import { useFilterLoading, filterIsLoading } from "../../helpers/filterLoading";
+import { useFilterLoading, filterIsLoading, filterReachedTarget, markFilterPageReady } from "../../helpers/filterLoading";
 import { getEffectiveFilterForOccurrence } from "../../state/selectors";
 
 /**
@@ -101,8 +101,11 @@ export default function PageBoard({
   // empty board is "not loaded yet", not "Drop containers here".
   const loadingFilterFields = useFilterLoading();
   const gridForFilter = useGridActionsSelector(s => s.state?.grid || s.grid);
-  const filterLoading = !!loadingFilterFields && !!occurrence
-    && filterIsLoading(loadingFilterFields, getEffectiveFilterForOccurrence(occurrence, { grid: gridForFilter, occurrencesById: getOccMap() }));
+  const pageFilter = loadingFilterFields && occurrence
+    ? getEffectiveFilterForOccurrence(occurrence, { grid: gridForFilter, occurrencesById: getOccMap() })
+    : null;
+  const filterLoading = !!pageFilter && filterIsLoading(loadingFilterFields, pageFilter);
+  const onTargetValue = filterLoading && filterReachedTarget(loadingFilterFields, pageFilter);
 
   const layout = useMemo(
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,6 +153,13 @@ export default function PageBoard({
   // there are several to fit side by side (user 2026-08-01: "if its 1 daypage
   // or 1 schedule, it takes up the panel width wise, once we get multiple, we
   // want to cap it"). Generic to flex-row, so the Schedule behaves the same.
+  // Rows for the new value are already on screen (an already-built day): tell the panel to drop its loader now
+  // rather than when the last op sweep goes quiet.
+  const hasVisible = visibleList.length > 0;
+  useEffect(() => {
+    if (onTargetValue && hasVisible) markFilterPageReady(occurrence?.id);
+  }, [onTargetValue, hasVisible, occurrence?.id]);
+
   const soloColumn = mode === "flex-row" && visibleList.length === 1;
 
   const innerStyle =

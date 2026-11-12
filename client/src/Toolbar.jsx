@@ -133,7 +133,7 @@ export default function Toolbar({
       operationsBridge.updateLocalOcc?.({ ...(occurrencesById[id] || { id }), filterOverride });
     }
     // The panels showing pages filtered by these fields draw their loader until the rebuild lands.
-    beginFilterLoading(navConditions.map((c) => c.fieldId));
+    beginFilterLoading(navConditions.map((c) => c.fieldId), next);
     CommitHelpers.updateGrid({
       dispatch, socket,
       gridId,

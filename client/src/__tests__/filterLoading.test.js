@@ -72,3 +72,31 @@ describe("PageBoard empty placeholder while a filter loads", () => {
     expect(src).toMatch(/visibleList\.length === 0 && !filterLoading &&[^\n]*\n\s*<div[^>]*empty-placeholder/);
   });
 });
+
+describe("a board already showing the new day drops its loader early", () => {
+  it("counts as reached only once the page's filter reads the target value", async () => {
+    const m = await import("../helpers/filterLoading.js");
+    m._resetFilterLoading();
+    m.beginFilterLoading(["date"], { value: "2026-11-13", unit: "day" });
+    expect(m.filterReachedTarget(["date"], { date: { value: "2026-11-12", unit: "day" } })).toBe(false);
+    expect(m.filterReachedTarget(["date"], { date: { value: "2026-11-13", unit: "day" } })).toBe(true);
+    m._resetFilterLoading();
+  });
+  it("marks a page ready and resets on the next change", async () => {
+    const m = await import("../helpers/filterLoading.js");
+    m._resetFilterLoading();
+    m.beginFilterLoading(["date"], "2026-11-13");
+    m.markFilterPageReady("pg1");
+    const { getFilterLoading } = m;
+    expect(getFilterLoading()).toEqual(["date"]);
+    m.beginFilterLoading(["date"], "2026-11-14");
+    expect(m.filterReachedTarget(["date"], { date: "2026-11-13" })).toBe(false);
+    m._resetFilterLoading();
+  });
+  it("PageBoard marks ready only on the target value with rows visible; the panel skips ready pages", () => {
+    const board = readFileSync(new URL("../modules/pages/PageBoard.jsx", import.meta.url), "utf8");
+    const panel = readFileSync(new URL("../modules/ModulePanel.jsx", import.meta.url), "utf8");
+    expect(board).toMatch(/if \(onTargetValue && hasVisible\) markFilterPageReady/);
+    expect(panel).toMatch(/!filterReadyPages\.has\(activePageEntry\.occurrence\.id\)/);
+  });
+});

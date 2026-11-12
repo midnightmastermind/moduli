@@ -28,6 +28,14 @@ let timers = [];
 let unsubscribe = null;
 let sawSweep = false;
 let token = 0;
+// Pages whose board already shows rows for the new value (an already-built day). Their panel drops the loader at
+// once instead of waiting for every op sweep to go quiet (user, 2026-11-12: "the schedule pops up but the loading
+// icon remains for a second"). Reset by each change; a frozen Set so the snapshot is identity-stable.
+const readyListeners = new Set();
+let readySnap = Object.freeze(new Set());
+// The value the change is moving to, as JSON. A board only counts as ready once ITS filter reads that value — right
+// after the click it still shows the OLD day, which is not the rows the user is waiting for.
+let targetJson = null;
 
 function publish(next) {
   snap = next;
@@ -60,13 +68,15 @@ function finish(my) {
 }
 
 /** A filter change on these field ids started. */
-export function beginFilterLoading(fieldIds) {
+export function beginFilterLoading(fieldIds, value) {
   const ids = (fieldIds || []).filter(Boolean);
   if (!ids.length) return;
+  targetJson = value === undefined ? null : JSON.stringify(value);
   const my = ++token;
   clearTimers();
   unsubscribe?.();
   sawSweep = false;
+  setReady(new Set());
   publish(Object.freeze([...new Set(ids)]));
   // The quiet timer restarts on every sweep; the cap is armed ONCE, so a sweep that never stops cannot hold it.
   unsubscribe = subscribeOpActivity(() => {
@@ -77,6 +87,30 @@ export function beginFilterLoading(fieldIds) {
   });
   later(() => { if (!sawSweep) finish(my); }, NO_SWEEP_MS);
   capTimer = setTimeout(() => finish(my), MAX_MS);
+}
+
+function setReady(next) {
+  readySnap = Object.freeze(next);
+  for (const fn of readyListeners) fn();
+}
+
+/** A page's board shows rows while a change loads: its panel needs no loader. */
+export function markFilterPageReady(pageOccId) {
+  if (!pageOccId || !snap || readySnap.has(pageOccId)) return;
+  setReady(new Set([...readySnap, pageOccId]));
+}
+
+function subscribeReady(fn) {
+  readyListeners.add(fn);
+  return () => readyListeners.delete(fn);
+}
+function getReady() {
+  return readySnap;
+}
+
+/** The set of page occurrence ids already showing rows for the change in flight. */
+export function useFilterReadyPages() {
+  return useSyncExternalStore(subscribeReady, getReady, getReady);
 }
 
 export function subscribeFilterLoading(fn) {
@@ -93,6 +127,12 @@ export function useFilterLoading() {
   return useSyncExternalStore(subscribeFilterLoading, getFilterLoading, getFilterLoading);
 }
 
+/** Does this effective filter already read the value the change is moving to? Pure. */
+export function filterReachedTarget(loadingFieldIds, effectiveFilter) {
+  if (targetJson == null || !loadingFieldIds?.length || !effectiveFilter) return false;
+  return loadingFieldIds.every((fid) => !(fid in effectiveFilter) || JSON.stringify(effectiveFilter[fid]) === targetJson);
+}
+
 /** Is a page with this effective filter affected by the fields loading? Pure. */
 export function filterIsLoading(loadingFieldIds, effectiveFilter) {
   if (!loadingFieldIds?.length || !effectiveFilter) return false;
@@ -107,6 +147,8 @@ export function _resetFilterLoading() {
   unsubscribe = null;
   sawSweep = false;
   snap = null;
+  targetJson = null;
+  readySnap = Object.freeze(new Set());
 }
 
 export const _FILTER_LOADING = { QUIET_MS, NO_SWEEP_MS, MAX_MS };

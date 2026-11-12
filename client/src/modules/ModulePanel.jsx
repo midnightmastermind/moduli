@@ -3,7 +3,7 @@
 // Renders a panel shell with its containers.
 // Handles panel-specific UI: iteration nav, fullscreen, resize, stacking, copy/split/delete.
 
-import { useFilterLoading, filterIsLoading } from "../helpers/filterLoading";
+import { useFilterLoading, filterIsLoading, useFilterReadyPages } from "../helpers/filterLoading";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext, useSyncExternalStore } from "react";
 import ResizeHandle from "../ResizeHandle";
@@ -401,6 +401,7 @@ function Panel({
   const contentReady = useStagedContent(`panel:${module?.id}`, stagePriority);
   // A toolbar date change in flight (helpers/filterLoading): the field ids it moved, or null.
   const loadingFilterFields = useFilterLoading();
+  const filterReadyPages = useFilterReadyPages();
 
   // ── OFF-SCREEN PANELS DO NOT MOUNT THEIR ROWS ────────────────────────────
   // The panel is the only thing that knows where it sits; the container is the
@@ -1015,6 +1016,7 @@ function Panel({
   // This panel's page is filtered by a field the toolbar just moved: its rows are being rebuilt, so the panel shows
   // its loader over the old rows instead of looking frozen (user, 2026-11-11). Only worked out while a change runs.
   const filterLoadingHere = !!loadingFilterFields && !!activePageEntry?.occurrence
+    && !filterReadyPages.has(activePageEntry.occurrence.id)
     && filterIsLoading(loadingFilterFields, getEffectiveFilterForOccurrence(activePageEntry.occurrence, { grid: state?.grid, occurrencesById }));
 
   return (
