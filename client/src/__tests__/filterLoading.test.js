@@ -68,7 +68,7 @@ describe("PageBoard empty placeholder while a filter loads", () => {
   it("hides 'Drop containers here' when the page's filter is loading", async () => {
     const fs = await import("node:fs");
     const src = fs.readFileSync(new URL("../modules/pages/PageBoard.jsx", import.meta.url), "utf8");
-    expect(src).toMatch(/filterIsLoading\(loadingFilterFields/);
+    expect(src).toMatch(/const filterLoading = useFilterReadyMark\(occurrence, visibleList\.length > 0\)/);
     expect(src).toMatch(/visibleList\.length === 0 && !filterLoading &&[^\n]*\n\s*<div[^>]*empty-placeholder/);
   });
 });
@@ -96,7 +96,11 @@ describe("a board already showing the new day drops its loader early", () => {
   it("PageBoard marks ready only on the target value with rows visible; the panel skips ready pages", () => {
     const board = readFileSync(new URL("../modules/pages/PageBoard.jsx", import.meta.url), "utf8");
     const panel = readFileSync(new URL("../modules/ModulePanel.jsx", import.meta.url), "utf8");
-    expect(board).toMatch(/if \(onTargetValue && hasVisible\) markFilterPageReady/);
+    expect(board).toMatch(/useFilterReadyMark\(occurrence, visibleList\.length > 0\)/);
+    const page = readFileSync(new URL("../modules/ModulePage.jsx", import.meta.url), "utf8");
+    expect(page).toMatch(/useFilterReadyMark\(occurrence, kind !== "board"\)/);
+    const hook = readFileSync(new URL("../helpers/useFilterReadyMark.js", import.meta.url), "utf8");
+    expect(hook).toMatch(/useLayoutEffect[\s\S]*if \(onTarget && hasContent\) markFilterPageReady/);
     expect(panel).toMatch(/!filterReadyPages\.has\(activePageEntry\.occurrence\.id\)/);
   });
 });

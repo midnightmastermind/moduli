@@ -80,6 +80,7 @@ import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getInheritedLocal
 // helper. Kept as a thin re-export to avoid churn on the consumer that
 // does `KIND_ICONS[kind] || FileText` below.
 import { KIND_ICONS as SHARED_KIND_ICONS } from "../helpers/moduleIcons";
+import { useFilterReadyMark } from "../helpers/useFilterReadyMark";
 const KIND_ICONS = SHARED_KIND_ICONS;
 
 
@@ -539,6 +540,9 @@ function Page({
   // A BOARD page too (user 2026-10-20: "we should be able to add other occurances at the top level of a
   // board page, not just containers") — PageBoard already draws a leaf child as itself
   // (pageChildRenderer). Doc pages keep the container-only palette: their "+" adds a section.
+  // A board marks itself ready from its own rows (PageBoard); any other page's content IS the page, so it is ready
+  // as soon as its filter reads the new value.
+  useFilterReadyMark(occurrence, kind !== "board");
   const leafHostPage = kind === "canvas" || kind === "table" || kind === "board";
   const handleQuickCreateLeaf = useCallback((payload = {}) => {
     if (!occurrence?.id || !ctxUserId || !ctxGridId) return;
