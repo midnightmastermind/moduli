@@ -37,7 +37,7 @@ import {
 } from "../helpers/sharePlacement.js";
 import { coverSearchQuery } from "../helpers/coverQuery.js";
 import { readPresets, withPreset, replacePreset, deletePreset, presetFromForm, formFromPreset } from "../helpers/sharePresets.js";
-import ShareImportPreview from "./ShareImportPreview.jsx";
+import ShareImportPreview, { sharePhotoSt } from "./ShareImportPreview.jsx";
 
 const readLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const param = (k) => new URLSearchParams(window.location.search).get(k) || "";
@@ -406,6 +406,8 @@ export default function SharePlace() {
 
       {manual && token && (
         <section style={{ borderTop: "1px solid var(--border-default, #333)", paddingTop: 8 }}>
+          {/* The shared photo, as Auto's preview shows it — placing it by hand should show what is being placed. */}
+          {photoSrc && <img data-testid="manual-photo" src={photoSrc} alt="" style={sharePhotoSt} />}
           {mode === "preset" && (
             <div style={{ marginBottom: 8 }}>
               <label htmlFor="share-preset" style={lblSt}>Preset</label>

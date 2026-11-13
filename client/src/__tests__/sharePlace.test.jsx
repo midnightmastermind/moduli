@@ -388,3 +388,25 @@ describe("SharePlace — an expired sign-in says so (2026-10-14)", () => {
     expect(screen.queryByTestId("session-expired")).toBeNull();
   });
 });
+
+describe("a shared photo is shown when placing it by hand", () => {
+  it("in Choose where and in Use a preset, not only in Auto", async () => {
+    const PHOTO = { source: "android", file: { originalname: "pic.jpg", mimetype: "image/jpeg", size: 2048 } };
+    const base = global.fetch;
+    global.fetch = vi.fn(async (url, opts) => {
+      const u = String(url);
+      if (/\/share\/stage\/s1(\?|$)/.test(u)) { calls.push({ url: u, opts }); return json({ payload: PHOTO }); }
+      return base(url, opts);
+    });
+    await ready();
+    const src = "/api/v1/share/stage/s1/file?k=k1";
+    fireEvent.click(screen.getByLabelText("New"));
+    expect((await screen.findByTestId("manual-photo")).getAttribute("src")).toBe(src);
+    fireEvent.click(screen.getByLabelText("Preset"));
+    expect(screen.getByTestId("manual-photo").getAttribute("src")).toBe(src);
+  });
+  it("shows nothing there for a link", async () => {
+    await openNew();
+    expect(screen.queryByTestId("manual-photo")).toBeNull();
+  });
+});
