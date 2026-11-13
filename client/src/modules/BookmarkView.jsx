@@ -84,6 +84,10 @@ const EMPTY_MAP = {};
 const EMPTY_OPTIONS = [];
 
 export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
+// An EMBED (Reddit, YouTube, Vimeo, Spotify, SoundCloud via helpers/embedUrl) may not open
+// popups: Reddit's embed opened the post in a new browser tab on ANY click (user, 2026-11-13 —
+// "i want the buttons in the header to handle that"). The strip's open-in-browser button does it.
+export const EMBED_FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms";
 
 /**
  * Which mode to show, given what the reader fetch came back with.
@@ -1081,7 +1085,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                 src={frameSrc}
                 title={url}
                 onLoad={() => setFrameLoading(false)}
-                sandbox={FRAME_SANDBOX}
+                sandbox={embedSrc ? EMBED_FRAME_SANDBOX : FRAME_SANDBOX}
                 style={{ ...FRAME_STYLE }}
               />
               {frameLoading && (
