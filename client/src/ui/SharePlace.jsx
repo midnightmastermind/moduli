@@ -341,6 +341,9 @@ export default function SharePlace() {
     );
   }
 
+  // The shared picture itself — a clipped image's url, or a photo file parked with the stage.
+  const photoSrc = clip.imageUrl || (/^image\//.test(clip.file?.mimetype || "")
+    ? `/api/v1/share/stage/${enc(stageId)}/file?k=${enc(stageKey)}` : null);
   const mappedIds = new Set(Object.keys(mappings));
   const fieldsById = Object.fromEntries(fields.map((f) => [f.id, f]));
   const likeRows = siblingShape?.bindingsLike ? destination?.childCount : null;
@@ -357,11 +360,8 @@ export default function SharePlace() {
             </div>
           )}
         </div>
-        {(clip.imageUrl || /^image\//.test(clip.file?.mimetype || "")) && (
-          <img
-            src={clip.imageUrl || `/api/v1/share/stage/${enc(stageId)}/file?k=${enc(stageKey)}`}
-            alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4 }}
-          />
+        {photoSrc && (
+          <img src={photoSrc} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 4 }} />
         )}
       </header>
 
@@ -390,7 +390,7 @@ export default function SharePlace() {
               : "No rule matches — it goes to Files."}
           </div>
         )}
-        {mode === "auto" && <ShareImportPreview preview={importPreview} loading={importPreviewLoading} />}
+        {mode === "auto" && <ShareImportPreview preview={importPreview} loading={importPreviewLoading} photo={photoSrc} />}
         <label style={rowSt}>
           <input type="radio" name="mode" aria-label="New" checked={mode === "new"} onChange={() => setMode("new")} disabled={!token} /> Choose where <span style={hintSt}>— pick a board, page or container</span>
         </label>

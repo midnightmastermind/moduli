@@ -12,10 +12,13 @@ const MSG = {
   noPage: "Nothing to read here — it is saved as it is.",
 };
 
-export default function ShareImportPreview({ preview, loading }) {
+export default function ShareImportPreview({ preview, loading, photo = null }) {
   return (
     <section data-testid="share-import-preview" style={boxSt}>
       <div style={headSt}>Will be created in Imports</div>
+      {/* A shared PHOTO is shown here at a size you can see (user, 2026-11-13) — the page made
+          from it keeps the picture, so the preview of that page should too. */}
+      {photo && <img data-testid="preview-photo" src={photo} alt="" style={photoSt} />}
       {loading && !preview ? <div style={mutedSt}>{MSG.loading}</div> : preview ? (
         <>
           <div style={{ fontWeight: 600, fontSize: 12, wordBreak: "break-word" }}>{preview.label}</div>
@@ -46,7 +49,8 @@ export default function ShareImportPreview({ preview, loading }) {
   );
 }
 
-const boxSt = { margin: "4px 0 8px 22px", padding: "6px 8px", border: "1px solid var(--border-default, #333)", borderRadius: 4 };
+const boxSt = { margin: "4px 0 8px 22px", padding: "6px 8px", border: "1px solid var(--border-default, #333)", borderRadius: 4, minWidth: 0, overflow: "hidden" };
+const photoSt = { display: "block", width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 3, marginBottom: 6, background: "rgba(0,0,0,0.25)" };
 const headSt = { fontSize: 11, color: "var(--text-faint, #888)", marginBottom: 4 };
 const mutedSt = { fontSize: 11, color: "var(--text-muted, #aaa)" };
 const bodySt = { maxHeight: 120, overflowY: "auto", marginTop: 2 };

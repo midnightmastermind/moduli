@@ -113,3 +113,16 @@ describe("buildSharePayload", () => {
       .toMatchObject({ importAs: "both", pageBody: "hi", images: ["a"] });
   });
 });
+
+describe("a shared photo", () => {
+  it("is shown in the preview at a size you can see", () => {
+    const { getByTestId } = render(<ShareImportPreview preview={{ label: "Photo", willBuildPage: true, bodyLines: ["text read off it"] }} photo="/api/v1/share/stage/s1/file?k=k1" />);
+    const img = getByTestId("preview-photo");
+    expect(img.getAttribute("src")).toBe("/api/v1/share/stage/s1/file?k=k1");
+    expect(img.style.width).toBe("100%");
+  });
+  it("shows no photo for a share that is not one", () => {
+    const { queryByTestId } = render(<ShareImportPreview preview={{ label: "A link", willBuildPage: false, kind: "link" }} />);
+    expect(queryByTestId("preview-photo")).toBeNull();
+  });
+});

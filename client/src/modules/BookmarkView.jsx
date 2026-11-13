@@ -755,7 +755,11 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   );
 
   return (
-    <div ref={rootRef} style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    // `height: 100%` AS WELL AS `flex: 1`: on a file's own page the parent is a plain
+    // BLOCK (PageDisplay's wrapper beside the notes), where `flex` is inert — the box
+    // shrank to its strip and the frame fell to the browser's default 150px (user,
+    // 2026-11-13, a Reddit embed). In a flex column the two agree.
+    <div ref={rootRef} style={{ flex: 1, minHeight: 0, height: "100%", display: "flex", flexDirection: "column" }}>
       {/* THE STRIP — outside the frame, which is the only place our clicks and
           right-clicks can reach us. A menu drawn over the frame can be SEEN but
           never triggered from inside it. */}
