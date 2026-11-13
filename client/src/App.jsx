@@ -50,7 +50,7 @@ import { IntakeSheetHost } from "./ui/IntakeSheet";
 import { ConfirmListHost } from "./ui/ConfirmListHost";
 import { FieldPickerHost } from "./ui/FieldPickerHost";
 import IntakePasteHost from "./ui/IntakePasteHost";
-import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
+import { SelectionContext, useSelectionProvider, pressKeepsSelection } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 
 import { useUndoRedo } from "./hooks/useUndoRedo";
@@ -524,6 +524,13 @@ export default function App() {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
+  }, [selection]);
+  // A press anywhere that is not on a selected item, a menu, or with shift held ends the selection.
+  useEffect(() => {
+    if (selection.count === 0) return undefined;
+    const onDown = (e) => { if (!pressKeepsSelection(e, selection.isSelected)) selection.clear(); };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selection]);
 
   // GET_USER_INPUT modal — operationsBridge.requestUserInput resolves to a

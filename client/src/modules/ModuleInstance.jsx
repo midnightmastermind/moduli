@@ -1587,17 +1587,17 @@ function ModuleInstance({
       {
         label: `Copy ${selection.count} selected`,
         icon: ClipboardCopy,
-        onClick: () => selection.setClipboard("copy", [...selection.selectedIds]),
+        onClick: () => { selection.setClipboard("copy", [...selection.selectedIds]); selection.clear(); },
       },
       {
         label: `Move ${selection.count} selected`,
         icon: MoveRight,
-        onClick: () => selection.setClipboard("move", [...selection.selectedIds]),
+        onClick: () => { selection.setClipboard("move", [...selection.selectedIds]); selection.clear(); },
       },
       {
         label: `Copy-link ${selection.count} selected`,
         icon: Link2,
-        onClick: () => selection.setClipboard("copylink", [...selection.selectedIds]),
+        onClick: () => { selection.setClipboard("copylink", [...selection.selectedIds]); selection.clear(); },
       },
       { separator: true },
       {

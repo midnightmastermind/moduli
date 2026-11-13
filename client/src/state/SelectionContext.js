@@ -17,7 +17,8 @@
 // drag, shift+arrow tree-walking, multi-drag, copy/copylink/move bulk
 // actions.
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
-import { setSelectionSnapshot } from "../helpers/selectionDrag";
+import { setSelectionSnapshot, setSelectionClearer } from "../helpers/selectionDrag";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 // Clipboard shape:
 //   { mode: "copy" | "move" | "copylink", ids: [occId,...] }
@@ -74,6 +75,7 @@ export function useSelectionProvider() {
   const clear = useCallback(() => {
     setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
   }, []);
+  useEffect(() => { setSelectionClearer(clear); return () => setSelectionClearer(null); }, [clear]);
   const setClipboard = useCallback((mode, ids) => {
     if (!mode || !Array.isArray(ids) || ids.length === 0) {
       setClipboardState(null);
@@ -87,4 +89,23 @@ export function useSelectionProvider() {
     selectedIds, isSelected, toggle, add, remove, clear, count: selectedIds.size,
     clipboard, setClipboard, clearClipboard,
   }), [selectedIds, isSelected, toggle, add, remove, clear, clipboard, setClipboard, clearClipboard]);
+}
+
+/**
+ * Does a press on `target` end the selection? (user 2026-11-13: "it should deselect … after clicking
+ * off of them".) It does NOT when the press is: shift (adding), a right-click (opens the bulk menu),
+ * on a SELECTED item (dragging the group or opening its menu), or inside a menu, dialog or popover
+ * (the bulk menu's own items must run against the selection before anything clears it).
+ */
+export function pressKeepsSelection(e, isSelected) {
+  if (!e) return true;
+  const macContextClick = e.ctrlKey && /Mac/.test(globalThis.navigator?.platform || ""); // Ctrl-click = right-click on a Mac
+  if (e.shiftKey || e.button === 2 || macContextClick) return true;
+  const t = e.target;
+  if (!t || typeof t.closest !== "function") return true;
+  if (clickedInsidePortalLayer(t)) return true;
+  if (t.closest(".menu-surface, .radial-menu, .radial-menu-item, .context-menu-item, [data-selection-keep]")) return true;
+  const row = t.closest("[data-occurrence-id], [data-occ-id]");
+  const id = row?.getAttribute("data-occurrence-id") || row?.getAttribute("data-occ-id");
+  return !!(id && isSelected(id));
 }

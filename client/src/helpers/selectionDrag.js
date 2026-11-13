@@ -20,6 +20,11 @@ import { toast } from "../state/notificationStore";
 let current = new Set();
 export function setSelectionSnapshot(ids) { current = ids instanceof Set ? ids : new Set(ids || []); }
 export function getSelectionSnapshot() { return current; }
+// Cleared once a group drop has done its work (user 2026-11-13: a selection ends when an action is
+// done with it). SelectionContext registers its clear here; the drop pipeline is not a component.
+let clearSelection = null;
+export function setSelectionClearer(fn) { clearSelection = typeof fn === "function" ? fn : null; }
+export function clearSelectionAfterAction() { try { clearSelection?.(); } catch { /* best-effort */ } }
 
 const LEAF_ROLES = new Set(["instance", "artifact", "textblock"]);
 const LIST_KINDS = new Set(["board", "list", undefined, null, ""]);

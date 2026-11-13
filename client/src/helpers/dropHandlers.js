@@ -92,7 +92,7 @@ import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCasca
 import { containerDropDestination } from "./containerDropDestination";
 import { withAction } from "./actionScope";
 import { plannedStateFor, materializePlanned } from "./plannedDrop";
-import { getSelectionSnapshot, groupForDrag, orderOnScreen, groupDestination, groupInsertAt, runGroupDrop } from "./selectionDrag";
+import { getSelectionSnapshot, groupForDrag, orderOnScreen, groupDestination, groupInsertAt, runGroupDrop, clearSelectionAfterAction } from "./selectionDrag";
 function makeUUID() {
   return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -2462,7 +2462,9 @@ function tryGroupDrop(dropContext, ctx) {
   }
   const hovered = dropContext.target?.occurrenceId;
   const insertAt = groupInsertAt({ dropTarget, hoveredOccId: hovered !== dest.id ? hovered : null, dest });
-  return runGroupDrop({ ids: orderOnScreen(ids), dest, insertAt, mode, ctx });
+  const done = runGroupDrop({ ids: orderOnScreen(ids), dest, insertAt, mode, ctx });
+  if (done) clearSelectionAfterAction();
+  return done;
 }
 
 // A piece dragged out of a Magic view (helpers/plannedDrop): it is always a COPY. The planned node
