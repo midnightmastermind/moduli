@@ -379,7 +379,7 @@ export default function SharePlace() {
         <div id="share-grid" style={{ ...inputSt, opacity: 0.8 }}>{preview?.gridName || "your share grid"}</div>
       )}
 
-      <fieldset style={{ border: 0, padding: 0, margin: "12px 0 4px" }}>
+      <fieldset style={{ border: 0, padding: 0, margin: "12px 0 4px", minWidth: 0 /* a fieldset defaults to min-content: long preview lines pushed it off a phone screen */ }}>
         <label style={rowSt}>
           <input type="radio" name="mode" aria-label="Auto" checked={mode === "auto"} onChange={() => setMode("auto")} /> Auto <span style={hintSt}>— your share rules decide</span>
         </label>
