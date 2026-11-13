@@ -113,3 +113,28 @@ describe("an app-made bookmark is enriched", () => {
     expect(moduleUpdates(socket)).toHaveLength(0);
   });
 });
+
+describe("a reddit share link becomes the post it points to", () => {
+  const SHARE = "https://www.reddit.com/r/theories/s/QgQxyhs90w";
+  const POST = "https://www.reddit.com/r/theories/comments/1ntxlml/easy_path/";
+  const occUpdates = (socket) => socket.emitted.filter((e) => e.event === "update_occurrence").map((e) => e.data.occurrence);
+  it("swaps the address on the module, the placement and a field holding it — even when the page fetch failed", () => {
+    const socket = socketStub({ reply: { ok: false, error: "403", url: POST, expandedFrom: SHARE } });
+    CommitHelpers.addBookmarkOccurrence({
+      ...base, socket, dispatch: vi.fn(), url: SHARE,
+      fieldBindings: [{ fieldId: "f-url", role: "input", order: 0 }],
+      fields: { "f-url": { value: SHARE, flow: "in" } },
+    });
+    const [mod] = moduleUpdates(socket);
+    expect(mod?.fileRef).toBe(POST);
+    const occ = occUpdates(socket).find((o) => o.meta?.url);
+    expect(occ.meta.url).toBe(POST);
+    expect(occ.fields["f-url"].value).toBe(POST);
+  });
+  it("changes nothing for an ordinary link", () => {
+    const socket = socketStub({ reply: { ok: false, error: "dead" } });
+    CommitHelpers.addBookmarkOccurrence({ ...base, socket, dispatch: vi.fn(), url: "https://a.test/p" });
+    expect(moduleUpdates(socket)).toHaveLength(0);
+    expect(occUpdates(socket).filter((o) => o.meta?.url)).toHaveLength(0);
+  });
+});

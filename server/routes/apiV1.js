@@ -1307,8 +1307,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
 
       // A dead site still gets its bookmark, named for its host.
       const preview = await fetchLinkPreview(url, { fetchPageHtml });
+      // A Reddit share link is saved as the post it points to.
+      const savedUrl = preview?.expandedFrom && preview.url ? preview.url : url;
       const { module, occurrence } = bookmarkRecords({
-        gridId, userId: req.userId, url, parentId, label, preview, newId: uid,
+        gridId, userId: req.userId, url: savedUrl, parentId, label, preview, newId: uid,
       });
 
       const modObj = (await Module.create(module)).toObject();

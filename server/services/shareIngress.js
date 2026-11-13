@@ -257,6 +257,9 @@ export async function prepareShare({
     // A dead site still shares — the preview failing leaves the url itself as
     // the label, which is what /bookmarks does too.
     const preview = await fetchPreview(enriched.url).catch(() => null);
+    // A Reddit share link comes back as the post it points to — kept even when the
+    // page fetch failed (Reddit refuses the server's request for the post page).
+    if (preview?.expandedFrom && preview.url) enriched.url = preview.url;
     if (preview?.ok) {
       enriched.title = enriched.title || preview.title || null;
       enriched.favicon = preview.favicon || null;

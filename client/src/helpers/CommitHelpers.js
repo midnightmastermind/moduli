@@ -1662,9 +1662,29 @@ function _addBookmarkOccurrence({
       // the same way.
       if (!socket.connected) return { moduleId, occurrenceId, module, occurrence };
       socket.emit("link_preview", { url }, (res) => {
-        if (!res?.ok) return;
-        const patch = { ...module };
-        let changed = false;
+        // A Reddit share link comes back as the post it points to (server
+        // utils/redditShareLink). The address is swapped on the module, the
+        // placement and any field still holding the share link — even when the
+        // page fetch failed, which for Reddit it always does from the server.
+        const expanded = res?.expandedFrom && typeof res.url === "string" && res.url !== url ? res.url : null;
+        if (expanded) {
+          const live = operationsBridge.getLocalOcc?.(occurrenceId) || occurrence;
+          const nextFields = {};
+          for (const [fid, cell] of Object.entries(live?.fields || {})) {
+            if (cell?.value === url) nextFields[fid] = { ...cell, value: expanded };
+          }
+          updateOccurrence({
+            dispatch, socket,
+            occurrence: { id: occurrenceId, meta: { ...(live?.meta || null), url: expanded },
+              ...(Object.keys(nextFields).length ? { fields: { ...(live?.fields || null), ...nextFields } } : null) },
+          });
+        }
+        if (!res?.ok) {
+          if (expanded) updateModule({ dispatch, socket, module: { ...module, fileRef: expanded } });
+          return;
+        }
+        const patch = { ...module, ...(expanded ? { fileRef: expanded } : null) };
+        let changed = !!expanded;
         // The label is only replaced when it is still the HOST FALLBACK. A label
         // the caller passed is someone's choice and outranks a page's <title>.
         if (res.title && !label && patch.label === (hostLabel(url) || "Bookmark")) {

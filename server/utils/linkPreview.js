@@ -14,6 +14,7 @@
 // the host, no declared icon falls back to `/favicon.ico`. The ONLY failure is
 // "could not reach it at all", which the caller reports.
 
+import { expandRedditShareLink } from "./redditShareLink.js";
 import { coverFromHtml } from "./pageCover.js";
 import { bestTitleFrom } from "./pageTitle.js";
 import { decodeEntities } from "./htmlEntities.js";
@@ -69,7 +70,12 @@ export function hostLabel(pageUrl) {
 /**
  * @returns {Promise<{ ok: true, url, title, favicon } | { ok: false, error }>}
  */
-export async function fetchLinkPreview(url, { fetchPageHtml }) {
+export async function fetchLinkPreview(rawUrl, { fetchPageHtml, expandLink = expandRedditShareLink }) {
+  // A Reddit share link is expanded to the post it points to FIRST, and the expansion
+  // is reported (`expandedFrom`) even when the page fetch then fails — Reddit refuses
+  // the server's request for the post page itself, so for Reddit it always does.
+  const url = await expandLink(rawUrl).catch(() => rawUrl);
+  const expanded = url !== rawUrl ? { expandedFrom: rawUrl } : null;
   try {
     const fetched = await fetchPageHtml(url);
     const finalUrl = fetched?.url || url;
@@ -99,8 +105,9 @@ export async function fetchLinkPreview(url, { fetchPageHtml }) {
       favicon: faviconFromHtml(fetched?.html, finalUrl),
       cover: cover?.url || null,
       coverVia: cover?.via || null,
+      ...expanded,
     };
   } catch (err) {
-    return { ok: false, error: err?.message || "could not reach that link" };
+    return { ok: false, error: err?.message || "could not reach that link", ...(expanded ? { url, ...expanded } : null) };
   }
 }
