@@ -117,6 +117,26 @@ describe("embedProviderFor", () => {
     expect(embedProviderFor("https://www.youtube.com/@chan")).toBe(null);
   });
   it("agrees with embedUrlFor about every provider it lists", () => {
-    expect(EMBED_PROVIDERS).toEqual(["youtube", "vimeo", "spotify", "soundcloud"]);
+    expect(EMBED_PROVIDERS).toEqual(["youtube", "vimeo", "spotify", "soundcloud", "reddit"]);
+  });
+});
+
+describe("reddit", () => {
+  const E = "https://embed.reddit.com/r/hiphopheads/comments/eq37cf/transcript_jon_brions_comments_on_songs_on_circles/?embed=true";
+  it("turns a post link into its embed, whatever reddit host it used", () => {
+    expect(embedUrlFor("https://www.reddit.com/r/hiphopheads/comments/eq37cf/transcript_jon_brions_comments_on_songs_on_circles/")).toBe(E);
+    expect(embedUrlFor("https://old.reddit.com/r/hiphopheads/comments/eq37cf/transcript_jon_brions_comments_on_songs_on_circles")).toBe(E);
+    expect(embedUrlFor("https://www.reddit.com/r/hiphopheads/comments/eq37cf/transcript_jon_brions_comments_on_songs_on_circles/?utm_medium=android_app&utm_source=share")).toBe(E);
+  });
+  it("keeps a post with no slug and a comment permalink", () => {
+    expect(embedUrlFor("https://www.reddit.com/r/xmen/comments/zz2p30")).toBe("https://embed.reddit.com/r/xmen/comments/zz2p30/?embed=true");
+    expect(embedUrlFor("https://www.reddit.com/r/a/comments/abc123/title/def456/")).toBe("https://embed.reddit.com/r/a/comments/abc123/title/def456/?embed=true");
+  });
+  it("leaves pages with no embed alone", () => {
+    expect(embedUrlFor("https://www.reddit.com/r/hiphopheads/")).toBe(null);
+    expect(embedUrlFor("https://www.reddit.com/s/1aBcDeF")).toBe(null);
+    expect(embedUrlFor("https://www.reddit.com/user/someone")).toBe(null);
+    expect(embedUrlFor("https://www.reddit.com/r/x/wiki/index")).toBe(null);
+    expect(embedUrlFor("https://reddit.com.evil.tld/r/a/comments/abc123/")).toBe(null);
   });
 });

@@ -17,7 +17,7 @@
 // So this is a rewrite, not a workaround: the same video, at the address its
 // owner publishes for the purpose.
 //
-// ── WHY ONLY FOUR SITES ────────────────────────────────────────────────────
+// ── WHY ONLY THESE SITES (Reddit added 2026-11-13) ────────────────────────────────────────────────────
 //
 // Every candidate was checked against its real endpoint, and three were CUT for
 // failing the check:
@@ -102,6 +102,19 @@ const RULES = [
       // play, and only a track or a set does.
       if (!/^\/[^/]+\/(sets\/)?[^/?#]+/.test(u.pathname)) return null;
       return `https://w.soundcloud.com/player/?url=${encodeURIComponent(u.toString())}`;
+    },
+  },  {
+    // Measured 2026-11-13 in Firefox: www/old/new/sh.reddit.com send
+    // X-Frame-Options SAMEORIGIN, embed.reddit.com sends `frame-ancestors *`
+    // and draws the post. Only a POST has an embed — a subreddit, wiki or user
+    // page does not — and a /s/ share link hides its post id, so both stay null.
+    id: "reddit",
+    hosts: /(^|\.)reddit\.com$/i,
+    rewrite(u) {
+      const m = /^\/r\/([^/?#]+)\/comments\/([a-z0-9]+)(?:\/([^/?#]+))?(?:\/([a-z0-9]+))?/i.exec(u.pathname);
+      if (!m) return null;
+      const path = ["r", m[1], "comments", m[2], m[3], m[4]].filter(Boolean).join("/");
+      return `https://embed.reddit.com/${path}/?embed=true`;
     },
   },
 ];
