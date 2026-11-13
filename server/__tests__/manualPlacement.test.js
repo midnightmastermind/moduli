@@ -26,6 +26,12 @@ vi.mock("../models/Field.js", () => ({
   default: { find: (q) => ({ lean: async () => (q.id.$in || []).filter((id) => fieldTypes[id]).map((id) => ({ id, type: fieldTypes[id] })) }) },
 }));
 
+// A folder's page ("fp-imports", for folder "f-imports") and an ordinary container.
+const OCCS = { "fp-imports": { moduleId: "m-fp", parentId: "f-imports" }, "0cti4si13ijy": { moduleId: "m-board", parentId: "p1" } };
+const MODS = { "m-fp": { role: "page", kind: "folder" }, "m-board": { role: "container", kind: "board" } };
+vi.mock("../models/Occurrence.js", () => ({ default: { findOne: (q) => ({ lean: async () => OCCS[q.id] || null }) } }));
+vi.mock("../models/Module.js", () => ({ default: { findOne: (q) => ({ lean: async () => MODS[q.id] || null }) } }));
+
 const { placeManually, coerceToFieldType } = await import("../services/manualPlacement.js");
 
 const SHARE = { type: "link", label: "A Guide…", externalId: "link:https://imdb/x", props: { url: "https://imdb/x" } };
@@ -210,5 +216,23 @@ describe("a textblock placement", () => {
     await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });
     expect(create().label).toBe("literal:A Guide…");
     expect(create().textmap).toBeUndefined();
+  });
+});
+
+describe("a folder's page as the destination", () => {
+  const step = () => runs[0].op.pipeline.steps[0].config;
+  it("a created row is filed into the FOLDER, not under its page (where it would never show)", async () => {
+    await placeManually({ share: SHARE, placement: { ...PLACEMENT, parentId: "fp-imports" }, userId: "u1", gridId: "g1" });
+    expect(step().parentFolderId).toBe("literal:f-imports");
+    expect(step().parentId).toBeUndefined();
+  });
+  it("a shared file is moved into the folder", async () => {
+    await placeManually({ share: { type: "image", props: { occurrenceId: "img-1" } }, placement: { parentId: "fp-imports" }, userId: "u1", gridId: "g1" });
+    expect(step().toContainerId).toBe("literal:f-imports");
+  });
+  it("an ordinary container stays the parent", async () => {
+    await placeManually({ share: SHARE, placement: PLACEMENT, userId: "u1", gridId: "g1" });
+    expect(step().parentId).toBe("0cti4si13ijy");
+    expect(step().parentFolderId).toBeUndefined();
   });
 });

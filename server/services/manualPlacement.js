@@ -13,6 +13,8 @@
 // `/share` logs a hand placement exactly as it logs a rule.
 import { runOperationServerSide } from "./serverExecutor.js";
 import Field from "../models/Field.js";
+import Occurrence from "../models/Occurrence.js";
+import Module from "../models/Module.js";
 import { runImportJob, queueImport } from "./importJobs.js";
 import { shareImportSource } from "./importSource.js";
 
@@ -54,9 +56,26 @@ export function bodyToTextmap(body) {
   return { type: "doc", content: paragraphs };
 }
 
+/**
+ * The FOLDER a destination stands for, when the destination is a folder's own page (role page,
+ * kind folder) — else null. A folder page draws the rows whose parentId IS its folder, so a row
+ * filed under the page itself is listed and never shown (user 2026-11-13: an image saved to
+ * Imports through a preset "didnt add it").
+ */
+export async function folderForDestination(parentId, { userId, gridId } = {}) {
+  if (!parentId) return null;
+  const occ = await Occurrence.findOne({ id: parentId, userId, gridId }, { moduleId: 1, parentId: 1 }).lean();
+  if (!occ?.parentId) return null;
+  const mod = await Module.findOne({ id: occ.moduleId }, { role: 1, kind: 1 }).lean();
+  return mod?.role === "page" && mod?.kind === "folder" ? occ.parentId : null;
+}
+
 export async function placeManually({ share, placement, userId, gridId, io = null, mirror = null }) {
   const p = placement || {};
   if (!p.parentId) throw new Error("manual placement requires a parentId");
+  // A folder's page → the folder itself (rows are held by parentId; nothing lists them).
+  const folderId = await folderForDestination(p.parentId, { userId, gridId });
+  const parentArgs = folderId ? { parentFolderId: folderId } : { parentId: p.parentId };
 
   const ids = Object.keys(p.fields || {});
   const types = new Map();
@@ -76,7 +95,7 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
     const moveOp = {
       id: "manual-placement", name: "Placed by hand", enabled: true,
       pipeline: { sources: [], steps: [{ id: "place", type: "action", config: {
-        type: "MOVE_OCCURRENCE", occurrenceIdExpr: lit(share.props.occurrenceId), toContainerId: lit(p.parentId),
+        type: "MOVE_OCCURRENCE", occurrenceIdExpr: lit(share.props.occurrenceId), toContainerId: lit(folderId || p.parentId),
       } }] },
     };
     const res = await runOperationServerSide(moveOp, { vars: { $share: share }, userId, gridId, io, mirror });
@@ -106,7 +125,7 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
   };
   let pageError = null;
   if (importAs === "page" && linkUrl) {
-    const r = await runImportJob({ source: { kind: "link", url: linkUrl }, gridId, userId, parentId: p.parentId,
+    const r = await runImportJob({ source: { kind: "link", url: linkUrl }, gridId, userId, ...parentArgs,
       externalId: share?.externalId || null, overrides, io, mirror });
     if (r.ok && r.rootOccurrenceId) {
       return { ran: [{ ruleId: "manual", ruleName: "Placed by hand", ok: true, error: null,
@@ -122,7 +141,7 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
       type: "action",
       config: {
         type: "CREATE",
-        parentId: p.parentId,
+        ...(folderId ? { parentFolderId: lit(folderId) } : { parentId: p.parentId }),
         // A textblock has no label (it IS its text), so the share's own label
         // is not borrowed for one.
         label: lit(p.role === "textblock" ? (p.label || "") : (p.label || share?.label || "")),
@@ -151,7 +170,7 @@ export async function placeManually({ share, placement, userId, gridId, io = nul
   // "both": the readable page is built after the answer, beside the bookmark, and the two point at each other.
   let pageQueued = false;
   if (importAs === "both" && linkUrl && created[0]?.occurrenceId) {
-    pageQueued = queueImport({ source: { kind: "link", url: linkUrl }, gridId, userId, parentId: p.parentId,
+    pageQueued = queueImport({ source: { kind: "link", url: linkUrl }, gridId, userId, ...parentArgs,
       linkTo: created[0].occurrenceId, externalId: share?.externalId || null, overrides, io, mirror });
   }
   return {

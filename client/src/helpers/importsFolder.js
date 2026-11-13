@@ -35,7 +35,7 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
   // lookup pinned to the root would miss it there and mint a second one at the
   // root on the next import. Falls back to an unprotected one at the root,
   // which is the pre-protection shape the self-heal below upgrades.
-  // A new one goes inside the protected Files folder when the grid has one.
+  // A new one goes at the ROOT (user, 2026-11-13: "move Imports then to the root folder").
   const filesFolder = (folders || []).find((f) => onGrid(f) && f.name === FILES_FOLDER_NAME && f.meta?.protected);
   // The unprotected fallback also looks UNDER Files: until 2026-10-12 the server's create_folder dropped
   // `meta`, so an Imports folder this function made there came back unprotected, and missing it here
@@ -48,7 +48,7 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
     CommitHelpers.createFolder({
       dispatch, socket,
       folder: {
-        id: folderId, name: IMPORTS_FOLDER_NAME, parentId: filesFolder?.id || rootFolderId, gridId, userId,
+        id: folderId, name: IMPORTS_FOLDER_NAME, parentId: rootFolderId, gridId, userId,
         folderType: "normal",
         // Structural, like Templates and Files: the app files things here without
         // asking, so it is not the user's to delete. `meta.protected` is the ONLY

@@ -155,10 +155,11 @@ describe("ensureImportsFolder", () => {
     expect(CommitHelpers.updateFolder.mock.calls[0][0].folder).toEqual({ id: "imp-files", meta: { protected: true } });
   });
 
-  it("creates a new Imports folder inside the protected Files folder", () => {
+  // 2026-11-13: Imports lives at the root again (user), so a new one is made there even when Files exists.
+  it("creates a new Imports folder at the root, not inside Files", () => {
     const folders = [{ id: "files-1", name: "Files", parentId: "root-1", gridId: "grid-1", meta: { protected: true } }];
     ensureImportsFolder({ ...baseArgs, folders });
-    expect(CommitHelpers.createFolder.mock.calls[0][0].folder.parentId).toBe("files-1");
+    expect(CommitHelpers.createFolder.mock.calls[0][0].folder.parentId).toBe("root-1");
   });
 
   it("does not reuse an Imports folder from a different grid", () => {
