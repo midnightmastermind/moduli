@@ -38,6 +38,7 @@ const VrOffice = React.lazy(() => import("./vr/VrOffice.jsx"));
 import AssistantDrawer from "./ui/AssistantDrawer";
 import TextContextMenu from "./ui/TextContextMenu";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
+import SelectionChip from "./ui/SelectionChip";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
@@ -1230,6 +1231,8 @@ export default function App() {
             container/page on the grid to paste, or Escape / right-click
             to clear. */}
         <ClipboardDropOverlay />
+        {/* How many are selected (or staged to paste), and how to end it. */}
+        <SelectionChip />
 
         {/* Shift+drag rubber-band multi-select. Document-level pointer
             listener; activates only past a 4-pixel threshold so a
