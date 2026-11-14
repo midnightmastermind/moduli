@@ -85,3 +85,41 @@ describe("a day's Occasions holds its appointments", () => {
     expect(Number(after)).toBe(1);
   });
 });
+
+// 0499 (user 2026-11-14: "any schedule type should be there"): any row with a Schedule Type, dated that
+// day, wherever it lives — work shifts, classes in Done, holidays — and nothing without one.
+import { occasionsHoldAnyScheduleType } from "../../../server/migrations/0499-occasions-hold-any-schedule-type.mjs";
+describe("0499: Occasions holds every row with a Schedule Type", () => {
+  const ST = "f-st";
+  const op0499 = (day) => { const o = opFor(day); return { ...o, pipeline: occasionsHoldAnyScheduleType(o.pipeline, []).pipeline }; };
+  beforeEach(() => {
+    add("shifts", "tasks", { role: "container" });
+    add("done", "tasks", { role: "container" });
+    add("shift", "shifts", { fields: { [DATE]: DAY, [ST]: "employment", "f-ts": "3:00pm" } });
+    add("class", "done", { fields: { [DATE]: DAY, [ST]: "class" } });
+    add("holiday", "tasks", { fields: { [DATE]: DAY, [ST]: "hol" } });
+    add("shiftTomorrow", "shifts", { fields: { [DATE]: OTHER, [ST]: "employment" } });
+    add("span", "col", { fields: { [DATE]: DAY, [ST]: "employment" }, meta: { spanOf: "shift", copyLinkSource: "shift" } });
+  });
+  const sources = () => occasionKids().map((k) => k.meta.copyLinkSource).sort();
+  it("copies the day's typed rows from anywhere, and nothing untyped or from another day", () => {
+    run(op0499(DAY));
+    expect(sources()).toEqual(["class", "holiday", "shift"]);   // not the untyped dentist/chore, not tomorrow, not the duration copy
+  });
+  it("is idempotent", () => {
+    run(op0499(DAY)); run(op0499(DAY));
+    expect(sources()).toEqual(["class", "holiday", "shift"]);
+  });
+  it("drops a copy whose source loses its Schedule Type", () => {
+    run(op0499(DAY));
+    occ.class.fields[ST] = { value: null, flow: "in" };
+    const u = run(op0499(DAY));
+    expect(u.some((e) => /DELETE/.test(e._effect || ""))).toBe(true);
+  });
+  it("the transform is idempotent and adds the Schedule Type trigger once", () => {
+    const once = occasionsHoldAnyScheduleType(opFor(DAY).pipeline, []);
+    const twice = occasionsHoldAnyScheduleType(once.pipeline, once.triggerObjects);
+    expect(twice.changed).toBe(false);
+    expect(once.triggerObjects.filter((t) => t.targetId === ST)).toHaveLength(1);
+  });
+});
