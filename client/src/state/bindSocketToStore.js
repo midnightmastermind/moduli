@@ -1042,7 +1042,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   socket.on("full_state", onFullState);
-  socket.on("full_state_rest", onFullStateRest);
+  // Ack each chunk ON ARRIVAL, before handling it: the server keeps only two in flight (server emitDeferred, paced so
+  // the heartbeat never waits behind the whole catalogue on a slow link).
+  const onFullStateRestAcked = (rest, ack) => { try { ack?.(); } catch { /* an old server sends no ack */ } onFullStateRest(rest); };
+  socket.on("full_state_rest", onFullStateRestAcked);
 
   // Priority state — renders the visible grid immediately with the viewport slice.
   // No operations fired here; full_state (arriving right after) handles that.
@@ -3641,7 +3644,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
-    socket.off("full_state_rest", onFullStateRest);
+    socket.off("full_state_rest", onFullStateRestAcked);
     socket.off("priority_state", onPriorityState);
     socket.off("textmaps_loaded", onTextmapsLoaded);
     socket.off("sync_state", onSyncState);

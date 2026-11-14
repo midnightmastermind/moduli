@@ -35,7 +35,17 @@ export function chunkBySize(rows, maxBytes = REST_CHUNK_BYTES) {
   return out;
 }
 
-function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {} }) {
+// PACED, NOT POURED (2026-11-14). All 51 chunks (~11 MB) used to be emitted at once. On a slow link the server's
+// heartbeat ping then waits behind them: at ~100-150 KB/s it arrived after the 60s ping timeout, the server dropped
+// the socket, the reconnect asked for a fresh full_state, and the tab reloaded the grid once a minute without ever
+// finishing (measured on prod the afternoon of 2026-11-14: every load "rest=…-?", 4-9 ping timeouts per few minutes).
+// Now at most REST_IN_FLIGHT chunks are unacknowledged; the client acks each on arrival, so a ping queues behind a
+// few MB at most. A client that does not ack (a tab on an older build) gets the rest unpaced after REST_ACK_GRACE_MS.
+export const REST_IN_FLIGHT = 2;
+export const REST_ACK_GRACE_MS = 20000;
+export const REST_ACK_TIMEOUT_MS = 120000;
+
+export async function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {}, isCancelled = () => false }) {
   const heldText = Object.keys(textmaps).length;
   // Absent keys are not sent (utils/omitNullKeys.js), then the dead keys go and the per-message constants are lifted
   // onto the envelope (utils/wireProjection.js) — sized after that, since that is what crosses the wire.
@@ -45,10 +55,10 @@ function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {}
   const parts = [...modChunks.map((m) => ({ mod: m, occ: [] })), ...occChunks.map((o) => ({ mod: [], occ: o }))];
   if (!parts.length && heldText) parts.push({ mod: [], occ: [] });
   const chunks = parts.length;
-  parts.forEach((part, i) => {
+  const payloadOf = (part, i) => {
     const occ = projectRowsForWire(part.occ);
     const mod = projectRowsForWire(part.mod);
-    socket.emit("full_state_rest", {
+    return {
       gridId,
       occurrences: occ.rows,
       modules: mod.rows,
@@ -58,9 +68,28 @@ function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {}
       // The text of rows not on a shown page (utils/splitFullState.holdBackText), with the first chunk.
       ...(i === 0 && heldText ? { textmaps } : {}),
       chunk: i + 1, chunks, done: i === chunks - 1,
-    });
-  });
-  console.log(`[full_state] deferred ${deferred.length} occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)`);
+    };
+  };
+  const inFlight = new Set();
+  let acks = true; // until a chunk goes unacknowledged past the grace
+  for (let i = 0; i < chunks; i++) {
+    if (isCancelled() || socket.disconnected) return;
+    const payload = payloadOf(parts[i], i);
+    if (!acks || typeof socket.timeout !== "function") { socket.emit("full_state_rest", payload); continue; }
+    const sentAt = Date.now();
+    const p = socket.timeout(REST_ACK_TIMEOUT_MS).emitWithAck("full_state_rest", payload).then(
+      () => { inFlight.delete(p); },
+      () => { inFlight.delete(p); if (Date.now() - sentAt >= REST_ACK_GRACE_MS) acks = false; },
+    );
+    inFlight.add(p);
+    if (inFlight.size >= REST_IN_FLIGHT) {
+      // Wait for room, but not forever: a client that never acks is sent the rest without pacing.
+      const grace = new Promise((r) => setTimeout(r, REST_ACK_GRACE_MS, "grace"));
+      const r = await Promise.race([Promise.race([...inFlight]), grace]);
+      if (r === "grace" && inFlight.size >= REST_IN_FLIGHT) acks = false;
+    }
+  }
+  console.log(`[full_state] deferred ${deferred.length} occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)${acks ? " (paced)" : " (unpaced)"}`);
 }
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
@@ -270,9 +299,11 @@ export function registerStateHandlers(socket, {
         // FAIL OPEN: if no request arrives (an older tab, a client that never
         // paints) they are pushed anyway. A grid missing its catalogue forever
         // is far worse than one that loads it a beat early.
-        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules, textmaps });
+        let cancelled = false;
+        const send = () => { void emitDeferred({ socket, gridId, deferred, deferredModules, textmaps, isCancelled: () => cancelled }).catch((e) => console.error("[full_state] rest send failed:", e?.message || e)); };
         let sent = false;
-        const stop = () => { sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); };
+        // A newer answer cancels this one: before it starts (nothing sent) and while it is still pacing chunks.
+        const stop = () => { cancelled = sent; sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); };
         const once = () => { if (sent) return; stop(); send(); };
         const onAsk = (p = {}) => { if (!p.gridId || p.gridId === gridId) once(); };
         socket.once("request_full_state_rest", onAsk);
