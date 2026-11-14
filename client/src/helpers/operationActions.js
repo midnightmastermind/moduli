@@ -1969,6 +1969,8 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       let candidates;
       if (wantedId != null) {
         const hit = idIndexFor(itemList).get(wantedId);
+        // The early load pass: a row asked for by id that has not arrived yet (helpers/operationExecutor watchMisses).
+        if (!hit && context?._earlyMisses && context._earlyOpId) context._earlyMisses.add(context._earlyOpId);
         const inPool = !ofModules.length || ofModules.includes(hit?.moduleId ?? hit?.templateId);
         candidates = (usable(hit) && inPool) ? [hit] : [];
       } else if (cfg.first === true) {

@@ -1280,6 +1280,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     });
     let results;
     try {
+      if (liveCtx._earlyMisses) liveCtx._earlyOpId = op.id;
       if (op.pipeline) {
         results = executePipeline(op, liveCtx, transaction, undefined, logger);
       } else {
@@ -1897,6 +1898,23 @@ export function withEntityLookups(context = {}) {
   return context;
 }
 
+/**
+ * The EARLY load pass (bindSocketToStore): the catalogue has not arrived, so a row an operation looks up by id may
+ * simply not be here yet. A lookup of an id this map does not hold marks the running operation (`context._earlyOpId`)
+ * in `context._earlyMisses`; that operation's writes are dropped and it runs again once everything has arrived.
+ * Outside the early pass this returns the map itself.
+ */
+function watchMisses(byId, context) {
+  const misses = context?._earlyMisses;
+  if (!misses || !byId) return byId;
+  return new Proxy(byId, {
+    get(target, key) {
+      if (typeof key === "string" && key && !(key in target) && context._earlyOpId) misses.add(context._earlyOpId);
+      return target[key];
+    },
+  });
+}
+
 export function executePipeline(operation, context, transaction, extraVars, externalLogger) {
   const pipeline = operation.pipeline;
   if (!pipeline) return [];
@@ -2167,8 +2185,8 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     // value directly. Lets DrilldownPicker emit stable id paths
     // (e.g. for tracker `$goalItem = $allItemsById.<goalId>`) without
     // bottling the id into the predicate's right side.
-    $allItemsById: _derived.byId,
-    $allOccurrencesById: _derived.byId,
+    $allItemsById: watchMisses(_derived.byId, context),
+    $allOccurrencesById: watchMisses(_derived.byId, context),
     $allTemplates: allTemplates,
     $allFields: Object.values(fieldsById),
     $allOperations: (() => {

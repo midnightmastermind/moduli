@@ -459,6 +459,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // arrive AFTER this point.
       restChunks = null;
       sweptOnPartial = null; sweptPartialIds = null;
+      earlyPass = null;
+      catalogueOpSet = Array.isArray(payload.catalogueOpIds) ? new Set(payload.catalogueOpIds) : null;
       restWaitStartedAt = 0;
       // The 15s below is the SERVER's time to send the rest, so it starts when the request goes out — after the
       // paint. Started here, a page busy for 15s before it could even ask (a date change at first paint: the request
@@ -500,6 +502,37 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // The rows the half-grid pass started from: one of them missing from the overlay afterwards was deleted by it.
   let sweptPartialIds = null;
 
+  // ── THE EARLY PASS (2026-11-14) ────────────────────────────────────────────────────────────────────────────────────
+  // The rest arrives in two tiers (server emitDeferred): every row that is not an artifact, then the catalogue. The
+  // chunk ending the first tier carries `opsReady`; then every load operation the server did not list in
+  // `catalogueOpIds` runs, instead of waiting ~10s for songs and episodes. The rest run once everything is in, together
+  // with any early operation that looked up a row still on its way. User: "split them by what they read".
+  let catalogueOpSet = null;
+  let earlyPass = null; // { done: Promise, misses: Set, snapshotIds: Set }
+  const EARLY_WAIT_MS = 30000;
+  const afterEarly = (ep) => Promise.race([ep.done, new Promise((r) => setTimeout(r, EARLY_WAIT_MS))]);
+  function startEarlyPass() {
+    flushRestChunks({ partial: true });
+    const p = pendingFullState;
+    const snapshot = { ...p, occurrences: (p.occurrences || []).slice(), modules: (p.modules || []).slice() };
+    const misses = new Set();
+    markLoad("ops:early");
+    earlyPass = {
+      misses,
+      snapshotIds: new Set(snapshot.occurrences.map((o) => o?.id).filter(Boolean)),
+      done: runLoadSweep(snapshot, { skipIds: catalogueOpSet, earlyMisses: misses, diagTag: "load:early-ops" }),
+    };
+  }
+  /** After the early pass: the catalogue operations, and any that missed a row, over everything plus what it wrote. */
+  function runAfterEarly(ep, payload) {
+    void afterEarly(ep).then(() => {
+      const again = new Set([...(catalogueOpSet || []), ...ep.misses]);
+      if (ep.misses.size) console.log(`[full_state] ${ep.misses.size} early operation(s) looked up a row that had not arrived — running them again`);
+      sweptPartialIds = ep.snapshotIds;
+      runLoadSweep(withRowsSinceLoad(payload), { onlyIds: again });
+    });
+  }
+
   // ── THE CATALOGUE IS ONE STORE WRITE, NOT ONE PER CHUNK ───────────────────
   //
   // The server splits the deferred half into 4 x 4,000 so a single 16 MB frame
@@ -527,9 +560,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // by `pendingFullState`, so this costs a pair of arrays and no copies.
   let restChunks = null;
 
-  function flushRestChunks() {
+  function flushRestChunks({ partial = false } = {}) {
     if (!restChunks) return;
-    const payload = restChunks;
+    const payload = partial ? { ...restChunks, partial: true } : restChunks;
     restChunks = null;
     if (payload.occurrences.length || payload.modules.length || Object.keys(payload.textmaps || {}).length) {
       socketDispatch({ type: ActionTypes.FULL_STATE_REST, payload });
@@ -562,6 +595,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       console.warn(`[full_state] deferred chunks never completed — dispatched ${held} held occurrence(s) and running the load sweep anyway`);
       const p = pendingFullState; pendingFullState = null;
       sweptOnPartial = p;
+      if (earlyPass) { const ep = earlyPass; earlyPass = null; runAfterEarly(ep, p); return; }
       sweptPartialIds = new Set((p.occurrences || []).map((o) => o?.id).filter(Boolean));
       runLoadSweep(p);
     }, ms);
@@ -616,6 +650,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (rest.occurrences?.length) target.occurrences = target.occurrences.concat(rest.occurrences);
       if (rest.modules?.length) target.modules = target.modules.concat(rest.modules);
     }
+    if (rest.opsReady && !rest.done && pendingFullState && catalogueOpSet && !earlyPass) startEarlyPass();
     if (!rest.done) return;
 
     // Dispatch BEFORE the sweep, which is the order the per-chunk version had:
@@ -627,7 +662,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     restWaitStartedAt = 0;
     const p = pendingFullState;
     pendingFullState = null;
-    if (p) { runLoadSweep(p); return; }
+    if (p) {
+      if (earlyPass) { const ep = earlyPass; earlyPass = null; runAfterEarly(ep, p); return; }
+      runLoadSweep(p); return;
+    }
     if (sweptOnPartial) {
       const whole = sweptOnPartial; sweptOnPartial = null;
       console.warn("[full_state] the rest arrived after the fallback — running the load sweep again over the whole grid");
@@ -652,14 +690,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     return { ...payload, occurrences: [...byId.values()], modules: [...modById.values()] };
   }
 
-  function runLoadSweep(payload) {
-    if (isPassiveWindow()) return; // the headset's control panel runs no operations (helpers/passiveWindow)
+  // `opts`: { skipIds | onlyIds } choose which load operations run (operationsById stays whole, so a callee is always
+  // found); `earlyMisses` (a Set) marks the EARLY pass — an operation that looks up a row which has not arrived is
+  // collected there and its writes are dropped (helpers/operationExecutor watchMisses); `diagTag` names the [load] line.
+  // Returns a promise that settles once this pass's effects are applied.
+  function runLoadSweep(payload, opts = {}) {
+    if (isPassiveWindow()) return Promise.resolve(); // the headset's control panel runs no operations (helpers/passiveWindow)
+    let settle;
+    const done = new Promise((r) => { settle = r; });
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
-    const operations = payload.operations || [];
+    const allOperations = payload.operations || [];
+    const operations = opts.onlyIds ? allOperations.filter((o) => opts.onlyIds.has(o.id))
+      : opts.skipIds ? allOperations.filter((o) => !opts.skipIds.has(o.id))
+      : allOperations;
     const fieldsById = {};
     for (const f of payload.fields || []) fieldsById[f.id] = f;
     const operationsById = {};
-    for (const o of operations) operationsById[o.id] = o;
+    for (const o of allOperations) operationsById[o.id] = o;
     // Build occurrencesById from the payload array for the pipeline executor
     // Also repopulate localOccsById so subsequent fireOperations have fresh data
     resetLocalOccs();
@@ -741,14 +788,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const capturedScope = captureAction();
 
       const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById }));
-      const onPage = () => runMatchingOperationsSliced(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
+      const onPage = () => runMatchingOperationsSliced(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById, ...(opts.earlyMisses ? { _earlyMisses: opts.earlyMisses } : {}) },
         sweepCbs, { wrap: (fn) => runInAction(capturedScope, fn) });
       // ── THE SWEEP MAY RUN IN A WORKER (2026-10-14) ───────────────────────────
       // Off the page, so scrolling stays smooth while it computes (measured: 4.5-6s of a phone's main thread).
       // Same executor over a snapshot (helpers/opSweepCore), so the same effects; they are applied below
       // exactly as before. Only when no op needs the page (a prompt, a fetch, a toast); any failure runs it
       // here instead. Its writes were computed from the snapshot, so a field the user changed meanwhile wins.
-      const useWorker = sweepWorkerEnabled() && loadSweepWorkerSafe(operations);
+      // The early pass watches its lookups (a Proxy), which a worker's snapshot cannot carry: it runs here.
+      const useWorker = !opts.earlyMisses && sweepWorkerEnabled() && loadSweepWorkerSafe(operations);
       const sweepStartedAt = Date.now();
       const sweep = useWorker
         ? runSweepInWorker({ occurrences: Object.values(overlay), modules: payload.modules || [], fields: payload.fields || [], operations,
@@ -761,7 +809,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
               return dropStaleFieldWrites(res.updates, sweepStartedAt);
             })
         : onPage();
-      void sweep.then((allUpdates) => runInAction(capturedScope, () => {
+      void sweep.then((swept) => runInAction(capturedScope, () => {
+      // The early pass: an operation that looked up a row still on its way wrote from half a grid — drop its writes;
+      // it runs again with the catalogue.
+      const allUpdates = opts.earlyMisses?.size ? swept.filter((u) => !opts.earlyMisses.has(u?._sourceOpId)) : swept;
       const tOps1 = performance.now();
       markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -943,11 +994,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             if (line) safeEmit(socket, "save_scroll_diag", { line, ua: typeof navigator !== "undefined" ? navigator.userAgent : "" });
           } catch { /* a diagnostic must never break the load it measures */ }
         };
-        shipLoadLine("load");
-        setTimeout(() => shipLoadLine("load+20s"), 20000);
-      });
-      }));
+        shipLoadLine(opts.diagTag || "load");
+        if (!opts.diagTag) setTimeout(() => shipLoadLine("load+20s"), 20000);
+        settle();
+      }, () => settle());
+      }), () => settle());
     }), 50));
+    return done;
   }
 
 

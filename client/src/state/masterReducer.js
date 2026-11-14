@@ -99,7 +99,9 @@ function reduce(state, action) {
             // The wait is over whether or not this chunk carried anything new
             // — a duplicate or empty final chunk still means the rest arrived.
             if (!addOccs.length && !addMods.length && !textFilled)
-                return state.awaitingDeferred ? { ...state, awaitingDeferred: false } : state;
+                // A PARTIAL flush (the first tier, for the early load pass) does not end the wait: feed sync and the catalogue
+                // operations still hold until the rest arrives.
+                return (state.awaitingDeferred && !action.payload?.partial) ? { ...state, awaitingDeferred: false } : state;
 
             const modules = addMods.length ? [...(state.modules || []), ...addMods] : state.modules;
             // The role arrays are derived from modules, so they only move when
@@ -117,7 +119,7 @@ function reduce(state, action) {
                     textblocks: derived.textblocks,
                 } : {}),
                 occurrences: addOccs.length ? [...baseOccs, ...addOccs] : (textFilled ? baseOccs : state.occurrences),
-                awaitingDeferred: false,
+                awaitingDeferred: action.payload?.partial ? state.awaitingDeferred : false,
             };
         }
 
