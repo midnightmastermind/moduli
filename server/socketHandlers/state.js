@@ -6,7 +6,6 @@ import { isCompressed } from "../utils/textmapCompression.js";
 import Grid from "../models/Grid.js";
 import { joinFeedGroup } from "./feedLeader.js";
 import { splitShownFirst, holdBackText, templateRootIds } from "../utils/splitFullState.js";
-import { catalogueOps } from "../utils/opReadScope.js";
 import { findTemplatesFolder } from "../utils/templatesFolder.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 import { projectRowsForWire } from "../utils/wireProjection.js";
@@ -36,28 +35,15 @@ export function chunkBySize(rows, maxBytes = REST_CHUNK_BYTES) {
   return out;
 }
 
-function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {}, roleById = new Map() }) {
+function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {} }) {
   const heldText = Object.keys(textmaps).length;
   // Absent keys are not sent (utils/omitNullKeys.js), then the dead keys go and the per-message constants are lifted
   // onto the envelope (utils/wireProjection.js) — sized after that, since that is what crosses the wire.
-  // TWO TIERS (2026-11-14): every row that is not an artifact first, then the artifacts (the catalogue: songs, episodes,
-  // books, pictures, ~63% of the bytes). The chunk that ends the first tier carries `opsReady`, and the client runs
-  // every load operation that does not need the catalogue then (utils/opReadScope.catalogueOps), instead of waiting
-  // for all of it. Modules first within each tier: a row is drawn from its module.
-  const isCat = (role) => role === "artifact";
-  const modRole = new Map(deferredModules.map((m) => [m?.id, m?.role]));
-  const roleOf = (o) => roleById.get(o?.moduleId) ?? modRole.get(o?.moduleId);
-  const tier = (catalogue) => {
-    const mods = deferredModules.filter((m) => isCat(m?.role) === catalogue);
-    const occs = deferred.filter((o) => isCat(roleOf(o)) === catalogue);
-    return [...chunkBySize(omitNullKeysAll(mods)).map((m) => ({ mod: m, occ: [] })),
-      ...chunkBySize(omitNullKeysAll(occs)).map((o) => ({ mod: [], occ: o }))];
-  };
-  const first = tier(false);
-  const parts = [...first, ...tier(true)];
+  const occChunks = chunkBySize(omitNullKeysAll(deferred));
+  const modChunks = chunkBySize(omitNullKeysAll(deferredModules));
+  // Modules first: a row is drawn from its module, so a module never arrives after the rows that need it.
+  const parts = [...modChunks.map((m) => ({ mod: m, occ: [] })), ...occChunks.map((o) => ({ mod: [], occ: o }))];
   if (!parts.length && heldText) parts.push({ mod: [], occ: [] });
-  if (!first.length && parts.length) first.push(parts[0]); // nothing outside the catalogue: the first chunk is the mark
-  const opsReadyAt = Math.max(0, first.length - 1);
   const chunks = parts.length;
   parts.forEach((part, i) => {
     const occ = projectRowsForWire(part.occ);
@@ -71,7 +57,7 @@ function emitDeferred({ socket, gridId, deferred, deferredModules, textmaps = {}
       modulesHoisted: mod.hoisted,
       // The text of rows not on a shown page (utils/splitFullState.holdBackText), with the first chunk.
       ...(i === 0 && heldText ? { textmaps } : {}),
-      chunk: i + 1, chunks, done: i === chunks - 1, ...(i === opsReadyAt ? { opsReady: true } : {}),
+      chunk: i + 1, chunks, done: i === chunks - 1,
     });
   });
   console.log(`[full_state] deferred ${deferred.length} occurrences + ${deferredModules.length} modules + ${heldText} textmaps in ${chunks} chunk(s)`);
@@ -244,13 +230,6 @@ export function registerStateHandlers(socket, {
       const { deferred, coreModules, deferredModules } = split;
       // Text of a kept row that is not on a shown page (a page card, a picked row) follows too.
       const { core, textmaps } = holdBackText(split.core, { keepRootIds, modules: gridModules });
-      const roleById = new Map(gridModules.map((m) => [m?.id, m?.role]));
-      let catalogueOpIds = null;
-      try {
-        const catalogueIds = new Set(deferred.filter((o) => roleById.get(o?.moduleId) === "artifact").map((o) => o.id));
-        const catalogueModuleIds = new Set(deferredModules.filter((m) => m?.role === "artifact").map((m) => m.id));
-        catalogueOpIds = catalogueOps(Object.values(uc.operationsById || {}), { occurrences: allGridOccs, catalogueIds, catalogueModuleIds }).ids;
-      } catch (e) { console.warn("[full_state] catalogueOps failed — the client waits for everything:", e?.message || e); }
 
       const coreWire = {
         modules: projectRowsForWire(omitNullKeysAll(coreModules)),
@@ -273,8 +252,6 @@ export function registerStateHandlers(socket, {
         // The client holds its load sweep until the rest lands, so it must know
         // whether to expect a second message at all. 0 = this IS everything.
         deferredCount: deferred.length + Object.keys(textmaps).length,
-        // The load operations that must wait for the catalogue; the rest run when `opsReady` arrives.
-        catalogueOpIds,
       });
       socket.data.fullStateAnswered = requestKey;
 
@@ -293,7 +270,7 @@ export function registerStateHandlers(socket, {
         // FAIL OPEN: if no request arrives (an older tab, a client that never
         // paints) they are pushed anyway. A grid missing its catalogue forever
         // is far worse than one that loads it a beat early.
-        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules, textmaps, roleById });
+        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules, textmaps });
         let sent = false;
         const stop = () => { sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); };
         const once = () => { if (sent) return; stop(); send(); };
