@@ -695,7 +695,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // `runDerived` covers the deferred cascade too: `captureAction` carries
     // the derived scope across the paint boundary exactly as it carries an
     // action id, so the continuation cannot re-open one.
-    whenStagedFirstRelease(() => requestAnimationFrame(() => setTimeout(() => runDerived(() => {
+    whenStagedFirstRelease(() => afterPaint(() => runDerived(() => {
       const tOps0 = performance.now();
       // Overlay localOccsById on top of the payload snapshot. Between full_state
       // dispatch and this deferred callback, React's filterNavState useEffect
@@ -947,7 +947,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         setTimeout(() => shipLoadLine("load+20s"), 20000);
       });
       }));
-    }), 50)));
+    }), 50));
   }
 
 

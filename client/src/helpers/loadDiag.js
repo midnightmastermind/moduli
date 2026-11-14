@@ -107,7 +107,8 @@ export function loadDiagLine(tag = "load") {
     + `blocked=${r.longTasksSupported ? `${ms(r.blockedMs)}/${r.longTaskCount}tasks` : "UNSUPPORTED"} `
     + `top=[${top}] `
     + `dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : "?"} `
-    + `sinceNav=${ms(typeof performance !== "undefined" ? performance.now() : null)}`;
+    + `sinceNav=${ms(typeof performance !== "undefined" ? performance.now() : null)} `
+    + `hiddenAtLoad=${S().hiddenAtStart ?? "?"}`;
 }
 
 /** Zero the clock. Called when `full_state` arrives — everything is relative to that. */
@@ -119,6 +120,8 @@ export function startLoadDiag(label = "full_state arrived") {
   st.started = true;
   st.firstSeen = new Set();
   st.marks.push({ t: 0, label });
+  // A tab that loads in the background never paints; its timings mean something else.
+  st.hiddenAtStart = typeof document !== "undefined" ? !!document.hidden : null;
   window.__loadMarks = st.marks;
   // Absolute origin, so a probe can express its own DOM timings (e.g. "when did
   // 20 rows exist") on the same clock as everything below.

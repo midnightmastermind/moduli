@@ -15,13 +15,24 @@
 // must use it — running a deferred write against a torn-down tree is how you
 // get an occurrence nobody renders.
 
+/**
+ * True when a requestAnimationFrame callback will actually run soon. A HIDDEN tab has rAF and never fires it, so a
+ * tab loaded in the background waited for the user to look at it before requesting the rest of the grid, releasing
+ * panel content and starting the load operations — then did all of it at once (prod [load] lines: ops starting
+ * 77-82s after the page appeared). With no paint coming there is nothing to wait for.
+ */
+export function canPaintSoon() {
+  if (typeof requestAnimationFrame !== "function") return false;
+  return !(typeof document !== "undefined" && document.hidden);
+}
+
 export function afterPaint(fn, delayMs = 0) {
   let cancelled = false;
   let timer = null;
 
   const run = () => { if (!cancelled) fn(); };
 
-  if (typeof requestAnimationFrame === "function") {
+  if (canPaintSoon()) {
     const raf = requestAnimationFrame(() => {
       if (cancelled) return;
       timer = setTimeout(run, delayMs);

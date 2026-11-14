@@ -23,6 +23,7 @@
 // file's own behaviour testable directly (see __tests__/stagedMount.test.js)
 // rather than through the components.
 
+import { canPaintSoon } from "./afterPaint";
 const queue = [];          // [{ key, priority, notify }]
 const released = new Set();
 let enabled = false;
@@ -100,7 +101,7 @@ function pump() {
 function schedulePump() {
   if (pumping) return;
   pumping = true;
-  if (typeof requestAnimationFrame === "function") {
+  if (canPaintSoon()) {
     // rAF, THEN a macrotask — and the `setTimeout` is the load-bearing half.
     // A rAF callback runs BEFORE that frame's paint, so releasing inside one
     // makes React render the content in the very frame that was supposed to
