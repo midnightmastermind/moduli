@@ -1,6 +1,7 @@
 // helpers/wheelScroll.js
 // ============================================================
-// THE SCROLL WHEEL MOVES FURTHER PER NOTCH. Nothing else changes.
+// THE SCROLL WHEEL MOVES A FIXED, SMALL STEP PER NOTCH (WHEEL_STEP_PX). Nothing else changes.
+// (Was a 2.5x multiplier until 2026-11-14 — see WHEEL_STEP_PX.)
 //
 // User, 2026-08-28: *"could you make normal scroll (with the scroll wheel or
 // just swiping, NOT DRAG SCROLL SPEED), faster"* — i.e. reading a long board,
@@ -51,8 +52,18 @@
 // blanket preventDefault would silently kill.
 // ============================================================
 
-/** How much further a mouse-wheel notch travels. One number; tune to taste. */
-export const WHEEL_SPEED = 2.5;
+/**
+ * How far ONE mouse-wheel notch scrolls, in pixels — the same in every browser. One number; tune to taste.
+ *
+ * User, 2026-11-14: *"it jumps too far on one scroll wheel i want it only a little bit"*. It used to be a
+ * MULTIPLIER (2.5x, user 2026-08-28: "faster"), which made a notch ~120px in Firefox and ~250px in
+ * Chrome/Edge, in one instant jump — and the two browsers disagreed because they report a notch in
+ * different units. A fixed step per notch is small, and the same everywhere.
+ */
+export const WHEEL_STEP_PX = 40;
+/** What one notch reports: 3 lines (Firefox, LINE mode) or ~100px (Chrome/Edge, PIXEL mode). */
+export const LINES_PER_NOTCH = 3;
+export const PIXELS_PER_NOTCH = 100;
 
 /**
  * Trackpad / precision-scroll multiplier. **1 = unchanged, and that is
@@ -101,9 +112,14 @@ export function wheelDeltaPx(e, { pageHeight = 0, pageWidth = 0 } = {}) {
  * in one testable function.
  */
 export function scaledWheelDelta(e, opts = {}) {
-  const { dx, dy } = wheelDeltaPx(e, opts);
-  const speed = isPreciseScroll(e) ? PRECISE_SPEED : WHEEL_SPEED;
-  return { dx: dx * speed, dy: dy * speed, speed };
+  if (isPreciseScroll(e)) {
+    const { dx, dy } = wheelDeltaPx(e, opts);
+    return { dx: dx * PRECISE_SPEED, dy: dy * PRECISE_SPEED, speed: PRECISE_SPEED };
+  }
+  // A notched wheel: count the notches in whatever unit arrived, then move WHEEL_STEP_PX per notch.
+  const perNotch = e?.deltaMode === 1 ? LINES_PER_NOTCH : e?.deltaMode === 2 ? 1 : PIXELS_PER_NOTCH;
+  const toPx = (d) => ((d || 0) / perNotch) * WHEEL_STEP_PX;
+  return { dx: toPx(e?.deltaX), dy: toPx(e?.deltaY), speed: "step" };
 }
 
 /** Can this element still move in the requested direction? PURE given the element. */

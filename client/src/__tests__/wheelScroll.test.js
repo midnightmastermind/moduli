@@ -7,7 +7,7 @@ import {
   canScroll,
   scrollableFor,
   installFastWheel,
-  WHEEL_SPEED,
+  WHEEL_STEP_PX,
   PRECISE_SPEED,
   LINE_HEIGHT_PX,
 } from "../helpers/wheelScroll";
@@ -65,10 +65,14 @@ describe("wheelDeltaPx", () => {
 });
 
 describe("scaledWheelDelta", () => {
-  it("multiplies a wheel notch by WHEEL_SPEED", () => {
-    const r = scaledWheelDelta(ev({ deltaY: 100 }));
-    expect(r.dy).toBe(100 * WHEEL_SPEED);
-    expect(r.speed).toBe(WHEEL_SPEED);
+  it("moves one notch WHEEL_STEP_PX, whatever unit the browser reports it in", () => {
+    expect(scaledWheelDelta(ev({ deltaY: 100 })).dy).toBe(WHEEL_STEP_PX);                 // Chrome/Edge: 100px
+    expect(scaledWheelDelta(ev({ deltaMode: 1, deltaY: 3 })).dy).toBe(WHEEL_STEP_PX);     // Firefox: 3 lines
+    expect(scaledWheelDelta(ev({ deltaY: -200 })).dy).toBe(-2 * WHEEL_STEP_PX);           // two notches up
+  });
+
+  it("is a small step — not a jump (user 2026-11-14)", () => {
+    expect(WHEEL_STEP_PX).toBeLessThanOrEqual(60);
   });
 
   it("leaves a trackpad at PRECISE_SPEED — which is 1, i.e. unchanged", () => {
@@ -78,9 +82,6 @@ describe("scaledWheelDelta", () => {
     expect(r.dy).toBe(8);
   });
 
-  it("scales a LINE-mode notch through the pixel conversion", () => {
-    expect(scaledWheelDelta(ev({ deltaMode: 1, deltaY: 3 })).dy).toBe(3 * LINE_HEIGHT_PX * WHEEL_SPEED);
-  });
 });
 
 describe("canScroll", () => {
@@ -172,11 +173,11 @@ describe("installFastWheel", () => {
     return e;
   };
 
-  it("scrolls a wheel notch further and takes the event", () => {
+  it("scrolls a wheel notch one step and takes the event", () => {
     const el = makeScroller();
     const off = install();
     const e = fire(el, { deltaY: 100 });
-    expect(el.scrollBy).toHaveBeenCalledWith({ left: 0, top: 100 * WHEEL_SPEED, behavior: "instant" });
+    expect(el.scrollBy).toHaveBeenCalledWith({ left: 0, top: WHEEL_STEP_PX, behavior: "instant" });
     expect(e.defaultPrevented).toBe(true);
   });
 
