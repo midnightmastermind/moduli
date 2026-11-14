@@ -44,7 +44,18 @@ User: *"lets do those things you just put"* (a 10-item list). Done, each tested:
   (`operationExecutor.watchMisses`, FIND `id IS`); its writes are dropped and it runs again with the catalogue ops
   over `withRowsSinceLoad`. `splitShownFirst` also keeps rows parented under a shown page that nothing lists (95 on
   the Schedule). Probe `tools/uisweep/_tierload.mjs`: the early pass ran (124 ops, 178 effects, 1.1s); this PC's
-  link is too slow to measure the gain (tier 1 at ~56s, then a ping timeout). **Not yet measured on a real load.**
+  link is too slow to measure the gain (tier 1 at ~56s, then a ping timeout).
+  **Measured on the user's reload (Edge, fast link): ops 10.4s -> 5.2s, done 12.1s -> 6.3s, rest still 8.9s** — the day
+  builds finish before the catalogue has arrived. `checkGrid` afterwards: no new duplicates (the two
+  `7:00am › Exercise` pairs date to 2026-10-22).
+- **The reload loop on a slow link (found while testing the above, and wrongly blamed on it for an hour).** All 51
+  rest chunks (~11 MB) were emitted at once; at ~100 KB/s the heartbeat ping queued behind them past the 60s ping
+  timeout, the server dropped the socket, the reconnect asked for a fresh full_state — a tab reloading the grid once a
+  minute that never finished. It happened with the old sender too. `emitDeferred` is PACED now: at most 2 chunks
+  unacknowledged (`emitWithAck`), the client acks on arrival, an old client gets the rest unpaced after 20s, a newer
+  full_state cancels a send in progress. Fast link unchanged (rest 6.5s both ways); an 85 KB/s link finished (129s).
+- **A hidden tab's sweep is not throttled:** `sliceWork.yieldToBrowser` uses a MessageChannel while `document.hidden`
+  (a background tab's worker snapshot + sliced sweep took 95s and once 699s on timer throttling).
 - This file split again (`CLAUDE.backup.2026-11-14.md`, 267 entries verbatim).
 
 ---
