@@ -14,5 +14,7 @@ export function titleFromUrl(url) {
   try { slug = decodeURIComponent(slug); } catch { /* keep as is */ }
   const words = slug.replace(/_/g, " ").replace(/\s+/g, " ").trim();
   if (!words) return sub;
+  // A comment's own link carries the placeholder slug "comment", not the post title.
+  if (/^comment$/i.test(words)) return `Comment in ${sub}`;
   return `${words.charAt(0).toUpperCase()}${words.slice(1)} — ${sub}`;
 }

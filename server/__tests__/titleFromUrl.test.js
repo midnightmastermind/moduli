@@ -28,3 +28,9 @@ describe("0500 renames only junk names", () => {
     expect(isJunkName("r/getdisciplined - [Advice] I")).toBe(false);
   });
 });
+
+describe("a comment link", () => {
+  it("is named as a comment in its subreddit", () => {
+    expect(titleFromUrl("https://www.reddit.com/r/webdev/comments/abc12/comment/def34/")).toBe("Comment in r/webdev");
+  });
+});
