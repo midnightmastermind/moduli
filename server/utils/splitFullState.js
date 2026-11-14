@@ -176,8 +176,18 @@ export function splitShownFirst(occurrences = [], modules = [], { shownRootIds =
   const byId = new Map(occurrences.map((o) => [o?.id, o]));
   const role = (o) => modById.get(o?.moduleId)?.role;
   const isFolderPage = (o) => { const m = modById.get(o?.moduleId); return m?.role === "page" && m?.kind === "folder"; };
+  // A row whose parentId names a kept row is under it for every operation (the executor's _ancestors follows parentId
+  // when no list holds the row), so it is part of the shown page even when nothing lists it. Missing them made a shown
+  // Schedule "incomplete", and its trackers could not run before the rest arrived (2026-11-14: 6 such rows + 89 under them).
+  const byParent = new Map();
+  for (const o of occurrences) {
+    if (!o?.parentId) continue;
+    let a = byParent.get(o.parentId);
+    if (!a) byParent.set(o.parentId, (a = []));
+    a.push(o.id);
+  }
   const children = (o) => {
-    const out = [...(o?.occurrences || [])];
+    const out = [...(o?.occurrences || []), ...(byParent.get(o?.id) || [])];
     if (o?.textmap && typeof o.textmap === "object") { const s = new Set(); collectEmbedIds(o.textmap, s); out.push(...s); }
     return out;
   };

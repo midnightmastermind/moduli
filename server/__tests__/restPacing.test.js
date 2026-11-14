@@ -52,3 +52,18 @@ describe("the rest is paced", () => {
     expect(f.sent.length).toBe(3);
   });
 });
+
+describe("the rest comes in two tiers", () => {
+  it("sends every non-artifact row first and marks the chunk that ends that tier", async () => {
+    const f = fakeSocket({ acks: true });
+    const deferred = [...rows(4).map((o) => ({ ...o, moduleId: "inst" })), ...rows(4).map((o, i) => ({ ...o, id: `a${i}`, moduleId: "art" }))];
+    const roleById = new Map([["inst", "instance"], ["art", "artifact"]]);
+    await emitDeferred({ socket: f.socket, gridId: "g", deferred, deferredModules: [], roleById });
+    const order = f.sent.map((s) => s.p);
+    const readyAt = order.findIndex((p) => p.opsReady);
+    expect(readyAt).toBeGreaterThanOrEqual(0);
+    expect(order.slice(0, readyAt + 1).flatMap((p) => p.occurrences.map((o) => o.id)).every((id) => id.startsWith("o"))).toBe(true);
+    expect(order.slice(readyAt + 1).flatMap((p) => p.occurrences.map((o) => o.id)).every((id) => id.startsWith("a"))).toBe(true);
+    expect(order.filter((p) => p.opsReady)).toHaveLength(1);
+  });
+});

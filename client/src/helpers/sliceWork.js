@@ -46,6 +46,16 @@
 
 /** Yield to the browser: a macrotask, so paint and input can run before we resume. */
 export function yieldToBrowser() {
+  // A HIDDEN tab throttles timers to about one a second (and, after a few minutes, one a MINUTE in Chrome/Edge), so a
+  // sliced sweep or the worker's snapshot stream of ~38 chunks took 95s in a background tab (prod [load], 2026-11-14).
+  // A MessageChannel message is not throttled; with nobody looking there is nothing to keep responsive for anyway.
+  if (typeof document !== "undefined" && document.hidden && typeof MessageChannel === "function") {
+    return new Promise((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => { ch.port1.close(); resolve(); };
+      ch.port2.postMessage(0);
+    });
+  }
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 

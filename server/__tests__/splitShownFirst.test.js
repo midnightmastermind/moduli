@@ -66,3 +66,19 @@ describe("chunkBySize", () => {
     expect(chunkBySize([{ big: "x".repeat(1000) }, { s: 1 }], 100)).toHaveLength(2);
   });
 });
+
+describe("a row parented under a shown page but listed by nothing", () => {
+  it("still goes in the first message, with what it lists", () => {
+    const modules = [{ id: "mp", role: "page" }, { id: "mc", role: "container" }, { id: "mi", role: "instance" }];
+    const occurrences = [
+      { id: "page", moduleId: "mp", occurrences: ["col"] },
+      { id: "col", moduleId: "mc", parentId: "page", occurrences: [] },
+      { id: "stray", moduleId: "mc", parentId: "page", occurrences: ["row"] }, // nobody lists it
+      { id: "row", moduleId: "mi", parentId: "stray" },
+      { id: "elsewhere", moduleId: "mi" },
+    ];
+    const { core, deferred } = splitShownFirst(occurrences, modules, { shownRootIds: ["page"] });
+    expect(core.map((o) => o.id).sort()).toEqual(["col", "page", "row", "stray"]);
+    expect(deferred.map((o) => o.id)).toEqual(["elsewhere"]);
+  });
+});

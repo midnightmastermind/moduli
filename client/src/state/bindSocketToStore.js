@@ -510,7 +510,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let catalogueOpSet = null;
   let earlyPass = null; // { done: Promise, misses: Set, snapshotIds: Set }
   const EARLY_WAIT_MS = 30000;
-  const EARLY_PASS_ON = () => { try { return globalThis.localStorage?.getItem("moduli-earlyPass") === "1"; } catch { return false; } };
+  const EARLY_PASS_ON = () => { try { return globalThis.localStorage?.getItem("moduli-earlyPass") !== "0"; } catch { return true; } };
   const afterEarly = (ep) => Promise.race([ep.done, new Promise((r) => setTimeout(r, EARLY_WAIT_MS))]);
   function startEarlyPass() {
     flushRestChunks({ partial: true });
@@ -651,8 +651,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (rest.occurrences?.length) target.occurrences = target.occurrences.concat(rest.occurrences);
       if (rest.modules?.length) target.modules = target.modules.concat(rest.modules);
     }
-    // OFF (2026-11-14): on prod the early pass froze the page past the socket's ping timeout, and the tab reconnected
-    // and reloaded once a minute. Off until the cause is found; `localStorage moduli-earlyPass=1` turns it on to test.
+    // On by default; `localStorage moduli-earlyPass=0` turns it off. (It was switched off for an hour on 2026-11-14,
+    // blamed for a reload loop that turned out to be the unpaced rest starving the heartbeat on a slow link.)
     if (EARLY_PASS_ON() && rest.opsReady && !rest.done && pendingFullState && catalogueOpSet && !earlyPass) startEarlyPass();
     if (!rest.done) return;
 
