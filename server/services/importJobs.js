@@ -130,6 +130,18 @@ export async function imageSourceOf(occurrenceId, userId) {
   return { filePath: path.join(UPLOADS_DIR, rel), url: `/uploads/${rel}` };
 }
 
+/** A fetch failure in words: a 401/403/429 means the site refuses requests from the server, not that the page is gone. */
+export function readableImportError(reason) {
+  const m = /fetch failed \((\d{3})\)/.exec(reason || "");
+  if (!m) return reason;
+  const code = Number(m[1]);
+  if (code === 401 || code === 403) return `the site refused the server (${code}); open it in Web mode instead`;
+  if (code === 429) return `the site is limiting requests (${code}); try again later`;
+  if (code === 404 || code === 410) return `the page is gone (${code})`;
+  if (code >= 500) return `the site had an error (${code})`;
+  return reason;
+}
+
 /**
  * Run one job to completion. Exported for tests (inject `deps.fetchPageHtml` / `deps.ocrImage`).
  * @returns {Promise<{ ok, rootOccurrenceId?, empty?, skipped?, error? }>}
@@ -155,7 +167,7 @@ export async function runImportJob(job) {
     if (src.kind === "image" && !src.filePath && !src.ocrPage) throw new Error("the picture's file is not on this server");
     out = await runImport({ source: src, gridId, userId, parentFolderId, parentId, externalId, overrides }, deps);
   } catch (err) {
-    const reason = String(err?.message || err);
+    const reason = readableImportError(String(err?.message || err));
     console.warn(`[importJobs] ${src.kind} import did not build a page: ${reason}`);
     if (linkTo) await setOccMeta({ id: linkTo, userId, set: { readerPageError: reason }, io, mirror });
     if (src.kind === "image" && src.imageOccurrenceId) await moveIntoFolder({ id: src.imageOccurrenceId, folderId: parentFolderId, userId, io, mirror });

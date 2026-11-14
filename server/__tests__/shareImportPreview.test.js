@@ -25,6 +25,9 @@ vi.mock("../services/serverExecutor.js", () => ({
   runOperationServerSide: async (op) => { ranOps.push(op); return { ok: true, effects: [{ _effect: "CREATE", occurrenceId: "bm1", status: "created" }] }; },
 }));
 vi.mock("../models/Field.js", () => ({ default: { find: () => ({ lean: async () => [] }) } }));
+// manualPlacement asks whether a destination is a folder's page; these destinations are plain containers.
+vi.mock("../models/Occurrence.js", () => ({ default: { findOne: () => ({ lean: async () => null }) } }));
+vi.mock("../models/Module.js", () => ({ default: { findOne: () => ({ lean: async () => null }) } }));
 
 const { buildImportPreview, stageImportSource, bodyLinesOf } = await import("../services/importPreview.js");
 const { applyImportOverrides } = await import("../services/importPipeline.js");

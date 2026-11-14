@@ -309,11 +309,16 @@ async function snapshotLoadedGrids() {
     for (const [key, uc] of Object.entries(cacheByUser)) {
       if (!uc?._loaded) continue;
       const [userId, gridId] = key.split(":");
+      // A cache made before a socket picked its grid is keyed "<user>:null"; it has no grid to snapshot.
+      if (!/^[a-f0-9]{24}$/i.test(gridId || "")) continue;
       const grid = await Grid.findOne({ _id: gridId, userId }, { "meta.migrations": 1 }).lean();
       if (!grid) continue;
-      const t0 = Date.now();
-      const rows = await saveSnapshot({ gridId, userId, uc, ledger: migrationLedger(grid) });
-      console.log(`📦 snapshot saved: ${gridId} ${rows} rows ${Date.now() - t0}ms`);
+      // Per grid: one grid failing must not stop the others being saved.
+      try {
+        const t0 = Date.now();
+        const rows = await saveSnapshot({ gridId, userId, uc, ledger: migrationLedger(grid) });
+        console.log(`📦 snapshot saved: ${gridId} ${rows} rows ${Date.now() - t0}ms`);
+      } catch (e) { console.error(`[snapshot] save failed for ${gridId}:`, e?.message || e); }
     }
   } catch (e) { console.error("[snapshot] save failed:", e?.message || e); }
   finally { snapshotting = false; }

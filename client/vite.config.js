@@ -86,6 +86,10 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // CAPPED WORKERS (2026-11-14). By default vitest starts one worker per core (15 here), and several
+    // suites load the whole poms-grid fixture — together more memory than this WSL machine has, so a
+    // full run restarted WSL mid-suite (three times on 2026-11-13). VITEST_WORKERS overrides.
+    maxWorkers: Number(process.env.VITEST_WORKERS) || 6,
     setupFiles: ["./src/__tests__/setup.js"],
     // The include globs are `src/**/__tests__/**` — widened for the promo
     // surface, which keeps its tests beside its source (`src/promo/__tests__/`).
