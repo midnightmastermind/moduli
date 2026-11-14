@@ -27,8 +27,12 @@ User: *"lets do those things you just put"* (a 10-item list). Done, each tested:
   (885 files / 7,485 pass, 1.3 GB peak) where it used to take WSL down.
 - **Not changed, on purpose:** the "two Employment options" are an option and a CONTAINER (Plan › Finances), not
   duplicates. Skipping 403 hosts saves nothing (a 403 is fast); the reason is shown instead.
-- **Load (#8) not fixed — the lead:** prod `[load]` lines show panels at 0.06-0.55s but `ops:start=77-82s`, the
-  load operations starting over a minute after paint. Next: find what they wait for.
+- **Load (#8): a tab loaded in the BACKGROUND waited for the user to look at it.** Prod `[load]` samples: grid on
+  screen median 128ms, ops start median 878ms, but 819 samples over 10s (up to 207s). Not the catalogue (760 of the
+  792 slow ones had it; median 398ms). A hidden tab has rAF and never fires it, and `afterPaint`, the staged-mount
+  pump and the load sweep all waited on one — so it asked for nothing and ran nothing until shown, then did it all
+  at once. `afterPaint.canPaintSoon()` is false while `document.hidden`; those waits use a timer. **Not yet
+  confirmed on prod**: `[load]` now ends `hiddenAtLoad=`, so the next slow lines say whether they were hidden.
 - This file split again (`CLAUDE.backup.2026-11-14.md`, 267 entries verbatim).
 
 ---
