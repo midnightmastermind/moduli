@@ -243,3 +243,20 @@ describe("installFastWheel", () => {
     expect(el.scrollBy).not.toHaveBeenCalled();
   });
 });
+
+import { wheelStepPx, setWheelStepPx, __resetWheelStepCache, WHEEL_STEP_KEY } from "../helpers/wheelScroll.js";
+describe("the wheel step is a setting", () => {
+  it("defaults to 40, and a saved step is used and clamped", () => {
+    const store = new Map();
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+    __resetWheelStepCache();
+    expect(wheelStepPx()).toBe(40);
+    expect(setWheelStepPx(90)).toBe(90);
+    expect(store.get(WHEEL_STEP_KEY)).toBe("90");
+    __resetWheelStepCache();
+    expect(wheelStepPx()).toBe(90);
+    expect(setWheelStepPx(5000)).toBe(200);
+    expect(setWheelStepPx(1)).toBe(10);
+    __resetWheelStepCache();
+  });
+});

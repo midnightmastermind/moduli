@@ -1,4 +1,5 @@
 // helpers/CommitHelpers.js
+import { titleFromUrl } from "../../../server/utils/titleFromUrl.js";
 import { afterPaint } from "./afterPaint";
 import { pageTwin, twinRenameWrite } from "./pageTwin";
 import { renameTarget } from "./sharedModule.js";
@@ -1529,6 +1530,9 @@ export function addImageArtifactFromUrl({
  */
 /** "en.wikipedia.org/wiki/Otter" -> "en.wikipedia.org". Null when not a url. */
 function hostLabel(url) {
+  // A site that refuses the server its <title> (Reddit) still names the post in its address.
+  const fromAddress = titleFromUrl(url);
+  if (fromAddress) return fromAddress;
   try { return new URL(String(url)).hostname.replace(/^www\./, "") || null; }
   catch { return null; }
 }

@@ -1,6 +1,7 @@
 // ui/commandCenter/AppearanceTab.jsx
 // Global appearance settings: theme picker + CSS token customization
 
+import { wheelStepPx, setWheelStepPx, WHEEL_STEP_PX, WHEEL_STEP_MIN, WHEEL_STEP_MAX } from "../../helpers/wheelScroll";
 import React, { useState, useCallback } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme, SYSTEM_THEMES } from "../../helpers/useTheme";
@@ -279,6 +280,10 @@ export function AppearanceTab() {
 
       <Separator />
 
+      <ScrollStepSetting />
+
+      <Separator />
+
       {/* CSS Token Editor */}
       <div>
         <h4 className="text-sm font-semibold text-foreground mb-0.5">Style by occurrence type</h4>
@@ -357,6 +362,29 @@ export function AppearanceTab() {
             Apply
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** How far one mouse-wheel notch scrolls. Stored in this browser only (a phone and a desktop want different steps). */
+function ScrollStepSetting() {
+  const [step, setStep] = useState(() => wheelStepPx());
+  return (
+    <div>
+      <h4 className="text-sm font-semibold text-foreground mb-0.5">Scroll</h4>
+      <p className="text-[10px] text-foregroundScale-2 mb-2 leading-relaxed">
+        How far one notch of the mouse wheel moves. This browser only. A trackpad is not affected.
+      </p>
+      <div className="flex items-center gap-3">
+        <input
+          type="range" min={WHEEL_STEP_MIN} max={WHEEL_STEP_MAX} step={5} value={step}
+          aria-label="Scroll step per wheel notch"
+          onChange={(e) => setStep(setWheelStepPx(e.target.value))}
+          className="flex-1"
+        />
+        <span className="text-[10px] text-text-muted w-16 text-right">{step}px</span>
+        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setStep(setWheelStepPx(WHEEL_STEP_PX))}>Reset</Button>
       </div>
     </div>
   );

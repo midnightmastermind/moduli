@@ -104,6 +104,26 @@ export function relistUploaded(occurrenceId, socket) {
   return parents.length;
 }
 
+// The server keeps an upload on its own disk when the user's storage connection refuses it
+// (an expired Google token). The file is safe, so this is a warning, not an error — said once
+// every 10 minutes, not once per file of a 30-file drop.
+const FALLBACK_NOTICE_MS = 10 * 60 * 1000;
+let lastFallbackNotice = null;
+export function storageFallbackMessage(fb) {
+  if (!fb) return null;
+  return fb.needsReconnect
+    ? "Google Drive needs reconnecting — this upload was kept on the server (Command Center › Connections)"
+    : "Your storage connection did not take this upload — it was kept on the server";
+}
+export function noteStorageFallback(fb, now = Date.now()) {
+  const msg = storageFallbackMessage(fb);
+  if (!msg || (lastFallbackNotice != null && now - lastFallbackNotice < FALLBACK_NOTICE_MS)) return false;
+  lastFallbackNotice = now;
+  toast.warning(msg);
+  return true;
+}
+export function __resetFallbackNotice() { lastFallbackNotice = null; }
+
 export function uploadArtifactPlaceholders(placeholders, {
   gridId, userId, dispatch, socket, containerOccurrenceId = null, persist = null,
   // Fires once per SUCCESSFUL upload, after the artifact's own row is settled.
@@ -157,7 +177,8 @@ export function uploadArtifactPlaceholders(placeholders, {
         });
       },
     })
-      .then(({ module: uploadedModule }) => {
+      .then(({ module: uploadedModule, storageFallback }) => {
+        noteStorageFallback(storageFallback);
         if (uploadedModule?.id) {
           CommitHelpers.updateModule({ dispatch, socket, module: uploadedModule, emit: false });
         }

@@ -14,6 +14,7 @@
 // `/api/artifacts/upload`; the share path must reuse it, not grow a second
 // uploader (engine plan, Global Constraints). Until it is extracted, a share
 // carrying a file is refused with a message that says so — never dropped.
+import { titleFromUrl } from "../utils/titleFromUrl.js";
 import fs from "fs/promises";
 import { classifyShare } from "./shareClassify.js";
 import { parseIcs } from "./icsImport.js";
@@ -38,7 +39,7 @@ export function shareLabelFor(type, props = {}, explicit = null) {
   if (type === "contact" || type === "profile") {
     if (props.personName) return trimTo(props.personName, 200);
   }
-  if (isLinkType(type)) return trimTo(props.title || props.url, 200) || "Shared link";
+  if (isLinkType(type)) return trimTo(props.title || titleFromUrl(props.url) || props.url, 200) || "Shared link";
   if (type === "text" || type === "html") return trimTo(props.firstLine || props.text, 120) || "Shared text";
   return trimTo(props.filename, 200) || "Shared file";
 }

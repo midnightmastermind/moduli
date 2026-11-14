@@ -61,6 +61,26 @@
  * different units. A fixed step per notch is small, and the same everywhere.
  */
 export const WHEEL_STEP_PX = 40;
+/** The step this device uses: a setting in Appearance › Scroll (this browser only), else WHEEL_STEP_PX. */
+export const WHEEL_STEP_KEY = "moduli-wheel-step";
+export const WHEEL_STEP_MIN = 10;
+export const WHEEL_STEP_MAX = 200;
+const clampStep = (n) => Math.min(WHEEL_STEP_MAX, Math.max(WHEEL_STEP_MIN, Math.round(n)));
+let stepCache = null; // read once — this runs on every wheel event
+export function wheelStepPx() {
+  if (stepCache != null) return stepCache;
+  let n = NaN;
+  try { n = Number(globalThis.localStorage?.getItem(WHEEL_STEP_KEY)); } catch { /* no storage */ }
+  stepCache = Number.isFinite(n) && n > 0 ? clampStep(n) : WHEEL_STEP_PX;
+  return stepCache;
+}
+export function setWheelStepPx(n) {
+  const v = clampStep(Number(n) || WHEEL_STEP_PX);
+  stepCache = v;
+  try { globalThis.localStorage?.setItem(WHEEL_STEP_KEY, String(v)); } catch { /* no storage */ }
+  return v;
+}
+export function __resetWheelStepCache() { stepCache = null; }
 /** What one notch reports: 3 lines (Firefox, LINE mode) or ~100px (Chrome/Edge, PIXEL mode). */
 export const LINES_PER_NOTCH = 3;
 export const PIXELS_PER_NOTCH = 100;
@@ -118,7 +138,7 @@ export function scaledWheelDelta(e, opts = {}) {
   }
   // A notched wheel: count the notches in whatever unit arrived, then move WHEEL_STEP_PX per notch.
   const perNotch = e?.deltaMode === 1 ? LINES_PER_NOTCH : e?.deltaMode === 2 ? 1 : PIXELS_PER_NOTCH;
-  const toPx = (d) => ((d || 0) / perNotch) * WHEEL_STEP_PX;
+  const toPx = (d) => ((d || 0) / perNotch) * wheelStepPx();
   return { dx: toPx(e?.deltaX), dy: toPx(e?.deltaY), speed: "step" };
 }
 

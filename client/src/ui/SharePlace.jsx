@@ -51,7 +51,7 @@ const defaultBody = (clip) => ({ source: clip?.selection ? "selection" : "title"
 
 /** What a destination IS — two places can share a name ("Library" the board, the page, the folder page). */
 export function destKind(d) {
-  if (d?.role === "page") return d.kind === "folder" ? "folder page" : "page";
+  if (d?.role === "page") return d.kind === "folder" ? "folder" : "page";  // a pick here files into the folder itself (0498)
   if (d?.role === "container") return d.kind && d.kind !== "list" ? d.kind : "container";
   return null;
 }
