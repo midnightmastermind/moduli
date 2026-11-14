@@ -33,6 +33,18 @@ User: *"lets do those things you just put"* (a 10-item list). Done, each tested:
   pump and the load sweep all waited on one — so it asked for nothing and ran nothing until shown, then did it all
   at once. `afterPaint.canPaintSoon()` is false while `document.hidden`; those waits use a timer. **Not yet
   confirmed on prod**: `[load]` now ends `hiddenAtLoad=`, so the next slow lines say whether they were hidden.
+- **Load, part 2: the builders run before the catalogue** (user picked "split by what they read", then "make the
+  builders early"). A visible-tab load waited ~10s for the whole rest (rest 3.1s -> 9.7s, ops 10.4s); 63% of those
+  bytes are artifacts no builder reads. The server now sends the rest in two tiers, non-artifact rows first, with
+  `opsReady` on the chunk ending tier 1 (`state.js emitDeferred`). `utils/opReadScope.catalogueOps` names the load
+  ops that need the artifacts (count steps, `$allArtifacts`, an unconfined `$allItems`/`$allOccurrences` read, a read
+  under a page holding artifacts, a pipeline naming one, or a call to such an op) as `full_state.catalogueOpIds`:
+  9 of 69 on poms. On `opsReady` the client flushes tier 1 as a PARTIAL store write (`awaitingDeferred` stays on, so
+  feed sync still waits) and runs the rest of the load ops. A lookup of a row not loaded yet marks the op
+  (`operationExecutor.watchMisses`, FIND `id IS`); its writes are dropped and it runs again with the catalogue ops
+  over `withRowsSinceLoad`. `splitShownFirst` also keeps rows parented under a shown page that nothing lists (95 on
+  the Schedule). Probe `tools/uisweep/_tierload.mjs`: the early pass ran (124 ops, 178 effects, 1.1s); this PC's
+  link is too slow to measure the gain (tier 1 at ~56s, then a ping timeout). **Not yet measured on a real load.**
 - This file split again (`CLAUDE.backup.2026-11-14.md`, 267 entries verbatim).
 
 ---
