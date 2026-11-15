@@ -17,6 +17,7 @@ import {
   composeSystemParts,
   buildLocalMessages,
   localLoop,
+  toolsForModel,
   buildDestinationsHint,
   extractDestinations,
   selectToolsForBackend,
@@ -41,6 +42,17 @@ describe("pickModel — builds go to the build model", () => {
   it("sends a question to the fast model", () => {
     expect(pickModel("what's on my schedule today?")).toBe("fast");
     expect(pickModel("")).toBe("fast");
+  });
+});
+
+describe("toolsForModel — a question cannot build", () => {
+  const T = ["list_occurrences", "get_occurrence", "list_fields", "list_folders", "wikipedia_search", "jonah_notes", "create_board", "create_items", "set_occurrence_field", "run_operation", "wikipedia_import"]
+    .map((name) => ({ name, description: name, input_schema: { type: "object" } }));
+  it("the fast model gets only reads", () => {
+    expect(toolsForModel(T, "fast").map((t) => t.name)).toEqual(["list_occurrences", "get_occurrence", "list_fields", "list_folders", "wikipedia_search", "jonah_notes"]);
+  });
+  it("the build model gets everything", () => {
+    expect(toolsForModel(T, "build")).toHaveLength(T.length);
   });
 });
 

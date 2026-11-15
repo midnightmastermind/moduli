@@ -458,6 +458,12 @@ const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|de
 export function pickModel(text) {
   return BUILD_VERBS.test(String(text || "")) ? "build" : "fast";
 }
+// A question goes to the fast model, and the fast model only READS: asked "how many movies are on my Movies board?",
+// llama3.2 3B answered by calling create_board (eval, 2026-11-15). Reading tools are named for what they do.
+const READ_TOOL = /^(list_|get_|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$)/;
+export function toolsForModel(tools, which) {
+  return which === "build" ? tools : (tools || []).filter((t) => READ_TOOL.test(t.name));
+}
 function modelIdFor(which) {
   return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
 }
@@ -803,9 +809,10 @@ export async function assistantChat({ messages, userId, gridId, context = null, 
   const backendTools = selectToolsForBackend(tools, backend);
 
   if (backend === "local") {
-    const model = modelIdFor(pickModel(lastUserText(messages)));
+    const which = pickModel(lastUserText(messages));
+    const model = modelIdFor(which);
     try {
-      return await localLoop({ messages, tools: backendTools, systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
+      return await localLoop({ messages, tools: toolsForModel(backendTools, which), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
     } catch (e) {
       // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
       // deterministic dispatcher's "No LLM is running" would be wrong.
