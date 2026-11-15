@@ -1,11 +1,49 @@
 [
-  { "id": "cps", "kind": "build",
-    "text": "Add my CPS classes to Tasks › Appointments: every Monday, Tuesday, Wednesday and Thursday in November 2026, at 4:00pm for 4 hours, each called CPS Class.",
-    "check": { "label": "CPS Class", "minRows": 17, "month": "2026-11", "weekdays": [1, 2, 3, 4] } },
-  { "id": "quicklinks", "kind": "build",
+  {
+    "id": "cps",
+    "kind": "build",
+    "text": "Add my CPS classes to Tasks \u203a Appointments: every Monday, Tuesday, Wednesday and Thursday in November 2026, at 4:00pm for 4 hours, each called CPS Class.",
+    "check": {
+      "label": "CPS Class",
+      "minRows": 17,
+      "month": "2026-11",
+      "weekdays": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  },
+  {
+    "id": "quicklinks",
+    "kind": "build",
     "text": "Create a board called Quick Links in the Interfaces folder with all my quick links. Make a select field called Quick Link Type with the options social, media and website, and give every link its type. Social: Gmail https://mail.google.com, Proton Mail https://mail.proton.me, Facebook https://www.facebook.com, Instagram https://www.instagram.com. Media: Jellyfin https://media.viafluere.com, Radarr http://localhost:7878, Sonarr http://localhost:8989, Lidarr http://localhost:8686. Website: GitHub https://github.com, DigitalOcean https://cloud.digitalocean.com, MongoDB https://cloud.mongodb.com, Cloudflare https://dash.cloudflare.com, Dynadot https://www.dynadot.com/account. Then add a filter for Quick Link Type on the board, with nothing selected but with its nav showing.",
-    "check": { "board": "Quick Links", "bookmarks": 13, "field": "Quick Link Type" } },
-  { "id": "q-schedule", "kind": "question", "text": "What's on my schedule today?" },
-  { "id": "q-feeds", "kind": "question", "text": "How do feeds work in Moduli?" },
-  { "id": "q-movies", "kind": "question", "text": "How many movies are on my Movies board?" }
+    "check": {
+      "board": "Quick Links",
+      "bookmarks": 13,
+      "field": "Quick Link Type"
+    }
+  },
+  {
+    "id": "q-schedule",
+    "kind": "question",
+    "text": "What's on my schedule today?"
+  },
+  {
+    "id": "q-feeds",
+    "kind": "question",
+    "text": "How do feeds work in Moduli?"
+  },
+  {
+    "id": "q-movies",
+    "kind": "question",
+    "text": "How many movies are on my Movies board?"
+  },
+  {
+    "id": "glossary",
+    "kind": "build",
+    "text": "Make a doc page called Home in the root folder that is a glossary: links to my Schedule, Day Page, Routines, Tasks and Trackers pages, and quick links to my websites grouped by category \u2014 Mail: Gmail https://mail.google.com, Proton Mail https://mail.proton.me; Social: Facebook https://www.facebook.com, Instagram https://www.instagram.com, FetLife https://fetlife.com; Media: Jellyfin https://media.viafluere.com, Eweka https://www.eweka.nl; Web: GitHub https://github.com, Cloudflare https://dash.cloudflare.com. Put a button above the quick links that opens them all in the browser, and one per category that opens that category's links.",
+    "check": {}
+  }
 ]
