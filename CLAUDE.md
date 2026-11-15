@@ -13,6 +13,32 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (3) — GLOSSARY POLISH (`0502`); a wrapped tile keeps its left add gap
+
+User: buttons *"right next to the header labels"* · links *"going downward in a bulletpoint list"* (pages and folders
+too) · a *"random blank space"* in Media and Web & dev · *"the extra space on hover isnt working"* · link buttons
+*"always show"*, the drag handle only *"if the text of the mini textblock is hovered"* · a tracker's wrapped 4th tile
+had no LEFT add button.
+- **Buttons beside the label:** `OccurrenceFields types={only|except}`; `ModuleContainer` draws a container's BUTTON
+  fields inline after its label (both header layouts), the rest where they were.
+- **The blank space / the hover space were ONE thing:** a doc container's hover line is a STORED empty paragraph after
+  its final block (no editor extension adds one). `0501` built none (nothing to reveal); a click saved a second into Web
+  & dev (the CSS hides only the last); the read-only stand-in drew even one as a blank line. `docs/trailingEmpty`:
+  saving keeps at most one (`Editor.persistContent`), the stand-in draws none (`StaticTextmap`), a built section gets
+  exactly one (`ensureHoverLine`). **A first version trimmed to ZERO on save, which would have removed the hover line
+  from every container** — caught by reading the CSS before deploying.
+- **`0502`** (applied to poms): the 8 link textblocks are bullet lists (bold lead line kept), the 8 sections end in one
+  hover line. `0501` builds both itself now.
+- **Chips:** `.itbi-arrow` always shown (drawn only for links); the handle follows `hoverShowsHandle` (not over a link
+  button) and the padding shift follows `.is-hovered`, not `:hover`.
+- **Tile edge gaps:** in a wrap/row layout each tile draws its own left (index) and right (index+1) `InsertGap` in the
+  gutter (`ModuleInstance edgeGapIndex`, `.insert-gap--edge`); the separate gap element stayed on the line above when the
+  tile wrapped. The wrap tile is `overflow: clip` + `overflow-clip-margin` one gutter wide, or it cut them off.
+  `InsertGap` now splices into the LIVE parent (`getOccMap`) — a gap inside a memoized tile can hold an old copy
+  (A/B'd). Client 7,548 pass. **Not watched in a browser.**
+
+---
+
 ### 2026-11-15 (2) — THE ROOT GLOSSARY PAGE (`0501`); OPEN_URLS; Home + Glossary in every panel header
 
 User: a root doc page of links to the main pages/folders and quick links to the user's sites by category, all
