@@ -41,6 +41,49 @@ export function parseShort(s) {
   return { kind: "item", name: t };
 }
 
+/**
+ * Markdown content → nodes, the form a small model writes best (2026-11-15). `##`/`###` → sections (nested by level;
+ * a `#` title is skipped — the page has its name); `[open links]` ending a heading → that section's open-links button;
+ * list items: `[label](url)` → a link, `[[Name]]` → an in-app link, `Label | url` / plain → as in short form; other
+ * lines → text (blank lines split paragraphs). Pure.
+ */
+export function markdownToNodes(md) {
+  const root = []; const stack = [];
+  let prose = [];
+  const here = () => (stack.length ? stack[stack.length - 1].node.children : root);
+  const flush = () => { if (prose.length) { here().push({ text: prose.join(" ") }); prose = []; } };
+  for (const raw of String(md || "").split(/\r?\n/)) {
+    const line = raw.trim();
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      flush();
+      const level = h[1].length;
+      if (level === 1) continue;
+      let name = h[2].trim();
+      const open = /\s*[[(]open links?[\])]\s*$/i.test(name);
+      name = name.replace(/\s*[[(]open links?[\])]\s*$/i, "").trim();
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      const node = { section: name, children: open ? [{ button: "Open in browser", does: "open links" }] : [] };
+      here().push(node);
+      stack.push({ level, node });
+      continue;
+    }
+    const li = line.match(/^[-*+]\s+(.*)$/);
+    if (li) {
+      flush();
+      const c = li[1].trim();
+      const wiki = c.match(/^\[\[(.+?)\]\]$/);
+      const md = c.match(/^\[(.+?)\]\((\S+?)\)$/);
+      here().push(wiki ? `${wiki[1]} -> ${wiki[1]}` : md ? `${md[1]} | ${md[2]}` : c);
+      continue;
+    }
+    if (!line) { flush(); continue; }
+    prose.push(line);
+  }
+  flush();
+  return root;
+}
+
 const para = (content) => (content && content.length ? { type: "paragraph", content } : { type: "paragraph" });
 
 /**
@@ -246,8 +289,9 @@ export function planBuild({ nodes = [], under = null, ctx }) {
         remember(name, occ, "page", pk);
         out.made.push(`${pk} page ${name}`);
         const me = { occ, module: mod, docLike: pk === "doc" };
-        for (const b of (node.children || []).filter((c) => nodeKind(c).kind === "button")) addButton(me, b);
-        place(me, (node.children || []).filter((c) => nodeKind(c).kind !== "button"));
+        const kids = [...(node.children || []), ...(node.markdown ? markdownToNodes(node.markdown) : [])];
+        for (const b of kids.filter((c) => nodeKind(c).kind === "button")) addButton(me, b);
+        place(me, kids.filter((c) => nodeKind(c).kind !== "button"));
         return;
       }
       case "section": {
@@ -259,13 +303,14 @@ export function planBuild({ nodes = [], under = null, ctx }) {
         remember(name, occ, "container", sk);
         out.made.push(`section ${name}`);
         const me = { occ, module: mod, docLike: sk === "doc", depth: (parent.depth || 0) + 1 };
-        for (const b of (node.children || []).filter((c) => nodeKind(c).kind === "button")) addButton(me, b);
+        const kids = [...(node.children || []), ...(node.markdown ? markdownToNodes(node.markdown) : [])];
+        for (const b of kids.filter((c) => nodeKind(c).kind === "button")) addButton(me, b);
         if (node.filter) {
           const f = findFieldByName(fieldsAll, node.filter);
           if (f.error) out.problems.push(f.error);
           else occ.filters = [{ id: mint(), fieldId: f.field.id, active: true, showNav: true, comparator: "IS", hides: false }];
         }
-        place(me, (node.children || []).filter((c) => nodeKind(c).kind !== "button"));
+        place(me, kids.filter((c) => nodeKind(c).kind !== "button"));
         if (sk === "doc") occ.textmap.content.push({ type: "paragraph" }); // the hover line
         return;
       }

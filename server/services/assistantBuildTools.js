@@ -493,10 +493,9 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "build",
-      description: "Make anything, one tree: {\"page\":\"Name\",\"kind\":\"doc|board\",\"in\":\"Folder\",\"children\":[]} "
-        + "{\"folder\":\"Name\"} {\"section\":\"Name\",\"children\":[]} {\"item\":\"Label\",\"fields\":{\"Field\":\"value\"}} {\"text\":\"...\"} "
-        + "{\"button\":\"Label\",\"does\":\"open links|show page X|add item to X\"}. "
-        + "Links are strings: \"Gmail | https://mail.google.com\", or \"Schedule ->\" for a Moduli page. `under` adds into an existing page.",
+      description: "Make anything in one call. Easiest: {\"nodes\":[{\"page\":\"Name\",\"in\":\"Folder\",\"markdown\":\"## Mail [open links]\\n- [Gmail](https://mail.google.com)\\n- [[Schedule]]\"}]}. "
+        + "## headings are sections, [open links] adds a button opening its links, [[Name]] links a Moduli page. "
+        + "Also: {\"item\":\"Label\",\"fields\":{}}, {\"button\":\"Label\",\"does\":\"show page X|add item to X\"}, kind board|doc; under = an existing page to add into.",
       input_schema: {
         type: "object",
         properties: {

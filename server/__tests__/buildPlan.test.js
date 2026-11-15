@@ -144,3 +144,27 @@ describe("a button that carries its links", () => {
     expect(p.operations.every((o) => o.pipeline.steps.some((s) => s.config.type === "OPEN_URLS"))).toBe(true);
   });
 });
+
+// Markdown is what a small model writes most reliably (2026-11-15: three runs of the tree form put each link in its own
+// button). A page or section may carry its content as markdown; it becomes the same nodes.
+import { markdownToNodes } from "../services/buildPlan.js";
+describe("markdown content", () => {
+  const MD = "Everything in one place.\n\n## Places\n- [[Schedule]]\n- [[Tasks]]\n\n## Quick Links [open links]\n### Mail [open links]\n- [Gmail](https://mail.google.com)\n- Proton Mail | https://mail.proton.me\n";
+  it("headings are sections, [open links] a button, links chips, [[x]] in-app links, prose text", () => {
+    expect(markdownToNodes(MD)).toEqual([
+      { text: "Everything in one place." },
+      { section: "Places", children: ["Schedule -> Schedule", "Tasks -> Tasks"] },
+      { section: "Quick Links", children: [
+        { button: "Open in browser", does: "open links" },
+        { section: "Mail", children: [{ button: "Open in browser", does: "open links" }, "Gmail | https://mail.google.com", "Proton Mail | https://mail.proton.me"] },
+      ] },
+    ]);
+  });
+  it("a page with markdown plans like the tree", () => {
+    const p = planBuild({ nodes: [{ page: "Glossary", markdown: MD }], ctx: ctx() });
+    expect(p.problems).toEqual([]);
+    expect(p.occurrences.filter((o) => o.meta?.link?.kind === "url")).toHaveLength(2);
+    expect(p.occurrences.filter((o) => o.meta?.link?.kind === "occurrence")).toHaveLength(2);
+    expect(p.operations).toHaveLength(1);
+  });
+});
