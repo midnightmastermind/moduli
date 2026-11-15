@@ -35,7 +35,11 @@ had no LEFT add button.
   gutter (`ModuleInstance edgeGapIndex`, `.insert-gap--edge`); the separate gap element stayed on the line above when the
   tile wrapped. The wrap tile is `overflow: clip` + `overflow-clip-margin` one gutter wide, or it cut them off.
   `InsertGap` now splices into the LIVE parent (`getOccMap`) — a gap inside a memoized tile can hold an old copy
-  (A/B'd). Client 7,548 pass. **Not watched in a browser.**
+  (A/B'd). Client 7,549 pass.
+- **Watched on prod (writes blocked, `tools/uisweep/_glossary*.mjs`, `_tilegaps.mjs`):** Home + Glossary in all 4
+  panel headers; Places = 13 bullets, chip arrows shown at rest; all 6 categories live with their button. The button sat
+  at the FAR RIGHT at first — the embedded header's label was `flex: 1`; now `0 1 auto`, re-watched beside the label.
+  Streak (Today's Stats' wrapped 4th tile) owns a 6px left zone that `elementFromPoint` hits.
 
 ---
 
