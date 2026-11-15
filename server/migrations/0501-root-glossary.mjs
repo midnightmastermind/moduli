@@ -13,6 +13,8 @@
 // OPEN_URLS). "Panel: Open Glossary" (UPDATE_VIEW $trigger.panelViewId) is listed in grid.meta.panelButtons.
 import { randomUUID } from "node:crypto";
 import { compressTextmap } from "../utils/textmapCompression.js";
+import { toBulletList } from "./0502-glossary-bullet-lists.mjs";
+import { ensureHoverLine } from "../../client/src/docs/trailingEmpty.js";
 
 export const id = "0501-root-glossary";
 export const describe = "Glossary page in the root folder: page/folder links + quick links by category with Open-in-browser buttons; a Glossary button in every panel header. Deletes nothing.";
@@ -52,7 +54,7 @@ export function planGlossary({ userId, gridId, rootFolderId, targets, cpsLinks =
       textmap: { type: "doc", content: [para([{ type: "text", text: label }])] } });
     return { type: "instanceTextblockInline", attrs: { occurrenceId: oid, instanceId: mid } };
   };
-  // One textblock: an optional bold lead ("Pages: "), then chips separated by " · ".
+  // One textblock: an optional bold lead ("Pages:") line, then the chips as a bullet list.
   const linkBlock = (parentId, items, lead = null) => {
     const mid = mint(), oid = mint();
     const nodes = lead ? [{ type: "text", text: `${lead}: `, marks: [{ type: "bold" }] }] : [];
@@ -65,7 +67,8 @@ export function planGlossary({ userId, gridId, rootFolderId, targets, cpsLinks =
     }
     modules.push({ ...base, id: mid, role: "textblock", kind: "doc", label: "", fieldBindings: [] });
     occurrences.push({ ...base, id: oid, moduleId: mid, parentId, occurrences: listed, fields: {},
-      textmap: { type: "doc", content: [nodes.length ? para(nodes) : { type: "paragraph" }] } });
+      // A bullet list, one chip per item (0502, user 2026-11-15).
+      textmap: toBulletList({ type: "doc", content: [para(nodes)] }) || { type: "doc", content: [{ type: "paragraph" }] } });
     return { occId: oid, node: { type: "instanceTextblock", attrs: { instanceId: mid, occurrenceId: oid } } };
   };
   const section = (parentId, label, { button = false, headingLevel = 2 } = {}) => {
@@ -109,6 +112,8 @@ export function planGlossary({ userId, gridId, rootFolderId, targets, cpsLinks =
     sectionOccIds.push(s.id);
   }
   embed(page, quick.id);
+  // Each section ends in one empty line: its hover line, revealed on hover to type below (docs/trailingEmpty).
+  for (const o of occurrences) if (modules.find((m) => m.id === o.moduleId)?.role === "container") o.textmap = ensureHoverLine(o.textmap);
 
   const act = (config) => ({ id: sid(), type: "action", config });
   const ops = [

@@ -2,6 +2,7 @@
 // standInBlocks decides what it may hold). Top-level paragraphs are the stand-in's line <div>s (the CSS that sizes a
 // line keys on `.textblock-card-placeholder > div`); lists are lists; a doc chip is the doc chip's own component
 // with no editor (as in an idle table cell).
+import { trimTrailingEmptyAfterBlock } from "../docs/trailingEmpty";
 import React from "react";
 import InstanceTextblockInlineNode from "../docs/pills/InstanceTextblockInlineNode.jsx";
 
@@ -45,7 +46,7 @@ function Block({ node }) {
     case "standinSection": return (
       <div className="standin-section">
         {node.label ? <div className="standin-section-label">{node.label}</div> : null}
-        {(node.content || []).map((c, i) => <Block node={c} key={i} />)}
+        {atRest(node.content).map((c, i) => <Block node={c} key={i} />)}
       </div>
     );
     case "standinBox": return <div className="standin-box" style={{ height: node.height || 40 }} />;
@@ -53,6 +54,12 @@ function Block({ node }) {
   }
 }
 
+// A doc's empty line after its final block is its hover line (docs/trailingEmpty): the live editor hides it at rest,
+// so the stand-in, which is what is drawn at rest, does not draw it.
+function atRest(nodes) {
+  return trimTrailingEmptyAfterBlock({ type: "doc", content: nodes || [] }, 0).content;
+}
+
 export default function StaticTextmap({ nodes }) {
-  return <>{(nodes || []).map((n, i) => <Block node={n} key={i} />)}</>;
+  return <>{atRest(nodes).map((n, i) => <Block node={n} key={i} />)}</>;
 }

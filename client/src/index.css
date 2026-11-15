@@ -5581,22 +5581,22 @@ input.artifact-thumb-info-name--editing {
   word-break: break-word;
 }
 .itbi-content:empty::before { content: "…"; color: var(--text-faint); font-style: italic; }
-/* RIGHT — the "enter" arrow (open link / jump). Pointer, not text/grab. Hidden
-   until the chip is hovered (like the handle) — per user, the open button only
-   shows on hover. */
+/* RIGHT — the "enter" arrow (open link / jump) and the open-in-our-browser button. Pointer, not text/grab.
+   ALWAYS shown on a link chip (user, 2026-11-15: "if its a link, we should have those link buttons always show and not
+   just on hover"); the chip draws them only when it is a link. */
 .itbi-arrow {
-  display: none;
+  display: inline;
   cursor: pointer;
   margin-left: 4px;
   opacity: 0.85;
   user-select: none;
   font-size: 0.9em;
 }
-.instance-textblock-inline--zoned:hover .itbi-arrow { display: inline; }
 .itbi-arrow:hover { opacity: 1; }
 /* On hover the drag handle appears at the left — drop the chip's left padding so
    the handle sits near the edge instead of behind a 3px gap. */
-.instance-textblock-inline--zoned:hover { padding-left: 0; }
+/* Follows the handle (is-hovered, set over the text — not over a link button), so the text never shifts for nothing. */
+.instance-textblock-inline--zoned.is-hovered { padding-left: 0; }
 
 /* Grab cursor on EVERY drag handle (radial handle / dnd handles / mini-textblock
    handle / the wrap host's lifted handle). */

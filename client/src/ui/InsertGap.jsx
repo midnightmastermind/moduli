@@ -33,8 +33,13 @@ export default function InsertGap({
   // clicking anywhere in it opens the add menu ANCHORED THERE. Bumping the
   // header's QuickAddMenu instead made the menu pop up way above the click.
   emptyBody = false,
+  // A tile's own left/right gap (ModuleInstance edgeGapIndex): it rides with the tile when a row wraps.
+  edge = null,
 }) {
-  const { dispatch, socket, gridId, userId, state, modulesById } = useGridActions() || {};
+  const { dispatch, socket, gridId, userId, state, modulesById, getOccMap } = useGridActions() || {};
+  // The LIVE parent at click time: a gap drawn inside a memoized row can hold an older copy, and splicing at
+  // `index` into a stale child list would drop rows added since.
+  const liveParent = () => (parentOccurrence?.id && getOccMap?.()?.[parentOccurrence.id]) || parentOccurrence;
   const resolvedGridId = gridId || state?.grid?._id || state?.gridId;
   const resolvedUserId = userId || state?.grid?.userId || state?.userId;
   // While the menu is open, force the gap revealed (it normally only shows on
@@ -68,7 +73,7 @@ export default function InsertGap({
     // and splice at THIS gap's index. Artifact returns a Promise (async upload).
     const res = createChildInContainer({
       dispatch, socket, gridId: resolvedGridId, userId: resolvedUserId,
-      containerOccurrence: parentOccurrence,
+      containerOccurrence: liveParent(),
       containerModule: modulesById?.[parentOccurrence?.moduleId] || null,
       kind: kind || (targetRole === "instance" ? "instance" : targetRole),
       fieldIds: Array.isArray(fieldIds) ? fieldIds : [],
@@ -90,7 +95,7 @@ export default function InsertGap({
     if (!moduleId) return;
     createLeafInstanceAtIndex({
       dispatch, socket, gridId: resolvedGridId, userId: resolvedUserId,
-      parentOccurrence, index,
+      parentOccurrence: liveParent(), index,
       existingModuleId: moduleId,
       panelId, containerLabel,
     });
@@ -99,7 +104,7 @@ export default function InsertGap({
   return (
     <div
       ref={rootRef}
-      className={`insert-gap${hot ? " insert-gap--hot" : ""}${menuOpen ? " insert-gap--open" : ""}${emptyBody ? " insert-gap--empty" : ""}`}
+      className={`insert-gap${hot ? " insert-gap--hot" : ""}${menuOpen ? " insert-gap--open" : ""}${emptyBody ? " insert-gap--empty" : ""}${edge ? ` insert-gap--edge insert-gap--edge-${edge}` : ""}`}
       data-insert-index={index}
       onPointerEnter={() => claimGapHover(rootRef.current, setHot)}
       onPointerLeave={() => releaseGapHover(rootRef.current)}

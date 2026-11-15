@@ -19,6 +19,7 @@ import { useGridActions } from "../../GridActionsContext";
 import { embedRemoval, hostOccurrenceIdOf } from "../../helpers/embedRegistry.js";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { openInAppLink } from "../../helpers/inAppLink";
+import { hoverShowsHandle } from "./chipHover";
 import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { logCaretPointerDown } from "../../helpers/caretDiag";
@@ -315,12 +316,14 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         "instance-textblock-inline instance-textblock-inline--zoned"
         + (hasLink ? (isUrl ? " itbi--url" : " itbi--occ") : "")
         + (storedText ? "" : " is-empty")
+        + (hovered ? " is-hovered" : "")
       }
-      onMouseEnter={() => setHovered(true)}
+      // Hovered = over the text or the handle, NOT over a link button (chipHover, user 2026-11-15).
+      onMouseEnter={(e) => setHovered(hoverShowsHandle(e.target))}
       // …and on any movement over it: a chip can appear UNDER a resting pointer (a table cell swaps its static view
       // for its editor on hover), and then no mouseenter ever comes — its handle showed only after leaving and
       // re-entering from the left (user, 2026-10-30: "it should show up regardless on the hover of the entire thing").
-      onMouseMove={() => { if (!hovered) setHovered(true); }}
+      onMouseMove={(e) => { const want = hoverShowsHandle(e.target); if (want !== hovered) setHovered(want); }}
       onMouseLeave={() => setHovered(false)}
     >
       {/* LEFT — drag handle (hover-revealed RadialMenu). Always in the DOM so

@@ -66,3 +66,43 @@ describe("its operations", () => {
     expect(fx).toEqual([{ _effect: "UPDATE_VIEW", viewId: "view-7", patch: { activeOccurrenceId: plan.pageOccId } }]);
   });
 });
+
+// "make them going downward in a bulletpoint list (inside the textblocks with the minitextblocks)" (2026-11-15).
+import { toBulletList } from "../../../server/migrations/0502-glossary-bullet-lists.mjs";
+
+const chipNode = (id) => ({ type: "instanceTextblockInline", attrs: { occurrenceId: id, instanceId: `m${id}` } });
+describe("bullet lists", () => {
+  it("a line of chips becomes a bullet list, one chip per item", () => {
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [chipNode("a"), { type: "text", text: " · " }, chipNode("b")] }] };
+    expect(toBulletList(doc)).toEqual({ type: "doc", content: [{ type: "bulletList", content: [
+      { type: "listItem", content: [{ type: "paragraph", content: [chipNode("a")] }] },
+      { type: "listItem", content: [{ type: "paragraph", content: [chipNode("b")] }] },
+    ] }] });
+  });
+  it("a bold lead stays a line above the list", () => {
+    const lead = { type: "text", text: "Pages: ", marks: [{ type: "bold" }] };
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [lead, chipNode("a")] }] };
+    const out = toBulletList(doc);
+    expect(out.content[0]).toEqual({ type: "paragraph", content: [{ ...lead, text: "Pages:" }] });
+    expect(out.content[1].type).toBe("bulletList");
+  });
+  it("a doc that is already a list is left alone", () => {
+    const doc = { type: "doc", content: [{ type: "bulletList", content: [] }] };
+    expect(toBulletList(doc)).toBe(null);
+  });
+  it("the planned page draws every group as a bullet list", () => {
+    const tbs = plan.occurrences.filter((o) => mods[o.moduleId].role === "textblock" && mods[o.moduleId].kind === "doc");
+    for (const tb of tbs) expect(tb.textmap.content.some((n) => n.type === "bulletList")).toBe(true);
+  });
+});
+
+describe("hover lines", () => {
+  it("every section ends in exactly one empty line; textblocks and the page do not", () => {
+    for (const o of plan.occurrences) {
+      const role = mods[o.moduleId].role;
+      const c = o.textmap.content;
+      const trailing = c.length - c.findLastIndex((n) => !(n.type === "paragraph" && !n.content?.length)) - 1;
+      expect(trailing).toBe(role === "container" ? 1 : 0);
+    }
+  });
+});

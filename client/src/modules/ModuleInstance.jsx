@@ -3,6 +3,7 @@
 // Also contains the inner Instance row (label, field pills, operation widgets).
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
+import InsertGap from "../ui/InsertGap.jsx";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { jellyfinRadialItems, openJellyfinPlayer, playNextUnwatched } from "../helpers/jellyfinPlay";
 import { buttonItem } from "../ui/buttonItem";
@@ -1469,6 +1470,12 @@ function ModuleInstance({
   embedHideLabel = false,
   renderBody = null,
   floatHandle = false,
+  // In a TILE layout (wrap / row) the add-here gaps are the tile's own left and right edges, so they wrap WITH it
+  // (user, 2026-11-15: a tracker's 4th tile, wrapped to the next line, had no left one). The index this tile sits at,
+  // or null for no edge gaps. Primitive props, so the row memo is unaffected.
+  edgeGapIndex = null,
+  edgeGapPanelId = null,
+  edgeGapLabel = "",
 }) {
   // Instances are the hot path — no reactive drag-state subscription (see
   // ModuleContainer). Drag-type gating rides on the hook's `accepts` list.
@@ -1950,6 +1957,12 @@ function ModuleInstance({
           </SlideDrawer>
         );
       })()}
+      {edgeGapIndex != null && containerOccurrence && (
+        <>
+          <InsertGap parentOccurrence={containerOccurrence} index={edgeGapIndex} hostOccurrence={containerOccurrence} panelId={edgeGapPanelId} containerLabel={edgeGapLabel} edge="left" />
+          <InsertGap parentOccurrence={containerOccurrence} index={edgeGapIndex + 1} hostOccurrence={containerOccurrence} panelId={edgeGapPanelId} containerLabel={edgeGapLabel} edge="right" />
+        </>
+      )}
     </div>
   );
 }

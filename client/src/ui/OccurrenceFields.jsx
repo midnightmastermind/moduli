@@ -44,10 +44,19 @@ import {
  *
  * @param position "under" (has a label to sit beneath) | "corner" (has none) | "inline" (in a header's button row)
  */
+/** `items` kept by field type: `{ only: [...] }` or `{ except: [...] }`; no filter → `items` itself. Pure. */
+export function fieldsOfTypes(items, types) {
+  if (!types) return items;
+  if (types.only) return items.filter((i) => types.only.includes(i.field?.type));
+  if (types.except) return items.filter((i) => !types.except.includes(i.field?.type));
+  return items;
+}
+
 export default function OccurrenceFields({
   occurrence, module, grid, fieldsById, occurrencesById,
   fieldVisibility = undefined,
   position = "under",
+  types = null,
   state, dispatch, socket, className = "",
 }) {
   const visibility = useMemo(
@@ -68,11 +77,11 @@ export default function OccurrenceFields({
     [occurrence, occurrencesById, grid],
   );
   const items = useMemo(
-    () => resolveOccurrenceFields({
+    () => fieldsOfTypes(resolveOccurrenceFields({
       module, fieldsById, fieldVisibility: visibility, autoAppliedFieldIds: applied,
       autoAppliedRoles: getAutoAppliedRoles(grid),
-    }),
-    [module, fieldsById, visibility, applied, grid],
+    }), types),
+    [module, fieldsById, visibility, applied, grid, types],
   );
 
   // Render NOTHING when there is nothing to show — an empty strip in the corner

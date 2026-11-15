@@ -17,6 +17,7 @@
 //   onConvertListToInstances – (texts: string[]) => void (context-menu "convert list")
 // ============================================================
 
+import { trimTrailingEmptyAfterBlock } from "../docs/trailingEmpty";
 import { dragModeOfData } from "../helpers/dragModes";
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -794,8 +795,10 @@ const Editor = forwardRef(function Editor({
   socketRef.current = socket;
 
   // ── debounced save ────────────────────────────────────────────
-  const persistContent = useCallback((json, immediate = false) => {
+  const persistContent = useCallback((rawJson, immediate = false) => {
     if (!occurrence?.id || !dispatch || !socket) return;
+    // At most ONE empty line after a final block: the hover line (docs/trailingEmpty).
+    const json = trimTrailingEmptyAfterBlock(rawJson, 1);
     // ── provisional textblocks ────────────────────────────────────────────
     // THIS editor is a click-minted textblock that has no server row yet.
     // Empty → there is nothing worth a row, and an update_occurrence for an id

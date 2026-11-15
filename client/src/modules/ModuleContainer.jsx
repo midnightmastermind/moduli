@@ -144,6 +144,10 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
   (k) => k !== "artifact" && k !== "image",
 );
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
+
+// A container header draws its button fields beside the label and its other fields under it.
+const BUTTONS_ONLY = { only: ["button"] };
+const NOT_BUTTONS = { except: ["button"] };
 import { resolveEditorBinding } from "../state/editorBindings.js";
 import { useRenderWindow, WINDOW_MIN, WINDOW_INITIAL } from "../helpers/renderWindow";
 import { useVirtualRows } from "../helpers/virtualRows";
@@ -1565,6 +1569,8 @@ function Container({
                   </span>
                 </LabelShell>
               )}
+              {/* Button fields sit right beside the label (user, 2026-11-15); the rest stay under it (row 3). */}
+              {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} position="inline" types={BUTTONS_ONLY} />}
               {/* The feed icon describes the container, so it sits with its name, not among the buttons. */}
               {containerOccurrence?.feed?.enabled && (
                 <Rss size={12} className="header-feed-icon" style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
@@ -1589,8 +1595,8 @@ function Container({
               </div>
             </div>
             {/* Row 3: the container's OWN fields, below the label (prevents the
-                mobile crush that putting them beside it caused). */}
-            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
+                mobile crush that putting them beside it caused). Buttons are drawn beside the label above. */}
+            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} types={NOT_BUTTONS} />}
           </>
         ) : (
           /* Standard single-row layout */
@@ -1711,6 +1717,8 @@ function Container({
                 </span>
               )
             )}
+            {/* Button fields sit right beside the label (user, 2026-11-15); the rest stay in the right cluster. */}
+            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} position="inline" types={BUTTONS_ONLY} />}
             {containerOccurrence?.feed?.enabled && (
                 <Rss size={12} className="header-feed-icon" style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
@@ -1720,8 +1728,8 @@ function Container({
               {/* FIELDS SIT LEFT OF THE FILTER (user 2026-08-11: "fields should
                   go to the left of filters anyway"). Inside the right-aligned
                   cluster rather than after it, so the whole group stays
-                  right-aligned and the order reads fields → filter → add. */}
-              {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
+                  right-aligned and the order reads fields → filter → add. Buttons are beside the label instead. */}
+              {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} types={NOT_BUTTONS} />}
               <HeaderChevron
                 onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence}
                 // `hideFilterPill` is a VIEW key, so it cascades: set once on a
