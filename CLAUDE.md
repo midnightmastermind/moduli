@@ -13,6 +13,28 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (2) — THE ROOT GLOSSARY PAGE (`0501`); OPEN_URLS; Home + Glossary in every panel header
+
+User: a root doc page of links to the main pages/folders and quick links to the user's sites by category, all
+mini-textblocks, an "open all in browser" button and one per category; a Home button and a Glossary button in each
+panel header (no Command Center option); CPS = the Zoom links, Eweka in Media, FetLife in Social.
+- **`OPEN_URLS`** (new step, `helpers/openUrls`): takes link chips / records with a url / addresses, emits one effect;
+  the effect opens a tab each inside the click and toasts when the browser blocked some (allow pop-ups once).
+- **`ui/PanelHeaderButtons`** in `ModulePanel`'s header beside Files: Home (`openPanelOnRootFolderPage` in that panel)
+  + one button per `grid.meta.panelButtons` entry `{id,label,icon,operationId}`, run through `runButtonOperation` with
+  the panel, so the op can `UPDATE_VIEW $trigger.panelViewId`.
+- **An in-app link chip opens its page in its own panel** (`helpers/inAppLink`; it called `jumpToOccurrence` alone,
+  which does nothing for a page that is not on screen).
+- **`0501`** (applied to poms, pm2 restarted): page "Glossary" (doc) in the root folder → Places (5 pages, 8 folder
+  pages) + Quick Links → Mail · Google · Social · CPS (3 Zoom links read off the CPS Class notes) · Media · Web & dev;
+  button field "Open in Browser" on Quick Links + each category; ops "Glossary: Open Links" (FIND url chips under the
+  pressed container → OPEN_URLS) and "Panel: Open Glossary" (in `grid.meta.panelButtons`). Test `rootGlossary.test.js`
+  drives the real executor (A/B: without the ancestor rule a category opens every link). Client 7,518 pass.
+- **Jonah could not build it** (test grid 2): a board with made-up URLs, no buttons — no tool for doc pages/chips.
+  **Not watched in a browser:** the page, the buttons, the pop-up prompt.
+
+---
+
 ### 2026-11-15 — JONAH RUNS ON LLAMA.CPP ON THE PC (llama-swap); Ollama is out of the code path
 
 User: *"replacing ollama … llama-swap with litellm or llama.cpp"* · *"no paid model"* · *"as quick as possible"* · only the
