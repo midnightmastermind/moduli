@@ -199,6 +199,32 @@ export function asList(v) {
   return [];
 }
 
+/**
+ * One board row written as a short line, because writing is the slow part for the local model (~7.5 tok/s for a 7B on
+ * the user's PC, 2026-11-14): "Label | https://url | value". Split at the LAST part that is a url, so a label holding
+ * " | " stays whole; a part after the url is the value of `valueField`. No url → the whole line is a plain item's label.
+ * An object row passes through. Pure.
+ */
+export function parseRow(row, { valueField = null } = {}) {
+  if (typeof row !== "string") return row;
+  const parts = row.split(" | ").map((x) => x.trim());
+  let k = -1;
+  for (let i = parts.length - 1; i > 0; i--) if (/^https?:\/\//i.test(parts[i])) { k = i; break; }
+  if (k < 0) return { label: row.trim() };
+  const out = { label: parts.slice(0, k).join(" | "), url: parts[k] };
+  const value = parts.slice(k + 1).join(" | ").trim();
+  if (value && valueField) out.fields = { [valueField]: value };
+  return out;
+}
+
+/** "Name: a, b, c" → { name, options }. An object passes through. Pure. */
+export function parseSelectField(sf) {
+  if (typeof sf !== "string") return sf;
+  const i = sf.indexOf(":");
+  if (i < 0) return { name: sf.trim(), options: [] };
+  return { name: sf.slice(0, i).trim(), options: sf.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) };
+}
+
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const MAX_REPEAT = 366;
 
@@ -379,23 +405,25 @@ export function buildToolPack({ call, gridId }) {
   return [
     {
       name: "create_board",
-      description: "Make a whole BOARD in one step: a board page in a folder, its container, and its rows. Rows are bookmark cards (give `url`) or plain items (give only `label`). `fields` on a row sets field values BY NAME, e.g. {\"Quick Link Type\": \"social\"}. `selectFields` creates select fields first (with their options). `filterField` adds a filter for that field on the page, nothing set, nav showing. Put EVERY link/item the user listed in `rows`, each with its name as `label` — do not shorten the list. Use for 'make a board of …'.",
+      description: "Make a whole BOARD in one step: a board page in a folder, its container, and its rows. Write each row as ONE line: \"Label | https://url | value\" (a bookmark card; `value` is that row's value for `field`) or just \"Label\" (a plain item). `selectFields` creates select fields first, each as \"Name: option1, option2\". `field` names the select field the third part of a row sets. `filterField` adds a filter for that field on the page, nothing set, nav showing. Put EVERY link/item the user listed in `rows`. Example: {\"name\":\"Quick Links\",\"folder\":\"Interfaces\",\"selectFields\":[\"Quick Link Type: social, news\"],\"field\":\"Quick Link Type\",\"rows\":[\"Reddit | https://reddit.com | social\"],\"filterField\":\"Quick Link Type\"}",
       input_schema: {
         type: "object",
         properties: {
           name: { type: "string", description: "Board name" },
           folder: { type: "string", description: "Folder name or path, e.g. Interfaces" },
-          selectFields: { type: "array", items: { type: "object", properties: { name: { type: "string" }, options: { type: "array", items: { type: "string" } }, multiSelect: { type: "boolean" } }, required: ["name", "options"] } },
-          rows: { type: "array", items: { type: "object", properties: { label: { type: "string" }, url: { type: "string" }, fields: { type: "object", additionalProperties: true } }, required: ["label"] } },
+          selectFields: { type: "array", items: { anyOf: [{ type: "string" }, { type: "object", properties: { name: { type: "string" }, options: { type: "array", items: { type: "string" } }, multiSelect: { type: "boolean" } }, required: ["name", "options"] }] } },
+          field: { type: "string", description: "The select field a row's third part sets" },
+          rows: { type: "array", items: { anyOf: [{ type: "string" }, { type: "object", properties: { label: { type: "string" }, url: { type: "string" }, fields: { type: "object", additionalProperties: true } }, required: ["label"] }] } },
           filterField: { type: "string", description: "Field name to add a filter for (nav showing)" },
         },
         required: ["name", "folder"],
       },
       destructive: false,
       requires_confirm: true,
-      run: async ({ name, folder, selectFields: sfIn, rows: rowsIn, filterField }) => {
+      run: async ({ name, folder, selectFields: sfIn, rows: rowsIn, field: valueField, filterField }) => {
         const created = [];
-        const selectFields = asList(sfIn); const rows = asList(rowsIn);
+        const selectFields = asList(sfIn).map(parseSelectField);
+        const rows = asList(rowsIn).map((r) => parseRow(r, { valueField: valueField || filterField || null }));
         const fr = await call("GET", `/folders?gridId=${encodeURIComponent(gridId)}`);
         const fo = findFolder(fr.body?.folders || [], folder);
         if (fo.error) return fo;

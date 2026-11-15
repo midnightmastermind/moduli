@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   findFolder, pickDestination, findFieldByName, coerceValue, parseDuration, parseDay,
   predicateTags, filterEntryFor, bindingsFor, selectMetaFor, buildToolPack, asList, expandRepeats,
+  parseRow, parseSelectField,
 } from "../services/assistantBuildTools.js";
 
 describe("name resolution", () => {
@@ -220,5 +221,82 @@ describe("repeating items (the model does not list dates itself)", () => {
     expect(r).toMatchObject({ ok: true, created: 17 });
     expect(r.dates).toHaveLength(17);
     expect(api.occs.filter((o) => o.parentId === "appts" && o.id !== "row1").map((o) => o.fields.D.value)).toContain("2026-11-24");
+  });
+});
+
+// Writing is the slow part on the user's PC (~7.5 tok/s for a 7B), so a board's rows are one short line each
+// (local LLM plan, Task 5).
+describe("short row strings", () => {
+  it("parseRow splits label and url", () => {
+    expect(parseRow("Reddit | https://reddit.com")).toEqual({ label: "Reddit", url: "https://reddit.com" });
+  });
+  it("parseRow keeps a plain item", () => {
+    expect(parseRow("Buy milk")).toEqual({ label: "Buy milk" });
+  });
+  it("parseRow splits on the last bar before the url", () => {
+    expect(parseRow("A | B | https://x.io")).toEqual({ label: "A | B", url: "https://x.io" });
+  });
+  it("parseRow reads a part after the url as the field value", () => {
+    expect(parseRow("Reddit | https://reddit.com | social", { valueField: "Quick Link Type" }))
+      .toEqual({ label: "Reddit", url: "https://reddit.com", fields: { "Quick Link Type": "social" } });
+  });
+  it("parseRow passes an object row through", () => {
+    const row = { label: "X", url: "https://x.io" };
+    expect(parseRow(row)).toBe(row);
+  });
+  it("parseSelectField reads name and options", () => {
+    expect(parseSelectField("Quick Link Type: social, news, tools")).toEqual({ name: "Quick Link Type", options: ["social", "news", "tools"] });
+  });
+});
+
+function boardApi() {
+  const fields = [];
+  const posts = [];
+  let n = 0;
+  const occs = new Map();
+  const call = async (method, path, body) => {
+    const url = new URL(`http://x${path}`);
+    const p = url.pathname;
+    if (method === "GET" && p === "/folders") return { status: 200, body: { folders: [{ id: "intf", name: "Interfaces", parentId: null }] } };
+    if (method === "GET" && p === "/fields") return { status: 200, body: { fields: [...fields] } };
+    if (method === "POST" && p === "/fields") { const f = { ...body, id: `f${++n}` }; fields.push(f); posts.push(["field", f]); return { status: 201, body: { field: f } }; }
+    if (method === "POST" && p === "/modules") { const m = { ...body, id: `m${++n}` }; posts.push(["module", m]); return { status: 201, body: { module: m } }; }
+    if (method === "POST" && p === "/occurrences") { const o = { ...body, id: `o${++n}` }; occs.set(o.id, o); posts.push(["occ", o]); return { status: 201, body: { occurrence: o } }; }
+    if (method === "POST" && p === "/bookmarks") { const o = { id: `b${++n}`, moduleId: `bm${n}`, label: body.label, url: body.url }; occs.set(o.id, o); posts.push(["bookmark", o]); return { status: 201, body: { occurrence: o } }; }
+    if (method === "GET" && p.startsWith("/modules/")) return { status: 200, body: { module: { id: p.split("/")[2], fieldBindings: [] } } };
+    if (method === "PATCH" && p.startsWith("/modules/")) { posts.push(["patchModule", body]); return { status: 200, body: {} }; }
+    if (method === "PATCH" && p.endsWith("/fields")) { posts.push(["fields", p.split("/")[2], body.fields]); return { status: 200, body: {} }; }
+    if (method === "GET" && p.startsWith("/occurrences/")) { const o = occs.get(p.split("/")[2]); return o ? { status: 200, body: { occurrence: o } } : { status: 404, body: {} }; }
+    if (method === "PATCH" && p.startsWith("/occurrences/")) { posts.push(["patchOcc", p.split("/")[2], body]); return { status: 200, body: {} }; }
+    return { status: 404, body: { message: `${method} ${path}` } };
+  };
+  return { call, posts, fields };
+}
+
+describe("create_board with short rows", () => {
+  it("accepts string rows and a string select field", async () => {
+    const api = boardApi();
+    const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_board");
+    const r = await tool.run({
+      name: "Quick Links", folder: "Interfaces",
+      selectFields: ["Quick Link Type: social, news"],
+      field: "Quick Link Type",
+      rows: ["Reddit | https://reddit.com | social", "Notes"],
+      filterField: "Quick Link Type",
+    });
+    expect(r.ok).toBe(true);
+    expect(r.rows).toBe(2);
+    const bm = api.posts.filter(([k]) => k === "bookmark");
+    expect(bm).toHaveLength(1);
+    expect(bm[0][1]).toMatchObject({ label: "Reddit", url: "https://reddit.com" });
+    const fieldWrite = api.posts.find(([k, id]) => k === "fields" && id === bm[0][1].id);
+    expect(Object.values(fieldWrite[2])[0].value).toBe("social");
+    expect(api.posts.some(([k, m]) => k === "module" && m.role === "instance" && m.label === "Notes")).toBe(true);
+    expect(api.fields[0]).toMatchObject({ name: "Quick Link Type", type: "select" });
+  });
+  it("the schema offers the short forms", () => {
+    const tool = buildToolPack({ call: async () => ({}), gridId: "g" }).find((t) => t.name === "create_board");
+    expect(tool.input_schema.properties.rows.items.anyOf[0]).toEqual({ type: "string" });
+    expect(tool.input_schema.properties.field.type).toBe("string");
   });
 });
