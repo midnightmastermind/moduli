@@ -6430,7 +6430,10 @@ input.artifact-thumb-info-name--editing {
      cascade key the Layout menu already edits) rather than derived from the
      width — so it is configurable, not hardcoded. */
   max-height: var(--child-h, 200px);
-  overflow: hidden;              /* the scroll lives on the field block below */
+  /* the scroll lives on the field block below. CLIP, not hidden, with a margin one gutter wide: the tile's own
+     add-here gaps sit in the gutter just outside its edges (.insert-gap--edge) and hidden cut them off. */
+  overflow: clip;
+  overflow-clip-margin: var(--child-gap, 8px);
   margin: 0;
 }
 .container-items--wrap > .instance-wrap > .instance-row {
@@ -6757,6 +6760,28 @@ input.artifact-thumb-info-name--editing {
 .container-items--row > .insert-gap .insert-gap-btn { width: 100% !important; height: 50%; }
 .container-items--wrap > .insert-gap .quick-add-btn,
 .container-items--row > .insert-gap .quick-add-btn { height: 100% !important; }
+/* A tile's OWN edge gaps (ModuleInstance edgeGapIndex): absolutely in the gutter on each side, so a tile that wraps to
+   a new line keeps its left one (user 2026-11-15). Each covers its half of the gutter — the gap between two tiles is
+   both halves of the same insert spot. Same upright bar as the gap elements above. */
+.instance-wrap > .insert-gap--edge {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: calc(var(--child-gap, 8px) / 2);
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  display: flex;
+  z-index: 4;
+}
+.instance-wrap > .insert-gap--edge-left { left: calc(-1 * var(--child-gap, 8px) / 2); }
+.instance-wrap > .insert-gap--edge-right { right: calc(-1 * var(--child-gap, 8px) / 2); }
+.instance-wrap > .insert-gap--edge .insert-gap-line {
+  left: 50%; right: auto; width: 3px; height: auto; top: 25%; bottom: 25%;
+  transform: translateX(-50%);
+}
+.instance-wrap > .insert-gap--edge .insert-gap-btn { width: 100% !important; height: 50%; }
+.instance-wrap > .insert-gap--edge .quick-add-btn { height: 100% !important; }
+.artifact-spread-body .instance-wrap > .insert-gap--edge { display: none; }
 /* The viewer's tile grid stays a viewer. */
 .artifact-spread-body .container-items--wrap > .insert-gap { display: none; }
 /* A long board is virtualized: a bar right after the spacer would sit on the spacer's line and

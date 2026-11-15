@@ -112,6 +112,6 @@ describe("a chip in a table cell (user's video, 2026-10-30)", () => {
   it("a hovered cell lets go when the pointer is anywhere outside it; a chip counts as hovered on any movement", () => {
     const t = readFileSync(new URL("../modules/containers/ContainerTable.jsx", import.meta.url), "utf8");
     expect(t).toMatch(/if \(el && e\.target instanceof Node && !el\.contains\(e\.target\)\) setHovered\(false\);/);
-    expect(readFileSync(new URL("../docs/pills/InstanceTextblockInlineNode.jsx", import.meta.url), "utf8")).toMatch(/onMouseMove=\{\(\) => \{ if \(!hovered\) setHovered\(true\); \}\}/);
+    expect(readFileSync(new URL("../docs/pills/InstanceTextblockInlineNode.jsx", import.meta.url), "utf8")).toMatch(/onMouseMove=\{\(e\) => \{ const want = hoverShowsHandle\(e\.target\); if \(want !== hovered\) setHovered\(want\); \}\}/); // any movement re-checks; a link button is not "hovered" (2026-11-15)
   });
 });

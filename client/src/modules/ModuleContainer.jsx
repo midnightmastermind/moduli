@@ -967,6 +967,9 @@ function Container({
   // when every child is a leaf: a nested container takes a whole line of its
   // own, which breaks "n tiles per line".
   const isWrapGrid = childLayout.mode === "wrap" && childContentDir !== "row";
+  // In a TILE layout each tile draws its own left/right add gap (ModuleInstance edgeGapIndex), so a tile that wraps to
+  // the next line keeps its left one — a gap ELEMENT stayed at the end of the line above (user, 2026-11-15).
+  const tileEdgeGaps = /container-items--(wrap|row)/.test(childLayout.className || "");
   const virtualEligible = itemsWithOccurrences.length > WINDOW_MIN
     && ((!childLayout.className && childContentDir !== "column")
       || (isWrapGrid && !itemsWithOccurrences.some((it) => it.instance?.role === "container")));
@@ -2155,6 +2158,9 @@ function Container({
                     allowedEdges={containerAllowedEdges}
                     onInstanceFocus={null}
                     renderBody={renderBody}
+                    edgeGapIndex={tileEdgeGaps && containerOccurrence ? idx : null}
+                    edgeGapPanelId={panelId}
+                    edgeGapLabel={module?.label || ""}
                   />
                 );
               }
@@ -2168,9 +2174,11 @@ function Container({
                   </DeferredTile>
                 );
               }
+              // A tile that draws its own edge gaps needs no gap element before it (tileEdgeGaps).
+              const ownsEdges = tileEdgeGaps && role !== "container" && role !== "textblock";
               return (
                 <React.Fragment key={occurrence.id}>
-                  {containerOccurrence && (
+                  {containerOccurrence && !ownsEdges && (
                     <InsertGap parentOccurrence={containerOccurrence} index={idx} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
                   )}
                   {node}
@@ -2214,7 +2222,8 @@ function Container({
               </div>
             )}
             {/* Trailing gap — append-at-end insert point. */}
-            {containerOccurrence && items.length > 0 && renderWindow.hidden === 0 && (
+            {containerOccurrence && items.length > 0 && renderWindow.hidden === 0
+              && !(tileEdgeGaps && !["container", "textblock"].includes(itemsWithOccurrences[itemsWithOccurrences.length - 1]?.instance?.role)) && (
               <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
             )}
             {/* Empty container still gets the insert-here / quick-add bar so you
