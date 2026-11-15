@@ -13,6 +13,30 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 — JONAH RUNS ON LLAMA.CPP ON THE PC (llama-swap); Ollama is out of the code path
+
+User: *"replacing ollama … llama-swap with litellm or llama.cpp"* · *"no paid model"* · *"as quick as possible"* · only the
+Radeon iGPU. Spec `docs/superpowers/specs/2026-11-15-local-llm-runner-design.md`, plan `…/plans/2026-11-15-local-llm-runner.md`.
+- **PC (`C:\moduli-llm`, `infra/llm/`):** llama-swap v273 + llama.cpp b12387 Vulkan, task "Moduli LLM" at logon. `build` =
+  Qwen2.5 7B Instruct on the Radeon (~51 read / 7 write tok/s); `fast` = llama3.2 3B on the CPU (~91 / 15) — with the 7B on
+  the Radeon there is no device memory for a second model. Both stay loaded. The tunnel sends `^/v1/` on
+  `ollama.viafluere.com` to llama-swap (`localhost:8080`, WSL mirrored networking), the rest to Ollama (still installed).
+  Model files must sit on a Windows disk: loading from `\\wsl.localhost` crashed WSL twice.
+- **Server:** `services/llmClient.js` (OpenAI `/v1/chat/completions`, SSE, tool-call fragments joined by index) for Jonah
+  and `importEnrich` (still off); env `LLM_URL` / `LLM_BUILD_MODEL` / `LLM_FAST_MODEL`, `ASSISTANT_BACKEND=local` (it
+  still probes `/v1/models` and falls to the dispatcher in ~1s). `pickModel`: build verbs → `build`, else `fast` with READ
+  tools only. The fixed prompt + tools are byte-identical between requests and the per-request note (places, date,
+  location) sits before the newest user message, so llama-server reuses the prefix: second request 4,325 of 4,516 tokens
+  cached, first token 6s instead of ~100s. Build tools take one-line rows (`"Label | url | value"`, bare domains ok); a
+  field the grid lacks or a wrong-kind value is left out (reported), not a failed row; a named month is the whole month.
+- **Eval (`server/eval/assistant/`, test grid 2 via prod REST, scratch token, cleans up):** Ollama 3B today: CPS fail,
+  Quick Links fail. Now: **CPS 4/4 (24-28s), Quick Links 3/3 (~100s)**; questions 6-38s but their answers are weak (the
+  same 3B). qwen2.5-coder 7B wrote its calls as text and failed CPS 4/4 — the Instruct model fixed that.
+- Deployed `5e62f5c9`; prod `.env` backed up as `.env.bak-2026-11-15-llm`. Watched: prod's `/assistant/chat` → mode
+  `local`, model `fast`, 12s. **Not watched:** a build from the drawer on poms. **Ollama not removed** (user's call).
+
+---
+
 ### 2026-11-14 — THE IMPROVEMENT LIST: a snapshot that stopped every grid after a bad key, readable failures, a scroll setting
 
 User: *"lets do those things you just put"* (a 10-item list). Done, each tested:
