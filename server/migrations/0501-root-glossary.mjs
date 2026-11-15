@@ -16,7 +16,7 @@ import { compressTextmap } from "../utils/textmapCompression.js";
 
 export const id = "0501-root-glossary";
 export const describe = "Glossary page in the root folder: page/folder links + quick links by category with Open-in-browser buttons; a Glossary button in every panel header. Deletes nothing.";
-export const touches = ["modules", "occurrences", "fields", "operations", "folders", "grids"];
+export const touches = ["modules", "occurrences", "fields", "operations", "folders"];
 
 export const PAGE_LINKS = ["Schedule", "Day Page", "Routines", "Tasks", "Trackers"];
 export const FOLDER_LINKS = ["Interfaces", "Boards", "Projects", "Documents", "Files", "Imports", "Templates", "Jonah"];
