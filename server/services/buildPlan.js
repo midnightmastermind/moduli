@@ -65,14 +65,23 @@ function linkItem(c) {
  */
 export function markdownToNodes(md) {
   const root = []; const stack = [];
-  let prose = [];
+  let prose = []; let boldSec = null;                 // `- **Mail**` with indented items under it
   const here = () => (stack.length ? stack[stack.length - 1].node.children : root);
   const flush = () => { if (prose.length) { here().push({ text: prose.join(" ") }); prose = []; } };
+  const addOpen = (kids) => { if (!kids.some((k) => k?.button && /open links/i.test(k.does || ""))) kids.push({ button: "Open in browser", does: "open links" }); };
+  const addItems = (kids, c) => {
+    const links = c.match(/\[[^\]]+\]\([^)]+\)/g);
+    for (const part of links && links.length > 1 ? links : [c]) {
+      const item = linkItem(part.trim());
+      if (item === OPEN_BUTTON) addOpen(kids); else if (item) kids.push(item);
+    }
+  };
   for (const raw of String(md || "").split(/\r?\n/)) {
     const line = raw.trim();
+    const indent = raw.length - raw.trimStart().length;
     const h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
-      flush();
+      flush(); boldSec = null;
       const level = h[1].length;
       if (level === 1) continue;
       let name = h[2].trim();
@@ -84,15 +93,16 @@ export function markdownToNodes(md) {
       stack.push({ level, node });
       continue;
     }
+    if (/^\[open[^\]]*\]$/i.test(line)) { flush(); addOpen(boldSec ? boldSec.node.children : here()); continue; }
     const li = line.match(/^[-*+]\s+(.*)$/);
-    const bareLink = !li && /^\[[^\]]+\]\(.+\)$/.test(line);
+    const bareLink = !li && /^\[[^\]]+\]\(.+\)/.test(line);
     if (li || bareLink) {
       flush();
-      const item = linkItem(li ? li[1].trim() : line);
-      if (item === OPEN_BUTTON) {
-        const kids = here();
-        if (!kids.some((k) => k?.button && /open links/i.test(k.does || ""))) kids.push({ button: "Open in browser", does: "open links" });
-      } else if (item) here().push(item);
+      const c = li ? li[1].trim() : line;
+      const bold = li && c.match(/^\*\*(.+?)\*\*:?$/);
+      if (bold) { const node = { section: bold[1].trim(), children: [] }; here().push(node); boldSec = { indent, node }; continue; }
+      if (boldSec && !(li && indent > boldSec.indent)) boldSec = null;
+      addItems(boldSec ? boldSec.node.children : here(), c);
       continue;
     }
     if (!line) { flush(); continue; }
@@ -122,6 +132,7 @@ export function planBuild({ nodes = [], under = null, ctx }) {
   const pendingLinks = [];              // in-app links resolved after the whole tree is planned
   const pendingShows = [];              // "show page X" buttons, same
   const madeButtons = new Map();        // label → { fieldId, listening: Set<action> }
+  let lastPage = null;                  // the page this build made last (a stray top-level button goes on it)
 
   // ── records ──────────────────────────────────────────────────────────
   const mkModule = (m) => { const mod = { ...base, id: mint(), fieldBindings: [], ...m }; out.modules.push(mod); return mod; };
@@ -307,6 +318,7 @@ export function planBuild({ nodes = [], under = null, ctx }) {
         remember(name, occ, "page", pk);
         out.made.push(`${pk} page ${name}`);
         const me = { occ, module: mod, docLike: pk === "doc" };
+        lastPage = me;
         const kids = [...(node.children || []), ...(node.markdown ? markdownToNodes(node.markdown) : [])];
         for (const b of kids.filter((c) => nodeKind(c).kind === "button")) addButton(me, b);
         place(me, kids.filter((c) => nodeKind(c).kind !== "button"));
@@ -363,6 +375,8 @@ export function planBuild({ nodes = [], under = null, ctx }) {
         return;
       }
       case "button": {
+        // Sent beside its page rather than inside it (Jonah, 2026-11-15): it goes on the page this build made.
+        if (!parent?.occ && lastPage) return addButton(lastPage, node);
         if (!parent?.occ) { out.problems.push("a button goes on a page, section or item"); return; }
         return addButton(parent, node);
       }

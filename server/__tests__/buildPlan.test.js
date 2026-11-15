@@ -189,3 +189,31 @@ describe("markdown as Jonah writes it", () => {
     expect(markdownToNodes("## Mail [open links]\n[Open all in browser](javascript:x)")[0].children).toHaveLength(1);
   });
 });
+
+describe("more markdown habits (Jonah, 2026-11-15)", () => {
+  it("several links on one line are several links", () => {
+    expect(markdownToNodes("## Q\n- [Gmail](https://mail.google.com) | [Proton](https://mail.proton.me)")).toEqual([
+      { section: "Q", children: ["Gmail | https://mail.google.com", "Proton | https://mail.proton.me"] },
+    ]);
+  });
+  it("a bold-only list item with indented items under it is a sub-section", () => {
+    expect(markdownToNodes("## Quick Links\n- **Mail**\n  - [Gmail](https://mail.google.com)\n- **Social**\n  - [Facebook](https://www.facebook.com)")).toEqual([
+      { section: "Quick Links", children: [
+        { section: "Mail", children: ["Gmail | https://mail.google.com"] },
+        { section: "Social", children: ["Facebook | https://www.facebook.com"] },
+      ] },
+    ]);
+  });
+  it("[Open All In Browser] alone is the button", () => {
+    expect(markdownToNodes("## Quick Links\n[Open All In Browser]")[0].children).toEqual([{ button: "Open in browser", does: "open links" }]);
+  });
+});
+
+describe("a button sent beside its page", () => {
+  it("goes on the page this build made", () => {
+    const p = planBuild({ nodes: [{ page: "Home", markdown: "## Mail\n- [Gmail](https://mail.google.com)" }, { button: "Open in browser", does: "open links" }], ctx: ctx() });
+    expect(p.problems).toEqual([]);
+    const page = p.modules.find((m) => m.role === "page");
+    expect(page.fieldBindings).toHaveLength(1);
+  });
+});
