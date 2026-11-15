@@ -4162,3 +4162,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 **2026-11-06 12:41** — "i noticed daypage and schedule fail to build on future days" (account2 began; finished by account3: a drop that throws left the tab's op fires parked forever — fixed; Nov 7 was never built, a reload builds it)
 
 **2026-11-06 12:41** — "i noticed daypage and schedule fail to build on future days" · (asked) one shared date across windows · "i think it came from my reload" · "try nov 8th"
+
+### 2026-11-15 09:16 CST (account3)
+- Local LLM branch: *"1"* (merge to master).
+- Next, after the LLM switch: *"make a root doc page, thats gonna be a glossary of links to the different folders and important pages (like schedule, daypage, routines, tasks, trackers) and quick links to my websites, like gmail, proton mail, gdrive, facebook, instagram, youtube, all my jellyfish type sites, github, etc.), and i need a button above those quick links to open all in browser (custom button operation). those links should be organized by category and a seperate button on the top for just opening that groups links in browser). the links should be all minitextblocks. ... have a button for home (root) and a custom button for opening that page in the panels header (thats operation opens the root glossary. no custizable option needed in cc."*
