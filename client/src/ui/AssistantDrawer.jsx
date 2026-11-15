@@ -51,7 +51,7 @@ function typicalDuration() {
   return s[Math.floor(s.length / 2)];
 }
 // Hard ceiling on a single chat round-trip. Kept just above the server's total
-// generation budget (OLLAMA_TOTAL_BUDGET_MS, 300s) plus slack for tool runtime,
+// generation budget (LLM_TOTAL_BUDGET_MS, 300s) plus slack for tool runtime,
 // so the drawer resolves to a visible error instead of an endless "… thinking"
 // only if something upstream truly wedges — not on a normal (slow) local run.
 const CHAT_TIMEOUT_MS = 360000;
@@ -109,7 +109,7 @@ export default function AssistantDrawer() {
 
   // When the drawer opens, have the local model read the fixed part of the prompt
   // now, so the first question does not wait (or time out) on that read. The
-  // server does nothing when Jonah is not on Ollama or was warmed recently.
+  // server does nothing when Jonah is not on the local runner or was warmed recently.
   useEffect(() => {
     if (!open || !token || !gridId) return;
     fetch("/api/v1/assistant/warm", {

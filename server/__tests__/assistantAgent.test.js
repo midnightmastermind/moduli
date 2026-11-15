@@ -1,8 +1,8 @@
 // server/__tests__/assistantAgent.test.js
 //
-// Covers the pure helpers added to harden the Ollama-backed assistant against
+// Covers the pure helpers added to harden the locally-backed assistant against
 // the "… thinking" hang / placeholder-id looping:
-//  - buildOllamaRequestBody — num_ctx + tool shape (Fix #1)
+//  - pickModel / composeSystemParts / localLoop — the local runner (local LLM plan, Task 3)
 //  - buildDestinationsHint   — named-destination resolution (Fix #2)
 //  - selectToolsForBackend   — curated offline toolset (Fix #3)
 //  - summarizeGridState      — bounded grid snapshot (Fix #4)
@@ -13,7 +13,10 @@ import {
   summarizeHttpError,
   buildLocationHint,
   toolResultForModel,
-  buildOllamaRequestBody,
+  pickModel,
+  composeSystemParts,
+  buildLocalMessages,
+  localLoop,
   buildDestinationsHint,
   extractDestinations,
   selectToolsForBackend,
@@ -30,35 +33,73 @@ const TOOLS = [
   { name: "update_grid", description: "patch grid", input_schema: { type: "object", properties: {} } },
 ];
 
-describe("buildOllamaRequestBody (Fix #1 — context window)", () => {
-  it("requests an explicit num_ctx so Ollama doesn't default to ~4096", () => {
-    const body = buildOllamaRequestBody({ model: "m", messages: [], tools: TOOLS, numCtx: 8192, numPredict: 768 });
-    expect(body.options).toEqual({ num_ctx: 8192, num_predict: 768 });
+describe("pickModel — builds go to the build model", () => {
+  it("sends a build to the build model", () => {
+    expect(pickModel("make a board of my quick links")).toBe("build");
+    expect(pickModel("add CPS classes Mon-Thu in November")).toBe("build");
   });
-
-  it("caps output tokens and keeps the model resident", () => {
-    const body = buildOllamaRequestBody({ model: "m", messages: [], tools: [], numPredict: 512, keepAlive: "10m" });
-    expect(body.options.num_predict).toBe(512);
-    expect(body.keep_alive).toBe("10m");
+  it("sends a question to the fast model", () => {
+    expect(pickModel("what's on my schedule today?")).toBe("fast");
+    expect(pickModel("")).toBe("fast");
   });
+});
 
-  it("defaults stream:false and maps tools to the OpenAI function shape", () => {
-    const body = buildOllamaRequestBody({ model: "qwen", messages: [{ role: "user", content: "hi" }], tools: TOOLS });
-    expect(body.stream).toBe(false);
-    expect(body.model).toBe("qwen");
-    expect(body.tools[0]).toEqual({
-      type: "function",
-      function: { name: "wikipedia_import", description: "import", parameters: { type: "object", properties: {} } },
+describe("the fixed prompt stays the same between requests", () => {
+  const A = { folders: [{ id: "f1", name: "Examples" }] };
+  const B = { folders: [{ id: "f2", name: "Projects" }] };
+  it("the system prompt is identical across pages and days", () => {
+    const one = composeSystemParts({ destinations: A, context: { id: "x", label: "X" }, today: new Date("2026-11-15T12:00:00Z") });
+    const two = composeSystemParts({ destinations: B, context: { id: "y", label: "Y" }, today: new Date("2026-11-16T12:00:00Z") });
+    expect(one.systemPrompt).toBe(two.systemPrompt);
+    expect(one.contextNote).not.toBe(two.contextNote);
+    expect(one.contextNote).toContain("x");
+    expect(one.contextNote).toContain("2026-11-15");
+  });
+  it("the per-request note goes just before the newest user message", () => {
+    const msgs = buildLocalMessages({
+      systemPrompt: "SYS", contextNote: "NOTE",
+      messages: [{ role: "user", content: "a" }, { role: "assistant", content: "b" }, { role: "user", content: "c" }],
     });
+    expect(msgs.map((m) => m.content)).toEqual(["SYS", "a", "b", "NOTE", "c"]);
   });
+});
 
-  it("opts into streaming when stream:true (live token narration)", () => {
-    expect(buildOllamaRequestBody({ model: "m", messages: [], tools: [], stream: true }).stream).toBe(true);
+describe("localLoop", () => {
+  const recorder = () => {
+    const calls = [];
+    return { calls, tool: { name: "create_items", description: "d", input_schema: { type: "object" }, run: async (input) => { calls.push(input); return { ok: true }; } } };
+  };
+  it("recovers a tool call written as text", async () => {
+    const r = recorder();
+    const replies = [
+      { content: '{"name":"create_items","arguments":{"container":"Tasks › Appointments","items":[]}}', toolCalls: [] },
+      { content: "Done.", toolCalls: [] },
+    ];
+    let n = 0;
+    const out = await localLoop({ messages: [{ role: "user", content: "add classes" }], tools: [r.tool], deps: { streamChat: async () => replies[n++] } });
+    expect(r.calls).toHaveLength(1);
+    expect(r.calls[0].container).toBe("Tasks › Appointments");
+    expect(out.mode).toBe("local");
+    expect(out.transcript.at(-1).content).toBe("Done.");
   });
-
-  it("defaults num_ctx when not passed", () => {
-    const body = buildOllamaRequestBody({ model: "m", messages: [], tools: [] });
-    expect(body.options.num_ctx).toBeGreaterThanOrEqual(8192);
+  it("sends tool results with tool_call_id", async () => {
+    const r = recorder();
+    const bodies = [];
+    const replies = [
+      { content: "", toolCalls: [{ id: "c1", function: { name: "create_items", arguments: "{\"container\":\"X\",\"items\":[]}" } }] },
+      { content: "ok", toolCalls: [] },
+    ];
+    let n = 0;
+    await localLoop({ messages: [{ role: "user", content: "add" }], tools: [r.tool], deps: { streamChat: async ({ body }) => { bodies.push(JSON.parse(JSON.stringify(body))); return replies[n++]; } } });
+    const second = bodies[1].messages;
+    expect(second.find((m) => m.role === "assistant").tool_calls[0]).toEqual({ id: "c1", type: "function", function: { name: "create_items", arguments: "{\"container\":\"X\",\"items\":[]}" } });
+    expect(second.find((m) => m.role === "tool")).toMatchObject({ role: "tool", tool_call_id: "c1" });
+  });
+  it("routes by the newest user message", async () => {
+    const seen = [];
+    await localLoop({ messages: [{ role: "user", content: "what is due today?" }], tools: [], deps: { streamChat: async ({ body }) => { seen.push(body.model); return { content: "x", toolCalls: [] }; } } });
+    await localLoop({ messages: [{ role: "user", content: "create a page" }], tools: [], deps: { streamChat: async ({ body }) => { seen.push(body.model); return { content: "x", toolCalls: [] }; } } });
+    expect(seen).toEqual(["fast", "build"]);
   });
 });
 
@@ -142,8 +183,8 @@ describe("extractDestinations (join state → named places)", () => {
 });
 
 describe("selectToolsForBackend (Fix #3 — curated offline toolset)", () => {
-  it("narrows the catalog to the core allowlist for ollama", () => {
-    const out = selectToolsForBackend(TOOLS, "ollama");
+  it("narrows the catalog to the core allowlist for the local backend", () => {
+    const out = selectToolsForBackend(TOOLS, "local");
     const names = out.map(t => t.name);
     expect(names).toContain("wikipedia_import");
     expect(names).toContain("create_occurrence");
@@ -151,18 +192,18 @@ describe("selectToolsForBackend (Fix #3 — curated offline toolset)", () => {
     expect(names).not.toContain("update_grid");
   });
 
-  it("returns the full catalog for non-ollama backends", () => {
+  it("returns the full catalog for non-local backends", () => {
     expect(selectToolsForBackend(TOOLS, "anthropic")).toHaveLength(TOOLS.length);
     expect(selectToolsForBackend(TOOLS, "deterministic")).toHaveLength(TOOLS.length);
   });
 
   it("honors an explicit allowlist", () => {
-    const out = selectToolsForBackend(TOOLS, "ollama", new Set(["update_grid"]));
+    const out = selectToolsForBackend(TOOLS, "local", new Set(["update_grid"]));
     expect(out.map(t => t.name)).toEqual(["update_grid"]);
   });
 
   it("falls back to the full catalog when the allowlist matches nothing", () => {
-    const out = selectToolsForBackend(TOOLS, "ollama", new Set(["nonexistent_tool"]));
+    const out = selectToolsForBackend(TOOLS, "local", new Set(["nonexistent_tool"]));
     expect(out).toHaveLength(TOOLS.length);
   });
 });
@@ -311,22 +352,21 @@ describe("assistantConfirm (a confirmed import never runs as a dry run)", () => 
   });
 });
 
-// Cloudflare cuts a request off at ~100s when Ollama has not answered, and with
-// tools attached Ollama answers nothing until it is done. Measured on prod: the
-// real chat 524'd at 125s, the same request again took 18s (Ollama had kept the
-// prompt it read). So a gateway timeout is retried, and its HTML error page is
+// Cloudflare cuts a request off at ~100s when the runner has not answered. Measured on prod: the
+// real chat 524'd at 125s, the same request again took 18s (the runner had kept
+// the prompt it read). So a gateway timeout is retried, and its HTML error page is
 // reported as one line, never pasted into the chat.
-describe("a gateway timeout in front of Ollama", () => {
+describe("a gateway timeout in front of the local runner", () => {
   const CF_PAGE = `<!DOCTYPE html><html><head><title>viafluere.com | 524: A timeout occurred</title></head><body><h1>Error code 524</h1>${"x".repeat(5000)}</body></html>`;
-  const okStream = JSON.stringify({ message: { content: "Here are a few." }, done: true }) + "\n";
+  const okStream = `data: ${JSON.stringify({ choices: [{ delta: { content: "Here are a few." } }] })}\n\ndata: [DONE]\n\n`;
 
   async function chatWith(chatResponses) {
     const realFetch = global.fetch;
     const prevBackend = process.env.ASSISTANT_BACKEND;
-    process.env.ASSISTANT_BACKEND = "ollama";
+    process.env.ASSISTANT_BACKEND = "local";
     let chatCalls = 0;
     global.fetch = async (url) => {
-      if (String(url).includes("/api/chat")) {
+      if (String(url).includes("/v1/chat/completions")) {
         const r = chatResponses[Math.min(chatCalls++, chatResponses.length - 1)];
         return new Response(r.body, { status: r.status });
       }
@@ -344,13 +384,13 @@ describe("a gateway timeout in front of Ollama", () => {
   it("asks again after a 524 and returns the answer", async () => {
     const { out, chatCalls } = await chatWith([{ status: 524, body: CF_PAGE }, { status: 200, body: okStream }]);
     expect(chatCalls).toBe(2);
-    expect(out.mode).toBe("ollama");
+    expect(out.mode).toBe("local");
     expect(out.transcript.at(-1).content).toBe("Here are a few.");
   });
 
   it("reports a gateway that keeps failing in one line, without the page", async () => {
     const { out } = await chatWith([{ status: 524, body: CF_PAGE }]);
-    expect(out.mode).toBe("ollama-error");
+    expect(out.mode).toBe("local-error");
     const text = out.transcript[0].content;
     expect(text).toContain("524: A timeout occurred");
     expect(text).not.toContain("<");
@@ -393,5 +433,29 @@ describe("toolResultForModel — what the model is shown of a tool result", () =
     const text = toolResultForModel({ operations: Array.from({ length: 400 }, (_, i) => op(i)) });
     expect(text.length).toBeLessThan(6200);
     expect(text).toMatch(/cut: the full result is \d+ characters/);
+  });
+});
+
+// The PC asleep or the tunnel down: the probe must give up in well under a second
+// and Jonah must fall to the no-model dispatcher, not hang for the 300s budget.
+describe("an unreachable local runner", () => {
+  it("answers fast without a model", async () => {
+    const realFetch = global.fetch;
+    const prev = { b: process.env.ASSISTANT_BACKEND, k: process.env.ANTHROPIC_API_KEY };
+    delete process.env.ASSISTANT_BACKEND; delete process.env.ANTHROPIC_API_KEY;
+    global.fetch = (url, init) => {
+      if (String(url).includes("/v1/models")) return new Promise((_, rej) => init?.signal?.addEventListener("abort", () => rej(new Error("aborted"))));
+      return Promise.resolve(new Response(JSON.stringify({ modules: [], occurrences: [], folders: [] }), { status: 200 }));
+    };
+    const t0 = Date.now();
+    try {
+      const out = await assistantChat({ messages: [{ role: "user", content: "hello" }], gridId: "g1", baseUrl: "http://x", apiToken: "t" });
+      expect(out.mode).toBe("deterministic");
+      expect(Date.now() - t0).toBeLessThan(2000);
+    } finally {
+      global.fetch = realFetch;
+      if (prev.b !== undefined) process.env.ASSISTANT_BACKEND = prev.b;
+      if (prev.k !== undefined) process.env.ANTHROPIC_API_KEY = prev.k;
+    }
   });
 });

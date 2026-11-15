@@ -6,16 +6,16 @@
 //  avatar — the tool layer stays impersonal.)
 //
 // Backend selection is OFFLINE-FIRST (see pickBackend):
-//   1. Ollama (local, free, private) — preferred. Reachable at
-//      OLLAMA_URL with a tool-capable model (OLLAMA_MODEL). This is the
+//   1. Local (free, private) — llama.cpp's llama-server behind llama-swap on
+//      the user's PC, reached at LLM_URL (OpenAI-compatible). A fast model
+//      answers questions, a stronger one builds (pickModel). This is the
 //      "the point is it runs offline" path.
-//   2. Anthropic Claude (cloud) — optional fallback when Ollama isn't
-//      running and ANTHROPIC_API_KEY is set.
+//   2. Anthropic Claude (cloud) — optional, only when ANTHROPIC_API_KEY is set.
 //   3. Deterministic dispatcher — no model at all. Recognizes a few
 //      natural-language prefixes ("wiki <topic>", "import:\n<md>"). Lets
 //      the chatbox demo end-to-end with zero AI setup (dev / CI).
 //
-// Override the auto-selection with ASSISTANT_BACKEND=ollama|anthropic|deterministic.
+// Override the auto-selection with ASSISTANT_BACKEND=local|anthropic|deterministic.
 //
 // All three modes drive the SAME tool catalog. Tools are thin wrappers
 // over the existing /api/v1 REST endpoints — the agent has NO special
@@ -23,46 +23,24 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { moduliToolPack, systemToolPack } from "./assistantTools.js";
-import { ollamaHeaders } from "../utils/ollamaHeaders.js";
+import { buildChatBody, streamChat, reachable, summarizeHttpError } from "./llmClient.js";
+export { summarizeHttpError };
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
-// Ollama: local LLM runtime. qwen2.5-coder is a strong, tool-capable,
-// lightweight default; swap via OLLAMA_MODEL (e.g. "llama3.1", "qwen2.5").
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen2.5-coder:7b";
-
-// Extra request headers for reaching Ollama through an AUTHENTICATED tunnel.
-// Ollama has no auth of its own, so when it's exposed via a Cloudflare Tunnel +
-// Access policy (Option B), the server must present a service token on EVERY
-// request. Supports Cloudflare Access service tokens (CF_ACCESS_CLIENT_ID /
-// CF_ACCESS_CLIENT_SECRET) and/or one generic header via OLLAMA_AUTH_HEADER
-// ("Header-Name: value", e.g. "Authorization: Bearer abc"). All optional —
-// unset → no extra headers (plain localhost / Tailscale). Lives in utils/ollamaHeaders.js.
-
-// Ollama allocates only ~4096 tokens of context by default (regardless of the
-// model's trained max), which silently truncates our system prompt + ~40 tool
-// schemas before any grid data lands — the model then loses the tools/system
-// instructions and loops. We request a roomier window explicitly. The model
-// (qwen2.5-coder) is trained for 32768; 8192 is a safe headroom default that
-// keeps RAM/latency reasonable. Override via OLLAMA_NUM_CTX.
-const OLLAMA_NUM_CTX = Number(process.env.OLLAMA_NUM_CTX) || 8192;
-// Cap output tokens per generation. Tool calls + one-sentence summaries are
-// short; without a cap the model can ramble for hundreds of tokens, and on a
-// CPU box every token is expensive. Bounds worst-case latency per turn.
-// 1200, not 768: one create_items call listing 13 dated instances is ~600 tokens.
-const OLLAMA_NUM_PREDICT = Number(process.env.OLLAMA_NUM_PREDICT) || 1200;
-// Keep the model resident between turns so we don't pay the multi-second reload
-// each message. Ollama accepts a duration string ("30m") or seconds.
-const OLLAMA_KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE || "30m";
-// Per-generation cap — guards against a genuinely wedged call. Must comfortably
-// exceed real generation time on this hardware (a single tool-calling turn over
-// the curated prompt benches ~60–100s on CPU), or normal turns get aborted and
-// wrongly fall back. Override via OLLAMA_TIMEOUT_MS.
-const OLLAMA_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 180000;
-// Whole-request wall-clock budget across all tool iterations. Each generation's
-// effective timeout is min(per-gen cap, remaining budget) so the total run never
-// exceeds this — keeps the server bound coherent with the client's ceiling.
-const OLLAMA_TOTAL_BUDGET_MS = Number(process.env.OLLAMA_TOTAL_BUDGET_MS) || 300000;
+// The local runner (llama-swap on the user's PC, docs/superpowers/specs/2026-11-15-local-llm-runner-design.md).
+// Two models stay loaded: `fast` for questions, `build` for building (pickModel). Context size, threads and GPU
+// layers are llama-server flags (infra/llm/llama-swap.yaml), not request options.
+const LLM_URL = process.env.LLM_URL || "http://localhost:8080";
+const LLM_BUILD_MODEL = process.env.LLM_BUILD_MODEL || "build";
+const LLM_FAST_MODEL = process.env.LLM_FAST_MODEL || "fast";
+// Cap output tokens per generation. Writing is the slow part on this hardware (~7.5 tok/s for a 7B on the Radeon,
+// measured 2026-11-14). 1200: one create_items call listing 13 dated instances is ~600 tokens.
+const LLM_NUM_PREDICT = Number(process.env.LLM_NUM_PREDICT) || 1200;
+// Per-generation cap — guards against a genuinely wedged call.
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 180000;
+// Whole-request wall-clock budget across all tool iterations. Each generation's effective timeout is
+// min(per-gen cap, remaining budget), so the total run never exceeds this.
+const LLM_TOTAL_BUDGET_MS = Number(process.env.LLM_TOTAL_BUDGET_MS) || 300000;
 const MAX_TOOL_ITERATIONS = 6;
 
 // The local model reads its whole prompt on CPU before answering (~64 tokens/s
@@ -128,11 +106,11 @@ function buildTools({ baseUrl, apiToken, userId, gridId }) {
 
 // A small local model (qwen2.5-coder:7b) gets slow and unreliable when handed
 // the full ~40-tool catalog: every schema is re-sent each iteration, and the
-// breadth invites wrong/looping calls. For the Ollama backend we hand it a
+// breadth invites wrong/looping calls. For the local backend we hand it a
 // curated core that covers research/import + the common read/create verbs, and
 // leave the long tail (manifests, views, grid settings, templates, destructive
 // update/delete, operation authoring) to the cloud model. Override the set via
-// OLLAMA_TOOL_ALLOWLIST (comma-separated tool names); empty/unset → the default.
+// LLM_TOOL_ALLOWLIST (comma-separated tool names); empty/unset → the default.
 const OFFLINE_CORE_TOOLS = new Set([
   "create_board", "create_items", "add_filter",
   "create_occurrence", "set_occurrence_field", "create_field", "create_folder",
@@ -142,17 +120,17 @@ const OFFLINE_CORE_TOOLS = new Set([
 ]);
 
 function offlineToolAllowlist() {
-  const raw = (process.env.OLLAMA_TOOL_ALLOWLIST || "").trim();
+  const raw = (process.env.LLM_TOOL_ALLOWLIST || "").trim();
   if (!raw) return OFFLINE_CORE_TOOLS;
   return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
 }
 
-// Pure: narrow the catalog for a given backend. Ollama gets the curated core;
+// Pure: narrow the catalog for a given backend. The local backend gets the curated core;
 // everything else gets the full set. Never returns empty — if the allowlist
 // matches nothing (misconfig), fall back to the full catalog so the assistant
 // stays functional.
 export function selectToolsForBackend(tools, backend, allowlist = offlineToolAllowlist()) {
-  if (backend !== "ollama") return tools;
+  if (backend !== "local") return tools;
   const filtered = tools.filter(t => allowlist.has(t.name));
   return filtered.length ? filtered : tools;
 }
@@ -352,29 +330,29 @@ async function deterministicDispatch({ messages, tools, contextId = null }) {
     "  • `look up <topic>` / `page on <topic>` — same as create a page\n" +
     "  • `import:\\n<markdown>`       — turn pasted markdown into a page\n" +
     "  • `list ops`                  — show runnable operations\n" +
-    "\nFor full natural language, run Ollama locally (offline) or set ANTHROPIC_API_KEY."
+    "\nFor full natural language, start the local model runner on the PC (infra/llm) or set ANTHROPIC_API_KEY."
   );
 }
 
 // =========================================================================
-// Mode 0 — local LLM via Ollama (offline-first, preferred)
+// Mode 0 — the local model runner (offline-first, preferred)
 // =========================================================================
 //
-// Ollama exposes an OpenAI-style chat API at /api/chat with native tool
-// calling for tool-capable models (qwen2.5-coder, llama3.1, etc.). The
-// loop mirrors llmLoop: send messages + tools, the model may answer with
-// `message.tool_calls`, we run them and feed `{role:"tool"}` results
-// back, repeat until it stops calling tools or we hit the cap.
+// llama-server speaks the OpenAI chat API (/v1/chat/completions) with native
+// tool calling (--jinja). The loop mirrors llmLoop: send messages + tools,
+// the model may answer with `tool_calls`, we run them and feed
+// `{role:"tool", tool_call_id}` results back, repeat until it stops calling
+// tools or we hit the cap.
 
-// Ollama returns tool-call arguments as a parsed object on most builds,
-// but older ones hand back a JSON string. Accept both.
+// A streamed tool call's arguments arrive as a JSON string; a call recovered
+// from text is already an object. Accept both.
 function parseToolArgs(a) {
   if (a == null) return {};
   if (typeof a === "object") return a;
   try { return JSON.parse(a); } catch { return {}; }
 }
 
-// Some tool-capable models (notably qwen2.5-coder) frequently DON'T use Ollama's
+// Some tool-capable models (notably qwen2.5-coder, and llama3.2 3B) frequently DON'T use the
 // native `tool_calls` channel — they emit the call as a JSON blob in
 // `message.content` instead (e.g. `{"name":"wikipedia_import","arguments":{…}}`).
 // Without recovery the loop sees an empty `tool_calls`, treats the blob as a
@@ -424,44 +402,6 @@ export function parseContentToolCall(content, toolNames = null) {
   return null;
 }
 
-// Quick liveness probe so we can fall back gracefully when `ollama serve`
-// isn't running. Short timeout — we don't want to stall the chat.
-async function ollamaReachable() {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 800);
-    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal, headers: ollamaHeaders() });
-    clearTimeout(t);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Pure builder for the Ollama /api/chat request body — kept separate so the
-// num_ctx / tool-shape contract is unit-testable without a live server.
-export function buildOllamaRequestBody({
-  model, messages, tools, stream = false,
-  numCtx = OLLAMA_NUM_CTX, numPredict = OLLAMA_NUM_PREDICT, keepAlive = OLLAMA_KEEP_ALIVE,
-}) {
-  return {
-    model,
-    stream,
-    keep_alive: keepAlive,
-    messages,
-    tools: tools.map(t => ({
-      type: "function",
-      function: { name: t.name, description: t.description, parameters: t.input_schema },
-    })),
-    options: { num_ctx: numCtx, num_predict: numPredict },
-  };
-}
-
-// Stream a /api/chat completion, forwarding each content delta to `onToken` as
-// it arrives (so the UI shows the model "talking" live instead of a silent
-// multi-minute wait). Parses Ollama's NDJSON stream, accumulates the full
-// content + any tool_calls, and returns them once `done`. Tool-calling models
-// emit tool_calls in the stream (usually the final frame); we collect them all.
 // What the MODEL is shown of a tool's result. The drawer still gets the whole
 // result (the transcript); the model only needs enough to answer or to pick an
 // id. Measured: list_operations returned 329k characters of pipelines, which on
@@ -502,103 +442,79 @@ export function toolResultForModel(result, max = TOOL_RESULT_MAX_CHARS) {
   return text.slice(0, max) + ` …(cut: the full result is ${whole.length} characters; ask for fewer, or filter)`;
 }
 
-// A gateway in front of Ollama (Cloudflare) answers an error with a whole HTML
-// page. Keep its <title> (or the first line of plain text) so a failure reads as
-// one sentence in the chat instead of a page of markup.
-export function summarizeHttpError(body) {
-  const text = String(body || "");
-  const title = /<title[^>]*>([^<]*)<\/title>/i.exec(text)?.[1]?.trim();
-  if (title) return title;
-  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return plain.length > 200 ? plain.slice(0, 200) + "…" : plain;
-}
-
-// The gateway gave up waiting before Ollama sent anything. With tools attached,
-// Ollama sends nothing until the reply is done, and reading a long prompt on a
-// CPU box can take longer than Cloudflare's 100s. Ollama keeps the prompt it
-// read, so the same request again is quick (measured: 125s 524, then 18s, 3.5s).
+// The gateway gave up waiting before the runner sent anything (reading a long
+// prompt can outlast Cloudflare's 100s). The runner keeps the prompt it read,
+// so the same request again is quick (measured on Ollama: 125s 524, then 18s).
 export function isGatewayTimeout(err) {
   return [502, 503, 504, 524].includes(Number(err?.status));
 }
 
-async function streamOllamaChat({ url, body, signal, onToken }) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: ollamaHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(body),
-    signal,
-  });
-  if (!res.ok) {
-    const err = new Error(`Ollama ${res.status}: ${summarizeHttpError(await res.text())}`);
-    err.status = res.status;
-    throw err;
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "", content = "", toolCalls = [];
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      let obj;
-      try { obj = JSON.parse(line); } catch { continue; }
-      const m = obj.message || {};
-      if (m.content) { content += m.content; onToken?.(m.content); }
-      if (Array.isArray(m.tool_calls) && m.tool_calls.length) toolCalls = toolCalls.concat(m.tool_calls);
-    }
-  }
-  return { content, toolCalls };
+/**
+ * Which local model answers this turn. Pure. Building something goes to the stronger model; a question goes to the
+ * fast one (spec: "the 3B answers questions; the 7B builds"). A cheap rule on the newest user message — it must not
+ * cost a model round trip of its own. A tool call the fast model makes still runs.
+ */
+const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|delete|remove|new)\b/i;
+export function pickModel(text) {
+  return BUILD_VERBS.test(String(text || "")) ? "build" : "fast";
+}
+function modelIdFor(which) {
+  return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
+}
+function lastUserText(messages) {
+  const m = [...(messages || [])].reverse().find((x) => x.role === "user" && typeof x.content === "string");
+  return m?.content || "";
 }
 
-async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onProgress = () => {} }) {
-  // System prompt rides as the first message (Ollama /api/chat has no
-  // separate `system` field).
-  const apiMessages = [
-    { role: "system", content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content })),
-  ];
+// The request as the runner sees it. The FIXED system prompt goes first and the tools are rendered right after it by
+// the chat template, so that prefix is byte-identical on every request and llama-server reuses it (cache_prompt).
+// What changes per request (places, today, where the user is, notes) is `contextNote`, a system message placed just
+// before the newest user message — after the history, so earlier turns stay part of the reusable prefix too.
+export function buildLocalMessages({ systemPrompt, contextNote = "", messages = [] }) {
+  const history = messages.map((m) => ({ role: m.role, content: m.content }));
+  let lastUser = -1;
+  for (let i = history.length - 1; i >= 0; i--) if (history[i].role === "user") { lastUser = i; break; }
+  const out = [{ role: "system", content: systemPrompt }];
+  if (!contextNote) return out.concat(history);
+  if (lastUser < 0) return out.concat(history, [{ role: "system", content: contextNote }]);
+  return out.concat(history.slice(0, lastUser), [{ role: "system", content: contextNote }], history.slice(lastUser));
+}
+
+export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM_PROMPT, contextNote = "", model, onProgress = () => {}, deps = {} }) {
+  const stream = deps.streamChat || streamChat;
+  const useModel = model || modelIdFor(pickModel(lastUserText(messages)));
+  const apiMessages = buildLocalMessages({ systemPrompt, contextNote, messages });
 
   const transcript = [];
   let toolIterations = 0;
-  const deadline = Date.now() + OLLAMA_TOTAL_BUDGET_MS;
+  let callSeq = 0;
+  const deadline = Date.now() + LLM_TOTAL_BUDGET_MS;
 
   while (toolIterations < MAX_TOOL_ITERATIONS) {
-    // Stop launching new generations once the whole-request budget is spent;
-    // return whatever we have rather than blowing past the client's ceiling.
+    // Stop launching new generations once the whole-request budget is spent.
     const remaining = deadline - Date.now();
     if (remaining < 5000) {
       transcript.push({ role: "assistant", content: "(stopped — Jonah ran out of time on this request; the local model is slow on this machine. Try a simpler step.)" });
       break;
     }
     onProgress({ phase: "thinking", iteration: toolIterations + 1 });
-    // Bound each generation: abort if Ollama doesn't respond within the cap so
-    // a wedged call surfaces as an error (→ graceful fallback) instead of an
-    // infinite "… thinking". Never run past the total budget. Each attempt gets
-    // its own timer — a retry after a gateway timeout must not inherit the time
-    // the first attempt already spent.
+    // Each attempt gets its own timer — a retry after a gateway timeout must not inherit the time the first spent.
     let streamed;
     for (let attempt = 0; ; attempt++) {
       const left = deadline - Date.now();
-      const capMs = Math.min(OLLAMA_TIMEOUT_MS, left);
+      const capMs = Math.min(LLM_TIMEOUT_MS, left);
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), capMs);
       try {
-        // Stream so the user sees the model narrate live (each delta → onProgress
-        // token) instead of a silent 60-100s wait.
-        streamed = await streamOllamaChat({
-          url: `${OLLAMA_URL}/api/chat`,
-          body: buildOllamaRequestBody({ model: OLLAMA_MODEL, messages: apiMessages, tools, stream: true }),
+        streamed = await stream({
+          url: LLM_URL,
+          body: buildChatBody({ model: useModel, messages: apiMessages, tools, stream: true, maxTokens: LLM_NUM_PREDICT }),
           signal: ctrl.signal,
           onToken: (delta) => onProgress({ phase: "token", delta }),
         });
         break;
       } catch (e) {
-        if (e?.name === "AbortError") throw new Error(`Ollama timed out (>${Math.round(capMs / 1000)}s)`);
+        if (e?.name === "AbortError") throw new Error(`the local model timed out (>${Math.round(capMs / 1000)}s)`);
         // See isGatewayTimeout: the prompt is read by now, so asking again is fast.
         if (!isGatewayTimeout(e) || attempt >= 2 || deadline - Date.now() < 20000) throw e;
         onProgress({ phase: "retry", attempt: attempt + 1 });
@@ -606,23 +522,30 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
         clearTimeout(timer);
       }
     }
-    const msg = { content: streamed.content, tool_calls: streamed.toolCalls };
-    const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+    if (streamed.timings) onProgress({ phase: "timings", timings: streamed.timings, model: useModel });
+    const toolCalls = Array.isArray(streamed.toolCalls) ? [...streamed.toolCalls] : [];
 
-    // Recover a tool call the model wrote into content instead of the native
-    // tool_calls channel (see parseContentToolCall). When recovered, suppress
-    // the raw JSON blob from the visible transcript — it's a tool call, not a
-    // message.
-    let visibleContent = String(msg.content || "").trim();
+    // Recover a tool call the model wrote into content instead of the native tool_calls channel (see
+    // parseContentToolCall). When recovered, the raw JSON blob is not shown — it is a tool call, not a message.
+    let visibleContent = String(streamed.content || "").trim();
     if (!toolCalls.length) {
-      const recovered = parseContentToolCall(msg.content, new Set(tools.map(t => t.name)));
+      const recovered = parseContentToolCall(streamed.content, new Set(tools.map(t => t.name)));
       if (recovered) {
-        toolCalls.push({ function: { name: recovered.name, arguments: recovered.arguments } });
+        toolCalls.push({ id: null, function: { name: recovered.name, arguments: recovered.arguments } });
         visibleContent = "";
       }
     }
+    // Every call needs an id to answer, and its arguments as a JSON string (the OpenAI message shape).
+    for (const tc of toolCalls) {
+      if (!tc.id) tc.id = `call_${++callSeq}`;
+      if (typeof tc.function.arguments !== "string") tc.function.arguments = JSON.stringify(tc.function.arguments ?? {});
+    }
 
-    apiMessages.push({ role: "assistant", content: msg.content || "", ...(toolCalls.length ? { tool_calls: toolCalls } : {}) });
+    apiMessages.push({
+      role: "assistant",
+      content: streamed.content || "",
+      ...(toolCalls.length ? { tool_calls: toolCalls.map((tc) => ({ id: tc.id, type: "function", function: tc.function })) } : {}),
+    });
     transcript.push({
       role: "assistant",
       content: visibleContent,
@@ -650,22 +573,22 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
         catch (e) { result = { error: String(e?.message || e) }; }
         onProgress({ phase: "tool_done", tool: name });
       }
-      apiMessages.push({ role: "tool", content: toolResultForModel(result) });
+      apiMessages.push({ role: "tool", tool_call_id: tc.id, content: toolResultForModel(result) });
       transcript.push({ role: "tool", name, input, output: result });
       stepResults.push(result);
     }
     if (pending.length) {
-      return { ok: true, mode: "ollama", model: OLLAMA_MODEL, transcript, pendingConfirmations: pending };
+      return { ok: true, mode: "local", model: useModel, transcript, pendingConfirmations: pending };
     }
     const ask = ambiguityQuestion(stepResults);
     if (ask) {
       transcript.push({ role: "assistant", content: ask });
-      return { ok: true, mode: "ollama", model: OLLAMA_MODEL, transcript };
+      return { ok: true, mode: "local", model: useModel, transcript };
     }
     toolIterations++;
   }
 
-  return { ok: true, mode: "ollama", model: OLLAMA_MODEL, transcript };
+  return { ok: true, mode: "local", model: useModel, transcript };
 }
 
 // =========================================================================
@@ -673,14 +596,12 @@ async function ollamaLoop({ messages, tools, systemPrompt = SYSTEM_PROMPT, onPro
 // =========================================================================
 async function pickBackend() {
   const forced = (process.env.ASSISTANT_BACKEND || "").toLowerCase();
-  if (forced === "ollama" || forced === "anthropic" || forced === "deterministic") return forced;
-  // KEY-FIRST: configuring ANTHROPIC_API_KEY is an explicit opt-in to Claude
-  // (the production setup), so prefer it — don't probe for / fall back to local
-  // Ollama when a cloud key is present. Without a key, prefer local Ollama
-  // (offline, private, free), else the no-model dispatcher. Set
-  // ASSISTANT_BACKEND=ollama to force local even with a key.
+  if (forced === "local" || forced === "anthropic" || forced === "deterministic") return forced;
+  // KEY-FIRST: configuring ANTHROPIC_API_KEY is an explicit opt-in to Claude, so
+  // prefer it. Without a key, prefer the local runner (offline, private, free),
+  // else the no-model dispatcher. ASSISTANT_BACKEND=local forces local.
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-  if (await ollamaReachable()) return "ollama";
+  if (await reachable({ url: LLM_URL })) return "local";
   return "deterministic";
 }
 
@@ -692,7 +613,7 @@ export function buildSystemPrompt(context) {
 }
 
 // The "where the user is" line on its own, so the chat can put it LAST in the
-// prompt: it changes with every page, and Ollama only reuses the part of a prompt
+// prompt: it changes with every page, and the runner only reuses the part of a prompt
 // that matches the previous one from the start.
 export function buildLocationHint(context) {
   if (!context || !context.id) return "";
@@ -785,20 +706,25 @@ async function fetchDestinations({ baseUrl, apiToken, gridId }) {
   }
 }
 
-// The tools and system prompt a chat sends. Shared with warmAssistant so the
-// warm-up reads exactly the prompt the next chat will start with.
+// The fixed system prompt and the per-request note, split so the fixed part is identical on every request
+// (see buildLocalMessages). Pure. `today` is a Date.
+export function composeSystemParts({ local = true, destinations = null, context = null, today = new Date() } = {}) {
+  const dateHint = `TODAY is ${today.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${today.toISOString().slice(0, 10)}). Use this for "today"/"tonight" and for any date field.`;
+  const systemPrompt = local ? OFFLINE_SYSTEM_PROMPT : SYSTEM_PROMPT;
+  const contextNote = (buildDestinationsHint(destinations, { limit: local ? OFFLINE_PLACES_LIMIT : 120 }) + "\n\n" + dateHint + buildLocationHint(context)).trim();
+  return { systemPrompt, contextNote };
+}
+
+// The tools and prompt parts a chat sends. Shared with warmAssistant so the warm-up reads exactly the prefix the
+// next chat will start with.
 async function composeChat({ userId, gridId, context, baseUrl, apiToken, backend }) {
-  const local = backend === "ollama";
+  const local = backend === "local";
   const tools = buildTools({ baseUrl, apiToken, userId, gridId });
   // Resolve named places (folders/pages/containers) up front so the model can
   // create/move into any of them without a read round-trip.
   const destinations = await fetchDestinations({ baseUrl, apiToken, gridId });
-  const today = new Date();
-  const dateHint = `\n\nTODAY is ${today.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${today.toISOString().slice(0, 10)}). Use this for "today"/"tonight" and for any date field.`;
-  // Fixed parts first, the per-page location last (see buildLocationHint).
-  const systemPrompt = (local ? OFFLINE_SYSTEM_PROMPT : SYSTEM_PROMPT)
-    + buildDestinationsHint(destinations, { limit: local ? OFFLINE_PLACES_LIMIT : 120 }) + dateHint + buildLocationHint(context);
-  return { tools, systemPrompt };
+  const { systemPrompt, contextNote } = composeSystemParts({ local, destinations, context });
+  return { tools, systemPrompt, contextNote };
 }
 
 // Have the local model read the fixed part of the prompt before the user asks
@@ -811,26 +737,26 @@ const OFFLINE_PLACES_LIMIT = 40;
 const lastWarm = new Map();
 export async function warmAssistant({ userId, gridId, baseUrl, apiToken }) {
   if (!gridId) return { warmed: false, reason: "no_grid" };
-  if (await pickBackend() !== "ollama") return { warmed: false, reason: "not_ollama" };
+  if (await pickBackend() !== "local") return { warmed: false, reason: "not_local" };
   const now = Date.now();
   if (now - (lastWarm.get(gridId) || 0) < WARM_EVERY_MS) return { warmed: false, reason: "recent" };
   lastWarm.set(gridId, now);
-  const { tools, systemPrompt } = await composeChat({ userId, gridId, context: null, baseUrl, apiToken, backend: "ollama" });
-  const body = buildOllamaRequestBody({
-    model: OLLAMA_MODEL,
+  const { tools, systemPrompt } = await composeChat({ userId, gridId, context: null, baseUrl, apiToken, backend: "local" });
+  // Only the fixed part: that is what every later request starts with. Builds are the slow ones, so warm that model.
+  const body = buildChatBody({
+    model: LLM_BUILD_MODEL,
     messages: [{ role: "system", content: systemPrompt }, { role: "user", content: "hi" }],
-    tools: selectToolsForBackend(tools, "ollama"),
-    numPredict: 1,
+    tools: selectToolsForBackend(tools, "local"),
+    stream: true,
+    maxTokens: 1,
   });
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-        method: "POST", headers: ollamaHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body),
-      });
-      await res.text();
-      if (res.ok) return { warmed: true };
-      if (!isGatewayTimeout({ status: res.status })) break;
-    } catch { break; }
+      await streamChat({ url: LLM_URL, body });
+      return { warmed: true };
+    } catch (e) {
+      if (!isGatewayTimeout(e)) break;
+    }
   }
   lastWarm.delete(gridId);
   return { warmed: false, reason: "failed" };
@@ -871,26 +797,26 @@ export async function assistantChat({ messages, userId, gridId, context = null, 
   // An explanation needs no tools; offered them, the small model calls one
   // and answers from that instead of the notes it was just given.
   const tools = notesHint ? [] : composed.tools;
-  const systemPrompt = composed.systemPrompt + notesHint;
+  const contextNote = (composed.contextNote + notesHint).trim();
+  const systemPrompt = composed.systemPrompt + "\n\n" + contextNote;
   const contextId = context?.id || null;
   const backendTools = selectToolsForBackend(tools, backend);
 
-  if (backend === "ollama") {
+  if (backend === "local") {
+    const model = modelIdFor(pickModel(lastUserText(messages)));
     try {
-      return await ollamaLoop({ messages, tools: backendTools, systemPrompt, onProgress });
+      return await localLoop({ messages, tools: backendTools, systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
     } catch (e) {
-      // We only reach here if Ollama was reachable at probe time but the loop
-      // failed mid-run (timeout, model crashed). Cloud if available; otherwise
-      // be HONEST — the deterministic dispatcher's "No LLM is running" message
-      // is wrong (Ollama is up, just slow/erroring) and confused the user.
+      // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
+      // deterministic dispatcher's "No LLM is running" would be wrong.
       if (process.env.ANTHROPIC_API_KEY) return llmLoop({ messages, tools, systemPrompt });
       return {
         ok: true,
-        mode: "ollama-error",
-        model: OLLAMA_MODEL,
+        mode: "local-error",
+        model,
         transcript: [{
           role: "assistant",
-          content: `Jonah's local model (${OLLAMA_MODEL}) didn't finish: ${String(e?.message || e)}. Ollama is running but slow on this machine — try again, or break the request into a smaller step.`,
+          content: `Jonah's local model (${model}) didn't finish: ${String(e?.message || e)}. Try again, or break the request into a smaller step.`,
           toolCalls: [],
         }],
       };
