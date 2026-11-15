@@ -5,6 +5,7 @@
 // - Other windows must self-heal if their active grid is deleted.
 // =========================================
 
+import { openUrls } from "../helpers/openUrls";
 import { dropStaleFieldWrites, noteFieldWrites } from "../helpers/staleSweep";
 import { buildParentMap, allAncestorsOf } from "../helpers/dragHitTesting";
 import { ActionTypes } from "./actions";
@@ -2209,6 +2210,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           gridId: state.grid?._id || state.gridId,
         });
         break;
+
+      case "OPEN_URLS": {
+        const { opened, blocked } = openUrls(effect.urls);
+        if (blocked) toast(`${blocked} of ${opened + blocked} links were blocked — allow pop-ups for this site, then press it again.`);
+        break;
+      }
 
       case "UPDATE_VIEW": {
         // Through updateView, like a page picked by hand: the panel changes AT ONCE (it only emitted, so a button's

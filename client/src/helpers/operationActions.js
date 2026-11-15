@@ -22,6 +22,7 @@
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
+import { urlsFrom } from "./openUrls";
 import { carriedBody } from "./carriedBody.js";
 import { carriedPlacementMeta } from "./instanceLayout.js";
 import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
@@ -4448,6 +4449,14 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // ---- UPDATE_VIEW: update a view record (e.g. set activeOccurrenceId) ----
     // cfg: { viewId, viewIdExpr?, activeOccurrenceId?, patch? }
+    // ---- OPEN_URLS: open links in the browser (helpers/openUrls). `urls` is a list of link chips, records with a
+    // url, or addresses. Applied on the page, inside the click that ran the operation (a browser allows tabs only then).
+    case "OPEN_URLS": {
+      const urls = urlsFrom(resolveExpr(cfg.urls, $vars));
+      if (urls.length) updates.push({ _effect: "OPEN_URLS", urls });
+      break;
+    }
+
     case "UPDATE_VIEW": {
       const viewId = resolveExpr(cfg.viewId || cfg.viewIdExpr, $vars);
       const patch = { ...(cfg.patch || {}) };

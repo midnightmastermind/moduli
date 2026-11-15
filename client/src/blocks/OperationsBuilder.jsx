@@ -1595,6 +1595,14 @@ export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, loca
         </div>
       );
 
+    case "OPEN_URLS":
+      return (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>
+          {fl("links:")}
+          <ExprInput value={cfg.urls || ""} onChange={v => setCfg({ urls: v })} placeholder="$links (chips or addresses)" width={200} />
+        </div>
+      );
+
     case "UPDATE_VIEW":
       return (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5 }}>

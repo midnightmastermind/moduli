@@ -198,6 +198,7 @@ export const ACTION_TREE = [
           { value: "MARK_COMPLETE",      title: "Mark complete",     sub: "boolean field = true/false", description: "Tick a completion field." },
           { value: "UPDATE_MODULE",      title: "Update module",     sub: "patch module record",   description: "JSON patch the template." },
           { value: "UPDATE_STYLE",       title: "Set style",         sub: "ownStyle.bg / color / ...", description: "Set per-module style overrides." },
+          { value: "OPEN_URLS",          title: "Open links in browser", sub: "a tab per link", description: "Open web links in new browser tabs: link chips (e.g. a FIND of a section's chips), records with a url, or addresses. The browser may ask to allow pop-ups the first time." },
           { value: "UPDATE_VIEW",        title: "Show page in panel", sub: "switch what a panel shows", description: "Show another page in a panel — with a button, the panel it was pressed in ($trigger.panelViewId)." },
           { value: "APPEND_TO_DOC",      title: "Append to doc",     sub: "paragraph to textmap",  description: "Add a paragraph to an occurrence's TipTap doc." },
           { value: "SET_TEXTMAP",        title: "Set textmap",       sub: "replace the whole doc", description: "Replace an occurrence's textmap outright (a doc's body)." },

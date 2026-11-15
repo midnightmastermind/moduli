@@ -18,7 +18,7 @@ import { liftInlineToBlock } from "../toPill.js";
 import { useGridActions } from "../../GridActionsContext";
 import { embedRemoval, hostOccurrenceIdOf } from "../../helpers/embedRegistry.js";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
+import { openInAppLink } from "../../helpers/inAppLink";
 import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { logCaretPointerDown } from "../../helpers/caretDiag";
@@ -238,8 +238,18 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
     e.preventDefault();
     if (isUrl && href) { window.open(href, "_blank", "noopener,noreferrer"); return; }
     const targetId = link?.occId || link?.target;
-    if (targetId) jumpToOccurrence(targetId);
-  }, [isUrl, href, link?.occId, link?.target]);
+    if (!targetId) return;
+    // Open the target's page in THIS chip's panel (helpers/inAppLink).
+    const occMap = actions.getOccMap?.() || occurrencesById || {};
+    const modMap = actions.getModMap?.() || {};
+    const panelsById = collectPanelOccurrences(occMap, modMap);
+    const panelId = panelOccIdForElement(e.currentTarget, panelsById) || enclosingPanelId(occurrenceId, occMap, panelsById);
+    openInAppLink({
+      targetId, panelOccurrence: panelId ? occMap[panelId] : null,
+      maps: { occurrencesById: occMap, modulesById: modMap, viewsById: actions.getViewMap?.() || {} },
+      dispatch, socket,
+    });
+  }, [isUrl, href, link?.occId, link?.target, actions, occurrencesById, occurrenceId, dispatch, socket]);
 
   // Beside the arrow: open the link as a browser page in the panel (the row's open-as-page path, openUrlInPanel).
   const openInPanel = useCallback((e) => {
