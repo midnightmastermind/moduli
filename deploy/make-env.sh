@@ -76,7 +76,7 @@ ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 ASSISTANT_API_TOKEN=$ASSISTANT_API_TOKEN
 
 # The local model runner on the PC (infra/llm): llama-swap behind the Cloudflare tunnel.
-LLM_URL=https://llm.viafluere.com
+LLM_URL=https://ollama.viafluere.com
 LLM_BUILD_MODEL=build
 LLM_FAST_MODEL=fast
 EOF
