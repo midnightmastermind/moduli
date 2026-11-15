@@ -1,7 +1,7 @@
 // services/importPreview.js
 //
 // WHAT AUTO WILL CREATE, said before Clip is pressed (smarter imports Task 5). The preview is the import
-// pipeline itself in dry-run mode, so what the window shows is what is written. Rules only — Ollama
+// pipeline itself in dry-run mode, so what the window shows is what is written. Rules only — the model
 // clean-up runs after saving and the window says so (AI_NOTE).
 import { runImport } from "./importPipeline.js";
 

@@ -370,7 +370,7 @@ describe("Jonah — link tools and the list-write fixes", () => {
 
   it("both link tools reach the offline (local-model) tool set", async () => {
     const { selectToolsForBackend } = await import("../services/assistantAgent.js");
-    const names = selectToolsForBackend(Object.values(tools()), "ollama").map(t => t.name);
+    const names = selectToolsForBackend(Object.values(tools()), "local").map(t => t.name);
     expect(names).toEqual(expect.arrayContaining(["save_bookmark", "import_url"]));
   });
 });

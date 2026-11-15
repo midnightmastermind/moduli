@@ -1,7 +1,7 @@
 // ui/ShareImportPreview.jsx — what Auto will create, shown before Clip is pressed (smarter imports Task 5).
 //
 // Read-only. `preview` is GET /share/stage/:id/import-preview — the server's import pipeline run in dry-run
-// mode over the staged clip, so these lines are what will be written. Ollama clean-up runs after saving and
+// mode over the staged clip, so these lines are what will be written. The model clean-up runs after saving and
 // is named, never previewed.
 import React from "react";
 

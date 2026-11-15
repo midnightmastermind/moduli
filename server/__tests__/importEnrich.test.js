@@ -1,4 +1,4 @@
-// server/__tests__/importEnrich.test.js — plan Task 7: Ollama may only fix misreads, after saving.
+// server/__tests__/importEnrich.test.js — plan Task 7: the local model may only fix misreads, after saving.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const store = new Map();
@@ -28,7 +28,7 @@ beforeEach(() => {
   store.set("tb1", { id: "tb1", userId: "u", moduleId: "m-tb", textmap: { type: "doc", content: [para("I know! | don't know what I think.")] } });
   store.set("tb2", { id: "tb2", userId: "u", moduleId: "m-tb2", textmap: { type: "doc", content: [para(BODY)] } });
 });
-const ollamaSays = (text) => async () => ({ ok: true, json: async () => ({ message: { content: text } }) });
+const llmSays = (text) => async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: text } }] }) });
 
 describe("acceptCleanup", () => {
   it("a misread | fixed is accepted", () => {
@@ -52,21 +52,21 @@ describe("acceptCleanup", () => {
 });
 
 describe("enrichImport", () => {
-  it("Ollama down or slow: nothing written", async () => {
+  it("the local model down or slow: nothing written", async () => {
     const r = await enrichImport({ rootOccurrenceId: "root", gridId: "g", userId: "u" },
       { fetch: async (_u, { signal }) => new Promise((_, rej) => signal.addEventListener("abort", () => rej(new Error("abort")))), timeoutMs: 20 });
-    expect(r).toEqual({ applied: false, reason: "ollama" });
+    expect(r).toEqual({ applied: false, reason: "llm" });
     expect(writes).toHaveLength(0);
   });
   it("a rewrite is refused: nothing written", async () => {
     const r = await enrichImport({ rootOccurrenceId: "root", gridId: "g", userId: "u" },
-      { fetch: ollamaSays(`[[[0]]]\nI know! I don't know what I think.\n\n[[[1]]]\n${BODY.replace("conscious knowledge", "aware understanding")}`) });
+      { fetch: llmSays(`[[[0]]]\nI know! I don't know what I think.\n\n[[[1]]]\n${BODY.replace("conscious knowledge", "aware understanding")}`) });
     expect(r.applied).toBe(false);
     expect(writes).toHaveLength(0);
   });
   it("a fixed | is one write, and the root is stamped", async () => {
     const r = await enrichImport({ rootOccurrenceId: "root", gridId: "g", userId: "u" },
-      { fetch: ollamaSays(`[[[0]]]\nI know! I don't know what I think.\n\n[[[1]]]\n${BODY}`) });
+      { fetch: llmSays(`[[[0]]]\nI know! I don't know what I think.\n\n[[[1]]]\n${BODY}`) });
     expect(r).toEqual({ applied: true, changed: 1 });
     const textWrites = writes.filter((w) => "textmap" in w.set);
     expect(textWrites.map((w) => w.id)).toEqual(["tb1"]);
@@ -74,7 +74,7 @@ describe("enrichImport", () => {
   });
   it("markers the model dropped: refused", async () => {
     const r = await enrichImport({ rootOccurrenceId: "root", gridId: "g", userId: "u" },
-      { fetch: ollamaSays(`I know! I don't know what I think.\n\n${BODY}`) });
+      { fetch: llmSays(`I know! I don't know what I think.\n\n${BODY}`) });
     expect(r).toEqual({ applied: false, reason: "markers changed" });
   });
 });
@@ -83,5 +83,17 @@ describe("simpleBlockText", () => {
   it("a block with a link mark is not cleaned — the control", () => {
     expect(simpleBlockText({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "link" }] }] }] })).toBeNull();
     expect(simpleBlockText({ type: "doc", content: [para("a"), para("b")] })).toBe("a\n\nb");
+  });
+});
+
+describe("cleanupWithLlm", () => {
+  it("posts to /v1/chat/completions with temperature 0", async () => {
+    const { cleanupWithLlm } = await import("../services/importEnrich.js");
+    const cap = [];
+    const out = await cleanupWithLlm({ markdown: "abc" }, { fetch: async (url, init) => { cap.push({ url, body: JSON.parse(init.body) }); return { ok: true, json: async () => ({ choices: [{ message: { content: "abc" } }] }) }; } });
+    expect(out).toBe("abc");
+    expect(cap[0].url).toMatch(/\/v1\/chat\/completions$/);
+    expect(cap[0].body.temperature).toBe(0);
+    expect(cap[0].body.stream).toBe(false);
   });
 });

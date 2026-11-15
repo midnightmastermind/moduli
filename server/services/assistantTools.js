@@ -17,7 +17,7 @@
 //
 // Each tool is `{ name, description, input_schema, destructive,
 // requires_confirm?, run }`. `run(input)` returns serializable JSON. The
-// core engine adapts these to whichever backend is active (Ollama /
+// core engine adapts these to whichever backend is active (local runner /
 // Anthropic / deterministic) — packs never know which model is driving.
 // ============================================================
 

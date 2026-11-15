@@ -2,7 +2,7 @@
 //
 // YOUR FIXES TEACH THE CLEAN-UP (smarter imports Task 8). When you edit a textblock of a page imported in the
 // last 14 days, the text it held and your version are saved as one ImportCorrection. The clean-up
-// (services/importEnrich) hands the newest few to Ollama as worked examples — same kind of import and same
+// (services/importEnrich) hands the newest few to the local model as worked examples — same kind of import and same
 // site first. One record per textblock per 10 minutes: later edits in that window update its `after`.
 // Called from update_occurrence for a user's own action only, never awaited there, and it never throws.
 import ImportCorrection from "../models/ImportCorrection.js";
@@ -61,7 +61,7 @@ export async function recordCorrection({ occurrence, prevTextmap, nextTextmap, u
   }
 }
 
-/** The newest corrections to show Ollama: same kind + site first, then same kind. */
+/** The newest corrections to show the model: same kind + site first, then same kind. */
 export async function examplesFor({ userId, gridId, kind, site = null, limit = 3 }, deps = {}) {
   const Model = deps.model || ImportCorrection;
   const out = [];

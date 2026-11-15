@@ -46,11 +46,11 @@ export function queueImport(job) {
   return true;
 }
 
-// THE CLEAN-UP LINE (Task 7): Ollama after every import, one at a time, on its own chain so a 60s model call
+// THE CLEAN-UP LINE (Task 7): the local model after every import, one at a time, on its own chain so a 60s model call
 // never holds up the next share's page. Off unless IMPORT_AI_CLEANUP=1 — it ships on only when measured to help.
 let enrichChain = Promise.resolve();
 export const aiCleanupOn = () => process.env.IMPORT_AI_CLEANUP === "1";
-/** Queue Ollama clean-up of a written import. @returns {boolean} queued */
+/** Queue the local model's clean-up of a written import. @returns {boolean} queued */
 export function queueEnrich({ rootOccurrenceId, gridId, userId, io = null, mirror = null }, deps = {}) {
   if (!rootOccurrenceId || !aiCleanupOn()) return false;
   enrichChain = enrichChain.then(async () => {

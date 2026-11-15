@@ -1,11 +1,11 @@
-// Import eval runner.  node eval/imports/run.mjs [--baseline] [--check] [--only <case>] [--with-ollama]
+// Import eval runner.  node eval/imports/run.mjs [--baseline] [--check] [--only <case>] [--with-llm]
 // Needs no network and no OCR engine: image cases replay the recorded ocr.json, HTML cases read source.html.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scoreCase, compareToBaseline } from "./score.js";
 import { runImport } from "../../services/importPipeline.js";
-import { cleanupWithOllama, acceptCleanup } from "../../services/importEnrich.js";
+import { cleanupWithLlm, acceptCleanup } from "../../services/importEnrich.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const casesDir = path.join(here, "cases");
@@ -14,8 +14,8 @@ const baselinePath = path.join(here, "baseline.json");
 const args = process.argv.slice(2);
 const flag = (f) => args.includes(f);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
-// --with-ollama: also runs the Task 7 clean-up on each case (the real OLLAMA_URL) and scores both.
-const withOllama = flag("--with-ollama");
+// --with-llm: also runs the Task 7 clean-up on each case (the real LLM_URL) and scores both.
+const withLlm = flag("--with-llm");
 
 const read = (p, d = null) => (fs.existsSync(p) ? fs.readFileSync(p, "utf8") : d);
 
@@ -69,11 +69,11 @@ async function actualFor(dir, _expectedMeta, opts) {
     ocrImage: async () => page,
     fetchPageHtml: async () => { throw new Error("eval runs offline"); },
   });
-  if (!opts?.withOllama) return { md: out.markdown, meta: out.meta };
+  if (!opts?.withLlm) return { md: out.markdown, meta: out.meta };
   // What the background clean-up would write: the model's answer when acceptCleanup passes, else the rules result.
   const t0 = Date.now();
-  const answer = await cleanupWithOllama({ markdown: out.markdown, kind: out.meta?.source?.kind });
-  const verdict = answer ? acceptCleanup(out.markdown, answer) : { ok: false, reason: "ollama" };
+  const answer = await cleanupWithLlm({ markdown: out.markdown, kind: out.meta?.source?.kind });
+  const verdict = answer ? acceptCleanup(out.markdown, answer) : { ok: false, reason: "llm" };
   return { md: out.markdown, meta: out.meta,
     cleaned: { md: verdict.ok ? answer : out.markdown, ms: Date.now() - t0, ok: verdict.ok, reason: verdict.reason || null } };
 }
@@ -86,7 +86,7 @@ for (const name of names) {
   const dir = path.join(casesDir, name);
   const expectedMd = read(path.join(dir, "expected.md"), "");
   const expectedMeta = JSON.parse(read(path.join(dir, "expected.json"), "{}"));
-  const actual = await actualFor(dir, expectedMeta, { withOllama });
+  const actual = await actualFor(dir, expectedMeta, { withLlm });
   let actualMd = actual.md;
   const warnings = [];
   if (expectedMeta.cutAfter) {
@@ -101,18 +101,18 @@ for (const name of names) {
     cleanedResults[name] = { ...scoreCase({ expectedMd, expectedMeta, actualMd: cmd, actualMeta: actual.meta }), ...actual.cleaned };
   }
 }
-if (withOllama) {
+if (withLlm) {
   const r3 = (v) => Math.round(v * 1000) / 1000;
   const cmp = {};
   let rulesSum = 0, aiSum = 0, drops = 0;
   for (const [n, c] of Object.entries(cleanedResults)) {
     rulesSum += results[n].total; aiSum += c.total;
     if (c.total < results[n].total) drops++;
-    cmp[n] = { rules: r3(results[n].total), withOllama: r3(c.total), ms: c.ms, accepted: c.ok, reason: c.reason || "" };
+    cmp[n] = { rules: r3(results[n].total), withLlm: r3(c.total), ms: c.ms, accepted: c.ok, reason: c.reason || "" };
   }
-  console.log("rules-only vs with-ollama:");
+  console.log("rules-only vs with-llm:");
   console.table(cmp);
-  console.log(`totals: rules ${r3(rulesSum)} · with-ollama ${r3(aiSum)} · cases that dropped ${drops}` +
+  console.log(`totals: rules ${r3(rulesSum)} · with-llm ${r3(aiSum)} · cases that dropped ${drops}` +
     ` -> ${aiSum >= rulesSum && !drops ? "clean-up may ship (IMPORT_AI_CLEANUP=1)" : "leave IMPORT_AI_CLEANUP unset"}`);
 }
 

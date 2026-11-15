@@ -1,7 +1,7 @@
 // server/models/ImportCorrection.js
 //
 // A hand fix to an imported page (smarter imports Task 8): the text a textblock held when it arrived, and
-// what the user changed it to. Fed back to Ollama's clean-up as examples, and a source for new eval cases.
+// what the user changed it to. Fed back to the model clean-up as examples, and a source for new eval cases.
 import mongoose from "mongoose";
 
 const ImportCorrectionSchema = new mongoose.Schema({

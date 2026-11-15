@@ -12,7 +12,7 @@
 //   text   as is
 //
 // `meta = { title, images: [{ url, occurrenceId? }], fields: {}, type: null|string, source: { kind, url? } }`.
-// Later stages (structured data, board match, Ollama clean-up) fill `fields` / `type`.
+// Later stages (structured data, board match, model clean-up) fill `fields` / `type`.
 //
 // THE WRITER is markdownToModuli and nothing else (no Occurrence.create here; persistImportResult only
 // mirrors its rows into the warm cache, the same pass import_text runs after it). `runImport` writes with

@@ -1,6 +1,6 @@
 // services/importEnrich.js
 //
-// OLLAMA CLEANS UP AN IMPORT AFTER IT IS SAVED, AND MAY ONLY FIX MISREADS (smarter imports Task 7).
+// THE LOCAL MODEL CLEANS UP AN IMPORT AFTER IT IS SAVED, AND MAY ONLY FIX MISREADS (smarter imports Task 7).
 // The rules result is written first (importPipeline); this runs later, in the background, and never
 // blocks a save. A local model asked to "fix OCR" will happily reword a sentence, drop one, or translate
 // a paragraph — so its answer is applied only when `acceptCleanup` says every change is a small one:
@@ -16,7 +16,7 @@
 import Occurrence from "../models/Occurrence.js";
 import Module from "../models/Module.js";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
-import { ollamaHeaders } from "../utils/ollamaHeaders.js";
+import { chatOnce } from "./llmClient.js";
 
 export const CLEANUP_TIMEOUT_MS = 60000;
 const MAX_NODES = 600;
@@ -94,10 +94,9 @@ export function acceptCleanup(before, after) {
 }
 
 /** The model's answer, or null on timeout / error / no answer. */
-export async function cleanupWithOllama({ markdown, kind = null, examples = [] }, deps = {}) {
-  const fetchFn = deps.fetch || globalThis.fetch;
-  const url = process.env.OLLAMA_URL || "http://localhost:11434";
-  const model = process.env.IMPORT_OLLAMA_MODEL || process.env.OLLAMA_MODEL || "llama3.2:3b";
+export async function cleanupWithLlm({ markdown, kind = null, examples = [] }, deps = {}) {
+  const url = process.env.LLM_URL || "http://localhost:8080";
+  const model = process.env.IMPORT_LLM_MODEL || process.env.LLM_FAST_MODEL || "fast";
   const messages = [{ role: "system", content: SYSTEM_PROMPT + (kind ? `\nThe text came from: ${kind}.` : "") }];
   for (const ex of examples || []) {
     if (!ex?.before || !ex?.after) continue;
@@ -107,14 +106,8 @@ export async function cleanupWithOllama({ markdown, kind = null, examples = [] }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), deps.timeoutMs || CLEANUP_TIMEOUT_MS);
   try {
-    const res = await fetchFn(`${url}/api/chat`, {
-      method: "POST", signal: ctrl.signal,
-      headers: ollamaHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ model, messages, stream: false, options: { temperature: 0 } }),
-    });
-    if (!res?.ok) return null;
-    const body = await res.json();
-    const text = String(body?.message?.content || "").replace(/^```[a-z]*\n?|\n?```\s*$/g, "").trim();
+    const { content } = await chatOnce({ url, body: { model, messages, temperature: 0 }, signal: ctrl.signal, fetchFn: deps.fetch });
+    const text = String(content || "").replace(/^```[a-z]*\n?|\n?```\s*$/g, "").trim();
     return text || null;
   } catch {
     return null;
@@ -180,8 +173,8 @@ export async function enrichImport({ rootOccurrenceId, gridId, userId, io = null
   const site = (() => { try { return new URL(root.meta?.importSource?.url).hostname; } catch { return null; } })();
   const examples = deps.examplesFor ? await deps.examplesFor({ userId, gridId, kind, site }).catch(() => []) : [];
   const joined = blocks.map((b, i) => `${MARK(i)}\n${b.text}`).join("\n\n");
-  const answer = await cleanupWithOllama({ markdown: joined, kind, examples }, deps);
-  if (!answer) return { applied: false, reason: "ollama" };
+  const answer = await cleanupWithLlm({ markdown: joined, kind, examples }, deps);
+  if (!answer) return { applied: false, reason: "llm" };
 
   const parts = [];
   for (let i = 0; i < blocks.length; i++) {

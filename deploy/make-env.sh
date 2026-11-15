@@ -46,12 +46,12 @@ echo "  Find it at console.anthropic.com -> Settings -> API Keys. Starts with sk
 printf "ANTHROPIC_API_KEY: "
 read -r ANTHROPIC_API_KEY <&3
 
-# Pick the assistant backend: anthropic if a key was given, else deterministic
-# (Ollama is off on this box, so we never want it probing localhost:11434).
+# Pick the assistant backend: anthropic if a key was given, else the local runner
+# on the PC (LLM_URL below; Jonah falls back to the no-model dispatcher if it is down).
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   ASSISTANT_BACKEND="anthropic"
 else
-  ASSISTANT_BACKEND="deterministic"
+  ASSISTANT_BACKEND="local"
 fi
 
 # ── 3. Auto-generated secrets ────────────────────────────────────────────────
@@ -68,15 +68,17 @@ PORT=5000
 # Strong random secret (openssl rand -hex 32)
 JWT_SECRET=$JWT_SECRET
 
-# Assistant: anthropic | ollama | deterministic
+# Assistant: anthropic | local | deterministic
 ASSISTANT_BACKEND=$ASSISTANT_BACKEND
 ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 
 # Random token guarding assistant API routes (openssl rand -hex 24)
 ASSISTANT_API_TOKEN=$ASSISTANT_API_TOKEN
 
-# Ignored while Ollama is off, kept for when ENABLE_OLLAMA flips on.
-OLLAMA_MODEL=llama3.2:3b
+# The local model runner on the PC (infra/llm): llama-swap behind the Cloudflare tunnel.
+LLM_URL=https://llm.viafluere.com
+LLM_BUILD_MODEL=build
+LLM_FAST_MODEL=fast
 EOF
 )
 chmod 600 "$ENV_PATH"
