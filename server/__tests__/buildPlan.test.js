@@ -168,3 +168,24 @@ describe("markdown content", () => {
     expect(p.operations).toHaveLength(1);
   });
 });
+
+// What Jonah wrote with markdown (2026-11-15): in-app links as [Name](Name), and the open-all button as a link line
+// "[Open all in browser](javascript:…)". Both read as meant; a javascript: address is never kept.
+describe("markdown as Jonah writes it", () => {
+  it("[Name](Name) is an in-app link", () => {
+    expect(markdownToNodes("## Places\n- [Schedule](Schedule)\n- [Day Page](Day Pages)")).toEqual([
+      { section: "Places", children: ["Schedule -> Schedule", "Day Page -> Day Pages"] },
+    ]);
+  });
+  it("an 'open … in browser' link line is the section's open-links button", () => {
+    const nodes = markdownToNodes("## Quick Links\n[Open all in browser](javascript:window.open('https://a.io'))\n### Mail\n- [Open in browser](javascript:x)\n- [Gmail](https://mail.google.com)");
+    expect(nodes).toEqual([{ section: "Quick Links", children: [
+      { button: "Open in browser", does: "open links" },
+      { section: "Mail", children: [{ button: "Open in browser", does: "open links" }, "Gmail | https://mail.google.com"] },
+    ] }]);
+    expect(JSON.stringify(nodes)).not.toMatch(/javascript/);
+  });
+  it("a section never gets two open-links buttons", () => {
+    expect(markdownToNodes("## Mail [open links]\n[Open all in browser](javascript:x)")[0].children).toHaveLength(1);
+  });
+});

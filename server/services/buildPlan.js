@@ -41,6 +41,22 @@ export function parseShort(s) {
   return { kind: "item", name: t };
 }
 
+const OPEN_BUTTON = Symbol("open links button");
+// One list item / link line → a short-form string, the open-links button, or null (dropped). `[[X]]` and `[Label](X)`
+// with a non-web target are in-app links; a link labelled "open … in browser" / "open all" is the section's button
+// (Jonah wrote it as `[Open all in browser](javascript:…)` — the address is never kept).
+function linkItem(c) {
+  const wiki = c.match(/^\[\[(.+?)\]\]$/);
+  if (wiki) return `${wiki[1]} -> ${wiki[1]}`;
+  const md = c.match(/^\[(.+?)\]\((.+)\)$/);
+  if (!md) return c;
+  const [, label, target] = md;
+  if (/^open\b.*\b(browser|all)\b|^open all\b/i.test(label)) return OPEN_BUTTON;
+  if (/^https?:\/\//i.test(target)) return `${label} | ${target.trim()}`;
+  if (/^[a-z]+:/i.test(target)) return null;
+  return `${label} -> ${target.trim()}`;
+}
+
 /**
  * Markdown content → nodes, the form a small model writes best (2026-11-15). `##`/`###` → sections (nested by level;
  * a `#` title is skipped — the page has its name); `[open links]` ending a heading → that section's open-links button;
@@ -69,12 +85,14 @@ export function markdownToNodes(md) {
       continue;
     }
     const li = line.match(/^[-*+]\s+(.*)$/);
-    if (li) {
+    const bareLink = !li && /^\[[^\]]+\]\(.+\)$/.test(line);
+    if (li || bareLink) {
       flush();
-      const c = li[1].trim();
-      const wiki = c.match(/^\[\[(.+?)\]\]$/);
-      const md = c.match(/^\[(.+?)\]\((\S+?)\)$/);
-      here().push(wiki ? `${wiki[1]} -> ${wiki[1]}` : md ? `${md[1]} | ${md[2]}` : c);
+      const item = linkItem(li ? li[1].trim() : line);
+      if (item === OPEN_BUTTON) {
+        const kids = here();
+        if (!kids.some((k) => k?.button && /open links/i.test(k.does || ""))) kids.push({ button: "Open in browser", does: "open links" });
+      } else if (item) here().push(item);
       continue;
     }
     if (!line) { flush(); continue; }
