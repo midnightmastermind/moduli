@@ -24,7 +24,7 @@ models:
   "build":
     cmd: >
       C:/moduli-llm/bin/llama-server.exe --port ${PORT}
-      -m C:/moduli-llm/models/qwen2.5-coder-7b-q4_k_m.gguf
+      -m C:/moduli-llm/models/qwen2.5-7b-instruct-q4_k_m.gguf
       -ngl 99 --jinja -c 8192 -np 1 -t 8 --cache-reuse 256
     ttl: 0
 

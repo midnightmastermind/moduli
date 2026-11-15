@@ -143,7 +143,7 @@ export function coerceValue(field, raw) {
     for (const r of list) {
       if (!opts) { out.push(String(r)); continue; }
       const hit = opts.find((o) => norm(o.value) === norm(r) || norm(o.label) === norm(r));
-      if (!hit) return { error: `${field.name}: "${r}" is not one of its options`, choices: opts.map((o) => o.label) };
+      if (!hit) return { error: `${field.name}: "${r}" is not one of its options`, choices: opts.map((o) => o.label), notAnOption: true };
       out.push(hit.value);
     }
     return { value: field.meta?.multiSelect ? out : out[0] };
@@ -353,6 +353,10 @@ export function buildToolPack({ call, gridId }) {
       const v = f.field.type === "occurrence"
         ? await resolveOccurrenceValue(f.field, raw, created)
         : coerceValue(f.field, raw);
+      // A value of the WRONG KIND is left out the same way: the model adds fields nobody asked for ("Day": "Mon" on
+      // a number field, eval 2026-11-15), and one stray value must not cost the whole row. A well-formed value that is
+      // not one of a dropdown's options still skips the row — that is a real mismatch to report, never to guess past.
+      if (v.error && !v.notAnOption && f.field.type !== "occurrence") { leftOut.push(v.error.startsWith(f.field.name) ? v.error : `${f.field.name}: ${v.error}`); continue; }
       if (v.error) return v;
       out[f.field.id] = { value: v.value, flow: "in" };
     }
@@ -480,7 +484,7 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "create_items",
-      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. Something that REPEATS on many dates: do NOT list the dates — send ONE item with `repeat`: {\"from\": \"2026-11-01\", \"to\": \"2026-11-30\", \"weekdays\": [\"Mon\",\"Tue\",\"Wed\",\"Thu\"]} and one row is made per matching day (date in the Date field; `except` lists days to skip). A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
+      description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. Something that REPEATS on many dates: do NOT list the dates — send ONE item with `repeat`: {\"from\": \"2026-11-01\", \"to\": \"2026-11-30\", \"weekdays\": [\"Mon\",\"Tue\",\"Wed\",\"Thu\"]} and one row is made per matching day (date in the Date field; `except` lists days to skip). `from`/`to` cover the WHOLE period the user names — \"in November 2026\" is 2026-11-01 to 2026-11-30 — never starting from today unless the user says so. A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
       input_schema: {
         type: "object",
         properties: {

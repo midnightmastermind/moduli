@@ -161,6 +161,15 @@ describe("create_items", () => {
     expect(row.fields.D.value).toBe("2026-11-02");
   });
 
+  it("a value that does not fit its field is left out and the row is still made", async () => {
+    const api = fakeApi();
+    const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
+    const r = await tool.run({ container: "Appointments", items: [{ label: "CPS Class", fields: { Date: "2026-11-02", Duration: "Mon" } }] });
+    expect(r.created).toBe(1);
+    expect(r.leftOut).toHaveLength(1);
+    expect(r.leftOut[0]).toMatch(/Duration/);
+  });
+
   it("an existing option is reused, never duplicated", async () => {
     const api = fakeApi();
     const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
