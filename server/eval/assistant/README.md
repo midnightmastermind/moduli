@@ -38,3 +38,21 @@ New runner (llama-swap: qwen2.5-coder 7B on the Radeon for builds, llama3.2 3B o
 
 Fixes from these runs: questions get read tools only; a garbled `›` still splits a path; a field the grid lacks is
 left out instead of failing the row.
+
+## 2026-11-15 — after the fixes, build model Qwen2.5 7B Instruct (Q4_K_M)
+
+qwen2.5-coder 7B wrote its tool calls as text (`<tools>{…}</tools>`) and failed CPS 4 of 4; Qwen2.5 7B Instruct uses
+the native tool-call channel and is the build model now. Two more fixes from these runs: a named month in `repeat`
+means the whole month (the model started from "today"), and a value of the wrong kind ("Day": "Mon" on a number field)
+is left out instead of failing the row.
+
+| case | model | wall | passed | notes |
+|---|---|---|---|---|
+| cps | build | 24-28s (×4) | **4 of 4** | 17 rows, Nov 2 – Nov 30, Mon-Thu |
+| quicklinks | build | 100-107s (×3) | **3 of 3** | 13 typed bookmarks + filter; it also calls an unneeded add_filter |
+| q-schedule | fast | 38s | yes | answered from its notes, not today's slots |
+| q-feeds | fast | 6s | yes | |
+| q-movies | fast | 34s | yes | wrote nothing; said "no movies" (test grid 2's board was not found) |
+
+Questions on the 3B are no better than Ollama's answers were — the same model. A video playing on the PC shares the
+Radeon and memory; the measured speeds were unchanged (51 tok/s read, 7 write on the 7B).
