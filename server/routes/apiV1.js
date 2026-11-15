@@ -2221,6 +2221,88 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   //          containers / instances). See docs/assistant-plan.md.
   // ====================================================================
 
+  // POST /build — Jonah builds anything in ONE call (services/buildPlan, spec 2026-11-15-jonah-build-anything-design).
+  // Body: { gridId, nodes, under?, dryRun? }. Plans every record, resolving names against this grid; dryRun answers
+  // with the plan's summary and writes nothing (the confirm card). Answers { ok, made, problems, counts }.
+  router.post("/build", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { planBuild } = await import("../services/buildPlan.js");
+      const { gridId, nodes, under = null, dryRun = false } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!Array.isArray(nodes) || !nodes.length) return err(res, 400, "validation_error", "nodes (a non-empty list) required");
+      const userId = req.userId;
+      const manifest = await Manifest.findOne({ gridId, rootFolderId: { $ne: null } }).lean();
+      const folders = await Folder.find({ gridId }).select("id name parentId").lean();
+      const fields = await Field.find({ gridId }).lean();
+      // Names a build can point at: pages and sections (their first placement), and folders (their folder-page card).
+      const placeMods = await Module.find({ gridId, role: { $in: ["page", "container"] } }).select("id label role kind").lean();
+      const placeOccs = await Occurrence.find({ gridId, moduleId: { $in: placeMods.map((m) => m.id) } }).select("id moduleId parentId createdAt").sort({ createdAt: 1 }).lean();
+      const firstOcc = new Map();
+      for (const o of placeOccs) if (!firstOcc.has(o.moduleId)) firstOcc.set(o.moduleId, o);
+      const byName = new Map();
+      for (const m of [...placeMods].sort((a, b) => (a.role === "page" ? -1 : 1) - (b.role === "page" ? -1 : 1))) {
+        const o = firstOcc.get(m.id); const key = String(m.label || "").trim().toLowerCase();
+        if (!o || !key || byName.has(key) || m.kind === "folder") continue;
+        byName.set(key, { occId: o.id, role: m.role, kind: m.kind, moduleId: m.id });
+      }
+      const cardOf = new Map(placeOccs.filter((o) => placeMods.find((m) => m.id === o.moduleId && m.kind === "folder")).map((o) => [o.parentId, o.id]));
+      for (const f of folders) {
+        const key = String(f.name || "").trim().toLowerCase();
+        if (!byName.has(key)) byName.set(key, { folderId: f.id, occId: cardOf.get(f.id) || null, role: "page", kind: "folder" });
+      }
+      const find = (name) => {
+        const last = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
+        return byName.get(last.trim().toLowerCase()) || null;
+      };
+      // A button already on the grid, and what its listeners do (so the build does not add a second one).
+      const ops = await Operation.find({ gridId, triggerType: "onButton" }).lean();
+      const buttonFieldFor = (label) => {
+        const f = fields.find((x) => x.type === "button" && String(x.name).toLowerCase() === String(label).toLowerCase());
+        if (!f) return null;
+        const listening = new Set();
+        for (const op of ops) {
+          if (!(op.triggerObjects || []).some((t) => t.targetId === f.id)) continue;
+          if (JSON.stringify(op.pipeline || {}).includes("OPEN_URLS")) listening.add("open links");
+        }
+        return { fieldId: f.id, listening };
+      };
+      const plan = planBuild({ nodes, under, ctx: { gridId, userId, rootFolderId: manifest?.rootFolderId || null, folders, fields, find, buttonFieldFor } });
+      const counts = { modules: plan.modules.length, occurrences: plan.occurrences.length, folders: plan.folders.length, fields: plan.fields.length, operations: plan.operations.length };
+      if (dryRun) return res.json({ ok: true, dryRun: true, made: plan.made, problems: plan.problems, counts });
+
+      const room = io.to(userRoom(userId));
+      for (const f of plan.folders) { const doc = await Folder.create(f); mirrorToCache(userId, gridId, "folder", doc.toObject()); room.emit("folder_created", { folder: doc.toObject() }); }
+      for (const f of plan.fields) { const doc = await Field.create(f); mirrorToCache(userId, gridId, "field", doc.toObject()); room.emit("field_created", { field: doc.toObject() }); }
+      for (const o of plan.operations) { const doc = await Operation.create(o); mirrorToCache(userId, gridId, "operation", doc.toObject()); room.emit("operation_created", { operation: doc.toObject() }); }
+      const { persistImportResult } = await import("../utils/persistImport.js");
+      await persistImportResult({ result: { modules: plan.modules, occurrences: plan.occurrences }, userId, uc: await getUserCache(userId, gridId) });
+      for (const m of plan.modules) room.emit("module_created", { module: m });
+      for (const o of plan.occurrences) room.emit("occurrence_created", { occurrence: o });
+      const { embedRootInDocParent } = await import("../utils/embedRootInDocParent.js");
+      for (const a of plan.attach) {
+        if (a.bindOn) {
+          const m = await Module.findOne({ gridId, id: a.bindOn }).lean();
+          if (!m || (m.fieldBindings || []).some((b) => b.fieldId === a.fieldId)) continue;
+          const next = { ...m, fieldBindings: [...(m.fieldBindings || []), { fieldId: a.fieldId, role: "input", order: (m.fieldBindings || []).length }] };
+          await Module.updateOne({ gridId, id: m.id }, { $set: { fieldBindings: next.fieldBindings } });
+          mirrorToCache(userId, gridId, "module", next);
+          room.emit("module_updated", { module: next });
+          continue;
+        }
+        await linkIntoParent({ userId, parentId: a.parentId, childId: a.childId });
+        if (a.doc) {
+          const r = await embedRootInDocParent({ parentId: a.parentId, childId: a.childId, userId });
+          if (r) {
+            const uc = peekUserCache?.(userId, gridId);
+            if (uc?.occurrencesById?.[r.id]) uc.occurrencesById[r.id] = { ...uc.occurrencesById[r.id], textmap: r.textmap };
+            room.emit("occurrence_updated", { occurrence: { id: r.id, textmap: r.textmap } });
+          }
+        }
+      }
+      res.json({ ok: plan.problems.length === 0, made: plan.made, problems: plan.problems, counts });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   router.post("/import/markdown", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { markdownToModuli } = await import("../services/markdownImporter.js");

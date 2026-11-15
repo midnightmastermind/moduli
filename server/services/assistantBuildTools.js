@@ -423,7 +423,7 @@ export function buildToolPack({ call, gridId }) {
   return [
     {
       name: "create_board",
-      description: "Make a whole BOARD in one step: a board page in a folder, its container, and its rows. Write each row as ONE line: \"Label | https://url | value\" (a bookmark card; `value` is that row's value for `field`) or just \"Label\" (a plain item). `selectFields` creates select fields first, each as \"Name: option1, option2\". `field` names the select field the third part of a row sets. `filterField` adds a filter for that field on the page, nothing set, nav showing. Put EVERY link/item the user listed in `rows`. Example: {\"name\":\"Quick Links\",\"folder\":\"Interfaces\",\"selectFields\":[\"Quick Link Type: social, news\"],\"field\":\"Quick Link Type\",\"rows\":[\"Reddit | https://reddit.com | social\"],\"filterField\":\"Quick Link Type\"}",
+      description: "A board page with its rows in one step. Rows are lines: \"Label | https://url | value\" (a bookmark; value = its `field`) or \"Label\". selectFields: \"Name: a, b\". filterField adds a filter with its nav. Example: {\"name\":\"Quick Links\",\"folder\":\"Interfaces\",\"selectFields\":[\"Quick Link Type: social, news\"],\"field\":\"Quick Link Type\",\"rows\":[\"Reddit | https://reddit.com | social\"],\"filterField\":\"Quick Link Type\"}",
       input_schema: {
         type: "object",
         properties: {
@@ -489,6 +489,29 @@ export function buildToolPack({ call, gridId }) {
           filter = f.error ? f : await addFilter(pageId, f.field);
         }
         return { ok: problems.length === 0, pageId, containerId, folder: fo.folder.name, rows: made.length, created, problems, filter, ...(leftOut.length ? { leftOut } : {}) };
+      },
+    },
+    {
+      name: "build",
+      description: "Make anything, one tree: {\"page\":\"Name\",\"kind\":\"doc|board\",\"in\":\"Folder\",\"children\":[]} "
+        + "{\"folder\":\"Name\"} {\"section\":\"Name\",\"children\":[]} {\"item\":\"Label\",\"fields\":{\"Field\":\"value\"}} {\"text\":\"...\"} "
+        + "{\"button\":\"Label\",\"does\":\"open links|show page X|add item to X\"}. "
+        + "Links are strings: \"Gmail | https://mail.google.com\", or \"Schedule ->\" for a Moduli page. `under` adds into an existing page.",
+      input_schema: {
+        type: "object",
+        properties: {
+          nodes: { type: "array", items: { anyOf: [{ type: "string" }, { type: "object", additionalProperties: true }] } },
+          under: { type: "string", description: "An existing page or section to add into (optional)" },
+        },
+        required: ["nodes"],
+      },
+      destructive: false,
+      requires_confirm: true,
+      run: async ({ nodes: nodesIn, under }) => {
+        const nodes = asList(nodesIn);
+        const r = await call("POST", `/build`, { gridId, nodes, under: under || null });
+        if (!ok(r)) return fail(r, "building");
+        return r.body;
       },
     },
     {
