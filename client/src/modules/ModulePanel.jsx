@@ -92,6 +92,8 @@ import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import { openPanelOnRootFolderPage, ensureFolderPageOcc } from "../helpers/importsFolder";
+import PanelHeaderButtons from "../ui/PanelHeaderButtons.jsx";
+import { runButtonOperation } from "../helpers/buttonRun";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W } from "../helpers/rootTreeLayout";
 import { PAGEABLE_CONTAINER_KINDS } from "../helpers/folderPages";
@@ -349,6 +351,8 @@ function Panel({
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const manifestsById = useGridActionsSelector(s => s.manifestsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
+  const operationsById = useGridActionsSelector(s => s.operationsById);
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const { state } = useContext(GridDataContext);
   const { isMobileLayout, isTouch } = useContext(GridLiveContext);
   const rootTreeCanPush = useMinWidth(ROOT_TREE_PUSH_MIN_W);
@@ -896,6 +900,27 @@ function Panel({
     }
   }, [panelOccurrence, currentView, dispatch, socket, grid, manifestsById, occurrencesById, modulesById, userId]);
 
+  // Header Home: the root folder in THIS panel (the panel's view is re-pointed, not replaced).
+  const handleHome = useCallback(() => {
+    if (!panelOccurrence?.id) return;
+    openPanelOnRootFolderPage({
+      panelOccId: panelOccurrence.id, grid, gridId: grid?._id,
+      manifestsById, occurrencesById, modulesById, dispatch, socket, userId,
+      existingView: currentView || null,
+    });
+  }, [panelOccurrence, grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId, currentView]);
+
+  // A grid header button (grid.meta.panelButtons): its operation runs for a press in THIS panel, so it can
+  // UPDATE_VIEW $trigger.panelViewId (ui/PanelHeaderButtons).
+  const handleGridButton = useCallback((op) => {
+    if (!op || !panelOccurrence?.id) return;
+    runButtonOperation({
+      op, hostOccurrence: panelOccurrence,
+      panel: { panelOccurrenceId: panelOccurrence.id, panelViewId: panelOccurrence.viewId || currentView?.id || null, panelPageId: currentView?.activeOccurrenceId || null },
+      ctx: { state, fieldsById, operationsById, occurrencesById, modulesById, dispatch },
+    });
+  }, [panelOccurrence, currentView, state, fieldsById, operationsById, occurrencesById, modulesById, dispatch]);
+
   // Panel-header search: the result may live on any page of the grid, so open
   // that page HERE (pin + activate) before scrolling to it.
   const handleSearchPick = useCallback((occId) => {
@@ -1233,6 +1258,7 @@ function Panel({
                 >
                   <Folder size={11} style={{ opacity: 0.8 }} />
                 </button>
+                <PanelHeaderButtons grid={grid} operationsById={operationsById} onHome={handleHome} onRun={handleGridButton} />
                 {(() => {
                   // A mosaic grid gives every panel its own pane, so there are no
                   // stacks to cycle (user 2026-10-20).
