@@ -471,3 +471,28 @@ describe("an unreachable local runner", () => {
     }
   });
 });
+
+// Prod sets ASSISTANT_BACKEND=local; a PC that is asleep must still be noticed in about a second (final review I1).
+describe("a forced local backend still checks the runner", () => {
+  it("falls to the dispatcher when the runner does not answer", async () => {
+    const realFetch = global.fetch;
+    const prev = process.env.ASSISTANT_BACKEND;
+    process.env.ASSISTANT_BACKEND = "local";
+    let chatCalls = 0;
+    global.fetch = (url, init) => {
+      if (String(url).includes("/v1/models")) return new Promise((_, rej) => init?.signal?.addEventListener("abort", () => rej(new Error("aborted"))));
+      if (String(url).includes("/v1/chat/completions")) { chatCalls++; return new Promise(() => {}); }
+      return Promise.resolve(new Response(JSON.stringify({ modules: [], occurrences: [], folders: [] }), { status: 200 }));
+    };
+    const t0 = Date.now();
+    try {
+      const out = await assistantChat({ messages: [{ role: "user", content: "hello" }], gridId: "g1", baseUrl: "http://x", apiToken: "t" });
+      expect(out.mode).toBe("deterministic");
+      expect(chatCalls).toBe(0);
+      expect(Date.now() - t0).toBeLessThan(2000);
+    } finally {
+      global.fetch = realFetch;
+      if (prev === undefined) delete process.env.ASSISTANT_BACKEND; else process.env.ASSISTANT_BACKEND = prev;
+    }
+  });
+});

@@ -4,7 +4,7 @@
 //   node --env-file=server/.env server/eval/assistant/run.mjs --label llama [--agent <assistantAgent.js>] [--only cps]
 //   Set the backend's env first: ASSISTANT_BACKEND=local LLM_URL=http://127.0.0.1:8080
 //                            or: ASSISTANT_BACKEND=ollama OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=llama3.2:3b
-//                                with --agent pointing at a checkout from before the switch.
+//                                with --agent pointing at a checkout from BEFORE the switch (its own env names).
 // NEVER point it at poms grid: --grid defaults to "test grid 2" and the script refuses any protected grid.
 import fs from "node:fs";
 import path from "node:path";
@@ -23,11 +23,12 @@ if (/poms/i.test(gridName)) throw new Error("refusing a protected grid");
 const cases = JSON.parse(fs.readFileSync(path.join(here, "cases.json"), "utf8")).filter((c) => !only || c.id === only);
 const { assistantChat, assistantConfirm } = await import(agentPath);
 const { default: ApiToken } = await import("../../models/ApiToken.js");
+const { isProtectedGrid } = await import("../../utils/protectedGrids.js");
 
 await mongoose.connect(process.env.MONGO_URI);
 const db = mongoose.connection;
 const grid = await db.collection("grids").findOne({ name: gridName });
-if (!grid || grid.meta?.protected) throw new Error(`no unprotected grid "${gridName}"`);
+if (!grid || isProtectedGrid(grid)) throw new Error(`no unprotected grid "${gridName}"`);
 const gridId = grid.id || String(grid._id);
 const userId = String(grid.userId);
 const { rawToken, tokenDoc } = await ApiToken.mint({ userId, name: "assistant eval (delete after)", scopes: ["read", "write"] });
@@ -74,8 +75,11 @@ async function kindsOf(made) {
 }
 
 const results = [];
+try {
 for (const c of cases) {
-  const before = await idsNow();
+  let before = null;
+  try {
+  before = await idsNow();
   const t0 = Date.now();
   let confirmOut = [];
   let first = null, toolCalls = 0, cacheN = null, promptN = null, model = null, out = null, err = null;
@@ -94,12 +98,19 @@ for (const c of cases) {
   const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made);
   const madeKinds = await kindsOf(made);
   const removed = await cleanup(before);
+  before = null;
   const answer = (out?.transcript || []).filter((t) => t.role === "assistant").map((t) => t.content).join(" ").slice(0, 160);
   results.push({ case: c.id, mode: out?.mode || "error", model: model || out?.model || "", wallMs, firstTokenMs: first, toolCalls, pending: (out?.pendingConfirmations || []).map((p) => p.name).join(","), cacheN, promptN, passed: verdict.passed, why: verdict.why, answer, removed, confirmOut, madeKinds });
   console.table([results.at(-1)].map(({ answer, removed, ...r }) => r));
+  } finally {
+    // a case that threw past its own try still gets its rows deleted
+    if (before) await cleanup(before).catch(() => {});
+  }
 }
-await ApiToken.updateOne({ _id: tokenDoc._id }, { $set: { revoked: true } });
-await ApiToken.deleteOne({ _id: tokenDoc._id });
+} finally {
+  // the scratch token never outlives the run
+  await ApiToken.deleteOne({ _id: tokenDoc._id }).catch(() => {});
+}
 fs.mkdirSync(path.join(here, "results"), { recursive: true });
 const file = path.join(here, "results", `${label}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
 fs.writeFileSync(file, JSON.stringify(results, null, 2));

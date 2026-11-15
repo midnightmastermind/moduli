@@ -208,14 +208,23 @@ export function asList(v) {
  */
 export function parseRow(row, { valueField = null } = {}) {
   if (typeof row !== "string") return row;
-  const parts = row.split(" | ").map((x) => x.trim());
+  const parts = row.split(/\s*\|\s*/).map((x) => x.trim());
   let k = -1;
-  for (let i = parts.length - 1; i > 0; i--) if (/^https?:\/\//i.test(parts[i])) { k = i; break; }
+  for (let i = parts.length - 1; i > 0; i--) if (urlOf(parts[i])) { k = i; break; }
   if (k < 0) return { label: row.trim() };
-  const out = { label: parts.slice(0, k).join(" | "), url: parts[k] };
+  const out = { label: parts.slice(0, k).join(" | "), url: urlOf(parts[k]) };
   const value = parts.slice(k + 1).join(" | ").trim();
   if (value && valueField) out.fields = { [valueField]: value };
   return out;
+}
+
+// A part is the row's link when it is a full http(s) address or a bare domain ("reddit.com", "www.x.io/path") —
+// the model writes both. A bare domain gets https://.
+function urlOf(part) {
+  const p = String(part || "").trim();
+  if (/^https?:\/\/\S+$/i.test(p)) return p;
+  if (/^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:[/?#]\S*)?$/i.test(p)) return `https://${p}`;
+  return null;
 }
 
 /** "Name: a, b, c" → { name, options }. An object passes through. Pure. */

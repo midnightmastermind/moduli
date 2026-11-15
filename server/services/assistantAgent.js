@@ -602,7 +602,10 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
 // =========================================================================
 async function pickBackend() {
   const forced = (process.env.ASSISTANT_BACKEND || "").toLowerCase();
-  if (forced === "local" || forced === "anthropic" || forced === "deterministic") return forced;
+  // A forced local backend still asks the runner first: a PC that is asleep must answer in ~1s, not after the
+  // 180s generation timeout (final review, 2026-11-15).
+  if (forced === "local") return (await reachable({ url: LLM_URL })) ? "local" : "deterministic";
+  if (forced === "anthropic" || forced === "deterministic") return forced;
   // KEY-FIRST: configuring ANTHROPIC_API_KEY is an explicit opt-in to Claude, so
   // prefer it. Without a key, prefer the local runner (offline, private, free),
   // else the no-model dispatcher. ASSISTANT_BACKEND=local forces local.

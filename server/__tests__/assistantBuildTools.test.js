@@ -268,6 +268,14 @@ describe("short row strings", () => {
     const row = { label: "X", url: "https://x.io" };
     expect(parseRow(row)).toBe(row);
   });
+  it("parseRow reads bars without spaces and a bare domain (final review I2)", () => {
+    expect(parseRow("Reddit|https://reddit.com|social", { valueField: "T" })).toEqual({ label: "Reddit", url: "https://reddit.com", fields: { T: "social" } });
+    expect(parseRow("Reddit | reddit.com | social", { valueField: "T" })).toEqual({ label: "Reddit", url: "https://reddit.com", fields: { T: "social" } });
+    expect(parseRow("Dynadot | www.dynadot.com/account")).toEqual({ label: "Dynadot", url: "https://www.dynadot.com/account" });
+  });
+  it("parseRow keeps a plain label that holds a bar", () => {
+    expect(parseRow("Mind | Body")).toEqual({ label: "Mind | Body" });
+  });
   it("parseSelectField reads name and options", () => {
     expect(parseSelectField("Quick Link Type: social, news, tools")).toEqual({ name: "Quick Link Type", options: ["social", "news", "tools"] });
   });
