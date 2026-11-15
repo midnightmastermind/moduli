@@ -341,10 +341,14 @@ export function buildToolPack({ call, gridId }) {
   // { "Field Name": value } → { fieldId: {value, flow} }
   const fieldValues = async (byName, created) => {
     const all = await loadFields();
-    const out = {};
+    const out = {}; const leftOut = [];
     for (const [name, raw] of Object.entries(byName || {})) {
       if (raw == null || raw === "") continue;
       const f = findFieldByName(all, name);
+      // A field this grid does not have is LEFT OUT and the row is still made: the local model copies field names
+      // from the tool's own example ("Schedule Type" on a grid without it, eval 2026-11-15). Two fields sharing the
+      // name is still an error — writing the wrong one is worse than writing none.
+      if (f.error && /^no field named/.test(f.error)) { leftOut.push(f.error); continue; }
       if (f.error) return { error: f.error };
       const v = f.field.type === "occurrence"
         ? await resolveOccurrenceValue(f.field, raw, created)
@@ -352,7 +356,7 @@ export function buildToolPack({ call, gridId }) {
       if (v.error) return v;
       out[f.field.id] = { value: v.value, flow: "in" };
     }
-    return { fields: out };
+    return { fields: out, leftOut };
   };
 
   const resolveContainer = async (name) => {
@@ -441,10 +445,11 @@ export function buildToolPack({ call, gridId }) {
         if (!ok(co)) return fail(co, "placing the container");
         const containerId = co.body.occurrence.id;
 
-        const made = []; const problems = [];
+        const made = []; const problems = []; const leftOut = [];
         for (const row of rows) {
           const fv = await fieldValues(row.fields, created);
           if (fv.error) { problems.push(`${row.label}: ${fv.error}`); continue; }
+          for (const l of fv.leftOut) if (!leftOut.includes(l)) leftOut.push(l);
           const setIds = Object.keys(fv.fields);
           if (row.url) {
             const br = await call("POST", `/bookmarks`, { gridId, url: row.url, parentId: containerId, label: row.label });
@@ -470,7 +475,7 @@ export function buildToolPack({ call, gridId }) {
           const f = findFieldByName(await loadFields(), filterField);
           filter = f.error ? f : await addFilter(pageId, f.field);
         }
-        return { ok: problems.length === 0, pageId, containerId, folder: fo.folder.name, rows: made.length, created, problems, filter };
+        return { ok: problems.length === 0, pageId, containerId, folder: fo.folder.name, rows: made.length, created, problems, filter, ...(leftOut.length ? { leftOut } : {}) };
       },
     },
     {
@@ -508,10 +513,11 @@ export function buildToolPack({ call, gridId }) {
         let sibBindings = [];
         if (sib) { const m = await call("GET", `/modules/${encodeURIComponent(sib.moduleId)}`); sibBindings = (m.body?.module || m.body)?.fieldBindings || []; }
         const moduleByLabel = new Map();
-        const made = []; const problems = []; const dates = [];
+        const made = []; const problems = []; const dates = []; const leftOut = [];
         for (const it of items) {
           const fv = await fieldValues(it.fields, created);
           if (fv.error) { problems.push(`${it.label}: ${fv.error}`); continue; }
+          for (const l of fv.leftOut) if (!leftOut.includes(l)) leftOut.push(l);
           let moduleId = moduleByLabel.get(norm(it.label));
           if (!moduleId) {
             const mr = await call("POST", `/modules`, { gridId, role: "instance", label: it.label, fieldBindings: bindingsFor(sibBindings, Object.keys(fv.fields)) });
@@ -525,7 +531,7 @@ export function buildToolPack({ call, gridId }) {
           if (day) dates.push(day);
         }
         // `dates` = what was actually made, so the reply can name them and a gap is visible.
-        return { ok: problems.length === 0, container: d.destination.label || container, created: made.length, dates, alsoAdded: created, problems };
+        return { ok: problems.length === 0, container: d.destination.label || container, created: made.length, dates, alsoAdded: created, problems, ...(leftOut.length ? { leftOut } : {}) };
       },
     },
     {

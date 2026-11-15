@@ -150,6 +150,17 @@ describe("create_items", () => {
     expect(new Set(rows.map((o) => o.moduleId)).size).toBe(1);             // one template
   });
 
+  it("a field the grid does not have is left out and the row is still made", async () => {
+    const api = fakeApi();
+    const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
+    const r = await tool.run({ container: "Appointments", items: [{ label: "CPS Class", fields: { Date: "2026-11-02", Colour: "blue" } }] });
+    expect(r.created).toBe(1);
+    expect(r.ok).toBe(true);
+    expect(r.leftOut).toEqual(['no field named "Colour"']);
+    const row = api.occs.find((o) => o.parentId === "appts" && o.id !== "row1");
+    expect(row.fields.D.value).toBe("2026-11-02");
+  });
+
   it("an existing option is reused, never duplicated", async () => {
     const api = fakeApi();
     const tool = buildToolPack({ call: api.call, gridId: "g" }).find((t) => t.name === "create_items");
