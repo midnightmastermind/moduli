@@ -1,0 +1,10 @@
+tunnel: 1e2416d7-543a-4480-9882-321cfe68b686
+credentials-file: /home/joshpoms/.cloudflared/1e2416d7-543a-4480-9882-321cfe68b686.json
+ingress:
+  # The local model runner (llama-swap on Windows, infra/llm). WSL's mirrored networking makes it localhost:8080.
+  - hostname: ollama.viafluere.com
+    path: ^/v1/
+    service: http://localhost:8080
+  - hostname: ollama.viafluere.com
+    service: http://localhost:11434
+  - service: http_status:404

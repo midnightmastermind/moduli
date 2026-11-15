@@ -1,0 +1,36 @@
+# llama-swap config for the local model runner (docs/superpowers/specs/2026-11-15-local-llm-runner-design.md).
+# Lives at C:\moduli-llm\llama-swap\config.yaml on the PC; this copy is the source of truth (infra/llm/README.md).
+#
+# Two models, both kept loaded (the "always" group): `fast` answers questions, `build` builds. Measured on this PC's
+# Radeon (Vulkan, 2026-11-14): 3B reads 129 tok/s / writes 18.5; 7B reads 58 / writes 7.7.
+#   build: -ngl 99   every layer on the Radeon
+#   fast: --device none -ngl 0   on the CPU. With the 7B on the Radeon there is no device memory left for a second
+#                    model (ErrorOutOfDeviceMemory, 2026-11-15); on the CPU the 3B read 91 tok/s / wrote 15 tok/s and
+#                    used the native tool-call channel, so both stay loaded and switching costs nothing.
+#   --jinja        the model's own chat template, so tool calls come back as tool_calls
+#   -c 8192        Jonah's prompt is ~6k tokens with the tools
+#   -np 1          ONE slot, so the whole context and its prompt cache belong to the one conversation in flight
+#   --cache-reuse  reuse a cached prefix even after a small change further on
+healthCheckTimeout: 300
+logLevel: info
+
+models:
+  "fast":
+    cmd: >
+      C:/moduli-llm/bin/llama-server.exe --port ${PORT}
+      -m C:/moduli-llm/models/llama3.2-3b-q4_k_m.gguf
+      --device none -ngl 0 --jinja -c 8192 -np 1 -t 8 --cache-reuse 256
+    ttl: 0
+  "build":
+    cmd: >
+      C:/moduli-llm/bin/llama-server.exe --port ${PORT}
+      -m C:/moduli-llm/models/qwen2.5-coder-7b-q4_k_m.gguf
+      -ngl 99 --jinja -c 8192 -np 1 -t 8 --cache-reuse 256
+    ttl: 0
+
+groups:
+  "always":
+    swap: false
+    exclusive: true
+    persistent: true
+    members: ["fast", "build"]
