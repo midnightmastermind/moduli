@@ -13,6 +13,28 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (4) — JONAH `build`: MAKE ANYTHING IN ONE CALL (Phase 1 of 2)
+
+User: *"we should be able to make any occurance with jonah"* · *"everything"* · *"editing and deleting should be in there
+as well as undo. do that after the create"* · practice on the glossary. Spec
+`docs/superpowers/specs/2026-11-15-jonah-build-anything-design.md`.
+- **`services/buildPlan.js` (pure, 23 tests)**: a tree of nodes (page · folder · section · item · text · link · image ·
+  file · field · button) → every record, names resolved against the grid and the build itself, problems reported never
+  guessed. Doc parents list AND embed; links in a doc are a bullet list of chips; doc sections end in one hover line;
+  buttons (`open links` · `show page X` · `add item to X`) reuse a same-label field and one op per action.
+  **`page.markdown`** is the form the 7B writes best: `##` sections, `[open links]`, `[label](url)`, `[[Name]]` — plus
+  the habits it actually showed (`[Name](Name)` = in-app, an "open … in browser" link line = the button, several links
+  a line, `- **Bold**` sub-sections, stray top-level buttons go on the page).
+- **`POST /api/v1/build`** (dryRun previews): loads names (pages/sections by label, folders + their cards, button fields
+  and what their listeners do), plans, writes (folders, fields, ops, then modules/occurrences via `persistImportResult`),
+  mirrors the cache, broadcasts, attaches into an existing `under` parent (list + doc embed).
+- **Jonah's tool `build`** (confirm card; in the offline allowlist; the prompt says a page with sections/links/buttons
+  is ALWAYS build). Eval: glossary 2 of 4 after four rounds of reading its habits (was 0); CPS 6/7, Quick Links 4/4.
+- **Phase 2, not started:** `change` / `remove` / `undo` (one `build` should be one undo step — the route records no
+  transaction yet).
+
+---
+
 ### 2026-11-15 (3) — GLOSSARY POLISH (`0502`); a wrapped tile keeps its left add gap
 
 User: buttons *"right next to the header labels"* · links *"going downward in a bulletpoint list"* (pages and folders

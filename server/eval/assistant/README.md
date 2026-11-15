@@ -56,3 +56,19 @@ is left out instead of failing the row.
 
 Questions on the 3B are no better than Ollama's answers were — the same model. A video playing on the PC shares the
 Radeon and memory; the measured speeds were unchanged (51 tok/s read, 7 write on the 7B).
+
+## 2026-11-15 — `build` (make anything), glossary practice
+
+The glossary case asks for a doc page with page/folder links and quick links by category with open-in-browser buttons.
+Before `build` Jonah made a board with invented URLs. With `build`:
+
+| round | what changed | passed |
+|---|---|---|
+| tree form only | Jonah put every link inside its own button, or used create_board | 0 of 5 |
+| + markdown content (`page.markdown`) | sections and web links right; in-app links as `[Name](Name)`, the button as a javascript: link | 0 of 2 |
+| + those habits read as meant | | 1 of 3 |
+| + several links a line, bold sub-sections, `[Open all]`, a stray button goes on the page | | **2 of 4** (50-60s each) |
+
+The remaining misses are the model linking to `#anchors` or inventing addresses (`https://example.com/schedule`), which
+parsing cannot fix. CPS 6 of 7 and Quick Links 4 of 4 through their own tools after the prompt change (one CPS miss: the
+weekdays written as a field — model variance; the next two passed).
