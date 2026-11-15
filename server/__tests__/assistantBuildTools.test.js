@@ -30,6 +30,10 @@ describe("name resolution", () => {
     // what llama3.2 3B actually wrote for "Tasks › Appointments" (2026-11-02)
     expect(pickDestination(hits, "Tasks … Appointments").destination?.id).toBe("a");
     expect(pickDestination(hits, "Tasks» Appointments").destination?.id).toBe("a");
+    // what llama3.2 3B wrote on 2026-11-15 (a "›" read back as cp1252) and its plain-dot cousins
+    expect(pickDestination(hits, "Tasks \u00c2\u00b7 Appointments").destination?.id).toBe("a");
+    expect(pickDestination(hits, "Tasks \u00e2\u20ac\u00ba Appointments").destination?.id).toBe("a");
+    expect(pickDestination(hits, "Tasks · Appointments").destination?.id).toBe("a");
   });
   it("a field name must be exact", () => {
     const fs = [{ id: "1", name: "Date" }, { id: "2", name: "Date Added" }];

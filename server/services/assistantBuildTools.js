@@ -19,7 +19,8 @@
 // ============================================================
 
 const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-const splitPath = (s) => String(s ?? "").split(/\s*(?:›|»|>|\/|…|\.{3}|\|)\s*/).map((p) => p.trim()).filter(Boolean);
+// "›" also arrives garbled ("Â·", "â€º": UTF-8 read as cp1252, llama3.2 3B 2026-11-15) or as a middle dot.
+const splitPath = (s) => String(s ?? "").split(/\s*(?:â€º|Â·|Â»|›|»|·|•|>|\/|…|\.{3}|\|)\s*/).map((p) => p.trim()).filter(Boolean);
 
 // ── pure helpers ─────────────────────────────────────────────────────────
 

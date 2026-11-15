@@ -53,3 +53,4 @@ server/cache/
 bangle/moduliclock.json
 bangle/*:Zone.Identifier
 __pycache__/
+server/eval/assistant/results/
