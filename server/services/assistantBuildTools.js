@@ -492,6 +492,17 @@ export function buildToolPack({ call, gridId }) {
       },
     },
     {
+      name: "undo",
+      description: "Undo the last change on this grid, like Ctrl+Z.",
+      input_schema: { type: "object", properties: {} },
+      destructive: false,
+      requires_confirm: true,
+      run: async () => {
+        const r = await call("POST", `/undo`, { gridId });
+        return r.body || { error: `undo: ${r.status}` };
+      },
+    },
+    {
       name: "build",
       description: "Make anything in one call. Easiest: {\"nodes\":[{\"page\":\"Name\",\"in\":\"Folder\",\"markdown\":\"## Mail [open links]\\n- [Gmail](https://mail.google.com)\\n- [[Schedule]]\"}]}. "
         + "## headings are sections, [open links] adds a button opening its links, [[Name]] links a Moduli page. "

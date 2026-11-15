@@ -759,6 +759,8 @@ app.use("/api/v1", makeApiV1Router({
   peekUserCache,
   io,
   userRoom,
+  // the undo stack's writing half (socketHandlers/undoCore) — Jonah's undo tool
+  undoDeps: { getModelByType, loadUserIntoCache, userCacheReady, ensureUserCache },
   opRunBridge,
   // Share → import routing: a shared file is stored by the SAME uploader.
   shareUpload,

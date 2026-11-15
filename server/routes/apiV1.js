@@ -92,7 +92,7 @@ const CACHE_BUCKET = {
   operation: "operationsById",
 };
 
-export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge, shareUpload = null, storeUploadedFile = null }) {
+export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge, shareUpload = null, storeUploadedFile = null, undoDeps = null }) {
   const router = express.Router();
 
   // Per-token rate limit (600 req/min) + Idempotency-Key support.
@@ -2271,6 +2271,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (dryRun) return res.json({ ok: true, dryRun: true, made: plan.made, problems: plan.problems, counts });
 
       const room = io.to(userRoom(userId));
+      // ONE undo step for the whole build: every created record (before: none) and the before/after of every existing
+      // parent it attached into, under one action (utils/txRecorder; undone through undoCore.undoTop).
+      const { recordDoc, flushAction } = await import("../utils/txRecorder.js");
+      const actionId = `build-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const label = `Jonah built ${plan.made[0] || "something"}${plan.made.length > 1 ? ` (+${plan.made.length - 1})` : ""}`;
+      const rec = (model, id, before, after) => recordDoc({ userId, gridId, actionId, model, id, before, after, label });
       for (const f of plan.folders) { const doc = await Folder.create(f); mirrorToCache(userId, gridId, "folder", doc.toObject()); room.emit("folder_created", { folder: doc.toObject() }); }
       for (const f of plan.fields) { const doc = await Field.create(f); mirrorToCache(userId, gridId, "field", doc.toObject()); room.emit("field_created", { field: doc.toObject() }); }
       for (const o of plan.operations) { const doc = await Operation.create(o); mirrorToCache(userId, gridId, "operation", doc.toObject()); room.emit("operation_created", { operation: doc.toObject() }); }
@@ -2278,6 +2284,11 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       await persistImportResult({ result: { modules: plan.modules, occurrences: plan.occurrences }, userId, uc: await getUserCache(userId, gridId) });
       for (const m of plan.modules) room.emit("module_created", { module: m });
       for (const o of plan.occurrences) room.emit("occurrence_created", { occurrence: o });
+      for (const f of plan.folders) rec("folder", f.id, null, f);
+      for (const f of plan.fields) rec("field", f.id, null, f);
+      for (const o of plan.operations) rec("operation", o.id, null, o);
+      for (const m of plan.modules) rec("module", m.id, null, m);
+      for (const o of plan.occurrences) rec("occurrence", o.id, null, o);
       const { embedRootInDocParent } = await import("../utils/embedRootInDocParent.js");
       for (const a of plan.attach) {
         if (a.bindOn) {
@@ -2285,10 +2296,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
           if (!m || (m.fieldBindings || []).some((b) => b.fieldId === a.fieldId)) continue;
           const next = { ...m, fieldBindings: [...(m.fieldBindings || []), { fieldId: a.fieldId, role: "input", order: (m.fieldBindings || []).length }] };
           await Module.updateOne({ gridId, id: m.id }, { $set: { fieldBindings: next.fieldBindings } });
+          rec("module", m.id, m, next);
           mirrorToCache(userId, gridId, "module", next);
           room.emit("module_updated", { module: next });
           continue;
         }
+        const parentBefore = await Occurrence.findOne({ gridId, id: a.parentId }).lean();
         await linkIntoParent({ userId, parentId: a.parentId, childId: a.childId });
         if (a.doc) {
           const r = await embedRootInDocParent({ parentId: a.parentId, childId: a.childId, userId });
@@ -2298,8 +2311,25 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
             room.emit("occurrence_updated", { occurrence: { id: r.id, textmap: r.textmap } });
           }
         }
+        if (parentBefore) rec("occurrence", a.parentId, parentBefore, await Occurrence.findOne({ gridId, id: a.parentId }).lean());
       }
-      res.json({ ok: plan.problems.length === 0, made: plan.made, problems: plan.problems, counts });
+      await flushAction(actionId);
+      res.json({ ok: plan.problems.length === 0, made: plan.made, problems: plan.problems, counts, actionId });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // POST /undo — undo the most recent change on a grid (Jonah's `undo`, 2026-11-15). Same rules as Ctrl+Z
+  // (socketHandlers/undoCore.undoTop): only the top of the stack, never a derived write. Body: { gridId }.
+  router.post("/undo", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { gridId } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!undoDeps) return err(res, 501, "not_available", "undo is not wired on this server");
+      const { makeUndoCore } = await import("../socketHandlers/undoCore.js");
+      const core = makeUndoCore({ userId: req.userId, io, userRoom, ...undoDeps });
+      const { publish, ...r } = await core.undoTop({ gridId });
+      if (publish) await publish();
+      res.status(r.success ? 200 : 409).json({ ok: r.success, undone: r.description || null, error: r.error || null, restored: (r.applied || []).length });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
