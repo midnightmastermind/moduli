@@ -1523,7 +1523,7 @@ function Container({
                 <LabelShell
                   mode={boundLabelOverflow}
                   onPointerDown={(e) => e.stopPropagation()}
-                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0 }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: "0 1 auto", minWidth: 0 }}
                 >
                   <BoundHeader
                     hostOccurrence={containerOccurrence}
@@ -1535,7 +1535,7 @@ function Container({
               ) : (
                 <LabelShell
                   mode={labelOverflow}
-                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0 }}
+                  style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: "0 1 auto", minWidth: 0 }}
                 >
                   <span
                     contentEditable

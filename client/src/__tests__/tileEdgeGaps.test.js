@@ -28,3 +28,12 @@ describe("tile edge gaps", () => {
     expect(css).toMatch(/overflow: clip;\s*overflow-clip-margin: var\(--child-gap, 8px\);/);
   });
 });
+
+// "have the buttons go right next to the header labels" — measured on prod: the embedded label was flex: 1, so the
+// button after it landed at the far right. The label is its text's width now.
+describe("header buttons sit beside the label", () => {
+  it("the embedded header's label does not grow", () => {
+    expect(container).not.toMatch(/color: embeddedAccent, lineHeight: 1\.2, flex: 1, minWidth: 0/);
+    expect(container.match(/color: embeddedAccent, lineHeight: 1\.2, flex: "0 1 auto", minWidth: 0/g)).toHaveLength(2);
+  });
+});
