@@ -33,7 +33,7 @@ const gridId = grid.id || String(grid._id);
 const userId = String(grid.userId);
 const { rawToken, tokenDoc } = await ApiToken.mint({ userId, name: "assistant eval (delete after)", scopes: ["read", "write"] });
 
-const COLS = ["occurrences", "modules", "fields", "folders"];
+const COLS = ["occurrences", "modules", "fields", "folders", "operations"];
 const idsNow = async () => Object.fromEntries(await Promise.all(COLS.map(async (c) => [c, new Set((await db.collection(c).find({ gridId }, { projection: { id: 1 } }).toArray()).map((d) => d.id))])));
 const api = async (method, p) => fetch(`${BASE}/api/v1${p}`, { method, headers: { Authorization: `Bearer ${rawToken}` } }).then((r) => r.status).catch(() => 0);
 
@@ -65,6 +65,15 @@ async function check(c, made) {
     const filtered = !!(board && field && (board.filters || []).some((f) => JSON.stringify(f).includes(field.id)));
     const passed = !!board && !!field && bms.length >= c.check.bookmarks && valued >= c.check.bookmarks && filtered;
     return { passed, why: `board ${!!board}, field ${!!field}, bookmarks ${bms.length}, valued ${valued}, filter ${filtered}` };
+  }
+  if (c.id === "glossary") {
+    const docPage = occs.find((o) => mods.get(o.moduleId)?.role === "page" && mods.get(o.moduleId)?.kind === "doc");
+    const urlChips = occs.filter((o) => o.meta?.link?.kind === "url").length;
+    const appLinks = occs.filter((o) => o.meta?.link?.kind === "occurrence").length;
+    const ops = await db.collection("operations").find({ gridId, createdAt: { $gte: new Date(Date.now() - 15 * 60e3) } }).toArray();
+    const openOp = ops.some((o) => JSON.stringify(o.pipeline || {}).includes("OPEN_URLS"));
+    const passed = !!docPage && urlChips >= 9 && appLinks >= 3 && openOp;
+    return { passed, why: `docPage ${!!docPage}, url chips ${urlChips}, in-app links ${appLinks}, open-links op ${openOp}` };
   }
   return { passed: false, why: "no check" };
 }

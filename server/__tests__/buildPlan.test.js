@@ -126,3 +126,21 @@ describe("other shapes", () => {
     expect(p.operations).toEqual([]);
   });
 });
+
+// What Jonah (Qwen2.5 7B) actually wrote on 2026-11-15: the links INSIDE the button's `does`. Accepted: the button
+// opens links, and those addresses become the section's link chips.
+describe("a button that carries its links", () => {
+  it("open links | url | url → the button, plus a chip per address in that section", () => {
+    const p = planBuild({ nodes: [{ page: "G", children: [{ section: "Social", children: [
+      { button: "Open Social", does: "open links | https://www.facebook.com | https://fetlife.com" },
+      { button: "Open Mail", does: "open links | https://mail.google.com", fields: { Text: "Gmail" } },
+    ] }] }], ctx: ctx() });
+    expect(p.problems).toEqual([]);
+    const urls = p.occurrences.filter((o) => o.meta?.link?.kind === "url").map((o) => o.meta.link.url);
+    expect(urls).toEqual(["https://www.facebook.com", "https://fetlife.com", "https://mail.google.com"]);
+    const labels = p.modules.filter((m) => m.meta?.link).map((m) => m.label);
+    expect(labels).toContain("Gmail");
+    expect(labels).toContain("facebook.com");
+    expect(p.operations.every((o) => o.pipeline.steps.some((s) => s.config.type === "OPEN_URLS"))).toBe(true);
+  });
+});

@@ -99,7 +99,7 @@ export function planBuild({ nodes = [], under = null, ctx }) {
   const act = (config) => ({ id: mint(), type: "action", config });
   const buttonSteps = (does, hostId) => {
     const d = String(does || "open links").trim();
-    if (/^open links?$/i.test(d)) return { key: "open links", steps: [
+    if (/^open links?\b/i.test(d)) return { key: "open links", steps: [
       act({ type: "FIND", over: "$allOccurrences", multiple: true, itemVar: "$links", predicate: { operator: "AND", rules: [
         { id: mint(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$trigger.occurrenceId" },
         { id: mint(), left: "meta.link.kind", comparator: "IS", right: "url" },
@@ -116,6 +116,15 @@ export function planBuild({ nodes = [], under = null, ctx }) {
     const label = node.button || node.label || "Open in browser";
     const spec = buttonSteps(node.does, owner.occ.id);
     if (spec.error) { out.problems.push(spec.error); return; }
+    // The links written INTO the button ("open links | https://a | https://b", Jonah 2026-11-15) are this section's
+    // links: a chip each, beside the button that opens them.
+    const urls = spec.key === "open links" ? (String(node.does).match(/https?:\/\/[^\s|]+/g) || []) : [];
+    if (urls.length) {
+      const named = urls.length === 1 ? (node.fields?.Text || node.fields?.Label || node.fields?.Name || null) : null;
+      const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+      const links = urls.map((u) => ({ name: named || host(u), url: u }));
+      if (isDoc(owner)) linkList(owner, links); else for (const l of links) bookmark(owner, l);
+    }
     // The same label is the same button: one field, and one operation per action (made here OR already on the grid).
     const key = label.toLowerCase();
     if (!madeButtons.has(key)) {
