@@ -785,12 +785,25 @@ export function buildSystemPrompt(context) {
 // The "where the user is" line on its own, so the chat can put it LAST in the
 // prompt: it changes with every page, and the runner only reuses the part of a prompt
 // that matches the previous one from the start.
+/**
+ * What the user has selected, for "these" / "this" (user, 2026-11-16: act on what you are looking at). The window sends
+ * `context.selection` = [{ id, label, path }] (built from its multi-selection). Pure; "" when nothing is selected.
+ */
+export function buildSelectionHint(context) {
+  const sel = Array.isArray(context?.selection) ? context.selection.filter((x) => x && x.id).slice(0, 20) : [];
+  if (!sel.length) return "";
+  const lines = sel.map((x, i) => `${i + 1}. ${x.label || "(untitled)"}${x.path ? ` (in ${x.path})` : ""} id:${x.id}`);
+  return `\n\nSELECTED — "these" / "this" / "them" / "the selected" mean exactly these ${sel.length}. To change or remove ` +
+    `them pass each one's id (one call per item):\n${lines.join("\n")}`;
+}
+
 export function buildLocationHint(context) {
-  if (!context || !context.id) return "";
+  if (!context || !context.id) return buildSelectionHint(context);
   const label = context.label || context.id;
   const isFolder = context.type === "folder";
   return `\n\nCURRENT LOCATION — the user is looking at "${label}" (${isFolder ? "folder" : "page/occurrence"} id: ${context.id}). ` +
-    `When the user says "here", "this folder", "this page", or asks to create/import/place something WITHOUT naming a destination, use ${context.id} as the parentId.`;
+    `When the user says "here", "this folder", "this page", or asks to create/import/place something WITHOUT naming a destination, use ${context.id} as the parentId.` +
+    buildSelectionHint(context);
 }
 
 // Pure: derive the named PLACES a thing can be created/moved into — folders,

@@ -2350,7 +2350,21 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     }
     return out;
   };
-  const pickOrAnswer = async (res, gridId, name) => {
+  // An exact occurrence id (the window's selection: "delete these") skips the name match.
+  const hitById = async (gridId, id) => {
+    const occ = await Occurrence.findOne({ gridId, id }).lean();
+    if (!occ) return null;
+    const module = await Module.findOne({ gridId, id: occ.moduleId }).lean();
+    const parent = occ.parentId ? await Occurrence.findOne({ gridId, id: occ.parentId }).lean() : await Occurrence.findOne({ gridId, occurrences: occ.id }).lean();
+    const pm = parent ? await Module.findOne({ gridId, id: parent.moduleId }).select("label").lean() : null;
+    return { occ, module, parent, parentLabel: parent ? (parent.label || pm?.label) : null };
+  };
+  const pickOrAnswer = async (res, gridId, name, id = null) => {
+    if (id) {
+      const hit = await hitById(gridId, id);
+      if (!hit) res.status(404).json({ ok: false, error: `nothing with the id "${id}" on this grid` });
+      return hit;
+    }
     const { pickByName } = await import("../services/buildEdit.js");
     const r = pickByName(name, await editCandidates(gridId, name));
     if (r.error) { res.status(404).json({ ok: false, error: r.error }); return null; }
@@ -2390,10 +2404,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // POST /change — { gridId, name, rename?, fields?, moveTo? }.
   router.post("/change", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
-      const { gridId, name, rename = null, fields = null, moveTo = null } = req.body || {};
-      if (!gridId || !name) return err(res, 400, "validation_error", "gridId and name required");
+      const { gridId, name, id = null, rename = null, fields = null, moveTo = null } = req.body || {};
+      if (!gridId || !(name || id)) return err(res, 400, "validation_error", "gridId and a name or id required");
       const userId = req.userId;
-      const hit = await pickOrAnswer(res, gridId, name);
+      const hit = await pickOrAnswer(res, gridId, name, id);
       if (!hit) return;
       const { planChange } = await import("../services/buildEdit.js");
       const fieldsAll = await Field.find({ gridId }).lean();
@@ -2446,10 +2460,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // what is removed). One undo step puts it all back.
   router.post("/remove", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
-      const { gridId, name } = req.body || {};
-      if (!gridId || !name) return err(res, 400, "validation_error", "gridId and name required");
+      const { gridId, name, id = null } = req.body || {};
+      if (!gridId || !(name || id)) return err(res, 400, "validation_error", "gridId and a name or id required");
       const userId = req.userId;
-      const hit = await pickOrAnswer(res, gridId, name);
+      const hit = await pickOrAnswer(res, gridId, name, id);
       if (!hit) return;
       const { subtreeIds, stripEmbeds } = await import("../services/buildEdit.js");
       const { decompressTextmap, compressTextmap } = await import("../utils/textmapCompression.js");

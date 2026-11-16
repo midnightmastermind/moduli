@@ -494,22 +494,22 @@ export function buildToolPack({ call, gridId }) {
     {
       name: "change",
       description: "Change one thing: name is a path like \"Page › Section\"; rename, fields {name: value, null clears}, moveTo a page/section.",
-      input_schema: { type: "object", properties: { name: { type: "string" }, rename: { type: "string" }, fields: { type: "object" }, moveTo: { type: "string" } }, required: ["name"] },
+      input_schema: { type: "object", properties: { name: { type: "string" }, id: { type: "string" }, rename: { type: "string" }, fields: { type: "object" }, moveTo: { type: "string" } } },
       destructive: false,
       requires_confirm: true,
       run: async (input) => {
-        const r = await call("POST", `/change`, { gridId, ...input });
+        const r = await call("POST", `/change`, { gridId, ...input });   // name, or the id of a SELECTED item
         return r.body || { error: `change: ${r.status}` };
       },
     },
     {
       name: "remove",
       description: "Remove one thing and everything inside it. name is a path like \"Page › Section\". undo brings it back.",
-      input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      input_schema: { type: "object", properties: { name: { type: "string" }, id: { type: "string" } } },
       destructive: true,
       requires_confirm: true,
       run: async (input) => {
-        const r = await call("POST", `/remove`, { gridId, name: input.name });
+        const r = await call("POST", `/remove`, { gridId, name: input.name, id: input.id });
         return r.body || { error: `remove: ${r.status}` };
       },
     },

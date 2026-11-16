@@ -128,7 +128,15 @@ for (const c of cases) {
     }
   };
   try {
-    out = await assistantChat({ messages: [{ role: "user", content: c.text }], userId, gridId, baseUrl: BASE, apiToken: rawToken, onProgress });
+    // A case may select some of what its setup built (by label), the way the window sends a multi-selection.
+    let context = null;
+    if (c.select && setupIds) {
+      const rows = await db.collection("occurrences").find({ gridId, id: { $in: setupIds.occurrences } }).toArray();
+      const ms = new Map((await db.collection("modules").find({ gridId, id: { $in: rows.map((o) => o.moduleId) } }).toArray()).map((m) => [m.id, m]));
+      const selection = rows.filter((o) => c.select.includes(o.label || ms.get(o.moduleId)?.label)).map((o) => ({ id: o.id, label: o.label || ms.get(o.moduleId)?.label }));
+      context = { selection };
+    }
+    out = await assistantChat({ messages: [{ role: "user", content: c.text }], userId, gridId, context, baseUrl: BASE, apiToken: rawToken, onProgress });
     for (const t of out.transcript || []) toolCalls += (t.toolCalls || []).length;
     for (const p of out.pendingConfirmations || []) { const r = await assistantConfirm({ name: p.name, input: p.input, userId, gridId, baseUrl: BASE, apiToken: rawToken }); confirmOut.push({ name: p.name, input: p.input, output: r.output ?? r.error }); }
   } catch (e) { err = String(e?.message || e); }

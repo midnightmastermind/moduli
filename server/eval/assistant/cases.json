@@ -147,5 +147,24 @@
         ]
       ]
     }
+  },
+  {
+    "id": "edit-remove-selected",
+    "kind": "build",
+    "setup": [
+      {
+        "page": "Eval Notebook",
+        "markdown": "## Mail\n- [Gmail](https://mail.google.com)\n## Social\n- [Facebook](https://www.facebook.com)"
+      }
+    ],
+    "select": [
+      "Social"
+    ],
+    "text": "Delete these.",
+    "check": {
+      "edit": "remove",
+      "gone": "Social",
+      "kept": "Mail"
+    }
   }
 ]

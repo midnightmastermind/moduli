@@ -23,6 +23,23 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
 import { createImportsDocPage, ensureImportsFolderAndPage, shouldWrapImportOutput } from "../helpers/importsFolder";
 import DestinationPicker from "./DestinationPicker";
+import { getSelectionSnapshot, clearSelectionAfterAction } from "../helpers/selectionDrag";
+import { cachedParentMap } from "../helpers/dragHitTesting";
+
+/** The multi-selection as Jonah reads it: id, name and where it sits (parent › grandparent). Pure; at most 20. */
+export function describeSelection(ids, occurrencesById, modulesById) {
+  const parents = cachedParentMap(occurrencesById || {});
+  const name = (o) => o?.label || modulesById?.[o?.moduleId]?.label || "";
+  const out = [];
+  for (const id of ids || []) {
+    const o = occurrencesById?.[id]; if (!o) continue;
+    const p = occurrencesById[parents[id] ?? o.parentId];
+    const gp = p && occurrencesById[parents[p.id] ?? p.parentId];
+    out.push({ id, label: name(o), path: [name(gp), name(p)].filter(Boolean).join(" › ") });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
 // The confirm card draws a planned build with the app's own renderers (lazy: PagePreviewApp is a big chunk).
 const PagePreviewBody = React.lazy(() => import("../PagePreviewApp.jsx").then((m) => ({ default: m.PagePreviewBody })));
 
@@ -276,6 +293,8 @@ export default function AssistantDrawer() {
     const text = (typeof asked === "string" ? asked : input).trim();
     if (!text || busy) return;
     if (!token) { setShowSettings(true); return; }
+    // What the user has selected ("delete these", "move these into Tasks"), named and placed so Jonah can say which.
+    const selection = describeSelection(getSelectionSnapshot(), ctx?.occurrencesById || {}, ctx?.modulesById || {});
     const nextHistory = [...messages, { role: "user", content: text }];
     setMessages(nextHistory);
     if (typeof asked !== "string") setInput("");
@@ -297,7 +316,9 @@ export default function AssistantDrawer() {
           messages: nextHistory,
           gridId,
           // Current location so "here" / "this folder" / "this page" resolve.
-          context: location ? { id: location.id, label: location.label, type: location.type } : null,
+          context: (location || selection.length)
+            ? { ...(location ? { id: location.id, label: location.label, type: location.type } : {}), ...(selection.length ? { selection } : {}) }
+            : null,
         }),
         signal: ctrl.signal,
       });
@@ -414,6 +435,8 @@ export default function AssistantDrawer() {
         : out.undone ? `Undid: ${out.undone}` : out.removed ? `Removed "${out.removed}" (${out.count || 1} rows)`
         : out.renamed ? `Renamed "${out.changed}" to "${out.renamed}"` : "Done";
       const doneStep = { text: doneText, status: !res.ok || j.ok === false || out.error ? "warn" : "ok", at: Date.now() };
+      // Acted on a selected item: the selection ends with the action, as a drag of a selection does.
+      if (res.ok && finalInput?.id && getSelectionSnapshot().has(finalInput.id)) clearSelectionAfterAction();
       setMessages(m => [...m, { role: "steps", items: [{ ...writing, status: "ok" }, doneStep], startedAt: t0 }]);
       stepsRef.current = []; setSteps([]);
       if (!res.ok || j.ok === false) {
@@ -504,6 +527,7 @@ export default function AssistantDrawer() {
       {!open && (
         <button
           className="assistant-fab"
+          data-selection-keep
           onClick={() => setOpen(true)}
           title="Jonah — at your service"
           style={{
@@ -522,10 +546,11 @@ export default function AssistantDrawer() {
           terminal that opens up in the center of the screen with an x button … that way the preview page can be
           bigger"). The turtle stays as the button that opens it. Only X and Escape close it — a stray click on
           the dimmed grid behind must not throw away a half-typed request. */}
-      {open && <div className="jonah-terminal-backdrop" aria-hidden="true" />}
+      {open && <div className="jonah-terminal-backdrop" data-selection-keep aria-hidden="true" />}
       {open && (
         <div
           data-assistant-drawer
+          data-selection-keep
           role="dialog"
           aria-label="Jonah"
           className={messages.some((m) => m.role === "confirm" && m.status === "pending" && m.name === "build" && m.preview)

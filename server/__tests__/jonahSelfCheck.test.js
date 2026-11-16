@@ -196,3 +196,18 @@ describe("the grid's answer in plain words", async () => {
     }
   });
 });
+
+describe("the selection reaches Jonah", async () => {
+  const { buildSelectionHint, buildLocationHint } = await import("../services/assistantAgent.js");
+  it("lists the selected items with their ids", () => {
+    const h = buildSelectionHint({ selection: [{ id: "a", label: "Clean", path: "Tasks › Todo" }, { id: "b", label: "Book a massage" }] });
+    expect(h).toMatch(/"these" \/ "this" \/ "them" \/ "the selected" mean exactly these 2/);
+    expect(h).toMatch(/1\. Clean \(in Tasks › Todo\) id:a/);
+    expect(h).toMatch(/2\. Book a massage id:b/);
+  });
+  it("rides with the location note, and alone when there is no location", () => {
+    expect(buildLocationHint({ id: "p", label: "Tasks", selection: [{ id: "a", label: "Clean" }] })).toMatch(/CURRENT LOCATION[\s\S]*SELECTED/);
+    expect(buildLocationHint({ selection: [{ id: "a", label: "Clean" }] })).toMatch(/SELECTED/);
+    expect(buildSelectionHint({})).toBe("");
+  });
+});
