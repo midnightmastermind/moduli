@@ -223,12 +223,18 @@
   {
     "id": "auto-tick",
     "kind": "automation",
-    "text": "Whenever I tick Completed on a task in Tasks › Todo, set its Completed On to today.",
+    "text": "Whenever I tick Completed on a task in Eval Tasks › Todo, set its Completed On to today.",
     "check": {
       "trigger": "onChange",
       "steps": [
         "SET_FIELD_VALUE"
       ]
-    }
+    },
+    "setup": [
+      {
+        "page": "Eval Tasks",
+        "markdown": "## Todo\n- Wash the car"
+      }
+    ]
   }
 ]

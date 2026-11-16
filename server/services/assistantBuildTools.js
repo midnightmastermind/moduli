@@ -553,7 +553,7 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "automate",
-      description: "Make an automation (saved as an operation). when ONE of: {\"at\":\"2pm\",\"days\":\"weekdays\"|[\"Mon\"]} · {\"added_to\":\"Tasks › Todo\"} · {\"changed\":\"Completed\",\"in\":\"Tasks › Todo\",\"to\":true}. do: list of {\"notify\":\"text\"} · {\"add_item\":\"name\",\"to\":\"Page › Section\"} · {\"set\":\"Field\",\"value\":\"today\"} (the item that triggered it) · {\"run\":\"Operation name\"}.",
+      description: "Make an automation (saved as an operation). when ONE of: {\"at\":\"2pm\"} (add \"days\":[\"Mon\"] only if the user names days) · {\"added_to\":\"Tasks › Todo\"} · {\"changed\":\"Completed\",\"in\":\"Tasks › Todo\",\"to\":true}. do: list of {\"notify\":\"text\"} · {\"add_item\":\"name\",\"to\":\"Page › Section\"} · {\"set\":\"Field\",\"value\":\"today\"} (the item that triggered it) · {\"run\":\"Operation name\"}.",
       input_schema: { type: "object", properties: { name: { type: "string" }, when: { type: "object" }, do: { type: "array", items: { type: "object" } } }, required: ["when", "do"] },
       destructive: false,
       requires_confirm: true,
