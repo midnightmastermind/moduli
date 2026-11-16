@@ -15,6 +15,8 @@ import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridAc
 // Stable empty array for selector fallbacks — a fresh [] per selector run
 // would defeat the Object.is stability the selector layer depends on.
 const EMPTY_ARR = [];
+import { selectionToDelete, deleteSelected } from "../helpers/deleteSelection";
+import { getSelectionSnapshot, clearSelectionAfterAction } from "../helpers/selectionDrag";
 import { SelectionContext } from "../state/SelectionContext";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
@@ -1225,6 +1227,10 @@ function InstanceInner({
                   deleteLabel={embedOnDelete ? (embedDeleteLabel || "Remove") : "Delete"}
                   onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
+                    // Pressed on one row of a multi-selection: delete the whole selection (asks first).
+                    // Read at click time (helpers/selectionDrag), so no row subscribes to the selection.
+                    const many = selectionToDelete(occurrence.id, getSelectionSnapshot());
+                    if (many) { deleteSelected({ ids: many, getOccMap, dispatch, socket, clear: clearSelectionAfterAction }); return; }
                     removeOccurrenceOfferingFile({ dispatch, socket, occurrence, parentOccurrence: liveContainerOccurrence(containerOccurrence, getOccMap), getState, getOccMap });
                   })}
                   extraItems={[...embedArcItems, ...coverRadialItems, ...jellyfinItems]}
@@ -1610,41 +1616,9 @@ function ModuleInstance({
       {
         label: `Delete ${selection.count} selected`,
         icon: Trash2, danger: true,
-        onClick: () => {
-          // Destructive action with no group-level undo — match the
-          // ModulePage.handleDelete pattern and require explicit
-          // confirmation. Window.confirm is intentionally simple here
-          // (no shadcn AlertDialog wrapper) so the menu close + dialog
-          // ordering doesn't fight with the ContextMenu portal.
-          const n = selection.count;
-          const ok = window.confirm(
-            `Delete ${n} selected item${n === 1 ? "" : "s"}? This cannot be undone.`
-          );
-          if (!ok) return;
-          const ids = [...selection.selectedIds];
-          selection.clear();
-          // Resolve each occurrence + its parent so removeOccurrence
-          // fires MeasureOps for the deleted fields and cleans the
-          // parent's occurrences[] list. Parent lookup mirrors the
-          // pasteClipboard / dragHitTesting convention: reverse-scan
-          // occurrences[] arrays, fall back to parentId.
-          const occMap = getOccMap();
-          for (const id of ids) {
-            const target = occMap[id];
-            // O(1) parent lookup via App-level parentByChildId index (read
-            // at callback time). Was an O(N) scan over every occurrence per
-            // selected id (so bulk-delete of N items was O(N×total)).
-            const parentId = getParentId(id);
-            let parentOcc = parentId ? occMap[parentId] : null;
-            if (!parentOcc && target?.parentId) parentOcc = occMap[target.parentId] || null;
-            CommitHelpers.removeOccurrence({
-              dispatch, socket, occurrenceId: id,
-              occurrence: target || undefined,
-              parentOccurrence: parentOcc || undefined,
-              emit: true,
-            });
-          }
-        },
+        onClick: () => deleteSelected({
+          ids: [...selection.selectedIds], getOccMap, getParentId, dispatch, socket, clear: selection.clear,
+        }),
       },
       { label: "Clear selection", icon: X, onClick: () => selection.clear() },
       { separator: true },

@@ -4,6 +4,8 @@
 // Handles doc containers, focused instance view, list view, sorting.
 
 import { useDoubleTap } from "../hooks/useDoubleTap";
+import { selectionToDelete, deleteSelected } from "../helpers/deleteSelection";
+import { getSelectionSnapshot, clearSelectionAfterAction } from "../helpers/selectionDrag";
 import { exportMarkdownItem } from "../ui/exportMarkdownItem";
 import { buttonItem } from "../ui/buttonItem";
 import { splitConvertItems, historyItem, templateItem } from "../ui/SettingsActions";
@@ -586,6 +588,9 @@ function Container({
 
   const removeMe = useCallback(() => {
     if (!containerOccurrence?.id) return;
+    // Pressed on one of a multi-selection: delete the whole selection, after asking (helpers/deleteSelection).
+    const many = selectionToDelete(containerOccurrence.id, getSelectionSnapshot());
+    if (many) { deleteSelected({ ids: many, getOccMap, getParentId, dispatch, socket, clear: clearSelectionAfterAction }); return; }
     // O(1) parent lookup via the App-level parentByChildId index, read at
     // callback time through the non-subscribing getters. #24 perf.
     const parentId = getParentId(containerOccurrence.id);
