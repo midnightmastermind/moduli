@@ -2362,8 +2362,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   const pickOrAnswer = async (res, gridId, name, id = null) => {
     if (id) {
       const hit = await hitById(gridId, id);
-      if (!hit) res.status(404).json({ ok: false, error: `nothing with the id "${id}" on this grid` });
-      return hit;
+      if (hit) return hit;
+      // An id that names nothing, beside a name: the model made the id up (Jonah wrote "someSocialSectionId" with no
+      // selection, 2026-11-16) — the name is what the user said. With no name, say so.
+      if (!name) { res.status(404).json({ ok: false, error: `nothing with the id "${id}" on this grid` }); return null; }
     }
     const { pickByName } = await import("../services/buildEdit.js");
     const r = pickByName(name, await editCandidates(gridId, name));
