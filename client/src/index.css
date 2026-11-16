@@ -9990,3 +9990,9 @@ body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title=
   display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px;
 }
 body[data-layout="mobile"] button[role="switch"] { height: 24px; }
+
+/* A nested section header that draws a button (the glossary's "Open in browser") gets the same 3px below as above,
+   so the pill sits centred in the header (user, 2026-11-16: "centered in height in the header"). The row is 3px top /
+   0 bottom on purpose for a plain label, which carries its own 2px below; a button pill has none, so it touched the
+   header's bottom line. Inline padding, hence !important. */
+.embedded-header-row:has(> .occurrence-fields) { padding-bottom: 3px !important; }

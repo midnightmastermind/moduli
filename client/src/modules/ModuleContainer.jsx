@@ -1484,7 +1484,7 @@ function Container({
           <>
             {/* 3px top — 6 read as too much air above a nested section header
                 (user 2026-07-31); the label keeps its own 2px below. */}
-            <div style={{ display: "flex", alignItems: "center", padding: "3px 4px 0px 2px", minHeight: 12, gap: 4 }}>
+            <div className="embedded-header-row" style={{ display: "flex", alignItems: "center", padding: "3px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
                   <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
