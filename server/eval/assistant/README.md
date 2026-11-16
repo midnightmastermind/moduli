@@ -83,3 +83,17 @@ weekdays written as a field — model variance; the next two passed).
   one run's self-check visibly fixed a link to "Scheduling" before the card. The miss: the forced call picked
   `create_occurrence`. CPS 2 of 2 (25s; one miss in the first round, the known weekdays-as-a-field habit),
   Quick Links 1 of 1.
+
+## 2026-11-15 (3) — "did you mean", call-only send-backs, editing cases
+
+- llama-server DOES honour `tool_choice: "required"`, but lets the model write text first and only then the call
+  (measured directly: asked to "just say hello", it wrote text, then garbage, then a build call). At ~7 tok/s that text
+  ate the request's time — the one failing glossary run stopped mid-sentence at 240s.
+- The send-back now asks for ONLY the corrected call, and an unknown page name carries a suggestion
+  (`buildPlan.closestName`: "Scheduling" → "did you mean \"Schedule\"?" — still a question, never a silent guess).
+- **Glossary 4 of 4** (85-140s; each needed one send-back, each corrected call clean).
+- New cases (`setup` builds a page over REST first; cleanup removes it): **edit-rename 3/3** (~5s), **edit-undo 3/3**,
+  **edit-remove 2/2** after the fix — it was 0/2: the model named "Social section from Eval Notebook page"; the
+  route now reads that as "Eval Notebook › Social" (`buildEdit.normalizeTargetName`) and the tools describe the
+  path form. "undo/change/edit/update/fix" now route to the build model (undo went to the read-only one).
+- CPS 1/1 (25s), Quick Links 1/1 (94s) after the changes.

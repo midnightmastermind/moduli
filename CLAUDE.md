@@ -13,6 +13,22 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (8) — JONAH: glossary 4 of 4; change / remove / undo pass through the model; the window is half height
+
+User: *"make the height of the terminal window less, like half the size. and then continue with the jonah improvementx"*.
+- Window: 410px tall; `.jonah-terminal--tall` (820) only while a build's preview card is pending. Watched on prod.
+- **Found:** llama-server honours `tool_choice:"required"` but lets the model WRITE first, then call; at ~7 tok/s the
+  text used up the time (a run stopped mid-sentence at 240s). The send-back now asks for only the corrected call, and
+  an unknown page name says which was meant (`buildPlan.closestName`, passed `ctx.names` by `/build`; never resolves on
+  its own). Glossary **4 of 4**.
+- `pickModel`: undo/change/edit/update/fix are build verbs (undo had gone to the read-only model).
+- `buildEdit.normalizeTargetName`: "Social section from Eval Notebook page" → "Eval Notebook › Social" (used by
+  pickByName and the route's lookup); change/remove describe the path form.
+- Eval gained `setup` (a page built over REST first) and cases edit-rename / edit-remove / edit-undo: 3/3, 2/2 (was 0/2),
+  3/3. CPS and Quick Links still pass. Server 3,739 / client 7,556.
+
+---
+
 ### 2026-11-15 (7) — JONAH IS A TERMINAL IN THE CENTRE; a board's rows and header buttons are evenly spaced
 
 User: *"dont make it a little chatbox. make it look like a terminal that opens up in the center of the screen with an x
