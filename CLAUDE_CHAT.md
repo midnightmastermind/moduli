@@ -4208,3 +4208,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-16 08:32 CST
 - *"also lets work on what we working before that, and the grab cursor should not show unless its on the drag handle"*.
+
+### 2026-11-16 09:12 CST
+- *"yes push commits and wsl is fine now, continue with what you were working on"*.
