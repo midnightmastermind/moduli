@@ -307,3 +307,19 @@ describe("button habits seen 2026-11-16", async () => {
     ]);
   });
 });
+
+describe("a link to several addresses is an open button (2026-11-16)", async () => {
+  const { markdownToNodes } = await import("../services/buildPlan.js");
+  const OPEN = { button: "Open in browser", does: "open links" };
+  it("named for a section → that section's; 'Open All' → where it sits; no link is made", () => {
+    const md = "## Quick Links\n- **Mail**\n  - [Gmail](https://mail.google.com)\n- **Web**\n  - [GitHub](https://github.com)\n\n" +
+      "[Open All in Browser](https://mail.google.com,https://github.com) | Open All\n[Mail](https://mail.google.com, https://mail.proton.me) | Mail";
+    expect(markdownToNodes(md)).toEqual([
+      { section: "Quick Links", children: [
+        { section: "Mail", children: ["Gmail | https://mail.google.com", OPEN] },
+        { section: "Web", children: ["GitHub | https://github.com"] },
+        OPEN,
+      ] },
+    ]);
+  });
+});

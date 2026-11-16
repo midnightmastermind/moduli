@@ -119,6 +119,16 @@ export function markdownToNodes(md) {
     // the end, when every section is known; a name that matches none stays a link.
     const openNamed = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*|__)?\[open\s+(.+?)\]\([^)]*\)(?:\*\*|__)?$/i);
     if (openNamed && !/\b(browser|all)\b/i.test(openNamed[1])) { flush(); openFor.push({ name: openNamed[1].trim(), line, at: here() }); continue; }
+    // "[Mail](https://a,https://b) | Mail": a link to SEVERAL addresses is an open button, never a link — named for a
+    // section it is that section's, "Open All …" opens what is where it sits (2026-11-16).
+    const multi = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*)?\[([^\]]+)\]\(\s*https?:\/\/[^)\s,]+(?:\s*,\s*https?:\/\/[^)\s,]+)+\s*\)(?:\*\*)?(?:\s*\|.*)?$/i);
+    if (multi) {
+      flush();
+      const name = multi[1].replace(/^open\s+/i, "").replace(/\s+in\s+(the\s+)?browser$/i, "").replace(/\s+links?$/i, "").trim();
+      if (!name || /^all$/i.test(name)) { boldSec = null; addOpen(here()); }   // "all" is never one category's
+      else openFor.push({ name, line: "", at: here() });
+      continue;
+    }
     // "[Mail](#mail)" alone on a line — a link to an anchor — names a category, like "- **Mail**"; the lines after it
     // (indented or not) are its items until a blank line (2026-11-16).
     const anchor = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*)?\[([^\]]+)\]\(#[^)]*\)(?:\*\*)?:?$/);
