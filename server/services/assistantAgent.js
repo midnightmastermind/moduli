@@ -454,7 +454,7 @@ export function isGatewayTimeout(err) {
  * fast one (spec: "the 3B answers questions; the 7B builds"). A cheap rule on the newest user message — it must not
  * cost a model round trip of its own. A tool call the fast model makes still runs.
  */
-const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|delete|remove|new)\b/i;
+const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|delete|remove|new|undo|change|edit|update|fix)\b/i;
 export function pickModel(text) {
   return BUILD_VERBS.test(String(text || "")) ? "build" : "fast";
 }

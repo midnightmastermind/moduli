@@ -2331,7 +2331,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // Jonah's change / remove (2026-11-15, Phase 2 of "Jonah builds anything"). A name → candidates the pure picker
   // (services/buildEdit.pickByName) chooses from; each call is ONE undo step (txRecorder, like /build).
   const editCandidates = async (gridId, name) => {
-    const leaf = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
+    const { normalizeTargetName } = await import("../services/buildEdit.js");
+    const leaf = normalizeTargetName(name).split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
     const rx = new RegExp(`^${leaf.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
     const mods = await Module.find({ gridId, label: rx }).lean();
     const occs = await Occurrence.find({ gridId, $or: [{ moduleId: { $in: mods.map((m) => m.id) } }, { label: rx }] }).lean();

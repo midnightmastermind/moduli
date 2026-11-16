@@ -2,7 +2,7 @@
   {
     "id": "cps",
     "kind": "build",
-    "text": "Add my CPS classes to Tasks \u203a Appointments: every Monday, Tuesday, Wednesday and Thursday in November 2026, at 4:00pm for 4 hours, each called CPS Class.",
+    "text": "Add my CPS classes to Tasks › Appointments: every Monday, Tuesday, Wednesday and Thursday in November 2026, at 4:00pm for 4 hours, each called CPS Class.",
     "check": {
       "label": "CPS Class",
       "minRows": 17,
@@ -43,7 +43,53 @@
   {
     "id": "glossary",
     "kind": "build",
-    "text": "Make a doc page called Home in the root folder that is a glossary: links to my Schedule, Day Page, Routines, Tasks and Trackers pages, and quick links to my websites grouped by category \u2014 Mail: Gmail https://mail.google.com, Proton Mail https://mail.proton.me; Social: Facebook https://www.facebook.com, Instagram https://www.instagram.com, FetLife https://fetlife.com; Media: Jellyfin https://media.viafluere.com, Eweka https://www.eweka.nl; Web: GitHub https://github.com, Cloudflare https://dash.cloudflare.com. Put a button above the quick links that opens them all in the browser, and one per category that opens that category's links.",
+    "text": "Make a doc page called Home in the root folder that is a glossary: links to my Schedule, Day Page, Routines, Tasks and Trackers pages, and quick links to my websites grouped by category — Mail: Gmail https://mail.google.com, Proton Mail https://mail.proton.me; Social: Facebook https://www.facebook.com, Instagram https://www.instagram.com, FetLife https://fetlife.com; Media: Jellyfin https://media.viafluere.com, Eweka https://www.eweka.nl; Web: GitHub https://github.com, Cloudflare https://dash.cloudflare.com. Put a button above the quick links that opens them all in the browser, and one per category that opens that category's links.",
     "check": {}
+  },
+  {
+    "id": "edit-rename",
+    "kind": "build",
+    "setup": [
+      {
+        "page": "Eval Notebook",
+        "markdown": "## Mail\n- [Gmail](https://mail.google.com)\n## Social\n- [Facebook](https://www.facebook.com)"
+      }
+    ],
+    "text": "Rename the Mail section on my Eval Notebook page to Email.",
+    "check": {
+      "edit": "rename",
+      "from": "Mail",
+      "to": "Email"
+    }
+  },
+  {
+    "id": "edit-remove",
+    "kind": "build",
+    "setup": [
+      {
+        "page": "Eval Notebook",
+        "markdown": "## Mail\n- [Gmail](https://mail.google.com)\n## Social\n- [Facebook](https://www.facebook.com)"
+      }
+    ],
+    "text": "Remove the Social section from my Eval Notebook page.",
+    "check": {
+      "edit": "remove",
+      "gone": "Social",
+      "kept": "Mail"
+    }
+  },
+  {
+    "id": "edit-undo",
+    "kind": "build",
+    "setup": [
+      {
+        "page": "Eval Notebook",
+        "markdown": "## Mail\n- [Gmail](https://mail.google.com)\n## Social\n- [Facebook](https://www.facebook.com)"
+      }
+    ],
+    "text": "Undo that last change.",
+    "check": {
+      "edit": "undo"
+    }
   }
 ]

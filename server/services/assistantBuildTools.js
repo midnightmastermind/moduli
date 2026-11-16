@@ -493,7 +493,7 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "change",
-      description: "Change one thing by name (\"Quick Links › Mail\" when the name repeats): rename, fields {name: value, null clears}, moveTo a page/section.",
+      description: "Change one thing: name is a path like \"Page › Section\"; rename, fields {name: value, null clears}, moveTo a page/section.",
       input_schema: { type: "object", properties: { name: { type: "string" }, rename: { type: "string" }, fields: { type: "object" }, moveTo: { type: "string" } }, required: ["name"] },
       destructive: false,
       requires_confirm: true,
@@ -504,7 +504,7 @@ export function buildToolPack({ call, gridId }) {
     },
     {
       name: "remove",
-      description: "Remove one thing by name and everything inside it. undo brings it back.",
+      description: "Remove one thing and everything inside it. name is a path like \"Page › Section\". undo brings it back.",
       input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
       destructive: true,
       requires_confirm: true,

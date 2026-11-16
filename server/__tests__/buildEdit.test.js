@@ -44,3 +44,19 @@ describe("remove helpers", () => {
     expect(stripEmbeds(tm, ["z"])).toBe(null);
   });
 });
+
+describe("normalizeTargetName", async () => {
+  const { normalizeTargetName } = await import("../services/buildEdit.js");
+  it.each([
+    ["Social section from Eval Notebook page", "Eval Notebook › Social"],
+    ["the Mail section on my Home page", "Home › Mail"],
+    ["Eval Notebook › Social", "Eval Notebook › Social"],
+    ["Social", "Social"],
+    ["my Social section", "Social"],
+  ])("%s → %s", (a, b) => expect(normalizeTargetName(a)).toBe(b));
+  it("a prose name reaches the right section", () => {
+    const c = (id, label, role, parentLabel) => ({ occ: { id, label: null }, module: { label, role }, parentLabel });
+    const cands = [c("s1", "Social", "container", "Eval Notebook"), c("s2", "Social", "container", "Routines")];
+    expect(pickByName("Social section from Eval Notebook page", cands).hit.occ.id).toBe("s1");
+  });
+});

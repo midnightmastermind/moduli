@@ -6,12 +6,27 @@ import { coerceValue, findFieldByName } from "./assistantBuildTools.js";
 const lc = (s) => String(s ?? "").trim().toLowerCase();
 
 /**
+ * A name as the model writes it in prose → the path form. "Social section from Eval Notebook page" →
+ * "Eval Notebook › Social" (Jonah, 2026-11-15: every remove sent the phrase and found nothing). Leading "the/my" and
+ * a trailing kind word (section, page, container, board, folder, row, item) are dropped on each side. A name already
+ * a path, or with no linking word, comes back trimmed and otherwise unchanged. Pure.
+ */
+export function normalizeTargetName(name) {
+  const raw = String(name || "").trim();
+  if (/[›»>/]/.test(raw)) return raw;
+  const clean = (t) => t.trim().replace(/^(the|my)\s+/i, "").replace(/\s+(section|page|container|board|folder|row|item|instance)$/i, "").trim();
+  const m = raw.match(/^(.+?)\s+(?:from|on|in|of|under)\s+(.+)$/i);
+  if (!m) return clean(raw);
+  return `${clean(m[2])} › ${clean(m[1])}`;
+}
+
+/**
  * Which occurrence a name means. `candidates` = [{ occ, module, parentLabel }]. A path "A › B" picks the one whose
  * parent is A. Pages and sections win over rows when a bare name matches both; still several → ambiguous (listed),
  * never a guess. Pure. @returns {{ hit } | { error } | { ambiguous: string[] }}
  */
 export function pickByName(name, candidates) {
-  const parts = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean);
+  const parts = normalizeTargetName(name).split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean);
   const leaf = lc(parts.pop());
   const parent = parts.length ? lc(parts.pop()) : null;
   let hits = candidates.filter((c) => lc(c.occ.label || c.module?.label) === leaf);

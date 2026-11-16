@@ -84,3 +84,9 @@ describe("a page request is offered build, not the one-row creators", async () =
     expect(toolsForModel(tools, "fast", "what page is this").map((t) => t.name)).toEqual(["list_folders"]);
   });
 });
+
+describe("editing words go to the model that can edit", async () => {
+  const { pickModel } = await import("../services/assistantAgent.js");
+  it.each(["Undo that last change.", "Change the Mail section", "rename Mail to Email", "remove the Social section"])("%s → build", (t) => expect(pickModel(t)).toBe("build"));
+  it("a question stays on the fast model", () => expect(pickModel("What's on my schedule today?")).toBe("fast"));
+});

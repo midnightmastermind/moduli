@@ -45,7 +45,7 @@ async function cleanup(before) {
   return Object.fromEntries(COLS.map((c) => [c, [made[c].length, made[c].filter((id) => left[c].has(id)).length]]));
 }
 
-async function check(c, made) {
+async function check(c, made, setupIds = null) {
   if (c.kind === "question") return { passed: made.occurrences.length === 0 && made.modules.length === 0, why: made.occurrences.length ? "wrote rows" : "" };
   const occs = await db.collection("occurrences").find({ gridId, id: { $in: made.occurrences } }).toArray();
   const mods = new Map((await db.collection("modules").find({ gridId, id: { $in: occs.map((o) => o.moduleId) } }).toArray()).map((m) => [m.id, m]));
@@ -75,6 +75,16 @@ async function check(c, made) {
     const passed = !!docPage && urlChips >= 9 && appLinks >= 3 && openOp;
     return { passed, why: `docPage ${!!docPage}, url chips ${urlChips}, in-app links ${appLinks}, open-links op ${openOp}` };
   }
+  if (c.check?.edit) {
+    // change / remove / undo act on what the setup built: read those rows back by id.
+    const setupOccs = await db.collection("occurrences").find({ gridId, id: { $in: setupIds?.occurrences || [] } }).toArray();
+    const smods = new Map((await db.collection("modules").find({ gridId, id: { $in: (setupIds?.modules || []) } }).toArray()).map((m) => [m.id, m]));
+    const named = (label) => setupOccs.filter((o) => (o.label || smods.get(o.moduleId)?.label) === label);
+    const e = c.check.edit;
+    if (e === "rename") { const ok = named(c.check.to).length === 1 && named(c.check.from).length === 0; return { passed: ok, why: `${c.check.from}: ${named(c.check.from).length}, ${c.check.to}: ${named(c.check.to).length}` }; }
+    if (e === "remove") { const ok = named(c.check.gone).length === 0 && named(c.check.kept).length === 1; return { passed: ok, why: `${c.check.gone}: ${named(c.check.gone).length}, ${c.check.kept}: ${named(c.check.kept).length}` }; }
+    if (e === "undo") { const left = setupOccs.length; return { passed: left === 0, why: `${left} of ${setupIds?.occurrences?.length || 0} built rows left` }; }
+  }
   return { passed: false, why: "no check" };
 }
 
@@ -89,6 +99,17 @@ for (const c of cases) {
   let before = null;
   try {
   before = await idsNow();
+  // A case may build something first (change / remove / undo need a thing to act on). Built over REST like any
+  // client; deleted with the rest by cleanup().
+  let setupIds = null;
+  if (c.setup) {
+    const r = await fetch(`${BASE}/api/v1/build`, { method: "POST", headers: { Authorization: `Bearer ${rawToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ gridId, nodes: c.setup }) }).then((x) => x.json()).catch((e) => ({ error: String(e) }));
+    if (!r?.made) throw new Error(`setup failed: ${JSON.stringify(r).slice(0, 200)}`);
+    const mid = await idsNow();
+    setupIds = Object.fromEntries(COLS.map((k) => [k, [...mid[k]].filter((id) => !before[k].has(id))]));
+    await new Promise((res) => setTimeout(res, 1500));   // let the build's transaction flush before an undo
+  }
   const t0 = Date.now();
   let confirmOut = [];
   let first = null, toolCalls = 0, cacheN = null, promptN = null, model = null, out = null, err = null;
@@ -104,7 +125,7 @@ for (const c of cases) {
   const wallMs = Date.now() - t0;
   const after = await idsNow();
   const made = Object.fromEntries(COLS.map((k) => [k, [...after[k]].filter((id) => !before[k].has(id))]));
-  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made);
+  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made, setupIds);
   const madeKinds = await kindsOf(made);
   const removed = await cleanup(before);
   before = null;
