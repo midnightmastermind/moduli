@@ -66,3 +66,21 @@ describe("a build turn must call a tool", () => {
     expect(bodies[0].tool_choice).toBeUndefined();
   });
 });
+
+describe("a page request is offered build, not the one-row creators", async () => {
+  const { toolsForModel, isPageShaped } = await import("../services/assistantAgent.js");
+  const tools = ["build", "create_occurrence", "create_board", "create_items", "import_url", "list_folders", "change"].map((name) => ({ name }));
+  it("glossary / doc page → no create_occurrence or create_board", () => {
+    const names = toolsForModel(tools, "build", "Make a doc page called Home that is a glossary").map((t) => t.name);
+    expect(names).toEqual(["build", "import_url", "list_folders", "change"]);
+  });
+  it("a board request, CPS rows, and a link import keep what they need", () => {
+    expect(isPageShaped("Create a board called Quick Links")).toBe(false);
+    expect(isPageShaped("Add my CPS classes to Tasks › Appointments")).toBe(false);
+    expect(toolsForModel(tools, "build", "make a page from this link https://x.io").map((t) => t.name)).toContain("import_url");
+    expect(toolsForModel(tools, "build", "Add my CPS classes").map((t) => t.name)).toContain("create_items");
+  });
+  it("questions still get read tools only", () => {
+    expect(toolsForModel(tools, "fast", "what page is this").map((t) => t.name)).toEqual(["list_folders"]);
+  });
+});

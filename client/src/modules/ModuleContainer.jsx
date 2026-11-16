@@ -1462,7 +1462,9 @@ function Container({
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
           : module.kind === "board"
-            ? { gap: 6, padding: "4px 3px 2px 3px", minHeight: "20px" } // +2px above the items
+            // The right-hand buttons sit with equal room above and below (user, 2026-11-15): 4/2 put them 1px low and
+            // 3/3 1px high (the header's bottom border counts in its box), so 3.5/2.5. Same total height.
+            ? { gap: 6, padding: "3.5px 3px 2.5px 3px", minHeight: "20px" }
             // A heading container (meta.headingLevel) sizes to its TEXT and takes
             // real padding on all four sides. The fixed 20px height below is
             // shorter than an 18px heading line, so the label overflowed its own
@@ -2054,11 +2056,9 @@ function Container({
               // layout) and the drag handle has to stop consuming a row.
               + (childContentDir === "column" ? " container-items--content-column" : "")}
             style={{
-              // Board containers get +4px at the bottom over the list default —
-              // the kanban-style column rows were too squished against the
-              // container chrome. The top was +4 too and is +1 now (user,
-              // 2026-10-20: "drop the upper padding a bit", seen on Routines).
-              padding: module.kind === "board" ? "4px 5px 9px 5px" : "3px 5px 5px 5px",
+              // Board containers: the same room above the first row as below the last (user, 2026-11-15: "the bottom
+              // is more than the top"; measured 15px above, 20px below with 4/9 padding). Same total as before.
+              padding: module.kind === "board" ? "6px 5px 6px 5px" : "3px 5px 5px 5px",
               flex: 1, display: "flex", flexDirection: "column",
               // Wrap mode ("i want to see them as squares instead of rectangles
               // stacked") is driven by the SAME layout cascade the board page

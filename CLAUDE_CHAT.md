@@ -4173,3 +4173,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-15 19:49 CST — Jonah improvements
 - *"can you brainstorm ways to improve jonah"* → I recommended: self-check before the confirm card (dryRun, feed problems back once), constrain tool calls with llama.cpp's grammar, and draw the planned page in the confirm card. User: *"okay lets work on that"*.
+
+### 2026-11-15 20:24 CST
+- Jonah drawer: *"dont make it a little chatbox. make it look like a terminal that opens up in the center of the screen with an x button (keep the little circle guy tho for the button for it). that way the preview page can be bigger"*.
+- *"fix the spacing above and below the occurances (they should be the same size), the bottom is more than the top. also in the header, the buttons on the rights top spacing is more than the bottom"* · *"check the latest screenshot"*.

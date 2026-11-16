@@ -461,8 +461,21 @@ export function pickModel(text) {
 // A question goes to the fast model, and the fast model only READS: asked "how many movies are on my Movies board?",
 // llama3.2 3B answered by calling create_board (eval, 2026-11-15). Reading tools are named for what they do.
 const READ_TOOL = /^(list_|get_|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$)/;
-export function toolsForModel(tools, which) {
-  return which === "build" ? tools : (tools || []).filter((t) => READ_TOOL.test(t.name));
+// A request for a PAGE (a doc page, a glossary, a dashboard, sections) without a board in it is a `build`: with the
+// first turn forced to a tool call, the 7B picked create_occurrence or create_board for the glossary (eval,
+// 2026-11-15). Those requests are not offered the one-row creators or create_board, so a forced call cannot land on
+// them. Imports (import_url, wikipedia_*) stay — "make a page from this link" is page-shaped too.
+const PAGE_SHAPED = /\b(doc page|page|glossary|dashboard|sections?)\b/i;
+const NOT_FOR_PAGES = new Set(["create_occurrence", "set_occurrence_field", "create_field", "create_board", "create_items", "save_bookmark"]);
+export function isPageShaped(text) {
+  const t = String(text || "");
+  return PAGE_SHAPED.test(t) && !/\bboard\b/i.test(t);
+}
+export function toolsForModel(tools, which, text = "") {
+  if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
+  if (!isPageShaped(text)) return tools;
+  const kept = (tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name));
+  return kept.some((t) => t.name === "build") ? kept : tools;   // never strip everything a page could be built with
 }
 function modelIdFor(which) {
   return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
@@ -853,7 +866,7 @@ export async function assistantChat({ messages, userId, gridId, context = null, 
     const which = pickModel(lastUserText(messages));
     const model = modelIdFor(which);
     try {
-      return await localLoop({ messages, tools: toolsForModel(backendTools, which), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
+      return await localLoop({ messages, tools: toolsForModel(backendTools, which, lastUserText(messages)), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
     } catch (e) {
       // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
       // deterministic dispatcher's "No LLM is running" would be wrong.
