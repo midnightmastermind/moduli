@@ -552,6 +552,22 @@ export function buildToolPack({ call, gridId }) {
       },
     },
     {
+      name: "automate",
+      description: "Make an automation (saved as an operation). when ONE of: {\"at\":\"2pm\",\"days\":\"weekdays\"|[\"Mon\"]} · {\"added_to\":\"Tasks › Todo\"} · {\"changed\":\"Completed\",\"in\":\"Tasks › Todo\",\"to\":true}. do: list of {\"notify\":\"text\"} · {\"add_item\":\"name\",\"to\":\"Page › Section\"} · {\"set\":\"Field\",\"value\":\"today\"} (the item that triggered it) · {\"run\":\"Operation name\"}.",
+      input_schema: { type: "object", properties: { name: { type: "string" }, when: { type: "object" }, do: { type: "array", items: { type: "object" } } }, required: ["when", "do"] },
+      destructive: false,
+      requires_confirm: true,
+      preview: async (input) => {
+        const r = await call("POST", `/automate`, { gridId, spec: input, dryRun: true });
+        return r.body || { error: `automate preview: ${r.status}` };
+      },
+      run: async (input) => {
+        const r = await call("POST", `/automate`, { gridId, spec: input });
+        if (!ok(r)) return fail(r, "saving the automation");
+        return r.body;
+      },
+    },
+    {
       name: "create_items",
       description: "Add MANY rows to one container in a single step. `container` is its name or path, e.g. \"Tasks › Appointments\". Each item has a `label` and `fields` BY FIELD NAME, e.g. {\"Date\": \"2026-11-02\", \"Time Slot\": \"4:00pm\", \"Duration\": \"4h\", \"Schedule Type\": \"Class\"}. Something that REPEATS on many dates: do NOT list the dates — send ONE item with `repeat`: {\"from\": \"2026-11-01\", \"to\": \"2026-11-30\", \"weekdays\": [\"Mon\",\"Tue\",\"Wed\",\"Thu\"]} and one row is made per matching day (date in the Date field; `except` lists days to skip). `from`/`to` cover the WHOLE period the user names — \"in November 2026\" is 2026-11-01 to 2026-11-30 — never starting from today unless the user says so. A dropdown value that does not exist yet is added to the dropdown. Include EVERY item the user listed. Rows with the same label share one template.",
       input_schema: {

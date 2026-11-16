@@ -58,6 +58,20 @@ async function check(c, made, setupIds = null, answerText = "", usedNames = []) 
       why: [extra.length ? `wrote ${extra.length} rows` : "", missing.length ? `answer lacks ${JSON.stringify(missing)}` : "",
         unused.length ? `never called ${unused.join(", ")}` : "", stray.length ? `called ${stray.join(", ")}` : ""].filter(Boolean).join("; ") || `tools: ${usedNames.join(", ") || "none"}` };
   }
+  if (c.kind === "automation") {
+    // Exactly one operation made, with the expected trigger and steps (2026-11-16: automations are real operations).
+    const ops = await db.collection("operations").find({ gridId, id: { $in: made.operations } }).toArray();
+    const op = ops[0]; const e = c.check;
+    if (ops.length !== 1) return { passed: false, why: `${ops.length} operations made` };
+    const text = JSON.stringify(op.pipeline || {});
+    const steps = [...text.matchAll(/"type":"([A-Z_]+)"/g)].map((m) => m[1]);
+    const okSched = !e.schedule || JSON.stringify(op.schedule || {}).includes(JSON.stringify(e.schedule).slice(1, -1));
+    const okTrig = !e.trigger || (op.triggerObjects || []).some((t) => t.eventType === e.trigger);
+    const okSteps = (e.steps || []).every((x) => steps.includes(x));
+    const okText = !e.text || new RegExp(e.text, "i").test(text);
+    return { passed: okSched && okTrig && okSteps && okText,
+      why: `schedule ${JSON.stringify(op.schedule || null)} · triggers ${(op.triggerObjects || []).map((t) => t.eventType).join(",") || "-"} · steps ${steps.join(",")}` };
+  }
   const occs = await db.collection("occurrences").find({ gridId, id: { $in: made.occurrences } }).toArray();
   const mods = new Map((await db.collection("modules").find({ gridId, id: { $in: occs.map((o) => o.moduleId) } }).toArray()).map((m) => [m.id, m]));
   const labelOf = (o) => o.label || mods.get(o.moduleId)?.label || "";

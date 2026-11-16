@@ -2224,6 +2224,37 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // POST /build — Jonah builds anything in ONE call (services/buildPlan, spec 2026-11-15-jonah-build-anything-design).
   // Body: { gridId, nodes, under?, dryRun? }. Plans every record, resolving names against this grid; dryRun answers
   // with the plan's summary and writes nothing (the confirm card). Answers { ok, made, problems, counts }.
+  // The names a build or an automation can point at (pages, sections, folders), resolved once. Shared by /build and
+  // /automate so both read a place the same way.
+  async function loadPlaceNames(gridId) {
+    const manifest = await Manifest.findOne({ gridId, rootFolderId: { $ne: null } }).lean();
+    const folders = await Folder.find({ gridId }).select("id name parentId").lean();
+    const fields = await Field.find({ gridId }).lean();
+    // Names a build can point at: pages and sections (their first placement), and folders (their folder-page card).
+    const placeMods = await Module.find({ gridId, role: { $in: ["page", "container"] } }).select("id label role kind").lean();
+    const placeOccs = await Occurrence.find({ gridId, moduleId: { $in: placeMods.map((m) => m.id) } }).select("id moduleId parentId createdAt").sort({ createdAt: 1 }).lean();
+    const firstOcc = new Map();
+    for (const o of placeOccs) if (!firstOcc.has(o.moduleId)) firstOcc.set(o.moduleId, o);
+    const byName = new Map();
+    for (const m of [...placeMods].sort((a, b) => (a.role === "page" ? -1 : 1) - (b.role === "page" ? -1 : 1))) {
+      const o = firstOcc.get(m.id); const key = String(m.label || "").trim().toLowerCase();
+      if (!o || !key || byName.has(key) || m.kind === "folder") continue;
+      byName.set(key, { occId: o.id, role: m.role, kind: m.kind, moduleId: m.id });
+    }
+    const cardOf = new Map(placeOccs.filter((o) => placeMods.find((m) => m.id === o.moduleId && m.kind === "folder")).map((o) => [o.parentId, o.id]));
+    for (const f of folders) {
+      const key = String(f.name || "").trim().toLowerCase();
+      if (!byName.has(key)) byName.set(key, { folderId: f.id, occId: cardOf.get(f.id) || null, role: "page", kind: "folder" });
+    }
+    const find = (name) => {
+      const last = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
+      return byName.get(last.trim().toLowerCase()) || null;
+    };
+    // The real names as written, for "did you mean" in a problem (buildPlan.closestName).
+    const names = [...placeMods.map((m) => m.label), ...folders.map((f) => f.name)].filter(Boolean);
+    return { manifest, folders, fields, find, names, byName };
+  }
+
   router.post("/build", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { planBuild } = await import("../services/buildPlan.js");
@@ -2231,31 +2262,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
       if (!Array.isArray(nodes) || !nodes.length) return err(res, 400, "validation_error", "nodes (a non-empty list) required");
       const userId = req.userId;
-      const manifest = await Manifest.findOne({ gridId, rootFolderId: { $ne: null } }).lean();
-      const folders = await Folder.find({ gridId }).select("id name parentId").lean();
-      const fields = await Field.find({ gridId }).lean();
-      // Names a build can point at: pages and sections (their first placement), and folders (their folder-page card).
-      const placeMods = await Module.find({ gridId, role: { $in: ["page", "container"] } }).select("id label role kind").lean();
-      const placeOccs = await Occurrence.find({ gridId, moduleId: { $in: placeMods.map((m) => m.id) } }).select("id moduleId parentId createdAt").sort({ createdAt: 1 }).lean();
-      const firstOcc = new Map();
-      for (const o of placeOccs) if (!firstOcc.has(o.moduleId)) firstOcc.set(o.moduleId, o);
-      const byName = new Map();
-      for (const m of [...placeMods].sort((a, b) => (a.role === "page" ? -1 : 1) - (b.role === "page" ? -1 : 1))) {
-        const o = firstOcc.get(m.id); const key = String(m.label || "").trim().toLowerCase();
-        if (!o || !key || byName.has(key) || m.kind === "folder") continue;
-        byName.set(key, { occId: o.id, role: m.role, kind: m.kind, moduleId: m.id });
-      }
-      const cardOf = new Map(placeOccs.filter((o) => placeMods.find((m) => m.id === o.moduleId && m.kind === "folder")).map((o) => [o.parentId, o.id]));
-      for (const f of folders) {
-        const key = String(f.name || "").trim().toLowerCase();
-        if (!byName.has(key)) byName.set(key, { folderId: f.id, occId: cardOf.get(f.id) || null, role: "page", kind: "folder" });
-      }
-      const find = (name) => {
-        const last = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
-        return byName.get(last.trim().toLowerCase()) || null;
-      };
-      // The real names as written, for "did you mean" in a problem (buildPlan.closestName).
-      const names = [...placeMods.map((m) => m.label), ...folders.map((f) => f.name)].filter(Boolean);
+      const { manifest, folders, fields, find, names } = await loadPlaceNames(gridId);
       // A button already on the grid, and what its listeners do (so the build does not add a second one).
       const ops = await Operation.find({ gridId, triggerType: "onButton" }).lean();
       const buttonFieldFor = (label) => {
@@ -2404,6 +2411,47 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   });
 
   // POST /change — { gridId, name, rename?, fields?, moveTo? }.
+  // Jonah's automations (2026-11-16): a short when/do form → a real Operation (services/automation.js). dryRun = the
+  // practice run the confirm card shows; the write is one undo step, like /build.
+  router.post("/automate", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { gridId, spec, dryRun = false } = req.body || {};
+      if (!gridId || !spec) return err(res, 400, "validation_error", "gridId and spec required");
+      const userId = req.userId;
+      const { compileAutomation } = await import("../services/automation.js");
+      const fields = await Field.find({ gridId }).lean();
+      // Places by the same path rules as /change ("Tasks › Todo" picks by parent; several = ask) — the Schedule has a
+      // "Todo" in every day column, so the last name alone would pick one of those. Pages and sections only.
+      const { pickByName } = await import("../services/buildEdit.js");
+      const wanted = [spec?.when?.added_to, spec?.when?.in, ...[].concat(spec?.do || []).map((a) => a?.to)].filter((n) => typeof n === "string" && n.trim());
+      const places = new Map(); const placeProblems = [];
+      for (const name of new Set(wanted)) {
+        const cands = (await editCandidates(gridId, name)).filter((c) => ["page", "container"].includes(c.module?.role));
+        const r = pickByName(name, cands);
+        if (r.hit) places.set(name, { occId: r.hit.occ.id, label: r.hit.occ.label || r.hit.module?.label || name });
+        else if (r.ambiguous) placeProblems.push(`"${name}" could mean several: ${r.ambiguous.join("; ")} — say which`);
+      }
+      const findPlace = (name) => places.get(name) || null;
+      const ops = await Operation.find({ gridId }).select("id name").lean();
+      const findOp = (name) => ops.find((o) => String(o.name).trim().toLowerCase() === String(name || "").trim().toLowerCase()) || null;
+      const compiled = compileAutomation(spec, { userId, gridId, fields, findPlace, findOp });
+      const { summary } = compiled;
+      // An ambiguous place is the only problem the compiler cannot see (it gets null and says "no page named").
+      const problems = [...placeProblems, ...compiled.problems.filter((p) => !placeProblems.some((q) => q.includes(p.match(/"([^"]+)"/)?.[1] ?? "\u0000")))];
+      const op = problems.length ? null : compiled.op;
+      const preview = { name: op?.name || null, when: summary.when, does: summary.does };
+      if (dryRun || !op) return res.json({ ok: !problems.length, dryRun: !!dryRun, problems, preview });
+      const { recordDoc, flushAction } = await import("../utils/txRecorder.js");
+      const actionId = `automate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const doc = await Operation.create(op);
+      mirrorToCache(userId, gridId, "operation", doc.toObject());
+      io.to(userRoom(userId)).emit("operation_created", { operation: doc.toObject() });
+      recordDoc({ userId, gridId, actionId, model: "operation", id: op.id, before: null, after: doc.toObject(), label: `Jonah made the automation "${op.name}"` });
+      await flushAction(actionId);
+      res.json({ ok: true, operationId: op.id, name: op.name, preview, actionId });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   router.post("/change", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { gridId, name, id = null, rename = null, fields = null, moveTo = null } = req.body || {};

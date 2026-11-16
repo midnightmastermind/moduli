@@ -56,7 +56,8 @@ Act by calling tools. Before a tool call write ONE short sentence saying what yo
 - Build in ONE call. A page with sections, links or buttons (a doc page, a glossary, a dashboard) is ALWAYS build. A plain board of rows is create_board. Rows into an existing container is create_items. Tools: build, create_board (rows as one line each, see its description), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added; for something on many dates send ONE item with repeat {from, to, weekdays} instead of listing dates), add_filter (filter on a page/container, nav showing).
 - Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_import. change / remove a thing by name; undo takes back the last change.
 - Look up: look_up (answer about the grid from it, never from memory), list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
-- The world: web_search for anything outside the grid; read_page if snippets don't answer. Answer from them; end with the source's address.
+- Automations: automate.
+- The world: web_search beyond the grid; read_page if snippets fall short. Answer from them; end with the source's address.
 Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Never write out a list of dates yourself — use repeat. After creating, say how many were made. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
 const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace. Persona: a sophisticated, unflappable turtle butler with a long Gandalf-like beard. Style: dry, precise, faintly formal; wise and patient, never folksy. Brief by default; expansive only when answering a genuine research question.
@@ -120,7 +121,7 @@ const OFFLINE_CORE_TOOLS = new Set([
   "create_occurrence", "set_occurrence_field", "create_field",
   "save_bookmark", "import_url", "wikipedia_import",
   "list_folders", "list_fields", "list_occurrences", "get_occurrence",
-  "run_operation", "jonah_notes", "look_up", "web_search", "read_page",
+  "run_operation", "jonah_notes", "look_up", "web_search", "read_page", "automate",
 ]);
 
 function offlineToolAllowlist() {
@@ -458,7 +459,8 @@ export function isGatewayTimeout(err) {
  * fast one (spec: "the 3B answers questions; the 7B builds"). A cheap rule on the newest user message — it must not
  * cost a model round trip of its own. A tool call the fast model makes still runs.
  */
-const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|delete|remove|new|undo|change|edit|update|fix)\b/i;
+// Automations too (2026-11-16): "remind me…", "every morning…", "whenever I tick…", "automatically…".
+const BUILD_VERBS = /\b(add|make|create|build|put|set|move|copy|import|rename|delete|remove|new|undo|change|edit|update|fix|remind|automate|automatically|whenever|every (?:day|morning|night|evening|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i;
 export function pickModel(text) {
   return BUILD_VERBS.test(String(text || "")) ? "build" : "fast";
 }
@@ -482,7 +484,17 @@ export function isPageShaped(text) {
 // A page request is offered `build` and not the one-row creators (measured: narrowed 8 of 10 glossary runs passed,
 // the same tools + a steering note 3 of 7, 2026-11-16). The dropped tools sit LAST in every build request, so the
 // page list is the start of the full one: switching kinds re-reads ~2,600 prompt tokens (~50s) instead of ~4,200.
+// An automation request ("remind me…", "every day at…", "whenever I tick…") gets `automate` and what it needs to name
+// things; every other request does not see it — the whole list is re-read before each answer (2026-11-16).
+const AUTOMATION_WORDS = /\b(remind|automate|automatically|automation|whenever|every (?:day|morning|night|evening|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|each (?:day|morning|night|week))\b/i;
+const AUTOMATION_TOOLS = new Set(["automate", "look_up", "list_fields", "list_folders", "jonah_notes"]);
+export function isAutomationShaped(text) { return AUTOMATION_WORDS.test(String(text || "")); }
 export function toolsForModel(tools, which, text = "") {
+  if (which === "build" && isAutomationShaped(text)) {
+    const kept = (tools || []).filter((t) => AUTOMATION_TOOLS.has(t.name));
+    if (kept.some((t) => t.name === "automate")) return kept;
+  }
+  tools = (tools || []).filter((t) => t.name !== "automate");
   if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
   // Order: the rest, then the edit tools, then the one-row tools — so "make a page" (the rest) and "edit a page"
   // (+ edits) are each the START of the full list, and the runner reuses that prefix of the prompt.

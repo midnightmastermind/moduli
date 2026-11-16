@@ -16,10 +16,17 @@ describe("the local model's prompt and tools agree", () => {
   it("offers the one-step build tools", () => {
     expect(offered).toEqual(expect.arrayContaining(["create_board", "create_items", "add_filter"]));
   });
-  it("stays short (it is read on CPU before every answer)", () => {
-    const toolChars = selectToolsForBackend(all, "local")
-      .reduce((n, t) => n + JSON.stringify({ name: t.name, description: t.description, parameters: t.input_schema }).length, 0);
-    expect(OFFLINE_SYSTEM_PROMPT.length + toolChars).toBeLessThan(12000);
+  // Measured per kind of request — what each is actually OFFERED (toolsForModel), since `automate` is offered only to
+  // an automation request and the one-row tools not to a page (2026-11-16).
+  it("stays short (the prompt and tools are read before every answer)", async () => {
+    const { toolsForModel } = await import("../services/assistantAgent.js");
+    const local = selectToolsForBackend(all, "local");
+    const size = (ts) => OFFLINE_SYSTEM_PROMPT.length + ts.reduce((n, t) => n + JSON.stringify({ name: t.name, description: t.description, parameters: t.input_schema }).length, 0);
+    for (const [which, text] of [["build", "Add my CPS classes"], ["build", "Make a doc page called Home"], ["build", "remind me every day at 2pm to drink water"], ["fast", "what is on my schedule?"]]) {
+      expect(size(toolsForModel(local, which, text)), text).toBeLessThan(12000);
+    }
+    expect(toolsForModel(local, "build", "remind me every day at 2pm").map((t) => t.name)).toContain("automate");
+    expect(toolsForModel(local, "build", "Add my CPS classes").map((t) => t.name)).not.toContain("automate");
   });
   it("other backends keep the full catalog", () => {
     expect(selectToolsForBackend(all, "anthropic")).toHaveLength(all.length);

@@ -60,6 +60,23 @@ export function buildPreviewState(preview) {
   };
 }
 
+// An automation's card says what will be saved, in words: the operation's name, when it runs, what it does
+// (2026-11-16 — automations are real operations, listed and editable afterwards).
+export function AutomationPreview({ msg }) {
+  const p = msg.preview || {};
+  const problems = Array.isArray(msg.problems) ? msg.problems : [];
+  return (
+    <div className="jonah-automation" style={{ fontSize: 11, lineHeight: 1.5, marginBottom: 6 }}>
+      {p.name && <div><span style={{ opacity: 0.6 }}>Operation </span>{p.name}</div>}
+      {p.when && <div><span style={{ opacity: 0.6 }}>When </span>{p.when}</div>}
+      {Array.isArray(p.does) && p.does.length > 0 && (
+        <div><span style={{ opacity: 0.6 }}>Does </span>{p.does.join(", then ")}</div>
+      )}
+      {problems.map((x, i) => <div key={i} style={{ color: "var(--accent-red-text, #f87171)" }}>⚠ {x}</div>)}
+    </div>
+  );
+}
+
 function BuildPreview({ msg }) {
   const tree = useMemo(() => buildPreviewState(msg.preview), [msg.preview]);
   const problems = Array.isArray(msg.problems) ? msg.problems : [];
@@ -989,6 +1006,8 @@ function ConfirmCard({ msg, busy, onResolve }) {
         </div>
       ) : msg.name === "build" && (msg.preview || msg.problems) ? (
         <BuildPreview msg={msg} />
+      ) : msg.name === "automate" && (msg.preview || msg.problems) ? (
+        <AutomationPreview msg={msg} />
       ) : isCreateField ? (
         <div style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 11, marginBottom: 5 }}>New field — confirm or edit:</div>
