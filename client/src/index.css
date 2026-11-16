@@ -9883,36 +9883,6 @@ body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; 
   .share-shell :is(select, button, input:not([type="radio"]):not([type="checkbox"])) { min-height: 32px; }
 }
 
-/* ── Phone: every control can be seen and pressed (sweep 2026-11-05 measured these from 10x15px up) ── */
-/* A touch screen has no hover: what appears on hover stays shown. */
-body[data-layout="mobile"] .page-header-close-btn { opacity: 1; }
-/* Icon buttons, measured under the 24px minimum. Height is only ever added where a row can take it. */
-body[data-layout="mobile"] :is(.occ-search-clear, .page-header-close-btn, .spread-tile-maximize, .toolbar-panel-picker-box,
-  button[title="Remove column"], button[title="Move up"], button[title="Move down"], button[aria-label="Move up"], button[aria-label="Move down"],
-  button[title="Close"], button[aria-label="Close"], button[aria-label="Close settings"], button[title="Clear history"],
-  button[title="New folder"], button[title="Add page"], button[title="Search pages"], button[title="Settings"],
-  button[title="Toolbar"], button[title^="Connect cards"]) {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 32px; min-height: 32px;
-}
-/* Text buttons in a menu or a settings form. */
-body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]):not(:empty) {
-  min-height: 32px;
-}
-/* A tick box is 13px by default; some carry an inline width. */
-body[data-layout="mobile"] :is(input[type="checkbox"], input[type="radio"]) { width: 24px !important; height: 24px; min-width: 24px; }
-/* Boxes in a menu or a form. */
-body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"], [data-command-center]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select) { min-height: 32px; }
-body[data-layout="mobile"] [data-command-center] button:not([role="switch"]):not(:empty) { min-height: 32px; }
-/* A table row's + lay over the pill in a narrow cell; a table adds fields by its columns. */
-body[data-layout="mobile"] .table-row .instance-field-add-btn { display: none; }
-/* Tiny icons laid over something: the box grows, the icon does not. */
-body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title="Lock document"], [title="Unlock document"], [title="Snap view to center"], [title="Heading level"]) {
-  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px;
-}
-body[data-layout="mobile"] button[role="switch"] { height: 24px; }
-
-
 /* ── Jonah: a terminal window in the centre of the screen (2026-11-15) ── */
 .jonah-terminal-backdrop {
   position: fixed; inset: 0; z-index: 9000;
@@ -9976,3 +9946,33 @@ body[data-layout="mobile"] button[role="switch"] { height: 24px; }
 body[data-layout="mobile"] .jonah-terminal {
   width: 100vw; height: 100dvh; border-radius: 0; border: none;
 }
+
+
+/* ── Phone: every control can be seen and pressed (sweep 2026-11-05 measured these from 10x15px up) ── */
+/* A touch screen has no hover: what appears on hover stays shown. */
+body[data-layout="mobile"] .page-header-close-btn { opacity: 1; }
+/* Icon buttons, measured under the 24px minimum. Height is only ever added where a row can take it. */
+body[data-layout="mobile"] :is(.occ-search-clear, .page-header-close-btn, .spread-tile-maximize, .toolbar-panel-picker-box,
+  button[title="Remove column"], button[title="Move up"], button[title="Move down"], button[aria-label="Move up"], button[aria-label="Move down"],
+  button[title="Close"], button[aria-label="Close"], button[aria-label="Close settings"], button[title="Clear history"],
+  button[title="New folder"], button[title="Add page"], button[title="Search pages"], button[title="Settings"],
+  button[title="Toolbar"], button[title^="Connect cards"]) {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 32px; min-height: 32px;
+}
+/* Text buttons in a menu or a settings form. */
+body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"]) button:not([role="switch"]):not(:empty) {
+  min-height: 32px;
+}
+/* A tick box is 13px by default; some carry an inline width. */
+body[data-layout="mobile"] :is(input[type="checkbox"], input[type="radio"]) { width: 24px !important; height: 24px; min-width: 24px; }
+/* Boxes in a menu or a form. */
+body[data-layout="mobile"] :is(.menu-surface, .settings-sheet, [data-toolbar-drawer], [data-testid="form-modal"], [data-command-center]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select) { min-height: 32px; }
+body[data-layout="mobile"] [data-command-center] button:not([role="switch"]):not(:empty) { min-height: 32px; }
+/* A table row's + lay over the pill in a narrow cell; a table adds fields by its columns. */
+body[data-layout="mobile"] .table-row .instance-field-add-btn { display: none; }
+/* Tiny icons laid over something: the box grows, the icon does not. */
+body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title="Lock document"], [title="Unlock document"], [title="Snap view to center"], [title="Heading level"]) {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px;
+}
+body[data-layout="mobile"] button[role="switch"] { height: 24px; }
