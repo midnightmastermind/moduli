@@ -129,3 +129,18 @@ describe("conversationOnly", async () => {
     ])).toEqual([{ role: "user", content: "make a page" }, { role: "assistant", content: "Done." }]);
   });
 });
+
+describe("listFoldersAnswer", async () => {
+  const { listFoldersAnswer } = await import("../services/assistantTools.js");
+  const body = { folders: [{ id: "r", name: "Root", parentId: null }, { id: "a", name: "Tasks", parentId: "r" }, { id: "b", name: "Daily", parentId: "a" }] };
+  it("a made-up parent id lists every folder and says so", () => {
+    const r = listFoldersAnswer(body, "folder_123");
+    expect(r.folders.map((f) => f.name)).toEqual(["Root", "Tasks", "Daily"]);
+    expect(r.note).toMatch(/no folder has the id/);
+  });
+  it("root means the top level; a real id its children; none everything with parent names", () => {
+    expect(listFoldersAnswer(body, "root").folders.map((f) => f.name)).toEqual(["Tasks"]);
+    expect(listFoldersAnswer(body, "a").folders).toEqual([{ id: "b", name: "Daily", parent: "Tasks" }]);
+    expect(listFoldersAnswer(body).folders).toHaveLength(3);
+  });
+});

@@ -71,6 +71,26 @@ export function summarizeGridState(state, { limit = 50 } = {}) {
 // ── Moduli pack — grid commands, scoped to the caller's token + grid ──────
 // Thin wrappers over /api/v1. No special privileges: permissions are the
 // caller's Bearer token, exactly like any external integration.
+/**
+ * list_folders' answer. The model passes a parentId it made up as often as a real one (asked "what folders do I
+ * have?" it got 0 back once and told the user they had none — Jonah, 2026-11-16). A parentId that names no folder
+ * lists them all and says so; "null"/"root"/"" means the top level. Each folder carries its parent's name. Pure.
+ */
+export function listFoldersAnswer(body, parentId) {
+  const all = Array.isArray(body?.folders) ? body.folders : [];
+  const byId = new Map(all.map((f) => [f.id, f]));
+  const slim = (f) => ({ id: f.id, name: f.name, parent: byId.get(f.parentId)?.name || null });
+  if (parentId === undefined || parentId === null) return { folders: all.map(slim) };
+  const p = String(parentId).trim();
+  if (!p || /^(null|root|top|\/)$/i.test(p)) {
+    const roots = all.filter((f) => !f.parentId);
+    const top = all.filter((f) => roots.some((r) => r.id === f.parentId));
+    return { folders: (top.length ? top : roots).map(slim) };
+  }
+  if (!byId.has(p)) return { folders: all.map(slim), note: `no folder has the id "${p}" — listing every folder` };
+  return { folders: all.filter((f) => f.parentId === p).map(slim) };
+}
+
 export function moduliToolPack({ baseUrl, apiToken, gridId }) {
   const headers = { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" };
   const call = async (method, path, body) => {
@@ -655,11 +675,8 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       description: "List folders (the tree that organizes pages/docs). Filter by parentId.",
       input_schema: { type: "object", properties: { parentId: { type: "string" } } },
       destructive: false,
-      run: async ({ parentId }) => {
-        const qs = new URLSearchParams({ gridId });
-        if (parentId !== undefined) qs.set("parentId", parentId);
-        return (await call("GET", `/folders?${qs}`)).body;
-      },
+      run: async ({ parentId }) => listFoldersAnswer(
+        (await call("GET", `/folders?${new URLSearchParams({ gridId })}`)).body, parentId),
     },
     {
       name: "create_folder",
