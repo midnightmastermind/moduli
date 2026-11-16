@@ -4218,3 +4218,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 10:45 *"also what are my radarr credentials"* — username joshpoms (from radarr.db); the password was never recorded and Radarr keeps only a hash.
 - 11:13 *"could you also center the open in browser buttons in glossary"*.
 - 12:03 *"centered in height in the header. look at the latest screenshot"*.
+- 12:15 *"make a button skinnier to match the smaller heights"* — keep the header height, shorten the pill.

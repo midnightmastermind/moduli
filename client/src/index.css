@@ -9991,8 +9991,9 @@ body[data-layout="mobile"] :is(.notes-close-btn, [title="Set image…"], [title=
 }
 body[data-layout="mobile"] button[role="switch"] { height: 24px; }
 
-/* A nested section header that draws a button (the glossary's "Open in browser") gets the same 3px below as above,
-   so the pill sits centred in the header (user, 2026-11-16: "centered in height in the header"). The row is 3px top /
-   0 bottom on purpose for a plain label, which carries its own 2px below; a button pill has none, so it touched the
-   header's bottom line. Inline padding, hence !important. */
-.embedded-header-row:has(> .occurrence-fields) { padding-bottom: 3px !important; }
+/* A nested section header's button (the glossary's "Open in browser") is a SKINNY pill, centred in the header's own
+   height (user, 2026-11-16: "make a button skinnier to match the smaller heights" — the header must not grow for it).
+   The row is 3px top / 0 bottom on purpose (a plain label carries its own 2px below), so the pill is lifted half of
+   that to sit on the header's middle. Its padding comes inline from the field, hence !important. */
+.embedded-header-row > .occurrence-fields { margin-top: -3px; }
+.embedded-header-row > .occurrence-fields button { padding-top: 0 !important; padding-bottom: 0 !important; line-height: 18px !important; }
