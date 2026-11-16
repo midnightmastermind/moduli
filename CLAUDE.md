@@ -26,8 +26,13 @@ on hover"* · *"it shouldnt be searching via the ui for its signatures … no si
   (occ `VI5z1eAPtFg5`) holding the 143 question rows was deleted (145 modules: 143 questions, the container, one file).
   No transaction recorded it. Since then the Daily Question field (`Library IS question`) has no options and
   `Day Page: Build Day`'s fill (PICK_RANDOM_FROM_POOL `CWC9WqHPO3EO`, also gone) has written nothing — no question on
-  any of the last 20 day columns. **Not restored — the user's call.** The fill also finds its container by
-  `identitySignature`, which the user has now ruled out for ops.
+  any of the last 20 day columns. The rows were HOMED in Library and LISTED by "Reflection Questions" (occ
+  `YFfFUfAIhEL3`, module `CWC9WqHPO3EO`, on Mind › Daily Journal Questions) — the pool the fill reads.
+- **`0504` (user: "yes"):** restores ONLY the 117 question rows (original ids, from the 10-18 backup), homed and listed
+  by Reflection Questions in their old order; the old Library's books/movies stay deleted. `Day Page: Build Day`'s fill
+  FIND now matches `_boundFieldIds ARRAY_INCLUDES <Daily Question>` under the day column (exactly 1 per column,
+  measured) instead of the signature. **`0505`**: the field's option limit 100 → 500 (it listed 100 of 117).
+  Watched on prod (writes blocked): today's question fills, the picker lists 118 (117 + blank). pm2 restarted.
 
 ---
 

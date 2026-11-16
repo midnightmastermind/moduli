@@ -4222,3 +4222,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 12:22 *"can you look at the daily question and make sure its linked (says its not) and the linked text (Daily Question) should be really small"*.
 - 12:23 *"theres a screenshot"* · *"and make it show only on hover"* (the link tag).
 - 12:25 *"it shouldnt be searching via the ui for its signatures. remember the operations should reflect what someone that doesnt have access to the database would have so no signature search"*.
+- 12:31 *"yes"* — restore the 143 questions from the Oct 18 backup; the fill picks from the field's options and finds its section by name, not signature.
