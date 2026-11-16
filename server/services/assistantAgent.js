@@ -486,6 +486,27 @@ export function buildLocalMessages({ systemPrompt, contextNote = "", messages = 
   return out.concat(history.slice(0, lastUser), [{ role: "system", content: contextNote }], history.slice(lastUser));
 }
 
+/**
+ * A confirm-tool call, checked first (Jonah, 2026-11-15). A tool with `preview(input)` gets a practice run that writes
+ * nothing. Problems on the FIRST check go back to the model to fix (`retry`, the text of the tool result); a clean
+ * check, or a second one, becomes the confirm card with the preview attached so the card can draw it. Never throws:
+ * a preview that fails just means a card without a picture.
+ * @returns {Promise<{ retry: string, problems: string[] } | { pending: object }>}
+ */
+export async function holdForConfirm({ tool, name, input, checked }) {
+  const pending = { name, input: input || {}, description: tool.description };
+  if (typeof tool.preview !== "function") return { pending };
+  let preview = null;
+  try { preview = await tool.preview(input || {}); } catch { preview = null; }
+  const problems = Array.isArray(preview?.problems) ? preview.problems : [];
+  if (problems.length && !checked.has(name)) {
+    checked.add(name);
+    return { problems, retry: toolResultForModel({ ok: false, notDoneYet: true, checkedFirst: true, problems,
+      next: `Nothing was made. Fix these and call ${name} again with the whole thing (or call it unchanged to keep it as is).` }) };
+  }
+  return { pending: { ...pending, ...(preview?.preview ? { preview: preview.preview } : {}), ...(problems.length ? { problems } : {}) } };
+}
+
 export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM_PROMPT, contextNote = "", model, onProgress = () => {}, deps = {} }) {
   const stream = deps.streamChat || streamChat;
   const useModel = model || modelIdFor(pickModel(lastUserText(messages)));
@@ -494,6 +515,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
   const transcript = [];
   let toolIterations = 0;
   let callSeq = 0;
+  const checked = new Set();   // confirm-tools already sent back once (holdForConfirm)
   const deadline = Date.now() + LLM_TOTAL_BUDGET_MS;
 
   while (toolIterations < MAX_TOOL_ITERATIONS) {
@@ -514,7 +536,10 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
       try {
         streamed = await stream({
           url: LLM_URL,
-          body: buildChatBody({ model: useModel, messages: apiMessages, tools, stream: true, maxTokens: LLM_NUM_PREDICT }),
+          // A build request's FIRST turn must be a tool call: llama.cpp then constrains the reply to a call whose
+          // arguments match the tool's schema (Jonah wrote calls as plain text before). Later turns may answer.
+          body: buildChatBody({ model: useModel, messages: apiMessages, tools, stream: true, maxTokens: LLM_NUM_PREDICT,
+            toolChoice: toolIterations === 0 && useModel === modelIdFor("build") && tools.length ? "required" : undefined }),
           signal: ctrl.signal,
           onToken: (delta) => onProgress({ phase: "token", delta }),
         });
@@ -563,12 +588,20 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
     // requires_confirm tools are held for user Approve/Decline (see llmLoop).
     const pending = [];
     const stepResults = [];
+    let retried = false;
     for (const tc of toolCalls) {
       const name = tc.function?.name;
       const input = parseToolArgs(tc.function?.arguments);
       const tool = tools.find(t => t.name === name);
       if (tool && tool.requires_confirm) {
-        pending.push({ name, input: input || {}, description: tool.description });
+        const held = await holdForConfirm({ tool, name, input, checked });
+        if (held.retry) {
+          apiMessages.push({ role: "tool", tool_call_id: tc.id, content: held.retry });
+          transcript.push({ role: "tool", name, input, output: { checkedFirst: true, problems: held.problems } });
+          retried = true;
+          continue;
+        }
+        pending.push(held.pending);
         continue;
       }
       let result;
@@ -586,6 +619,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
     if (pending.length) {
       return { ok: true, mode: "local", model: useModel, transcript, pendingConfirmations: pending };
     }
+    if (retried) { toolIterations++; continue; }
     const ask = ambiguityQuestion(stepResults);
     if (ask) {
       transcript.push({ role: "assistant", content: ask });

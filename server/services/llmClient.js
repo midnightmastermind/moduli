@@ -11,11 +11,12 @@ import { llmHeaders } from "../utils/llmHeaders.js";
 const JSON_HEADERS = () => llmHeaders({ "Content-Type": "application/json" });
 
 /** OpenAI-style request body. Pure. `tools` is the app's tool list ({name, description, input_schema}). */
-export function buildChatBody({ model, messages, tools = [], stream = true, maxTokens } = {}) {
+export function buildChatBody({ model, messages, tools = [], stream = true, maxTokens, toolChoice } = {}) {
   const body = { model, messages, stream, cache_prompt: true };
   if (maxTokens != null) body.max_tokens = maxTokens;
   if (Array.isArray(tools) && tools.length) {
     body.tools = tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+    if (toolChoice) body.tool_choice = toolChoice;
   }
   return body;
 }

@@ -217,3 +217,15 @@ describe("a button sent beside its page", () => {
     expect(page.fieldBindings).toHaveLength(1);
   });
 });
+
+describe("made-up addresses are reported", () => {
+  it("knows a placeholder from a real site", async () => {
+    const { placeholderAddress } = await import("../services/buildPlan.js");
+    for (const u of ["https://example.com/schedule", "https://www.example.org", "http://localhost:3000", "https://site.test", "https://yourdomain.com"]) expect(placeholderAddress(u)).toBe(true);
+    for (const u of ["https://mail.google.com", "https://github.com", "https://example-music.com", "https://myexample.com"]) expect(placeholderAddress(u)).toBe(false);
+  });
+  it("a placeholder link is a problem (and still planned)", () => {
+    const p = planBuild({ nodes: [{ page: "G", markdown: "## Places\n- [Schedule](https://example.com/schedule)\n- [Gmail](https://mail.google.com)" }], ctx: ctx() });
+    expect(p.problems).toEqual(['"Schedule": https://example.com/schedule is a made-up address — use the site\'s real one']);
+  });
+});

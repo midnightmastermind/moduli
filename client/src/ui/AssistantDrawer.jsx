@@ -23,6 +23,54 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
 import { createImportsDocPage, ensureImportsFolderAndPage, shouldWrapImportOutput } from "../helpers/importsFolder";
 import DestinationPicker from "./DestinationPicker";
+// The confirm card draws a planned build with the app's own renderers (lazy: PagePreviewApp is a big chunk).
+const PagePreviewBody = React.lazy(() => import("../PagePreviewApp.jsx").then((m) => ({ default: m.PagePreviewBody })));
+
+/**
+ * A build's planned records as an isolated grid state for PagePreviewBody — the reader-mode pattern
+ * (helpers/readerPlan): handed over as `parentState`, so nothing in it can reach the store or the server.
+ * Pure; null when there is nothing to draw. Exported for tests.
+ */
+export function buildPreviewState(preview) {
+  const occurrences = Array.isArray(preview?.occurrences) ? preview.occurrences : [];
+  const modules = Array.isArray(preview?.modules) ? preview.modules : [];
+  const ids = new Set(occurrences.map((o) => o?.id));
+  const roots = (Array.isArray(preview?.roots) ? preview.roots : []).filter((id) => ids.has(id));
+  if (!roots.length || !modules.length) return null;
+  return {
+    roots,
+    state: { occurrences, modules, fields: Array.isArray(preview?.fields) ? preview.fields : [], views: [], folders: [], hydrated: true },
+  };
+}
+
+function BuildPreview({ msg }) {
+  const tree = useMemo(() => buildPreviewState(msg.preview), [msg.preview]);
+  const problems = Array.isArray(msg.problems) ? msg.problems : [];
+  return (
+    <div style={{ marginBottom: 6 }}>
+      {problems.length > 0 && (
+        <div style={{ fontSize: 10, marginBottom: 5, padding: "4px 7px", borderRadius: 4, background: "rgba(190,90,80,0.16)", lineHeight: 1.45 }}>
+          {problems.slice(0, 6).map((p, i) => <div key={i}>• {p}</div>)}
+          {problems.length > 6 && <div style={{ opacity: 0.7 }}>+{problems.length - 6} more</div>}
+        </div>
+      )}
+      {tree ? (
+        <div data-testid="build-preview" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {tree.roots.slice(0, 3).map((id) => (
+            <div key={id} style={{ height: 260, overflow: "hidden", borderRadius: 5, border: "1px solid rgba(255,255,255,0.10)", background: "var(--panel-bg)" }}>
+              <React.Suspense fallback={<div style={{ padding: 8, opacity: 0.6 }}>Drawing the page…</div>}>
+                <PagePreviewBody parentState={tree.state} occurrenceId={id} scroll rootChrome publishComputed={false} />
+              </React.Suspense>
+            </div>
+          ))}
+          {tree.roots.length > 3 && <div style={{ fontSize: 10, opacity: 0.6 }}>+{tree.roots.length - 3} more</div>}
+        </div>
+      ) : (
+        <div style={{ fontSize: 10, opacity: 0.7 }}>{msg.description}</div>
+      )}
+    </div>
+  );
+}
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
@@ -282,6 +330,8 @@ export default function AssistantDrawer() {
       // not in the tool args).
       const confirms = (j.pendingConfirmations || []).map(pc => ({
         role: "confirm", name: pc.name, input: pc.input, description: pc.description, status: "pending", userText: text,
+        // A build's practice run (server dryRun): drawn on the card before you approve, problems still outstanding.
+        preview: pc.preview || null, problems: pc.problems || null,
       }));
       // After a create/import tool runs, offer to show the new content in a
       // panel via the grid-map picker (gated live to page/container content
@@ -903,6 +953,8 @@ function ConfirmCard({ msg, busy, onResolve }) {
             <div style={{ fontSize: 11, opacity: 0.9 }}>{picked.size} page{picked.size === 1 ? "" : "s"}</div>
           )}
         </div>
+      ) : msg.name === "build" && (msg.preview || msg.problems) ? (
+        <BuildPreview msg={msg} />
       ) : isCreateField ? (
         <div style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 11, marginBottom: 5 }}>New field — confirm or edit:</div>

@@ -4170,3 +4170,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-15 18:04 CST — queued after Jonah
 - *"if i multiselect occurances and delete via one of their radial menus, it should delete all of them. put up an are you sure message as well"* · *"do that after jonah"*.
+
+### 2026-11-15 19:49 CST — Jonah improvements
+- *"can you brainstorm ways to improve jonah"* → I recommended: self-check before the confirm card (dryRun, feed problems back once), constrain tool calls with llama.cpp's grammar, and draw the planned page in the confirm card. User: *"okay lets work on that"*.

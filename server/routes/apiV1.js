@@ -2268,7 +2268,15 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       };
       const plan = planBuild({ nodes, under, ctx: { gridId, userId, rootFolderId: manifest?.rootFolderId || null, folders, fields, find, buttonFieldFor } });
       const counts = { modules: plan.modules.length, occurrences: plan.occurrences.length, folders: plan.folders.length, fields: plan.fields.length, operations: plan.operations.length };
-      if (dryRun) return res.json({ ok: true, dryRun: true, made: plan.made, problems: plan.problems, counts });
+      if (dryRun) {
+        // The planned records too, so the confirm card can draw the page before anything is written (Jonah,
+        // 2026-11-15). Roots = planned occurrences whose parent is not itself planned (a page in a folder, or a
+        // section going into an existing page).
+        const planned = new Set(plan.occurrences.map((o) => o.id));
+        const roots = plan.occurrences.filter((o) => !planned.has(o.parentId) && !plan.occurrences.some((p) => (p.occurrences || []).includes(o.id))).map((o) => o.id);
+        return res.json({ ok: true, dryRun: true, made: plan.made, problems: plan.problems, counts,
+          preview: { modules: plan.modules, occurrences: plan.occurrences, fields: plan.fields, roots } });
+      }
 
       const room = io.to(userRoom(userId));
       // ONE undo step for the whole build: every created record (before: none) and the before/after of every existing

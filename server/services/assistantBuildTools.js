@@ -539,6 +539,11 @@ export function buildToolPack({ call, gridId }) {
       },
       destructive: false,
       requires_confirm: true,
+      // A practice run (nothing written): the agent checks it before showing the card, the card draws it.
+      preview: async (input) => {
+        const r = await call("POST", `/build`, { gridId, nodes: input?.nodes, under: input?.under, dryRun: true });
+        return r.body || { error: `build preview: ${r.status}` };
+      },
       run: async ({ nodes: nodesIn, under }) => {
         const nodes = asList(nodesIn);
         const r = await call("POST", `/build`, { gridId, nodes, under: under || null });

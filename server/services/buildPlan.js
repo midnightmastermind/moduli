@@ -123,6 +123,18 @@ const para = (content) => (content && content.length ? { type: "paragraph", cont
  *                               buttonFieldFor(label) → {fieldId, listening:Set<actionKey>} | null, mint? }
  * @returns {{ modules, occurrences, folders, fields, operations, attach, problems, made }}
  */
+/**
+ * An address no real site has: example.* (RFC 2606), localhost, the reserved .test/.invalid/.example/.localhost
+ * TLDs, or a template stand-in ("yourdomain", "your-site", "domain.com"). Jonah wrote https://example.com/schedule
+ * for a Moduli page (2026-11-15); the self-check sends these back to it. Pure.
+ */
+export function placeholderAddress(url) {
+  let host;
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return false; }
+  return /(^|\.)example\.(com|org|net)$/.test(host) || /\.(test|invalid|example|localhost)$/.test(host)
+    || host === "localhost" || /(^|\.)(your-?domain|your-?site|yoursite|domain)\.com$/.test(host);
+}
+
 export function planBuild({ nodes = [], under = null, ctx }) {
   const mint = ctx.mint || randomUUID;
   const base = { userId: ctx.userId, gridId: ctx.gridId };
@@ -280,7 +292,10 @@ export function planBuild({ nodes = [], under = null, ctx }) {
       let { kind, name } = nodeKind(raw);
       let node = typeof raw === "string" ? {} : raw;
       if (kind === "short") { const s = parseShort(name); kind = s.kind; name = s.name; node = s; }
-      if (kind === "link") { run.push({ name, url: node.url, to: node.to }); continue; }
+      if (kind === "link") {
+        if (node.url && placeholderAddress(node.url)) out.problems.push(`"${name}": ${node.url} is a made-up address — use the site's real one`);
+        run.push({ name, url: node.url, to: node.to }); continue;
+      }
       flush();
       if (!kind) { out.problems.push(`not a node: ${JSON.stringify(raw).slice(0, 80)}`); continue; }
       build(parent, kind, name, node);
