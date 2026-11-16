@@ -471,17 +471,15 @@ export function isPageShaped(text) {
   const t = String(text || "");
   return PAGE_SHAPED.test(t) && !/\bboard\b/i.test(t);
 }
-// Every build request gets the SAME tools: the runner reuses its work only for an identical START of the prompt, and
-// the tools sit near the start. Narrowing them for page requests made the next other request re-read ~4,200 tokens
-// (~80s; CPS after a glossary, 2026-11-16) — still ~2,600 with the dropped ones moved last. A page request is
-// steered by `pageNote` instead, which rides in the per-request note AFTER everything reusable.
-export function toolsForModel(tools, which) {
-  return which === "build" ? tools : (tools || []).filter((t) => READ_TOOL.test(t.name));
-}
-export function pageNote(text) {
-  return isPageShaped(text)
-    ? `This request is a PAGE: answer with ONE build call (markdown sections, links, buttons). Not ${[...NOT_FOR_PAGES].join(", ")}.`
-    : "";
+// A page request is offered `build` and not the one-row creators (measured: narrowed 8 of 10 glossary runs passed,
+// the same tools + a steering note 3 of 7, 2026-11-16). The dropped tools sit LAST in every build request, so the
+// page list is the start of the full one: switching kinds re-reads ~2,600 prompt tokens (~50s) instead of ~4,200.
+export function toolsForModel(tools, which, text = "") {
+  if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
+  const all = [...(tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name)), ...(tools || []).filter((t) => NOT_FOR_PAGES.has(t.name))];
+  if (!isPageShaped(text)) return all;
+  const kept = all.filter((t) => !NOT_FOR_PAGES.has(t.name));
+  return kept.some((t) => t.name === "build") ? kept : all;   // never strip everything a page could be built with
 }
 function modelIdFor(which) {
   return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
@@ -547,19 +545,38 @@ function planSummary(preview) {
 }
 
 /**
+ * What the request asked for that a planned build leaves out — the check's other half (it only saw what was WRONG;
+ * a run with no buttons at all, though asked for, passed it: 2026-11-16). Every web address the user typed must
+ * appear in the plan, and "button" in the request needs at least one button field. Pure; [] when nothing is missing.
+ */
+export function missingFromRequest(text, preview) {
+  if (!preview || !text) return [];
+  const t = String(text);
+  const blob = JSON.stringify([preview.modules || [], preview.occurrences || []]);
+  const asked = [...new Set((t.match(/https?:\/\/[^\s,;)<>"]+/g) || []).map((u) => u.replace(/[.,;:!?]+$/, "")))];
+  const missing = asked.filter((u) => !blob.includes(u) && !blob.includes(u.replace(/\/$/, "")));
+  const out = [];
+  if (missing.length) out.push(`left out ${missing.length === 1 ? "a link" : `${missing.length} links`} the user gave: ${missing.slice(0, 5).join(", ")}${missing.length > 5 ? " …" : ""}`);
+  const buttons = (preview.fields || []).filter((f) => f?.type === "button").length;
+  if (/\bbuttons?\b/i.test(t) && buttons === 0) out.push(`the user asked for buttons and none were made — add [open links] to a section heading`);
+  return out;
+}
+
+/**
  * A confirm-tool call, checked first (Jonah, 2026-11-15). A tool with `preview(input)` gets a practice run that writes
  * nothing. Problems on the FIRST check go back to the model to fix (`retry`, the text of the tool result); a clean
  * check, or a second one, becomes the confirm card with the preview attached so the card can draw it. Never throws:
  * a preview that fails just means a card without a picture.
  * @returns {Promise<{ retry: string, problems: string[] } | { pending: object }>}
  */
-export async function holdForConfirm({ tool, name, input, checked, say = () => {} }) {
+export async function holdForConfirm({ tool, name, input, checked, say = () => {}, request = "" }) {
   const pending = { name, input: input || {}, description: tool.description };
   if (typeof tool.preview !== "function") { say("Waiting for you to approve", "ok"); return { pending }; }
   say("Checking it first (a practice run — nothing is written yet)", "run");
   let preview = null;
   try { preview = await tool.preview(input || {}); } catch { preview = null; }
-  const problems = Array.isArray(preview?.problems) ? preview.problems : [];
+  const problems = [...(Array.isArray(preview?.problems) ? preview.problems : []),
+    ...(name === "build" ? missingFromRequest(request, preview?.preview) : [])];
   if (problems.length && !checked.has(name)) {
     say(`Found ${plural(problems.length, "problem")}: ${problems[0]}${problems.length > 1 ? " …" : ""} — fixing`, "warn");
     checked.add(name);
@@ -667,7 +684,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
       const tool = tools.find(t => t.name === name);
       say(describeCall(name, input));
       if (tool && tool.requires_confirm) {
-        const held = await holdForConfirm({ tool, name, input, checked, say });
+        const held = await holdForConfirm({ tool, name, input, checked, say, request: lastUserText(messages) });
         if (held.retry) {
           apiMessages.push({ role: "tool", tool_call_id: tc.id, content: held.retry });
           transcript.push({ role: "tool", name, input, output: { checkedFirst: true, problems: held.problems } });
@@ -936,9 +953,7 @@ export async function assistantChat({ messages: rawMessages, userId, gridId, con
     const which = pickModel(lastUserText(messages));
     const model = modelIdFor(which);
     try {
-      const steer = which === "build" ? pageNote(lastUserText(messages)) : "";
-      return await localLoop({ messages, tools: toolsForModel(backendTools, which), systemPrompt: composed.systemPrompt,
-        contextNote: [contextNote, steer].filter(Boolean).join("\n\n"), model, onProgress });
+      return await localLoop({ messages, tools: toolsForModel(backendTools, which, lastUserText(messages)), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
     } catch (e) {
       // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
       // deterministic dispatcher's "No LLM is running" would be wrong.

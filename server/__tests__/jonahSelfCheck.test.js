@@ -67,19 +67,21 @@ describe("a build turn must call a tool", () => {
   });
 });
 
-describe("a page request is steered by a note, never by a different tool list", async () => {
-  const { toolsForModel, isPageShaped, pageNote } = await import("../services/assistantAgent.js");
+describe("a page request is offered build, not the one-row creators", async () => {
+  const { toolsForModel, isPageShaped } = await import("../services/assistantAgent.js");
   const tools = ["build", "create_occurrence", "create_board", "create_items", "import_url", "list_folders", "change"].map((name) => ({ name }));
-  it("every build request gets the same tools (the prompt's start stays reusable)", () => {
-    expect(toolsForModel(tools, "build")).toEqual(tools);
+  it("glossary / doc page → no create_occurrence or create_board", () => {
+    expect(toolsForModel(tools, "build", "Make a doc page called Home that is a glossary").map((t) => t.name)).toEqual(["build", "import_url", "list_folders", "change"]);
   });
-  it("a page request gets the note; a board, rows or a link import do not", () => {
-    expect(pageNote("Make a doc page called Home that is a glossary")).toMatch(/ONE build call/);
+  it("the page list is the start of every other build request's list (the runner reuses that prefix)", () => {
+    const full = toolsForModel(tools, "build", "Add my CPS classes").map((t) => t.name);
+    const page = toolsForModel(tools, "build", "Make a doc page called Home").map((t) => t.name);
+    expect(full.slice(0, page.length)).toEqual(page);
+    expect(full).toContain("create_items");
     expect(isPageShaped("Create a board called Quick Links")).toBe(false);
-    expect(pageNote("Add my CPS classes to Tasks › Appointments")).toBe("");
   });
   it("questions still get read tools only", () => {
-    expect(toolsForModel(tools, "fast").map((t) => t.name)).toEqual(["list_folders"]);
+    expect(toolsForModel(tools, "fast", "what page is this").map((t) => t.name)).toEqual(["list_folders"]);
   });
 });
 
@@ -140,5 +142,22 @@ describe("listFoldersAnswer", async () => {
     expect(listFoldersAnswer(body, "root").folders.map((f) => f.name)).toEqual(["Tasks"]);
     expect(listFoldersAnswer(body, "a").folders).toEqual([{ id: "b", name: "Daily", parent: "Tasks" }]);
     expect(listFoldersAnswer(body).folders).toHaveLength(3);
+  });
+});
+
+describe("missingFromRequest", async () => {
+  const { missingFromRequest, holdForConfirm } = await import("../services/assistantAgent.js");
+  const preview = { modules: [{ meta: { link: { kind: "url", url: "https://mail.google.com" } } }], occurrences: [], fields: [] };
+  it("names the links the user gave that the plan left out", () => {
+    expect(missingFromRequest("Gmail https://mail.google.com, GitHub https://github.com.", preview)).toEqual(["left out a link the user gave: https://github.com"]);
+  });
+  it("buttons asked for, none made", () => {
+    expect(missingFromRequest("add a button that opens them", preview)[0]).toMatch(/asked for buttons/);
+    expect(missingFromRequest("add a button", { ...preview, fields: [{ type: "button" }] })).toEqual([]);
+  });
+  it("a build missing what was asked goes back to the model", async () => {
+    const t = { description: "d", preview: async () => ({ problems: [], preview }) };
+    const r = await holdForConfirm({ tool: t, name: "build", input: {}, checked: new Set(), request: "links: https://github.com" });
+    expect(r.retry).toMatch(/github\.com/);
   });
 });
