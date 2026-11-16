@@ -656,7 +656,7 @@ export default function AssistantDrawer() {
             {messages.length === 0 && (
               <div style={{ opacity: 0.65, fontSize: 11, padding: 8, lineHeight: 1.6 }}>
                 <div style={{ marginBottom: 6, opacity: 0.85 }}>Try, for example:</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", columnGap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(280px, calc(50% - 12px)), 1fr))", columnGap: 12 }}>
                 {JONAH_EXAMPLES.map(({ group, items }) => (
                   <div key={group} style={{ marginBottom: 6, minWidth: 0 }}>
                     <div style={{ fontSize: 9, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0 2px" }}>{group}</div>
