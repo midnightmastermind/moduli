@@ -4215,3 +4215,5 @@ User: *"is it possible to go through each book too and remove the previous and n
 ### 2026-11-16 09:30 CST
 - *"doues the autommations create operations. it should do that"* — Jonah's automations must be real Operations.
 - 09:30 *"also is it a normal chatbot too where i can look up information or have a convo or ask it questions"* → *"do 1 and 2 with that as well"*: questions on the 7B, a web search tool (self-hosted SearXNG), plus automations as real Operations.
+- 10:45 *"also what are my radarr credentials"* — username joshpoms (from radarr.db); the password was never recorded and Radarr keeps only a hash.
+- 11:13 *"could you also center the open in browser buttons in glossary"*.

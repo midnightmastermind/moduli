@@ -13,6 +13,35 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-16 (4) — JONAH: AUTOMATIONS ARE REAL OPERATIONS; questions on the 7B; web search (SearXNG)
+
+User: *"doues the autommations create operations. it should do that"* · *"is it a normal chatbot too … look up information
+… have a convo"* → *"do 1 and 2 with that as well"* (questions on the 7B; a web search tool).
+- **Automations:** `services/automation.compileAutomation(spec, ctx)` (pure) turns `{when:{at,days?,date?}|{added_to}|
+  {changed,in?,to?}, do:[{notify}|{add_item,to,fields?}|{set,value}|{run}]}` into an Operation: `schedule` atTimes /
+  when(weekdays|once), or `triggerObjects` onAdd (0465's shape, `ancestorId`) / onChange (+ an IF on `$trigger.value` and
+  `$trigger.occurrence._ancestors`); steps NOTIFY / CREATE / SET_FIELD_VALUE (the triggering item) / RUN_OPERATION; text
+  is `literal:`. `POST /api/v1/automate` (dryRun = the card's practice run) resolves places with `/change`'s path rules
+  (`editCandidates` + `pickByName`; not found → "did you mean" with the real paths) and records ONE undo step. Jonah's
+  tool `automate` (confirm; `AutomationPreview` card: name / when / does) is offered ONLY to automation-shaped requests
+  (`isAutomationShaped`: remind, automatically, whenever, every day/morning… — NOT weekday names, a dated batch says
+  "every Monday"), with look_up / list_fields / list_folders / jonah_notes. `automationAgainstRequest` sends back days
+  the request never named. Client test `jonahAutomation.test.jsx` runs compiled ops through the real executor.
+  Eval auto-timed 4/4, auto-tick 4/4 (setup builds its own Todo — test grid 2 has no Tasks › Todo).
+- **Questions on the 7B** (`LLM_ASK_MODEL`, default the build model; read tools only). A question's first turn is no
+  longer forced to call a tool (`localLoop forceFirst`, builds only) — "thanks" calls nothing.
+- **Web:** SearXNG on the droplet (`/usr/local/searxng`, venv, systemd `searxng`, `/etc/searxng/settings.yml`, JSON on,
+  127.0.0.1:8888 only; DuckDuckGo answers CAPTCHA, Google/Brave answer). `services/webTools.js`: `web_search`,
+  `read_page` (guarded fetch + reader extractor, 4000 chars). The eval needs `SEARXNG_URL` through an ssh tunnel.
+  `wikipedia_search` left the local list (search covers it); the prompt cap (12,000 chars) is measured per kind of request.
+- **Builds:** page requests are not offered add_filter or (when nothing is edited) change/remove/undo; the planner reads
+  a bold-wrapped link, a mixed-link line, `[open links]` after a link, `[X](#x)` as a category, HTML open buttons (in a
+  `<panel title>`), a link to several addresses as an open button. Glossary 3 of 4 in the last runs (a miss is one link
+  short). CPS, Quick Links, edits, questions pass.
+- **Glossary buttons, measured (`tools/uisweep/_glossbtn.mjs`):** pill centre within 1px of label and header on all 7.
+
+---
+
 ### 2026-11-16 (3) — JONAH ACTS ON WHAT YOU SELECTED; it offers to open what it made
 
 User: *"continue with what you were working on"* (the Jonah list: act on what you're looking at; link to what it made).
