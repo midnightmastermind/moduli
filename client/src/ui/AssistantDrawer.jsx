@@ -62,6 +62,27 @@ export function buildPreviewState(preview) {
 
 // An automation's card says what will be saved, in words: the operation's name, when it runs, what it does
 // (2026-11-16 — automations are real operations, listed and editable afterwards).
+// What the window offers before the first message (user, 2026-11-16: "update the examples"). One per thing Jonah
+// does today, worded like the eval cases that pass. A click puts it in the prompt to edit, it does not send.
+export const JONAH_EXAMPLES = [
+  { group: "Build", items: [
+    "Make a doc page called Reading with sections Books and Articles, each with a few links",
+    "Add CPS Class to Tasks › Appointments every Monday to Thursday in December at 4:00pm",
+  ] },
+  { group: "Change", items: [
+    "Rename the Mail section on my Glossary to Email",
+    "Undo that",
+  ] },
+  { group: "Automate", items: [
+    "Remind me every day at 2pm to drink water",
+    "Whenever I tick Completed on a task in Tasks › Todo, set its Completed On to today",
+  ] },
+  { group: "Ask", items: [
+    "How many books are on my Books board?",
+    "Who won the 2025 NBA Finals?",
+  ] },
+];
+
 export function AutomationPreview({ msg }) {
   const p = msg.preview || {};
   const problems = Array.isArray(msg.problems) ? msg.problems : [];
@@ -635,23 +656,23 @@ export default function AssistantDrawer() {
             {messages.length === 0 && (
               <div style={{ opacity: 0.65, fontSize: 11, padding: 8, lineHeight: 1.6 }}>
                 <div style={{ marginBottom: 6, opacity: 0.85 }}>Try, for example:</div>
-                {[
-                  "wiki photosynthesis",
-                  "search my fields",
-                  "create a doc page from the Wikipedia article on Eminem",
-                  location ? `add a folder called Research here` : "list my operations",
-                ].map((ex) => (
-                  <div
-                    key={ex}
-                    onClick={() => setInput(ex)}
-                    style={{
-                      cursor: "pointer", padding: "3px 7px", marginBottom: 3, borderRadius: 5,
-                      background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
-                    }}
-                  >{ex}</div>
+                {JONAH_EXAMPLES.map(({ group, items }) => (
+                  <div key={group} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 9, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.5, margin: "4px 0 2px" }}>{group}</div>
+                    {items.map((ex) => (
+                      <div
+                        key={ex}
+                        onClick={() => setInput(ex)}
+                        style={{
+                          cursor: "pointer", padding: "3px 7px", marginBottom: 3, borderRadius: 5,
+                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+                        }}
+                      >{ex}</div>
+                    ))}
+                  </div>
                 ))}
                 <div style={{ marginTop: 6, opacity: 0.5, fontSize: 10 }}>
-                  Full guide in <code>docs/assistant-guide.md</code>.
+                  Select items on the grid first, then say "delete these" or "move these to …".
                 </div>
               </div>
             )}
