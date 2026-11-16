@@ -4205,3 +4205,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 ### 2026-11-16 08:26 CST
 - *"please continue with what you were working on before the crashes and also when i hover over a minitextblock link buttons, its still showing the drag handle, i think the threshold is off."*
 - 08:26 *"its the space in between them"* · *"and on the outsides of the icons"* — the gap between ↗/🌐 and the padding around them showed the handle.
+
+### 2026-11-16 08:32 CST
+- *"also lets work on what we working before that, and the grab cursor should not show unless its on the drag handle"*.

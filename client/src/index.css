@@ -5486,7 +5486,10 @@ input.artifact-thumb-info-name--editing {
   background: rgb(var(--textblock-tint) / 0.055);
   border: 1px solid rgb(var(--textblock-tint) / 0.13);
   border-radius: 4px;
-  cursor: grab;
+  /* Not grab: a chip drags ONLY from its handle (.itbi-handle has the grab cursor). On the box itself — its padding,
+     the gap between ↗ and 🌐 — grab promised a drag that does not start (user, 2026-11-16: "the grab cursor should
+     not show unless its on the drag handle"). The text keeps its text cursor, the buttons their pointer. */
+  cursor: default;
   transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
   vertical-align: baseline;
   line-height: 1.35;
@@ -5518,9 +5521,6 @@ input.artifact-thumb-info-name--editing {
   border: none;
   box-shadow: none;
   cursor: pointer;
-}
-.instance-textblock-inline:active {
-  cursor: grabbing;
 }
 .instance-textblock-inline.is-empty .instance-textblock-inline-text {
   color: var(--text-faint);
