@@ -238,3 +238,12 @@ describe("an automation is checked against the request (2026-11-16)", async () =
     expect(automationAgainstRequest("every day at 2pm", { when: { at: "2pm" } })).toEqual([]);
   });
 });
+
+describe("which requests are automations (2026-11-16)", async () => {
+  const { isAutomationShaped } = await import("../services/assistantAgent.js");
+  it("reminders and whenevers are; a dated batch is not", () => {
+    expect(isAutomationShaped("Remind me every day at 2pm to drink water")).toBe(true);
+    expect(isAutomationShaped("Whenever I tick Completed, stamp the date")).toBe(true);
+    expect(isAutomationShaped("Add my CPS classes: every Monday, Tuesday, Wednesday and Thursday in November 2026")).toBe(false);
+  });
+});

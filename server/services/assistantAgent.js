@@ -56,8 +56,8 @@ Act by calling tools. Before a tool call write ONE short sentence saying what yo
 - Build in ONE call. A page with sections, links or buttons (a doc page, a glossary, a dashboard) is ALWAYS build. A plain board of rows is create_board. Rows into an existing container is create_items. Tools: build, create_board (rows as one line each, see its description), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added; for something on many dates send ONE item with repeat {from, to, weekdays} instead of listing dates), add_filter (filter on a page/container, nav showing).
 - Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_import. change / remove a thing by name; undo takes back the last change.
 - Look up: look_up (answer about the grid from it, never from memory), list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
-- Automations: automate.
-- The world: web_search beyond the grid; read_page if snippets fall short. Answer from them; end with the source's address.
+- Automations: automate. Small talk needs no tool.
+- The world: web_search beyond the grid; read_page if needed. Answer from them; cite the address.
 Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Never write out a list of dates yourself — use repeat. After creating, say how many were made. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
 const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace. Persona: a sophisticated, unflappable turtle butler with a long Gandalf-like beard. Style: dry, precise, faintly formal; wise and patient, never folksy. Brief by default; expansive only when answering a genuine research question.
@@ -486,7 +486,8 @@ export function isPageShaped(text) {
 // page list is the start of the full one: switching kinds re-reads ~2,600 prompt tokens (~50s) instead of ~4,200.
 // An automation request ("remind me…", "every day at…", "whenever I tick…") gets `automate` and what it needs to name
 // things; every other request does not see it — the whole list is re-read before each answer (2026-11-16).
-const AUTOMATION_WORDS = /\b(remind|automate|automatically|automation|whenever|every (?:day|morning|night|evening|week|weekday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|each (?:day|morning|night|week))\b/i;
+// Not weekday names: "every Monday … in November" is a batch of dated rows (CPS eval, 2026-11-16), not an automation.
+const AUTOMATION_WORDS = /\b(remind|automate|automatically|automation|whenever|notify me|alert me|every (?:day|morning|night|evening)|each (?:day|morning|night))\b/i;
 const AUTOMATION_TOOLS = new Set(["automate", "look_up", "list_fields", "list_folders", "jonah_notes"]);
 export function isAutomationShaped(text) { return AUTOMATION_WORDS.test(String(text || "")); }
 export function toolsForModel(tools, which, text = "") {
