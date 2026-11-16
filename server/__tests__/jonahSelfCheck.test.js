@@ -78,12 +78,14 @@ describe("a page request is offered build, not the one-row creators", async () =
   const { toolsForModel, isPageShaped } = await import("../services/assistantAgent.js");
   const tools = ["build", "create_occurrence", "create_board", "create_items", "import_url", "list_folders", "change"].map((name) => ({ name }));
   it("glossary / doc page → no create_occurrence or create_board", () => {
-    expect(toolsForModel(tools, "build", "Make a doc page called Home that is a glossary").map((t) => t.name)).toEqual(["build", "import_url", "list_folders", "change"]);
+    expect(toolsForModel(tools, "build", "Make a doc page called Home that is a glossary").map((t) => t.name)).toEqual(["build", "import_url", "list_folders"]);   // no change: nothing to edit (2026-11-16)
   });
   it("the page list is the start of every other build request's list (the runner reuses that prefix)", () => {
     const full = toolsForModel(tools, "build", "Add my CPS classes").map((t) => t.name);
     const page = toolsForModel(tools, "build", "Make a doc page called Home").map((t) => t.name);
     expect(full.slice(0, page.length)).toEqual(page);
+    const pageEdit = toolsForModel(tools, "build", "rename the Mail section on my Home page").map((t) => t.name);
+    expect(full.slice(0, pageEdit.length)).toEqual(pageEdit);
     expect(full).toContain("create_items");
     expect(isPageShaped("Create a board called Quick Links")).toBe(false);
   });
@@ -209,5 +211,17 @@ describe("the selection reaches Jonah", async () => {
     expect(buildLocationHint({ id: "p", label: "Tasks", selection: [{ id: "a", label: "Clean" }] })).toMatch(/CURRENT LOCATION[\s\S]*SELECTED/);
     expect(buildLocationHint({ selection: [{ id: "a", label: "Clean" }] })).toMatch(/SELECTED/);
     expect(buildSelectionHint({})).toBe("");
+  });
+});
+
+describe("a request to MAKE a page is not offered the edit tools (2026-11-16)", async () => {
+  const { toolsForModel } = await import("../services/assistantAgent.js");
+  const T = ["build", "change", "remove", "undo", "create_items", "look_up"].map((name) => ({ name }));
+  it("make a page → build, no change/remove/undo", () => {
+    expect(toolsForModel(T, "build", "Make a doc page called Home with sections").map((t) => t.name)).toEqual(["build", "look_up"]);
+  });
+  it("an edit of a page keeps them", () => {
+    expect(toolsForModel(T, "build", "rename the Mail section on my Home page").map((t) => t.name)).toEqual(expect.arrayContaining(["change", "remove", "undo"]));
+    expect(toolsForModel(T, "build", "undo that page").map((t) => t.name)).toContain("undo");
   });
 });

@@ -473,6 +473,8 @@ const PAGE_SHAPED = /\b(doc page|page|glossary|dashboard|sections?)\b/i;
 // add_filter too (2026-11-16): after the web tools were added, a glossary's forced first call landed on add_filter
 // 26 times ("no container named Home › Mail"); a page request never wants a board's filter.
 const NOT_FOR_PAGES = new Set(["create_occurrence", "set_occurrence_field", "create_field", "create_board", "create_items", "save_bookmark", "add_filter"]);
+const EDIT_TOOLS = new Set(["change", "remove", "undo"]);
+const EDIT_WORDS = /\b(undo|change|rename|move|delete|remove|edit|update|fix|replace|put back)\b/i;
 export function isPageShaped(text) {
   const t = String(text || "");
   return PAGE_SHAPED.test(t) && !/\bboard\b/i.test(t);
@@ -482,9 +484,15 @@ export function isPageShaped(text) {
 // page list is the start of the full one: switching kinds re-reads ~2,600 prompt tokens (~50s) instead of ~4,200.
 export function toolsForModel(tools, which, text = "") {
   if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
-  const all = [...(tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name)), ...(tools || []).filter((t) => NOT_FOR_PAGES.has(t.name))];
+  // Order: the rest, then the edit tools, then the one-row tools — so "make a page" (the rest) and "edit a page"
+  // (+ edits) are each the START of the full list, and the runner reuses that prefix of the prompt.
+  const ts = tools || [];
+  const all = [...ts.filter((t) => !NOT_FOR_PAGES.has(t.name) && !EDIT_TOOLS.has(t.name)), ...ts.filter((t) => EDIT_TOOLS.has(t.name)), ...ts.filter((t) => NOT_FOR_PAGES.has(t.name))];
   if (!isPageShaped(text)) return all;
-  const kept = all.filter((t) => !NOT_FOR_PAGES.has(t.name));
+  // A request to MAKE a page that names no edit is not offered the edit tools: its forced first call landed on
+  // `change` 5 times ("nothing named Home › Quick Links", 2026-11-16).
+  const editing = EDIT_WORDS.test(String(text || ""));
+  const kept = all.filter((t) => !NOT_FOR_PAGES.has(t.name) && (editing || !EDIT_TOOLS.has(t.name)));
   return kept.some((t) => t.name === "build") ? kept : all;   // never strip everything a page could be built with
 }
 function modelIdFor(which) {
