@@ -111,7 +111,8 @@ describe("localLoop", () => {
     const seen = [];
     await localLoop({ messages: [{ role: "user", content: "what is due today?" }], tools: [], deps: { streamChat: async ({ body }) => { seen.push(body.model); return { content: "x", toolCalls: [] }; } } });
     await localLoop({ messages: [{ role: "user", content: "create a page" }], tools: [], deps: { streamChat: async ({ body }) => { seen.push(body.model); return { content: "x", toolCalls: [] }; } } });
-    expect(seen).toEqual(["fast", "build"]);
+    // 2026-11-16: questions are answered by the build model too (the 3B's answers were weak); only the tools differ.
+    expect(seen).toEqual(["build", "build"]);
   });
 });
 

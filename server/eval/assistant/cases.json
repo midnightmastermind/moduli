@@ -166,5 +166,41 @@
       "gone": "Social",
       "kept": "Mail"
     }
+  },
+  {
+    "id": "q-web-recent",
+    "kind": "question",
+    "text": "Who won the 2025 NBA Finals?",
+    "check": {
+      "answerHas": [
+        [
+          "Thunder",
+          "Oklahoma"
+        ]
+      ],
+      "usedTool": [
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "q-web-fact",
+    "kind": "question",
+    "text": "What year did the Eiffel Tower open?",
+    "check": {
+      "answerHas": [
+        [
+          "1889"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "q-chat",
+    "kind": "question",
+    "text": "Thanks Jonah, that's all for now.",
+    "check": {
+      "noTools": true
+    }
   }
 ]

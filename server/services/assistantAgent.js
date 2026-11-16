@@ -32,7 +32,10 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-2025100
 // layers are llama-server flags (infra/llm/llama-swap.yaml), not request options.
 const LLM_URL = process.env.LLM_URL || "http://localhost:8080";
 const LLM_BUILD_MODEL = process.env.LLM_BUILD_MODEL || "build";
-const LLM_FAST_MODEL = process.env.LLM_FAST_MODEL || "fast";
+// Questions are answered by the build model too (user, 2026-11-16: "is it a normal chatbot … ask it questions" →
+// "do 1 and 2"): the 3B's answers were vague or wrong. A question still gets only the READING tools (toolsForModel),
+// so it cannot build by accident; LLM_ASK_MODEL=fast puts it back on the 3B (`fast` stays loaded for the import clean-up).
+const LLM_ASK_MODEL = process.env.LLM_ASK_MODEL || LLM_BUILD_MODEL;
 // Cap output tokens per generation. Writing is the slow part on this hardware (~7.5 tok/s for a 7B on the Radeon,
 // measured 2026-11-14). 1200: one create_items call listing 13 dated instances is ~600 tokens.
 const LLM_NUM_PREDICT = Number(process.env.LLM_NUM_PREDICT) || 1200;
@@ -51,8 +54,9 @@ export const OFFLINE_SYSTEM_PROMPT = `You are Jonah, the assistant for the Modul
 
 Act by calling tools. Before a tool call write ONE short sentence saying what you are doing; after it, confirm in one sentence.
 - Build in ONE call. A page with sections, links or buttons (a doc page, a glossary, a dashboard) is ALWAYS build. A plain board of rows is create_board. Rows into an existing container is create_items. Tools: build, create_board (rows as one line each, see its description), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added; for something on many dates send ONE item with repeat {from, to, weekdays} instead of listing dates), add_filter (filter on a page/container, nav showing).
-- Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_search / wikipedia_import. change / remove a thing by name; undo takes back the last change.
+- Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_import. change / remove a thing by name; undo takes back the last change.
 - Look up: look_up (answer about the grid from it, never from memory), list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
+- The world: web_search for anything outside the grid; read_page if snippets don't answer. Answer from them; end with the source's address.
 Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Never write out a list of dates yourself — use repeat. After creating, say how many were made. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
 const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace. Persona: a sophisticated, unflappable turtle butler with a long Gandalf-like beard. Style: dry, precise, faintly formal; wise and patient, never folksy. Brief by default; expansive only when answering a genuine research question.
@@ -114,9 +118,9 @@ function buildTools({ baseUrl, apiToken, userId, gridId }) {
 const OFFLINE_CORE_TOOLS = new Set([
   "build", "change", "remove", "undo", "create_board", "create_items", "add_filter",
   "create_occurrence", "set_occurrence_field", "create_field",
-  "save_bookmark", "import_url", "wikipedia_search", "wikipedia_import",
+  "save_bookmark", "import_url", "wikipedia_import",
   "list_folders", "list_fields", "list_occurrences", "get_occurrence",
-  "run_operation", "jonah_notes", "look_up",
+  "run_operation", "jonah_notes", "look_up", "web_search", "read_page",
 ]);
 
 function offlineToolAllowlist() {
@@ -460,7 +464,7 @@ export function pickModel(text) {
 }
 // A question goes to the fast model, and the fast model only READS: asked "how many movies are on my Movies board?",
 // llama3.2 3B answered by calling create_board (eval, 2026-11-15). Reading tools are named for what they do.
-const READ_TOOL = /^(list_|get_|look_up$|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$)/;
+const READ_TOOL = /^(list_|get_|look_up$|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$|web_search$|read_page$)/;
 // A request for a PAGE (a doc page, a glossary, a dashboard, sections) without a board in it is a `build`: with the
 // first turn forced to a tool call, the 7B picked create_occurrence or create_board for the glossary (eval,
 // 2026-11-15). Those requests are not offered the one-row creators or create_board, so a forced call cannot land on
@@ -482,7 +486,7 @@ export function toolsForModel(tools, which, text = "") {
   return kept.some((t) => t.name === "build") ? kept : all;   // never strip everything a page could be built with
 }
 function modelIdFor(which) {
-  return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
+  return which === "build" ? LLM_BUILD_MODEL : LLM_ASK_MODEL;
 }
 function lastUserText(messages) {
   const m = [...(messages || [])].reverse().find((x) => x.role === "user" && typeof x.content === "string");
@@ -614,7 +618,7 @@ export async function holdForConfirm({ tool, name, input, checked, say = () => {
   return { pending: { ...pending, ...(preview?.preview ? { preview: preview.preview } : {}), ...(problems.length ? { problems } : {}) } };
 }
 
-export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM_PROMPT, contextNote = "", model, onProgress = () => {}, deps = {} }) {
+export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM_PROMPT, contextNote = "", model, forceFirst = true, onProgress = () => {}, deps = {} }) {
   const stream = deps.streamChat || streamChat;
   const useModel = model || modelIdFor(pickModel(lastUserText(messages)));
   const apiMessages = buildLocalMessages({ systemPrompt, contextNote, messages });
@@ -653,7 +657,9 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
             // fix that" in words and nothing is built (measured 2 of 4 glossary runs, 2026-11-15).
             // A question's first turn too: the 3B said "I'm calling list_occurrences" and answered from nothing
             // (0 of 4 known-answer questions, 2026-11-16). Only when it has tools — an explanation from the notes has none.
-            toolChoice: (toolIterations === 0 || mustCallTool) && tools.length ? "required" : undefined }),
+            // Not for a question on the 7B (2026-11-16, Jonah as a chatbot): "thanks" or "tell me a joke" needs no tool,
+            // and the 7B looks things up unforced — forceFirst is false for questions (assistantChat).
+            toolChoice: ((toolIterations === 0 && forceFirst) || mustCallTool) && tools.length ? "required" : undefined }),
           signal: ctrl.signal,
           onToken: (delta) => onProgress({ phase: "token", delta }),
         });
@@ -1004,7 +1010,8 @@ export async function assistantChat({ messages: rawMessages, userId, gridId, con
     const which = pickModel(lastUserText(messages));
     const model = modelIdFor(which);
     try {
-      return await localLoop({ messages, tools: toolsForModel(backendTools, which, lastUserText(messages)), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
+      return await localLoop({ messages, tools: toolsForModel(backendTools, which, lastUserText(messages)), systemPrompt: composed.systemPrompt, contextNote, model,
+        forceFirst: which === "build", onProgress });
     } catch (e) {
       // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
       // deterministic dispatcher's "No LLM is running" would be wrong.

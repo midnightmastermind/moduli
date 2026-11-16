@@ -45,13 +45,18 @@ async function cleanup(before) {
   return Object.fromEntries(COLS.map((c) => [c, [made[c].length, made[c].filter((id) => left[c].has(id)).length]]));
 }
 
-async function check(c, made, setupIds = null, answerText = "") {
+async function check(c, made, setupIds = null, answerText = "", usedNames = []) {
   if (c.kind === "question") {
     // A question writes nothing beyond what its setup built, and (when the case knows the answer) says it.
     const extra = made.occurrences.filter((id) => !(setupIds?.occurrences || []).includes(id));
     const said = String(answerText || "");
     const missing = (c.check?.answerHas || []).filter((alts) => ![].concat(alts).some((a) => new RegExp(a, "i").test(said)));
-    return { passed: extra.length === 0 && missing.length === 0, why: [extra.length ? `wrote ${extra.length} rows` : "", missing.length ? `answer lacks ${JSON.stringify(missing)}` : ""].filter(Boolean).join("; ") };
+    // A web question must be answered from a search, not from memory (usedTool); small talk must call nothing (noTools).
+    const unused = (c.check?.usedTool || []).filter((n) => !usedNames.includes(n));
+    const stray = c.check?.noTools && usedNames.length ? usedNames : [];
+    return { passed: extra.length === 0 && missing.length === 0 && !unused.length && !stray.length,
+      why: [extra.length ? `wrote ${extra.length} rows` : "", missing.length ? `answer lacks ${JSON.stringify(missing)}` : "",
+        unused.length ? `never called ${unused.join(", ")}` : "", stray.length ? `called ${stray.join(", ")}` : ""].filter(Boolean).join("; ") || `tools: ${usedNames.join(", ") || "none"}` };
   }
   const occs = await db.collection("occurrences").find({ gridId, id: { $in: made.occurrences } }).toArray();
   const mods = new Map((await db.collection("modules").find({ gridId, id: { $in: occs.map((o) => o.moduleId) } }).toArray()).map((m) => [m.id, m]));
@@ -144,7 +149,8 @@ for (const c of cases) {
   const after = await idsNow();
   const made = Object.fromEntries(COLS.map((k) => [k, [...after[k]].filter((id) => !before[k].has(id))]));
   const fullAnswer = (out?.transcript || []).filter((t) => t.role === "assistant").map((t) => t.content).join(" ");
-  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made, setupIds, fullAnswer);
+  const usedNames = (out?.transcript || []).flatMap((t) => (t.toolCalls || []).map((x) => x.name || x.function?.name)).filter(Boolean);
+  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made, setupIds, fullAnswer, usedNames);
   const madeKinds = await kindsOf(made);
   const removed = await cleanup(before);
   before = null;

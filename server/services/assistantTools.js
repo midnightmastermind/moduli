@@ -107,7 +107,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     ...buildToolPack({ call, gridId }),
     {
       name: "jonah_notes",
-      description: "Read your notes. which: \"moduli\" = how Moduli works (pages, containers, instances, fields, filters, operations, templates, feeds, copy/move, the Schedule…); \"about\" = who the user is and how they like things; \"memory\" = things you were asked to remember. Pass `topic` to read one part (e.g. topic:\"feeds\"). Read this when unsure how something in Moduli works or what the user prefers.",
+      description: "Read your notes. which: \"moduli\" = how Moduli works (pages, fields, filters, operations, feeds, the Schedule…); \"about\" = the user and their preferences; \"memory\" = what you were asked to remember. `topic` reads one part.",
       input_schema: {
         type: "object",
         properties: {
@@ -134,6 +134,21 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
         const r = await call("POST", `/assistant/notes/remember`, { gridId, note });
         return r.body;
       },
+    },
+    // The web (2026-11-16): SearXNG on the droplet, and a page read through the guarded fetch (services/webTools.js).
+    {
+      name: "web_search",
+      description: "Search the web.",
+      input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+      destructive: false,
+      run: async ({ query }) => (await import("./webTools.js")).webSearch(query),
+    },
+    {
+      name: "read_page",
+      description: "Read one web page's text.",
+      input_schema: { type: "object", properties: { url: { type: "string" } }, required: ["url"] },
+      destructive: false,
+      run: async ({ url }) => (await import("./webTools.js")).readPage(url),
     },
     {
       name: "wikipedia_search",
