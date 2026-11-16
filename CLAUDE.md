@@ -13,6 +13,25 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (6) — JONAH CHECKS A BUILD BEFORE ASKING; build turns must call a tool; the card draws the page
+
+User: *"can you brainstorm ways to improve jonah"* → *"okay lets work on that"* (the three I recommended).
+- **Self-check:** a confirm-tool may carry `preview(input)`; `build`'s is `/build` with `dryRun`. Before the card,
+  `assistantAgent.holdForConfirm` runs it: problems on the FIRST check go back to the model as the tool result
+  ("Nothing was made. Fix these…"); a clean check, or a second one, becomes the card with the preview attached.
+  `buildPlan.placeholderAddress` makes example.*/localhost/.test/"yourdomain" links a problem.
+- **Forced call:** `llmClient.buildChatBody({toolChoice})`; the local loop sends `tool_choice:"required"` on the build
+  model's first turn AND the turn after a send-back (without the second, 2 of 4 runs answered "let's fix that" in
+  words and built nothing). With `--jinja`, llama-server then constrains the call's arguments to the schema.
+- **Preview card:** `/build` dryRun returns `preview {modules, occurrences, fields, roots}`; `AssistantDrawer`
+  `BuildPreview` draws each root through `PagePreviewBody` from an isolated state (`buildPreviewState`, the reader
+  pattern — no dispatch/socket, no computedValues), plus any problems left.
+- Eval: glossary **3 of 4** (was 2 of 4), CPS 2/2, Quick Links 1/1. Prod dryRun check: flags the made-up link,
+  1 root (the doc page), 0 rows written. Tests `jonahSelfCheck` (7), `buildPreviewState` (2), buildPlan (+2).
+  **Not watched in a browser:** the preview card in the drawer.
+
+---
+
 ### 2026-11-15 (5) — A RADIAL DELETE ON ONE OF A MULTI-SELECTION DELETES ALL OF IT, AFTER ASKING
 
 User: *"if i multiselect occurances and delete via one of their radial menus, it should delete all of them. put up an

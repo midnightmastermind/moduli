@@ -72,3 +72,14 @@ Before `build` Jonah made a board with invented URLs. With `build`:
 The remaining misses are the model linking to `#anchors` or inventing addresses (`https://example.com/schedule`), which
 parsing cannot fix. CPS 6 of 7 and Quick Links 4 of 4 through their own tools after the prompt change (one CPS miss: the
 weekdays written as a field — model variance; the next two passed).
+
+## 2026-11-15 (2) — self-check, forced tool call, preview card
+
+- **Self-check** (`assistantAgent.holdForConfirm`): a build is practice-run first (`/build` dryRun); problems on the
+  first check go back to the model once, and its corrected call becomes the card.
+- **Forced call**: `tool_choice: "required"` on the build model's first turn and on the turn after a send-back.
+- First round (forced first turn only): glossary **1 of 4** — twice the model answered the send-back in words
+  ("let's correct this") and built nothing. Forcing the turn after a send-back too: glossary **3 of 4** (42-84s);
+  one run's self-check visibly fixed a link to "Scheduling" before the card. The miss: the forced call picked
+  `create_occurrence`. CPS 2 of 2 (25s; one miss in the first round, the known weekdays-as-a-field habit),
+  Quick Links 1 of 1.

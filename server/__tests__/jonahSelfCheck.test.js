@@ -38,6 +38,8 @@ describe("localLoop self-check", () => {
     expect(out.pendingConfirmations).toHaveLength(1);
     expect(out.pendingConfirmations[0].input.nodes[0].markdown).toMatch(/\[\[Schedule\]\]/);
     expect(out.pendingConfirmations[0].preview.roots).toEqual(["p"]);
+    // the corrected call is forced too — the model answered in words here before
+    expect(bodies[1].tool_choice).toBe("required");
   });
   it("a clean check goes straight to the card", async () => {
     const b = buildTool([{ problems: [], preview: { roots: ["p"] } }]);

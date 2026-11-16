@@ -516,6 +516,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
   let toolIterations = 0;
   let callSeq = 0;
   const checked = new Set();   // confirm-tools already sent back once (holdForConfirm)
+  let mustCallTool = false;    // set after a send-back: the next turn must be the corrected call
   const deadline = Date.now() + LLM_TOTAL_BUDGET_MS;
 
   while (toolIterations < MAX_TOOL_ITERATIONS) {
@@ -539,7 +540,9 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
           // A build request's FIRST turn must be a tool call: llama.cpp then constrains the reply to a call whose
           // arguments match the tool's schema (Jonah wrote calls as plain text before). Later turns may answer.
           body: buildChatBody({ model: useModel, messages: apiMessages, tools, stream: true, maxTokens: LLM_NUM_PREDICT,
-            toolChoice: toolIterations === 0 && useModel === modelIdFor("build") && tools.length ? "required" : undefined }),
+            // …and so must the turn right after a self-check sent a build back: the model otherwise answers "let's
+            // fix that" in words and nothing is built (measured 2 of 4 glossary runs, 2026-11-15).
+            toolChoice: (toolIterations === 0 || mustCallTool) && useModel === modelIdFor("build") && tools.length ? "required" : undefined }),
           signal: ctrl.signal,
           onToken: (delta) => onProgress({ phase: "token", delta }),
         });
@@ -619,6 +622,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
     if (pending.length) {
       return { ok: true, mode: "local", model: useModel, transcript, pendingConfirmations: pending };
     }
+    mustCallTool = retried;
     if (retried) { toolIterations++; continue; }
     const ask = ambiguityQuestion(stepResults);
     if (ask) {
