@@ -618,6 +618,17 @@ export function answerUsesLookup(answer, r) {
  * a preview that fails just means a card without a picture.
  * @returns {Promise<{ retry: string, problems: string[] } | { pending: object }>}
  */
+/**
+ * What an automation adds that the request never said (2026-11-16: "every day at 2pm" came back as weekdays 2 of 6
+ * times — the model copies the tool's own example). Days only when the request names a day. Pure.
+ */
+export function automationAgainstRequest(request, input) {
+  const days = input?.when?.days;
+  const named = /\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\bweekdays?\b|\bweekends?\b/i.test(String(request || ""));
+  const hasDays = Array.isArray(days) ? days.length > 0 : !!days;
+  return hasDays && !named ? [`the request names no days — leave "days" out (it runs every day)`] : [];
+}
+
 export async function holdForConfirm({ tool, name, input, checked, say = () => {}, request = "" }) {
   const pending = { name, input: input || {}, description: tool.description };
   if (typeof tool.preview !== "function") { say("Waiting for you to approve", "ok"); return { pending }; }
@@ -625,7 +636,8 @@ export async function holdForConfirm({ tool, name, input, checked, say = () => {
   let preview = null;
   try { preview = await tool.preview(input || {}); } catch { preview = null; }
   const problems = [...(Array.isArray(preview?.problems) ? preview.problems : []),
-    ...(name === "build" ? missingFromRequest(request, preview?.preview) : [])];
+    ...(name === "build" ? missingFromRequest(request, preview?.preview) : []),
+    ...(name === "automate" ? automationAgainstRequest(request, input) : [])];
   if (problems.length && !checked.has(name)) {
     say(`Found ${plural(problems.length, "problem")}: ${problems[0]}${problems.length > 1 ? " …" : ""} — fixing`, "warn");
     checked.add(name);

@@ -225,3 +225,16 @@ describe("a request to MAKE a page is not offered the edit tools (2026-11-16)", 
     expect(toolsForModel(T, "build", "undo that page").map((t) => t.name)).toContain("undo");
   });
 });
+
+describe("an automation is checked against the request (2026-11-16)", async () => {
+  const { automationAgainstRequest } = await import("../services/assistantAgent.js");
+  it("days the request never named are sent back", () => {
+    expect(automationAgainstRequest("Remind me every day at 2pm to drink water", { when: { at: "2pm", days: "weekdays" } })).toHaveLength(1);
+    expect(automationAgainstRequest("Remind me every day at 2pm", { when: { at: "2pm", days: ["Mon"] } })).toHaveLength(1);
+  });
+  it("named days, or none at all, pass", () => {
+    expect(automationAgainstRequest("every weekday at 9am", { when: { at: "9am", days: "weekdays" } })).toEqual([]);
+    expect(automationAgainstRequest("on Mondays at 9", { when: { at: "9am", days: ["Mon"] } })).toEqual([]);
+    expect(automationAgainstRequest("every day at 2pm", { when: { at: "2pm" } })).toEqual([]);
+  });
+});

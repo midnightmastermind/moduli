@@ -2430,6 +2430,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         const r = pickByName(name, cands);
         if (r.hit) places.set(name, { occId: r.hit.occ.id, label: r.hit.occ.label || r.hit.module?.label || name });
         else if (r.ambiguous) placeProblems.push(`"${name}" could mean several: ${r.ambiguous.join("; ")} — say which`);
+        else if (cands.length) {
+          // The real paths with that last name, so the one retry can pick the right one (the model wrote "Tasks › Todo"
+          // for "Eval Tasks › Todo", 2026-11-16).
+          const paths = cands.slice(0, 6).map((c) => `${c.parentLabel ? `${c.parentLabel} › ` : ""}${c.occ.label || c.module?.label}`);
+          placeProblems.push(`no page or section named "${name}" — did you mean: ${paths.join("; ")}?`);
+        }
       }
       const findPlace = (name) => places.get(name) || null;
       const ops = await Operation.find({ gridId }).select("id name").lean();
