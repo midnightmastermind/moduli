@@ -286,3 +286,24 @@ describe("markdown habits seen 2026-11-16 (glossary after the web tools)", async
     expect(markdownToNodes("[Gmail](https://mail.google.com) [[Proton Mail]]")).toEqual(["Gmail | https://mail.google.com", "Proton Mail -> Proton Mail"]);
   });
 });
+
+describe("button habits seen 2026-11-16", async () => {
+  const { markdownToNodes } = await import("../services/buildPlan.js");
+  const OPEN = { button: "Open in browser", does: "open links" };
+  it("'[open links]' at the end of a link line is the section's button, the link kept", () => {
+    expect(markdownToNodes("- **Mail**\n  - [Gmail](https://mail.google.com) [open links]\n  - [Proton](https://mail.proton.me) [open links]")).toEqual([
+      { section: "Mail", children: ["Gmail | https://mail.google.com", OPEN, "Proton | https://mail.proton.me"] },
+    ]);
+  });
+  it("an anchor link alone on a line is a category, like a bold label", () => {
+    expect(markdownToNodes("## Quick Links\n[Mail](#mail)\n- [Gmail](https://mail.google.com)")).toEqual([
+      { section: "Quick Links", children: [{ section: "Mail", children: ["Gmail | https://mail.google.com"] }] },
+    ]);
+  });
+  it("an HTML open button is the open button; inside <panel title> it is that section's", () => {
+    const nodes = markdownToNodes("## Quick Links\n[Mail](#mail)\n- [Gmail](https://mail.google.com)\n\n<button>Open all links in browser</button>\n<accordion>\n<panel title=\"Mail\">\n<button>Open links in browser</button>\n</panel>\n</accordion>");
+    expect(nodes).toEqual([
+      { section: "Quick Links", children: [{ section: "Mail", children: ["Gmail | https://mail.google.com", OPEN] }, OPEN] },
+    ]);
+  });
+});

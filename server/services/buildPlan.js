@@ -74,7 +74,8 @@ function linkItem(c) {
  */
 export function markdownToNodes(md) {
   const root = []; const stack = [];
-  let prose = []; let boldSec = null;                 // `- **Mail**` with indented items under it
+  let prose = []; let boldSec = null;                 // `- **Mail**` with indented items under it (indent -1: `[Mail](#mail)`)
+  let panel = null;                                     // inside `<panel title="Mail">` … `</panel>`
   const openFor = [];                                   // "[Open Mail](…)" lines, attached to their section at the end
   const here = () => (stack.length ? stack[stack.length - 1].node.children : root);
   const flush = () => { if (prose.length) { here().push({ text: prose.join(" ") }); prose = []; } };
@@ -104,26 +105,44 @@ export function markdownToNodes(md) {
       stack.push({ level, node });
       continue;
     }
+    // HTML the model sometimes writes (2026-11-16): `<button>Open…</button>` is an open button — inside
+    // `<panel title="Mail">` it is Mail's; other bare tags (`<accordion>`) carry nothing.
+    const btn = line.match(/^<button[^>]*>(.*?)<\/button>$/i);
+    if (btn) { flush(); if (/\bopen\b/i.test(btn[1])) { if (panel) openFor.push({ name: panel, line: "", at: here() }); else addOpen(boldSec ? boldSec.node.children : here()); } continue; }
+    const pt = line.match(/^<panel\b[^>]*\btitle="([^"]+)"/i);
+    if (pt) { flush(); panel = pt[1].trim(); continue; }
+    if (/^<\/panel>/i.test(line)) { panel = null; continue; }
+    if (/^<\/?[a-z][^>]*>$/i.test(line)) continue;
     // "[Open all]" / "**[Open all in browser]**" alone on a line: this section's open-links button.
     if (/^(\*\*|__)?\[open[^\]]*\](\*\*|__)?$/i.test(line)) { flush(); addOpen(boldSec ? boldSec.node.children : here()); continue; }
     // "[Open Mail](https://…)" names a SECTION: that section's button, not a link (Jonah, 2026-11-16). Resolved at
     // the end, when every section is known; a name that matches none stays a link.
     const openNamed = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*|__)?\[open\s+(.+?)\]\([^)]*\)(?:\*\*|__)?$/i);
     if (openNamed && !/\b(browser|all)\b/i.test(openNamed[1])) { flush(); openFor.push({ name: openNamed[1].trim(), line, at: here() }); continue; }
+    // "[Mail](#mail)" alone on a line — a link to an anchor — names a category, like "- **Mail**"; the lines after it
+    // (indented or not) are its items until a blank line (2026-11-16).
+    const anchor = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*)?\[([^\]]+)\]\(#[^)]*\)(?:\*\*)?:?$/);
+    if (anchor) { flush(); const node = { section: anchor[1].trim(), children: [] }; here().push(node); boldSec = { indent: -1, node }; continue; }
     const li = line.match(/^[-*+]\s+(.*)$/);
     const bareLink = !li && /^\[[^\]]+\]\(.+\)/.test(line);
     if (li || bareLink) {
       flush();
-      const c = li ? li[1].trim() : line;
+      let c = li ? li[1].trim() : line;
+      // "- [Gmail](https://…) [open links]": the link, and this section's open button (2026-11-16).
+      const tail = c.match(/\s+(?:\*\*)?\[open[^\]]*\](?:\*\*)?$/i);
+      const trailingOpen = !!tail;
+      if (tail) c = c.slice(0, tail.index).trim();
       // A bold LABEL is a sub-section; a bold LINK ("- **[Schedule](Schedule)**", Jonah 2026-11-16) is that link.
       const bold = li && c.match(/^\*\*(.+?)\*\*:?$/);
       if (bold && /^\[\[[^\]]+\]\]$|^\[[^\]]+\]\([^)]*\)$/.test(bold[1].trim())) { if (boldSec && !(indent > boldSec.indent)) boldSec = null; addItems(boldSec ? boldSec.node.children : here(), bold[1].trim()); continue; }
       if (bold) { const node = { section: bold[1].trim(), children: [] }; here().push(node); boldSec = { indent, node }; continue; }
-      if (boldSec && !(li && indent > boldSec.indent)) boldSec = null;
-      addItems(boldSec ? boldSec.node.children : here(), c);
+      if (boldSec && !(li && indent > boldSec.indent) && !(boldSec.indent === -1 && bareLink)) boldSec = null;
+      const into = boldSec ? boldSec.node.children : here();
+      addItems(into, c);
+      if (trailingOpen) addOpen(into);
       continue;
     }
-    if (!line) { flush(); continue; }
+    if (!line) { flush(); if (boldSec?.indent === -1) boldSec = null; continue; }
     prose.push(line);
   }
   flush();
@@ -133,6 +152,7 @@ export function markdownToNodes(md) {
   for (const o of openFor) {
     const sec = sections.find((n) => n.section.toLowerCase() === o.name.toLowerCase());
     if (sec) addOpen(sec.children);
+    else if (!o.line) addOpen(o.at);
     else addItems(o.at, o.line.replace(/^[-*+]\s+/, "").replace(/^(\*\*|__)|(\*\*|__)$/g, ""));
   }
   return root;
