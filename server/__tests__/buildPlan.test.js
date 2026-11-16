@@ -229,3 +229,21 @@ describe("made-up addresses are reported", () => {
     expect(p.problems).toEqual(['"Schedule": https://example.com/schedule is a made-up address — use the site\'s real one']);
   });
 });
+
+describe("did you mean", () => {
+  it("names the close real page and never guesses between ties", async () => {
+    const { closestName } = await import("../services/buildPlan.js");
+    const names = ["Schedule", "Day Page", "Routines", "Tasks", "Trackers"];
+    expect(closestName("Scheduling", names)).toBe("Schedule");
+    expect(closestName("Day Pages", names)).toBe("Day Page");
+    expect(closestName("Task", names)).toBe("Tasks");
+    expect(closestName("Gardening", names)).toBe(null);
+    expect(closestName("Cat", ["Bat", "Hat"])).toBe(null);
+  });
+  it("a missing in-app link says which page was probably meant, and still does not link it", () => {
+    const c = { ...ctx(), names: ["Schedule"] };
+    const p = planBuild({ nodes: [{ page: "G", markdown: "- [[Scheduling]]" }], ctx: c });
+    expect(p.problems[0]).toMatch(/no page or folder named "Scheduling" — left as plain text — did you mean "Schedule"\?/);
+    expect(JSON.stringify(p.modules)).not.toMatch(/"kind":"occurrence"/);
+  });
+});

@@ -499,7 +499,8 @@ export default function AssistantDrawer() {
           data-assistant-drawer
           role="dialog"
           aria-label="Jonah"
-          className="jonah-terminal"
+          className={messages.some((m) => m.role === "confirm" && m.status === "pending" && m.name === "build" && m.preview)
+            ? "jonah-terminal jonah-terminal--tall" : "jonah-terminal"}
         >
           {/* Title bar */}
           <div className="jonah-terminal-titlebar">

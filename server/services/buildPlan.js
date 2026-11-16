@@ -124,6 +124,37 @@ const para = (content) => (content && content.length ? { type: "paragraph", cont
  * @returns {{ modules, occurrences, folders, fields, operations, attach, problems, made }}
  */
 /**
+ * The closest real name to one the model got wrong — for the problem message ("did you mean …"), never used to
+ * resolve on its own. Jonah wrote "Scheduling" for Schedule and "Day Pages" for Day Page (2026-11-15). A name
+ * qualifies when one starts the other (4+ letters), it is within 2 edits, or they share a start covering 3/4 of the shorter; several equally close → none. Pure.
+ */
+export function closestName(name, names) {
+  const n = String(name || "").trim().toLowerCase();
+  if (n.length < 3) return null;
+  const dist = (a, b) => {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length][b.length];
+  };
+  let best = null; let bestScore = Infinity; let tie = false;
+  for (const raw of names || []) {
+    const c = String(raw || "").trim(); const cl = c.toLowerCase();
+    if (!cl || cl === n) continue;
+    const prefix = Math.min(n.length, cl.length) >= 4 && (n.startsWith(cl) || cl.startsWith(n));
+    // A shared start covering 3/4 of the shorter name ("Scheduling" / "Schedule" share "schedul", 7 of 8).
+    let common = 0; while (common < n.length && common < cl.length && n[common] === cl[common]) common++;
+    const stem = common >= 4 && common >= 0.75 * Math.min(n.length, cl.length);
+    const e = dist(n, cl);
+    const score = prefix ? Math.abs(n.length - cl.length) * 0.1 : e <= 2 ? e : stem ? 2.5 : Infinity;
+    if (score === Infinity) continue;
+    if (score < bestScore) { best = c; bestScore = score; tie = false; } else if (score === bestScore) tie = true;
+  }
+  return tie ? null : best;
+}
+
+/**
  * An address no real site has: example.* (RFC 2606), localhost, the reserved .test/.invalid/.example/.localhost
  * TLDs, or a template stand-in ("yourdomain", "your-site", "domain.com"). Jonah wrote https://example.com/schedule
  * for a Moduli page (2026-11-15); the self-check sends these back to it. Pure.
@@ -411,17 +442,21 @@ export function planBuild({ nodes = [], under = null, ctx }) {
 
   // ── names resolved after the whole tree exists ───────────────────────
   const resolve = (name) => planned.get(String(name).toLowerCase()) || ctx.find?.(name) || null;
+  const didYouMean = (name) => {
+    const near = closestName(String(name).split(/\s*(?:›|»|>|\/)\s*/).pop(), [...(ctx.names || []), ...[...planned.keys()]]);
+    return near ? ` — did you mean "${near}"?` : "";
+  };
   for (const p of pendingLinks) {
     const hit = resolve(p.name);
     const target = hit?.occId || null;
-    if (!target) { out.problems.push(`no page or folder named "${p.name}" — left as plain text`); continue; }
+    if (!target) { out.problems.push(`no page or folder named "${p.name}" — left as plain text${didYouMean(p.name)}`); continue; }
     const link = { kind: "occurrence", occId: target };
     for (const m of p.mods) m.meta = { ...(m.meta || {}), link };
     for (const o of p.occs) o.meta = { ...(o.meta || {}), link };
   }
   for (const s of pendingShows) {
     const hit = resolve(s.name);
-    if (!hit?.occId) { out.problems.push(`no page named "${s.name}" for the button`); s.op.enabled = false; continue; }
+    if (!hit?.occId) { out.problems.push(`no page named "${s.name}" for the button${didYouMean(s.name)}`); s.op.enabled = false; continue; }
     s.op.pipeline.steps = s.mode === "show"
       ? [act({ type: "UPDATE_VIEW", viewId: "$trigger.panelViewId", activeOccurrenceId: hit.occId })]
       : [act({ type: "CREATE", name: "New item", role: "instance", parent: hit.occId })];

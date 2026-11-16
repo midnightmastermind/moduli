@@ -9892,7 +9892,7 @@ body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; 
   position: fixed; z-index: 9001;
   left: 50%; top: 50%; translate: -50% -50%;
   width: min(1000px, calc(100vw - 32px));
-  height: min(820px, calc(100dvh - 32px));
+  height: min(410px, calc(100dvh - 32px));
   display: flex; flex-direction: column;
   background: #0b0f10;
   color: var(--text-primary, #e6efe9);
@@ -9943,6 +9943,8 @@ body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; 
 }
 .jonah-terminal-send:hover:not(:disabled) { background: rgba(110, 200, 140, 0.15); }
 .jonah-terminal-send:disabled { opacity: 0.4; cursor: default; }
+/* Half height by default (user, 2026-11-15); full height only while a build's preview waits for an answer. */
+.jonah-terminal--tall { height: min(820px, calc(100dvh - 32px)); }
 body[data-layout="mobile"] .jonah-terminal {
   width: 100vw; height: 100dvh; border-radius: 0; border: none;
 }

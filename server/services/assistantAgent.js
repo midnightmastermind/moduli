@@ -515,7 +515,9 @@ export async function holdForConfirm({ tool, name, input, checked }) {
   if (problems.length && !checked.has(name)) {
     checked.add(name);
     return { problems, retry: toolResultForModel({ ok: false, notDoneYet: true, checkedFirst: true, problems,
-      next: `Nothing was made. Fix these and call ${name} again with the whole thing (or call it unchanged to keep it as is).` }) };
+      // No words before the call: at ~7 tokens/s an explanation used up the request's time and the call never came
+      // (glossary eval, 2026-11-15 — the answer stopped mid-sentence at 240s).
+      next: `Nothing was made. Reply with ONLY the corrected ${name} call, the whole thing, no words before it (call it unchanged to keep it as is).` }) };
   }
   return { pending: { ...pending, ...(preview?.preview ? { preview: preview.preview } : {}), ...(problems.length ? { problems } : {}) } };
 }

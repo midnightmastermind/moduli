@@ -2254,6 +2254,8 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         const last = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
         return byName.get(last.trim().toLowerCase()) || null;
       };
+      // The real names as written, for "did you mean" in a problem (buildPlan.closestName).
+      const names = [...placeMods.map((m) => m.label), ...folders.map((f) => f.name)].filter(Boolean);
       // A button already on the grid, and what its listeners do (so the build does not add a second one).
       const ops = await Operation.find({ gridId, triggerType: "onButton" }).lean();
       const buttonFieldFor = (label) => {
@@ -2266,7 +2268,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         }
         return { fieldId: f.id, listening };
       };
-      const plan = planBuild({ nodes, under, ctx: { gridId, userId, rootFolderId: manifest?.rootFolderId || null, folders, fields, find, buttonFieldFor } });
+      const plan = planBuild({ nodes, under, ctx: { gridId, userId, rootFolderId: manifest?.rootFolderId || null, folders, fields, find, names, buttonFieldFor } });
       const counts = { modules: plan.modules.length, occurrences: plan.occurrences.length, folders: plan.folders.length, fields: plan.fields.length, operations: plan.operations.length };
       if (dryRun) {
         // The planned records too, so the confirm card can draw the page before anything is written (Jonah,
