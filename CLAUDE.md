@@ -13,6 +13,20 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (5) — A RADIAL DELETE ON ONE OF A MULTI-SELECTION DELETES ALL OF IT, AFTER ASKING
+
+User: *"if i multiselect occurances and delete via one of their radial menus, it should delete all of them. put up an
+are you sure message as well"*. `helpers/deleteSelection.js` (NEW): `selectionToDelete(occId, selected)` (the whole
+selection when the pressed row is in a selection of 2+, else null = the usual single delete) and `deleteSelected`
+(confirm "Delete N selected items?", then every row removed with its lister's list cleaned, ONE undo step). The
+right-click "Delete N selected" uses it too (it was its own copy, and said "cannot be undone"). Wired into
+ModuleInstance's radial (reads `getSelectionSnapshot()` at click time, so no row subscribes to the selection) and
+ModuleContainer's `removeMe`. Pages are not selectable, so untouched. Test `deleteSelection` (5). Client 7,554 pass.
+**Watched on prod, writes blocked** (`tools/uisweep/_bulkdelete.mjs`): Drink + Eat shift-selected, Delete on Drink's
+radial → "Delete 2 selected items?", No → both still there. **Not pressed Yes on a real grid.**
+
+---
+
 ### 2026-11-15 (4) — JONAH `build`: MAKE ANYTHING IN ONE CALL (Phase 1 of 2)
 
 User: *"we should be able to make any occurance with jonah"* · *"everything"* · *"editing and deleting should be in there

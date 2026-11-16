@@ -3462,3 +3462,9 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
 - **`mediaPlace.js`** (2026-10-18): `makePlaybackPosition`, `resumeTimeFor(saved, duration)` (null under 3s or within
   5s of the end), `movedEnough`. Used by `hooks/useMediaPlace` (a callback ref that restores on `loadedmetadata` and
   saves `module.meta.playbackPosition` as a derived write). `operationActions`: `MOD_VAR` and DATE_FORMAT `D` (day of year).
+
+## 2026-11-15 — `deleteSelection.js` (NEW)
+- `selectionToDelete(occId, selectedIds)` → all selected ids when occId is one of 2+, else null. `deleteSelected({ids,
+  getOccMap, getParentId?, dispatch, socket, clear, confirm?})` asks, clears the selection, removes each row inside one
+  `withAction` (one undo); parent = `getParentId` or `cachedParentMap` (a listed row often has no parentId). Used by the
+  instance radial, the container radial and the right-click bulk delete.
