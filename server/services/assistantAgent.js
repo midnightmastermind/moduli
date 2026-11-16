@@ -473,9 +473,14 @@ export function isPageShaped(text) {
 }
 export function toolsForModel(tools, which, text = "") {
   if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
-  if (!isPageShaped(text)) return tools;
-  const kept = (tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name));
-  return kept.some((t) => t.name === "build") ? kept : tools;   // never strip everything a page could be built with
+  // The ones a page request drops go LAST, in every build request: the runner reuses its work only for an identical
+  // START of the prompt, and the tools are near the start. Dropped from the middle, they made the next non-page
+  // request re-read ~4,200 tokens (~80s; measured 2026-11-16, CPS after a glossary). Dropped from the end, the
+  // shorter list is the start of the longer one.
+  const all = [...(tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name)), ...(tools || []).filter((t) => NOT_FOR_PAGES.has(t.name))];
+  if (!isPageShaped(text)) return all;
+  const kept = all.filter((t) => !NOT_FOR_PAGES.has(t.name));
+  return kept.some((t) => t.name === "build") ? kept : all;   // never strip everything a page could be built with
 }
 function modelIdFor(which) {
   return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;

@@ -247,3 +247,11 @@ describe("did you mean", () => {
     expect(JSON.stringify(p.modules)).not.toMatch(/"kind":"occurrence"/);
   });
 });
+
+describe("a label in front of one link", () => {
+  it("is that link", () => {
+    expect(markdownToNodes("## Places\n- **Schedule**: [[Schedule]]\n- **Day Page**: [[Day Pages]]\n- Mail — [Gmail](https://mail.google.com)")).toEqual([
+      { section: "Places", children: ["Schedule -> Schedule", "Day Page -> Day Pages", "Gmail | https://mail.google.com"] },
+    ]);
+  });
+});

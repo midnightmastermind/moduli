@@ -144,3 +144,14 @@ describe("listFoldersAnswer", async () => {
     expect(listFoldersAnswer(body).folders).toHaveLength(3);
   });
 });
+
+describe("the shorter tool list is the start of the longer one", async () => {
+  const { toolsForModel } = await import("../services/assistantAgent.js");
+  const tools = ["build", "create_occurrence", "import_url", "create_board", "list_folders", "create_items"].map((name) => ({ name }));
+  it("dropped tools sit last, so a page request's list prefixes every build request's", () => {
+    const full = toolsForModel(tools, "build", "Add my CPS classes").map((t) => t.name);
+    const page = toolsForModel(tools, "build", "Make a doc page called Home").map((t) => t.name);
+    expect(full.slice(0, page.length)).toEqual(page);
+    expect(full).toEqual(["build", "import_url", "list_folders", "create_occurrence", "create_board", "create_items"]);
+  });
+});

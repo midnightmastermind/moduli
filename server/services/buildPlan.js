@@ -48,6 +48,15 @@ const OPEN_BUTTON = Symbol("open links button");
 function linkItem(c) {
   const wiki = c.match(/^\[\[(.+?)\]\]$/);
   if (wiki) return `${wiki[1]} -> ${wiki[1]}`;
+  // A label in front of exactly ONE link ("**Schedule**: [[Schedule]]", "Mail — [Gmail](https://…)", Jonah
+  // 2026-11-16) is that link; the label names it when the link has no text of its own.
+  const links = c.match(/\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)/g) || [];
+  if (links.length === 1 && links[0] !== c) {
+    const lead = c.slice(0, c.indexOf(links[0])).replace(/[*_:—–-]+/g, " ").trim();
+    const w = links[0].match(/^\[\[(.+?)\]\]$/);
+    if (w) return `${lead || w[1]} -> ${w[1]}`;
+    return linkItem(links[0]);
+  }
   const md = c.match(/^\[(.+?)\]\((.+)\)$/);
   if (!md) return c;
   const [, label, target] = md;
