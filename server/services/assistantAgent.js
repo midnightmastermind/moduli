@@ -471,16 +471,17 @@ export function isPageShaped(text) {
   const t = String(text || "");
   return PAGE_SHAPED.test(t) && !/\bboard\b/i.test(t);
 }
-export function toolsForModel(tools, which, text = "") {
-  if (which !== "build") return (tools || []).filter((t) => READ_TOOL.test(t.name));
-  // The ones a page request drops go LAST, in every build request: the runner reuses its work only for an identical
-  // START of the prompt, and the tools are near the start. Dropped from the middle, they made the next non-page
-  // request re-read ~4,200 tokens (~80s; measured 2026-11-16, CPS after a glossary). Dropped from the end, the
-  // shorter list is the start of the longer one.
-  const all = [...(tools || []).filter((t) => !NOT_FOR_PAGES.has(t.name)), ...(tools || []).filter((t) => NOT_FOR_PAGES.has(t.name))];
-  if (!isPageShaped(text)) return all;
-  const kept = all.filter((t) => !NOT_FOR_PAGES.has(t.name));
-  return kept.some((t) => t.name === "build") ? kept : all;   // never strip everything a page could be built with
+// Every build request gets the SAME tools: the runner reuses its work only for an identical START of the prompt, and
+// the tools sit near the start. Narrowing them for page requests made the next other request re-read ~4,200 tokens
+// (~80s; CPS after a glossary, 2026-11-16) — still ~2,600 with the dropped ones moved last. A page request is
+// steered by `pageNote` instead, which rides in the per-request note AFTER everything reusable.
+export function toolsForModel(tools, which) {
+  return which === "build" ? tools : (tools || []).filter((t) => READ_TOOL.test(t.name));
+}
+export function pageNote(text) {
+  return isPageShaped(text)
+    ? `This request is a PAGE: answer with ONE build call (markdown sections, links, buttons). Not ${[...NOT_FOR_PAGES].join(", ")}.`
+    : "";
 }
 function modelIdFor(which) {
   return which === "build" ? LLM_BUILD_MODEL : LLM_FAST_MODEL;
@@ -935,7 +936,9 @@ export async function assistantChat({ messages: rawMessages, userId, gridId, con
     const which = pickModel(lastUserText(messages));
     const model = modelIdFor(which);
     try {
-      return await localLoop({ messages, tools: toolsForModel(backendTools, which, lastUserText(messages)), systemPrompt: composed.systemPrompt, contextNote, model, onProgress });
+      const steer = which === "build" ? pageNote(lastUserText(messages)) : "";
+      return await localLoop({ messages, tools: toolsForModel(backendTools, which), systemPrompt: composed.systemPrompt,
+        contextNote: [contextNote, steer].filter(Boolean).join("\n\n"), model, onProgress });
     } catch (e) {
       // The runner answered the probe but the loop failed mid-run (timeout, model crashed). Be HONEST — the
       // deterministic dispatcher's "No LLM is running" would be wrong.

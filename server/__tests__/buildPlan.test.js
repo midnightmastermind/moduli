@@ -255,3 +255,17 @@ describe("a label in front of one link", () => {
     ]);
   });
 });
+
+describe("buttons written as links named after a section", () => {
+  it("[Open Mail](url) is the Mail section's button; **[Open all in browser]** is this section's", () => {
+    const md = "## Quick Links\n### Mail\n- [Gmail](https://mail.google.com)\n### Web\n- [GitHub](https://github.com)\n\n**[Open all in browser]**\n\n[Open Mail](https://mail.google.com)\n[Open Web](https://github.com)";
+    const [q] = markdownToNodes(md);
+    const mail = q.children.find((c) => c.section === "Mail"), web = q.children.find((c) => c.section === "Web");
+    expect(mail.children).toEqual(["Gmail | https://mail.google.com", { button: "Open in browser", does: "open links" }]);
+    expect(web.children).toEqual(["GitHub | https://github.com", { button: "Open in browser", does: "open links" }]);
+    expect(JSON.stringify(markdownToNodes(md))).not.toMatch(/Open Mail/);
+  });
+  it("an Open link that names no section stays a link", () => {
+    expect(markdownToNodes("## A\n[Open Notion](https://notion.so)")[0].children).toEqual(["Open Notion | https://notion.so"]);
+  });
+});

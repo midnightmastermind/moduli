@@ -75,6 +75,7 @@ function linkItem(c) {
 export function markdownToNodes(md) {
   const root = []; const stack = [];
   let prose = []; let boldSec = null;                 // `- **Mail**` with indented items under it
+  const openFor = [];                                   // "[Open Mail](…)" lines, attached to their section at the end
   const here = () => (stack.length ? stack[stack.length - 1].node.children : root);
   const flush = () => { if (prose.length) { here().push({ text: prose.join(" ") }); prose = []; } };
   const addOpen = (kids) => { if (!kids.some((k) => k?.button && /open links/i.test(k.does || ""))) kids.push({ button: "Open in browser", does: "open links" }); };
@@ -102,7 +103,12 @@ export function markdownToNodes(md) {
       stack.push({ level, node });
       continue;
     }
-    if (/^\[open[^\]]*\]$/i.test(line)) { flush(); addOpen(boldSec ? boldSec.node.children : here()); continue; }
+    // "[Open all]" / "**[Open all in browser]**" alone on a line: this section's open-links button.
+    if (/^(\*\*|__)?\[open[^\]]*\](\*\*|__)?$/i.test(line)) { flush(); addOpen(boldSec ? boldSec.node.children : here()); continue; }
+    // "[Open Mail](https://…)" names a SECTION: that section's button, not a link (Jonah, 2026-11-16). Resolved at
+    // the end, when every section is known; a name that matches none stays a link.
+    const openNamed = line.replace(/^[-*+]\s+/, "").match(/^(?:\*\*|__)?\[open\s+(.+?)\]\([^)]*\)(?:\*\*|__)?$/i);
+    if (openNamed && !/\b(browser|all)\b/i.test(openNamed[1])) { flush(); openFor.push({ name: openNamed[1].trim(), line, at: here() }); continue; }
     const li = line.match(/^[-*+]\s+(.*)$/);
     const bareLink = !li && /^\[[^\]]+\]\(.+\)/.test(line);
     if (li || bareLink) {
@@ -118,6 +124,14 @@ export function markdownToNodes(md) {
     prose.push(line);
   }
   flush();
+  const sections = [];
+  const walk = (list) => { for (const n of list) if (n && typeof n === "object" && n.section) { sections.push(n); walk(n.children || []); } };
+  walk(root);
+  for (const o of openFor) {
+    const sec = sections.find((n) => n.section.toLowerCase() === o.name.toLowerCase());
+    if (sec) addOpen(sec.children);
+    else addItems(o.at, o.line.replace(/^[-*+]\s+/, "").replace(/^(\*\*|__)|(\*\*|__)$/g, ""));
+  }
   return root;
 }
 
