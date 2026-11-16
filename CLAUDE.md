@@ -13,6 +13,24 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-16 (5) — THE DAILY QUESTION: its tag, and the 143 questions that are gone
+
+User: *"make sure its linked (says its not) and the linked text (Daily Question) should be really small"* · *"show only
+on hover"* · *"it shouldnt be searching via the ui for its signatures … no signature search"* (memory
+`feedback_ops_no_signature_search`).
+- **"Broken link" was a wrong definition:** BoundHeader/BoundBody called a binding linked only when ANOTHER copy shared
+  its link value (Date). A day has one question container, so it always read broken. `editorBindings.bindingConnected`
+  (both use it): the field exists and the host has a link value. Tag 8px, opacity 0 until its header/body is hovered.
+  Watched on prod: "Linked: Daily Question" / "Linked: Answer", 8px, 0 → 0.7 on a real hover.
+- **The questions are gone, not the link.** Between backups `2026-10-18T13-35` and `14-47` a container "Library"
+  (occ `VI5z1eAPtFg5`) holding the 143 question rows was deleted (145 modules: 143 questions, the container, one file).
+  No transaction recorded it. Since then the Daily Question field (`Library IS question`) has no options and
+  `Day Page: Build Day`'s fill (PICK_RANDOM_FROM_POOL `CWC9WqHPO3EO`, also gone) has written nothing — no question on
+  any of the last 20 day columns. **Not restored — the user's call.** The fill also finds its container by
+  `identitySignature`, which the user has now ruled out for ops.
+
+---
+
 ### 2026-11-16 (4) — JONAH: AUTOMATIONS ARE REAL OPERATIONS; questions on the 7B; web search (SearXNG)
 
 User: *"doues the autommations create operations. it should do that"* · *"is it a normal chatbot too … look up information
