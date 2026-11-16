@@ -1074,8 +1074,10 @@ function isImportTool(name, input = null) {
   return ["wikipedia_import", "import_markdown", "import_html", "import_text"].includes(name);
 }
 
-function extractCreatedOccId(name, output) {
-  if (!output || typeof output !== "object" || output.error || output.ok === false) return null;
+export function extractCreatedOccId(name, output) {
+  // An id in the reply means something was written: a build with a leftover problem replies ok:false yet made the page
+  // (Jonah, 2026-11-16), so `ok` is not the test.
+  if (!output || typeof output !== "object" || output.error) return null;
   if (output.occurrence) {
     return typeof output.occurrence === "string" ? output.occurrence : (output.occurrence.id || null);
   }

@@ -2324,7 +2324,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         if (parentBefore) rec("occurrence", a.parentId, parentBefore, await Occurrence.findOne({ gridId, id: a.parentId }).lean());
       }
       await flushAction(actionId);
-      res.json({ ok: plan.problems.length === 0, made: plan.made, problems: plan.problems, counts, actionId });
+      // What it made, so the window can open it (the page or section at the top of the build).
+      const builtIds = new Set(plan.occurrences.map((o) => o.id));
+      const root = plan.occurrences.find((o) => !builtIds.has(o.parentId) && !plan.occurrences.some((p) => (p.occurrences || []).includes(o.id)));
+      res.json({ ok: plan.problems.length === 0, made: plan.made, problems: plan.problems, counts, actionId, rootOccurrenceId: root?.id || null });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -2435,7 +2438,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         moved = dest.occ.label || dest.module?.label;
       }
       await done();
-      res.json({ ok: plan.problems.length === 0, changed: hit.occ.label || hit.module?.label, renamed: rename || null, moved, problems: plan.problems });
+      res.json({ ok: plan.problems.length === 0, changed: hit.occ.label || hit.module?.label, renamed: rename || null, moved, problems: plan.problems, occurrenceId: hit.occ.id });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
