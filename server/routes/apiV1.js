@@ -2318,6 +2318,128 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
+  // Jonah's change / remove (2026-11-15, Phase 2 of "Jonah builds anything"). A name → candidates the pure picker
+  // (services/buildEdit.pickByName) chooses from; each call is ONE undo step (txRecorder, like /build).
+  const editCandidates = async (gridId, name) => {
+    const leaf = String(name || "").split(/\s*(?:›|»|>|\/)\s*/).filter(Boolean).pop() || "";
+    const rx = new RegExp(`^${leaf.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    const mods = await Module.find({ gridId, label: rx }).lean();
+    const occs = await Occurrence.find({ gridId, $or: [{ moduleId: { $in: mods.map((m) => m.id) } }, { label: rx }] }).lean();
+    const modOf = new Map(mods.map((m) => [m.id, m]));
+    for (const o of occs) if (!modOf.has(o.moduleId)) { const m = await Module.findOne({ gridId, id: o.moduleId }).lean(); if (m) modOf.set(m.id, m); }
+    const out = [];
+    for (const o of occs) {
+      const parent = o.parentId ? await Occurrence.findOne({ gridId, id: o.parentId }).lean() : await Occurrence.findOne({ gridId, occurrences: o.id }).lean();
+      const folder = !parent && o.parentId ? await Folder.findOne({ gridId, id: o.parentId }).lean() : null;
+      const pm = parent ? await Module.findOne({ gridId, id: parent.moduleId }).select("label").lean() : null;
+      out.push({ occ: o, module: modOf.get(o.moduleId), parent, parentLabel: parent ? (parent.label || pm?.label) : folder?.name || null });
+    }
+    return out;
+  };
+  const pickOrAnswer = async (res, gridId, name) => {
+    const { pickByName } = await import("../services/buildEdit.js");
+    const r = pickByName(name, await editCandidates(gridId, name));
+    if (r.error) { res.status(404).json({ ok: false, error: r.error }); return null; }
+    if (r.ambiguous) { res.status(409).json({ ok: false, error: `"${name}" could mean several`, options: r.ambiguous }); return null; }
+    return r.hit;
+  };
+  const recorder = async (userId, gridId, label) => {
+    const { recordDoc, flushAction } = await import("../utils/txRecorder.js");
+    const actionId = `jonah-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return { rec: (model, id, before, after) => recordDoc({ userId, gridId, actionId, model, id, before, after, label }), done: () => flushAction(actionId) };
+  };
+
+  // POST /change — { gridId, name, rename?, fields?, moveTo? }.
+  router.post("/change", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { gridId, name, rename = null, fields = null, moveTo = null } = req.body || {};
+      if (!gridId || !name) return err(res, 400, "validation_error", "gridId and name required");
+      const userId = req.userId;
+      const hit = await pickOrAnswer(res, gridId, name);
+      if (!hit) return;
+      const { planChange } = await import("../services/buildEdit.js");
+      const fieldsAll = await Field.find({ gridId }).lean();
+      const placements = await Occurrence.countDocuments({ gridId, moduleId: hit.occ.moduleId });
+      const plan = planChange({ occ: hit.occ, module: hit.module, placements, rename, fields, fieldsAll });
+      const { rec, done } = await recorder(userId, gridId, `Jonah changed ${hit.occ.label || hit.module?.label}`);
+      const room = io.to(userRoom(userId));
+      if (Object.keys(plan.occPatch).length) {
+        const next = { ...hit.occ, ...plan.occPatch, updatedAt: new Date() };
+        await Occurrence.updateOne({ gridId, id: hit.occ.id }, { $set: { ...plan.occPatch, updatedAt: next.updatedAt } });
+        rec("occurrence", hit.occ.id, hit.occ, next); mirrorToCache(userId, gridId, "occurrence", next);
+        room.emit("occurrence_updated", { occurrence: { id: hit.occ.id, ...plan.occPatch } });
+      }
+      if (hit.module && Object.keys(plan.modPatch).length) {
+        const next = { ...hit.module, ...plan.modPatch };
+        await Module.updateOne({ gridId, id: hit.module.id }, { $set: plan.modPatch });
+        rec("module", hit.module.id, hit.module, next); mirrorToCache(userId, gridId, "module", next);
+        room.emit("module_updated", { module: next });
+      }
+      let moved = null;
+      if (moveTo) {
+        const dest = await pickOrAnswer(res, gridId, moveTo);
+        if (!dest) return;
+        const { decompressTextmap, compressTextmap } = await import("../utils/textmapCompression.js");
+        const { stripEmbeds } = await import("../services/buildEdit.js");
+        const { embedRootInDocParent } = await import("../utils/embedRootInDocParent.js");
+        const old = hit.parent;
+        if (old) {
+          const before = await Occurrence.findOne({ gridId, id: old.id }).lean();
+          await unlinkFromParent({ userId, parentId: old.id, childId: hit.occ.id });
+          const stripped = stripEmbeds(decompressTextmap(before.textmap), [hit.occ.id]);
+          if (stripped) { await Occurrence.updateOne({ gridId, id: old.id }, { $set: { textmap: compressTextmap(stripped) } }); room.emit("occurrence_updated", { occurrence: { id: old.id, textmap: stripped } }); }
+          rec("occurrence", old.id, before, await Occurrence.findOne({ gridId, id: old.id }).lean());
+        }
+        const destBefore = await Occurrence.findOne({ gridId, id: dest.occ.id }).lean();
+        await Occurrence.updateOne({ gridId, id: hit.occ.id }, { $set: { parentId: dest.occ.id } });
+        await linkIntoParent({ userId, parentId: dest.occ.id, childId: hit.occ.id });
+        const e = await embedRootInDocParent({ parentId: dest.occ.id, childId: hit.occ.id, userId });
+        if (e) room.emit("occurrence_updated", { occurrence: { id: e.id, textmap: e.textmap } });
+        rec("occurrence", dest.occ.id, destBefore, await Occurrence.findOne({ gridId, id: dest.occ.id }).lean());
+        room.emit("occurrence_updated", { occurrence: { id: hit.occ.id, parentId: dest.occ.id } });
+        moved = dest.occ.label || dest.module?.label;
+      }
+      await done();
+      res.json({ ok: plan.problems.length === 0, changed: hit.occ.label || hit.module?.label, renamed: rename || null, moved, problems: plan.problems });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // POST /remove — { gridId, name }: the occurrence and everything listed under it (modules are left; a placement is
+  // what is removed). One undo step puts it all back.
+  router.post("/remove", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { gridId, name } = req.body || {};
+      if (!gridId || !name) return err(res, 400, "validation_error", "gridId and name required");
+      const userId = req.userId;
+      const hit = await pickOrAnswer(res, gridId, name);
+      if (!hit) return;
+      const { subtreeIds, stripEmbeds } = await import("../services/buildEdit.js");
+      const { decompressTextmap, compressTextmap } = await import("../utils/textmapCompression.js");
+      // the subtree, level by level
+      const byId = {}; let frontier = [hit.occ.id];
+      while (frontier.length) {
+        const rows = await Occurrence.find({ gridId, id: { $in: frontier } }).lean();
+        frontier = [];
+        for (const r of rows) if (!byId[r.id]) { byId[r.id] = r; frontier.push(...(r.occurrences || [])); }
+      }
+      const ids = subtreeIds(hit.occ.id, byId);
+      const { rec, done } = await recorder(userId, gridId, `Jonah removed ${hit.occ.label || hit.module?.label}`);
+      const room = io.to(userRoom(userId));
+      if (hit.parent) {
+        const before = await Occurrence.findOne({ gridId, id: hit.parent.id }).lean();
+        await unlinkFromParent({ userId, parentId: hit.parent.id, childId: hit.occ.id });
+        const stripped = stripEmbeds(decompressTextmap(before.textmap), [hit.occ.id]);
+        if (stripped) { await Occurrence.updateOne({ gridId, id: hit.parent.id }, { $set: { textmap: compressTextmap(stripped) } }); room.emit("occurrence_updated", { occurrence: { id: hit.parent.id, textmap: stripped } }); }
+        rec("occurrence", hit.parent.id, before, await Occurrence.findOne({ gridId, id: hit.parent.id }).lean());
+      }
+      for (const id of ids) rec("occurrence", id, byId[id], null);
+      await Occurrence.deleteMany({ gridId, id: { $in: ids } });
+      for (const id of ids) { evictFromCache(userId, gridId, "occurrence", id); room.emit("occurrence_deleted", { occurrenceId: id }); }
+      await done();
+      res.json({ ok: true, removed: hit.occ.label || hit.module?.label, count: ids.length });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // POST /undo — undo the most recent change on a grid (Jonah's `undo`, 2026-11-15). Same rules as Ctrl+Z
   // (socketHandlers/undoCore.undoTop): only the top of the stack, never a derived write. Body: { gridId }.
   router.post("/undo", authAndLimit({ requireScope: "write" }), async (req, res) => {

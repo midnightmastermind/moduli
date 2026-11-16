@@ -492,6 +492,28 @@ export function buildToolPack({ call, gridId }) {
       },
     },
     {
+      name: "change",
+      description: "Change one thing by name (\"Quick Links › Mail\" when the name repeats): rename, fields {name: value, null clears}, moveTo a page/section.",
+      input_schema: { type: "object", properties: { name: { type: "string" }, rename: { type: "string" }, fields: { type: "object" }, moveTo: { type: "string" } }, required: ["name"] },
+      destructive: false,
+      requires_confirm: true,
+      run: async (input) => {
+        const r = await call("POST", `/change`, { gridId, ...input });
+        return r.body || { error: `change: ${r.status}` };
+      },
+    },
+    {
+      name: "remove",
+      description: "Remove one thing by name and everything inside it. undo brings it back.",
+      input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async (input) => {
+        const r = await call("POST", `/remove`, { gridId, name: input.name });
+        return r.body || { error: `remove: ${r.status}` };
+      },
+    },
+    {
       name: "undo",
       description: "Undo the last change on this grid, like Ctrl+Z.",
       input_schema: { type: "object", properties: {} },

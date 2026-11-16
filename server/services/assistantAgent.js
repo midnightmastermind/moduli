@@ -51,7 +51,7 @@ export const OFFLINE_SYSTEM_PROMPT = `You are Jonah, the assistant for the Modul
 
 Act by calling tools. Before a tool call write ONE short sentence saying what you are doing; after it, confirm in one sentence.
 - Build in ONE call. A page with sections, links or buttons (a doc page, a glossary, a dashboard) is ALWAYS build. A plain board of rows is create_board. Rows into an existing container is create_items. Tools: build, create_board (rows as one line each, see its description), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added; for something on many dates send ONE item with repeat {from, to, weekdays} instead of listing dates), add_filter (filter on a page/container, nav showing).
-- Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_search / wikipedia_import. undo takes back the last change (a whole build at once).
+- Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_search / wikipedia_import. change / remove a thing by name; undo takes back the last change.
 - Look up: list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
 Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Never write out a list of dates yourself — use repeat. After creating, say how many were made. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
@@ -112,7 +112,7 @@ function buildTools({ baseUrl, apiToken, userId, gridId }) {
 // update/delete, operation authoring) to the cloud model. Override the set via
 // LLM_TOOL_ALLOWLIST (comma-separated tool names); empty/unset → the default.
 const OFFLINE_CORE_TOOLS = new Set([
-  "build", "undo", "create_board", "create_items", "add_filter",
+  "build", "change", "remove", "undo", "create_board", "create_items", "add_filter",
   "create_occurrence", "set_occurrence_field", "create_field",
   "save_bookmark", "import_url", "wikipedia_search", "wikipedia_import",
   "list_folders", "list_fields", "list_occurrences", "get_occurrence",

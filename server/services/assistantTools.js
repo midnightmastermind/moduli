@@ -284,7 +284,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     },
     {
       name: "import_url",
-      description: "Turn any web link into a PAGE on the grid — the same page the in-app browser's '+ Page' button makes. shape 'magic' (default) = structured: nested doc containers + textblocks per section; shape 'reader' = the whole article as ONE container with ONE textblock. Use for 'make a page from this link/article'. For a Wikipedia TOPIC by name prefer wikipedia_import; for a Wikipedia URL this works too.",
+      description: "Make a PAGE from a web link (the browser's '+ Page'). shape 'magic' (default) = a section per heading; 'reader' = one textblock. For a Wikipedia topic by name prefer wikipedia_import.",
       input_schema: {
         type: "object",
         properties: {
@@ -409,7 +409,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
     },
     {
       name: "create_occurrence",
-      description: "Create a NEW item on the grid. Easiest: pass a `label` (e.g. 'ran ai test') and your best-guess `parentId` (the container/page it goes in) — the app shows the user a card to confirm/correct the location before it's placed, and auto-creates the template + links it into the parent so it actually renders. You may pass `moduleId` instead of `label` to instantiate an existing template. `fields` is an object keyed by real field id ({ value }).",
+      description: "Create ONE new item: a `label` and your best-guess `parentId`; the user confirms the place. `moduleId` instead of `label` reuses a template. `fields` keyed by field id ({ value }).",
       input_schema: { type: "object", properties: { label: { type: "string", description: "Name of the new item (auto-creates its template)" }, moduleId: { type: "string", description: "Existing template id (alternative to label)" }, parentId: { type: "string", description: "Best-guess destination container/page id; the user confirms it" }, fields: { type: "object", additionalProperties: true } } },
       destructive: false,
       requires_confirm: true,
