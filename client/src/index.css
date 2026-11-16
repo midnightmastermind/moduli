@@ -9997,3 +9997,10 @@ body[data-layout="mobile"] button[role="switch"] { height: 24px; }
    that to sit on the header's middle. Its padding comes inline from the field, hence !important. */
 .embedded-header-row > .occurrence-fields { margin-top: -3px; }
 .embedded-header-row > .occurrence-fields button { padding-top: 0 !important; padding-bottom: 0 !important; line-height: 18px !important; }
+
+/* The binding tag ("Daily Question", "Answer") is tiny and shows only while you hover its header or body (user,
+   2026-11-16: "the linked text … should be really small" · "make it show only on hover"). */
+.bound-binding-badge { font-size: 8px; opacity: 0; transition: opacity 120ms ease; }
+.container-header:hover .bound-binding-badge,
+.bound-body:hover .bound-binding-badge,
+.bound-binding-badge:hover { opacity: 0.7; }

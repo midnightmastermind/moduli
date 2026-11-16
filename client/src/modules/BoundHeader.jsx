@@ -16,13 +16,9 @@ import { useGridActions } from "../GridActionsContext.js";
 import AutoMarquee from "../ui/AutoMarquee";
 import { resolveOptions } from "../helpers/optionsResolver.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
-import { findLinkedSiblings } from "../state/editorBindings.js";
+import { bindingConnected } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
-// Small inline badge: [link/broken-link icon] [field name]
-// Sentinel break — never matches a real value, so findLinkedSiblings's
-// loop-prevention skip-if-equal check doesn't drop matches.
-const LINK_PROBE = Symbol("link-probe");
 function BindingBadge({ field, isLinked }) {
   const Icon = isLinked ? Link2 : Unlink2;
   return (
@@ -35,13 +31,11 @@ function BindingBadge({ field, isLinked }) {
         gap: 3,
         marginLeft: "auto",
         paddingLeft: 6,
-        fontSize: 12,
-        opacity: 0.65,
         color: isLinked ? "var(--text-muted, #888)" : "var(--text-faint, #b06a6a)",
         whiteSpace: "nowrap",
       }}
     >
-      <Icon size={10} />
+      <Icon size={8} />
       <span>{field?.name || ""}</span>
     </span>
   );
@@ -59,11 +53,7 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
     return Array.isArray(opts) ? opts : [];
   }, [field, modulesById, occurrencesById, fieldsById]);
 
-  const isLinked = useMemo(() => {
-    if (!binding || !hostOccurrence || !occurrencesById) return false;
-    if (hostOccurrence?.fields?.[binding.link]?.value == null) return false;
-    return findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue: LINK_PROBE }).length > 0;
-  }, [binding, hostOccurrence, occurrencesById]);
+  const isLinked = useMemo(() => bindingConnected({ binding, hostOccurrence, fieldsById }), [binding, hostOccurrence, fieldsById]);
 
   const writeAndSync = useCallback(
     (nextValue) => {

@@ -4219,3 +4219,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 11:13 *"could you also center the open in browser buttons in glossary"*.
 - 12:03 *"centered in height in the header. look at the latest screenshot"*.
 - 12:15 *"make a button skinnier to match the smaller heights"* — keep the header height, shorten the pill.
+- 12:22 *"can you look at the daily question and make sure its linked (says its not) and the linked text (Daily Question) should be really small"*.
+- 12:23 *"theres a screenshot"* · *"and make it show only on hover"* (the link tag).
+- 12:25 *"it shouldnt be searching via the ui for its signatures. remember the operations should reflect what someone that doesnt have access to the database would have so no signature search"*.

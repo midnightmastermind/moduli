@@ -83,6 +83,18 @@ export function sameLinkValue(a, b) {
 // Walk occurrencesById; return occurrences (other than the host) that share
 // the host's link-field value AND have the selfField present. Skips matches
 // whose current value already equals nextValue (loop prevention).
+/**
+ * Is the binding connected? Its field exists and the host has a value for the field it links by (e.g. its Date).
+ * NOT "another copy shares that value": a day's Daily Question is the only one for its day, and read that way it
+ * always said "Broken link" while working (user, 2026-11-16: "make sure its linked (says its not)"). Pure.
+ */
+export function bindingConnected({ binding, hostOccurrence, fieldsById }) {
+  if (!binding?.selfField || !binding?.link || !hostOccurrence) return false;
+  if (fieldsById && (!fieldsById[binding.selfField] || !fieldsById[binding.link])) return false;
+  const v = hostOccurrence.fields?.[binding.link]?.value;
+  return v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+}
+
 export function findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue }) {
   if (!binding || !hostOccurrence || !occurrencesById) return [];
   // A link-less binding is per-occurrence BY DESIGN and never fans out. This

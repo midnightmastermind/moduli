@@ -21,10 +21,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Link2, Unlink2 } from "lucide-react";
 import { useGridActions } from "../GridActionsContext.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
-import { findLinkedSiblings } from "../state/editorBindings.js";
+import { bindingConnected } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
-const LINK_PROBE = Symbol("link-probe");
 
 // THREE states, not two. A binding that declares no `link` is per-occurrence
 // BY DESIGN (the instance notes body) — reporting it as a "Broken link" would
@@ -53,14 +52,12 @@ function BindingBadge({ field, state }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 3,
-        fontSize: 12,
-        opacity: 0.65,
         color: state === "broken" ? "var(--text-faint, #b06a6a)" : "var(--text-muted, #888)",
         pointerEvents: "none",
         whiteSpace: "nowrap",
       }}
     >
-      {Icon ? <Icon size={10} /> : null}
+      {Icon ? <Icon size={8} /> : null}
       <span>{field?.name || ""}</span>
     </span>
   );
@@ -115,11 +112,7 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
   const { occurrencesById, fieldsById, dispatch, socket } = useGridActions() || {};
   const field = fieldsById?.[binding?.selfField];
 
-  const isLinked = useMemo(() => {
-    if (!binding?.link || !hostOccurrence || !occurrencesById) return false;
-    if (hostOccurrence?.fields?.[binding.link]?.value == null) return false;
-    return findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue: LINK_PROBE }).length > 0;
-  }, [binding, hostOccurrence, occurrencesById]);
+  const isLinked = useMemo(() => bindingConnected({ binding, hostOccurrence, fieldsById }), [binding, hostOccurrence, fieldsById]);
 
   if (!hostOccurrence || !field) return children ?? null;
 
