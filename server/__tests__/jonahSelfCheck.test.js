@@ -168,3 +168,31 @@ describe("missingFromRequest", async () => {
     expect(r.retry).toMatch(/github\.com/);
   });
 });
+
+describe("a question about your own things goes to the grid, not the notes", async () => {
+  const { notesTopicFor } = await import("../services/assistantAgent.js");
+  it.each(["What links are on my Eval Notebook page?", "What's on my schedule today?", "How many books do I have on the board?"])("%s → no notes", (q) => expect(notesTopicFor(q)).toBe(null));
+  it("how Moduli works still reads the notes", () => expect(notesTopicFor("How do feeds work in Moduli?")).toBeTruthy());
+});
+
+describe("the grid's answer in plain words", async () => {
+  const { formatLookup, answerUsesLookup, localLoop } = await import("../services/assistantAgent.js");
+  const r = { name: "Eval Notebook", path: "Eval Notebook", kind: "page doc", count: 0, items: [], sections: [{ name: "Mail" }, { name: "Social" }],
+    links: [{ label: "Gmail", url: "https://mail.google.com" }, { label: "Facebook", url: "https://www.facebook.com" }] };
+  it("says the links, items and sections", () => {
+    expect(formatLookup(r)).toBe("**Eval Notebook** (page doc)\n- 2 links: Gmail (mail.google.com), Facebook (facebook.com)\n- 2 sections: Mail, Social");
+    expect(answerUsesLookup("The tool call was successful.", r)).toBe(false);
+    expect(answerUsesLookup("You have Gmail and Facebook.", r)).toBe(true);
+  });
+  it("an answer that ignores the lookup is replaced by it; one that uses it is left alone", async () => {
+    const tool = { name: "look_up", description: "d", input_schema: { type: "object" }, run: async () => r };
+    for (const [reply, expectAdded] of [["This output confirms that the tool call was successful.", true], ["Your page links Gmail and Facebook.", false]]) {
+      const replies = [{ content: "", toolCalls: [{ id: "c1", function: { name: "look_up", arguments: '{"name":"Eval Notebook"}' } }] }, { content: reply, toolCalls: [] }];
+      let n = 0;
+      const out = await localLoop({ messages: [{ role: "user", content: "what links are on my page?" }], tools: [tool], model: "fast", deps: { streamChat: async () => replies[n++] } });
+      const last = out.transcript.at(-1).content;
+      expect(last.includes("Gmail (mail.google.com)")).toBe(expectAdded);
+      expect(last.startsWith(reply)).toBe(!expectAdded);   // an answer that ignores the lookup is replaced, not kept
+    }
+  });
+});

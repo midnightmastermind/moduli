@@ -563,6 +563,29 @@ export function missingFromRequest(text, preview) {
 }
 
 /**
+ * A look_up result in plain words — what Jonah says when the model's own answer does not pass the data on (the 3B
+ * answered "This output confirms that the tool call was successful", 2026-11-16). Pure; "" for nothing usable.
+ */
+export function formatLookup(r) {
+  if (!r || typeof r !== "object" || r.error || !r.name) return "";
+  const list = (xs, n = 12) => xs.slice(0, n).join(", ") + (xs.length > n ? ` and ${xs.length - n} more` : "");
+  const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+  const parts = [`**${r.path || r.name}**${r.kind ? ` (${r.kind})` : ""}`];
+  if (r.count) parts.push(`${plural(r.count, "item")}: ${list(r.items || [])}`);
+  if ((r.links || []).length) parts.push(`${plural(r.links.length, "link")}: ${list(r.links.map((l) => l.url ? `${l.label} (${host(l.url) || l.url})` : `${l.label} → ${l.to}`))}`);
+  if ((r.sections || []).length) parts.push(`${plural(r.sections.length, "section")}: ${list(r.sections.map((x) => x.name).filter(Boolean))}`);
+  if (parts.length === 1) parts.push("nothing inside it yet");
+  return parts.join("\n- ");
+}
+/** True when an answer passes on at least one name the lookup found (or there was nothing to pass on). */
+export function answerUsesLookup(answer, r) {
+  const names = [...(r?.items || []), ...(r?.links || []).map((l) => l.label), ...(r?.sections || []).map((x) => x.name)].filter(Boolean);
+  if (!names.length) return true;
+  const a = String(answer || "").toLowerCase();
+  return names.some((n) => a.includes(String(n).toLowerCase()));
+}
+
+/**
  * A confirm-tool call, checked first (Jonah, 2026-11-15). A tool with `preview(input)` gets a practice run that writes
  * nothing. Problems on the FIRST check go back to the model to fix (`retry`, the text of the tool result); a clean
  * check, or a second one, becomes the confirm card with the preview attached so the card can draw it. Never throws:
@@ -674,7 +697,17 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
       toolCalls: toolCalls.map(tc => ({ name: tc.function?.name, input: parseToolArgs(tc.function?.arguments) })),
     });
 
-    if (!toolCalls.length) break; // model produced a final answer
+    if (!toolCalls.length) {
+      // The grid's answer, in code's words, when the model's reply does not pass it on.
+      const looked = [...transcript].reverse().find((t) => t.role === "tool" && t.name === "look_up" && t.output && !t.output.error);
+      if (looked && !answerUsesLookup(visibleContent, looked.output)) {
+        const said = formatLookup(looked.output);
+        // REPLACES the model's sentence: one that names nothing it found is at best empty and at worst wrong ("I have
+        // only one link." above two links, 2026-11-16).
+        if (said) transcript[transcript.length - 1].content = said;
+      }
+      break; // model produced a final answer
+    }
 
     // requires_confirm tools are held for user Approve/Decline (see llmLoop).
     const pending = [];
@@ -908,6 +941,9 @@ export function notesTopicFor(text) {
   const t = String(text || "");
   const asksHow = /\b(how|what|why|where|explain)\b/i.test(t) && (/\bmoduli\b/i.test(t) || MODULI_WORDS.test(t));
   if (!asksHow) return null;
+  // About the user's OWN things ("what links are on MY page", "what's on my schedule") is a question for the grid
+  // (look_up), not for the notes on how Moduli works — answered from the notes, it had no tools and said "no links".
+  if (/\b(my|mine|i have|do i|i've|i've got)\b/i.test(t)) return null;
   const words = t.toLowerCase().replace(/[^a-z0-9-]+/g, " ").split(" ").filter((w) => w && !NOTE_STOP.has(w));
   return words.length ? words.join(" ") : null;
 }
