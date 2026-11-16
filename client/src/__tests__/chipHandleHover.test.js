@@ -18,4 +18,10 @@ describe("hoverShowsHandle", () => {
     expect(hoverShowsHandle(arrow)).toBe(false);
     expect(hoverShowsHandle(icon)).toBe(false);
   });
+  // 2026-11-16: "its the space in between them" · "and on the outsides of the icons" — the chip element itself (its
+  // padding and the gap between ↗ and 🌐) is not text.
+  it("the gap between the buttons and the padding around them do not", () => {
+    expect(hoverShowsHandle(chip)).toBe(false);
+    expect(hoverShowsHandle(null)).toBe(false);
+  });
 });

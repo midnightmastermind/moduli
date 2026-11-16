@@ -4201,3 +4201,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 - *"is there also any way to have the open all in browser buttons to open with firefox instead of edge, im opening it from the desktop app which is edge i guess"* (question).
 - 08:09 *"also movie and music viafluere is not opening radarr and the other one"* · *"its opening jellyfin"*.
 - 08:13 *"whats deploys password"* — none exists (key-only, no sudo). Root via key works: movie./music. enabled + certs; both serve Radarr / Lidarr logins.
+
+### 2026-11-16 08:26 CST
+- *"please continue with what you were working on before the crashes and also when i hover over a minitextblock link buttons, its still showing the drag handle, i think the threshold is off."*
+- 08:26 *"its the space in between them"* · *"and on the outsides of the icons"* — the gap between ↗/🌐 and the padding around them showed the handle.
