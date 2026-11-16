@@ -2360,6 +2360,30 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     return { rec: (model, id, before, after) => recordDoc({ userId, gridId, actionId, model, id, before, after, label }), done: () => flushAction(actionId) };
   };
 
+  // GET /lookup?gridId&name — what a named page / board / section holds (Jonah's look_up). Same name rules as
+  // /change (a path picks by parent; several = the options, never a guess).
+  router.get("/lookup", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { gridId, name } = req.query;
+      if (!gridId || !name) return err(res, 400, "validation_error", "gridId and name required");
+      const hit = await pickOrAnswer(res, gridId, name);
+      if (!hit) return;
+      const occs = {}; let frontier = [hit.occ.id];
+      for (let depth = 0; frontier.length && depth <= 5; depth++) {
+        const rows = await Occurrence.find({ gridId, id: { $in: frontier } }).lean();
+        frontier = [];
+        for (const r of rows) if (!occs[r.id]) { occs[r.id] = r; frontier.push(...(r.occurrences || [])); }
+      }
+      // in-app link targets, so a link names where it goes
+      const targets = Object.values(occs).map((o) => o.meta?.link?.occId).filter((id) => id && !occs[id]);
+      for (const r of await Occurrence.find({ gridId, id: { $in: targets } }).lean()) occs[r.id] = r;
+      const mods = {};
+      for (const m of await Module.find({ gridId, id: { $in: [...new Set(Object.values(occs).map((o) => o.moduleId))] } }).lean()) mods[m.id] = m;
+      const { summarizeSubtree } = await import("../services/buildEdit.js");
+      res.json({ ok: true, path: hit.parentLabel ? `${hit.parentLabel} › ${hit.occ.label || hit.module?.label}` : (hit.occ.label || hit.module?.label), ...summarizeSubtree(hit.occ.id, occs, mods) });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
   // POST /change — { gridId, name, rename?, fields?, moveTo? }.
   router.post("/change", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {

@@ -52,7 +52,7 @@ export const OFFLINE_SYSTEM_PROMPT = `You are Jonah, the assistant for the Modul
 Act by calling tools. Before a tool call write ONE short sentence saying what you are doing; after it, confirm in one sentence.
 - Build in ONE call. A page with sections, links or buttons (a doc page, a glossary, a dashboard) is ALWAYS build. A plain board of rows is create_board. Rows into an existing container is create_items. Tools: build, create_board (rows as one line each, see its description), create_items (many items into one container named by path like "Tasks › Appointments", fields given BY FIELD NAME; a dropdown value that does not exist is added; for something on many dates send ONE item with repeat {from, to, weekdays} instead of listing dates), add_filter (filter on a page/container, nav showing).
 - Single things: create_occurrence (label + parentId), set_occurrence_field, create_field (a select takes options), save_bookmark (one link), import_url (a page from a link), wikipedia_search / wikipedia_import. change / remove a thing by name; undo takes back the last change.
-- Look up: list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
+- Look up: look_up (answer about the grid from it, never from memory), list_folders, list_fields, list_occurrences, get_occurrence, run_operation, jonah_notes (how Moduli works).
 Names, not ids, in the build tools. Dates as YYYY-MM-DD, durations like "4h", times like "4:00pm". Never invent ids; use one from KNOWN PLACES or a list_* result. Put everything the user listed into ONE build call. Never write out a list of dates yourself — use repeat. After creating, say how many were made. Items in a container are "instances". If something is ambiguous, ask one question.`;
 
 const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace. Persona: a sophisticated, unflappable turtle butler with a long Gandalf-like beard. Style: dry, precise, faintly formal; wise and patient, never folksy. Brief by default; expansive only when answering a genuine research question.
@@ -116,7 +116,7 @@ const OFFLINE_CORE_TOOLS = new Set([
   "create_occurrence", "set_occurrence_field", "create_field",
   "save_bookmark", "import_url", "wikipedia_search", "wikipedia_import",
   "list_folders", "list_fields", "list_occurrences", "get_occurrence",
-  "run_operation", "jonah_notes",
+  "run_operation", "jonah_notes", "look_up",
 ]);
 
 function offlineToolAllowlist() {
@@ -460,7 +460,7 @@ export function pickModel(text) {
 }
 // A question goes to the fast model, and the fast model only READS: asked "how many movies are on my Movies board?",
 // llama3.2 3B answered by calling create_board (eval, 2026-11-15). Reading tools are named for what they do.
-const READ_TOOL = /^(list_|get_|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$)/;
+const READ_TOOL = /^(list_|get_|look_up$|wikipedia_search$|wikipedia_summary$|wikipedia_links$|jonah_notes$)/;
 // A request for a PAGE (a doc page, a glossary, a dashboard, sections) without a board in it is a `build`: with the
 // first turn forced to a tool call, the 7B picked create_occurrence or create_board for the glossary (eval,
 // 2026-11-15). Those requests are not offered the one-row creators or create_board, so a forced call cannot land on
@@ -628,7 +628,9 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
           body: buildChatBody({ model: useModel, messages: apiMessages, tools, stream: true, maxTokens: LLM_NUM_PREDICT,
             // …and so must the turn right after a self-check sent a build back: the model otherwise answers "let's
             // fix that" in words and nothing is built (measured 2 of 4 glossary runs, 2026-11-15).
-            toolChoice: (toolIterations === 0 || mustCallTool) && useModel === modelIdFor("build") && tools.length ? "required" : undefined }),
+            // A question's first turn too: the 3B said "I'm calling list_occurrences" and answered from nothing
+            // (0 of 4 known-answer questions, 2026-11-16). Only when it has tools — an explanation from the notes has none.
+            toolChoice: (toolIterations === 0 || mustCallTool) && tools.length ? "required" : undefined }),
           signal: ctrl.signal,
           onToken: (delta) => onProgress({ phase: "token", delta }),
         });

@@ -671,6 +671,16 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
 
     // ── Folders (manifest-tree organization) ──────────────────────────────
     {
+      name: "look_up",
+      description: "What a named page/board/section holds: sections, items + count, links.",
+      input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      destructive: false,
+      run: async ({ name }) => {
+        const r = await call("GET", `/lookup?${new URLSearchParams({ gridId, name: String(name || "") })}`);
+        return r.body || { error: `look_up: ${r.status}` };
+      },
+    },
+    {
       name: "list_folders",
       description: "List folders (the tree that organizes pages/docs). Filter by parentId.",
       input_schema: { type: "object", properties: { parentId: { type: "string" } } },

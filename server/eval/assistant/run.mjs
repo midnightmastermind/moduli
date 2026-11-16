@@ -45,8 +45,14 @@ async function cleanup(before) {
   return Object.fromEntries(COLS.map((c) => [c, [made[c].length, made[c].filter((id) => left[c].has(id)).length]]));
 }
 
-async function check(c, made, setupIds = null) {
-  if (c.kind === "question") return { passed: made.occurrences.length === 0 && made.modules.length === 0, why: made.occurrences.length ? "wrote rows" : "" };
+async function check(c, made, setupIds = null, answerText = "") {
+  if (c.kind === "question") {
+    // A question writes nothing beyond what its setup built, and (when the case knows the answer) says it.
+    const extra = made.occurrences.filter((id) => !(setupIds?.occurrences || []).includes(id));
+    const said = String(answerText || "");
+    const missing = (c.check?.answerHas || []).filter((alts) => ![].concat(alts).some((a) => new RegExp(a, "i").test(said)));
+    return { passed: extra.length === 0 && missing.length === 0, why: [extra.length ? `wrote ${extra.length} rows` : "", missing.length ? `answer lacks ${JSON.stringify(missing)}` : ""].filter(Boolean).join("; ") };
+  }
   const occs = await db.collection("occurrences").find({ gridId, id: { $in: made.occurrences } }).toArray();
   const mods = new Map((await db.collection("modules").find({ gridId, id: { $in: occs.map((o) => o.moduleId) } }).toArray()).map((m) => [m.id, m]));
   const labelOf = (o) => o.label || mods.get(o.moduleId)?.label || "";
@@ -129,7 +135,8 @@ for (const c of cases) {
   const wallMs = Date.now() - t0;
   const after = await idsNow();
   const made = Object.fromEntries(COLS.map((k) => [k, [...after[k]].filter((id) => !before[k].has(id))]));
-  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made, setupIds);
+  const fullAnswer = (out?.transcript || []).filter((t) => t.role === "assistant").map((t) => t.content).join(" ");
+  const verdict = err ? { passed: false, why: err.slice(0, 120) } : await check(c, made, setupIds, fullAnswer);
   const madeKinds = await kindsOf(made);
   const removed = await cleanup(before);
   before = null;

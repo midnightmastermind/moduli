@@ -100,3 +100,35 @@ export function stripEmbeds(textmap, ids) {
   const next = walk(textmap);
   return changed ? next : null;
 }
+
+/**
+ * What a named thing holds, for a question (Jonah's look_up, 2026-11-16: the 3B claimed to look things up and
+ * answered "0 links" / "4 books" for a page with 2 links and a board with 3 books). Walks the listed children
+ * (depth ≤ 4) and sorts what it meets: sections, items (instances, files, bookmarks), links (link chips + bookmarks).
+ * `count` is the items. Pure: rows and modules are handed in. Lists are capped; `count` is not.
+ */
+export function summarizeSubtree(rootId, occurrencesById, modulesById, { cap = 40 } = {}) {
+  const root = occurrencesById[rootId];
+  if (!root) return null;
+  const label = (o) => o.label || modulesById[o.moduleId]?.label || "";
+  const sections = []; const items = []; const links = [];
+  const seen = new Set([rootId]);
+  const walk = (o, depth) => {
+    for (const id of o.occurrences || []) {
+      const c = occurrencesById[id]; if (!c || seen.has(id) || depth > 4) continue;
+      seen.add(id);
+      const m = modulesById[c.moduleId] || {};
+      const link = c.meta?.link || m.meta?.link;
+      if (link?.kind === "url" || link?.url) links.push({ label: label(c), url: link.url });
+      else if (link?.kind === "occurrence") links.push({ label: label(c), to: label(occurrencesById[link.occId] || {}) || link.occId });
+      else if (m.kind === "bookmark") { links.push({ label: label(c), url: m.fileRef || c.meta?.url }); items.push(label(c)); }
+      else if (m.role === "container" || m.role === "page") sections.push({ name: label(c), holds: (c.occurrences || []).length });
+      else if (m.role === "instance" || m.role === "artifact") items.push(label(c));
+      walk(c, depth + 1);
+    }
+  };
+  walk(root, 0);
+  const m = modulesById[root.moduleId] || {};
+  return { name: label(root), kind: [m.role, m.kind].filter(Boolean).join(" "), count: items.length,
+    items: items.slice(0, cap), sections: sections.slice(0, cap), links: links.slice(0, cap) };
+}

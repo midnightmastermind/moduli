@@ -60,3 +60,25 @@ describe("normalizeTargetName", async () => {
     expect(pickByName("Social section from Eval Notebook page", cands).hit.occ.id).toBe("s1");
   });
 });
+
+describe("summarizeSubtree", async () => {
+  const { summarizeSubtree } = await import("../services/buildEdit.js");
+  it("sorts what a page holds into sections, items (counted) and links", () => {
+    const occ = {
+      p: { id: "p", moduleId: "mp", occurrences: ["s", "d"] },
+      s: { id: "s", moduleId: "ms", occurrences: ["a", "b", "c"] },
+      a: { id: "a", moduleId: "mi", label: "Dune" }, b: { id: "b", moduleId: "mi", label: "Emma" }, c: { id: "c", moduleId: "mi", label: "Ulysses" },
+      d: { id: "d", moduleId: "md", occurrences: ["t"] },
+      t: { id: "t", moduleId: "mt", occurrences: ["l", "k"] },
+      l: { id: "l", moduleId: "ml", label: "Gmail", meta: { link: { kind: "url", url: "https://mail.google.com" } } },
+      k: { id: "k", moduleId: "ml2", label: "Tasks", meta: { link: { kind: "occurrence", occId: "x" } } },
+      x: { id: "x", moduleId: "mx", label: "Tasks page" },
+    };
+    const mod = { mp: { role: "page", kind: "board", label: "Eval Books" }, ms: { role: "container", label: "Shelf" }, mi: { role: "instance" },
+      md: { role: "container", kind: "doc", label: "Mail" }, mt: { role: "textblock", kind: "doc" }, ml: { role: "textblock", kind: "inline" }, ml2: { role: "textblock", kind: "inline" }, mx: { role: "page" } };
+    const r = summarizeSubtree("p", occ, mod);
+    expect(r).toMatchObject({ name: "Eval Books", kind: "page board", count: 3, items: ["Dune", "Emma", "Ulysses"] });
+    expect(r.sections.map((x) => x.name)).toEqual(["Shelf", "Mail"]);
+    expect(r.links).toEqual([{ label: "Gmail", url: "https://mail.google.com" }, { label: "Tasks", to: "Tasks page" }]);
+  });
+});

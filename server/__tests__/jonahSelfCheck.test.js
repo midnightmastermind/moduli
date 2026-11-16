@@ -59,11 +59,18 @@ describe("a build turn must call a tool", () => {
     expect(bodies[0].tool_choice).toBe("required");
     expect(bodies[1].tool_choice).toBeUndefined();
   });
-  it("the fast model is never forced", async () => {
+  // INVERTED 2026-11-16: a question's first turn is forced too — the 3B answered from nothing ("I'm calling
+  // list_occurrences… you have 0 links", 0 of 4 known-answer questions). An explanation from the notes gets no tools,
+  // and with no tools nothing is forced.
+  it("a question's first turn must call a tool; with no tools nothing is forced", async () => {
     const bodies = [];
     await localLoop({ messages: [{ role: "user", content: "what is due?" }], tools: [{ name: "t", description: "d", input_schema: {}, run: async () => ({}) }], model: "fast",
       deps: { streamChat: async ({ body }) => { bodies.push(body); return { content: "x", toolCalls: [] }; } } });
-    expect(bodies[0].tool_choice).toBeUndefined();
+    expect(bodies[0].tool_choice).toBe("required");
+    const none = [];
+    await localLoop({ messages: [{ role: "user", content: "how do feeds work?" }], tools: [], model: "fast",
+      deps: { streamChat: async ({ body }) => { none.push(body); return { content: "x", toolCalls: [] }; } } });
+    expect(none[0].tool_choice).toBeUndefined();
   });
 });
 

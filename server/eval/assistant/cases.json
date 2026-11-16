@@ -91,5 +91,61 @@
     "check": {
       "edit": "undo"
     }
+  },
+  {
+    "id": "q-count",
+    "kind": "question",
+    "setup": [
+      {
+        "page": "Eval Books",
+        "kind": "board",
+        "children": [
+          {
+            "section": "Shelf",
+            "children": [
+              {
+                "item": "Dune"
+              },
+              {
+                "item": "Emma"
+              },
+              {
+                "item": "Ulysses"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "text": "How many books are on my Eval Books board?",
+    "check": {
+      "answerHas": [
+        [
+          "\\b3\\b",
+          "\\bthree\\b"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "q-links",
+    "kind": "question",
+    "setup": [
+      {
+        "page": "Eval Notebook",
+        "markdown": "## Mail\n- [Gmail](https://mail.google.com)\n## Social\n- [Facebook](https://www.facebook.com)"
+      }
+    ],
+    "text": "What links are on my Eval Notebook page?",
+    "check": {
+      "answerHas": [
+        [
+          "Gmail"
+        ],
+        [
+          "Facebook"
+        ]
+      ]
+    }
   }
 ]

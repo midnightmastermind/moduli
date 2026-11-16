@@ -427,12 +427,12 @@ export function buildToolPack({ call, gridId }) {
       input_schema: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Board name" },
-          folder: { type: "string", description: "Folder name or path, e.g. Interfaces" },
+          name: { type: "string" },
+          folder: { type: "string" },
           selectFields: { type: "array", items: { anyOf: [{ type: "string" }, { type: "object", properties: { name: { type: "string" }, options: { type: "array", items: { type: "string" } }, multiSelect: { type: "boolean" } }, required: ["name", "options"] }] } },
-          field: { type: "string", description: "The select field a row's third part sets" },
+          field: { type: "string" },
           rows: { type: "array", items: { anyOf: [{ type: "string" }, { type: "object", properties: { label: { type: "string" }, url: { type: "string" }, fields: { type: "object", additionalProperties: true } }, required: ["label"] }] } },
-          filterField: { type: "string", description: "Field name to add a filter for (nav showing)" },
+          filterField: { type: "string" },
         },
         required: ["name", "folder"],
       },
