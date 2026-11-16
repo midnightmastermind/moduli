@@ -30,8 +30,16 @@ as well as undo. do that after the create"* · practice on the glossary. Spec
   mirrors the cache, broadcasts, attaches into an existing `under` parent (list + doc embed).
 - **Jonah's tool `build`** (confirm card; in the offline allowlist; the prompt says a page with sections/links/buttons
   is ALWAYS build). Eval: glossary 2 of 4 after four rounds of reading its habits (was 0); CPS 6/7, Quick Links 4/4.
-- **Phase 2, not started:** `change` / `remove` / `undo` (one `build` should be one undo step — the route records no
-  transaction yet).
+- **Phase 2 (same day): `change` · `remove` · `undo`.** `/build`, `/change`, `/remove` each record ONE undo step
+  (txRecorder, one actionId). `POST /api/v1/undo` = Ctrl+Z's rules: the socket handler's undo moved VERBATIM into
+  `socketHandlers/undoCore.js` (`makeUndoCore`, `undoTop`), both call it. `services/buildEdit.js` (pure, 10 tests):
+  `pickByName` (a path "Page › Section" picks by parent; a page beats a row; still several = "could mean several" +
+  the options, never a guess), `planChange` (a module placed once is renamed, a shared one gets the name on this
+  placement; field values coerced and bound), `subtreeIds`, `stripEmbeds`. `/change` = rename · fields · moveTo
+  (unlinks + un-embeds from the old parent, links + embeds into the new); `/remove` = the occurrence + its listed
+  subtree, the parent's list and embed. Jonah's tools `change` / `remove` / `undo` (all confirm). **Watched on prod,
+  test grid 2 (REST, cleaned up):** build → rename → move → remove (6) → one undo restores all 7 docs, listed again.
+  **Not run through the model yet** (no eval case for change/remove).
 
 ---
 
