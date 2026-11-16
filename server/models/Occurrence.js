@@ -40,6 +40,12 @@ const OccurrenceSchema = new mongoose.Schema(
     // visibility. Consumed by ModuleInstance via getEffectiveFieldVisibility.
     fieldVisibility: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // Auto-applied fields (2026-11-16): field ids EVERY occurrence at or under this one has, without its module
+    // binding them — nearest level wins (client state/selectors.getEffectiveAutoAppliedFieldIds), the grid's
+    // meta.autoAppliedFieldIds is the root. null/absent = inherit, [] = none here or below. Undeclared until today,
+    // so strict mode dropped it on every save and only the grid level ever worked.
+    autoAppliedFieldIds: { type: [String], default: undefined },
+
     // Feed (2026-07-07): pull-query rendering. When set + enabled, renderers
     // display occurrences matching `conditions` (filter-menu condition rows)
     // ALONGSIDE the occurrence's own children. Pure VIEW — pulled items are

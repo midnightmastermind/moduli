@@ -88,6 +88,7 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { toast } from "../state/notificationStore";
 import SortSection from "../ui/SortSection";
 import { nextDragMode } from "../helpers/dragModes";
+import AutoAppliedFieldsSection from "../ui/AutoAppliedFieldsSection.jsx";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -1543,7 +1544,7 @@ function Panel({
             tabs={[
               { id: "filter", label: "Filter", content: <FiltersSection occurrence={panelOccurrence} /> },
               { id: "sort",   label: "Sort",   content: <SortSection occurrence={panelOccurrence} /> },
-              { id: "fields", label: "Fields", content: <FieldVisibilitySection occurrence={panelOccurrence} /> },
+              { id: "fields", label: "Fields", content: <><FieldVisibilitySection occurrence={panelOccurrence} /><AutoAppliedFieldsSection occurrence={panelOccurrence} /></> },
               { id: "layout", label: "Layout", content: <LayoutCascadeSection occurrence={panelOccurrence} /> },
             ]}
           />

@@ -4183,3 +4183,16 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-16 03:58 CST
 - *"please continue"* (Jonah: speed next). *"also i want real updated responses from the chat like you do"* — read as: Jonah's window shows a running log of what it is doing (each step, what it found, what it is fixing), like Claude Code narrates, instead of one "thinking" bar.
+
+### 2026-11-16 07:31 CST
+- *"i noticed we have a done and completed fields. im not sure what done is but every task should have completed attached to it. the ones marked done werent put in the done container like the completed fields are. tell me what done is"* (question — investigate, report).
+
+### 2026-11-16 07:33 CST
+- *"all tasks should have a completed field, thats a must for the tasks container (we should have a setting that gives them all the [completed] field)"*.
+
+### 2026-11-16 07:35 CST
+- *"yes lets do what you suggested to 2 and 3"* — (2) every task gets Completed (a Tasks-level setting), (3) drop the Done field; the Done section hides tasks whose Completed On is before today.
+- 07:36 *"dont mark them completed if they are not marked done, keep it unchecked"* — only rows marked Done get Completed ticked (Completed On = when they were marked); every other task gains the field unticked.
+                                                                                                                                                               
+### 2026-11-16 07:47 CST
+- *"also figure out why i cant watch any shows, i get an error"* · WSL keeps crashing (full test suites skipped; targeted tests only).

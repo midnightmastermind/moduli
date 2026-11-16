@@ -107,6 +107,7 @@ function LabelShell({ mode, style, children, ...rest }) {
 }
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
+import AutoAppliedFieldsSection from "../ui/AutoAppliedFieldsSection.jsx";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
@@ -2312,7 +2313,7 @@ function Container({
                       is drawn is not a filtering concern. */}
                 </>
               ) },
-              { id: "fields", label: "Fields", content: <FieldVisibilitySection occurrence={containerOccurrence} /> },
+              { id: "fields", label: "Fields", content: <><FieldVisibilitySection occurrence={containerOccurrence} /><AutoAppliedFieldsSection occurrence={containerOccurrence} /></> },
               { id: "layout", label: "Layout", content: (
                 <>
                   <ViewModeSection occurrence={containerOccurrence} />

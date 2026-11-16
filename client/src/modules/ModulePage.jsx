@@ -29,6 +29,7 @@ import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
 import GraphSection from "../ui/GraphSection";
 import SortSection from "../ui/SortSection";
+import AutoAppliedFieldsSection from "../ui/AutoAppliedFieldsSection.jsx";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import FieldBindingsSection from "../ui/FieldBindingsSection";
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
@@ -1024,6 +1025,7 @@ function Page({
               { id: "fields", label: "Fields", content: (
                 <>
                   <FieldVisibilitySection occurrence={occurrence} />
+                  <AutoAppliedFieldsSection occurrence={occurrence} />
                   <FieldBindingsSection occurrence={occurrence} />
                 </>
               ) },
