@@ -21,6 +21,11 @@ The 3B runs on the CPU because with the 7B on the Radeon there is no device memo
 (`ErrorOutOfDeviceMemory`, 2026-11-15), and writing speed is memory-bound either way.
 The coder model wrote its tool calls as text (`<tools>{...}</tools>`); Jonah still recovers that (`parseContentToolCall`).
 
+## Tried and not kept (2026-11-16)
+A draft model (Qwen2.5 0.5B Instruct Q8, 676 MB) for speculative decoding, same replayed glossary build:
+Radeon 8.4 tok/s, CPU 7.7, 8-token drafts 7.8, draft + ngram-simple 9.4 — all below ngram-simple alone (10.1). It
+guessed well (~83% accepted) but checking a guess costs the 7B nearly a full pass on this iGPU. File deleted.
+
 ## Benchmarking a setting
 Record a run's requests with a proxy in front of :8080, then replay them at temperature 0 against a llama-server on a
 spare port with the setting (stop the task first — the Radeon holds one 7B). Compare `timings.predicted_per_second`;
