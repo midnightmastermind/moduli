@@ -13,6 +13,21 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-16 (3) — JONAH ACTS ON WHAT YOU SELECTED; it offers to open what it made
+
+User: *"continue with what you were working on"* (the Jonah list: act on what you're looking at; link to what it made).
+- **Selection:** `AssistantDrawer.describeSelection` sends the multi-selection as `context.selection` = [{id, label, path}]
+  (≤20); `assistantAgent.buildSelectionHint` puts them in the request's note ("these" / "this" mean exactly these, pass
+  each id); `/change` and `/remove` take `id` (`hitById`), the tools' `name` is no longer required. The window, its
+  backdrop and the turtle carry `data-selection-keep`, so typing in Jonah does not end the selection; a confirmed
+  change/remove of a selected id ends it. **The model invents ids when nothing is selected** ("someSocialSectionId"):
+  an id that names nothing falls back to the name given beside it. Eval case `edit-remove-selected` ("Delete these."):
+  2/2; edit-remove 2/2, edit-rename, edit-undo pass.
+- **What it made:** `/build` → `rootOccurrenceId`, `/change` → `occurrenceId`; `extractCreatedOccId` accepts an `ok:false`
+  reply that carries an id (a build with a leftover problem still made the page) → the panel card offers to open it.
+
+---
+
 ### 2026-11-16 (2) — DONE BECOMES COMPLETED (`0503`); "Every item here gets"; chip handle + grab cursor; movie./music.
 
 User: *"all tasks should have a completed field … a setting that gives them all the completed field"* · 2 and 3 (drop
