@@ -13,6 +13,26 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-16 — JONAH: a running log in the window; builds ~2× faster; the check reads the request
+
+User: *"please continue"* · *"also i want real updated responses from the chat like you do"*.
+- **Running log:** the agent sends one sentence per step (`{phase:"step", text, status}` — `describeCall`,
+  `describeResult`, and holdForConfirm's "Checking it first…", "Found 1 problem: … — fixing", "Check passed: 1 page,
+  6 sections, 9 links", "Waiting for you to approve"). `AssistantDrawer` collects them (`StepLog`, live line blinks,
+  seconds into the request) and keeps the log in the history above the answer; the approval logs "Approved — writing
+  it" then what was made. Watched on prod (test grid 2, a read-only question).
+- **Found while watching:** the window sent its whole list (cards, tool results, `_meta`) to the model as chat turns —
+  `conversationOnly` keeps what was said. `list_folders` with a made-up parent id returned nothing and Jonah said "you
+  have no folders" — `listFoldersAnswer` lists all and says so.
+- **Speed:** `--spec-type ngram-simple` on the build model (llama-swap) — same output, 7.2 -> 10 tok/s on a replayed
+  build (20 on a corrected one). Page requests keep narrowed tools (11 of 14 vs 3 of 7 with a steering note), the
+  dropped ones LAST so prompt reuse survives a switch better. Glossary runs 63-70s (were 85-140s).
+- **`missingFromRequest`:** a typed web address the plan left out, or buttons asked for and none made, go back to the
+  model. Glossary **4 of 4**, each first time. Markdown: a label before one link is that link; `[Open Mail](url)` is the
+  Mail section's button. Eval records write speed. Server 3,751 / client 7,558.
+
+---
+
 ### 2026-11-15 (8) — JONAH: glossary 4 of 4; change / remove / undo pass through the model; the window is half height
 
 User: *"make the height of the terminal window less, like half the size. and then continue with the jonah improvementx"*.

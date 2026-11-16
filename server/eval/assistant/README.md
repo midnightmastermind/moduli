@@ -97,3 +97,17 @@ weekdays written as a field — model variance; the next two passed).
   route now reads that as "Eval Notebook › Social" (`buildEdit.normalizeTargetName`) and the tools describe the
   path form. "undo/change/edit/update/fix" now route to the build model (undo went to the read-only one).
 - CPS 1/1 (25s), Quick Links 1/1 (94s) after the changes.
+
+## 2026-11-16 — speed (n-gram speculation), the running log, and the check reads the request
+
+- The eval records `writeTok` / `writeTokPerS` (llama-server timings). Writing is most of every run: a glossary build
+  writes 480-640 tokens at 6.5-7 tok/s.
+- **`--spec-type ngram-simple`** on the build model (no draft model): replaying a recorded glossary build at
+  temperature 0, 7.2 -> 10.1 tok/s overall — a corrected build (which copies the first) 7.1 -> 20 tok/s, a first
+  build unchanged. ngram-mod / ngram-map-k / ngram-cache and shorter lookups were slower. `infra/llm/README.md`.
+- **Prompt reuse:** narrowing the tools for a page request made the next other request re-read ~4,200 tokens (~80s).
+  Dropped tools now sit LAST (the page list is the start of the full list): ~2,600 (~50s) on a switch, none otherwise.
+  Same tools + a steering note instead kept the reuse but passed 3 of 7 against narrowed 11 of 14 — not kept.
+- **The check reads the request** (`missingFromRequest`): a web address the user gave and the plan left out, or
+  buttons asked for and none made, go back like any problem. Glossary **4 of 4, 63-70s, each right first time**.
+- Markdown habits read: `- **Schedule**: [[Schedule]]`, `[Open Mail](url)` (a section's button), `**[Open all]**`.
