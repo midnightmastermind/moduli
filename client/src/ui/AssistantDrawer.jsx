@@ -57,7 +57,7 @@ function BuildPreview({ msg }) {
       {tree ? (
         <div data-testid="build-preview" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {tree.roots.slice(0, 3).map((id) => (
-            <div key={id} style={{ height: 260, overflow: "hidden", borderRadius: 5, border: "1px solid rgba(255,255,255,0.10)", background: "var(--panel-bg)" }}>
+            <div key={id} style={{ height: "min(56vh, 560px)", overflow: "hidden", borderRadius: 5, border: "1px solid rgba(255,255,255,0.10)", background: "var(--panel-bg)" }}>
               <React.Suspense fallback={<div style={{ padding: 8, opacity: 0.6 }}>Drawing the page…</div>}>
                 <PagePreviewBody parentState={tree.state} occurrenceId={id} scroll rootChrome publishComputed={false} />
               </React.Suspense>
@@ -489,32 +489,23 @@ export default function AssistantDrawer() {
         ><TurtleButler size={34} /></button>
       )}
 
-      {/* Slide-in chat drawer */}
+      {/* A terminal window in the centre of the screen (user, 2026-11-15: "dont make it a little chatbox … a
+          terminal that opens up in the center of the screen with an x button … that way the preview page can be
+          bigger"). The turtle stays as the button that opens it. Only X and Escape close it — a stray click on
+          the dimmed grid behind must not throw away a half-typed request. */}
+      {open && <div className="jonah-terminal-backdrop" aria-hidden="true" />}
       {open && (
         <div
           data-assistant-drawer
-          style={{
-            position: "fixed", right: 16, bottom: 16, zIndex: 9001,
-            width: 380, maxWidth: "calc(100vw - 32px)",
-            height: 560, maxHeight: "calc(100vh - 32px)",
-            background: "var(--surface, #1d2125)",
-            color: "var(--text-primary, #f0f0f0)",
-            border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
-            borderRadius: 10,
-            boxShadow: "var(--menu-shadow-3)",
-            display: "flex", flexDirection: "column",
-            fontFamily: "var(--font-mono, monospace)",
-            fontSize: 12,
-          }}
+          role="dialog"
+          aria-label="Jonah"
+          className="jonah-terminal"
         >
-          {/* Header */}
-          <div style={{
-            padding: "8px 12px", display: "flex", alignItems: "center", gap: 8,
-            borderBottom: "1px solid var(--border-default, rgba(255,255,255,0.08))",
-          }}>
+          {/* Title bar */}
+          <div className="jonah-terminal-titlebar">
             <TurtleButler size={20} />
-            <span style={{ fontWeight: 600, letterSpacing: 0.5 }}>Jonah</span>
-            <span style={{ opacity: 0.5, fontSize: 10 }}>at your service</span>
+            <span style={{ fontWeight: 600, letterSpacing: 0.5 }}>jonah</span>
+            <span style={{ opacity: 0.45, fontSize: 11 }}>~ at your service</span>
             <span style={{ flex: 1 }} />
             {location && (
               <span
@@ -529,7 +520,7 @@ export default function AssistantDrawer() {
             )}
             <button onClick={() => setShowSettings(s => !s)} style={iconBtn} title="Settings">⚙</button>
             <button onClick={clearHistory} style={iconBtn} title="Clear history">⌫</button>
-            <button onClick={() => setOpen(false)} style={iconBtn} title="Close">×</button>
+            <button onClick={() => setOpen(false)} className="jonah-terminal-close" title="Close (Esc)" aria-label="Close Jonah">×</button>
           </div>
 
           {/* Settings panel */}
@@ -568,7 +559,7 @@ export default function AssistantDrawer() {
           )}
 
           {/* Transcript */}
-          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div ref={scrollRef} className="jonah-terminal-body">
             {messages.length === 0 && (
               <div style={{ opacity: 0.65, fontSize: 11, padding: 8, lineHeight: 1.6 }}>
                 <div style={{ marginBottom: 6, opacity: 0.85 }}>Try, for example:</div>
@@ -604,12 +595,7 @@ export default function AssistantDrawer() {
             {busy && (
               <>
                 {streamingText && (
-                  <div style={{
-                    alignSelf: "flex-start", maxWidth: "90%",
-                    background: "rgba(255,255,255,0.06)", color: "inherit",
-                    padding: "6px 10px", borderRadius: 8,
-                    whiteSpace: "pre-wrap", wordBreak: "break-word",
-                  }}>
+                  <div className="jonah-line">
                     {streamingText}<span style={{ opacity: 0.5 }}>▋</span>
                   </div>
                 )}
@@ -618,25 +604,21 @@ export default function AssistantDrawer() {
             )}
           </div>
 
-          {/* Input */}
-          <div style={{ padding: 8, borderTop: "1px solid var(--border-default, rgba(255,255,255,0.08))", display: "flex", gap: 6 }}>
+          {/* Prompt line */}
+          <div className="jonah-terminal-prompt">
+            <span className="jonah-terminal-caret" aria-hidden="true">›</span>
             <textarea
               value={input}
+              autoFocus
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Ask Jonah…"
+              aria-label="Ask Jonah"
               rows={2}
-              style={{
-                flex: 1, fontFamily: "inherit", fontSize: 12, padding: 6,
-                background: "var(--input-bg, #14171c)", color: "inherit", resize: "none",
-                border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
-                borderRadius: 4,
-              }}
             />
-            <button onClick={send} disabled={busy || !input.trim()} style={{
-              padding: "0 12px", background: "var(--accent-blue, #4372ac)", color: "white",
-              border: "none", borderRadius: 4, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.5 : 1,
-            }}>Send</button>
+            <button onClick={send} disabled={busy || !input.trim()} className="jonah-terminal-send" title="Send (Enter)">
+              {busy ? "…" : "↵ send"}
+            </button>
           </div>
         </div>
       )}
@@ -662,15 +644,10 @@ function MessageBubble({ msg, busy = false, onResolveConfirm, onAsk }) {
     return <PanelPickCard occId={msg.occId} />;
   }
   const isUser = msg.role === "user";
+  // Terminal lines, not bubbles: what you typed after a prompt mark, Jonah's answer under it.
   return (
-    <div style={{
-      alignSelf: isUser ? "flex-end" : "flex-start",
-      maxWidth: "90%",
-      background: isUser ? "var(--accent-blue, #4372ac)" : "rgba(255,255,255,0.06)",
-      color: isUser ? "white" : "inherit",
-      padding: "6px 10px", borderRadius: 8,
-      whiteSpace: "pre-wrap", wordBreak: "break-word",
-    }}>
+    <div className={isUser ? "jonah-line jonah-line--user" : "jonah-line"}>
+      {isUser && <span className="jonah-terminal-caret" aria-hidden="true">› </span>}
       {msg.content}
       {msg.toolCalls?.length > 0 && (
         <div style={{ fontSize: 9, opacity: 0.6, marginTop: 4 }}>

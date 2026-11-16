@@ -13,6 +13,27 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-15 (7) — JONAH IS A TERMINAL IN THE CENTRE; a board's rows and header buttons are evenly spaced
+
+User: *"dont make it a little chatbox. make it look like a terminal that opens up in the center of the screen with an x
+button (keep the little circle guy tho for the button for it). that way the preview page can be bigger"* · *"fix the
+spacing above and below the occurances … the bottom is more than the top. also in the header, the buttons on the rights
+top spacing is more than the bottom"*.
+- **`ui/AssistantDrawer`**: the turtle button opens a centred window (`.jonah-terminal`, 1000×820 max, full screen on a
+  phone) over a dimmed grid; X or Escape closes it, a click on the dim does not (a half-typed request survives).
+  Lines, not bubbles (`.jonah-line`, your text after `›`), a bare prompt line with `↵ send`, the build preview
+  `min(56vh, 560px)` tall. The terminal skin paints every textarea black with `:root[data-skin] textarea !important`;
+  the prompt's selector matches its specificity (it lost at `.jonah-terminal-prompt textarea`). Watched on a local
+  build against prod: 1000×820 centred on desktop, 390×844 on a phone, focus in the prompt, X closes, turtle returns.
+- **`ModuleContainer`**: a board's rows were padded 4/9 (15px above the first row, 20px below the last, measured) →
+  6/6 (17/17); the board header 4/2 put its right-hand buttons 1px low, 3/3 1px high (its bottom border counts) →
+  3.5/2.5 (6/6). Probe `tools/uisweep/_slotspacing.mjs`.
+- Jonah: a page-shaped request (doc page / glossary / dashboard / sections, no "board") is not offered the one-row
+  creators or create_board (`toolsForModel(tools, which, text)`); glossary still 3 of 4 — the remaining miss is a
+  forced turn answered in words, not a wrong tool.
+
+---
+
 ### 2026-11-15 (6) — JONAH CHECKS A BUILD BEFORE ASKING; build turns must call a tool; the card draws the page
 
 User: *"can you brainstorm ways to improve jonah"* → *"okay lets work on that"* (the three I recommended).
