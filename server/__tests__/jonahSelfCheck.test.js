@@ -90,3 +90,42 @@ describe("editing words go to the model that can edit", async () => {
   it.each(["Undo that last change.", "Change the Mail section", "rename Mail to Email", "remove the Social section"])("%s → build", (t) => expect(pickModel(t)).toBe("build"));
   it("a question stays on the fast model", () => expect(pickModel("What's on my schedule today?")).toBe("fast"));
 });
+
+describe("the running log", async () => {
+  const { describeCall, describeResult, holdForConfirm, localLoop } = await import("../services/assistantAgent.js");
+  it("names what each call does", () => {
+    expect(describeCall("build", { nodes: [{ page: "Home" }] })).toBe('Building "Home"');
+    expect(describeCall("change", { name: "Notebook › Mail", rename: "Email" })).toBe('Changing "Notebook › Mail" — rename to "Email"');
+    expect(describeCall("create_items", { container: "Tasks", items: [{}, {}] })).toBe("Adding 2 items to Tasks");
+    expect(describeCall("list_folders", {})).toBe("list folders");
+    expect(describeResult("list_folders", { folders: [1, 2, 3] })).toBe("found 3 folders");
+    expect(describeResult("x", { error: "boom" })).toBe("failed — boom");
+  });
+  it("a checked build says what it found, then what it will show you", async () => {
+    const said = [];
+    const say = (t, st) => said.push([st, t]);
+    const t = { description: "d", preview: async () => ({ problems: [], preview: { modules: [{ role: "page" }, { role: "container" }, { kind: "inline" }, { kind: "inline" }] } }) };
+    await holdForConfirm({ tool: t, name: "build", input: {}, checked: new Set(), say });
+    expect(said).toEqual([["run", "Checking it first (a practice run — nothing is written yet)"], ["ok", "Check passed: 1 page, 1 section, 2 links"], ["ok", "Waiting for you to approve"]]);
+  });
+  it("the loop sends steps as it goes", async () => {
+    const steps = [];
+    const tool = { name: "list_folders", description: "d", input_schema: { type: "object" }, run: async () => ({ folders: [1, 2] }) };
+    const replies = [{ content: "", toolCalls: [{ id: "c1", function: { name: "list_folders", arguments: "{}" } }] }, { content: "Two.", toolCalls: [] }];
+    let n = 0;
+    await localLoop({ messages: [{ role: "user", content: "add a page" }], tools: [tool], model: "build",
+      onProgress: (p) => { if (p.phase === "step") steps.push(p.text); }, deps: { streamChat: async () => replies[n++] } });
+    expect(steps).toEqual(["Reading your request", "list folders", "list folders — found 2 folders", "Reading the result"]);
+  });
+});
+
+describe("conversationOnly", async () => {
+  const { conversationOnly } = await import("../services/assistantAgent.js");
+  it("keeps only what was said, as text", () => {
+    expect(conversationOnly([
+      { role: "user", content: "make a page" }, { role: "steps", items: [] }, { role: "confirm", name: "build" },
+      { role: "tool", name: "x", output: {} }, { role: "_meta", mode: "local" }, { role: "assistant", content: "" },
+      { role: "assistant", content: "Done.", toolCalls: [] },
+    ])).toEqual([{ role: "user", content: "make a page" }, { role: "assistant", content: "Done." }]);
+  });
+});

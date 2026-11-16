@@ -113,9 +113,13 @@ for (const c of cases) {
   const t0 = Date.now();
   let confirmOut = [];
   let first = null, toolCalls = 0, cacheN = null, promptN = null, model = null, out = null, err = null;
+  let predN = 0, predMs = 0;   // tokens WRITTEN and the time spent writing them (llama-server timings)
   const onProgress = (p) => {
     if (p.phase === "token" && first == null) first = Date.now() - t0;
-    if (p.phase === "timings") { cacheN = (cacheN || 0) + (p.timings.cache_n || 0); promptN = (promptN || 0) + (p.timings.prompt_n || 0); model = p.model; }
+    if (p.phase === "timings") {
+      cacheN = (cacheN || 0) + (p.timings.cache_n || 0); promptN = (promptN || 0) + (p.timings.prompt_n || 0); model = p.model;
+      predN += p.timings.predicted_n || 0; predMs += p.timings.predicted_ms || 0;
+    }
   };
   try {
     out = await assistantChat({ messages: [{ role: "user", content: c.text }], userId, gridId, baseUrl: BASE, apiToken: rawToken, onProgress });
@@ -130,7 +134,8 @@ for (const c of cases) {
   const removed = await cleanup(before);
   before = null;
   const answer = (out?.transcript || []).filter((t) => t.role === "assistant").map((t) => t.content).join(" ").slice(0, 160);
-  results.push({ case: c.id, mode: out?.mode || "error", model: model || out?.model || "", wallMs, firstTokenMs: first, toolCalls, pending: (out?.pendingConfirmations || []).map((p) => p.name).join(","), cacheN, promptN, passed: verdict.passed, why: verdict.why, answer, removed, confirmOut, madeKinds });
+  results.push({ case: c.id, mode: out?.mode || "error", model: model || out?.model || "", wallMs, firstTokenMs: first, toolCalls, pending: (out?.pendingConfirmations || []).map((p) => p.name).join(","), cacheN, promptN,
+    writeTok: predN, writeTokPerS: predMs ? +(predN / (predMs / 1000)).toFixed(1) : null, passed: verdict.passed, why: verdict.why, answer, removed, confirmOut, madeKinds });
   console.table([results.at(-1)].map(({ answer, removed, ...r }) => r));
   } finally {
     // a case that threw past its own try still gets its rows deleted

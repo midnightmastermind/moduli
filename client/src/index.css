@@ -9943,6 +9943,18 @@ body[data-layout="mobile"] .date-nav-arrow { min-width: 32px; min-height: 32px; 
 }
 .jonah-terminal-send:hover:not(:disabled) { background: rgba(110, 200, 140, 0.15); }
 .jonah-terminal-send:disabled { opacity: 0.4; cursor: default; }
+/* Jonah's running log: one dim line per step, the one in progress blinking. */
+.jonah-steps { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.jonah-step { display: flex; gap: 8px; align-items: baseline; opacity: 0.62; }
+.jonah-step--ok .jonah-step-mark { color: rgb(110, 200, 140); }
+.jonah-step--warn { opacity: 0.85; }
+.jonah-step--warn .jonah-step-mark { color: rgb(230, 170, 90); }
+.jonah-step--current { opacity: 0.95; }
+.jonah-step--current .jonah-step-mark { animation: jonah-step-blink 1s steps(2, start) infinite; color: rgb(140, 220, 160); }
+.jonah-step-mark { width: 10px; flex: none; text-align: center; font-weight: 700; }
+.jonah-step-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+.jonah-step-time { flex: none; opacity: 0.55; font-size: 11px; }
+@keyframes jonah-step-blink { to { visibility: hidden; } }
 /* Half height by default (user, 2026-11-15); full height only while a build's preview waits for an answer. */
 .jonah-terminal--tall { height: min(820px, calc(100dvh - 32px)); }
 body[data-layout="mobile"] .jonah-terminal {

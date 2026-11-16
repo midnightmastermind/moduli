@@ -499,6 +499,47 @@ export function buildLocalMessages({ systemPrompt, contextNote = "", messages = 
   return out.concat(history.slice(0, lastUser), [{ role: "system", content: contextNote }], history.slice(lastUser));
 }
 
+// ── the running log (user, 2026-11-16: "i want real updated responses from the chat like you do") ──────────
+// Each step Jonah takes is ONE sentence sent as `{phase:"step", text, status}` (status run | ok | warn). The window
+// keeps them as a log under the request, so you see what it is doing and what it found, not one "thinking" line.
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+export function describeCall(name, input = {}) {
+  const i = input || {};
+  const nodeName = (n) => (n && typeof n === "object") ? (n.page || n.folder || n.section || n.item || n.button || "") : String(n || "");
+  switch (name) {
+    case "build": {
+      const names = (Array.isArray(i.nodes) ? i.nodes : []).map(nodeName).filter(Boolean);
+      return `Building ${names.length ? names.map((x) => `"${x}"`).join(", ") : "it"}${i.under ? ` in "${i.under}"` : ""}`;
+    }
+    case "change": {
+      const what = [i.rename && `rename to "${i.rename}"`, i.fields && `set ${plural(Object.keys(i.fields).length, "field")}`, i.moveTo && `move to "${i.moveTo}"`].filter(Boolean).join(", ");
+      return `Changing "${i.name || "?"}"${what ? ` — ${what}` : ""}`;
+    }
+    case "remove": return `Removing "${i.name || "?"}" and what is inside it`;
+    case "undo": return "Undoing the last change";
+    case "create_items": return `Adding ${plural(Array.isArray(i.items) ? i.items.length : 0, "item")} to ${i.container || "a container"}`;
+    case "create_board": return `Making the board "${i.name || "?"}"`;
+    default: return `${String(name || "a tool").replace(/_/g, " ")}`;
+  }
+}
+export function describeResult(name, r) {
+  if (!r || typeof r !== "object") return "done";
+  if (r.error) return `failed — ${String(r.error).slice(0, 120)}`;
+  for (const k of ["folders", "fields", "occurrences", "items", "results", "operations", "modules"]) {
+    if (Array.isArray(r[k])) return `found ${plural(r[k].length, k.replace(/s$/, ""))}`;
+  }
+  if (Array.isArray(r)) return `found ${r.length}`;
+  return "done";
+}
+function planSummary(preview) {
+  const mods = Array.isArray(preview?.modules) ? preview.modules : [];
+  if (!mods.length) return "";
+  const pages = mods.filter((m) => m.role === "page").length;
+  const sections = mods.filter((m) => m.role === "container").length;
+  const links = mods.filter((m) => m.kind === "inline" || m.kind === "bookmark").length;
+  return [pages && plural(pages, "page"), sections && plural(sections, "section"), links && plural(links, "link")].filter(Boolean).join(", ");
+}
+
 /**
  * A confirm-tool call, checked first (Jonah, 2026-11-15). A tool with `preview(input)` gets a practice run that writes
  * nothing. Problems on the FIRST check go back to the model to fix (`retry`, the text of the tool result); a clean
@@ -506,19 +547,24 @@ export function buildLocalMessages({ systemPrompt, contextNote = "", messages = 
  * a preview that fails just means a card without a picture.
  * @returns {Promise<{ retry: string, problems: string[] } | { pending: object }>}
  */
-export async function holdForConfirm({ tool, name, input, checked }) {
+export async function holdForConfirm({ tool, name, input, checked, say = () => {} }) {
   const pending = { name, input: input || {}, description: tool.description };
-  if (typeof tool.preview !== "function") return { pending };
+  if (typeof tool.preview !== "function") { say("Waiting for you to approve", "ok"); return { pending }; }
+  say("Checking it first (a practice run — nothing is written yet)", "run");
   let preview = null;
   try { preview = await tool.preview(input || {}); } catch { preview = null; }
   const problems = Array.isArray(preview?.problems) ? preview.problems : [];
   if (problems.length && !checked.has(name)) {
+    say(`Found ${plural(problems.length, "problem")}: ${problems[0]}${problems.length > 1 ? " …" : ""} — fixing`, "warn");
     checked.add(name);
     return { problems, retry: toolResultForModel({ ok: false, notDoneYet: true, checkedFirst: true, problems,
       // No words before the call: at ~7 tokens/s an explanation used up the request's time and the call never came
       // (glossary eval, 2026-11-15 — the answer stopped mid-sentence at 240s).
       next: `Nothing was made. Reply with ONLY the corrected ${name} call, the whole thing, no words before it (call it unchanged to keep it as is).` }) };
   }
+  const summary = planSummary(preview?.preview);
+  say(problems.length ? `${plural(problems.length, "problem")} left — showing it to you anyway` : `Check passed${summary ? `: ${summary}` : ""}`, problems.length ? "warn" : "ok");
+  say("Waiting for you to approve", "ok");
   return { pending: { ...pending, ...(preview?.preview ? { preview: preview.preview } : {}), ...(problems.length ? { problems } : {}) } };
 }
 
@@ -532,6 +578,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
   let callSeq = 0;
   const checked = new Set();   // confirm-tools already sent back once (holdForConfirm)
   let mustCallTool = false;    // set after a send-back: the next turn must be the corrected call
+  const say = (text, status = "run") => onProgress({ phase: "step", text, status });
   const deadline = Date.now() + LLM_TOTAL_BUDGET_MS;
 
   while (toolIterations < MAX_TOOL_ITERATIONS) {
@@ -542,6 +589,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
       break;
     }
     onProgress({ phase: "thinking", iteration: toolIterations + 1 });
+    say(toolIterations === 0 ? "Reading your request" : mustCallTool ? "Writing the corrected version" : "Reading the result");
     // Each attempt gets its own timer — a retry after a gateway timeout must not inherit the time the first spent.
     let streamed;
     for (let attempt = 0; ; attempt++) {
@@ -611,8 +659,9 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
       const name = tc.function?.name;
       const input = parseToolArgs(tc.function?.arguments);
       const tool = tools.find(t => t.name === name);
+      say(describeCall(name, input));
       if (tool && tool.requires_confirm) {
-        const held = await holdForConfirm({ tool, name, input, checked });
+        const held = await holdForConfirm({ tool, name, input, checked, say });
         if (held.retry) {
           apiMessages.push({ role: "tool", tool_call_id: tc.id, content: held.retry });
           transcript.push({ role: "tool", name, input, output: { checkedFirst: true, problems: held.problems } });
@@ -630,6 +679,7 @@ export async function localLoop({ messages, tools, systemPrompt = OFFLINE_SYSTEM
         catch (e) { result = { error: String(e?.message || e) }; }
         onProgress({ phase: "tool_done", tool: name });
       }
+      say(`${describeCall(name, input)} — ${describeResult(name, result)}`, result?.error ? "warn" : "ok");
       apiMessages.push({ role: "tool", tool_call_id: tc.id, content: toolResultForModel(result) });
       transcript.push({ role: "tool", name, input, output: result });
       stepResults.push(result);
@@ -851,8 +901,20 @@ async function notesHintFor(messages, { baseUrl, apiToken, gridId }) {
   } catch { return ""; }
 }
 
-export async function assistantChat({ messages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
+/**
+ * The conversation the model sees: what the user said and what Jonah answered, as text. The window sends its whole
+ * list back, which also holds approval cards, tool results, step logs and `_meta` lines — roles no chat template
+ * knows, most with no `content`. Pure.
+ */
+export function conversationOnly(messages) {
+  return (Array.isArray(messages) ? messages : [])
+    .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content }));
+}
+
+export async function assistantChat({ messages: rawMessages, userId, gridId, context = null, baseUrl, apiToken, onProgress = () => {} }) {
   if (!gridId) throw new Error("gridId required");
+  const messages = conversationOnly(rawMessages);
   const backend = await pickBackend();
   const composed = await composeChat({ userId, gridId, context, baseUrl, apiToken, backend });
   const notesHint = await notesHintFor(messages, { baseUrl, apiToken, gridId });

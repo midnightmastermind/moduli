@@ -153,6 +153,9 @@ export default function AssistantDrawer() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
+  // The running log of this request (server `{phase:"step"}` events), kept in the transcript when it finishes.
+  const [steps, setSteps] = useState([]);
+  const stepsRef = useRef([]);
   const [streamingText, setStreamingText] = useState("");
 
   // When the drawer opens, have the local model read the fixed part of the prompt
@@ -184,6 +187,11 @@ export default function AssistantDrawer() {
     const onProg = (ev) => {
       if (!ev || ev.phase === "done") { setProgress(null); return; }
       if (ev.phase === "token") { setStreamingText(t => t + (ev.delta || "")); return; }
+      if (ev.phase === "step") {
+        const next = [...stepsRef.current, { text: String(ev.text || ""), status: ev.status || "run", at: Date.now() }];
+        stepsRef.current = next; setSteps(next);
+        return;
+      }
       if (ev.phase === "thinking") setStreamingText("");  // a fresh generation is starting
       setProgress(ev);
     };
@@ -274,6 +282,8 @@ export default function AssistantDrawer() {
     setBusy(true);
     setProgress(null);
     setStreamingText("");
+    stepsRef.current = []; setSteps([]);
+    const startedAt = Date.now();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), CHAT_TIMEOUT_MS);
     try {
@@ -342,17 +352,22 @@ export default function AssistantDrawer() {
         const occId = extractCreatedOccId(t.name, t.output);
         if (occId) panelPicks.push({ role: "panel_pick", occId });
       }
-      setMessages(m => [...m, ...fresh, ...confirms, ...panelPicks, { role: "_meta", mode: j.mode, model: j.model }]);
+      // The log stays above the answer, like a terminal's scrollback.
+      const log = stepsRef.current.length ? [{ role: "steps", items: stepsRef.current, startedAt }] : [];
+      setMessages(m => [...m, ...log, ...fresh, ...confirms, ...panelPicks, { role: "_meta", mode: j.mode, model: j.model }]);
     } catch (e) {
       const msg = e?.name === "AbortError"
         ? `(timed out after ${Math.round(CHAT_TIMEOUT_MS / 1000)}s) Jonah didn't respond in time — the local model may be slow or stuck.`
         : `(network error) ${String(e?.message || e)}`;
-      setMessages(m => [...m, { role: "assistant", content: msg }]);
+      // A failed request keeps its log too: what it got through before it stopped is the useful part.
+      const log = stepsRef.current.length ? [{ role: "steps", items: stepsRef.current, startedAt }] : [];
+      setMessages(m => [...m, ...log, { role: "assistant", content: msg }]);
     } finally {
       clearTimeout(timer);
       setBusy(false);
       setProgress(null);
       setStreamingText("");
+      stepsRef.current = []; setSteps([]);
     }
   }
 
@@ -381,6 +396,9 @@ export default function AssistantDrawer() {
     // editedInput carries any user corrections from the card (e.g. the location).
     const finalInput = editedInput || card.input;
     setBusy(true);
+    const t0 = Date.now();
+    const writing = { text: "Approved — writing it", status: "run", at: t0 };
+    stepsRef.current = [writing]; setSteps([writing]);
     try {
       const res = await fetch("/api/v1/assistant/confirm", {
         method: "POST",
@@ -388,6 +406,16 @@ export default function AssistantDrawer() {
         body: JSON.stringify({ name: card.name, input: finalInput, gridId }),
       });
       const j = await res.json();
+      // The approval's own log line: what was written, or why not.
+      const out = j?.output || {};
+      const made = Array.isArray(out.made) ? out.made : [];
+      const doneText = !res.ok || j.ok === false ? `Could not write it — ${j?.error || j?.message || res.status}`
+        : made.length ? `Made ${made.slice(0, 4).join(", ")}${made.length > 4 ? ` +${made.length - 4} more` : ""}`
+        : out.undone ? `Undid: ${out.undone}` : out.removed ? `Removed "${out.removed}" (${out.count || 1} rows)`
+        : out.renamed ? `Renamed "${out.changed}" to "${out.renamed}"` : "Done";
+      const doneStep = { text: doneText, status: !res.ok || j.ok === false || out.error ? "warn" : "ok", at: Date.now() };
+      setMessages(m => [...m, { role: "steps", items: [{ ...writing, status: "ok" }, doneStep], startedAt: t0 }]);
+      stepsRef.current = []; setSteps([]);
       if (!res.ok || j.ok === false) {
         setMessages(m => [...m, { role: "assistant", content: `(error) ${j?.error || j?.message || res.status}` }]);
       } else if (card.name === "wikipedia_import_batch" && Array.isArray(j.output?.imported)) {
@@ -466,6 +494,7 @@ export default function AssistantDrawer() {
       setMessages(m => [...m, { role: "assistant", content: `(network error) ${String(e?.message || e)}` }]);
     } finally {
       setBusy(false);
+      stepsRef.current = []; setSteps([]);
     }
   }
 
@@ -595,6 +624,7 @@ export default function AssistantDrawer() {
             ))}
             {busy && (
               <>
+                {steps.length > 0 && <StepLog items={steps} startedAt={steps[0].at} live />}
                 {streamingText && (
                   <div className="jonah-line">
                     {streamingText}<span style={{ opacity: 0.5 }}>▋</span>
@@ -631,6 +661,7 @@ function MessageBubble({ msg, busy = false, onResolveConfirm, onAsk }) {
   if (msg.role === "confirm") {
     return <ConfirmCard msg={msg} busy={busy} onResolve={onResolveConfirm} />;
   }
+  if (msg.role === "steps") return <StepLog items={msg.items} startedAt={msg.startedAt} />;
   if (msg.role === "_meta") {
     return (
       <div style={{ alignSelf: "center", fontSize: 9, opacity: 0.4 }}>
@@ -1388,6 +1419,27 @@ function safeJson(v) {
 // a live elapsed counter + an ETA learned from recent runs (median), and a
 // determinate bar that reaches ~90% at the typical time then crawls toward 97%
 // (never "done" until the response actually lands).
+// One line per step Jonah took, with how far into the request it happened. The last line of a LIVE log is the
+// step in progress (blinking mark); a finished log is the record of what was done.
+const STEP_MARK = { ok: "✓", warn: "!", run: "·" };
+export function StepLog({ items = [], startedAt = null, live = false }) {
+  return (
+    <div className="jonah-steps" role="log" aria-live={live ? "polite" : "off"}>
+      {items.map((it, i) => {
+        const current = live && i === items.length - 1 && it.status === "run";
+        const secs = startedAt ? Math.max(0, Math.round((it.at - startedAt) / 1000)) : null;
+        return (
+          <div key={i} className={`jonah-step jonah-step--${it.status}${current ? " jonah-step--current" : ""}`}>
+            <span className="jonah-step-mark" aria-hidden="true">{current ? "›" : STEP_MARK[it.status] || "·"}</span>
+            <span className="jonah-step-text">{it.text}</span>
+            {secs != null && <span className="jonah-step-time">{secs}s</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ThinkingBar({ progress, elapsedMs, typical }) {
   // Past the learned ETA (or ~30s with no history) the estimate is meaningless —
   // this run is an outlier (e.g. a multi-step tool call). Don't freeze near 100%
