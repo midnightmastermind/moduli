@@ -4196,3 +4196,8 @@ User: *"is it possible to go through each book too and remove the previous and n
                                                                                                                                                                
 ### 2026-11-16 07:47 CST
 - *"also figure out why i cant watch any shows, i get an error"* · WSL keeps crashing (full test suites skipped; targeted tests only).
+
+### 2026-11-16 08:04 CST
+- *"is there also any way to have the open all in browser buttons to open with firefox instead of edge, im opening it from the desktop app which is edge i guess"* (question).
+- 08:09 *"also movie and music viafluere is not opening radarr and the other one"* · *"its opening jellyfin"*.
+- 08:13 *"whats deploys password"* — none exists (key-only, no sudo). Root via key works: movie./music. enabled + certs; both serve Radarr / Lidarr logins.
