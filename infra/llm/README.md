@@ -5,7 +5,8 @@ Jonah and the import clean-up talk to an OpenAI-compatible endpoint on the user'
 
 ## Layout (`C:\moduli-llm`)
 - `bin\` — llama.cpp Windows **Vulkan** build (b12387, `llama-b12387-bin-win-vulkan-x64.zip`).
-- `models\` — `qwen2.5-coder-7b-q4_k_m.gguf` (build), `llama3.2-3b-q4_k_m.gguf` (fast). On a Windows disk:
+- `models\` — `qwen2.5-7b-instruct-q4_k_m.gguf` (build), `llama3.2-3b-q4_k_m.gguf` (fast); `qwen2.5-coder-7b-q4_k_m.gguf` is
+  the earlier build model (it wrote its tool calls as text), unused. On a Windows disk:
   a Windows process reading a model from `\\wsl.localhost` crashed WSL twice (2026-11-14).
 - `llama-swap\` — llama-swap v273 + `config.yaml` (copied from `llama-swap.yaml` here by `install-task.ps1`).
 - `run.ps1` — keeps llama-swap on `127.0.0.1:8080`; log in `logs\llama-swap.log`.
@@ -13,12 +14,17 @@ Jonah and the import clean-up talk to an OpenAI-compatible endpoint on the user'
 ## Models (both stay loaded)
 | id | model | where | read | write |
 |---|---|---|---|---|
-| `build` | qwen2.5-coder 7B Q4_K_M | Radeon (`-ngl 99`) | ~50-58 tok/s | ~7-8 tok/s |
+| `build` | Qwen2.5 7B Instruct Q4_K_M | Radeon (`-ngl 99`) | ~50 tok/s | ~7 tok/s; ~10 with `ngram-simple` (up to 20 when it copies) |
 | `fast` | llama3.2 3B Q4_K_M | CPU (`--device none`) | ~91-98 tok/s | ~15 tok/s |
 
 The 3B runs on the CPU because with the 7B on the Radeon there is no device memory left for a second model
 (`ErrorOutOfDeviceMemory`, 2026-11-15), and writing speed is memory-bound either way.
-qwen2.5-coder writes its tool call as text (`<tools>{...}</tools>`); Jonah recovers it (`parseContentToolCall`).
+The coder model wrote its tool calls as text (`<tools>{...}</tools>`); Jonah still recovers that (`parseContentToolCall`).
+
+## Benchmarking a setting
+Record a run's requests with a proxy in front of :8080, then replay them at temperature 0 against a llama-server on a
+spare port with the setting (stop the task first — the Radeon holds one 7B). Compare `timings.predicted_per_second`;
+`draft_n` / `draft_n_accepted` show how much a speculative setting guessed right.
 
 ## Install / restart
 - Install (no admin): run `install-task.ps1` in PowerShell. Task "Moduli LLM" starts at logon and restarts it.

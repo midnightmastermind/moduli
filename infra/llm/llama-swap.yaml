@@ -11,6 +11,11 @@
 #   -c 8192        Jonah's prompt is ~6k tokens with the tools
 #   -np 1          ONE slot, so the whole context and its prompt cache belong to the one conversation in flight
 #   --cache-reuse  reuse a cached prefix even after a small change further on
+#   --spec-type ngram-simple (build only)  speculative decoding with NO draft model: guesses the next words from text
+#                  already in the context and the 7B checks them in one pass. Same output. Measured 2026-11-16 by
+#                  replaying a recorded glossary build at temperature 0: 7.2 -> 10.1 tok/s overall; a corrected
+#                  build (which copies the first attempt) 7.1 -> 20 tok/s; a first build unchanged. Its defaults
+#                  (match 12, guess 48) beat ngram-mod / ngram-map-k / ngram-cache and shorter lookups (those lost speed).
 healthCheckTimeout: 300
 logLevel: info
 
@@ -25,7 +30,7 @@ models:
     cmd: >
       C:/moduli-llm/bin/llama-server.exe --port ${PORT}
       -m C:/moduli-llm/models/qwen2.5-7b-instruct-q4_k_m.gguf
-      -ngl 99 --jinja -c 8192 -np 1 -t 8 --cache-reuse 256
+      -ngl 99 --jinja -c 8192 -np 1 -t 8 --cache-reuse 256 --spec-type ngram-simple
     ttl: 0
 
 groups:
