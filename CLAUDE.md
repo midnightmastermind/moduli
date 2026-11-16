@@ -13,6 +13,37 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-16 (2) — DONE BECOMES COMPLETED (`0503`); "Every item here gets"; chip handle + grab cursor; movie./music.
+
+User: *"all tasks should have a completed field … a setting that gives them all the completed field"* · 2 and 3 (drop
+Done; the Done section hides rows completed before today) · *"dont mark them completed if they are not marked done"* ·
+the chip handle shows over *"the space in between"* the link buttons · *"the grab cursor should not show unless its on
+the drag handle"* · movie./music. opened Jellyfin.
+- **`ui/AutoAppliedFieldsSection`** (beside Field Visibility on pages, containers, panels): "Every item here gets" edits
+  `occurrence.autoAppliedFieldIds`, the per-occurrence level of `getEffectiveAutoAppliedFieldIds` (nearest wins, so an
+  edit starts from the inherited list — `nextAutoApplied`). **The server schema never declared it**, so strict mode
+  dropped it and only the grid level ever worked; `models/Occurrence.js` declares it now.
+- **`0503`** (applied to poms, snapshot first, pm2 restarted): Done / Done Since gone (125 rows, 23 bindings, the
+  section's filter, "Tasks: Mark Done", 2 steps of "Tasks: Completed to Done", the fields); the 43 rows marked Done and
+  not ticked → Completed (Completed On = Done Since); the Done section keeps rows whose Completed On is empty / today /
+  later; the Tasks page gives every item Tags, Date, Completed. Watched on prod: Todo 6/6 and Appointments 12/12 show
+  Completed (the Appointments had none), Done reads "42 items hidden by the Completed On filter".
+- **Chip handle:** `chipHover.hoverShowsHandle` is positive now — only over `.itbi-content` / `.itbi-handle` (the chip
+  box's padding and the gap between ↗ and 🌐 counted as text). Sweep on prod: off exactly at the text's end, no flicker.
+- **Grab cursor:** the chip box had `cursor: grab` from before chips dragged by a handle; `default` now. Probe
+  `tools/uisweep/_grabcursor.mjs` (every non-handle element with a grab cursor): 35 → 0.
+- **Jonah:** `/build` replies `rootOccurrenceId`, `/change` `occurrenceId`; `extractCreatedOccId` no longer refuses an
+  `ok:false` reply that carries an id — so the window offers to open what was made.
+- **movie./music.viafluere.com** were in sites-available, never enabled, no certs → nginx's default (Jellyfin). Enabled +
+  certbot as root (`ssh root@viafluere.com`; `deploy` has no sudo). Both serve the Radarr / Lidarr logins.
+- **WSL crashes:** every panic is `mce: Machine Check Exception … Processor Context Corrupt` (14 since Nov 9, 6 between
+  7:41 and 7:52, each ~2 min after boot right after the drive mounts); Windows' WHEA log is empty — likely WSL 3.0.5.0 /
+  Hyper-V, not the CPU. Hyper-V also resets the WSL network adapter repeatedly. Crashes left 20 empty git objects; the
+  index blobs were rewritten from disk (`git hash-object -w`), nothing lost. **Not fixed** — the user's choice.
+- Full test suites not run (they crashed WSL); targeted tests only.
+
+---
+
 ### 2026-11-16 — JONAH: a running log in the window; builds ~2× faster; the check reads the request
 
 User: *"please continue"* · *"also i want real updated responses from the chat like you do"*.
