@@ -80,7 +80,8 @@ export function markdownToNodes(md) {
   const flush = () => { if (prose.length) { here().push({ text: prose.join(" ") }); prose = []; } };
   const addOpen = (kids) => { if (!kids.some((k) => k?.button && /open links/i.test(k.does || ""))) kids.push({ button: "Open in browser", does: "open links" }); };
   const addItems = (kids, c) => {
-    const links = c.match(/\[[^\]]+\]\([^)]+\)/g);
+    // `[[Name]]` counts as a link too: "[Gmail](https://…) [[Proton Mail]]" is two (Jonah, 2026-11-16).
+    const links = c.match(/\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)/g);
     for (const part of links && links.length > 1 ? links : [c]) {
       const item = linkItem(part.trim());
       if (item === OPEN_BUTTON) addOpen(kids); else if (item) kids.push(item);
@@ -114,7 +115,9 @@ export function markdownToNodes(md) {
     if (li || bareLink) {
       flush();
       const c = li ? li[1].trim() : line;
+      // A bold LABEL is a sub-section; a bold LINK ("- **[Schedule](Schedule)**", Jonah 2026-11-16) is that link.
       const bold = li && c.match(/^\*\*(.+?)\*\*:?$/);
+      if (bold && /^\[\[[^\]]+\]\]$|^\[[^\]]+\]\([^)]*\)$/.test(bold[1].trim())) { if (boldSec && !(indent > boldSec.indent)) boldSec = null; addItems(boldSec ? boldSec.node.children : here(), bold[1].trim()); continue; }
       if (bold) { const node = { section: bold[1].trim(), children: [] }; here().push(node); boldSec = { indent, node }; continue; }
       if (boldSec && !(li && indent > boldSec.indent)) boldSec = null;
       addItems(boldSec ? boldSec.node.children : here(), c);

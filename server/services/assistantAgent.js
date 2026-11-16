@@ -470,7 +470,9 @@ const READ_TOOL = /^(list_|get_|look_up$|wikipedia_search$|wikipedia_summary$|wi
 // 2026-11-15). Those requests are not offered the one-row creators or create_board, so a forced call cannot land on
 // them. Imports (import_url, wikipedia_*) stay — "make a page from this link" is page-shaped too.
 const PAGE_SHAPED = /\b(doc page|page|glossary|dashboard|sections?)\b/i;
-const NOT_FOR_PAGES = new Set(["create_occurrence", "set_occurrence_field", "create_field", "create_board", "create_items", "save_bookmark"]);
+// add_filter too (2026-11-16): after the web tools were added, a glossary's forced first call landed on add_filter
+// 26 times ("no container named Home › Mail"); a page request never wants a board's filter.
+const NOT_FOR_PAGES = new Set(["create_occurrence", "set_occurrence_field", "create_field", "create_board", "create_items", "save_bookmark", "add_filter"]);
 export function isPageShaped(text) {
   const t = String(text || "");
   return PAGE_SHAPED.test(t) && !/\bboard\b/i.test(t);

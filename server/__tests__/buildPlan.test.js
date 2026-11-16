@@ -269,3 +269,20 @@ describe("buttons written as links named after a section", () => {
     expect(markdownToNodes("## A\n[Open Notion](https://notion.so)")[0].children).toEqual(["Open Notion | https://notion.so"]);
   });
 });
+
+describe("markdown habits seen 2026-11-16 (glossary after the web tools)", async () => {
+  const { markdownToNodes } = await import("../services/buildPlan.js");
+  it("a bold-wrapped link in a list is that link, not a sub-section", () => {
+    expect(markdownToNodes("## Glossary\n- **[Schedule](Schedule)**\n- **[[Tasks]]**")).toEqual([
+      { section: "Glossary", children: ["Schedule -> Schedule", "Tasks -> Tasks"] },
+    ]);
+  });
+  it("a bold label is still a sub-section", () => {
+    expect(markdownToNodes("- **Mail**\n  - [Gmail](https://mail.google.com)")).toEqual([
+      { section: "Mail", children: ["Gmail | https://mail.google.com"] },
+    ]);
+  });
+  it("a line mixing a web link and an in-app link is two links", () => {
+    expect(markdownToNodes("[Gmail](https://mail.google.com) [[Proton Mail]]")).toEqual(["Gmail | https://mail.google.com", "Proton Mail -> Proton Mail"]);
+  });
+});
