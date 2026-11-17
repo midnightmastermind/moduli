@@ -66,3 +66,15 @@ describe("0506 — Hours", () => {
     expect(set).toMatchObject({ itemId: "shift", value: "9am-3pm" });
   });
 });
+
+describe("0507 — a span copy shows the shift's Hours", async () => {
+  const { spanHoursSteps } = await import("../../../server/migrations/0507-hours-on-span-copies.mjs");
+  it("takes the range of the row it spans, not its own later slot", () => {
+    const w = world({ orphan: true });
+    w.mod.mI.fieldBindings = [{ fieldId: "HRS" }];
+    w.occ.orphan.fields[DUR] = { value: 360 };
+    w.occ.span = { id: "span", moduleId: "mI", parentId: "s9", meta: { spanOf: "orphan" }, fields: { [SLOT]: { value: "9:30am" } } };
+    const fx = run({ id: "s", enabled: true, pipeline: { sources: [], steps: spanHoursSteps("HRS") } }, w);
+    expect(fx.find((e) => e._effect === "UPDATE_ITEM_FIELD" && e.itemId === "span")).toMatchObject({ value: "9am-3pm" });
+  });
+});
