@@ -13,6 +13,30 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-17 — A WORK SHIFT IS BACK IN ITS START SLOT (`0506`); Hours "9am-3pm" (`TIME_RANGE`, `0507`)
+
+User: *"my mr brews work occurances are being put into a later timeslot. i work 9am-3pm today and it only lists it in
+930 onward"* · *"put a text field in there called hours and list like 9am-3pm in it with an operation. check the
+operation for these imports"*.
+- **Cause, read out of Mongo:** the shift (Tasks › Work Shifts, from the calendar share — Time Slot 9:00am, Duration
+  6h: the import is right) got its 9:00am copy at 00:01 into a version of today's schedule that was later rebuilt; the
+  copy survived listed by nothing (parent gone) and the 9:30–2:30 Duration Copies hung off it. Place Dated Work copies
+  into the start slot only while **Scheduled** is unticked (`0484`, "if i delete it from schedule, it shouldnt show up
+  again"), and the first placement ticked it — so the slot stayed empty.
+- **`0506`:** Place Dated Work, after looking for today's copy in the slot, finds a copy of the row for this day that is
+  NOT under the Schedule page (`_ancestors NOT_HAS_ANCESTOR $schedPageId`) and moves it into the slot
+  (`LINK_OCCURRENCE_TO_PARENT`). A deleted copy is gone, so 0484 holds (control test). **Hours** (text) bound on the 10
+  shift modules and attached by `Share: calendar (.ics)`; op **"Work Shifts: Hours"** (onLoad, onChange Time Slot /
+  Duration, onAdd under Work Shifts) writes `TIME_RANGE(Time Slot, Duration)`.
+- **`TIME_RANGE` (new action, client):** `{start, minutes, to}` → "9am-3pm" (`slotSpan.timeRangeLabel` / `shortClock`),
+  in the action tree + config schema. DATE_ADD only steps days.
+- **`0507`:** the span copies (`meta.spanOf`, not linked to the shift) take the range of the row they span.
+- Watched on prod (writes blocked, store read after the load ops): the 9:00am slot lists the shift; shift Hours
+  "9am-3pm"; 9:30 / 10:00 / 10:30 / 11:00 entries "9am-3pm". Tests `timeRange` (2), `shiftRehomeHours` (5, real
+  executor). pm2 restarted after each.
+
+---
+
 ### 2026-11-16 (5) — THE DAILY QUESTION: its tag, and the 143 questions that are gone
 
 User: *"make sure its linked (says its not) and the linked text (Daily Question) should be really small"* · *"show only
