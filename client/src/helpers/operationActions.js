@@ -29,7 +29,7 @@ import { appendDocEmbed, docEmbedNode, isDocParent } from "./docEmbedAppend.js";
 import { matchesPattern } from "../../../server/utils/matchesPattern.js";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
-import { slotsCovered } from "./slotSpan";
+import { slotsCovered, timeRangeLabel } from "./slotSpan";
 import { isDueOn } from "./dueSpan";
 import { whenOnDay, whenTimesOnDay, slotLabelFor, slotOfMoment } from "./when.js";
 import { resolveOptions } from "./optionsResolver";
@@ -3392,6 +3392,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
     // cfg: { time, to? } — the half-hour schedule slot ("8:00pm") a moment falls in: an ISO date-time read in this
     // browser's zone, or a clock string. A bare date / empty value gives "" (no time of day — file it as all-day).
+    // cfg: { start, minutes, to? } — a clock time plus a duration as a short range: "9:00am" + 360 → "9am-3pm"
+    // (no duration → "9am"). Used by "Work Shifts: Hours" (user, 2026-11-16: "list like 9am-3pm").
+    case "TIME_RANGE": {
+      $vars[cfg.to || "$timeRange"] = timeRangeLabel(resolveExpr(cfg.start, $vars), resolveExpr(cfg.minutes, $vars));
+      break;
+    }
+
     case "TIME_SLOT": {
       $vars[cfg.to || "$timeSlot"] = slotOfMoment(resolveExpr(cfg.time, $vars)) || "";
       break;

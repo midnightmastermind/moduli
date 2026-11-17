@@ -117,3 +117,18 @@ export function formatMinutes(total) {
   const h = h24 % 12 === 0 ? 12 : h24 % 12;
   return `${h}:${String(min).padStart(2, "0")}${mer}`;
 }
+
+/** A clock time as a short label: 540 → "9am", 570 → "9:30am", 900 → "3pm". Minutes since midnight (wraps a day). Pure. */
+export function shortClock(minutes) {
+  const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60), mm = m % 60;
+  return `${((h + 11) % 12) + 1}${mm ? `:${String(mm).padStart(2, "0")}` : ""}${h < 12 ? "am" : "pm"}`;
+}
+
+/** "9:00am" + 360 minutes → "9am-3pm"; no duration → "9am"; an unreadable start → "". Pure. */
+export function timeRangeLabel(start, minutes) {
+  const from = slotLabelToMinutes(start);
+  if (from == null) return "";
+  const dur = Number(minutes);
+  return Number.isFinite(dur) && dur > 0 ? `${shortClock(from)}-${shortClock(from + dur)}` : shortClock(from);
+}

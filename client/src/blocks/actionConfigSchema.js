@@ -483,6 +483,14 @@ export const ACTION_CONFIG_SCHEMA = {
     ],
     hint: "The half-hour time slot (\"8:00pm\") a date-time falls in, read in this browser's zone, or a clock time (\"20:10\"). A plain date gives none.",
   },
+  TIME_RANGE: {
+    fields: [
+      { key: "start", kind: "expr", label: "start", placeholder: "$item.fields.<Time Slot>.value" },
+      { key: "minutes", kind: "expr", label: "minutes", placeholder: "$item.fields.<Duration>.value" },
+      { key: "to", kind: "var", label: "→ $", optional: true, defaultsTo: "$timeRange" },
+    ],
+    hint: "A start time plus a duration as a short range: \"9:00am\" + 360 minutes → \"9am-3pm\". No duration gives just the start (\"9am\").",
+  },
   SLOTS_COVERED: {
     fields: [
       { key: "start", kind: "expr", label: "start slot", placeholder: "$item.fields.<Time Slot>.value" },

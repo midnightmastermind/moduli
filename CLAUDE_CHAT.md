@@ -4225,3 +4225,7 @@ User: *"is it possible to go through each book too and remove the previous and n
 - 12:31 *"yes"* — restore the 143 questions from the Oct 18 backup; the fill picks from the field's options and finds its section by name, not signature.
 - 12:56 *"can you update the examples of jonah that show in the box first opened"*.
 - 14:47 *"actually just remove the examples in general cause it can do more than those things and i dont want it based on my personal grid"*.
+- 15:16 *"can you put my ethiopian bible from in my downloads into my books in jellyfin, how do i add new books?"*.
+
+### 2026-11-17 06:05 CST
+- *"my mr brews work occurances are being put into a later timeslot. i work 9am-3pm today and it only lists it in 930 onward. also put a text field in there called hours and list like 9am-3pm in it with an operation. check the operation for these imports"*.

@@ -136,6 +136,7 @@ export const ACTION_TREE = [
           { value: "IS_DUE_ON",     title: "🔁 is due on",    sub: "recurrence check",       description: "Does a recurring item fall on a given date, per its own recurrence settings?" },
           { value: "WHEN_SLOTS",    title: "🗓 when → slots", sub: "a date/repeat on a day", description: "The time slots a Schedule-style value (a date and time, or a repeat) lands in on a given day." },
           { value: "TIME_SLOT",     title: "🕑 time → slot",  sub: "a date-time's slot",     description: "The half-hour time slot a date-time (or clock time) falls in, in this browser's zone." },
+          { value: "TIME_RANGE",    title: "🕘 time range",    sub: "9am-3pm",                description: "A start time plus a duration in minutes, as a short range (\"9:00am\" + 360 → \"9am-3pm\")." },
           { value: "SLOTS_COVERED", title: "⌛ slots covered", sub: "start slot + duration",  description: "Every time slot a start slot plus a duration spans — what places one row across several slots." },
         ],
       },
