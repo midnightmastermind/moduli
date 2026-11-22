@@ -13,6 +13,28 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-22 — A DATE STEP: 4.5–5.2s → 3.1–3.3s blocked (feed passes scoped; loops narrowed)
+
+User: *"can you look at the performance of switching dates again for schedule. it still seems kinda long"*.
+Measured on prod, writes blocked (`tools/uisweep/_opfreeze.mjs`, `_dateprofile.mjs` + `_profsum.mjs`/`_profcallers.mjs`,
+`_feeddiag.mjs`, `_bsdump.mjs`): a step blocked 4.5–5.2s; ops ~1.0s, feed sync 1.26s, ~2.4s native (render/layout).
+- **Feed passes:** three whole-feed passes per step came from (1) the toolbar writing each following page's
+  `filterOverride` through `updateOccurrence` (unscoped), (2) ops' `UPDATE_ITEM_LABEL` / `UPDATE_ITEM_META` (89 tracker
+  labels), (3) their echoes. Feed conditions read only fields, `_ancestors`, `parentId` and the owner's effective
+  filter, so `CommitHelpers.feedScopeOfPatch`: textmap/label/meta → none; filterOverride-only → those field ids
+  (`feedMayReadFields` reads effective-filter keys); fields → the triggered ids; else all. `echoFeedScope` skips
+  textmap/label/meta too. Feed sync 1.26 → 0.67s (one pass; all 32 feeds legitimately read Date).
+  `__feedDiag` now prints ms per feed (26 zero-match feeds cost ~8ms each — the scan of every instance; next lever).
+- **Loops:** a LOOP whose body is one `if` with no else is narrowed — by `<as>.fields.<id>.value IS v`
+  (`recordsWithFieldString`, exactly IS's `String===String`) or `<as>._ancestors HAS_ANCESTOR X` (`recordsUnder`,
+  `now: true` builds on the first ask). Place Dated Work's `$sweepSlot` loops 7,232 → 50 items, `$placed` 6,593 → 60.
+  Build Schedule stays ~0.4s: its time is the read-model setup it pays first in the sweep, not its loops.
+- Tests `feedScopeOfPatch` (3), `loopUnderAncestor` (5); 51 op files / 832 + 37 commit/feed files / 308 pass.
+- **Left:** ~2.4s native (drawing the new day), the per-feed instance scan, the repeated whole-grid parent map
+  (`cachedParentMap` keyed on map identity; field writes swap it, ~0.3s).
+
+---
+
 ### 2026-11-17 — A WORK SHIFT IS BACK IN ITS START SLOT (`0506`); Hours "9am-3pm" (`TIME_RANGE`, `0507`)
 
 User: *"my mr brews work occurances are being put into a later timeslot. i work 9am-3pm today and it only lists it in
