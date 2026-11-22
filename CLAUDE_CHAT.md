@@ -4232,3 +4232,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-22 08:07 CST
 - *"can you look at the performance of switching dates again for schedule. it still seems kinda long"*.
+- 09:22 *"lets try to improve the drawing"* (the ~2.4s of drawing a new day on a date step).

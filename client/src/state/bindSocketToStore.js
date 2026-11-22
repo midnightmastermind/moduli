@@ -2404,6 +2404,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // wants slicing. Identity-matched on the transaction so a nested fire during
   // the sweep can never pick it up by accident.
   let _slicedSweep = null;
+  let _navSweepGen = 0;   // bumped by each sliced date-step sweep; an older one applies nothing
 
   const _interactionHold = makeInteractionHold({
     onCap: (held) => drainFires(held, { label: "drag-hold-cap" }),
@@ -2545,6 +2546,29 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
       return;
     }
+    // A DATE STEP'S SWEEP IS SLICED TOO (2026-11-22: "lets try to improve the drawing" — the step froze the page ~1.5s
+    // in one task while the panels' loaders were up). Same driver as a tick's (runMatchingOperationsSliced): the
+    // computation yields every SLICE_BUDGET_MS, the effects still apply together at the end. A newer date step
+    // supersedes it: each NavigationOp sweep takes a generation, and one that finishes after a newer step began
+    // applies nothing — the newer sweep recomputes everything for the date now on screen.
+    // Off: `window.__noNavSlice = true`, or the tick switches (`__noTickSlice`, `?tickSlice=off`).
+    if (transactionType === "NavigationOp" && _fireDepth === 0 && !_slicedSweep && !_tickSliceOff()
+        && !(typeof window !== "undefined" && window.__noNavSlice)) {
+      const navGen = ++_navSweepGen;
+      const savedApplying = snapshotOpsApplying();
+      const captured = captureAction();
+      const wrap = (fn) => {
+        const prev = _fireDepth;
+        _fireDepth = 1;
+        const releaseApplying = markOpsApplying(savedApplying);
+        try { return runInAction(captured, fn); }
+        finally { releaseApplying(); _fireDepth = prev; }
+      };
+      _slicedSweep = { type: transactionType, tx: transaction, wrap, navGen };
+      _fireDepth++;
+      try { return _fireOperationsInner(transactionType, transaction); }
+      finally { _fireDepth--; _slicedSweep = null; }
+    }
     _fireDepth++;
     try {
       return _fireOperationsInner(transactionType, transaction);
@@ -2653,12 +2677,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // which happens before the first yield resolves — reading it from the
       // continuation threw `Cannot read properties of null`.
       const wrap = _slicedSweep.wrap;
+      const navGen = _slicedSweep.navGen;
       // When the sweep began, in the units a field write is stamped with.
       const startedAt = Date.now();
       return { __sliced: runMatchingOperationsSliced(
         operations, transactionType, transaction, sweepCtx, sweepCbs,
         { budgetMs: SLICE_BUDGET_MS, wrap },
-      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth, startedAt, trigger: transaction }))) };
+      ).then((ups) => {
+        if (navGen != null && navGen !== _navSweepGen) return [];   // a newer date step took over
+        return wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth, startedAt, trigger: transaction }));
+      }) };
     }
     return _applyFireUpdates(
       runMatchingOperations(operations, transactionType, transaction, sweepCtx, sweepCbs),

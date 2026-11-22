@@ -43,8 +43,9 @@ const navs = () => calls.filter((c) => c.type === "NavigationOp").map((c) => c.t
 const flush = async () => { for (let i = 0; i < 20; i++) await vi.advanceTimersByTimeAsync(20); };
 
 describe("the drop batch always closes", () => {
-  beforeEach(() => { calls.length = 0; onFire = null; vi.useFakeTimers(); bind(); });
-  afterEach(() => { vi.useRealTimers(); });
+  // These count the synchronous sweep; a date step's sweep is sliced since 2026-11-22 (its own test covers that).
+  beforeEach(() => { calls.length = 0; onFire = null; window.__noNavSlice = true; vi.useFakeTimers(); bind(); });
+  afterEach(() => { vi.useRealTimers(); delete window.__noNavSlice; });
 
   it("a drop that throws still lets the next date change run its ops", () => {
     expect(() => operationsBridge.runDropBatch(() => { throw new Error("drop blew up"); })).toThrow("drop blew up");
