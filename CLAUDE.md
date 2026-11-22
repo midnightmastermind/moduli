@@ -13,6 +13,27 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-22 (2) — A DATE STEP NO LONGER FREEZES 1.5s: its operation sweep runs sliced
+
+User: *"lets try to improve the drawing"*. Measured first (`tools/uisweep/_drawtrace.mjs` timeline trace,
+`_datevisible.mjs` click → toolbar / new day shown / quiet, `longtask.mjs` over the CPU profile's longest busy run):
+the browser's own drawing is small — style ~0.4s (419 recalcs), IntersectionObservers 0.18s, layout 0.05s, paint
+~0.15s; the step adds ~1,600 of ~20,000 elements; **the new day shows at 0.7–1.0s**. The freeze after it (one
+~1.5s task) was the date step's operations (~1s) + their apply/re-render — not drawing.
+- **The NavigationOp sweep is sliced** (`bindSocketToStore.fireOperations`): top-level NavigationOp goes through
+  `runMatchingOperationsSliced` (the tick path's driver; `wrap` restores depth 1, the applying-ops set and the action
+  around every slice); effects still apply together at the end. `_navSweepGen`: a sweep that finishes after a newer
+  date step began applies nothing (the newer one recomputes). Off: `window.__noNavSlice`, `__noTickSlice`,
+  `?tickSlice=off`. Tests `navSweepSliced` (2); `dropBatchRecovers` sets `__noNavSlice` (it counts the one-task sweep).
+- Prod: worst frame 1.4–1.5s → 0.8–0.9s; day shown unchanged (~0.7s); quiet 3.7–4.3s (was 2.9–3.6 — slicing overhead).
+  `_navcheck.mjs`: after Next / Next / Previous and a double Next, the Schedule lists a built column (50 slots) for the
+  date shown.
+- **Tried and reverted:** slicing the feed pass (yield between feeds) — the worst frame did not move and 8 tests
+  depend on the pass being synchronous.
+- **Left:** the end-of-sweep apply + re-render (~0.8s, one task), style recalcs, the repeated parent-map rebuilds.
+
+---
+
 ### 2026-11-22 — A DATE STEP: 4.5–5.2s → 3.1–3.3s blocked (feed passes scoped; loops narrowed)
 
 User: *"can you look at the performance of switching dates again for schedule. it still seems kinda long"*.
