@@ -270,13 +270,15 @@ function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket, 
     if (gridNow && occ.gridId && occ.gridId !== gridNow) continue;
     if (!feedInScope(occ, { onlyFieldIds, onlyUnderIds, state, occurrencesById })) continue;
     feeds++;
+    const t0 = diag ? performance.now() : 0;
     const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag, copyIdx });
     minted += r.minted; swept += r.swept;
-    if (diag) rows.push({ owner: occ.label || occ.id, ...r });
+    if (diag) rows.push({ owner: occ.label || occ.id, ms: Math.round(performance.now() - t0), ...r });
   }
   if (diag) {
     console.log(`[feedDiag] ${feeds} feed(s) visited; minted ${minted}, swept ${swept}`);
-    for (const r of rows) console.log(`[feedDiag]   "${r.owner}" matches=${r.matches} visible=${r.visible} existing=${r.existing} minted=${r.minted} swept=${r.swept}${r.bail ? ` BAIL:${r.bail}` : ""}`);
+    rows.sort((a, b) => b.ms - a.ms);
+    for (const r of rows) console.log(`[feedDiag]   ${r.ms}ms "${r.owner}" matches=${r.matches} visible=${r.visible} existing=${r.existing} minted=${r.minted} swept=${r.swept}${r.bail ? ` BAIL:${r.bail}` : ""}`);
   }
   if (minted || swept) console.log(`[feedSync] minted ${minted}, swept ${swept}`);
   return { minted, swept, feeds };

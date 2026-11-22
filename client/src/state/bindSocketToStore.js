@@ -74,6 +74,9 @@ export function echoFeedScope(incoming, prev, gridNow = null) {
   let filterMoved = false;
   for (const k of Object.keys(incoming || {})) {
     if (k === "id" || ECHO_BOOKKEEPING.has(k)) continue;
+    // Text, label and meta are not read by any feed (conditions read fields, _ancestors, parentId) — 2026-11-22: the
+    // echo of each tracker's label write asked for a pass over every feed on a date step.
+    if (k === "textmap" || k === "label" || k === "meta") continue;
     // A filter set ON this row changes only the feeds owned at or under it (2026-11-11).
     if (k === "filterOverride" || k === "filterNavConfig") {
       if (JSON.stringify(incoming[k] ?? null) !== JSON.stringify(prev[k] ?? null)) filterMoved = true;

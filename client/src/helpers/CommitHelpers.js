@@ -439,9 +439,33 @@ function _createOccurrence({ dispatch, socket, occurrence, emit = true, panelId 
 // were recorded as `derived`, and the undo stack skipped them. Measured on the
 // live grid: 33 of 35 transactions were derived, so Ctrl+Z had almost nothing
 // to act on (user: "control z ... not working on docpages").
+/**
+ * Which feeds a write can move. Feed conditions read field values, `_ancestors` and `parentId`, and each owner's
+ * effective filter — nothing else (feedPredicate RECORD_PATHS). So (2026-11-22, a date step ran several passes
+ * over every feed, ~0.5s each):
+ *   only textmap / label / meta        → "none"  (an op's tracker label or meta write moves no feed)
+ *   only filterOverride naming fields   → { fieldIds: those }   (feedMayReadFields counts effective-filter keys)
+ *   fields with a triggerField          → { fieldIds: the triggered fields }
+ *   anything else (a cleared filter, parentId, occurrences, …) → {} = every feed
+ * Pure.
+ */
+const NO_FEED_KEYS = new Set(["id", "textmap", "label", "meta"]);
+export function feedScopeOfPatch(occurrence, triggerField) {
+  const keys = Object.keys(occurrence || {});
+  if (keys.every((k) => NO_FEED_KEYS.has(k))) return "none";
+  if (keys.every((k) => k === "id" || k === "filterOverride")) {
+    const fo = occurrence.filterOverride;
+    const ids = fo && typeof fo === "object" ? Object.keys(fo) : [];
+    return ids.length ? { fieldIds: ids } : {};
+  }
+  if (occurrence.fields && typeof occurrence.fields === "object") return { fieldIds: triggerFieldIds(triggerField) };
+  return {};
+}
+
 export function updateOccurrence(args) {
   if (!args?.occurrence?.id) return undefined;
-  if (!isTextmapOnlyPatch(args.occurrence)) feedsMayHaveChanged({ fieldIds: args.occurrence.fields && typeof args.occurrence.fields === "object" ? triggerFieldIds(args.triggerField) : null });
+  const scope = feedScopeOfPatch(args.occurrence, args.triggerField);
+  if (scope !== "none") feedsMayHaveChanged(scope);
   const label = args.occurrence.textmap !== undefined ? "Edited text" : "Updated item";
   return withAction(label, () => _updateOccurrence(args));
 }

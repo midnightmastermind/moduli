@@ -4229,3 +4229,6 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-17 06:05 CST
 - *"my mr brews work occurances are being put into a later timeslot. i work 9am-3pm today and it only lists it in 930 onward. also put a text field in there called hours and list like 9am-3pm in it with an operation. check the operation for these imports"*.
+
+### 2026-11-22 08:07 CST
+- *"can you look at the performance of switching dates again for schedule. it still seems kinda long"*.

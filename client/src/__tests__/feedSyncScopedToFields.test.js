@@ -59,10 +59,10 @@ describe("updateOccurrence names the fields it changed to the feed scheduler", (
     operationsBridge.getLocalOcc = () => null; operationsBridge.fireOperations = () => {};
     const socket = { emit: () => {}, connected: true };
     updateOccurrence({ dispatch: () => {}, socket, occurrence: { id: "r", fields: { done: { value: true } } }, emit: true, triggerField: { fieldId: "done", value: true } });
-    updateOccurrence({ dispatch: () => {}, socket, occurrence: { id: "r", meta: { x: 1 } }, emit: true });
+    updateOccurrence({ dispatch: () => {}, socket, occurrence: { id: "r", occurrences: ["c"] }, emit: true });   // structure (a meta write asks for none since 2026-11-22)
     Object.assign(operationsBridge, { scheduleFeedSync: saved.s, getLocalOcc: saved.g, fireOperations: saved.f });
     expect(calls[0]).toEqual({ fieldIds: ["done"] });
-    expect(calls[1]).toEqual({ fieldIds: null });
+    expect(calls[1]).toEqual({});
   });
 });
 

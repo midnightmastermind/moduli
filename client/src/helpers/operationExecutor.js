@@ -18,7 +18,7 @@ import { BlockType } from "./blockTypes";
 import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
-import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord, isVarLeft } from "./operationActions";
+import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord, isVarLeft, recordsUnder, recordsWithFieldString } from "./operationActions";
 import { pickActivePeriod } from "./activePeriod";
 import { buildParentMap, allAncestorsOf } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
@@ -2924,6 +2924,13 @@ function executeSteps(steps, $vars, context, transaction) {
       if (step.predicate && Array.isArray(step.predicate.rules) && step.predicate.rules.length) {
         items = items.filter(it => evalGroupAgainstRecord(step.predicate, it, $vars));
       }
+      // A loop whose whole body is ONE `if` with no else, whose AND condition holds `<item>._ancestors HAS_ANCESTOR X`,
+      // does nothing for an item outside X — so it walks only the items under X (the FIND index). Build Schedule
+      // walked every container on the grid to find its day columns, ~90ms of each date step (2026-11-22).
+      const underId = loopAncestorOf(step, varName, $vars);
+      const fieldIs = loopFieldIsOf(step, varName, $vars);
+      if (fieldIs) items = recordsWithFieldString(items, fieldIs.fieldId, fieldIs.value);
+      else if (underId) { const narrowed = recordsUnder(items, underId, { now: true }); if (narrowed) items = narrowed; }
       const loopEntry = log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
       const _loopT0 = loopEntry ? performance.now() : 0;
       let i = 0;
@@ -3218,3 +3225,41 @@ function gatherLoopItems(step, context, $vars) {
 }
 
 export default { shouldTrigger, executeOperation, executePipeline, runMatchingOperations };
+
+
+/**
+ * The ancestor a loop can be narrowed to, or null. Only when the body is exactly one `if` with no else and its AND
+ * rules include a plain `<as>._ancestors HAS_ANCESTOR <one id>`: every other item would skip the body. Exported for tests.
+ */
+/** `<as>.fields.<id>.value IS <value>` in the same one-if-no-else shape → { fieldId, value }, else null. */
+export function loopFieldIsOf(step, as, $vars) {
+  const st = Array.isArray(step?.body) && step.body.length === 1 ? step.body[0] : null;
+  if (st?.type !== "if" || (Array.isArray(st.else) && st.else.length)) return null;
+  const cond = st.condition;
+  if (!cond || (cond.operator || "AND") !== "AND" || !Array.isArray(cond.rules)) return null;
+  const re = new RegExp(`^${as.replace(/[$]/g, "\\$")}\\.fields\\.([^.]+)\\.value$`);
+  for (const r of cond.rules) {
+    if (!r || Array.isArray(r.rules) || r.comparator !== "IS" || typeof r.left !== "string") continue;
+    const m = re.exec(r.left);
+    if (!m) continue;
+    const value = resolveExpr(r.right, $vars) ?? r.right;
+    if (value === undefined || value === null || typeof value === "object") continue;
+    return { fieldId: m[1], value };
+  }
+  return null;
+}
+
+export function loopAncestorOf(step, as, $vars) {
+  const body = step?.body;
+  if (!Array.isArray(body) || body.length !== 1) return null;
+  const st = body[0];
+  if (st?.type !== "if" || (Array.isArray(st.else) && st.else.length)) return null;
+  const cond = st.condition;
+  if (!cond || (cond.operator || "AND") !== "AND" || !Array.isArray(cond.rules)) return null;
+  for (const r of cond.rules) {
+    if (!r || Array.isArray(r.rules) || r.comparator !== "HAS_ANCESTOR" || r.left !== `${as}._ancestors`) continue;
+    const id = resolveExpr(r.right, $vars);
+    if ((typeof id === "string" && id) || typeof id === "number") return String(id);
+  }
+  return null;
+}

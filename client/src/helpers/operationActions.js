@@ -1105,6 +1105,28 @@ export function hasAncestorRuleOf(predicate, $vars) {
   return null;
 }
 
+const _fieldStringIndexes = new WeakMap(); // list -> Map(fieldId -> Map(String(value) -> idx[]))
+/**
+ * The records of `list` (in order) whose `fields.<fieldId>.value`, as a string, equals `target` as a string — exactly
+ * the IS comparator (`String(left) === String(right)`), so nothing IS would keep is left out. A loop asks this
+ * (2026-11-22: Build Schedule's day-column loop matched 60 of 3,060 containers under the Schedule page).
+ */
+export function recordsWithFieldString(list, fieldId, target) {
+  let perField = _fieldStringIndexes.get(list);
+  if (!perField) { perField = new Map(); _fieldStringIndexes.set(list, perField); }
+  let ix = perField.get(fieldId);
+  if (!ix) {
+    ix = new Map();
+    list.forEach((rec, i) => {
+      const k = String(resolveRecordPath(rec, `fields.${fieldId}.value`));
+      if (!ix.has(k)) ix.set(k, []);
+      ix.get(k).push(i);
+    });
+    perField.set(fieldId, ix);
+  }
+  return (ix.get(String(target)) || []).map((i) => list[i]);
+}
+
 const _ancestorIndexes = new WeakMap(); // list -> { asks, byAncestor: Map(id -> idx[]) | null }
 /**
  * The records of `list` (in list order) that carry `ancestorId` in their `_ancestors`, or null = "scan it".
@@ -1112,11 +1134,13 @@ const _ancestorIndexes = new WeakMap(); // list -> { asks, byAncestor: Map(id ->
  * new array), and building for one ask costs more than the scan it replaces. `Schedule: Build Schedule` asks the
  * same list once per off-screen day column (~60): ~1.4M record tests per date step on poms grid (2026-11-06).
  */
-export function recordsUnder(list, ancestorId) {
+export function recordsUnder(list, ancestorId, { now = false } = {}) {
   let e = _ancestorIndexes.get(list);
   if (!e) { e = { asks: 0, byAncestor: null }; _ancestorIndexes.set(list, e); }
   if (!e.byAncestor) {
-    if (++e.asks < 2) return null;
+    // A LOOP asks with `now`: each of its items runs a whole condition through variable expressions (~23µs a
+    // container), so the index (a few ms) pays for itself on the first ask (2026-11-22, 3,060 containers, 72ms).
+    if (++e.asks < 2 && !now) return null;
     const ix = new Map();
     list.forEach((rec, i) => {
       const anc = resolveRecordPath(rec, "_ancestors");
