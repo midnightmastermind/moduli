@@ -13,6 +13,22 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-23 — A FEED CHECKS ITS CONDITION FIRST: worst frame after a date step 0.8–0.9s → 0.68–0.70s
+
+User: *"yes"* (keep going on the remaining freeze). The longest busy run after a step (1.76s, `longtask.mjs`) was the
+feed pass in one task (~0.59s; `resolveFeedItems` 0.41s) beside Build Schedule (~0.45s as ONE op — slicing cannot
+split an op). 29 of the 32 feeds are "Board Category CONTAINS x" over instances, matching a handful.
+- **`resolveFeedItems`**: the row's ancestor walk and the `{...occ, _ancestors}` copy ran for EVERY candidate before
+  the condition. Now a condition that does not name `_ancestors` is checked first on the row itself (all checks are
+  ANDed — same result); the ancestor work runs only for matches. A condition reading `_ancestors` (Combine Days)
+  keeps the old order. Zero-match feeds: ~8ms → ~1ms each. 22 feed files / 170 tests pass.
+- Prod: worst frame 0.68–0.70s (was 0.8–0.9; 1.4–1.5 before the sliced sweep), quiet 3.1–3.5s, day shown ~0.75s.
+  `_navcheck.mjs`: every step (and a double Next) lists the built column with 50 slots.
+- **Left:** Build Schedule's ~0.45s (its read-model setup, paid first in the sweep); the feed that applies the date
+  filter (~0.25s, mostly rebuilding the ancestor map — the pass gets a new occurrence map each time).
+
+---
+
 ### 2026-11-22 (2) — A DATE STEP NO LONGER FREEZES 1.5s: its operation sweep runs sliced
 
 User: *"lets try to improve the drawing"*. Measured first (`tools/uisweep/_drawtrace.mjs` timeline trace,
