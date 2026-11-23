@@ -4236,3 +4236,4 @@ User: *"is it possible to go through each book too and remove the previous and n
 
 ### 2026-11-23 07:55 CST
 - *"yes"* — keep going on the end-of-sweep apply + re-render (~0.8s, the remaining freeze after a date step).
+- 09:15 *"sure we cant try that"* (= sure, we can) — keep the parent/ancestor index across passes until structure changes.

@@ -147,13 +147,44 @@ export function allAncestorsOf(occId, occurrencesById, parentByChildId, cap = 24
 // render-path callers, which are handed the immutable store map, use this.
 const _parentMapCache = new WeakMap();
 
+/**
+ * Do two occurrence maps have the same STRUCTURE — the only thing the parent indexes are built from: the same ids in
+ * the same order (with several listers, the last one wins), each with the same `parentId` and the same child list.
+ * A field write replaces the whole map but changes none of these, so a structure-keyed index can be reused instead of
+ * rebuilt (2026-11-23: the parent map was rebuilt several times per date step, ~0.15–0.3s). Exported for tests.
+ */
+export function sameStructure(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i]) return false;
+    const x = a[ka[i]], y = b[kb[i]];
+    if (x === y) continue;
+    if ((x?.parentId ?? null) !== (y?.parentId ?? null)) return false;
+    const cx = x?.occurrences, cy = y?.occurrences;
+    if (cx === cy) continue;
+    if (!Array.isArray(cx) || !Array.isArray(cy) || cx.length !== cy.length) return false;
+    for (let j = 0; j < cx.length; j++) if (cx[j] !== cy[j]) return false;
+  }
+  return true;
+}
+
+// The last map each cache built from, to compare a NEW map against before rebuilding.
+function structureCached(cache, last, occurrencesById, build) {
+  const hit = cache.get(occurrencesById);
+  if (hit) return hit;
+  const value = last.src && sameStructure(last.src, occurrencesById) ? last.value : build(occurrencesById);
+  cache.set(occurrencesById, value);
+  last.src = occurrencesById; last.value = value;
+  return value;
+}
+const _lastParentMap = { src: null, value: null };
+
 export function cachedParentMap(occurrencesById) {
   if (!occurrencesById || typeof occurrencesById !== "object") return Object.create(null);
-  const hit = _parentMapCache.get(occurrencesById);
-  if (hit) return hit;
-  const map = buildParentMap(occurrencesById);
-  _parentMapCache.set(occurrencesById, map);
-  return map;
+  return structureCached(_parentMapCache, _lastParentMap, occurrencesById, buildParentMap);
 }
 
 // ------------------------------------------------------------
@@ -228,13 +259,10 @@ const _parentsMapCache = new WeakMap();
 
 // Same identity-keyed memo, and the same caveat: render-path callers only.
 // A map the executor mutates in place must not be cached by identity.
+const _lastParentsMap = { src: null, value: null };
 export function cachedParentsMap(occurrencesById) {
   if (!occurrencesById || typeof occurrencesById !== "object") return Object.create(null);
-  const hit = _parentsMapCache.get(occurrencesById);
-  if (hit) return hit;
-  const map = buildParentsMap(occurrencesById);
-  _parentsMapCache.set(occurrencesById, map);
-  return map;
+  return structureCached(_parentsMapCache, _lastParentsMap, occurrencesById, buildParentsMap);
 }
 
 // ── THE ANCESTOR SET OF X DOES NOT DEPEND ON WHO IS ASKING ────────────────
@@ -250,15 +278,14 @@ export function cachedParentsMap(occurrencesById) {
 // graph's pull, and the sync pass, which builds a fresh map every time) are all
 // render-path, and each gets a new map object whenever the occurrences change.
 const _ancestorsCache = new WeakMap();
+const _lastAncestors = { src: null, value: null };
 export function cachedAncestorsOf(occurrencesById) {
   if (!occurrencesById || typeof occurrencesById !== "object") {
     return (id) => reachableAncestors(id, occurrencesById, null);
   }
-  let entry = _ancestorsCache.get(occurrencesById);
-  if (!entry) {
-    entry = { parents: cachedParentsMap(occurrencesById), byId: new Map() };
-    _ancestorsCache.set(occurrencesById, entry);
-  }
+  // The memoised walks are reused too while the structure is the same (they read only parents and `parentId`).
+  const entry = structureCached(_ancestorsCache, _lastAncestors, occurrencesById,
+    (m) => ({ parents: cachedParentsMap(m), byId: new Map() }));
   return (id) => {
     let hit = entry.byId.get(id);
     if (hit === undefined) {
