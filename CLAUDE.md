@@ -13,6 +13,22 @@
 > The narrative below stops at **2026-10-30 (11)**. **Grep both archives before concluding something was never
 > done.** The standing rules, the data model and the roadmap are still at the BOTTOM of this file.
 
+### 2026-11-23 (2) — THE PARENT INDEXES SURVIVE A FIELD WRITE (structure-keyed reuse)
+
+User: *"sure we cant try that"* (= can). `cachedParentMap` / `cachedParentsMap` / `cachedAncestorsOf` were keyed on the
+occurrence map's IDENTITY, and every write (and every feed pass, which builds its own map) replaces it, so the
+whole-grid index and the memoised ancestor walks were rebuilt several times per date step.
+- `dragHitTesting.sameStructure(a, b)`: same ids in the same order (with several listers the last wins), each with the
+  same `parentId` and the same child list (by reference, else element by element) — exactly what the three builders
+  read. `structureCached` compares a new map to the last one built from and reuses its index when the structure
+  matches; the WeakMap identity hit still comes first. **Blind spot, stated:** a child list edited IN PLACE (same
+  array) reads as unchanged — the identity cache had the same blind spot within one map.
+- The date-filter feed 252 → 75ms. Worst frame after a date step on prod 0.6–0.7s (noise around the previous
+  0.68–0.70 — the largest single task left is Build Schedule's ~0.45s). `_navcheck.mjs` correct on every step.
+  Tests `structureCached` (3); 115 files / 1,003 tests that use these indexes pass.
+
+---
+
 ### 2026-11-23 — A FEED CHECKS ITS CONDITION FIRST: worst frame after a date step 0.8–0.9s → 0.68–0.70s
 
 User: *"yes"* (keep going on the remaining freeze). The longest busy run after a step (1.76s, `longtask.mjs`) was the
