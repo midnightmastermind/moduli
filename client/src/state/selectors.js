@@ -629,6 +629,7 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
     ? (occurrencesByRole(occurrencesById, modulesById).get(roles[0]) || [])
     : Object.values(occurrencesById);
   const needsRoleCheck = roles.length !== 1;
+  const predicateReadsAncestors = !!predicate && JSON.stringify(predicate).includes('"_ancestors"');
 
   const out = [];
   for (const occ of candidates) {
@@ -642,11 +643,15 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
     if (feedOcc.gridId && occ.gridId && occ.gridId !== feedOcc.gridId) continue;
     const mod = modulesById?.[occ.moduleId];
     if (needsRoleCheck && !roles.includes(occ.role ?? mod?.role ?? null)) continue;
+    // The condition FIRST when it reads only the row's own fields (every check here is ANDed, so the order changes
+    // nothing): the ancestor walk and the `{...occ, _ancestors}` copy ran for every instance on the grid per feed —
+    // 29 of 32 feeds are "Board Category CONTAINS x" and match a handful (2026-11-23, ~0.4s of a date step).
+    if (predicate && !predicateReadsAncestors && !evalGroupAgainstRecord(predicate, occ, {})) continue;
     const ancestors = ancestorsOf(occ.id);
     if (ancestors.includes(feedOcc.id)) continue; // already an owned descendant
     if (feed.scope && !ancestors.includes(feed.scope)) continue;
     // AND/OR + nesting, via the evaluator that has always supported both.
-    if (predicate && !evalGroupAgainstRecord(predicate, { ...occ, _ancestors: ancestors }, {})) continue;
+    if (predicate && predicateReadsAncestors && !evalGroupAgainstRecord(predicate, { ...occ, _ancestors: ancestors }, {})) continue;
     out.push({ occurrence: occ, module: mod || null });
   }
 
